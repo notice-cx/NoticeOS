@@ -61,14 +61,18 @@ export const TASK_METADATA = Object.freeze({
     card: Object.freeze({ name: "noticeos_card", legacy: "noticeos_card" }),
     /** The kind of change the task makes (task-change-class.mts). */
     changeClass: Object.freeze({ name: "noticeos_change_class", legacy: "noticeos_change_class" }),
+    /** The card as it stood when the task first closed as done (task-card.mts):
+     * the prediction grading reads. Server-set after that close, never edited. */
+    cardShipped: Object.freeze({ name: "noticeos_card_shipped", legacy: "noticeos_card_shipped" }),
 });
 /** The names only the server writes. A caller's metadata never carries them,
  * so no filer can forge who filed or closed a task and how, a write's
- * identity, an unvalidated set of choices or a person's pick. */
+ * identity, an unvalidated set of choices, a person's pick or the card a task
+ * shipped with. */
 export const SERVER_TASK_METADATA = Object.freeze([TASK_METADATA.operation, TASK_METADATA.claimedModel,
     TASK_METADATA.closedBy, TASK_METADATA.closedModel, TASK_METADATA.closedAt, TASK_METADATA.filedBy,
     TASK_METADATA.filedModel, TASK_METADATA.choices, TASK_METADATA.choice, TASK_METADATA.resolution,
-    TASK_METADATA.duplicateOf, TASK_METADATA.maintenance].map(field => field.name));
+    TASK_METADATA.duplicateOf, TASK_METADATA.maintenance, TASK_METADATA.cardShipped].map(field => field.name));
 /** How far apart a recorded close time and the task's own may be and still
  * name one close: the server copies the task's close time when it records it. */
 const SAME_CLOSE_MS = 1000;

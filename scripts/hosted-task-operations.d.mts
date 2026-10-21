@@ -94,8 +94,9 @@ export declare const EDITABLE_TASK_FIELDS: readonly string[];
 export declare const CLOSED_DAYS = 7;
 export declare const CLOSED_HISTORY_DAYS = 56;
 /** Who closed a task and how it ended, written onto it after its close: the
- * task client keeps no closer. The close stands whether or not this lands; a
- * task without it shows its close, no closer, and reads as done.
+ * task client keeps no closer. A close as done also keeps the task's card as
+ * the close left it (shippedTaskCard). The close stands whether or not this
+ * lands; a task without it shows its close, no closer, and reads as done.
  * `closeOutput` is the close's own answer. */
 export declare function recordCloser(run: (operation: HostedTaskOperation) => Promise<unknown>, taskId: string, closeOutput: unknown, closedBy: string, model?: string, ended?: Pick<Extract<HostedTaskOperation, {
     kind: 'close';

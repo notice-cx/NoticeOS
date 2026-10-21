@@ -287,8 +287,8 @@ Never rewrite an old bead's metadata to the new names.
 **Who did the work.** `bd` records the assignee a claim sets but not who
 closed a task, how the close ended or the model a filer named, so NoticeOS
 writes eight more keys itself, and metadata sent with a new task may not
-include them (nor the two keys of [What a task is worth](#what-a-task-is-worth),
-which arrive in fields of their own): `noticeos_filed_by` and `noticeos_filed_model` (who filed the
+include them (nor the keys of [What a task is worth](#what-a-task-is-worth):
+two arrive in fields of their own, and the server writes the third): `noticeos_filed_by` and `noticeos_filed_model` (who filed the
 task through the task tools and the model it named, written in the create
 itself), `noticeos_claimed_model` (the model an agent named when it claimed
 the task), and, written in one update just after a close,
@@ -388,8 +388,9 @@ finding keys are rule ids every property shares.
 
 ### What a task is worth
 
-Two keys record why a task is worth doing and what kind of change it makes.
-Whoever files or edits the task writes them: an agent through the task tools'
+Two keys record why a task is worth doing and what kind of change it makes,
+and a third keeps the card a task shipped with.
+Whoever files or edits the task writes the first two: an agent through the task tools'
 `card` and `change_class` arguments (`create_task`, `create_tasks`,
 `update_task`), the operator through the Tower's task lane and the hosted
 Tasks API, whose fields are `card` and `changeClass`. Each is checked in its
@@ -429,6 +430,22 @@ shown as Content data, Copy, Template, Feature and Infrastructure. The
 autonomy ladder ([doc 05](../docs/05-execution-and-accountability.md)) and
 the likelihood priors ([doc 04](../docs/04-decision-policy.md)) are kept per
 class.
+
+`noticeos_card_shipped` is the card as it stood when the task first closed
+as done: `{ card, closedAt, commit? }`, where `card` is the `noticeos_card`
+the close left, `closedAt` is the close's `closed_at`, and `commit` is the
+first commit hash the close reason names (a word of 7 to 64 lowercase hex
+digits holding both a digit and a letter), absent when it names none. The
+server writes it in the update just after the close, with
+`noticeos_closed_by`, for a close through the task tools' `close_task`, the
+hosted Tasks API or the Tower's task lane, and only when the resolution is
+`done` and the task carries a card. A close with any other resolution writes
+none. It is never edited: a reopened task keeps it, a later close as done
+leaves it as it was, and `update_task`, the hosted Tasks API and the task
+lane stop any change that sets or removes the task's `card`, with a message
+that names the day it shipped. It holds the prediction the change is graded
+against ([doc 04](../docs/04-decision-policy.md)). `readTaskCardShipped`
+reads it, and reads a value that fails its rules as none.
 
 The Tower ranks tasks by their cards with policy v1.0, the scoring function
 of [doc 04](../docs/04-decision-policy.md):

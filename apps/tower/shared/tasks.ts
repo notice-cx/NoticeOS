@@ -7,6 +7,7 @@
 // coordination state, not signals.
 
 import { recordsClose, TASK_METADATA } from "@noticeos/contract/task-metadata";
+import type { TaskCardShipped } from "@noticeos/contract/task-card";
 import type { WorkItem } from "./work";
 
 /** Closed history is bounded in time, never sampled by row count. */
@@ -66,6 +67,10 @@ export interface LiveTask extends WorkItem {
   /** `human`, `timer`, `gh:run`, … on an approval task; null on everything
    * else. */
   awaitType: string | null;
+  /** The card as it stood when the task first closed as done, which no
+   * writer edits; null when it carries none, absent from a row read before
+   * shipped cards existed. */
+  cardShipped?: TaskCardShipped | null;
 }
 
 /** One container task with its all-time child progress (`bd epic status`) —

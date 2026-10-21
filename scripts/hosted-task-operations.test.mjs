@@ -173,6 +173,37 @@ test('a close records who closed it and with which model; the close stands if th
   assert.equal(f.tasks.get('tt-2').metadata.noticeos_closed_by, undefined);
 });
 
+test('a close as done keeps the card as it stood, with the commit its reason names; another close keeps none, and the first ship stands', async () => {
+  const f = fixture();
+  const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort' };
+  const write = (operation, key) => f.operations.write(proof(), A, { projectId: P, operation }, key);
+  await write({ kind: 'create', title: 'Shorten the titles', card });
+  const stored = f.tasks.get('tt-1').metadata.noticeos_card;
+  f.advance(60_000);
+  assert.equal((await write({ kind: 'close', taskId: 'tt-1', reason: 'Shipped · a1b2c3d · example.com/recipes' }, 'agent-close-0001')).status, 'done');
+  const { metadata, closed_at } = f.tasks.get('tt-1');
+  assert.deepEqual(metadata.noticeos_card_shipped, { card: stored, closedAt: closed_at, commit: 'a1b2c3d' });
+  assert.equal(metadata.noticeos_resolution, 'done');
+
+  // Reopened, its card changed by hand, and done again: the prediction it first shipped with stands.
+  await write({ kind: 'update', taskId: 'tt-1', status: 'open' });
+  f.tasks.get('tt-1').metadata.noticeos_card = { ...stored, valuePerMonth: 900 };
+  f.advance(60_000);
+  await write({ kind: 'close', taskId: 'tt-1', reason: 'Shipped again · e5f6a7b' }, 'agent-close-0002');
+  assert.deepEqual(f.tasks.get('tt-1').metadata.noticeos_card_shipped, { card: stored, closedAt: closed_at, commit: 'a1b2c3d' });
+  assert.notEqual(f.tasks.get('tt-1').metadata.noticeos_closed_at, closed_at, 'the closer is the later close\'s');
+
+  // Nothing shipped: no card is kept.
+  await write({ kind: 'create', title: 'Not worth it after all', card });
+  await write({ kind: 'close', taskId: 'tt-2', reason: 'The pages are going away · a1b2c3d', resolution: 'wont-do' }, 'agent-close-0003');
+  assert.equal(f.tasks.get('tt-2').metadata.noticeos_resolution, 'wont-do');
+  assert.equal('noticeos_card_shipped' in f.tasks.get('tt-2').metadata, false);
+  // Nor does a task without a card ship one.
+  await write({ kind: 'create', title: 'Tidy up' });
+  await write({ kind: 'close', taskId: 'tt-3', reason: 'Done · a1b2c3d' }, 'agent-close-0004');
+  assert.equal('noticeos_card_shipped' in f.tasks.get('tt-3').metadata, false);
+});
+
 test('a closed-only read may ask for the Agents page history; the board keeps its week', async () => {
   const f = fixture();
   const history = await f.operations.board(proof(), A, P, ['closed'], 56);

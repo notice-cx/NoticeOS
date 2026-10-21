@@ -27,8 +27,8 @@ import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceK
 import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../../packages/contract/src/task-resolution.mjs";
 import { TASK_CHANGE_CLASSES, isTaskChangeClass, type TaskChangeClass } from "../../../packages/contract/src/task-change-class.mjs";
 import type { TaskCard } from "../../../packages/contract/src/task-card.mjs";
-import { choiceSteps, closerMetadata, decisionRefusal, ownerResponseSteps, recordedTaskCard, sentTaskCard, TaskMaintenanceRefused, TaskStateRefused,
-  type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+import { choiceSteps, closerMetadata, decisionRefusal, guardedWrite, ownerResponseSteps, recordedTaskCard, sentTaskCard, shippedTaskCard,
+  TaskMaintenanceRefused, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
@@ -614,6 +614,9 @@ async function createTask(request: LaneRequest, opts: Resolved): Promise<LaneRep
     for (const [field, name] of Object.entries(UPDATE_METADATA_FIELDS)) {
       if (Object.hasOwn(metadata, name)) throw refuse(422, "invalid_body", `metadata carries no ${name}; send it as ${field}`);
     }
+    if (Object.hasOwn(metadata, TASK_METADATA.cardShipped.name)) {
+      throw refuse(422, "invalid_body", `metadata carries no ${TASK_METADATA.cardShipped.name}; a close as done writes it`);
+    }
   }
   const changeClass = changeClassInput(input.changeClass);
   const writer = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
@@ -680,11 +683,13 @@ async function updateTask(id: string, request: LaneRequest, opts: Resolved): Pro
     throw refuse(422, "invalid_body", "set card and changeClass in one change, and take them off with null in another");
   }
   if (removed.length > 0) {
+    if (Object.hasOwn(input, "card")) refuseShippedCardEdit(id, null, spoke, opts);
     for (const [, name] of removed) args.push("--unset-metadata", name);
   } else if (kept.length > 0) {
     const changeClass = changeClassInput(input.changeClass);
     const recorder = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
     const card = cardInput(input.card, recorder);
+    if (Object.hasOwn(input, "card")) refuseShippedCardEdit(id, card, spoke, recorder);
     writer = recorder;
     args.push("--metadata", JSON.stringify(worthMetadata(card, changeClass)));
     // A new card's kill date moves the due date; a card taken off leaves it.
@@ -793,14 +798,17 @@ function closeResolution(input: Record<string, unknown>, id: string, spoke: Spok
 }
 
 /** Who closed it and how it ended, written onto the task after the close:
- * `bd` keeps no closer. The close stands whether or not this lands; a task
- * without it shows no closer and reads as done. */
+ * `bd` keeps no closer. A close as done also keeps the task's card as the
+ * close left it (shippedTaskCard). The close stands whether or not this
+ * lands; a task without it shows no closer and reads as done. */
 function recordCloser(id: string, closed: unknown, spoke: Spoke, opts: Resolved & { actor: string }, ended: CloseResolution = {}): void {
   const row = (Array.isArray(closed) ? closed : [closed]).find((entry): entry is Record<string, unknown> =>
     entry !== null && typeof entry === "object" && (entry as Record<string, unknown>).id === id);
   if (row?.status !== "closed" || typeof row.closed_at !== "string") return;
   try {
-    const metadata = closerMetadata({ kind: "attribute", taskId: id, closedBy: opts.actor, closedAt: row.closed_at, ...ended });
+    const shipped = shippedTaskCard(row, ended.resolution);
+    const metadata = closerMetadata({ kind: "attribute", taskId: id, closedBy: opts.actor, closedAt: row.closed_at, ...ended,
+      ...(shipped === undefined ? {} : { shipped }) });
     runVerb("update", [id, "--metadata", JSON.stringify(metadata)], spoke, opts);
   } catch {
     // The task shows its close without a closer.
@@ -861,7 +869,22 @@ function readDecisionTask(id: string, spoke: Spoke, opts: Resolved, extra: strin
   return row as Record<string, unknown>;
 }
 
-/** A decision refused by the task's own state, in the sentence the person reads. */
+/** Before a card is set or taken off: a card the task shipped with stays as
+ * it shipped, the rule the task tools hold (guardedWrite). */
+function refuseShippedCardEdit(id: string, card: TaskCard | null, spoke: Spoke, opts: Resolved): void {
+  const { json } = runVerb("show", [id], spoke, opts);
+  const row = Array.isArray(json) && json.length === 1 ? json[0] : json;
+  if (row === null || typeof row !== "object" || Array.isArray(row) || (row as Record<string, unknown>).id !== id) {
+    throw refuse(502, "bd_failed", "The task could not be read before changing its card.");
+  }
+  try {
+    guardedWrite({ kind: "update", taskId: id, card }, row as Record<string, unknown>, opts.actor ?? operatorActor(opts.repoRoot));
+  } catch (error) {
+    refusedDecision(error);
+  }
+}
+
+/** A decision or card edit refused by the task's own state, in the sentence the person reads. */
 function refusedDecision(error: unknown): never {
   if (error instanceof TaskMaintenanceRefused) throw refuse(409, "task_refused", error.message);
   if (error instanceof TaskStateRefused) throw refuse(409, "task_refused", decisionRefusal(error) ?? `${error.taskId} cannot take this decision.`);
