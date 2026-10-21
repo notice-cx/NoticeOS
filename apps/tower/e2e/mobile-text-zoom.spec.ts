@@ -31,7 +31,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
       }
       const rows: object[] = [];
       try {
-        for (const [route, name] of [['/', 'home'], ['/assets', 'sites'], ['/alerts', 'alerts'], ['/tasks', 'tasks']] as const) {
+        for (const [route, name] of [['/', 'home'], ['/assets', 'sites'], ['/alerts', 'alerts'], ['/tasks/all', 'tasks']] as const) {
           await page.goto(route);
           const main = page.getByRole('main');
           const heading = main.getByRole('heading', { level: 1 });

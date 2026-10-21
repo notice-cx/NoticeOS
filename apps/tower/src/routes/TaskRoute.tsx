@@ -322,7 +322,7 @@ export default TaskRoute;
 export function taskReturnPath(state: unknown): string {
   if (typeof state !== "object" || state === null || !("returnTo" in state)) return "/tasks";
   const path = state.returnTo;
-  return typeof path === "string" && /^\/(?:assets(?:\/|\?|$)|tasks(?:\?|$)|\?|$)/.test(path) ? path : "/tasks";
+  return typeof path === "string" && /^\/(?:assets(?:\/|\?|$)|tasks(?:\/(?:all|projects|focus))?(?:\?|$)|\?|$)/.test(path) ? path : "/tasks";
 }
 
 // --- The header: identity, state, and the actions, the primary one first ----

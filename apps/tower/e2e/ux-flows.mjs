@@ -358,7 +358,7 @@ FLOWS["connect-beads"] = {
   async setup(page, fixture) { await fixture("/__journey/core-tasks"); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
-    await w.waitFor("core task project → board", () => w.page.locator("[data-tasks-filters]").waitFor());
+    await w.waitFor("core task project → Next", () => w.page.locator("[data-tasks-next]").waitFor());
     await w.end("available");
   },
 };
@@ -500,6 +500,7 @@ FLOWS["tasks-bulk-close"] = {
   async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/backlog"); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
+    await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
     const fold = w.page.locator("[data-tasks-filters] [data-filter-toggle]");
     if (await fold.isVisible()) await w.click(fold, "Filters", { role: "choose" });
     await w.fill(w.page.locator("#tasks-label"), "groom", "Label");
@@ -891,7 +892,7 @@ FLOWS["arrange-sites"] = {
 
 const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/growth`, `/assets/${ASSET}/financials`,
   `/assets/${ASSET}/search`, `/assets/${ASSET}/health`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
-  `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/agents", "/integrations",
+  `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/tasks/projects", "/tasks/all", "/agents", "/integrations",
   "/integrations?provider=bing-webmaster", "/integrations?provider=google", "/integrations?provider=mediavine",
   "/health", "/health/operations", "/financials", "/settings", "/wall"];
 
