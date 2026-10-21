@@ -335,7 +335,7 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
               value={measure.value}
               format={measure.format}
               absent={measure.absent}
-              note={measure.estimated ? "est." : undefined}
+              note={measure.estimated ? (measure.key === "money" && ledgerMonth(data.ledger)?.booking === "booked" ? "est. · unbooked" : "est.") : undefined}
               comparison={measure.comparison}
               history={measure.history.length >= 3 ? (
                 <BarStrip
@@ -402,7 +402,7 @@ function shortUsual(measure: Measure): string {
 function MeasureContext({ measure, data, days }: { measure: Measure; data: AssetDetailFor<"overview">; days: RangeDays }): ReactNode {
   if (measure.key === "money") {
     const month = ledgerMonth(data.ledger);
-    const net = month && month.period ? <>{formatPeriodMonthLong(month.period)} net <b>{formatSignedMoney(month.net, month.currency)}</b>{month.booking === "forecast" ? " est." : ""}</> : null;
+    const net = month && month.period ? <>{formatPeriodMonthLong(month.period)} {month.booking === "booked" ? "booked net so far" : "net"} <b>{formatSignedMoney(month.net, month.currency)}</b>{month.booking === "forecast" ? " est." : ""}</> : null;
     if (measure.days.length === 0) return month?.composition || null;
     return (
       <>
@@ -474,7 +474,7 @@ function VerdictLine({
   nowMs: number;
 }) {
   const moneyFact = money && moneyPeriod
-    ? `${formatPeriodMonth(moneyPeriod)} net ${formatSignedMoney(money.net, money.currency)}${money.booking === "forecast" ? " est." : ""}`
+    ? `${formatPeriodMonth(moneyPeriod)} ${money.booking === "booked" ? "booked net so far" : "net"} ${formatSignedMoney(money.net, money.currency)}${money.booking === "forecast" ? " est." : ""}`
     : "no money recorded";
   const alertsFact = alerts.open === 0 ? "no open alerts" : `${alertSplit(alerts)} open`;
   return (

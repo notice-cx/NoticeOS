@@ -604,6 +604,32 @@ describe("Asset Overview — leads with the numbers the site has", () => {
     collectedAt: "2026-07-05T11:00:00.000Z", windowHours: 72 as const, truncated: false,
     page: { url: "https://meadow.example/planner", sessions: 114, scriptErrors: 19 }, unattributedSessions: null };
 
+  it.each([
+    { title: "costs with unbooked revenue", booked: { currency: "USD", revenue: 0, cost: 20, net: -20 }, estimates: true, net: "−$20", unbooked: true },
+    { title: "ordinary booked revenue", booked: { currency: "USD", revenue: 100, cost: 20, net: 80 }, estimates: true, net: "+$80", unbooked: true },
+    { title: "booked costs without estimates", booked: { currency: "USD", revenue: 0, cost: 20, net: -20 }, estimates: false, net: "−$20", unbooked: false },
+  ])("qualifies the booked net for $title", async ({ booked, estimates, net, unbooked }) => {
+    const body = noTraffic();
+    body.ledger.periods[0]!.booked.figure = booked;
+    if (estimates) body.dailyRevenue = revenue();
+    else delete body.dailyRevenue;
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const verdict = container.querySelector("[data-verdict-line]")!;
+    expect(verdict).toHaveTextContent(`Jul booked net so far ${net}`);
+    const card = measure(container, "money");
+    if (estimates) {
+      expect(figureOf(card)).toBe("$140");
+      expect(card).toHaveTextContent(`July booked net so far ${net}`);
+    } else {
+      expect(figureOf(card)).toBe("−$20.00");
+      expect(card).not.toHaveTextContent("est.");
+    }
+    expect(card.textContent?.includes("unbooked")).toBe(unbooked);
+    expect(body.ledger.periods[0]!.booked.figure).toEqual(booked);
+  });
+
   it("opens a revenue-only site on its ad revenue, on the network's own days", async () => {
     stubJsonFetch({ ...noTraffic(), dailyRevenue: revenue() });
     const { container } = renderOverview();
