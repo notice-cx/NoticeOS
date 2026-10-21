@@ -146,6 +146,35 @@ test('bounded arrays and handoff metadata preserve values and reject nested dupl
   ]) assert.equal((await f.handler(request('/api/tasks', 'POST', text))).status, 400);
   assert.equal(f.calls.length, before);
 });
+test('a card with its kill criterion and a change class arrive whole on a create and an update; anything deeper or malformed refuses', async () => {
+  const f = fixture();
+  const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort',
+    kill: { state: 'RPM below 12 on the changed pages', date: '2026-12-31' } };
+  assert.equal((await f.handler(request('/api/tasks', 'POST', { projectId: P, title: 'Worth it', card, changeClass: 'template' }))).status, 200);
+  const { card: sent, ...rest } = f.calls.at(-1).command.operation;
+  assert.deepEqual([rest, { ...sent, kill: { ...sent.kill } }], [{ kind: 'create', title: 'Worth it', changeClass: 'template' }, card]);
+  assert.ok(Object.isFrozen(sent) && Object.isFrozen(sent.kill));
+  for (const value of [{ card: null }, { changeClass: null }, { changeClass: 'copy' }, { card: null, changeClass: null }]) {
+    assert.equal((await f.handler(request('/api/tasks/tt-a', 'PATCH', { projectId: P, ...value }))).status, 200);
+    assert.deepEqual(f.calls.at(-1).command.operation, { kind: 'update', taskId: 'tt-a', ...value });
+  }
+  assert.equal((await f.handler(request('/api/tasks/tt-a', 'PATCH', { projectId: P, card }))).status, 200);
+  assert.deepEqual(f.calls.at(-1).command.operation.card.valuePerMonth, 400);
+  const before = f.calls.length;
+  for (const value of [
+    { projectId: P, title: 'Worth it', card: { ...card, likelihood: 2 } },
+    { projectId: P, title: 'Worth it', card: { ...card, kill: { state: 'Flat', date: { day: 31 } } } },
+    { projectId: P, title: 'Worth it', card: { ...card, kill: ['Flat'] } },
+    { projectId: P, title: 'Worth it', card: { ...card, likelihood: [0.4] } },
+    { projectId: P, title: 'Worth it', changeClass: 'refactor' },
+    { projectId: P, title: 'Worth it', metadata: { noticeos_change_class: 'copy' } },
+    `{"projectId":"${P}","title":"Worth it","card":{"valuePerMonth":400,"likelihood":0.4,"reviewMinutes":20,"daysToSignal":28,`
+      + '"measurability":"cohort","likelihoo\\u0064":0.9}}',
+  ]) assert.equal((await f.handler(request('/api/tasks', 'POST', value))).status, 400, JSON.stringify(value));
+  // Setting one and taking off another is two changes to the task client.
+  assert.equal((await f.handler(request('/api/tasks/tt-a', 'PATCH', { projectId: P, card, changeClass: null }))).status, 400);
+  assert.equal(f.calls.length, before);
+});
 test('zero-byte microtask streams refuse without starving the whole-read deadline', async () => {
   const f = fixture(); let pulls = 0, cancelled = 0;
   const original = new Request(origin + '/api/tasks', { method: 'POST',

@@ -9,7 +9,7 @@ import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { TASK_QUALITY, TASK_WORKFLOW, WHATS_CHANGED, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
-import { TaskStateRefused } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, TaskStateRefused } from './hosted-task-command.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
 // connection and one token reach every tool in every workspace its person
@@ -884,4 +884,102 @@ test('an agent names its model on claim and close; the task shows who closed it 
   assert.deepEqual([closed.task.metadata.noticeos_closed_by, closed.task.metadata.noticeos_closed_model], [PERSON, 'Opus 5.5']);
   assert.match((await call(f, 'close_task', { workspace: A, project: P, task: 'tt-1', reason: 'Done', model: 'two\nlines',
     idempotency_key: 'agent-close-0102' })).content[0].text, /^invalid arguments: model/u);
+});
+
+const CARD = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort',
+  kill: { state: 'RPM below 12 on the changed pages', date: '2026-12-31' } };
+/** The task client's arguments for the last write of this kind the executor ran. */
+const plannedArgv = (f, kind) => createHostedTaskPlanner([{ workspaceId: A, projectId: P, capability: Symbol() }])(A,
+  { projectId: P, operation: f.calls.filter(entry => entry.operation.kind === kind).at(-1).operation }).argv;
+
+test('the tool list documents a card\'s figures with their units and ranges, and the guide says when a task carries one', async () => {
+  const f = fixture();
+  const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
+  const input = name => tools.find(tool => tool.name === name).inputSchema;
+  for (const properties of [input('create_task').properties, input('create_tasks').properties.tasks.items.properties, input('update_task').properties]) {
+    assert.deepEqual(properties.card.required, ['valuePerMonth', 'likelihood', 'reviewMinutes', 'daysToSignal', 'measurability']);
+    const { likelihood, valuePerMonth, daysToSignal, kill } = properties.card.properties;
+    assert.deepEqual([likelihood.minimum, likelihood.maximum, daysToSignal.type], [0.01, 0.99, 'integer']);
+    assert.match(likelihood.description, /0\.01 to 0\.99/u);
+    assert.match(valuePerMonth.description, /USD a month, -1000000 to 1000000/u);
+    assert.match(kill.properties.date.description, /due date/u);
+    assert.deepEqual(properties.change_class.enum.filter(Boolean), ['content-data', 'copy', 'template', 'feature', 'infra']);
+  }
+  assert.deepEqual([input('update_task').properties.card.type, input('update_task').properties.change_class.type], [['object', 'null'], ['string', 'null']]);
+  const { guide } = taskGuide(false);
+  assert.match(guide, /- Work meant to change money carries a card: .*a task without one is listed, not ranked\./u);
+  assert.match(guide, /- change_class names the kind of change a task makes, one of content-data, copy, template, feature and infra/u);
+});
+
+test('a card and a change class are stored with who wrote the card and when, its kill date is the due date, and get_task and list_tasks return them', async () => {
+  const f = fixture();
+  const made = (await call(f, 'create_task', { workspace: A, project: P, title: 'Speed up the recipe pages', change_class: 'template',
+    card: { ...CARD, by: 'someone else', at: '2020-01-01T00:00:00Z' }, idempotency_key: 'agent-card-0001' })).structuredContent;
+  const stored = { ...CARD, by: PERSON, at: '2026-10-07T12:00:00.000Z' };
+  assert.deepEqual([f.tasks.get(made.id).metadata.noticeos_card, f.tasks.get(made.id).metadata.noticeos_change_class], [stored, 'template'],
+    'the server\'s by and at, never the caller\'s');
+  assert.equal(plannedArgv(f, 'create').filter(arg => arg.startsWith('--due=')).join(), '--due=2026-12-31');
+  const read = (await call(f, 'get_task', { workspace: A, project: P, task: made.id })).structuredContent.task;
+  assert.deepEqual([read.card, read.changeClass], [stored, 'template']);
+  await call(f, 'create_task', { workspace: A, project: P, title: 'Tidy the backlog', idempotency_key: 'agent-card-0002' });
+  const listed = (await call(f, 'list_tasks', { workspace: A, project: P })).structuredContent.tasks;
+  assert.deepEqual(listed.map(task => [task.id, task.card ?? 'none', task.changeClass ?? 'none']),
+    [[made.id, stored, 'template'], ['tt-2', 'none', 'none']], 'a list leaves out a card and class a task lacks');
+  const plain = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-2' })).structuredContent.task;
+  assert.deepEqual([plain.card, plain.changeClass], [null, null]);
+
+  // create_tasks takes them on each entry.
+  const batch = (await call(f, 'create_tasks', { workspace: A, project: P, idempotency_key: 'agent-card-0003',
+    tasks: [{ title: 'Fine' }, { title: 'Worth it', card: CARD, change_class: 'copy' }] })).structuredContent;
+  assert.deepEqual(batch.created.map(entry => [f.tasks.get(entry.id).metadata.noticeos_card ?? null, f.tasks.get(entry.id).metadata.noticeos_change_class ?? null]),
+    [[null, null], [stored, 'copy']]);
+
+  // update_task replaces the card whole, stamped again, and its new kill date moves the due date.
+  f.advance(DAY);
+  const later = { ...CARD, likelihood: 0.6, kill: { state: 'RPM still below 12', date: '2027-01-31' } };
+  const updated = (await call(f, 'update_task', { workspace: A, project: P, task: made.id, card: later, idempotency_key: 'agent-card-0004' })).structuredContent;
+  assert.deepEqual(updated.task.card, { ...later, by: PERSON, at: '2026-10-08T12:00:00.000Z' });
+  assert.equal(plannedArgv(f, 'update').filter(arg => arg.startsWith('--due=')).join(), '--due=2027-01-31');
+  // null takes either off, and leaves the other.
+  const uncarded = (await call(f, 'update_task', { workspace: A, project: P, task: made.id, card: null, idempotency_key: 'agent-card-0005' })).structuredContent.task;
+  assert.deepEqual([uncarded.card, 'noticeos_card' in uncarded.metadata, uncarded.changeClass], [null, false, 'template']);
+  assert.equal(plannedArgv(f, 'update').some(arg => arg.startsWith('--due')), false, 'taking the card off leaves the due date');
+  const unclassed = (await call(f, 'update_task', { workspace: A, project: P, task: made.id, change_class: null, idempotency_key: 'agent-card-0006' })).structuredContent.task;
+  assert.deepEqual([unclassed.changeClass, 'noticeos_change_class' in unclassed.metadata], [null, false]);
+  assert.deepEqual((await call(f, 'update_task', { workspace: A, project: P, task: made.id, change_class: 'feature',
+    idempotency_key: 'agent-card-0007' })).structuredContent.task.changeClass, 'feature');
+});
+
+test('a card that breaks a rule is refused with the field at fault named, and nothing is written', async () => {
+  const f = fixture();
+  await filer(f)('Target');
+  const before = f.effects.length;
+  const error = async (card, name = 'create_task', extra = {}) => (await call(f, name, name === 'create_task'
+    ? { workspace: A, project: P, title: 'Worth it', card, idempotency_key: 'agent-card-0101', ...extra }
+    : name === 'update_task' ? { workspace: A, project: P, task: 'tt-1', card, idempotency_key: 'agent-card-0102', ...extra }
+    : { workspace: A, project: P, idempotency_key: 'agent-card-0103', tasks: [{ title: 'Fine' }, { title: 'Worth it', card, ...extra }] })).content[0].text;
+  assert.equal(await error({ ...CARD, likelihood: 1.5 }), 'invalid arguments: card.likelihood (between 0.01 and 0.99)');
+  assert.equal(await error({ ...CARD, likelihood: 1.5 }, 'update_task'), 'invalid arguments: card.likelihood (between 0.01 and 0.99)');
+  assert.equal(await error({ ...CARD, likelihood: 1.5 }, 'create_tasks'), 'invalid arguments: tasks[1]: card.likelihood (between 0.01 and 0.99)');
+  assert.equal(await error({ ...CARD, daysToSignal: 2.5 }), 'invalid arguments: card.daysToSignal (a whole number)');
+  assert.equal(await error({ ...CARD, measurability: 'guess' }), 'invalid arguments: card.measurability (one of cohort, holdout, unmeasured)');
+  assert.equal(await error({ ...CARD, kill: { state: 'Flat', date: '31/12/2026' } }), 'invalid arguments: card.kill.date (a calendar date, YYYY-MM-DD)');
+  assert.match(await error({ ...CARD, score: 3 }), /^invalid arguments: card\.score \(not a field of a card, which takes /u);
+  assert.equal(await error(null), 'invalid arguments: card (an object with valuePerMonth, likelihood, reviewMinutes, daysToSignal and measurability)');
+  assert.equal(await error(undefined, 'create_task', { change_class: 'refactor' }),
+    'invalid arguments: change_class (one of content-data, copy, template, feature, infra)');
+  assert.equal(await error(CARD, 'update_task', { change_class: null }), 'invalid arguments: card and change_class (a call either sets these '
+    + 'or takes them off with null, not both; take them off in a call of their own)');
+  assert.equal(f.effects.length, before);
+});
+
+test('a card is set on a closed task as any other edit is', async () => {
+  const f = fixture();
+  await filer(f)('Shipped already');
+  await call(f, 'close_task', { workspace: A, project: P, task: 'tt-1', reason: 'Shipped in abc1234', idempotency_key: 'agent-card-0201' });
+  const titled = (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', title: 'Shipped', idempotency_key: 'agent-card-0202' })).structuredContent;
+  assert.equal(titled.task.title, 'Shipped', 'an edit to a closed task lands');
+  const carded = (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', card: CARD, change_class: 'copy',
+    idempotency_key: 'agent-card-0203' })).structuredContent;
+  assert.deepEqual([carded.task.status, carded.task.card?.likelihood, carded.task.changeClass], ['closed', CARD.likelihood, 'copy']);
 });

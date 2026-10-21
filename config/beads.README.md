@@ -287,7 +287,8 @@ Never rewrite an old bead's metadata to the new names.
 **Who did the work.** `bd` records the assignee a claim sets but not who
 closed a task, how the close ended or the model a filer named, so NoticeOS
 writes eight more keys itself, and metadata sent with a new task may not
-include them: `noticeos_filed_by` and `noticeos_filed_model` (who filed the
+include them (nor the two keys of [What a task is worth](#what-a-task-is-worth),
+which arrive in fields of their own): `noticeos_filed_by` and `noticeos_filed_model` (who filed the
 task through the task tools and the model it named, written in the create
 itself), `noticeos_claimed_model` (the model an agent named when it claimed
 the task), and, written in one update just after a close,
@@ -372,6 +373,58 @@ The label and those three fields are therefore a contract with a rendered
 surface; the key must stay byte-exact in metadata (the `key:` label is a lossy
 slug); and a bead filed in the wrong repo is dropped rather than shown, since
 finding keys are rule ids every property shares.
+
+### What a task is worth
+
+Two keys record why a task is worth doing and what kind of change it makes.
+Whoever files or edits the task writes them: an agent through the task tools'
+`card` and `change_class` arguments (`create_task`, `create_tasks`,
+`update_task`), the operator through the Tower's task lane and the hosted
+Tasks API, whose fields are `card` and `changeClass`. Each is checked in its
+own field before anything is written. `null` on an update removes the key.
+One update either sets these keys or removes them, never both, because
+`bd update` takes either one merged `--metadata` object or `--unset-metadata`
+keys in a single command.
+
+`noticeos_card` is a JSON object, checked by `taskCardProblem` in
+[`packages/contract/src/task-card.mts`](../packages/contract/src/task-card.mts):
+
+| Field | Value |
+|---|---|
+| `valuePerMonth` | the predicted change in ledger value, USD a month, −1,000,000 to 1,000,000; a loss the task avoids is positive |
+| `likelihood` | the probability that the change pays off, 0.01 to 0.99 |
+| `reviewMinutes` | the operator's minutes to review and decide, 0 to 100,000 |
+| `buildMinutes` | optional: the agent's or builder's minutes, 0 to 1,000,000, shown beside the score and not priced |
+| `daysToSignal` | whole days until the ledger shows whether the change worked, 1 to 730 |
+| `measurability` | `cohort`, `holdout` or `unmeasured` |
+| `revenueFamily` | optional: `ads`, `affiliate`, `subs` or `licensing` |
+| `durability` | optional: the forecastability multiplier F, 0.5 to 1.2; 1 when absent |
+| `kill` | optional: `{ state, date }`, the state that, still true on `date` (`YYYY-MM-DD`), parks the task |
+| `note` | optional: one line of at most 600 characters, the reason the money moves |
+| `by`, `at` | who recorded the card, and when, as an ISO 8601 time |
+
+The server writes `by` and `at` on every write of a card, as the admitted
+actor (the same value as `noticeos_filed_by`) and the time of the write, and
+replaces any `by` or `at` the caller sent. The task lane writes the checkout's
+`git user.name` and its own clock. A card's `kill.date` is also the task's due
+date: the same create or update passes it to `bd` as `--due`. Removing a card
+leaves the due date unchanged.
+
+`noticeos_change_class` is one of `content-data`, `copy`, `template`,
+`feature` and `infra`
+([`packages/contract/src/task-change-class.mts`](../packages/contract/src/task-change-class.mts)),
+shown as Content data, Copy, Template, Feature and Infrastructure. The
+autonomy ladder ([doc 05](../docs/05-execution-and-accountability.md)) and
+the likelihood priors ([doc 04](../docs/04-decision-policy.md)) are kept per
+class.
+
+The Tower ranks tasks by their cards with policy v1.0, the scoring function
+of [doc 04](../docs/04-decision-policy.md):
+`(likelihood × valuePerMonth × durability) / review cost / max(weeks to signal, 2)`,
+where the review cost is `reviewMinutes` at the installation's
+`operator_rate_usd_per_min`. A task without a card is listed and not ranked.
+Every reader goes through `readTaskCard` and `readTaskChangeClass`, which read
+a value that fails the rules as no card and no class.
 
 ## Seeds
 

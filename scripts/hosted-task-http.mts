@@ -30,9 +30,11 @@ function keys(row: Record<string, unknown>, required: readonly string[], optiona
   if (required.some(key => !Object.hasOwn(row, key))
     || Object.keys(row).some(key => !required.includes(key) && !optional.includes(key))) invalid();
 }
-/** Only scalar fields, bounded string arrays and one-level string metadata.
- * Decode keys before insertion so duplicate escaped names cannot be hidden by
- * JSON.parse at either object level. Command validation owns allowed fields. */
+/** Only scalar fields, bounded string arrays and objects at most two levels
+ * deep whose innermost values are strings: string metadata, or a card with
+ * scalar figures and its kill criterion. Decode keys before insertion so
+ * duplicate escaped names cannot be hidden by JSON.parse at any object level.
+ * Command validation owns allowed fields. */
 function commandObject(text: string): Record<string, unknown> {
   let offset = 0;
   const space = () => { while (/[ \t\r\n]/u.test(text[offset] ?? '') && offset < text.length) offset++; };
@@ -55,15 +57,15 @@ function commandObject(text: string): Record<string, unknown> {
     if (text[offset++] !== ']') invalid();
     return Object.freeze(values);
   };
-  const object = (nested: boolean): Record<string, unknown> => {
+  const object = (depth: 0 | 1 | 2): Record<string, unknown> => {
     const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     if (text[offset++] !== '{') invalid(); space();
     if (text[offset] !== '}') for (;;) {
       const name: unknown = JSON.parse(token(string));
       if (typeof name !== 'string' || Object.hasOwn(result, name) || Object.keys(result).length >= 32) invalid();
       space(); if (text[offset++] !== ':') invalid(); space();
-      result[name] = nested ? JSON.parse(token(string)) as string
-        : text[offset] === '[' ? strings() : text[offset] === '{' ? Object.freeze(object(true))
+      result[name] = depth === 2 ? JSON.parse(token(string)) as string
+        : text[offset] === '[' && depth === 0 ? strings() : text[offset] === '{' ? Object.freeze(object(depth === 0 ? 1 : 2))
         : JSON.parse(token(scalar)) as unknown;
       space(); if (text[offset] !== ',') break;
       offset++; space();
@@ -71,7 +73,7 @@ function commandObject(text: string): Record<string, unknown> {
     if (text[offset++] !== '}') invalid();
     return result;
   };
-  space(); const result = object(false); space(); if (offset !== text.length) invalid();
+  space(); const result = object(0); space(); if (offset !== text.length) invalid();
   return result;
 }
 async function body(request: Request): Promise<Record<string, unknown>> {
@@ -110,8 +112,9 @@ export async function readHostedTaskCommand(request: Request, url: URL, workspac
       : request.method === 'POST' && taskId && ['respond', 'dismiss', 'resolve-gate', 'choose'].includes(suffix ?? '')
         ? suffix as 'respond' | 'dismiss' | 'resolve-gate' | 'choose' : invalid();
     const row = await body(request);
-    const fields = kind === 'create' ? ['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata']
-      : kind === 'update' ? ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']
+    const fields = kind === 'create' ? ['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'card', 'changeClass']
+      : kind === 'update' ? ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels',
+        'card', 'changeClass']
       : kind === 'comment' ? ['text'] : kind === 'respond' ? ['response'] : kind === 'choose' ? ['option', 'note']
       : kind === 'close' || kind === 'dismiss' ? ['reason', 'resolution', 'duplicateOf'] : ['reason'];
     keys(row, ['projectId'], fields); projectId = uuid(row.projectId);

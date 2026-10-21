@@ -14,12 +14,14 @@
  */
 import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, TaskProjectRefused, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, HumanDecisionRefused, MAINTENANCE_ACTIONS, sameActor, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, type TaskMaintenance, type HostedTaskDependencyType, type HostedTaskLink,
+import { HOSTED_TASK_LIMITS, HumanDecisionRefused, MAINTENANCE_ACTIONS, sameActor, sentTaskCard, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, type TaskMaintenance, type HostedTaskDependencyType, type HostedTaskLink,
   type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType, type TaskProjectName } from './hosted-task-command.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoicesOf, taskChoicesProblem, type TaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS } from '../packages/contract/src/task-resolution.mjs';
+import { TASK_CARD_LIMITS, TASK_MEASURABILITIES, TASK_REVENUE_FAMILIES, type TaskCard } from '../packages/contract/src/task-card.mjs';
+import { TASK_CHANGE_CLASSES } from '../packages/contract/src/task-change-class.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
@@ -45,6 +47,8 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
   '- description: plain labelled lines, unwrapped: WHAT, WHY with the numbers, WHERE as pointers that resolve in a repo (file paths, commits, doc sections), FIX. A bug also has a "## Steps to Reproduce" section.',
   '- acceptance: the proof that completes it, provable the day the work lands. Never "watch for N days": close on today\'s proof and name where a recurrence would show.',
   '- Implementation evidence cites the repo, commits and tests, never a session summary or temporary file. An existing owner answer cites its task comment or explicitly linked conversation, with the exact proposal and scope.',
+  '- Work meant to change money carries a card: the predicted change in USD a month, how likely it pays off, the operator\'s review minutes and your build minutes, the days until the ledger shows it, how it is measured, and the state and date to give up on it; the Tower ranks tasks by their cards, and a task without one is listed, not ranked.',
+  '- change_class names the kind of change a task makes, one of content-data, copy, template, feature and infra, which the autonomy ladder and the likelihood priors are kept by.',
   '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
   '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
   '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
@@ -59,9 +63,9 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
  * refusal: oldest first, each one line opening with its date, at most three
  * (a new entry drops the first). */
 export const WHATS_CHANGED: readonly string[] = Object.freeze([
-  '2026-10-17: reconcile_task records a verified owner answer against its proposal, retires obsolete requests with evidence, removes routine human labels and releases checked inactive assignments. Retirement grants no action permission.',
   '2026-10-17: create_task and update_task take choices; a person\'s pick or answer hands the task back to ready work, with choice on it; close_task takes resolution and duplicate_of.',
   '2026-10-17: list_tasks takes assignee ("me" for what you hold) and, with no project, lists every project; list_workspaces returns guideVersion; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
+  '2026-10-21: create_task, create_tasks and update_task take card, what the work is worth, which the Tower ranks tasks by, and change_class; update_task takes null to take either off; get_task and list_tasks return them as card and changeClass.',
 ]);
 
 /** How a session starts, said in every session's instructions. */
@@ -271,6 +275,15 @@ function choicesArg(args: Args): TaskChoices | undefined {
   if (problem !== null) refuse(`invalid arguments: ${problem.field} (${problem.rule})`);
   return taskChoicesOf(value)!;
 }
+/** A task's card, refused with the field at fault named (task-card.mts holds
+ * the rules). Who wrote it and when are the server's to record, so a caller's
+ * by and at never reach the rules or the task. */
+function cardArg(args: Args): TaskCard | undefined {
+  if (args.card === undefined) return undefined;
+  const sent = sentTaskCard(args.card);
+  if ('problem' in sent) refuse(`invalid arguments: ${sent.problem.field} (${sent.problem.rule})`);
+  return sent.card;
+}
 /** A property of a tool's input schema, as far as reading text needs it. */
 interface PropertySchema { readonly type?: unknown; readonly properties?: Readonly<Record<string, PropertySchema>>; readonly items?: PropertySchema }
 const typed = (schema: PropertySchema, type: string) => schema.type === type || Array.isArray(schema.type) && schema.type.includes(type);
@@ -320,7 +333,7 @@ function instantArg(args: Args, name: string): number | undefined {
 /** A new task's fields, from create_task or one entry of create_tasks. `target`
  * reads each task id it names: a parent or a linked task. */
 const CREATE_FIELDS = Object.freeze(['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance',
-  ...LINKS.map(([name]) => name), 'approval', 'choices']);
+  ...LINKS.map(([name]) => name), 'approval', 'choices', 'card', 'change_class']);
 type Creation = { readonly operation: Extract<HostedTaskOperation, { kind: 'create' }>; readonly approval: string | undefined };
 function creation(args: Args, target: (name: string, value: unknown) => string): Creation {
   const parent = args.parent === undefined ? undefined : target('parent', args.parent);
@@ -339,7 +352,7 @@ function creation(args: Args, target: (name: string, value: unknown) => string):
     description: textArg(args, 'description', HOSTED_TASK_LIMITS.body, false, true), type: taskType(args),
     priority: priority(args), labels: labels(args, 'labels'), parent,
     acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true), links: links.length ? links : undefined,
-    choices: choicesArg(args) }),
+    choices: choicesArg(args), card: cardArg(args), changeClass: choice(args, 'change_class', TASK_CHANGE_CLASSES) }),
   approval: textArg(args, 'approval', GATE_REASON_MAX, false) };
 }
 
@@ -374,7 +387,7 @@ function presentTask(task: LiveTask, live: boolean): Record<string, unknown> {
     assignee: task.assignee, labels: task.labels, parent: task.parent,
     ...(live ? { ready: task.ready, awaitingHuman: waitsOnPerson(task) } : {}),
     description: task.description, acceptance: task.acceptance, choices: task.choices ?? null, choice: task.choice ?? null,
-    deferUntil: task.deferUntil,
+    card: task.card ?? null, changeClass: task.changeClass ?? null, deferUntil: task.deferUntil,
     dependencies: task.dependencies, commentCount: task.comments, metadata: task.metadata,
     createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt,
     closedAt: task.closedAt, closeReason: task.closeReason, resolution: task.resolution ?? null, duplicateOf: task.duplicateOf ?? null,
@@ -386,7 +399,7 @@ function summaryOf(task: LiveTask): Record<string, unknown> {
   const row: Record<string, unknown> = {
     id: task.id, title: task.title, status: task.status, priority: task.priority, type: task.issueType,
     assignee: task.assignee, labels: task.labels, parent: task.parent, ready: task.ready, awaitingHuman: waitsOnPerson(task),
-    choices: task.choices ?? null, choice: task.choice ?? null,
+    choices: task.choices ?? null, choice: task.choice ?? null, card: task.card ?? null, changeClass: task.changeClass ?? null,
     deferUntil: task.deferUntil, createdAt: task.createdAt, updatedAt: task.updatedAt, closedAt: task.closedAt,
     resolution: task.resolution ?? null, duplicateOf: task.duplicateOf ?? null,
   };
@@ -460,6 +473,35 @@ const CHOICES = Object.freeze({ type: 'object', additionalProperties: false, req
         detail: { type: 'string', maxLength: TASK_CHOICE_LIMITS.detail, description: 'What choosing it means, when the label leaves it out.' },
         recommended: { type: 'boolean', description: 'true on exactly one option: the one you recommend.' } }, ['key', 'label']) },
   } });
+const CARD_LIMITS = TASK_CARD_LIMITS;
+/** Why a task is worth doing (task-card.mts holds the rules the call is checked against). */
+const CARD = Object.freeze({ type: 'object', additionalProperties: false,
+  required: ['valuePerMonth', 'likelihood', 'reviewMinutes', 'daysToSignal', 'measurability'],
+  description: 'What the work is worth, for work meant to change money. The Tower ranks tasks by it; a task without one is listed, not ranked. '
+    + 'The server records who wrote it and when.',
+  properties: {
+    valuePerMonth: { type: 'number', minimum: CARD_LIMITS.valuePerMonth.min, maximum: CARD_LIMITS.valuePerMonth.max,
+      description: `The change in ledger value it predicts, USD a month, ${CARD_LIMITS.valuePerMonth.min} to ${CARD_LIMITS.valuePerMonth.max}; a loss it avoids counts as positive.` },
+    likelihood: { type: 'number', minimum: CARD_LIMITS.likelihood.min, maximum: CARD_LIMITS.likelihood.max,
+      description: `How likely it pays off, ${CARD_LIMITS.likelihood.min} to ${CARD_LIMITS.likelihood.max}.` },
+    reviewMinutes: { type: 'number', minimum: CARD_LIMITS.reviewMinutes.min, maximum: CARD_LIMITS.reviewMinutes.max,
+      description: `The operator's minutes to review and decide it, ${CARD_LIMITS.reviewMinutes.min} to ${CARD_LIMITS.reviewMinutes.max}; the ranking prices them.` },
+    buildMinutes: { type: 'number', minimum: CARD_LIMITS.buildMinutes.min, maximum: CARD_LIMITS.buildMinutes.max,
+      description: `Your minutes to build it, ${CARD_LIMITS.buildMinutes.min} to ${CARD_LIMITS.buildMinutes.max}; shown beside the ranking, not priced.` },
+    daysToSignal: { type: 'integer', minimum: CARD_LIMITS.daysToSignal.min, maximum: CARD_LIMITS.daysToSignal.max,
+      description: `Whole days until the ledger shows whether it worked, ${CARD_LIMITS.daysToSignal.min} to ${CARD_LIMITS.daysToSignal.max}.` },
+    measurability: { type: 'string', enum: TASK_MEASURABILITIES,
+      description: 'How the change is measured: cohort, holdout, or unmeasured when neither applies.' },
+    revenueFamily: { type: 'string', enum: TASK_REVENUE_FAMILIES, description: 'The revenue it moves.' },
+    durability: { type: 'number', minimum: CARD_LIMITS.durability.min, maximum: CARD_LIMITS.durability.max,
+      description: `How durable and diversified the gain is, a multiplier from ${CARD_LIMITS.durability.min} to ${CARD_LIMITS.durability.max}; 1 when left out.` },
+    kill: { ...schema({ state: { type: 'string', maxLength: CARD_LIMITS.killState, description: 'One line: the state that, still true on date, gives the task up.' },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'YYYY-MM-DD. It is also the task\'s due date.' } }, ['state', 'date']),
+      description: 'When to give up on it.' },
+    note: { type: 'string', maxLength: CARD_LIMITS.note, description: 'One line: why the money moves.' },
+  } });
+const CHANGE_CLASS = Object.freeze({ type: 'string', enum: TASK_CHANGE_CLASSES,
+  description: 'The kind of change the task makes. The autonomy ladder and the likelihood priors are kept by it.' });
 /** A new task's fields, for create_task and each entry of create_tasks. */
 const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK_LIMITS.title },
   description: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body },
@@ -474,7 +516,7 @@ const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK
   discovered_from: TASK_IDS('Tasks whose work turned this one up.'),
   approval: { type: 'string', maxLength: GATE_REASON_MAX,
     description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' },
-  choices: CHOICES });
+  choices: CHOICES, card: CARD, change_class: CHANGE_CLASS });
 const READ = Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false });
 const WRITE = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false });
 
@@ -781,11 +823,14 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       add_labels: { type: 'array', items: { type: 'string' } }, remove_labels: { type: 'array', items: { type: 'string' } },
       choices: { ...CHOICES, type: ['object', 'null'],
         description: 'A whole new set of choices, or null to take them off. Refused once a person has chosen.' },
+      card: { ...CARD, type: ['object', 'null'], description: `A whole new card, or null to take it off. ${CARD.description}` },
+      change_class: { ...CHANGE_CLASS, type: ['string', 'null'], enum: [...TASK_CHANGE_CLASSES, null],
+        description: `${CHANGE_CLASS.description} null takes it off.` },
       idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
       only(args, ['project', 'task', 'status', 'priority', 'title', 'description', 'assignee', 'parent', 'defer',
-        'acceptance', 'add_labels', 'remove_labels', 'choices', 'idempotency_key']);
+        'acceptance', 'add_labels', 'remove_labels', 'choices', 'card', 'change_class', 'idempotency_key']);
       const operation = defined({ kind: 'update' as const, taskId: task(args),
         status: choice(args, 'status', STATUSES.filter(status => status !== 'closed')), priority: priority(args),
         title: textArg(args, 'title', HOSTED_TASK_LIMITS.title, false),
@@ -794,8 +839,14 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
         parent: args.parent === undefined || args.parent === '' ? args.parent as string | undefined : task(args, 'parent'),
         defer: deferArg(args), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
         addLabels: labels(args, 'add_labels', 1), removeLabels: labels(args, 'remove_labels', 1),
-        choices: args.choices === null ? null : choicesArg(args) });
+        choices: args.choices === null ? null : choicesArg(args), card: args.card === null ? null : cardArg(args),
+        changeClass: args.change_class === null ? null : choice(args, 'change_class', TASK_CHANGE_CLASSES) });
       if (Object.keys(operation).length === 2) refuse('invalid arguments: name at least one field to change');
+      // The task client writes these in one change only when all are set or all are taken off.
+      const kept = (['choices', 'card', 'change_class'] as const).filter(name => args[name] !== undefined);
+      if (kept.some(name => args[name] === null) && kept.some(name => args[name] !== null)) {
+        refuse(`invalid arguments: ${listed(kept)} (a call either sets these or takes them off with null, not both; take them off in a call of their own)`);
+      }
       const projectId = project(args);
       const { replayed } = await write(context, projectId, operation, key(args), () => ({}));
       const changed = await current(context, projectId, operation.taskId);

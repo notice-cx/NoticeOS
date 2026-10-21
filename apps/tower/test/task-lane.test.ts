@@ -562,6 +562,68 @@ describe("the writes", () => {
     expect(argv?.[argv.indexOf("--remove-label") + 1]).toBe("stale");
   });
 
+  it("writes a card under the operator's name and the lane's clock, with its kill date as the due date", async () => {
+    await reset();
+    const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: "cohort",
+      kill: { state: "RPM below 12 on the changed pages", date: "2026-12-31" } };
+    const reply = await ask("PATCH", "/api/tasks/ro-aaa", { card: { ...card, by: "someone else", at: "2020-01-01T00:00:00Z" } });
+    expect(reply.status).toBe(200);
+    const [argv] = await spawned();
+    expect(argv?.slice(2, 4)).toEqual(["update", "ro-aaa"]);
+    expect(JSON.parse(argv?.[argv.indexOf("--metadata") + 1] ?? "{}")).toEqual({
+      noticeos_card: { ...card, by: "test-operator", at: "2026-09-04T12:00:00.000Z" },
+    });
+    expect(argv?.[argv.indexOf("--due") + 1]).toBe("2026-12-31");
+    expect(argv?.slice(-2)).toEqual(["--actor", "test-operator"]);
+
+    // A class is set the same way; a card or class taken off is unset by key and leaves the due date.
+    await reset();
+    await ask("PATCH", "/api/tasks/ro-aaa", { changeClass: "template" });
+    const [classed] = await spawned();
+    expect(JSON.parse(classed?.[classed.indexOf("--metadata") + 1] ?? "{}")).toEqual({ noticeos_change_class: "template" });
+    await reset();
+    await ask("PATCH", "/api/tasks/ro-aaa", { changeClass: null });
+    await ask("PATCH", "/api/tasks/ro-aaa", { card: null, changeClass: null });
+    const [unclassed, cleared] = await spawned();
+    expect(unclassed?.slice(2, 6)).toEqual(["update", "ro-aaa", "--unset-metadata", "noticeos_change_class"]);
+    expect(cleared?.filter((arg, index) => cleared[index - 1] === "--unset-metadata")).toEqual(["noticeos_card", "noticeos_change_class"]);
+    for (const args of [unclassed, cleared]) {
+      expect(args).not.toContain("--metadata");
+      expect(args).not.toContain("--due");
+    }
+  });
+
+  it("files a task with its card and class merged into the handoff metadata", async () => {
+    await reset();
+    const card = { valuePerMonth: 120, likelihood: 0.25, reviewMinutes: 10, daysToSignal: 14, measurability: "unmeasured",
+      kill: { state: "No clicks on the new links", date: "2026-11-30" } };
+    const reply = await ask("POST", "/api/tasks", { project: "root-os", title: "Worth it", card, changeClass: "copy",
+      metadata: { noticeos_key: "item-openers" } });
+    expect(reply.status).toBe(201);
+    const [argv] = await spawned();
+    expect(JSON.parse(argv?.[argv.indexOf("--metadata") + 1] ?? "{}")).toEqual({ noticeos_key: "item-openers",
+      noticeos_card: { ...card, by: "test-operator", at: "2026-09-04T12:00:00.000Z" }, noticeos_change_class: "copy" });
+    expect(argv?.[argv.indexOf("--due") + 1]).toBe("2026-11-30");
+  });
+
+  it("refuses a card or class that breaks a rule, naming the field, before spawning", async () => {
+    const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: "cohort" };
+    for (const [method, url, body, detail] of [
+      ["PATCH", "/api/tasks/ro-aaa", { card: { ...card, likelihood: 1.5 } }, "card.likelihood (between 0.01 and 0.99)"],
+      ["PATCH", "/api/tasks/ro-aaa", { card: { ...card, kill: { state: "Flat", date: "2026-02-30" } } }, "card.kill.date (a calendar date, YYYY-MM-DD)"],
+      ["PATCH", "/api/tasks/ro-aaa", { changeClass: "refactor" }, "changeClass is one of content-data, copy, template, feature, infra"],
+      ["PATCH", "/api/tasks/ro-aaa", { card, changeClass: null }, "set card and changeClass in one change, and take them off with null in another"],
+      ["POST", "/api/tasks", { project: "root-os", title: "Worth it", card: { ...card, daysToSignal: 0 } }, "card.daysToSignal (between 1 and 730)"],
+      ["POST", "/api/tasks", { project: "root-os", title: "Worth it", metadata: { noticeos_change_class: "copy" } },
+        "metadata carries no noticeos_change_class; send it as changeClass"],
+    ] as const) {
+      await reset();
+      const reply = await ask(method, url, body);
+      expect(reply).toEqual({ status: 422, body: { error: "invalid_body", detail } });
+      expect(await spawned()).toEqual([]);
+    }
+  });
+
   it("will not close a bead without the evidence that closes it", async () => {
     await reset();
     const reply = await ask("POST", "/api/tasks/ro-aaa/close", {});

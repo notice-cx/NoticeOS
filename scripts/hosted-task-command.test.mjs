@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { answerComment, answerSteps, choiceCloseReason, choiceComment, choiceSteps, closerMetadata, createHostedTaskPlanner, decisionGuardTargets, decisionRefusal,
-  guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision, refusalFromState, TaskStateRefused,
+  guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision, recordedTaskCard, refusalFromState, TaskStateRefused,
   writeGuardReads } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-1111-1111-111111111111';
@@ -470,6 +470,66 @@ test('a task\'s choices travel as metadata in the create itself, and an update r
     { kind: 'update', taskId: 'tt-a', claim: true, choices: CHOICES },
     { kind: 'update', taskId: 'tt-a', choices: 'a,b' },
   ]) denied(() => plan(A, request(operation)));
+});
+
+const CARD = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, buildMinutes: 90, daysToSignal: 28, measurability: 'cohort',
+  revenueFamily: 'ads', kill: { state: 'RPM below 12 on the changed pages', date: '2026-12-31' }, note: 'Faster pages earn more ad views.' };
+
+test('a task\'s card and change class travel as metadata in the create itself, and its kill date as the due date', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const argv = plan(A, request({ kind: 'create', title: 'Speed up the recipe pages', card: CARD, changeClass: 'template', filedBy: 'claude' })).argv;
+  assert.deepEqual(JSON.parse(argv.find(arg => arg.startsWith('--metadata=')).slice(11)),
+    { noticeos_filed_by: 'claude', noticeos_card: CARD, noticeos_change_class: 'template' });
+  assert.equal(argv.filter(arg => arg.startsWith('--due=')).join(), '--due=2026-12-31');
+  // A card without a kill criterion sets no due date; a class alone is metadata too.
+  const { kill: _kill, ...open } = CARD;
+  assert.equal(plan(A, request({ kind: 'create', title: 'Open-ended', card: open })).argv.some(arg => arg.startsWith('--due')), false);
+  assert.deepEqual(plan(A, request({ kind: 'create', title: 'Copy', changeClass: 'copy' })).argv.slice(2),
+    ['create', '--metadata={"noticeos_change_class":"copy"}', '--title=Copy', '--']);
+  // Absent fields are left out of what is stored.
+  const { buildMinutes: _build, revenueFamily: _family, note: _note, ...least } = open;
+  assert.deepEqual(JSON.parse(plan(A, request({ kind: 'create', title: 'Least', card: { ...least, durability: undefined } })).argv
+    .find(arg => arg.startsWith('--metadata=')).slice(11)), { noticeos_card: least });
+});
+
+test('an update sets a card and class in one merged write or takes them off by key, and never both at once', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const argv = operation => plan(A, request({ kind: 'update', taskId: 'tt-a', ...operation })).argv.slice(2);
+  const set = argv({ card: CARD, changeClass: 'feature' });
+  assert.deepEqual([set[0], JSON.parse(set[1].slice('--metadata='.length)), ...set.slice(2)],
+    ['update', { noticeos_card: CARD, noticeos_change_class: 'feature' }, '--due=2026-12-31', '--', 'tt-a']);
+  assert.deepEqual(argv({ title: 'Faster', card: null }), ['update', '--title=Faster', '--unset-metadata=noticeos_card', '--', 'tt-a'],
+    'taking a card off leaves the due date');
+  assert.deepEqual(argv({ choices: null, card: null, changeClass: null }),
+    ['update', '--unset-metadata=noticeos_choices', '--unset-metadata=noticeos_card', '--unset-metadata=noticeos_change_class', '--', 'tt-a']);
+  assert.deepEqual(argv({ choices: CHOICES, changeClass: 'copy' }),
+    ['update', `--metadata=${JSON.stringify({ noticeos_choices: CHOICES, noticeos_change_class: 'copy' })}`, '--', 'tt-a']);
+  const getter = { ...CARD };
+  Object.defineProperty(getter, 'likelihood', { get: () => 0.5, enumerable: true });
+  for (const operation of [
+    { kind: 'update', taskId: 'tt-a', card: CARD, changeClass: null },
+    { kind: 'update', taskId: 'tt-a', choices: null, card: CARD },
+    { kind: 'update', taskId: 'tt-a', claim: true, card: CARD },
+    { kind: 'update', taskId: 'tt-a', claim: true, changeClass: null },
+    { kind: 'update', taskId: 'tt-a', card: { ...CARD, likelihood: 1.5 } },
+    { kind: 'update', taskId: 'tt-a', card: { ...CARD, kill: { state: 'Gone', date: '2026-02-30' } } },
+    { kind: 'update', taskId: 'tt-a', card: { ...CARD, score: 9 } },
+    { kind: 'update', taskId: 'tt-a', card: getter },
+    { kind: 'update', taskId: 'tt-a', card: 'high' },
+    { kind: 'update', taskId: 'tt-a', changeClass: 'refactor' },
+    { kind: 'create', title: 'Worth it', card: null },
+    { kind: 'create', title: 'Worth it', changeClass: null },
+    // A card or class arrives in its own field, checked, never as caller metadata.
+    { kind: 'create', title: 'Worth it', metadata: { noticeos_change_class: 'copy' } },
+    { kind: 'create', title: 'Worth it', metadata: { noticeos_card: '{}' } },
+  ]) denied(() => plan(A, request(operation)));
+});
+
+test('a stored card names who wrote it and when, whatever the caller sent for those two', () => {
+  const stored = recordedTaskCard({ ...CARD, by: 'someone else', at: '2020-01-01T00:00:00.000Z' }, 'agent-1', '2026-10-21T09:00:00.000Z');
+  assert.deepEqual(stored, { ...CARD, by: 'agent-1', at: '2026-10-21T09:00:00.000Z' });
+  assert.ok(Object.isFrozen(stored) && Object.isFrozen(stored.kill));
+  assert.equal(recordedTaskCard(CARD, 'n'.repeat(200), '2026-10-21T09:00:00.000Z').by.length, 120, 'a long name is cut to the card\'s limit');
 });
 
 test('a change to a task\'s choices reads the task first and is refused once a person has chosen', () => {
