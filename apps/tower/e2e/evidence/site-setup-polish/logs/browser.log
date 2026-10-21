@@ -1,0 +1,31 @@
+$ node e2e/run-journeys.mjs -- -g 'setup polish:|every Sources row opens|empty install → saved asset'
+
+Running 16 tests using 2 workers
+
+(node:8298) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   2 [desktop] › e2e/journeys.spec.ts:2940:1 › every Sources row opens on a phone without widening the page, and long references wrap (15.7s)
+  ✓   3 [desktop] › e2e/site-setup-polish.spec.ts:98:3 › setup polish: status marks stay beside their lead in dark (20.0s)
+  ✓   4 [desktop] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in dark (5.2s)
+  ✓   5 [desktop] › e2e/site-setup-polish.spec.ts:168:3 › setup polish: current chart keeps coincident watch text uncovered in dark (2.9s)
+  ✓   6 [desktop] › e2e/site-setup-polish.spec.ts:98:3 › setup polish: status marks stay beside their lead in light (14.3s)
+  ✓   7 [desktop] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in light (6.0s)
+  ✓   8 [desktop] › e2e/site-setup-polish.spec.ts:168:3 › setup polish: current chart keeps coincident watch text uncovered in light (2.9s)
+(node:9857) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop] › e2e/journeys.spec.ts:1976:1 › empty install → saved asset → fake connection and mapping → real metric reads → exact task and approval (1.3m)
+(node:10088) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 [mobile] › e2e/journeys.spec.ts:2940:1 › every Sources row opens on a phone without widening the page, and long references wrap (13.4s)
+  ✓  11 [mobile] › e2e/site-setup-polish.spec.ts:98:3 › setup polish: status marks stay beside their lead in dark (13.4s)
+  ✓  12 [mobile] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in dark (3.9s)
+  ✓   9 [mobile] › e2e/journeys.spec.ts:1976:1 › empty install → saved asset → fake connection and mapping → real metric reads → exact task and approval (42.7s)
+  ✓  13 [mobile] › e2e/site-setup-polish.spec.ts:168:3 › setup polish: current chart keeps coincident watch text uncovered in dark (2.2s)
+  ✓  15 [mobile] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in light (6.0s)
+  ✓  16 [mobile] › e2e/site-setup-polish.spec.ts:168:3 › setup polish: current chart keeps coincident watch text uncovered in light (2.6s)
+  ✓  14 [mobile] › e2e/site-setup-polish.spec.ts:98:3 › setup polish: status marks stay beside their lead in light (14.1s)
+
+  16 passed (2.3m)
+real 140.221 user 166.441 sys 52.732

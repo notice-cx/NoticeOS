@@ -1,0 +1,19 @@
+$ node e2e/run-journeys.mjs -- site-setup-polish.spec.ts -g 'paused Sources'
+
+Running 4 tests using 2 workers
+
+(node:11465) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11466) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [desktop] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in dark (8.3s)
+(node:11806) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in light (8.8s)
+(node:11833) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [mobile] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in dark (7.6s)
+  ✓  4 [mobile] › e2e/site-setup-polish.spec.ts:130:3 › setup polish: paused Sources and Tune state their reason once in light (7.2s)
+
+  4 passed (28.2s)
+real 29.080 user 47.883 sys 14.129
