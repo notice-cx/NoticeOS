@@ -165,7 +165,9 @@ function dayTitle(day: RuleBacktestDay): string {
         : day.state === "no-report"
           ? "no report filed"
           : day.reason === "out-of-regime"
-            ? "not judged — the metric was outside this rule's volume range"
+            ? day.comparisons?.length
+              ? "not judged by this rule — another observation window was selected"
+              : "not judged — the metric was outside this rule's volume range"
             : day.reason === "missing-observation"
               ? "not judged — a report count is missing from the observation window"
               : day.reason === "insufficient-predictive-evidence"

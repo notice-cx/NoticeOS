@@ -214,12 +214,15 @@ describe("BacktestStrip", () => {
     result.days[0]!.comparisons = [{ metric: "signups", observed: 0, windowHours: 72, lower: 0, upper: 90,
       comparisonDates: [], comparisonCounts: Array(8).fill(12) }];
     result.days[1]!.reason = "missing-observation";
+    result.days[2]!.reason = "out-of-regime";
+    result.days[2]!.comparisons = result.days[0]!.comparisons;
     const { container } = render(<BacktestStrip backtest={result} />);
     expect(container.querySelector('[data-backtest-note="unjudged"]')).toHaveTextContent("Missing counts prevent evaluation");
     const cells = [...container.querySelectorAll("[data-backtest-day]")];
     expect(cells[0]!.getAttribute("title")).toContain("history is too variable or sparse");
     expect(cells[0]!.getAttribute("title")).toContain("0 in 3 days; predicted 0–90; 8 matching periods");
     expect(cells[1]!.getAttribute("title")).toContain("report count is missing");
+    expect(cells[2]!.getAttribute("title")).toContain("another observation window was selected");
   });
 });
 
