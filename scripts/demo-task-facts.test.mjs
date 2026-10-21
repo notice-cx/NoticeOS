@@ -2,14 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { demoCodebaseReports, generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
 import { demoTaskIssuesAt } from './demo-task-facts.mjs';
+import { readTaskCard, scoreTaskCard, taskCardProblem } from '../packages/contract/src/task-card.mjs';
+import { readTaskChangeClass, TASK_CHANGE_CLASSES } from '../packages/contract/src/task-change-class.mjs';
+import { taskChoicesProblem } from '../packages/contract/src/task-choices.mjs';
 
 const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 test('one scenario names six real task projects and all cross-store story identities', () => {
   const scenario = generateDemoScenario(input);
-  assert.equal(scenario.manifest.scenarioVersion, 12);
+  assert.equal(scenario.manifest.scenarioVersion, 13);
   assert.equal(scenario.manifest.taskProjects.length, 6);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 220);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 6);
+  assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 12);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'gate').length, 3);
   assert.equal(new Set(scenario.tasks.map(task => task.id)).size, scenario.tasks.length);
   for (const project of scenario.manifest.taskProjects) {
@@ -30,6 +33,108 @@ test('one scenario names six real task projects and all cross-store story identi
   assert.equal(scenario.tasks.find(task => task.id === ship.ref).title, 'Speed up the recipe pages');
   assert.equal(scenario.tasks.find(task => task.id === slide.ref).title, 'Ship the trail page redesign');
   assert.ok(scenario.tasks.find(task => task.id === repair.readbackTaskId).events[0].at < repair.annotationAt);
+});
+
+test('each site groups its planned work under two or three themed epics; work that fits none stays outside them', () => {
+  const scenario = generateDemoScenario(input);
+  const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
+  const epics = scenario.tasks.filter(task => task.issueType === 'epic');
+  assert.deepEqual(Object.fromEntries(scenario.manifest.taskProjects.map(({ prefix }) => [prefix, epics.filter(epic => epic.prefix === prefix).map(epic => [epic.title, epic.changeClass])])), {
+    lb: [['Brief library regrouping', 'template'], ['Onboarding emails', 'copy']],
+    pw: [['Source saving repair', 'feature'], ['Reader features', 'feature']],
+    wp: [['Holiday recipe season', 'copy'], ['Faster recipe pages', 'template'], ['Recipe page code cleanup', 'template']],
+    tn: [['Trail redesign: keep or roll back', 'template'], ['Search recovery for trail guides', 'content-data']],
+    fr: [['Saved validation rules', 'feature'], ['CSV import quality', 'feature']],
+    no: [['Task board accuracy', 'feature']],
+  });
+  const epicOf = title => epics.find(epic => epic.id === scenario.tasks.find(task => task.title === title).parent)?.title;
+  for (const epic of epics) {
+    // A paragraph saying why its members belong together, not a container's boilerplate.
+    assert.ok(epic.description.split(/\s+/u).length >= 25 && !/synthetic/iu.test(epic.description), epic.title);
+    const children = scenario.tasks.filter(task => task.parent === epic.id);
+    assert.ok(children.every(child => child.asset === epic.asset && child.issueType === 'task'), epic.title);
+    assert.ok(children.some(child => child.events.at(-1).status !== 'closed'), epic.title);
+  }
+  assert.deepEqual(['Which onboarding email goes out first?', 'Roll back the trail page redesign?', 'Charge for saved validation rules?', 'Choose the holiday recipe collection', 'Split the recipe page’s largest function'].map(epicOf),
+    ['Onboarding emails', 'Trail redesign: keep or roll back', 'Saved validation rules', 'Holiday recipe season', 'Recipe page code cleanup']);
+  // The Projects tab counts open work with no epic as not in a project.
+  for (const prefix of ['lb', 'pw', 'wp', 'tn', 'fr', 'no']) {
+    assert.ok(issues.some(issue => issue.id.startsWith(`${prefix}-`) && issue.issue_type === 'task' && issue.status !== 'closed' && !issue.dependencies.some(edge => edge.type === 'parent-child')), prefix);
+  }
+  // Gates and the dated history beside the plans join no epic.
+  assert.ok(scenario.tasks.filter(task => task.issueType === 'gate' || /^(?:Verify the .+ release|Review the week to|Check the .+ changes on)/u.test(task.title)).every(task => !task.parent));
+  // The board's shape: three questions, three approvals, six parked tasks, and only the planned edges.
+  assert.deepEqual(issues.filter(issue => issue.status === 'open' && issue.issue_type === 'task' && issue.labels.includes('human')).map(issue => issue.title).sort(),
+    ['Charge for saved validation rules?', 'Roll back the trail page redesign?', 'Which onboarding email goes out first?']);
+  assert.equal(issues.filter(issue => issue.status === 'open' && issue.issue_type === 'gate').length, 3);
+  assert.equal(issues.filter(issue => issue.status === 'deferred').length, 6);
+  const edges = type => issues.flatMap(issue => issue.dependencies.filter(edge => edge.type === type)).length;
+  assert.deepEqual([edges('parent-child'), edges('blocks')], [49, 13]);
+});
+
+test('every task, epic and gate records the kind of change it makes', () => {
+  const issues = demoTaskIssuesAt(generateDemoScenario(input).tasks, input.cutoff);
+  const classes = issues.map(issue => readTaskChangeClass(issue.metadata));
+  assert.ok(classes.every(Boolean), issues.find((_, index) => !classes[index])?.id);
+  assert.deepEqual(new Set(classes), new Set(TASK_CHANGE_CLASSES));
+});
+
+test('cards price about fifteen open tasks in their site’s revenue family, as recorded before the reference time', () => {
+  const scenario = generateDemoScenario(input);
+  const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
+  const byId = new Map(issues.map(issue => [issue.id, issue]));
+  const carded = issues.filter(issue => issue.metadata.noticeos_card !== undefined);
+  assert.equal(carded.length, 15);
+  const families = { lb: 'subs', pw: 'licensing', wp: 'ads', tn: 'ads', fr: 'subs' };
+  for (const issue of carded) {
+    const card = issue.metadata.noticeos_card;
+    assert.equal(taskCardProblem(card), null, issue.id);
+    assert.deepEqual(readTaskCard(issue.metadata), card);
+    assert.ok(['claude', 'codex', 'Mara'].includes(card.by) && issue.created_at < card.at && card.at <= issue.updated_at && card.at < input.cutoff, issue.id);
+    assert.ok(card.note.length > 0 && card.revenueFamily === families[issue.id.split('-')[0]], issue.id);
+    assert.notEqual(issue.status, 'closed');
+  }
+  const cards = carded.map(issue => issue.metadata.noticeos_card);
+  // A visitor sees the range: likely, unlikely and slow to show.
+  assert.ok(cards.some(card => card.valuePerMonth >= 200 && card.likelihood >= 0.6));
+  assert.ok(cards.some(card => card.valuePerMonth >= 300 && card.likelihood <= 0.2));
+  assert.ok(cards.some(card => card.valuePerMonth >= 1000 && card.daysToSignal >= 90));
+  // The operator's questions carry money, so Next opens on a priced decision.
+  assert.ok(carded.filter(issue => issue.labels.includes('human')).length >= 1);
+  // Ready work worth less a month than its review costs at $2 an operator
+  // minute: Next holds it back as below cost.
+  const rate = 2;
+  const ready = issue => issue.status === 'open' && !issue.labels.includes('human')
+    && issue.dependencies.every(edge => edge.type !== 'blocks' || byId.get(edge.depends_on_id)?.status === 'closed');
+  const below = carded.filter(issue => ready(issue)).filter(issue => {
+    const score = scoreTaskCard(readTaskCard(issue.metadata), { operatorRateUsdPerMin: rate });
+    return score.expectedPerMonth < score.costUsd;
+  });
+  assert.deepEqual(below.map(issue => issue.title).sort(), ['Speed up large brief exports', 'Split the recipe page’s largest function']);
+  // Three kill dates inside the next five weeks.
+  const { referenceDate } = scenario.manifest;
+  const kills = cards.flatMap(card => card.kill ? [card.kill.date] : []);
+  assert.equal(kills.length, 3);
+  assert.ok(kills.every(date => date > referenceDate && date <= shiftDemoDay(referenceDate, 35)), kills.join());
+  // A card is recorded after its task is filed; an earlier state does not carry it.
+  const asked = carded.find(issue => issue.title === 'Which onboarding email goes out first?');
+  const before = demoTaskIssuesAt(scenario.tasks, new Date(Date.parse(asked.metadata.noticeos_card.at) - 1000).toISOString()).find(issue => issue.id === asked.id);
+  assert.equal(before.metadata.noticeos_card, undefined);
+});
+
+test('two questions offer lettered options with one recommended; the other asks offer none', () => {
+  const issues = demoTaskIssuesAt(generateDemoScenario(input).tasks, input.cutoff);
+  const offered = issues.filter(issue => issue.metadata.noticeos_choices !== undefined);
+  assert.ok(offered.every(issue => issue.status === 'open' && issue.labels.includes('human')));
+  assert.deepEqual(Object.fromEntries(offered.map(issue => {
+    const choices = issue.metadata.noticeos_choices;
+    assert.equal(taskChoicesProblem(choices), null, issue.id);
+    assert.equal(choices.question, issue.title);
+    return [issue.title, choices.options.map(option => `${option.key}${option.recommended ? '*' : ''} ${option.label}`)];
+  })), {
+    'Which onboarding email goes out first?': ['a* The product tour', 'b The templates'],
+    'Charge for saved validation rules?': ['a* A paid tier', 'b Keep it free', 'c Ask the five largest customers first'],
+  });
 });
 
 test('every site board is moving on the reference day: done this week, in progress, blocked and asks aged hours to weeks', () => {
