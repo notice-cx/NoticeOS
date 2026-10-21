@@ -4,7 +4,6 @@ import { ageMs, formatAge } from "@shared/freshness";
 import { taskActorLabel } from "@shared/tasks";
 import { FinishLine } from "@/components/surface/FinishLine";
 import { SectionLabel } from "@/components/surface/SectionLabel";
-import { Button } from "@/components/ui/button";
 import { pillControlClass } from "@/components/ui/pill";
 import type { BoardProject } from "@/lib/task-board-read";
 import type { RankedTask } from "@/lib/task-ranking";
@@ -63,11 +62,11 @@ export function ThenForYou({ rows, projects, focusTo, finish }: {
 }
 
 /** One decision as a row: its rank, site, title and why, then the money, the
- * wait and the verb. A choice opens its options under the row; Approve and
- * Answer are the board row's own buttons. */
+ * wait and the verb. The verbs, the answer box and a choice's options are the
+ * board row's own (`useAskActions`), so a decision is taken here exactly as
+ * it is on All tasks, options in one press. */
 function DecisionRow({ row, project }: { row: RankedTask; project: BoardProject | null }) {
   const { task, ask } = row;
-  const [choosing, setChoosing] = useState(false);
   const reasons = useAskReasons(row, project);
   const actions = useAskActions({
     ask,
@@ -81,10 +80,9 @@ function DecisionRow({ row, project }: { row: RankedTask; project: BoardProject 
   });
   const why = whyLine(row.why, "this answer");
   const actionable = project?.actionable === true;
-  const isChoice = ask === "choose" && (task.choices ?? null) !== null;
-  const box = isChoice ? (choosing ? actions.box : null) : actions.box;
+  const box = actions.box;
   return (
-    <li className={cn(rowClass, "group/row")} data-then-row={task.id}>
+    <li className={cn(rowClass, "group/row")} data-then-row={task.id} data-inbox-row={task.id}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         <span className="w-7 shrink-0 text-figure-sm leading-none text-muted-foreground tabular-nums @max-[30rem]:hidden">
           <span className="sr-only">Rank </span>
@@ -103,11 +101,7 @@ function DecisionRow({ row, project }: { row: RankedTask; project: BoardProject 
           <AgeBar days={row.ageDays} className="@max-[30rem]:hidden" />
           {actionable ? (
             <span className="flex flex-wrap items-center gap-2 opacity-60 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100 max-sm:opacity-100">
-              {isChoice ? (
-                <Button type="button" size="sm" variant="outline" aria-expanded={choosing} onClick={() => setChoosing((open) => !open)} data-task-action="choose">
-                  Choose
-                </Button>
-              ) : actions.buttons}
+              {actions.buttons}
             </span>
           ) : null}
         </div>

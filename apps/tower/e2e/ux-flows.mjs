@@ -483,7 +483,9 @@ FLOWS["inbox-bulk"] = {
   async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/more-decisions"); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
+    await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
     const queue = w.page.locator("[data-waiting-list]");
+    await w.waitFor("All tasks → board", () => queue.waitFor());
     await w.click(queue.getByRole("button", { name: "Select", exact: true }), "Select", { role: "choose" });
     const bar = w.page.locator("[data-inbox-selection]");
     await w.click(bar.getByRole("button", { name: "Select all 5", exact: true }), "Select all", { role: "choose" });
@@ -501,6 +503,7 @@ FLOWS["tasks-bulk-close"] = {
   async run(w) {
     await nav(w, "Tasks");
     await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
+    await w.waitFor("All tasks → board", () => w.page.locator("[data-tasks-filters]").waitFor());
     const fold = w.page.locator("[data-tasks-filters] [data-filter-toggle]");
     if (await fold.isVisible()) await w.click(fold, "Filters", { role: "choose" });
     await w.fill(w.page.locator("#tasks-label"), "groom", "Label");

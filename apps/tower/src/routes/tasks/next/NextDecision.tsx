@@ -70,6 +70,7 @@ export function NextDecision({ row, project, epic, of }: {
       aria-labelledby={headingId}
       className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 shadow-raised md:p-5"
       data-next-decision={task.id}
+      data-inbox-row={task.id}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <h2 className={cn("m-0", eyebrowClass)}>Next for you</h2>
