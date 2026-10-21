@@ -28,10 +28,10 @@ export const VIEW_NAV_PATHS = [
  * is the one-line summary every view keeps at the top. */
 export const HOME_MODULES = [
     "money",
-    "problems",
-    "decide",
-    "agents",
     "yesterday",
+    "agents",
+    "decide",
+    "problems",
     "sites",
     "timeline",
     "health",
@@ -87,7 +87,7 @@ export const VIEW_LIBRARY = [
         label: "Everything",
         detail: "Every page and every figure.",
         nav: [...VIEW_NAV_PATHS],
-        home: ["money", "problems", "decide", "agents", "yesterday", "sites", "timeline"],
+        home: ["money", "yesterday", "agents", "decide", "problems", "sites", "timeline"],
         siteTabs: [...SITE_TABS],
         wordLevel: "technical",
     },

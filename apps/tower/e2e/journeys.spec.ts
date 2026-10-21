@@ -2490,6 +2490,10 @@ for (const theme of ["dark", "light"] as const) {
         await page.evaluate(() => document.fonts.ready);
         const cards = overview.locator(":scope > *");
         await expect(cards).toHaveCount(4);
+        await expect(cards.nth(0)).toHaveAttribute("data-home-visitors", "");
+        await expect(cards.nth(1)).toHaveAttribute("data-home-agents", "");
+        await expect(cards.nth(2)).toHaveAttribute("data-decision-queue", "");
+        await expect(cards.nth(3)).toHaveAttribute("data-incident-list", "");
         const boxes = await cards.evaluateAll(elements => elements.map(element => {
           const rect = element.getBoundingClientRect();
           return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
@@ -2500,7 +2504,7 @@ for (const theme of ["dark", "light"] as const) {
           expect(boxes[0]!.x).toBeCloseTo(boxes[2]!.x, 0);
           expect(boxes[1]!.x).toBeCloseTo(boxes[3]!.x, 0);
           expect(boxes[0]!.width).toBeCloseTo(boxes[1]!.width, 0);
-          expect(boxes[3]!.height).toBeLessThan(360);
+          expect(boxes[0]!.height).toBeLessThan(360);
         } else if (width === 390) {
           for (let index = 1; index < boxes.length; index++) expect(boxes[index]!.y).toBeGreaterThan(boxes[index - 1]!.y);
         }

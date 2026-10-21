@@ -370,8 +370,8 @@ sums reported daily counts over 28 calendar days ending at the newest settled
 reading; provisional days are excluded and missing days remain gaps. Home's
 visitor and revenue bars are stacked by site with matching colour legends. With no revenue source anywhere,
 no money figure is drawn and Visitors stays in the overview group. Four
-compact cards form a two-column, two-row group: Problems and Decisions on the
-first row, Agents and Visitors on the second. On narrow screens they stack
+compact cards form a two-column, two-row group: Visitors and Agents on the
+first row, Decisions and Problems on the second. On narrow screens they stack
 in that order. Sites follows the group (`PortfolioRows`, in seed order; with
 only one site, Home shows that site's own Overview strip and chart instead). Problems
 includes source failures and shows the three highest-ranked issues with total
