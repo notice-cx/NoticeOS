@@ -29,6 +29,7 @@ export function useAskActions({
   chooseDisabledReason = disabledReason,
   describedBy,
   placement,
+  closeAs: offersClose = true,
   onChosen,
 }: {
   ask: InboxAsk | null;
@@ -47,6 +48,9 @@ export function useAskActions({
   describedBy?: string;
   /** The row indents the box under its title; the header sets it in a panel. */
   placement: "row" | "header";
+  /** Whether Close as is offered beside Answer; a list that keeps one button
+   * a row leaves it to the task's region and page. */
+  closeAs?: boolean;
   /** An option was pressed: the page holds it while the Undo window runs. */
   onChosen?: (option: TaskChoiceKey) => void;
 }): { buttons: ReactNode; box: ReactNode } {
@@ -107,7 +111,7 @@ export function useAskActions({
         <Reply aria-hidden />
         Answer
       </Button>
-      {closeAs.menu}
+      {offersClose ? closeAs.menu : null}
     </>
   );
 
@@ -187,6 +191,7 @@ export function useAskActions({
     </form>
   ) : null;
 
-  const box = options || answerBox || closeAs.box ? <>{options}{answerBox}{closeAs.box}</> : null;
+  const closeBox = offersClose ? closeAs.box : null;
+  const box = options || answerBox || closeBox ? <>{options}{answerBox}{closeBox}</> : null;
   return { buttons, box };
 }

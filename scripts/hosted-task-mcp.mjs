@@ -60,9 +60,9 @@ export const TASK_QUALITY = Object.freeze([
  * refusal: oldest first, each one line opening with its date, at most three
  * (a new entry drops the first). */
 export const WHATS_CHANGED = Object.freeze([
-    '2026-10-17: list_tasks takes assignee ("me" for what you hold) and, with no project, lists every project; list_workspaces returns guideVersion; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
     '2026-10-21: reconcile_task accepts answers received directly in chat with answer_mode: direct, the exact question and reply, a chat source and scope. It records the admitted agent as the recorder; option maps a decision-card selection to a stored choice. Independent source verification remains the default for other answers.',
     '2026-10-21: create_task, create_tasks and update_task take card, what the work is worth, which the Tower ranks tasks by, and change_class; update_task takes null to take either off; get_task and list_tasks return them as card and changeClass.',
+    '2026-10-21: close_task as done keeps the task\'s card as it stood, with the commit its reason names, and get_task returns it as cardShipped; update_task then refuses a card for that task.',
 ]);
 /** How a session starts, said in every session's instructions. */
 export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
@@ -138,6 +138,8 @@ function stateRefusal({ taskId: id, attempted, reason }) {
         // A pick is a person's, on Tasks in the Tower; no tool makes one.
         case 'no-choices': return `refused: ${id} offers no choices.`;
         case 'no-option': return `refused: ${id} offers no option (${reason.option}).`;
+        case 'shipped': return `refused: ${id} shipped on ${reason.closedAt.slice(0, 10)}, and its card stays as it shipped: `
+            + 'get_task shows it as cardShipped. File work that remains, with its own card, with create_task.';
     }
 }
 /** A call naming a project the catalog does not hold, or another project's
@@ -431,7 +433,7 @@ function presentTask(task, live) {
         assignee: task.assignee, labels: task.labels, parent: task.parent,
         ...(live ? { ready: task.ready, awaitingHuman: waitsOnPerson(task) } : {}),
         description: task.description, acceptance: task.acceptance, choices: task.choices ?? null, choice: task.choice ?? null,
-        card: task.card ?? null, changeClass: task.changeClass ?? null, deferUntil: task.deferUntil,
+        card: task.card ?? null, cardShipped: task.cardShipped ?? null, changeClass: task.changeClass ?? null, deferUntil: task.deferUntil,
         dependencies: task.dependencies, commentCount: task.comments, metadata: task.metadata,
         createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt,
         closedAt: task.closedAt, closeReason: task.closeReason, resolution: task.resolution ?? null, duplicateOf: task.duplicateOf ?? null,
@@ -890,7 +892,8 @@ export const TASK_MCP_TOOLS = Object.freeze([
             add_labels: { type: 'array', items: { type: 'string' } }, remove_labels: { type: 'array', items: { type: 'string' } },
             choices: { ...CHOICES, type: ['object', 'null'],
                 description: 'A whole new set of choices, or null to take them off. Refused once a person has chosen.' },
-            card: { ...CARD, type: ['object', 'null'], description: `A whole new card, or null to take it off. ${CARD.description}` },
+            card: { ...CARD, type: ['object', 'null'],
+                description: `A whole new card, or null to take it off. Refused once the task closed as done: its card then stays as it shipped. ${CARD.description}` },
             change_class: { ...CHANGE_CLASS, type: ['string', 'null'], enum: [...TASK_CHANGE_CLASSES, null],
                 description: `${CHANGE_CLASS.description} null takes it off.` },
             idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),

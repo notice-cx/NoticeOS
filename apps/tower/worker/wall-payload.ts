@@ -13,7 +13,8 @@ import { readFlagReadings, readingsOf } from "./flag-evidence";
 import { isAttentionEligible } from "../shared/signal-liveness";
 import type { PullConfigEntry, SerpPanelConfig } from "./asset-config";
 import { loadDataForSeoSpend } from "./metered-spend";
-import { alertHandoffsOf, type BeadsSnapshot, loadLatestBeadsSnapshot } from "./beads-snapshot";
+import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
+import { alertHandoffsOf, type BeadsSnapshot, loadLatestBeadsSnapshot, type SnapshotProject } from "./beads-snapshot";
 import { beadsReading } from "./task-source";
 import { loadWorkWeeks } from "./work-payload";
 import { readLatestJobRuns } from "./job-runs";
@@ -310,18 +311,32 @@ function blocksFirst(a: WorkItem, b: WorkItem): number {
 }
 
 /**
+ * How many open, unparked tasks the project's lists hold that wait on the
+ * decision: null when the decision's row records no links, as a snapshot an
+ * older poller wrote does. The lists are the snapshot's first rows, so a task
+ * waiting on it that the snapshot does not list is not counted.
+ */
+function holdsOf(project: SnapshotProject, decision: WorkItem): number | null {
+  if (decision.dependencies === undefined) return null;
+  const open = new Map([...project.waiting, ...project.ready, ...project.inProgress, ...(project.blocked ?? [])]
+    .map((item) => [item.id, item]));
+  return [...open.values()].filter((item) => item.id !== decision.id && item.issueType !== "gate"
+    && item.status !== "closed" && item.status !== "deferred"
+    && (item.dependencies ?? []).some((edge) => edge.id === decision.id && TASK_BLOCKING_DEPENDENCIES.includes(edge.type))).length;
+}
+
+/**
  * Next up from the newest snapshot: the operator's decisions across every
  * project read, and the work held now. Each project's `waiting` list is
  * already most-blocking first, so the projects are merged by their heads and
- * no project's own order is changed. The snapshot records no edges between
- * tasks, so what a decision holds is null rather than a count it cannot make.
+ * no project's own order is changed.
  */
 export function wallNextUpOf(snapshot: BeadsSnapshot | null, now: Date): WallNextUp | null {
   if (!snapshot) return null;
   const nowMs = now.getTime();
   const read = snapshot.projects.filter((project) => project.ok);
 
-  const queues = read.map((project) => ({ asset: project.asset, items: [...project.waiting] }));
+  const queues = read.map((project) => ({ project, items: [...project.waiting] }));
   const decisions: WallDecision[] = [];
   while (decisions.length < WALL_NEXT_DECISIONS) {
     let next: (typeof queues)[number] | null = null;
@@ -334,10 +349,10 @@ export function wallNextUpOf(snapshot: BeadsSnapshot | null, now: Date): WallNex
     decisions.push({
       id: item.id,
       title: item.title,
-      asset: next.asset,
+      asset: next.project.asset,
       ask: wallDecisionAsk(item),
       ageDays: wholeSince(item.createdAt, nowMs, DAY_MS),
-      releases: null,
+      releases: holdsOf(next.project, item),
     });
   }
   const ages = read.flatMap((project) => project.waiting)

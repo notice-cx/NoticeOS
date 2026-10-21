@@ -552,6 +552,22 @@ test('a card and its kill criterion are captured before asynchronous authority/t
   const stored = JSON.parse(result.args.find(arg => arg.startsWith('--metadata=')).slice(11)).noticeos_card;
   assert.deepEqual([stored.likelihood, stored.kill.date], [0.4, '2026-12-31']);
 }));
+test('a card edit reads its task first and is refused, writing nothing, once the task shipped its card', () => fixture(async f => {
+  const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort' };
+  await f.control({ stateful: true, taskType: 'task', taskStatus: 'closed', metadata: { noticeos_card: card,
+    noticeos_card_shipped: { card, closedAt: '2026-10-21T09:30:00Z', commit: 'a1b2c3d' } } });
+  for (const edit of [{ ...card, valuePerMonth: 900 }, null]) {
+    await assert.rejects(f.executor.execute(request(), A, task({ kind: 'update', taskId: 'tt-ship', card: edit })),
+      error => error instanceof TaskStateRefused && error.taskId === 'tt-ship'
+        && assert.deepEqual(error.reason, { kind: 'shipped', closedAt: '2026-10-21T09:30:00Z' }) === undefined);
+  }
+  assert.equal((await controlled(f)).writes, undefined, 'nothing was written');
+  assert.deepEqual((await f.commands()).filter(row => row.args.includes('show')).map(row => row.args.slice(-2)), [['--', 'tt-ship'], ['--', 'tt-ship']]);
+  // Its class is not the card, and still changes.
+  await f.executor.execute(request(), A, task({ kind: 'update', taskId: 'tt-ship', changeClass: 'copy' }));
+  assert.equal((await controlled(f)).metadata.noticeos_change_class, 'copy');
+}));
+
 test('aborted original or server signal refuses mutations before authority and capability acquisition', () => fixture(async f => {
   const abort = new AbortController(); abort.abort();
   const operation = task({ kind: 'comment', taskId: 'tt-a', text: 'never issued' });

@@ -33,6 +33,8 @@ test('server registry and original request are captured while ordinary summary p
   const at = Date.parse(snapshot.capturedAt), reach = { closedSince: beadsClosedSince(at), closesSince: beadsClosesSince(at) };
   assert.deepEqual(snapshot.projects[0], summarizeBeadsProject(project, required, reach));
   assert.equal(snapshot.projects[0].counts.closedRecent, 1);
+  // The hosted board reads the same links and blocked list a standalone one does.
+  assert.deepEqual([snapshot.projects[0].ready[0].dependencies, snapshot.projects[0].blocked], [[], []]);
   assert.deepEqual(snapshot.projects[0].closes, { since: reach.closesSince, items: [{ at: closedAt }] });
   assert.equal(Object.hasOwn(snapshot.projects[0].counts, 'waiting'), false);
   assert.equal(Object.hasOwn(snapshot.projects[0], 'handoffs'), false);

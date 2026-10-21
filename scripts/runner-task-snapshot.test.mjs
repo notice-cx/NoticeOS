@@ -233,3 +233,50 @@ test('a task row carries its choices and a person\'s pick, and the pick is a lin
   ]);
   assert.deepEqual(recentWork.slice(0, 2).map(event => event.kind), ['closed', 'chosen'], 'a close is listed before a pick at the same time');
 });
+
+test('every row carries its links as the list read reports them, with the other task\'s status where a read holds it', async () => {
+  const { BEADS_DEPENDENCIES_MAX } = await import('../packages/contract/src/task-snapshot.mjs');
+  const edge = (from, to, type = 'blocks') => ({ issue_id: from, depends_on_id: to, type, created_at: '2026-10-16T09:00:00Z' });
+  const row = (id, over = {}) => ({ id, title: `Task ${id}`, status: 'open', priority: 2, issue_type: 'task', ...over });
+  const ask = row('shop-ask', { title: 'Pick the page' });
+  const held = row('shop-held', { dependencies: [edge('shop-held', 'shop-ask'), edge('shop-held', 'shop-elsewhere', 'related'), edge('shop-held', 'shop-epic', 'parent-child')] });
+  const free = row('shop-free', { dependencies: [edge('shop-free', 'shop-done')] });
+  const busy = row('shop-busy', { dependencies: Array.from({ length: BEADS_DEPENDENCIES_MAX + 1 }, (_, index) => edge('shop-busy', `shop-x${index}`, 'related')) });
+  // `bd ready` and `bd blocked` answer with rows that carry no links.
+  const bare = ({ dependencies: _links, ...rest }) => rest;
+  const entry = summarizeBeadsProject(PROJECT, {
+    active: ok([ask, held, free, busy, row('shop-epic', { issue_type: 'epic' })]),
+    ready: ok([ask, free, busy].map(bare)),
+    blocked: ok([{ ...bare(held), blocked_by: ['shop-ask'], blocked_by_count: 1 }]),
+    closed: ok([row('shop-done', { status: 'closed', closed_at: '2026-10-16T10:00:00Z' })]),
+    human: ok([ask]), gates: ok([]),
+  });
+  const ready = Object.fromEntries(entry.ready.map((issue) => [issue.id, issue]));
+  assert.deepEqual(ready['shop-ask'].dependencies, [], 'a task with no links carries none, which is not "not recorded"');
+  assert.deepEqual(ready['shop-free'].dependencies, [{ id: 'shop-done', type: 'blocks', status: 'closed' }]);
+  assert.equal(Object.hasOwn(ready['shop-busy'], 'dependencies'), false, 'more links than the store keeps: none, never a short list');
+  assert.deepEqual(entry.blocked.map((issue) => [issue.id, issue.dependencies]), [['shop-held', [
+    { id: 'shop-ask', type: 'blocks', status: 'open' },
+    // A task no read holds has no status, rather than a guessed one.
+    { id: 'shop-elsewhere', type: 'related' },
+    { id: 'shop-epic', type: 'parent-child', status: 'open' },
+  ]]]);
+  assert.deepEqual(entry.waiting.map((issue) => [issue.id, issue.dependencies]), [['shop-ask', []]]);
+});
+
+test('the blocked list is capped, and the tasks a listed decision holds lead it', async () => {
+  const { BEADS_BLOCKED_LIMIT } = await import('./task-snapshot-summary.mjs');
+  const row = (id, over = {}) => ({ id, title: id, status: 'open', priority: 2, issue_type: 'task', ...over });
+  const ask = row('shop-ask');
+  const others = Array.from({ length: BEADS_BLOCKED_LIMIT }, (_, index) => row(`shop-b${index}`, {
+    dependencies: [{ issue_id: `shop-b${index}`, depends_on_id: 'shop-elsewhere', type: 'blocks' }] }));
+  const held = ['shop-h1', 'shop-h2'].map((id) => row(id, { dependencies: [{ issue_id: id, depends_on_id: 'shop-ask', type: 'waits-for' }] }));
+  const entry = summarizeBeadsProject(PROJECT, {
+    active: ok([ask, ...others, ...held]), ready: ok([ask]), blocked: ok([...others, ...held]), closed: ok([]),
+    human: ok([ask]), gates: ok([]),
+  });
+  assert.equal(entry.counts.blocked, BEADS_BLOCKED_LIMIT + 2, 'the count is the whole answer');
+  assert.equal(entry.blocked.length, BEADS_BLOCKED_LIMIT);
+  assert.deepEqual(entry.blocked.slice(0, 3).map((issue) => issue.id), ['shop-h1', 'shop-h2', 'shop-b0']);
+  assert.deepEqual(summarizeBeadsProject(PROJECT, { active: { code: 1, stdout: '', stderr: 'down' } }).blocked, []);
+});

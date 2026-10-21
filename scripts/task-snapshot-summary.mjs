@@ -1,12 +1,13 @@
 // Pure task snapshot reads and derivation; shared unchanged with the standalone poller.
-import { gateReason, gateTitle } from '../packages/contract/src/task-gate.mjs';
+import { gateReason, gateTitle, TASK_BLOCKING_DEPENDENCIES } from '../packages/contract/src/task-gate.mjs';
 import { HANDOFF_LABELS, recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
-import { BEADS_CLOSES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
+import { BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { readTaskCard } from '../packages/contract/src/task-card.mjs';
 import { readTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
 import { readTaskResolution } from '../packages/contract/src/task-resolution.mjs';
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
+import { taskRowDependencies } from './task-row.mjs';
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
 
 // The Tower handoff join: one key carried from the finding to the task filed
@@ -135,6 +136,7 @@ function handoffRank(a, b) {
  * queue, not the queue. */
 export const BEADS_READY_LIMIT = 10;
 export const BEADS_IN_PROGRESS_LIMIT = 10;
+export const BEADS_BLOCKED_LIMIT = 10;
 export const BEADS_CLOSED_LIMIT = 5;
 /** Newest-filed work a project reports, so the Wall feed can say "New task"
  * the minute one is filed. Capped like the closed list. */
@@ -232,8 +234,9 @@ export const BEADS_OPTIONAL_READS = ['epics', 'deferred', 'human', 'gates', 'pan
 /** One `bd` issue object flattened to what a board row needs. Field names are
  * `bd`'s (snake_case); everything the OS stores is camelCase, and this is the
  * one place the two vocabularies meet. A bead with a blank title falls back to
- * its own id rather than rendering as an empty row. */
-function beadsIssue(row) {
+ * its own id rather than rendering as an empty row. `links` (`beadsLinks`)
+ * adds the task's links to other tasks. */
+function beadsIssue(row, links) {
   const id = beadsText(row?.id);
   return {
     id,
@@ -260,6 +263,39 @@ function beadsIssue(row) {
     ...beadsChoices(row),
     ...beadsResolution(row),
     ...beadsCard(row),
+    ...(links === undefined ? {} : links(row)),
+  };
+}
+
+/**
+ * Each task's links to other tasks, as the Tower's live read takes them
+ * (`taskRowDependencies`). They are read off the `bd list` rows, which carry
+ * every link a task has, because `bd ready` and `bd blocked` answer with rows
+ * that carry none; a task those rows do not hold keeps the links on its own
+ * row. Each link names the other task's status where any of these reads holds
+ * that task. A task with more links than the store keeps carries none, so its
+ * links read as not recorded rather than short.
+ */
+function beadsLinks(listRows, otherRows) {
+  const listed = new Map();
+  const statuses = new Map();
+  for (const [rows, list] of [[listRows, true], [otherRows, false]]) {
+    for (const row of rows) {
+      const id = beadsText(row?.id);
+      if (id === '') continue;
+      if (!statuses.has(id)) statuses.set(id, beadsText(row?.status, 'open'));
+      if (list && !listed.has(id)) listed.set(id, row);
+    }
+  }
+  return (row) => {
+    const edges = taskRowDependencies(listed.get(beadsText(row?.id))?.dependencies ?? row?.dependencies);
+    if (edges.length > BEADS_DEPENDENCIES_MAX) return {};
+    return {
+      dependencies: edges.map((edge) => {
+        const status = edge.status ?? statuses.get(edge.id) ?? null;
+        return { id: edge.id, type: edge.type, ...(status === null ? {} : { status }) };
+      }),
+    };
   };
 }
 
@@ -367,9 +403,9 @@ export function beadsWork(activeRows, closedRows) {
   return { workers, recentWork: events };
 }
 
-function beadsIssues(parsed) {
+function beadsIssues(parsed, links) {
   if (!Array.isArray(parsed)) return [];
-  return parsed.filter((row) => beadsText(row?.id) !== '').map(beadsIssue);
+  return parsed.filter((row) => beadsText(row?.id) !== '').map((row) => beadsIssue(row, links));
 }
 
 /** A project that could not be read: named, honest, and carrying no work. The
@@ -385,6 +421,7 @@ export function beadsProjectError(project, error) {
     epics: [],
     ready: [],
     inProgress: [],
+    blocked: [],
     recentlyClosed: [],
     deferred: [],
     waiting: [],
@@ -501,16 +538,18 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
   const rawById = new Map([parsed.active, parsed.deferred, recentRows]
     .flatMap((rows) => (Array.isArray(rows) ? rows : []))
     .map((row) => [beadsText(row?.id), row]));
-  const active = work(beadsIssues(parsed.active));
-  const ready = work(beadsIssues(parsed.ready));
-  const blocked = work(beadsIssues(parsed.blocked));
+  const rows = (key) => (Array.isArray(parsed[key]) ? parsed[key] : []);
+  const links = beadsLinks([...rows('active'), ...rows('deferred'), ...rows('closed')], [...rows('gates'), ...rows('ready'), ...rows('blocked')]);
+  const active = work(beadsIssues(parsed.active, links));
+  const ready = work(beadsIssues(parsed.ready, links));
+  const blocked = work(beadsIssues(parsed.blocked, links));
   const everyClose = work(beadsIssues(parsed.closed)).filter((issue) => issue.issueType !== 'gate');
-  const closed = work(beadsIssues(recentRows));
+  const closed = work(beadsIssues(recentRows, links));
   const inProgress = active.filter((issue) => issue.status === 'in_progress');
   // Whether we looked, which is not the same as finding none: a project whose
   // `bd` could not answer must not report "0 parked".
   const sawDeferred = Array.isArray(parsed.deferred);
-  const deferred = sawDeferred ? work(beadsIssues(parsed.deferred)) : [];
+  const deferred = sawDeferred ? work(beadsIssues(parsed.deferred, links)) : [];
   // A poller that could not run the read sends no key; one that ran it and
   // found nothing sends `null`. "We never asked" must not render as "nothing
   // to triage".
@@ -544,7 +583,7 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
           (row) => row?.await_type === BEADS_HUMAN_GATE && beadsText(row?.status) !== 'closed',
         )
         .map((row) => {
-          const issue = beadsIssue(row);
+          const issue = beadsIssue(row, links);
           // "Gate: human" names the mechanism rather than the ask; its reason
           // is the ask, so it takes the title slot.
           return { ...issue, title: gateTitle(issue.title, row?.description) };
@@ -567,6 +606,10 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
   const waitingUrgent =
     humanGates.length +
     humanBeads.filter((issue) => issue.priority <= BEADS_HIGH_PRIORITY_MAX).length;
+  // The blocked tasks a listed decision holds lead their sample, so what an
+  // answer releases is counted from tasks the snapshot lists.
+  const asks = new Set(waiting.slice(0, BEADS_WAITING_LIMIT).map((issue) => issue.id));
+  const heldByAsk = (issue) => issue.dependencies?.some((edge) => TASK_BLOCKING_DEPENDENCIES.includes(edge.type) && asks.has(edge.id)) === true;
 
   // Epic structure, when this `bd` could answer for it. Children come from the
   // live lists (active + deferred) so the grouping always agrees with the rows
@@ -625,6 +668,7 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
     ...(epics === undefined ? {} : { epics }),
     ready: ready.slice(0, BEADS_READY_LIMIT),
     inProgress: inProgress.slice(0, BEADS_IN_PROGRESS_LIMIT),
+    blocked: [...blocked.filter(heldByAsk), ...blocked.filter((issue) => !heldByAsk(issue))].slice(0, BEADS_BLOCKED_LIMIT),
     // Newest close first — the only list where recency, not rank, is the point.
     recentlyClosed: closed
       .slice()

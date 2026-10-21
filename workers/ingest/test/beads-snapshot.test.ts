@@ -10,7 +10,7 @@ import {
   writeBeadsSnapshot,
 } from '../src/beads-snapshots.js';
 import { readSnapshotProjects } from '../src/beads-daily.js';
-import { BEADS_CLOSES_MAX } from '@noticeos/contract/task-snapshot';
+import { BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { call, reset, storedCount } from './helpers.js';
@@ -950,6 +950,24 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     ]) expect((await post({ projects: [bad] })).status).toBe(422);
   });
 
+  // What the Next tab ranks a snapshot row by.
+  it('stores a task\'s card and change class, leaves out what an older poller never sent, and refuses one it cannot read', async () => {
+    const card = { valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, daysToSignal: 14, measurability: 'holdout', note: 'Recipes rank again' };
+    const stored = await storedProject({ projects: [project({ ready: [issue({ id: 'md-k1', card, changeClass: 'template' }), issue({ id: 'md-k2' })] })] });
+    const ready = stored.ready as Record<string, unknown>[];
+    expect([ready[0]!.card, ready[0]!.changeClass]).toEqual([card, 'template']);
+    expect('card' in ready[1]! || 'changeClass' in ready[1]!).toBe(false);
+    for (const [bad, path] of [
+      [issue({ id: 'md-k1', card: { ...card, likelihood: 2 } }), 'projects.0.ready.0.card'],
+      [issue({ id: 'md-k1', card: 'worth it' }), 'projects.0.ready.0.card'],
+      [issue({ id: 'md-k1', changeClass: 'redesign' }), 'projects.0.ready.0.changeClass'],
+    ] as const) {
+      const res = await post({ projects: [project({ ready: [bad] })] });
+      expect(res.status).toBe(422);
+      expect(((await res.json()) as ValidationBody).issues.map((entry) => entry.path)).toEqual([path]);
+    }
+  });
+
   it('stores how a close that was not done ended, on its row and its line, and refuses one it cannot read', async () => {
     const recentWork = [{ kind: 'closed', taskId: 'md-r2', title: 'Same as the export', by: 'Dana', model: null, at: '2026-08-02T10:00:00.000Z',
       evidence: 'See md-r1', resolution: 'duplicate' }];
@@ -985,6 +1003,28 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
       project({ closes: { since: '2026-07-18', items: [{ at: '2026-07-20T09:00:00Z', resolution: 'done' }] } }),
       project({ closes: { since: '2026-07-18', items: Array.from({ length: BEADS_CLOSES_MAX + 1 }, () => ({ at: '2026-07-20T09:00:00Z' })) } }),
       project({ ok: false, error: 'no repo', ready: [], inProgress: [], closes: { since: '2026-07-18', items: [{ at: '2026-07-20T09:00:00Z' }] } }),
+    ]) expect((await post({ projects: [bad] })).status).toBe(422);
+  });
+
+  // What waits on what: the Next tab's blocked reasons and the TV's "holds N tasks".
+  it('stores each task\'s links and the blocked list, leaves out what an older poller never sent, and refuses a link it cannot read', async () => {
+    const links = [{ id: 'md-gate', type: 'blocks', status: 'open' }, { id: 'md-x', type: 'related', status: null }];
+    const stored = await storedProject({ projects: [project({
+      ready: [issue({ dependencies: links }), issue({ id: 'md-2', dependencies: [] })],
+      blocked: [issue({ id: 'md-b', dependencies: [{ id: 'md-gate', type: 'waits-for' }] })],
+    })] });
+    const ready = stored.ready as Record<string, unknown>[];
+    expect(ready.map((row) => row.dependencies)).toEqual([[{ id: 'md-gate', type: 'blocks', status: 'open' }, { id: 'md-x', type: 'related' }], []]);
+    expect(stored.blocked).toEqual([expect.objectContaining({ id: 'md-b', dependencies: [{ id: 'md-gate', type: 'waits-for' }] })]);
+    const older = await storedProject({ projects: [project()] });
+    expect('blocked' in older || 'dependencies' in (older.ready as Record<string, unknown>[])[0]!).toBe(false);
+    for (const bad of [
+      project({ ready: [issue({ dependencies: [{ id: 'md-gate' }] })] }),
+      project({ ready: [issue({ dependencies: [{ type: 'blocks' }] })] }),
+      project({ ready: [issue({ dependencies: 'md-gate' })] }),
+      project({ ready: [issue({ dependencies: Array.from({ length: BEADS_DEPENDENCIES_MAX + 1 }, (_, index) => ({ id: `md-${index}`, type: 'related' })) })] }),
+      project({ blocked: [issue({ title: '' })] }),
+      project({ ok: false, error: 'no repo', ready: [], inProgress: [], blocked: [issue({ id: 'md-b' })] }),
     ]) expect((await post({ projects: [bad] })).status).toBe(422);
   });
 

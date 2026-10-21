@@ -8,9 +8,11 @@
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-resolution";
+import { taskCardOf } from "@noticeos/contract/task-card";
+import { isTaskChangeClass } from "@noticeos/contract/task-change-class";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
-import { PRIORITY_BANDS, type WorkCloses, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
+import { PRIORITY_BANDS, type WorkCloses, type WorkCounts, type WorkDependency, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
 
 type SnapshotRow = {
   captured_at: string;
@@ -46,6 +48,8 @@ export interface SnapshotProject {
   epics: WorkEpic[] | null;
   ready: WorkItem[];
   inProgress: WorkItem[];
+  /** Open work waiting on another task; absent from an older snapshot. */
+  blocked?: WorkItem[];
   recentlyClosed: WorkItem[];
   deferred: WorkItem[];
   waiting: WorkItem[];
@@ -112,12 +116,16 @@ function readItem(value: unknown): WorkItem | null {
   const createdAt = nullableText(value.createdAt);
   // Read through the contract's own rules: an unreadable set or pick is left out.
   const choices = taskChoicesOf(value.choices), choice = taskChoiceOf(value.choice);
+  const card = taskCardOf(value.card), changeClass = isTaskChangeClass(value.changeClass) ? value.changeClass : null;
   const ended = notDone(value.resolution);
   const duplicateOf = ended === "duplicate" ? nullableText(value.duplicateOf) : null;
   return {
+    ...readDependencies(value.dependencies),
     ...(createdAt ? { createdAt } : {}),
     ...(choices ? { choices } : {}),
     ...(choice ? { choice } : {}),
+    ...(card ? { card } : {}),
+    ...(changeClass ? { changeClass } : {}),
     ...(ended ? { resolution: ended } : {}),
     ...(duplicateOf ? { duplicateOf } : {}),
     id,
@@ -132,6 +140,19 @@ function readItem(value: unknown): WorkItem | null {
     parent: nullableText(value.parent),
     deferUntil: nullableText(value.deferUntil),
   };
+}
+
+/** A task's links, all or none: a list missing one would let a held task read
+ * as free. No key when the row carries none, which an older poller wrote. */
+function readDependencies(value: unknown): Pick<WorkItem, "dependencies"> {
+  if (!Array.isArray(value)) return {};
+  const dependencies: WorkDependency[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry) || !text(entry.id) || !text(entry.type)) return {};
+    const status = nullableText(entry.status);
+    dependencies.push({ id: text(entry.id), type: text(entry.type), ...(status ? { status } : {}) });
+  }
+  return { dependencies };
 }
 
 /** Container grouping, all-or-nothing per row: a half-readable container
@@ -291,6 +312,7 @@ function readProject(value: unknown): SnapshotProject | null {
     epics: ok ? readEpics(value.epics) : null,
     ready: ok ? readItems(value.ready) : [],
     inProgress: ok ? readItems(value.inProgress) : [],
+    ...(ok && Array.isArray(value.blocked) ? { blocked: readItems(value.blocked) } : {}),
     recentlyClosed: ok ? readItems(value.recentlyClosed) : [],
     deferred: ok ? readItems(value.deferred) : [],
     waiting: ok ? readItems(value.waiting) : [],

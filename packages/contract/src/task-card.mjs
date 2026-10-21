@@ -4,8 +4,11 @@
 // task tools validate a new card with `taskCardProblem`, the Tower's composer
 // writes the same shape, and every reader goes through `readTaskCard`, which
 // answers null for anything else, so a hand-edited or older value never ranks
-// a task on a figure it does not hold. The card stays editable until the
-// change ships; the change entry then records the figures as they stood.
+// a task on a figure it does not hold. The card stays editable until the task
+// first closes as done: the server then keeps it as it stood under
+// `noticeos_card_shipped` (`readTaskCardShipped`), and no writer edits the
+// card of a task that carries one, so grading reads the prediction it shipped
+// with.
 //
 // `scoreTaskCard` is policy v1.0, the one formula the docs state:
 //
@@ -156,6 +159,28 @@ export function readTaskCard(metadata) {
     if (!isRecord(metadata))
         return null;
     return taskCardOf(metadata[TASK_METADATA.card.name]);
+}
+const COMMIT = /^[0-9a-f]{7,64}$/u;
+/** A shipped card as it is stored: plain frozen data, or null for anything
+ * that is not one. */
+export function taskCardShippedOf(value) {
+    if (!isRecord(value) || Object.keys(value).some((key) => key !== "card" && key !== "closedAt" && key !== "commit"))
+        return null;
+    const card = taskCardOf(value.card);
+    const { closedAt, commit } = value;
+    if (card === null || typeof closedAt !== "string" || closedAt.length > 64 || !Number.isFinite(Date.parse(closedAt)))
+        return null;
+    if (commit === undefined)
+        return Object.freeze({ card, closedAt });
+    if (typeof commit !== "string" || !COMMIT.test(commit))
+        return null;
+    return Object.freeze({ card, closedAt, commit });
+}
+/** The card a task shipped with, or null when its metadata holds none it can read. */
+export function readTaskCardShipped(metadata) {
+    if (!isRecord(metadata))
+        return null;
+    return taskCardShippedOf(metadata[TASK_METADATA.cardShipped.name]);
 }
 /** Policy v1.0 over one card. The rate is USD per operator minute
  * (`operator_rate_usd_per_min`); a zero or missing rate prices a minute at one

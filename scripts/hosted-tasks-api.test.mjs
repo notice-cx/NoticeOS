@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTasksApi, writeResponse, IDEMPOTENCY_HEADER } from './hosted-tasks-api.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
+import { TaskStateRefused } from './hosted-task-command.mjs';
 const [A,B,P,S,PERSON] = ['11111111','22222222','33333333','44444444','55555555'].map(prefix=>`${prefix}-1111-4111-8111-111111111111`);
 const origin='https://tower.example.test';
 function request(path,method='GET',body,workspace=A){return new Request(origin+path,{method,headers:{origin,
@@ -117,6 +118,20 @@ test('an Idempotency-Key is checked before admission and needs a receipt store',
   assert.equal(reply.status,503);assert.deepEqual(await reply.json(),{error:'idempotency_unavailable'});assert.deepEqual(f.calls,[]);
   assert.equal(writeResponse({status:'pending'}).status,409);assert.equal(writeResponse({status:'conflict'}).status,409);
   assert.deepEqual(await writeResponse({status:'done',value:{id:'tt-a'},replayed:true}).json(),{id:'tt-a'});
+});
+test('a card edit refused because the task shipped its card says so, as a decision refused by its task does',async()=>{
+  const admission=createWorkspaceAdmission({kind:'hosted',profile:Symbol(),trustedOrigin:origin,membership:async(_headers,workspaceId)=>({
+    principalId:PERSON,sessionId:S,expiresAt:new Date(Date.now()+60000).toISOString(),workspaceId,role:'operator',workspaceStatus:'active'})});
+  const handler=createHostedTasksApi({profile:'hosted',trustedOrigin:origin,admission,
+    directory:{catalog:async()=>Object.freeze([{projectId:P,logicalKey:'example',displayName:'Example',prefix:'tt'}])},
+    executor:{execute:async(_proof,_workspace,command)=>{
+      if(command.operation.kind==='update')throw new TaskStateRefused('tt-a','other',{kind:'shipped',closedAt:'2026-10-21T09:30:00Z'});
+      return[{id:'tt-a',status:'closed'}];
+    }}});
+  const card={valuePerMonth:400,likelihood:0.4,reviewMinutes:20,daysToSignal:28,measurability:'cohort'};
+  const reply=await handler(request('/api/tasks/tt-a','PATCH',{projectId:P,card}));
+  assert.equal(reply.status,409);
+  assert.deepEqual(await reply.json(),{error:'task_refused',detail:'tt-a shipped on 2026-10-21, and its card stays as it shipped.'});
 });
 test('a closed-only read may ask for eight weeks of history; any other read keeps its week',async()=>{
   const f=fixture();

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { BoardTask } from "@/lib/task-board-read";
+import { emptyWorkHistory, type WorkItem } from "@shared/work";
+import { readTaskBoard, type BoardTask } from "@/lib/task-board-read";
 import { rankBoard, taskAgeDays } from "@/lib/task-ranking";
+import { heldBackLine } from "@/routes/tasks/next/next-read";
 
 // The ranking reads rows the board already drew; these are the smallest rows
 // that exercise each list and reason.
@@ -89,5 +91,30 @@ describe("the board is ranked by what each task is worth", () => {
     expect(taskAgeDays({ createdAt: null, updatedAt: "2026-10-20T12:00:00Z" }, NOW)).toBe(1);
     expect(taskAgeDays({ createdAt: null, updatedAt: null }, NOW)).toBeNull();
     expect(taskAgeDays({ createdAt: "soon", updatedAt: null }, NOW)).toBeNull();
+  });
+
+  it("holds back a snapshot row that waits on an open task, by the blocker's title when the snapshot lists it", () => {
+    const item = (id: string, over: Partial<WorkItem> = {}): WorkItem => ({ id, title: id, status: "open", priority: 2, issueType: "task",
+      assignee: null, updatedAt: "2026-10-20T12:00:00Z", closedAt: null, parent: null, deferUntil: null, ...over });
+    const board = readTaskBoard({
+      capabilities: { live: false, reason: "read_only_deployment" }, reads: new Map(),
+      filters: { project: "all", status: "all", priority: "all", label: "", assignee: "all" },
+      snapshot: { generatedAt: NOW.toISOString(), capturedAt: NOW.toISOString(), pollCadenceHours: 1 / 60, owner: "config/beads.json", historyDays: 0,
+        projects: [{ asset: "example", prefix: "ex", name: "Example", ok: true, error: null,
+          counts: { open: 3, highPriority: 0, ready: 1, inProgress: 0, blocked: 2, closedRecent: 0, deferred: 0, waiting: 0 },
+          history: emptyWorkHistory(), priorities: null, epics: null, inProgress: [], recentlyClosed: [], deferred: [], waiting: [],
+          ready: [item("ex-import", { title: "Fix the import", dependencies: [] })],
+          blocked: [
+            item("ex-held", { dependencies: [{ id: "ex-import", type: "blocks", status: "open" }, { id: "ex-gone", type: "blocks", status: "closed" }] }),
+            item("ex-far", { dependencies: [{ id: "ex-unlisted", type: "blocks" }] }),
+          ] }] },
+    });
+    const ranked = rankBoard({ tasks: board.allTasks, inbox: board.inbox.map((row) => row.task), operatorRateUsdPerMin: 2, now: NOW });
+    expect(ranked.agents.map((entry) => entry.task.id)).toEqual(["ex-import"]);
+    expect(ranked.notNow.map((entry) => [entry.task.id, entry.reason])).toEqual([
+      ["ex-held", { kind: "blocked", by: [{ id: "ex-import", title: "Fix the import" }] }],
+      ["ex-far", { kind: "blocked", by: [{ id: "ex-unlisted", title: null }] }],
+    ]);
+    expect(ranked.notNow.map((entry) => heldBackLine(entry.reason))).toEqual(["Waits on Fix the import", "Waits on another task"]);
   });
 });

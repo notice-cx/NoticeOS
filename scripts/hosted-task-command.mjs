@@ -11,7 +11,7 @@
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS } from '../packages/contract/src/task-resolution.mjs';
-import { TASK_CARD_LIMITS, taskCardOf, taskCardProblem } from '../packages/contract/src/task-card.mjs';
+import { readTaskCard, readTaskCardShipped, TASK_CARD_LIMITS, taskCardOf, taskCardProblem, taskCardShippedOf } from '../packages/contract/src/task-card.mjs';
 import { isTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
 import { TASK_BLOCKING_DEPENDENCIES as BLOCKING } from '../packages/contract/src/task-gate.mjs';
 export const MAINTENANCE_ACTIONS = ['answer', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'];
@@ -232,17 +232,50 @@ function handoffMetadata(value) {
     return Object.freeze(result);
 }
 /** What a close's attribution writes onto its task: who closed it, when, the
- * model they named and how it ended. The one copy for both writers of a
- * close, the planner here and the Tower's local task lane. */
+ * model they named, how it ended and, for a close as done, the card it
+ * shipped. The one copy for both writers of a close, the planner here and the
+ * Tower's local task lane. */
 export function closerMetadata(attribution) {
     const op = record(attribution);
-    keys(op, ['kind', 'taskId', 'closedBy', 'closedAt'], ['model', 'resolution', 'duplicateOf']);
+    keys(op, ['kind', 'taskId', 'closedBy', 'closedAt'], ['model', 'resolution', 'duplicateOf', 'shipped']);
     if (op.kind !== 'attribute' || typeof op.closedAt !== 'string' || !Number.isFinite(Date.parse(op.closedAt)) || op.closedAt.length > 64)
         invalid();
+    const ended = resolutionMetadata(op, task(op.taskId));
     return Object.freeze({ [TASK_METADATA.closedBy.name]: text(op.closedBy, HOSTED_TASK_LIMITS.identifier),
         [TASK_METADATA.closedAt.name]: op.closedAt,
         ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.closedModel.name]: model(op.model) } : {}),
-        ...resolutionMetadata(op, task(op.taskId)) });
+        ...ended,
+        ...(Object.hasOwn(op, 'shipped') ? { [TASK_METADATA.cardShipped.name]: shippedOf(op.shipped, op.closedAt, ended) } : {}) });
+}
+/** A shipped card as an attribution carries it: read through data properties
+ * only, from this very close, and only with a close as done. */
+function shippedOf(value, closedAt, ended) {
+    const row = record(value);
+    const shipped = taskCardShippedOf(Object.hasOwn(row, 'card') ? { ...row, card: cardOf(row.card) } : row) ?? invalid();
+    if (shipped.closedAt !== closedAt || ended[TASK_METADATA.resolution.name] !== 'done')
+        invalid();
+    return shipped;
+}
+/** A commit hash as a close reason names it: a word of 7 to 64 lowercase hex
+ * digits holding a digit and a letter, as git prints one. A number, a word
+ * such as "defaced" and the hash part of a task id are not one. */
+const REASON_COMMIT = /(?<![\w-])(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,64}(?![\w-])/u;
+/** What a close keeps of the task's card, from the task as the close left it
+ * (its metadata, close time and reason): the card as it stood, when it closed
+ * and the first commit its reason names. Undefined for a close that is not
+ * done, a task without a card, or one that already carries a shipped card:
+ * the first ship stands, so a task reopened and done again keeps the
+ * prediction it first shipped with. */
+export function shippedTaskCard(row, resolution) {
+    if (resolution !== undefined && resolution !== 'done')
+        return undefined;
+    if (typeof row.closed_at !== 'string' || readTaskCardShipped(row.metadata) !== null)
+        return undefined;
+    const card = readTaskCard(row.metadata);
+    if (card === null)
+        return undefined;
+    const commit = typeof row.close_reason === 'string' ? REASON_COMMIT.exec(row.close_reason)?.[0] : undefined;
+    return taskCardShippedOf({ card, closedAt: row.closed_at, ...(commit === undefined ? {} : { commit }) }) ?? undefined;
 }
 function command(input) {
     const op = record(input);
@@ -633,12 +666,13 @@ function canonicalActor(name) {
 }
 export function sameActor(a, b) { return a === b || canonicalActor(a) === canonicalActor(b); }
 /** A write whose own task's state decides how it runs: a close, a claim, a
- * change of assignee or of choices. A caller's forced close is a service
- * closing for the agent it named, and decides for itself. */
+ * change of assignee, of choices or of the card. A caller's forced close is a
+ * service closing for the agent it named, and decides for itself. */
 function stateGuarded(operation) {
     if (operation.kind === 'close')
         return operation.force !== true;
-    return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined || operation.choices !== undefined);
+    return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined || operation.choices !== undefined
+        || operation.card !== undefined);
 }
 /** Whether a person has chosen on this task: its pick named, or null when the
  * recorded pick cannot be read; undefined when it carries none. */
@@ -688,6 +722,10 @@ export function guardedWrite(operation, row, actor) {
         const chosen = operation.choices === undefined ? undefined : chosenOn(row);
         if (chosen !== undefined)
             refuse({ kind: 'chosen', chosen });
+        // Grading reads the card a task shipped with, so that card stays as it shipped.
+        const shipped = operation.card === undefined ? null : readTaskCardShipped(row.metadata);
+        if (shipped !== null)
+            refuse({ kind: 'shipped', closedAt: shipped.closedAt });
         if (attempted === 'other')
             return operation;
         if (attempted === 'reassign') {
@@ -1036,8 +1074,8 @@ export function ownerResponseSteps(operation, row, comments, actor, at) {
 function inWords(items) {
     return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
-/** A refused decision or close as the person who made it reads it on Tasks,
- * or null for a cause this does not name. */
+/** A refused decision, close or card edit as the person who made it reads it
+ * on Tasks, or null for a cause this does not name. */
 export function decisionRefusal({ taskId: id, reason }) {
     switch (reason.kind) {
         case 'closed': return `${id} is already closed.`;
@@ -1048,6 +1086,7 @@ export function decisionRefusal({ taskId: id, reason }) {
         case 'no-option': return `${id} offers ${inWords(reason.offered.map(key => `(${key})`))}, not (${reason.option}).`;
         case 'gate': return `${id} waits on approval ${inWords(reason.gates)}. Approve it first.`;
         case 'children': return `${id} has open tasks under it: ${inWords(reason.children)}.`;
+        case 'shipped': return `${id} shipped on ${reason.closedAt.slice(0, 10)}, and its card stays as it shipped.`;
         default: return null;
     }
 }
