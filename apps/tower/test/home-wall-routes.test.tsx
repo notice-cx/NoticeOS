@@ -1085,7 +1085,7 @@ describe("Home — the answer, the money and what is broken", () => {
     const first = list.querySelector('[data-incident="alert-7"] a')!;
     expect(first).toHaveAttribute("href", "/assets/meadow.example");
     const title = within(first as HTMLElement).getByText(/A long problem title/);
-    expect(title).toHaveClass("line-clamp-2");
+    expect(title).toHaveTextContent("A long problem title ".repeat(40).trim());
     expect(title).toHaveAttribute("title", "A long problem title ".repeat(40).trim());
     expect(within(list).getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
   });

@@ -74,9 +74,10 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             expect(measurements).toMatchObject({ width: 390, height: 844, overflowX: 0, clipped: [], incorrectMarks: 0 });
           }
           if (state === 'populated' && name === 'home') {
-            // The data-sources grid keeps its one tab stop reachable by
-            // keyboard at double text, and scrolls it into view.
-            const action = main.locator('[data-health-grid] [data-health-target][tabindex="0"]');
+            // Home's Problems link remains keyboard-reachable at double text
+            // and scrolls into view when it receives focus.
+            const action = main.getByRole('link', { name: 'All alerts →' });
+            await expect(action).toBeVisible();
             for (let n = 0; n < 80 && !await action.evaluate(el => el === document.activeElement); n += 1) {
               await page.keyboard.press('Tab');
             }
