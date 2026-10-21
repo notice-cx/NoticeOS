@@ -2473,7 +2473,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-overview" class="page-arrive flex flex-col gap-4">
 <div class="@container flex flex-col gap-5" data-site-overview="">
 <div id="setup" class="scroll-mt-4">
-<div role="status" data-status-for="asset-setup:meadow.example" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+<div role="status" data-status-for="asset-setup:meadow.example" class="flex items-start gap-3 rounded-[10px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+<span class="flex h-4 shrink-0 items-center">
 <span role="img" aria-label="Setup 2 of 3 — still to do: 28 days of reports" title="Setup 2 of 3 — still to do: 28 days of reports" class="relative inline-grid shrink-0 place-items-center align-middle" style="width: 16px; height: 16px;" data-progress-ring="true" data-done="2" data-total="3">
 <svg viewBox="0 0 32 32" width="16" height="16" aria-hidden="true" class="block">
 <g transform="rotate(-90 16 16)">
@@ -2486,15 +2487,18 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </g>
 </svg>
 </span>
-<span class="min-w-0">
+</span>
+<div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+<span class="min-w-0 flex-[1_1_16rem]">
 <span class="font-semibold text-foreground">Data setup</span>
 <span> · 2 of 3 done · to do: 28 days of reports</span>
 </span>
 <a class="outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring ms-auto text-xs text-muted-foreground hover:text-foreground motion-safe:transition-colors max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center" href="/assets/meadow.example/sources" data-discover="true">Review data setup →</a>
 </div>
 </div>
+</div>
 <div class="flex flex-wrap items-center gap-x-2 text-sm text-foreground" data-verdict-line="true">
-<span class="tabular-nums">Jun net +$498</span>
+<span class="tabular-nums">Jun booked net so far +$498</span>
 <span aria-hidden="true" class="text-muted-foreground">·</span>
 <span class="text-error">1 error open</span>
 <span aria-hidden="true" class="text-muted-foreground">·</span>
@@ -4751,14 +4755,18 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </button>
 </div>
 <div data-tasks-readonly="">
-<div role="status" data-status-for="tasks:snapshot" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+<div role="status" data-status-for="tasks:snapshot" class="flex items-start gap-3 rounded-[10px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+<span class="flex h-4 shrink-0 items-center">
 <span role="img" aria-label="Info" title="Info" class="inline-block shrink-0 rounded-full size-2.5 bg-info">
 </span>
-<span class="min-w-0">
+</span>
+<div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+<span class="min-w-0 flex-[1_1_16rem]">
 <span class="font-semibold text-foreground">Read-only snapshot</span>
 <span> · <span id="tasks-read-only-reason">Make changes from the local NoticeOS.</span>
 </span>
 </span>
+</div>
 </div>
 </div>
 <div role="status" aria-live="polite" data-status-for="read:tasks" class="flex min-h-[40vh] flex-1 flex-col">
