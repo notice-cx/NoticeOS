@@ -10,7 +10,7 @@ function request(path,method='GET',body,workspace=A){return new Request(origin+p
   'sec-fetch-site':'same-origin',[WORKSPACE_SELECTION_HEADER]:workspace,[WORKSPACE_SESSION_HEADER]:S,
   ...(body===undefined?{}:{'content-type':'application/json'})},...(body===undefined?{}:{body:typeof body==='string'?body:JSON.stringify(body)})});}
 function fixture(){
-  const calls=[],catalogReads=[],actorReads=[];let role='operator',active=true,epicsFail=false,actorsFail=false;
+  const calls=[],catalogReads=[],actorReads=[];let role='operator',active=true,epicsFail=false,actorsFail=false,title='Task',comment='Actual comment';
   const admission=createWorkspaceAdmission({kind:'hosted',profile:Symbol(),trustedOrigin:origin,membership:async(_headers,workspaceId)=>active?{
     principalId:PERSON,sessionId:S,expiresAt:new Date(Date.now()+60000).toISOString(),workspaceId,role,workspaceStatus:'active'}:null});
   const catalog=Object.freeze([{projectId:P,logicalKey:'example',displayName:'Example',prefix:'tt'}]);
@@ -24,12 +24,12 @@ function fixture(){
       if(kind==='closed-board')return[{id:'tt-old',status:'closed',closed_at:'2000-01-01T00:00:00Z'},
         {id:'tt-closed',status:'closed',closed_at:new Date().toISOString()}];
       if(kind==='epics'){if(epicsFail)throw new Error('unavailable');return[{epic:{id:'tt-e',title:'Roadmap',status:'open'},total_children:12,closed_children:5}];}
-      if(kind==='show')return[{id:command.operation.taskId,title:'Task',status:'open',comment_count:1}];
-      if(kind==='comments')return[{id:'comment',author:PERSON,text:'Actual comment',created_at:'2026-10-01T01:00:00Z'}];
+      if(kind==='show')return[{id:command.operation.taskId,title,status:'open',comment_count:1}];
+      if(kind==='comments')return[{id:'comment',author:PERSON,text:comment,created_at:'2026-10-01T01:00:00Z'}];
       if(kind==='create')return{id:'tt-new'};
       return[];
     }}});
-  return{handler,calls,catalogReads,actorReads,role:value=>{role=value;},active:value=>{active=value;},epicsFail:()=>{epicsFail=true;},actorsFail:()=>{actorsFail=true;}};
+  return{handler,title:value=>{title=value;},comment:value=>{comment=value;},calls,catalogReads,actorReads,role:value=>{role=value;},active:value=>{active=value;},epicsFail:()=>{epicsFail=true;},actorsFail:()=>{actorsFail=true;}};
 }
 test('selected-workspace actor presentation is private, fresh and never changes immutable attribution',async()=>{
   const f=fixture();
@@ -144,4 +144,33 @@ test('a closed-only read may ask for eight weeks of history; any other read keep
     `/api/tasks?project=${P}&status=closed&closedDays=2w`]){
     assert.equal((await f.handler(request(path))).status,400,path);
   }
+});
+
+test('successful task reads validate current content, omit answer times, and never bypass admission', async () => {
+  const f=fixture();
+  const conditional=(path,etag,workspace=A)=>{const r=request(path,'GET',undefined,workspace);r.headers.set('if-none-match',etag);return f.handler(r);};
+  const paths=['/api/tasks/projects','/api/tasks/capabilities',`/api/tasks?project=${P}&status=open`,
+    `/api/tasks/tt-a?project=${P}`,`/api/tasks/tt-a/history?project=${P}`];
+  for(const path of paths){
+    const initial=await f.handler(request(path));assert.equal(initial.status,200);
+    const etag=initial.headers.get('etag');assert.match(etag,/^"[a-f0-9]{32}"$/u);
+    const data=await initial.json();
+    const same=await conditional(path,`"unrelated", W/${etag}`);
+    assert.equal(same.status,304,path);assert.equal(await same.text(),'');
+    assert.equal(same.headers.get('etag'),etag);assert.equal(same.headers.get('cache-control'),'no-store');
+    assert.equal(same.headers.get('content-type'),null);
+    if(data.readAt)assert.ok(JSON.parse(same.headers.get('x-noticeos-answer-times')).readAt);
+    assert.equal((await conditional(path,'*')).status,200);
+    assert.equal((await conditional(path,'"unknown"')).status,200);
+    f.active(false);const denied=await conditional(path,etag);assert.equal(denied.status,403);assert.equal(denied.headers.get('etag'),null);f.active(true);
+  }
+  const detail=`/api/tasks/tt-a?project=${P}`;
+  const before=(await f.handler(request(detail))).headers.get('etag');
+  f.title('Changed task');const changed=await conditional(detail,before);assert.equal(changed.status,200);assert.notEqual(changed.headers.get('etag'),before);
+  f.comment('Changed comment');const comment=await conditional(detail,changed.headers.get('etag'));assert.equal(comment.status,200);assert.notEqual(comment.headers.get('etag'),changed.headers.get('etag'));
+  const board=`/api/tasks?project=${P}&status=open`,boardTag=(await f.handler(request(board))).headers.get('etag');
+  assert.equal((await conditional(board,boardTag,B)).status,200,'validators cannot substitute another workspace board');
+  const capabilities=(await f.handler(request('/api/tasks/capabilities'))).headers.get('etag');f.role('viewer');
+  assert.equal((await conditional('/api/tasks/capabilities',capabilities)).status,200);
+  const write=await f.handler(request('/api/tasks','POST',{projectId:P,title:'Task'}));assert.equal(write.headers.get('etag'),null);
 });

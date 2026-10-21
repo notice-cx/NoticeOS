@@ -4,6 +4,8 @@
  * Reads and writes are the shared hosted task operations the MCP endpoint
  * also uses (hosted-task-operations); this file is the HTTP wire format.
  */
+import { createHash } from 'node:crypto';
+import { ANSWER_TIMES_HEADER, namesValidator, splitAnswerTimes } from './read-validator.mjs';
 import type { TaskDirectory } from '../packages/postgres/src/task-directory.mjs';
 import type { TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
@@ -33,6 +35,19 @@ const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked',
 function invalid(): never { throw new Error('Hosted Tasks request refused'); }
 function response(status: number, value: unknown): Response {
   return Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
+}
+/** Admission and the current read finish before a validator can answer 304. */
+function readResponse(request: Request, value: unknown): Response {
+  const text = JSON.stringify(value);
+  const { content, times } = splitAnswerTimes(text);
+  const validator = `"${createHash('sha256').update(content).digest('hex').slice(0, 32)}"`;
+  const headers = new Headers({ 'cache-control': 'no-store', etag: validator });
+  if (namesValidator(request.headers.get('if-none-match'), validator)) {
+    if (Object.keys(times).length) headers.set(ANSWER_TIMES_HEADER, JSON.stringify(times));
+    return new Response(null, { status: 304, headers });
+  }
+  headers.set('content-type', 'application/json; charset=utf-8');
+  return new Response(text, { headers });
 }
 function selections(url: URL, allowed: readonly string[]): Record<string, string> {
   const value: Record<string, string> = Object.create(null) as Record<string, string>;
@@ -102,18 +117,18 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
       }
     } catch { return response(400, { error: 'invalid_hosted_task_request' }); }
     try {
-      if (url.pathname === '/api/tasks/projects') return response(200, { projects: await operations.projects(proof, workspace) });
-      if (url.pathname === '/api/tasks/capabilities') return response(200, await operations.capabilities(proof, workspace));
+      if (url.pathname === '/api/tasks/projects') return readResponse(original, { projects: await operations.projects(proof, workspace) });
+      if (url.pathname === '/api/tasks/capabilities') return readResponse(original, await operations.capabilities(proof, workspace));
       // Parsing consumed the original stream once before admission; neither a
       // body tee nor a caller-supplied command/context is forwarded.
       if (mutation) return writeResponse(await operations.write(proof, workspace, mutation, key));
       const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history))?)?$/iu.exec(url.pathname);
       if (!match || !query) invalid();
       const taskId = match[1], history = match[2];
-      if (history) return response(200, await operations.history(proof, workspace, query.project!, taskId!, query.limit ? Number(query.limit) : 100));
-      if (taskId) return response(200, await operations.task(proof, workspace, query.project!, taskId));
+      if (history) return readResponse(original, await operations.history(proof, workspace, query.project!, taskId!, query.limit ? Number(query.limit) : 100));
+      if (taskId) return readResponse(original, await operations.task(proof, workspace, query.project!, taskId));
       if (!statuses) invalid();
-      return response(200, await operations.board(proof, workspace, query.project!, statuses,
+      return readResponse(original, await operations.board(proof, workspace, query.project!, statuses,
         query.closedDays === undefined ? undefined : Number(query.closedDays)));
     } catch (error) {
       if (error instanceof HostedTaskReceiptsUnavailable) return response(503, { error: 'idempotency_unavailable' });

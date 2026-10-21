@@ -1,12 +1,16 @@
 import type { ServerResponse } from 'node:http';
 import { EventEmitter } from 'node:events';
 import { createElement, type ReactNode } from 'react';
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
 import { createBrowserRuntime } from '@/lib/browser-runtime';
 import { useWork } from '@/hooks/useWork';
+import { useWall } from '@/hooks/useWall';
+import { useWallFeed } from '@/hooks/useWallFeed';
+import { useIntegrationHealth } from '@/hooks/useIntegrationHealth';
+import { wallMoneyResponse } from './critical-response-fixtures';
 import { createChangeWatch, type TopicRead } from '../vite/change-lane';
 import { createChangeStream, type ChangeStream } from '@/lib/change-stream';
 import { CHANGE_STREAM_PATH } from '@shared/change-topics';
@@ -96,16 +100,36 @@ class FakeSource extends EventTarget {
     this.dispatchEvent(data === undefined ? new Event(kind) : new MessageEvent(kind, { data: JSON.stringify(data) }));
   }
 }
+class FakeChannel {
+  static last: FakeChannel | null = null;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  constructor() { FakeChannel.last = this; }
+  postMessage() {}
+  close() {}
+}
 function fakePage() {
-  return {
+  return Object.assign(new EventTarget(), {
     EventSource: FakeSource,
-    BroadcastChannel: class { onmessage: unknown = null; postMessage() {} close() {} },
+    BroadcastChannel: FakeChannel,
     navigator: { locks: { request: (_name: string, _options: unknown, held: () => Promise<void>) => held() } },
     document: { readyState: 'complete' },
-  } as unknown as Window;
+  }) as unknown as Window;
 }
 
 describe("a page's change stream", () => {
+  it('refreshes cached queries when a follower first receives a connected status', () => {
+    const queries = new QueryClient();
+    queries.setQueryData(['work'], { projects: ['old'] });
+    const invalidate = vi.spyOn(queries, 'invalidateQueries').mockResolvedValue();
+    const stream = createChangeStream(queries, fakePage());
+    try {
+      FakeChannel.last!.onmessage?.(new MessageEvent('message', { data: { kind: 'status', connected: true } }));
+      expect(stream.connected()).toBe(true);
+      expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual(
+        [['work'], ['tasks'], ['task'], ['wall'], ['wall-feed'], ['integration-health']]);
+    } finally { stream.close(); queries.clear(); }
+  });
+
   it('stops polling while it is open, reads a changed topic, keeps an unchanged one current, and reads everything once after a reconnect', async () => {
     const queries = new QueryClient();
     queries.setQueryData(['work'], { generatedAt: 'old', capturedAt: 'old', projects: [] });
@@ -119,7 +143,8 @@ describe("a page's change stream", () => {
 
     source.emit('open');
     expect(stream.connected()).toBe(true);
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledTimes(6);
+    invalidate.mockClear();
 
     source.emit('change', { kind: 'change', topics: ['work'] });
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['work'], ['tasks'], ['task']]);
@@ -181,5 +206,66 @@ describe('a polled read while the stream delivers it', () => {
   it('is read once and not polled while pushed, and polled every 30 s otherwise', async () => {
     expect(await readsOver(true, 95_000)).toBe(1);
     expect(await readsOver(false, 95_000)).toBe(4);
+  });
+});
+
+describe('shared demo browser runtime', () => {
+  afterEach(() => { vi.useRealTimers(); });
+  const workspaceId = '11111111-1111-4111-8111-111111111111';
+
+  it('opens only for standalone and unprefixed demos; freezes and retires its stream', () => {
+    const hosted = { mode: 'hosted', workspaceId, principalId: workspaceId, sessionId: workspaceId, clientGeneration: 0 };
+    for (const [identity, apiBase, expected] of [
+      [{ mode: 'standalone', clientGeneration: 0 }, '/api/', true],
+      [{ mode: 'demo', workspaceId, clientGeneration: 0 }, '/api/', true],
+      [hosted, '/api/', false],
+      [{ mode: 'demo', workspaceId, clientGeneration: 0 }, `/visit/${'a'.repeat(32)}/api/`, false],
+    ] as const) {
+      FakeSource.last = null;
+      const runtime = createBrowserRuntime(identity, { origin: 'https://demo.example.com', apiBase,
+        fetch: async () => Response.json({}), page: fakePage(), sendAnswer: async () => {} });
+      try {
+        expect(FakeSource.last !== null).toBe(expected);
+        if (expected) {
+          const source = FakeSource.last!;
+          expect(source.url).toBe('https://demo.example.com/api/changes');
+          source.emit('open'); expect(runtime.changes.connected()).toBe(true);
+          runtime.freeze(); expect(source.closed).toBe(true); expect(runtime.changes.connected()).toBe(false);
+        }
+      } finally { runtime.retire(); }
+    }
+  });
+
+  it('refreshes changed queries, suspends all covered polling while connected, and resumes on disconnect', async () => {
+    vi.useFakeTimers();
+    const reads: string[] = [];
+    const runtime = createBrowserRuntime({ mode: 'demo', workspaceId, clientGeneration: 0 }, {
+      origin: 'https://demo.example.com', page: fakePage(), sendAnswer: async () => {},
+      fetch: async input => {
+        const path = new URL(String(input)).pathname; reads.push(path);
+        return Response.json(path === '/api/wall' ? wallMoneyResponse() : {
+          generatedAt: '2026-10-01T12:00:00.000Z', projects: [], items: [], events: [], available: true,
+        });
+      },
+    });
+    const source = FakeSource.last!;
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(BrowserRuntimeProvider, {
+      value: { runtime, workspaceLabel: null }, children: createElement(QueryClientProvider, { client: runtime.queries, children }),
+    });
+    const hook = renderHook(() => { useWork(); useWall(); useWallFeed(); useIntegrationHealth(); }, { wrapper });
+    const counts = () => Object.fromEntries(['/api/work', '/api/wall', '/api/wall/feed', '/api/integrations/health'].map(path => [path, reads.filter(read => read === path).length]));
+    try {
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(reads).toHaveLength(4);
+      await act(async () => { source.emit('open'); await vi.advanceTimersByTimeAsync(1); });
+      expect(Object.values(counts())).toEqual([2, 2, 2, 2]);
+      await act(async () => { await vi.advanceTimersByTimeAsync(95_000); });
+      expect(Object.values(counts())).toEqual([2, 2, 2, 2]);
+      await act(async () => { source.emit('change', { topics: ['work'] }); await vi.advanceTimersByTimeAsync(1); });
+      expect(Object.values(counts())).toEqual([3, 2, 2, 2]);
+      await act(async () => { source.emit('error'); await vi.advanceTimersByTimeAsync(61_000); });
+      expect(Object.values(counts())).toEqual([5, 3, 4, 4]);
+    } finally { hook.unmount(); runtime.retire(); }
+    expect(source.closed).toBe(true);
   });
 });

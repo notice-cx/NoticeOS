@@ -97,7 +97,8 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
   }, origin.origin);
   const preferences = createOwnerStorage(owner, options.storage, assertActive, assertReadable);
   let answers: AnswerQueue<Answer> | undefined;
-  const changes = owner.mode === 'standalone' && page ? createChangeStream(queries, page) : NO_CHANGE_STREAM;
+  const pushed = owner.mode === 'standalone' || owner.mode === 'demo' && apiBase === '/api/';
+  const changes = pushed && page ? createChangeStream(queries, page, `${origin.origin}/api/changes`) : NO_CHANGE_STREAM;
   // Irreversible: keep the mounted view and its cached data while session
   // verification is pending, without allowing any old work to complete.
   function freeze() {
