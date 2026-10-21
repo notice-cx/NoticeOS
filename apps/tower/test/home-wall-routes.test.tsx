@@ -2,7 +2,7 @@ import { integrationStatus } from '@shared/integration-status';
 import { INTEGRATION_PROVIDERS } from "@noticeos/contract";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttentionItem, CardDataSource, PortfolioBand, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
@@ -1214,6 +1214,18 @@ describe("Home — the answer, the money and what is broken", () => {
 });
 
 describe("Home — Decide", () => {
+  it("returns from a decision to Home with the current query parameters", () => {
+    workState.data = workPayload([project("Meadow Board", [waiting({ id: "md-return", title: "Review the change" })])]);
+    function NavigationState() {
+      return <output data-testid="navigation-state">{JSON.stringify(useLocation().state)}</output>;
+    }
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/?range=7"]}>
+      <HomeRoute /><NavigationState />
+    </MemoryRouter></QueryClientProvider>);
+    fireEvent.click(within(panelFor("Decisions")).getByRole("link", { name: "Review the change" }));
+    expect(screen.getByTestId("navigation-state")).toHaveTextContent('"returnTo":"/?range=7"');
+  });
+
   it("puts an open gate above a higher-priority ask and links each to its task", () => {
     workState.data = workPayload([
       project("Meadow Board", [waiting({ id: "md-9k1", priority: 0, title: "Top-priority ask" })]),

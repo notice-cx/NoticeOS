@@ -9,7 +9,6 @@ description: "How the business is doing, what is broken and what needs your atte
 
 Home shows three things, in this order: how the business is doing, what is broken, and what needs your attention. Which parts of Home show them depends on your view; see [Your view](#your-view).
 
-![The Home page in the synthetic demo: October's revenue so far against its projection, yesterday's revenue and visitors, the data sources by site, and the open problems.](../images/tower-home.webp)
 
 ## What you see
 
@@ -17,17 +16,17 @@ Home shows three things, in this order: how the business is doing, what is broke
 
 In the **I run the business** view, the sentence starts with the sites' health once at least one site is measured: **All 3 sites are fine.**, or **2 of 3 sites are fine.** followed by the site that most needs a look and its first problem, such as **Example Shop: the home page did not load.** That part is red when a site is down and amber when a site is worth a look. The month's money follows, and the count of broken things is shown only when there is at least one.
 
-**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate (**so far** in the **I run the business** view). **Yesterday** shows the previous day's revenue with cents inside the same card, including how many sites reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by site. **Visitors, yesterday** remains a separate card, with its change against the same day a week before and its recent days as bars. With no revenue source on any site, visitors come first and no money figure is drawn.
+**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate (**so far** in the **I run the business** view). **Yesterday** shows the previous day's revenue with cents inside the same card, including how many sites reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by site. **Visitors in the last 28 days** is a separate card. Its figure sums reported daily visitor counts over the 28 calendar days ending on the latest settled reading. Days still being counted are excluded; missing days remain gaps and incomplete coverage is labelled. The visitor and revenue bars are split by site, with matching named colour legends and each site's contribution on hover. With no revenue source on any site, visitors come first and no money figure is drawn.
 
-**Data sources.** One grid of every listed site and every data source, with a **System** row for the reports, scheduled runs, backups and data spend that keep NoticeOS running. A working source is a faint green tick; a failing one is solid red with how long it has been failing, and one failing for over a week has only a red outline, so new breakage stands out. Hatching means not connected. The **Backups** cell shows the age of the newest completed backup, such as **last good copy 12d ago**, or **no good copy yet**; it turns amber after one scheduled backup fails and red after two, dated from the first failure. From the second failure it also counts as one broken thing in the summary, until a backup completes. The newest problem is named at the top of the grid.
+**Problems.** A compact card shows the three highest-ranked issues, with errors before warnings and the newest first within each severity. Its header counts all broken and at-risk conditions, including source failures and backup failures. Titles use at most two lines; open a row for its details, or **All alerts →** for Alerts. Source failures open the site's **Data sources** tab. Data source details remain on the site pages and Integrations.
 
-**Problems.** The open problems the grid does not already show, ranked: what started since you last looked first, then what is still open, and anything open for over a week collapsed into one line. An alert that has a usual range shows the reading against it.
+**Decisions.** A compact card shows how many decisions are waiting, the oldest known wait and the three most urgent requests. Approvals that hold work come first, then priority and age. Each title uses at most two lines and opens its task. Full request details and **Approve**, **Answer** and **Close as** actions are on Tasks. **All tasks →** and **View all N decisions →** open the Tasks page's **All tasks** tab at `/tasks/all`.
 
-**Decide.** How many decisions are waiting for you, how old the oldest is, and how the waiting decisions split by age. Then the first four, each with its age drawn as a length and its buttons: **Approve** for an approval, **Answer** or **Close as** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board, the Tasks page's **All tasks** tab at `/tasks/all`.
+**Agents.** A compact card shows **Closed in 7 days** and **In progress**, summed across the agents' task projects. Up to three named workers show their closes as bars, with a link to the full Agents page. A worker counts as an agent only when it has named a model. Missing, partial or outdated activity is labelled rather than shown as a measured zero.
 
-**Sites.** One row per listed site, in your order (set with **Arrange** on the Sites page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one site, Home shows that site's own numbers and chart instead.
+**Sites.** Directly below Visitors in the **Everything** view, one row per listed site, in your order (set with **Arrange** on the Sites page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one site, Home shows that site's own numbers and chart instead.
 
-**The last 24 hours.** One row per listed site and one for the System, on a time axis that ends at **Now**. Open problems are bars from when they started; a problem older than the day starts at the left edge with its age written on it. Shipped changes, wins and recoveries are marks on their site's row. The shaded part is the time since 6 PM yesterday.
+**Problems and activity · Last 24 hours.** One row per listed site and one for the System, on a time axis that ends at **Now**. Open problems are bars from when they started; a problem older than the day starts at the left edge with its age written on it. Shipped changes, wins and recoveries are marks on their site's row. The shaded part is the time since 6 PM yesterday.
 
 **Site health.** One row per listed site, with five dots under **Up**, **Speed**, **Errors**, **Search** and **Code**, and the row's problems in words beside it, such as **The home page did not load · Slow for some visitors**, or **Fine**, or **Nothing measured yet**. A site whose nightly report is late shows **No report for 2 days** (or the hours, under two days) first, and is never **Fine**. On a phone the site's name takes its own line and the five dots share the width under the header. A dot is red when the site is down, amber when the fact is worth a look, grey when it is fine, and an empty dashed ring when it is not measured yet. The line under the grid names where the dots come from: the hourly home-page check, what visitors' browsers recorded, four weeks of visits from search and each site's code report. Each fact is described under [the site's **Health** tab](/tower/sites#the-health-tab).
 
@@ -37,7 +36,7 @@ In the **I run the business** view, the sentence starts with the sites' health o
 
 **Worth a look.** Up to eight things the sites are missing, in this order: a site that earns nothing (**Example Shop earns nothing**), a site with no data feeds, a site with no task project, a site that sends no code report, then the opportunities the newest readings found, each with its site's name under it. Retired sites are left out, and a site not launched yet is not listed as earning nothing.
 
-**Listed sites.** A site is listed while its **Home and Sites list** switch is on. A site with the switch off has no row in the grid, the sites or the last 24 hours; its problems are still counted in the summary and listed under **Problems**, and its money and visitors are still in the month's figures. An archived site stays hidden until restored. See [Where each site shows](/tower/sites#where-each-site-shows).
+**Listed sites.** A site is listed while its **Home and Sites list** switch is on. A site with the switch off has no row in Site health, Sites or the timeline; its problems are still counted in the summary and listed under **Problems**, and its money and visitors are still in the month's figures. An archived site stays hidden until restored. See [Where each site shows](/tower/sites#where-each-site-shows).
 
 **Until the first site has its first number**, Home shows one sentence and three steps: **Add your first site**, **Connect a source** and **See your first number**. The current step is shown as a button, and each finished step is marked done. Home also shows **Use \<zone>**, which saves your device's time zone in one press.
 
@@ -56,29 +55,26 @@ The view chosen on the first run, or later in [Settings → General → **Your v
 
 | View | Parts of Home, in order |
 |---|---|
-| **I run the business** | **Site health**, **Money**, **The agents · this week**, **Decide** |
-| **I build the product** | **Money**, **Where visitors come from · 4 weeks**, **Worth a look**, **Problems**, **Decide**, **Sites** |
-| **Everything** | **Money** including **Yesterday**, **Visitors, yesterday**, **Data sources**, **Problems**, **Decide**, the agents' line (**Agents closed N tasks in 7 days**), **Sites**, **The last 24 hours** |
+| **I run the business** | **Site health**, **Money**, **The agents · this week**, **Decisions** |
+| **I build the product** | **Money**, **Where visitors come from · 4 weeks**, **Worth a look**, **Problems**, **Decisions**, **Sites** |
+| **Everything** | **Money** including **Yesterday**, **Visitors in the last 28 days** with **Sites** below it, **Problems**, **Decisions**, **Agents**, **Problems and activity** |
 
-In **I run the business**, Home opens on **Site health**, with the month's money and **Decide** under it and **The agents · this week** further down:
+In **I run the business**, Home opens on **Site health**, with the month's money and **Decisions** under it and **The agents · this week** further down:
 
-![The Home page in the synthetic demo, in the I run the business view: the summary starting 1 of 5 sites are fine, Site health with five dots and the problems in words for each of five sites, Revenue, October marked so far with Projected $6,132 and Sep total $8,594, The agents · this week with Building 10, Finished 4 and Proven to work 1, and Decide with 5 decisions waiting and Approve on the first two.](../images/tower-home-business.webp)
 
-In **I build the product**, Home opens on the month's money beside **Worth a look**, then **Where visitors come from · 4 weeks** beside **Problems**, with **Decide** and **Sites** further down:
+In **I build the product**, Home opens on the month's money beside **Worth a look**, then **Where visitors come from · 4 weeks** beside **Problems**, with **Decisions** and **Sites** further down:
 
-![The Home page in the synthetic demo, in the I build the product view: October's revenue marked est., Worth a look with Make a task on each row, Where visitors come from · 4 weeks with visits by channel and the Weeknight Pantry funnel, and Problems with 1 broken and 3 at risk.](../images/tower-home-product.webp)
 
 Each pick from **What matters most?** moves one part to the top, in the order picked: **Money** and **Costs** move **Money**, **Visitors** moves **Sites**, **Site health** moves **Site health** and **The agents' work** moves **The agents · this week**. A pick whose part the view does not show changes nothing: in the **Everything** view only **Money**, **Costs** and **Visitors** move a part. A part a view leaves out is still in the product: its page is in the sidebar of the **Everything** view and in Search (**⌘K**).
 
 ## What you can do
 
-- Open a site from its row in the grid, the sites list or the timeline.
+- Open a site from Site health, Sites or the timeline.
 - Open a problem from its row in **Problems**; **All alerts →** opens Alerts.
-- **Approve**, **Answer** or **Close as** a decision from its row; **Close as** declines it as **Won't do**, **Duplicate**, **Can't reproduce** or **Already handled**.
-- Open Money from **Yesterday** in the revenue card, and the Sites page from **Visitors, yesterday** or **All sites →**.
-- **Integrations →** opens the data sources' connections.
+- Open a decision to read the full request and use its actions on Tasks.
+- Open Money from **Yesterday** in the revenue card, and the Sites page from **Visitors in the last 28 days** or **All sites →**.
 - In **Site health**, open a site from its name; point at or focus a dot to show its word and its problem. The site's **Health** tab shows the readings behind each dot.
-- In **The agents · this week**, **Agents →** opens the Agents page.
+- In **Agents** or **The agents · this week**, **Agents →** opens the Agents page.
 - In **Worth a look**, **Make a task** on a row opens the task form with the row's title filled in and the site's task project chosen when it has one.
 - On the first run, press a view under **Which describes you?**, then pick under **What matters most?** and press **Continue** or **Skip**.
 - **Add your first site**, on the first run, opens the **Add a site** dialog.

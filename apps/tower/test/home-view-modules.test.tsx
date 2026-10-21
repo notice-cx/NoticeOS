@@ -149,7 +149,7 @@ describe("Home's combined revenue card", () => {
     expect(hero.textContent?.match(/projected/gi)).toHaveLength(1);
     expect(within(hero).getByRole("img", { name: /^Revenue a day, October/ })).toBeInTheDocument();
     expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
-    expect(container.querySelector('[data-stat="Visitors, yesterday"]') !== null).toBe(view === "everything");
+    expect(container.querySelector('[data-stat="Visitors in the last 28 days"]') !== null).toBe(view === "everything");
   });
 
   it.each([
@@ -159,7 +159,7 @@ describe("Home's combined revenue card", () => {
   ])("preserves %s revenue without inventing an amount", (_state, summary, label) => {
     state.payload = wall([healthy("first.example.com", { revenueProjection, dailyRevenue: summary })]);
     const { container } = renderHome();
-    expect(container.querySelector("[data-home-visitors]")).toHaveTextContent(label);
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent(label);
   });
 
   it("labels partial reporting and withholds a total across different reporting clocks", () => {
@@ -167,10 +167,10 @@ describe("Home's combined revenue card", () => {
     const second = healthy("second.example.com", { revenueProjection });
     state.payload = wall([first, second]);
     const { container, rerender } = renderHome();
-    expect(container.querySelector("[data-home-visitors]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 sites");
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 sites");
     state.payload = wall([first, { ...second, dailyRevenue: { ...dailyRevenue, timeZone: "Europe/London" } }]);
     rerender(tree(<HomeRoute />));
-    expect(container.querySelector("[data-home-visitors]")).toHaveTextContent("Yesterday · mixed report days · no total");
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday · mixed report days · no total");
   });
 });
 
