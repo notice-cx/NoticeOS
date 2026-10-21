@@ -1,17 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { ChangesetOp, FileOp } from "@shared/changeset";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
 // `GET /api/config`'s own word for where a document came from — the route
 // answers it, so the type lives beside the fetch rather than being restated.
 import type { ConfigSource } from "@/lib/api";
 
-/**
- * Which reads a config save invalidates, declared once for both write paths
- * (`useConfigSave`, `useCollectionSave`). A key belongs here when its payload
- * is built from a config file, which for the Tower means the Worker route
- * behind it reads one of `vite.config.ts`'s injected `__…__` constants;
- * anything assembled from the store alone does not. Err towards listing: an
- * extra key is harmless, a missing one is a silently stale page.
- */
+/** All config consumers, including the fallback for unclassified writes. */
 export const CONFIG_BACKED_QUERIES = [
   "wall",
   "asset-detail",
@@ -21,7 +15,47 @@ export const CONFIG_BACKED_QUERIES = [
   "integrations",
   "integration-providers",
   "task-source",
+  "work",
+  "wall-feed",
 ] as const;
+
+type ConfigQueryFamily = (typeof CONFIG_BACKED_QUERIES)[number];
+
+/** Document dependencies of the payloads in worker/stored-read-route.ts,
+ * integrationsDeps, integration-summary-route.ts and the native workflow read.
+ * Whole documents are the boundary: new fields in a known document retain
+ * its consumers; new documents and non-file writes keep the broad fallback. */
+const DOCUMENT_QUERIES: Partial<Record<FileOp["file"], readonly ConfigQueryFamily[]>> = {
+  "config/constants.json": ["wall", "asset-detail", "settings", "workflows", "financials", "integrations", "integration-providers", "work", "wall-feed"],
+  "config/pull.json": ["wall", "asset-detail", "settings", "integrations"],
+  "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers"],
+  "config/counters.json": ["wall", "asset-detail"],
+  "config/tower.json": ["wall", "settings"],
+  "config/serp-panel.json": ["wall", "asset-detail", "integrations"],
+  "config/signal-panels.json": ["asset-detail", "settings"],
+  "config/value-events.json": ["asset-detail"],
+  "config/ga4-custom-dimensions.json": ["asset-detail"],
+  "config/domain-costs.json": ["financials"],
+  "config/recurring-costs.json": ["financials"],
+  "config/entities.json": ["settings"],
+  "config/beads.json": ["settings", "task-source", "work"],
+};
+
+/** Forward and Undo operations use the same union, with no caller-owned lists. */
+export function affectedConfigBackedQueries(ops?: readonly ChangesetOp[]): readonly ConfigQueryFamily[] {
+  if (!ops?.length) return CONFIG_BACKED_QUERIES;
+  const affected = new Set<ConfigQueryFamily>();
+  for (const op of ops) {
+    if (op.kind !== "file-json-set" && op.kind !== "file-json-insert" && op.kind !== "file-json-delete") {
+      return CONFIG_BACKED_QUERIES;
+    }
+    if (!Object.hasOwn(DOCUMENT_QUERIES, op.file)) return CONFIG_BACKED_QUERIES;
+    const consumers = DOCUMENT_QUERIES[op.file];
+    if (!consumers) return CONFIG_BACKED_QUERIES;
+    for (const key of consumers) affected.add(key);
+  }
+  return [...affected];
+}
 
 /** Archive and Restore change these store-backed lists even when their rows did not change. */
 export function refreshAssetLifecycleQueries(queryClient: QueryClient): void {
@@ -57,11 +91,9 @@ export function useConfigSaveDelay(): number {
   return configSaveDelayMs(sources);
 }
 
-/** Refresh every page whose payload was built from a config file. Both write
- * paths call this rather than walking the list themselves, so "which reads a
- * save invalidates" has exactly one implementation as well as one declaration. */
-export function invalidateConfigBackedQueries(queryClient: QueryClient): void {
-  for (const key of CONFIG_BACKED_QUERIES) {
+/** With no operations, preserve broad refreshes for writes outside changesets. */
+export function invalidateConfigBackedQueries(queryClient: QueryClient, ops?: readonly ChangesetOp[]): void {
+  for (const key of affectedConfigBackedQueries(ops)) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
 }
@@ -73,10 +105,11 @@ export function invalidateConfigBackedQueries(queryClient: QueryClient): void {
 export function refreshConfigBackedQueries(
   queryClient: QueryClient,
   afterMs: number,
+  ops?: readonly ChangesetOp[],
 ): void {
   if (afterMs <= 0) {
-    invalidateConfigBackedQueries(queryClient);
+    invalidateConfigBackedQueries(queryClient, ops);
     return;
   }
-  globalThis.setTimeout(() => invalidateConfigBackedQueries(queryClient), afterMs);
+  globalThis.setTimeout(() => invalidateConfigBackedQueries(queryClient, ops), afterMs);
 }

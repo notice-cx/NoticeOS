@@ -254,11 +254,6 @@ function useConfigWrite() {
   const queryClient = useQueryClient();
   const delayMs = useConfigSaveDelay();
 
-  const refresh = useCallback(
-    (afterMs: number) => refreshConfigBackedQueries(queryClient, afterMs),
-    [queryClient],
-  );
-
   return useCallback(
     async (
       ops: SettingOp[],
@@ -282,9 +277,9 @@ function useConfigWrite() {
       }
       // A store column write (`store-asset-set`) touches no file, so it
       // refreshes immediately; a `file-json-set` may not have touched one either.
-      refresh(fileOps.length > 0 ? delayMs : 0);
+      refreshConfigBackedQueries(queryClient, fileOps.length > 0 ? delayMs : 0, ops);
     },
-    [refresh, delayMs, queryClient],
+    [delayMs, queryClient],
   );
 }
 
@@ -351,7 +346,7 @@ export function useStructuralSave() {
       // lives in a config file like any setting, so what a save of it
       // invalidates and how long it waits for the restart are decided in one
       // place.
-      refreshConfigBackedQueries(queryClient, delayMs);
+      refreshConfigBackedQueries(queryClient, delayMs, ops);
     },
     [queryClient, delayMs],
   );

@@ -1,20 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "./render";
+import { QueryClient, QueryClientProvider, QueryObserver, type QueryFunctionContext } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "./render";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-// Which reads a config save invalidates, asserted once for both write paths:
-// `useConfigSave` writes a setting and `useCollectionSave` writes a row, onto
-// the same files, so they refresh the same pages. Two guards: behaviour (each
-// hook invalidates every key in the declaration) and structure (neither hook
-// may grow a list of its own, which a behaviour test alone cannot see).
-
-// And how long it waits first. A store-backed save changes no file and
-// restarts nothing, so there is no Vite restart to wait out; `GET /api/config`
-// says which happened, per file.
 
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
@@ -32,11 +22,18 @@ import {
   CONFIG_BACKED_QUERIES,
   WORKER_RESTART_MS,
   configSaveDelayMs,
+  affectedConfigBackedQueries,
+  refreshConfigBackedQueries,
 } from "@/hooks/config-backed-queries";
 import type { ConfigWritability } from "@/lib/api";
-import { useCollectionSave } from "@/hooks/useCollectionSave";
-import { useConfigSave } from "@/hooks/useConfigSave";
+import { useCollectionSave, useFieldCollectionSave } from "@/hooks/useCollectionSave";
+import { useConfigSave, useFieldConfigSave, useInlineConfigSave, useStructuralSave, useLandmarkSave } from "@/hooks/useConfigSave";
 import { typeScriptSources, withoutComments } from "./source-files";
+
+import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
+import type { ChangesetOp, FileOp } from "@shared/changeset";
+import { patchAssetColumn, saveConfig } from "@/lib/api";
+import { toast } from "sonner";
 
 let client: QueryClient;
 
@@ -68,6 +65,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  client.clear();
   vi.useRealTimers();
   vi.clearAllMocks();
 });
@@ -78,7 +76,7 @@ async function invalidatedKeys(calls: unknown[][]): Promise<string[]> {
   return calls.map((call) => String((call[0] as { queryKey?: unknown[] }).queryKey?.[0]));
 }
 
-describe("a config save refreshes every page built from a config file", () => {
+describe("a config save refreshes only the changed document’s consumers", () => {
   it.each(["retired", "live"] as const)("refreshes archived work, history and activity immediately on status %s", async status => {
     const invalidated = vi.spyOn(client, "invalidateQueries");
     const { result } = renderHook(() => useConfigSave(), { wrapper });
@@ -106,7 +104,7 @@ describe("a config save refreshes every page built from a config file", () => {
     vi.advanceTimersByTime(WORKER_RESTART_MS);
 
     expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(
-      new Set(CONFIG_BACKED_QUERIES),
+      new Set(["financials"]),
     );
   });
 
@@ -133,7 +131,7 @@ describe("a config save refreshes every page built from a config file", () => {
     vi.advanceTimersByTime(WORKER_RESTART_MS);
 
     expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(
-      new Set(CONFIG_BACKED_QUERIES),
+      new Set(["financials"]),
     );
   });
 });
@@ -174,7 +172,7 @@ describe("a save waits only for a restart that is actually going to happen", () 
     });
 
     expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(
-      new Set(CONFIG_BACKED_QUERIES),
+      new Set(["financials"]),
     );
   });
 
@@ -199,7 +197,7 @@ describe("a save waits only for a restart that is actually going to happen", () 
     expect(invalidated.mock.calls).toEqual([]);
     vi.advanceTimersByTime(WORKER_RESTART_MS);
     expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(
-      new Set(CONFIG_BACKED_QUERIES),
+      new Set(["financials"]),
     );
   });
 
@@ -227,9 +225,203 @@ describe("a save waits only for a restart that is actually going to happen", () 
     });
 
     expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(
-      new Set(CONFIG_BACKED_QUERIES),
+      new Set(["financials"]),
     );
   });
+});
+
+const costOp = {
+  kind: "file-json-set", file: "config/recurring-costs.json",
+  pointer: "/costs/0/amountUsdPerMonth", expect: 200, value: 250,
+} satisfies FileOp;
+const costChange = {
+  kind: "add" as const,
+  row: { id: "subscription", label: "Subscription", asset: "root-os", family: "inference", amountUsdPerMonth: 200, from: "2026-09" },
+  count: 0,
+};
+
+const consumers = {
+  "config/constants.json": ["wall", "asset-detail", "settings", "workflows", "financials", "integrations", "integration-providers", "work", "wall-feed"],
+  "config/pull.json": ["wall", "asset-detail", "settings", "integrations"],
+  "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers"],
+  "config/counters.json": ["wall", "asset-detail"],
+  "config/tower.json": ["wall", "settings"],
+  "config/serp-panel.json": ["wall", "asset-detail", "integrations"],
+  "config/signal-panels.json": ["asset-detail", "settings"],
+  "config/value-events.json": ["asset-detail"],
+  "config/ga4-custom-dimensions.json": ["asset-detail"],
+  "config/domain-costs.json": ["financials"],
+  "config/recurring-costs.json": ["financials"],
+  "config/entities.json": ["settings"],
+  "config/beads.json": ["settings", "task-source", "work"],
+} satisfies Record<(typeof TOWER_CONFIG_FILES)[keyof typeof TOWER_CONFIG_FILES], string[]>;
+
+describe("document consumers", () => {
+  it.each(Object.entries(consumers))("%s refreshes its payload consumers for every file operation", (file, expected) => {
+    for (const kind of ["file-json-set", "file-json-insert", "file-json-delete"] as const) {
+      const ops = [{ kind, file, pointer: "/new-field", expect: 1, value: 2 }] as FileOp[];
+      expect(new Set(affectedConfigBackedQueries(ops))).toEqual(new Set(expected));
+    }
+  });
+
+  it("unions multi-document changes without duplicate reads", () => {
+    expect(new Set(affectedConfigBackedQueries([
+      costOp, { ...costOp, file: "config/domain-costs.json" },
+      { ...costOp, file: "config/tower.json" },
+    ]))).toEqual(new Set(["financials", "wall", "settings"]));
+  });
+
+  it.each([
+    undefined, [],
+    [{ ...costOp, file: "config/future.json" }],
+    [{ ...costOp, file: "toString" }],
+    [{ ...costOp, kind: "future-write" }],
+    [{ kind: "store-asset-set", asset: "example.test", column: "display_name", expect: "Before", value: "After" }],
+    [costOp, { ...costOp, file: "config/future.json" }],
+  ])("keeps broad invalidation for an unclassified write (%j)", (ops) => {
+    expect(affectedConfigBackedQueries(ops as ChangesetOp[] | undefined)).toEqual(CONFIG_BACKED_QUERIES);
+    const invalidated = vi.spyOn(client, "invalidateQueries");
+    refreshConfigBackedQueries(client, 0, ops as ChangesetOp[] | undefined);
+    expect(invalidated.mock.calls.map(([filter]) => filter?.queryKey?.[0])).toEqual(CONFIG_BACKED_QUERIES);
+  });
+});
+
+function useSavePaths() {
+  return {
+    setting: useConfigSave(), field: useFieldConfigSave(), inline: useInlineConfigSave(),
+    row: useCollectionSave(), rowField: useFieldCollectionSave(),
+    structural: useStructuralSave(), landmark: useLandmarkSave(),
+  };
+}
+
+function toastUndo(): () => Promise<void> {
+  const calls = vi.mocked(toast.success).mock.calls;
+  const action = calls[calls.length - 1]?.[1]?.action;
+  if (!action || typeof action !== "object" || !("onClick" in action)) throw new Error("missing Undo");
+  return async () => {
+    action.onClick({} as React.MouseEvent<HTMLButtonElement>);
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringMatching(/^Reverted/)));
+  };
+}
+
+async function savePath(paths: ReturnType<typeof useSavePaths>, path: keyof typeof paths) {
+  const request = { ops: [costOp], label: "Subscription", slug: "subscription" };
+  if (path === "field" || path === "rowField") {
+    const saved = path === "field" ? await paths.field(request) : await paths.rowField({ register: configRegister("recurring-costs"), change: costChange, label: "Subscription" });
+    if (!saved.saved) throw new Error(saved.refusal);
+    return async () => { expect(await saved.undo()).toEqual({ undone: true }); };
+  }
+  if (path === "inline") {
+    const saved = await paths.inline(request);
+    if (!saved) throw new Error("save refused");
+    return async () => { expect(await saved.undo()).toBe(true); };
+  }
+  if (path === "row") {
+    expect(await paths.row({ register: configRegister("recurring-costs"), change: costChange, label: "Subscription" })).toBe(true);
+  } else if (path === "structural") {
+    expect(await paths.structural({ ...request, undo: [{ ...costOp, expect: 250, value: 200 }] })).toBe(true);
+  } else if (path === "landmark") {
+    expect(await paths.landmark({ op: { kind: "file-json-insert", file: "config/tower.json", pointer: "/countdown", value: { label: "Launch" } }, label: "Countdown", slug: "countdown" })).toBe(true);
+  } else {
+    expect(await paths.setting(request)).toBe(true);
+  }
+  return toastUndo();
+}
+
+const paths: (keyof ReturnType<typeof useSavePaths>)[] = ["setting", "field", "inline", "row", "rowField", "structural", "landmark"];
+for (const source of ["store", "file"] as const) {
+  describe(`${source}-backed saves and Undo`, () => {
+    it.each(paths)("%s refreshes only its consumers at the required time", async (path) => {
+      configAnswer = source === "store" ? STORE_BACKED : FILE_BACKED;
+      const invalidated = vi.spyOn(client, "invalidateQueries");
+      const { result } = renderHook(useSavePaths, { wrapper });
+      await waitFor(() => expect(client.getQueryData(["config-writable"])).toBeDefined());
+      let undo!: () => Promise<void>;
+      await act(async () => { undo = await savePath(result.current, path); });
+      const expected = path === "landmark" ? ["wall", "settings"] : ["financials"];
+      if (source === "file") {
+        expect(invalidated).not.toHaveBeenCalled();
+        act(() => vi.advanceTimersByTime(WORKER_RESTART_MS - 1));
+        expect(invalidated).not.toHaveBeenCalled();
+        act(() => vi.advanceTimersByTime(1));
+      }
+      expect(await invalidatedKeys(invalidated.mock.calls)).toEqual(expected);
+      invalidated.mockClear();
+      await act(async () => { await undo(); });
+      if (source === "file") {
+        expect(invalidated).not.toHaveBeenCalled();
+        act(() => vi.advanceTimersByTime(WORKER_RESTART_MS));
+      }
+      expect(await invalidatedKeys(invalidated.mock.calls)).toEqual(expected);
+      expect(saveConfig).toHaveBeenCalledTimes(2);
+    });
+  });
+}
+
+it("refreshes the union for structural saves and derives Undo from its own operations", async () => {
+  configAnswer = STORE_BACKED;
+  const invalidated = vi.spyOn(client, "invalidateQueries");
+  const { result } = renderHook(() => useStructuralSave(), { wrapper });
+  await waitFor(() => expect(client.getQueryData(["config-writable"])).toBeDefined());
+  await result.current({ ops: [costOp, { ...costOp, file: "config/tower.json" }], undo: [{ ...costOp, file: "config/entities.json" }], label: "Change", slug: "change" });
+  expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(new Set(["financials", "wall", "settings"]));
+  invalidated.mockClear();
+  await toastUndo()();
+  expect(await invalidatedKeys(invalidated.mock.calls)).toEqual(["settings"]);
+});
+
+it.each(["setting", "row", "structural"] as const)("a refused %s save does not refresh", async (path) => {
+  vi.mocked(saveConfig).mockRejectedValueOnce(new Error("Refused"));
+  const invalidated = vi.spyOn(client, "invalidateQueries");
+  const { result } = renderHook(useSavePaths, { wrapper });
+  const request = { ops: [costOp], label: "Subscription", slug: "subscription" };
+  const saved = path === "setting" ? await result.current.setting(request)
+    : path === "row" ? await result.current.row({ register: configRegister("recurring-costs"), change: costChange, label: "Subscription" })
+    : await result.current.structural({ ...request, undo: [costOp] });
+  expect(saved).toBe(false);
+  vi.advanceTimersByTime(WORKER_RESTART_MS);
+  expect(invalidated).not.toHaveBeenCalled();
+  expect(toast.error).toHaveBeenCalled();
+});
+
+it("keeps store columns immediate and lifecycle lists refreshed on save and Undo", async () => {
+  const invalidated = vi.spyOn(client, "invalidateQueries");
+  const { result } = renderHook(() => useConfigSave(), { wrapper });
+  await result.current({ ops: [{ kind: "store-asset-set", asset: "example.test", column: "status", expect: "live", value: "retired" }], label: "Archive" });
+  const expected = [...CONFIG_BACKED_QUERIES, "work", "alert-history", "wall-feed"];
+  expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(new Set(expected));
+  invalidated.mockClear();
+  await toastUndo()();
+  expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(new Set(expected));
+  expect(patchAssetColumn).toHaveBeenCalledTimes(2);
+});
+
+it("reduces nine active refetches to two across both cached Financials periods", async () => {
+  configAnswer = STORE_BACKED;
+  const reads = vi.fn(async (_context: QueryFunctionContext) => ({}));
+  // Two cached periods must both refresh, with seven unrelated active
+  // families untouched.
+  const keys = CONFIG_BACKED_QUERIES.slice(0, 8).map(key => [key, "2026-08"]);
+  keys.push(["financials", "2026-09"]);
+  const observers = keys.map(queryKey => new QueryObserver(client, { queryKey, queryFn: reads, initialData: {}, staleTime: Infinity }));
+  const unsubscribe = observers.map(observer => observer.subscribe(() => {}));
+  try {
+    // Measure broad and scoped refreshes against the same active cache.
+    for (const key of CONFIG_BACKED_QUERIES.slice(0, 8)) {
+      await client.invalidateQueries({ queryKey: [key] });
+    }
+    expect(reads).toHaveBeenCalledTimes(9);
+    reads.mockClear();
+    const { result } = renderHook(() => useConfigSave(), { wrapper });
+    await waitFor(() => expect(client.getQueryData(["config-writable"])).toBeDefined());
+    await result.current({ ops: [costOp], label: "Subscription" });
+    await waitFor(() => expect(reads).toHaveBeenCalledTimes(2));
+    expect(reads.mock.calls.map(([context]) => context.queryKey)).toEqual([["financials", "2026-08"], ["financials", "2026-09"]]);
+    await toastUndo()();
+    await waitFor(() => expect(reads).toHaveBeenCalledTimes(4));
+  } finally {
+    unsubscribe.forEach(stop => stop());
+  }
 });
 
 const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
