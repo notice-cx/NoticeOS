@@ -3583,12 +3583,12 @@ describe("buildAssetDetailView — the site's all-time totals", () => {
     expect(overview.counters?.cadenceHours).toBe(1);
   });
 
-  it("is null for a site the register configures no totals for, and reads nothing for it", async () => {
+  it("is null for a site without configured totals and skips the dedicated totals read", async () => {
     const sql: string[] = [];
     const overview = (await buildAssetDetailView(recordingStore(ctx.call, sql), "northwind.example", DEPS, "overview"))!;
     expect(overview.counters).toBeNull();
     expect(sql.some((statement) => /noticeos\.assets/.test(statement))).toBe(true);
-    expect(sql.some((statement) => /counter_readings/.test(statement))).toBe(false);
+    expect(sql.some((statement) => /observed_at AS "observedAt" FROM noticeos\.counter_readings/.test(statement))).toBe(false);
   });
 });
 

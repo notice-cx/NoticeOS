@@ -2310,7 +2310,7 @@ const SETUP_READY = assetSetupChecklist({
   reportDays: 28,
   latestReportAt: iso(4 * HOUR),
   nowMs: Date.now(),
-})!;
+});
 
 // An asset with only one daily report: the value is useful, the line is not.
 const cardThin: AssetData = {
@@ -3373,7 +3373,7 @@ export function KitchenSinkRoute() {
               <SetupChecklistPanel setup={SETUP_PART_DONE} open />
             </div>
             <div className="w-full max-w-2xl">
-              <SetupChecklistPanel setup={SETUP_READY} open />
+              {SETUP_READY ? <SetupChecklistPanel setup={SETUP_READY} open /> : <p className="m-0 text-sm text-muted-foreground">Setup checks complete</p>}
             </div>
           </Section>
 
