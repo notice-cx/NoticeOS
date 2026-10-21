@@ -31,6 +31,8 @@ interface DraftFunnel {
 
 export interface FunnelListEditorProps {
   label?: string;
+  /** The containing surface states why saves are paused. */
+  statesReadOnly?: boolean;
   explain?: ReactNode;
   /** The asset whose page this lives on, for its data hook. */
   assetId?: string;
@@ -83,6 +85,7 @@ function idFromName(name: string): string {
 
 export function FunnelListEditor({
   label = "Funnels",
+  statesReadOnly = true,
   explain,
   assetId,
   current,
@@ -150,9 +153,11 @@ export function FunnelListEditor({
             ))}
           </ul>
         )}
-        <p className="text-xs leading-snug text-muted-foreground" data-funnel-editor-read-only>
-          {reason ?? "Settings cannot be saved right now."}
-        </p>
+        {statesReadOnly ? (
+          <p className="text-xs leading-snug text-muted-foreground" data-funnel-editor-read-only>
+            {reason ?? "Settings cannot be saved right now."}
+          </p>
+        ) : null}
       </section>
     );
   }

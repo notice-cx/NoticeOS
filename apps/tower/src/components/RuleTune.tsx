@@ -20,6 +20,7 @@ import type { KnobFact } from "@shared/asset-detail";
 import type { JsonValue, SettingOp } from "@shared/changeset";
 import type { TunedSetting } from "@shared/tune";
 import { BacktestStrip } from "@/components/BacktestStrip";
+import { SavesPaused } from "@/components/SavesPaused";
 import { KnobEditor } from "@/components/KnobEditor";
 import { TuneRate } from "@/components/TuneRate";
 import { Button } from "@/components/ui/button";
@@ -323,10 +324,12 @@ export function RuleTunePanel({
         <RulePreview preview={preview} />
       </div>
 
+      {!onSave ? <SavesPaused /> : null}
       <div className="flex flex-col">
         {knobs.map((knob) => (
           <KnobEditor
             key={knob.key}
+            statesReadOnly={false}
             label={knob.label}
             explain={knob.explain}
             current={knob.raw}

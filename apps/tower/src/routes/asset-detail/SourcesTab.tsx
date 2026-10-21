@@ -31,6 +31,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { formatNextRun, nextCollectionRun, utcRunReference } from "@shared/scheduled-jobs";
 import { CADENCE_HOURS } from "@shared/wall";
 import type { SeriesPointOrGap } from "@shared/surface";
+import { SavesPaused } from "@/components/SavesPaused";
 import { AgeBadge } from "@/components/AgeBadge";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { EvidencePopover } from "@/components/EvidencePopover";
@@ -105,6 +106,7 @@ export function SourcesTab({
   );
   return (
     <div className="flex flex-col gap-3.5">
+      <SavesPaused />
       {/* The hero is whichever block answers the tab's question TODAY. While the
           asset is still being set up that is what is still owed; once it is live
           there is no checklist at all, and the question becomes "are my sources
