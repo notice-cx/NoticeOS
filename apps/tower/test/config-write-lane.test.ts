@@ -1,10 +1,11 @@
 // @vitest-environment node
+import { deferred } from "./deferred";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import { decodeConfigWritable } from "../src/lib/critical-response";
 import { handleConfigRequest } from "../vite/config-write-lane";
@@ -56,7 +57,7 @@ function git(cwd: string, ...args: string[]) {
 
 /** A throwaway checkout with one editable config file, already committed —
  * the shape of the repo this lane actually edits. */
-async function tempRepo(): Promise<string> {
+async function seedRepo(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-"));
   created.push(root);
   await fs.mkdir(path.join(root, "installation"), { recursive: true });
@@ -70,6 +71,31 @@ async function tempRepo(): Promise<string> {
   git(root, "config", "user.name", "Lane Test");
   git(root, "add", "-A");
   git(root, "commit", "-q", "-m", "seed");
+  return root;
+}
+
+let seededRepo: Promise<string>;
+let seededRegisters: Promise<string>;
+let seededCollections: Promise<string>;
+let seededTower: Promise<string>;
+beforeAll(async () => {
+  const started = performance.now();
+  seededRepo = seedRepo();
+  seededTower = seedTowerRepo();
+  await seededRepo;
+  seededRegisters = seedRepoWithRegisters();
+  seededCollections = seedRepoWithCollections();
+  await Promise.all([seededRegisters, seededCollections, seededTower]);
+  if (process.env.NOTICEOS_TEST_SETUP_TIMINGS === "1") console.info(`config fixture setup: ${(performance.now() - started).toFixed(1)} ms`);
+});
+
+/** Copy a completed seed, including its private .git directory. Each test
+ * retains independent files, refs and index without repeating Git setup. */
+async function tempRepo(ready = seededRepo): Promise<string> {
+  const seed = await ready;
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-"));
+  created.push(root);
+  await fs.cp(seed, root, { recursive: true });
   return root;
 }
 
@@ -116,7 +142,9 @@ const REGISTERS = {
 } as const;
 
 /** A throwaway checkout carrying the registers an asset is added to. */
-async function tempRepoWithRegisters(): Promise<string> {
+const tempRepoWithRegisters = () => tempRepo(seededRegisters);
+
+async function seedRepoWithRegisters(): Promise<string> {
   const root = await tempRepo();
   for (const [rel, doc] of [
     ["config/integrations.json", REGISTERS.integrations],
@@ -161,6 +189,22 @@ async function readJson(root: string, rel: string): Promise<unknown> {
 }
 
 describe("the config write lane", () => {
+  it("waits for delayed fixture readiness before a write and isolates each copy", async () => {
+    const ready = deferred<string>();
+    let published = false;
+    const pending = tempRepo(ready.promise).then(root => { published = true; return root; });
+    const untouched = await tempRepo();
+    expect(published).toBe(false);
+    ready.resolve(await seededRepo);
+    const root = await pending;
+    const reply = await handleConfigRequest(put({ ops: [alphaOp(0.01, 0.05)] }), { repoRoot: root });
+    expect(reply.status).toBe(200);
+    expect(await readJson(root, "config/constants.json")).toMatchObject({ flag_defaults: { alpha: 0.05 } });
+    expect(await readJson(untouched, "config/constants.json")).toEqual(CONSTANTS);
+    expect(git(untouched, "log", "--oneline").split("\n")).toHaveLength(1);
+    expect(git(untouched, "status", "--porcelain")).toBe("");
+  });
+
   // Vite bundles the config file and everything it imports before executing
   // it, so where this module thinks it lives is the bundler's business. The
   // default is walked to the workspace manifest, and pinned here.
@@ -1139,7 +1183,9 @@ const DOMAIN_COSTS = {
 };
 const VALUE_EVENTS = { assets: { "meadow.example": { valueEvents: ["sign_up"] } } };
 
-async function tempRepoWithCollections(): Promise<string> {
+const tempRepoWithCollections = () => tempRepo(seededCollections);
+
+async function seedRepoWithCollections(): Promise<string> {
   const root = await tempRepo();
   for (const [name, doc] of [
     ["domain-costs", DOMAIN_COSTS],
@@ -1355,7 +1401,9 @@ describe("a declared collection register", () => {
 
 /** A throwaway checkout holding `config/tower.json` as a fresh install has it:
  * a countdown and no `/wall` at all, because the default layout lives in the code. */
-async function tempRepoWithTower(): Promise<string> {
+const tempRepoWithTower = () => tempRepo(seededTower);
+
+async function seedTowerRepo(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-wall-"));
   created.push(root);
   await fs.mkdir(path.join(root, "installation"), { recursive: true });
