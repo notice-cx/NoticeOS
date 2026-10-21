@@ -2474,23 +2474,21 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="@container flex flex-col gap-5" data-site-overview="">
 <div id="setup" class="scroll-mt-4">
 <div role="status" data-status-for="asset-setup:meadow.example" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-<span role="img" aria-label="Setup 3 of 4 — still to do: 28 days of reports" title="Setup 3 of 4 — still to do: 28 days of reports" class="relative inline-grid shrink-0 place-items-center align-middle" style="width: 16px; height: 16px;" data-progress-ring="true" data-done="3" data-total="4">
+<span role="img" aria-label="Setup 2 of 3 — still to do: 28 days of reports" title="Setup 2 of 3 — still to do: 28 days of reports" class="relative inline-grid shrink-0 place-items-center align-middle" style="width: 16px; height: 16px;" data-progress-ring="true" data-done="2" data-total="3">
 <svg viewBox="0 0 32 32" width="16" height="16" aria-hidden="true" class="block">
 <g transform="rotate(-90 16 16)">
-<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="15.991148575128552 71.97344572538566" stroke-dashoffset="0" class="stroke-foreground/80" data-segment="done">
+<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="23.321531433504735 64.64306286700948" stroke-dashoffset="0" class="stroke-foreground/80" data-segment="done">
 </circle>
-<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="15.991148575128552 71.97344572538566" stroke-dashoffset="-21.991148575128552" class="stroke-foreground/80" data-segment="done">
+<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="23.321531433504735 64.64306286700948" stroke-dashoffset="-29.321531433504735" class="stroke-foreground/80" data-segment="done">
 </circle>
-<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="15.991148575128552 71.97344572538566" stroke-dashoffset="-43.982297150257104" class="stroke-foreground/80" data-segment="done">
-</circle>
-<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="15.991148575128552 71.97344572538566" stroke-dashoffset="-65.97344572538566" class="stroke-muted" data-segment="pending">
+<circle cx="16" cy="16" r="14" fill="none" stroke-width="3.4" stroke-dasharray="23.321531433504735 64.64306286700948" stroke-dashoffset="-58.64306286700947" class="stroke-muted" data-segment="pending">
 </circle>
 </g>
 </svg>
 </span>
 <span class="min-w-0">
 <span class="font-semibold text-foreground">Data setup</span>
-<span> · 3 of 4 done · to do: 28 days of reports</span>
+<span> · 2 of 3 done · to do: 28 days of reports</span>
 </span>
 <a class="outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring ms-auto text-xs text-muted-foreground hover:text-foreground motion-safe:transition-colors max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center" href="/assets/meadow.example/sources" data-discover="true">Review data setup →</a>
 </div>
@@ -4523,7 +4521,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 <details id="setup" class="scroll-mt-4 rounded-[10px] border border-border bg-card px-4" data-setup="true">
-<summary class="min-h-11 cursor-pointer py-3 text-sm font-medium">Data setup · <span class="tabular-nums">3 of 4 done</span>
+<summary class="min-h-11 cursor-pointer py-3 text-sm font-medium">Data setup · <span class="tabular-nums">2 of 3 done</span>
 </summary>
 <ol class="m-0 flex list-none flex-col gap-3 p-0 pb-4" data-setup-checklist="true">
 <li class="m-0 flex gap-2.5" data-setup-item="identity" data-setup-state="done">
@@ -4539,17 +4537,30 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="text-xs tabular-nums text-muted-foreground">Recorded as Meadow Board · meadow.example</span>
 </div>
 </li>
-<li class="m-0 flex gap-2.5" data-setup-item="sources" data-setup-state="done">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check mt-0.5 size-4 shrink-0 text-connected" aria-hidden="true">
-<path d="M20 6 9 17l-5-5">
+<li class="m-0 flex gap-2.5" data-setup-item="sources" data-setup-state="optional">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dashed mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true">
+<path d="M10.1 2.182a10 10 0 0 1 3.8 0">
+</path>
+<path d="M13.9 21.818a10 10 0 0 1-3.8 0">
+</path>
+<path d="M17.609 3.721a10 10 0 0 1 2.69 2.7">
+</path>
+<path d="M2.182 13.9a10 10 0 0 1 0-3.8">
+</path>
+<path d="M20.279 17.609a10 10 0 0 1-2.7 2.69">
+</path>
+<path d="M21.818 10.1a10 10 0 0 1 0 3.8">
+</path>
+<path d="M3.721 6.391a10 10 0 0 1 2.7-2.69">
+</path>
+<path d="M6.391 20.279a10 10 0 0 1-2.69-2.7">
 </path>
 </svg>
 <div class="flex min-w-0 flex-col gap-0.5">
 <span class="flex flex-wrap items-baseline gap-x-2 text-[13px]">
 <a class="rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/assets/meadow.example/sources" data-discover="true">Data sources</a>
-<span class="sr-only">done</span>
 </span>
-<span class="text-xs tabular-nums text-muted-foreground">No data sources apply to this site.</span>
+<span class="text-xs tabular-nums text-muted-foreground">No data sources connected.</span>
 </div>
 </li>
 <li class="m-0 flex gap-2.5" data-setup-item="first-report" data-setup-state="done">
