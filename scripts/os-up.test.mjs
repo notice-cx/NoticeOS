@@ -1881,7 +1881,7 @@ test('a gate’s inbox row is its reason, not the word gate', () => {
   assert.equal(entry.waiting[0].issueType, 'gate');
 });
 
-test('a gate created without a reason keeps its own label', () => {
+test('a gate created without a reason identifies its known blocked task', () => {
   const gates = JSON.stringify([
     {
       id: 'zz-g1',
@@ -1894,8 +1894,7 @@ test('a gate created without a reason keeps its own label', () => {
     },
   ]);
   const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
-  // Never invent a label for a gate whose author gave it none.
-  assert.equal(entry.waiting[0].title, 'Gate: human');
+  assert.equal(entry.waiting[0].title, 'Review approval for zz-hpf');
 });
 
 test('a reason is read from bd’s own format and bounded', () => {
