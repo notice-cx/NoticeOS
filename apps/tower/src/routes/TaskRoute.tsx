@@ -78,9 +78,16 @@ import { ChoiceSummary, ClosedSummary, TaskHead, type TaskHeadFacts } from "@/ro
 import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
 import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
-import { GuideText, MarkdownText, TaskTextRefsProvider } from "@/routes/tasks/task-markdown";
+import { GuideText, MarkdownText, TaskTextRefsProvider, taskListItems, toggleTaskListLine } from "@/routes/tasks/task-markdown";
 import { taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
+import { readTaskCard, scoreTaskCard, type TaskCard } from "@noticeos/contract/task-card";
+import { TASK_CHANGE_CLASSES, TASK_CHANGE_CLASS_LABELS, isTaskChangeClass, readTaskChangeClass } from "@noticeos/contract/task-change-class";
+import { WhyItRanks } from "@/components/viz/WhyItRanks";
+import { pillControlClass } from "@/components/ui/pill";
+import { useSettings } from "@/hooks/useSettings";
+import { operatorRate } from "@/routes/tasks/next/next-read";
+import { TaskCardForm } from "@/routes/tasks/task-card-form";
 import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { ChoiceButtons } from "@/components/ChoiceButtons";
 
@@ -294,7 +301,7 @@ export function TaskRoute() {
             {/* The page's one content card, its sections divided inside it;
                 the facts beside it are a rail, not a second box. */}
             <Card className="viz-arrive min-w-0 divide-y divide-border/70 shadow-raised lg:col-start-1 lg:row-start-1" style={{ "--viz-i": 1 } as CSSProperties} data-task-content="">
-              <Body task={task} />
+              <Body task={task} nowMs={now} />
               {blockers.length > 0 || blocked.length > 0 ? (
                 <Dependencies task={task} blockers={blockers} blocked={blocked} />
               ) : null}
@@ -562,17 +569,34 @@ function CloseForm({
 
 // --- The left column: what the work is --------------------------------------
 
-/** What the work is, both halves editable where they are read. An empty one
- * is its own "Add" button: the page runs the `bd` command, so it offers the
- * field instead of the instruction. */
-function Body({ task }: { task: LiveTask }) {
+/** What the work is, every part editable where it is read: why it ranks,
+ * then the description and when it is done. An empty one is its own "Add"
+ * button: the page runs the `bd` command, so it offers the field instead of
+ * the instruction. */
+function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
   const save = useFieldSave(task.id);
+  // A card just written is drawn until the next read brings it back.
+  const [written, setWritten] = useState<TaskCard | null | undefined>(undefined);
+  useEffect(() => {
+    setWritten(undefined);
+  }, [task.card, task.metadata]);
+  const card = written !== undefined ? written : task.card ?? readTaskCard(task.metadata);
+  const canRank = useFieldPermission("card");
+  const [ranking, setRanking] = useState(false);
+  const done = useAcceptanceToggle(task.id, task.acceptance);
+  const canTick = useFieldPermission("acceptance");
+  const checklist = useMemo(() => taskListItems(done.source), [done.source]);
   return (
     <div className={cn(CONTENT_SECTION, "gap-6")}>
+      {card !== null || ranking ? (
+        <WhyItRanksField task={task} card={card} editing={ranking} onEditing={setRanking} onWritten={setWritten} nowMs={nowMs} />
+      ) : null}
       <LongTextField
         label="Description"
         addLabel="Add a description"
         value={task.description}
+        notice={card === null && !ranking && canRank ? <Unranked onAdd={() => setRanking(true)} /> : null}
+        view={<GuideText source={task.description} />}
         onCommit={(next) =>
           save({ label: "the description", edit: { description: next }, undo: { description: task.description } })
         }
@@ -582,12 +606,141 @@ function Body({ task }: { task: LiveTask }) {
         label="Done when"
         addLabel="Add when it is done"
         value={task.acceptance}
+        caption={checklist.total > 0 ? `${formatInt(checklist.done)} of ${formatInt(checklist.total)}` : undefined}
+        view={
+          <MarkdownText
+            source={done.source}
+            checklist
+            onToggleTask={canTick && checklist.total > 0 ? (line) => void done.toggle(line) : undefined}
+            toggleDisabled={done.pending}
+          />
+        }
         onCommit={(next) =>
           save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
         }
       />
     </div>
   );
+}
+
+/** A ticked box in "Done when" is a write of the whole text with that one
+ * marker flipped. The flipped text is drawn while the write is out and until
+ * the next read brings it back; a refused write draws the stored text again. */
+function useAcceptanceToggle(id: string, acceptance: string) {
+  const save = useFieldSave(id);
+  const [shown, setShown] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    setShown(null);
+  }, [acceptance]);
+  const source = shown ?? acceptance;
+  const toggle = async (line: number) => {
+    const next = toggleTaskListLine(source, line);
+    if (next === source || pending) return;
+    setShown(next);
+    setPending(true);
+    try {
+      const saved = await save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: source } });
+      if (!saved) setShown(null);
+    } finally {
+      setPending(false);
+    }
+  };
+  return { source, toggle, pending };
+}
+
+/** The line a task without a card shows beside its Description eyebrow:
+ * listed, never ranked, until somebody says what it is worth. */
+function Unranked({ onAdd }: { onAdd: () => void }) {
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground" data-task-unranked="">
+      Not ranked: no card says what it is worth.
+      <button
+        type="button"
+        onClick={onAdd}
+        className={cn("rounded-sm font-medium text-foreground underline-offset-4 hover:underline max-sm:inline-flex max-sm:items-center", pillControlClass)}
+      >
+        Add why it ranks
+      </button>
+    </span>
+  );
+}
+
+/** Why the task is worth doing: the card's figures, who recorded them and
+ * when, and the causal line, with Edit beside the eyebrow; or the card's form
+ * in their place. */
+function WhyItRanksField({
+  task,
+  card,
+  editing,
+  onEditing,
+  onWritten,
+  nowMs,
+}: {
+  task: LiveTask;
+  card: TaskCard | null;
+  editing: boolean;
+  onEditing: (editing: boolean) => void;
+  onWritten: (card: TaskCard) => void;
+  nowMs: number;
+}) {
+  const save = useFieldSave(task.id);
+  const writable = useFieldPermission("card");
+  return (
+    <section className="flex min-w-0 flex-col gap-2" data-task-field="Why it ranks">
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Why it ranks</SectionLabel>
+        {card !== null && !editing ? (
+          <Button type="button" variant="ghost" size="sm" aria-label="Edit why it ranks" disabled={!writable} onClick={() => onEditing(true)}>
+            <Pencil aria-hidden /> Edit
+          </Button>
+        ) : null}
+      </div>
+      {editing ? (
+        <TaskCardForm
+          card={card}
+          onCancel={() => onEditing(false)}
+          onSave={async (next) => {
+            const saved = await save({ label: "why it ranks", edit: { card: next }, undo: { card } });
+            if (saved) {
+              onWritten(next);
+              onEditing(false);
+            }
+            return saved;
+          }}
+        />
+      ) : card !== null ? (
+        <CardFigures card={card} nowMs={nowMs} />
+      ) : null}
+    </section>
+  );
+}
+
+function CardFigures({ card, nowMs }: { card: TaskCard; nowMs: number }) {
+  const settings = useSettings();
+  const actors = useContext(TaskActors);
+  const rate = operatorRate(settings.data);
+  const score = useMemo(() => scoreTaskCard(card, { operatorRateUsdPerMin: rate }), [card, rate]);
+  const recorded = cardRecorded(card, actors, nowMs);
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <WhyItRanks card={card} score={score} size="md" />
+      {recorded ? <p className="m-0 text-xs text-muted-foreground" data-card-recorded="">{recorded}</p> : null}
+      {card.note ? <p className="m-0 text-sm text-muted-foreground" data-card-note="">{card.note}</p> : null}
+    </div>
+  );
+}
+
+/** "recorded by Example · Oct 20", with only the half the card carries when
+ * it carries one, and nothing when it carries neither. */
+function cardRecorded(card: TaskCard, actors: readonly TaskActor[] | undefined, nowMs: number): string | null {
+  const by = card.by ? taskActorLabel(card.by, actors) : null;
+  const at = card.at ? Date.parse(card.at) : Number.NaN;
+  const day = Number.isFinite(at) ? calendarDay(localDay(at), nowMs) : null;
+  if (by && day) return `recorded by ${by} · ${day}`;
+  if (by) return `recorded by ${by}`;
+  if (day) return `recorded ${day}`;
+  return null;
 }
 
 /** One section of the page's one content card; the card draws the dividers. */
@@ -601,11 +754,20 @@ function LongTextField({
   label,
   addLabel,
   value,
+  view,
+  caption,
+  notice,
   onCommit,
 }: {
   label: string;
   addLabel: string;
   value: string;
+  /** The text as it reads. */
+  view: ReactNode;
+  /** A count beside the eyebrow. */
+  caption?: string;
+  /** A line about the task beside the eyebrow. */
+  notice?: ReactNode;
   onCommit: (next: string) => Promise<boolean>;
 }) {
   const writable = useFieldPermission(label === 'Description' ? 'description' : 'acceptance');
@@ -620,7 +782,11 @@ function LongTextField({
   return (
     <section className="flex min-w-0 flex-col gap-2" data-task-field={label}>
       <div className="flex items-center justify-between gap-2">
-        <SectionLabel>{label}</SectionLabel>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <SectionLabel>{label}</SectionLabel>
+          {caption ? <span className="text-xs tabular-nums text-muted-foreground" data-task-field-caption="">{caption}</span> : null}
+          {notice}
+        </div>
         {!empty && !editing ? (
           <Button type="button" variant="ghost" size="sm" aria-label={`Edit ${label.toLowerCase()}`} disabled={!writable} onClick={() => setEditing(true)}>
             <Pencil aria-hidden /> Edit
@@ -672,10 +838,8 @@ function LongTextField({
         <Button type="button" variant="outline" size="sm" className="w-fit" disabled={!writable} onClick={() => setEditing(true)}>
           <Plus aria-hidden /> {addLabel}
         </Button>
-      ) : label === "Description" ? (
-        <GuideText source={value} />
       ) : (
-        <MarkdownText source={value} checklist />
+        view
       )}
     </section>
   );
@@ -787,7 +951,7 @@ function CommentBox({ id }: { id: string }) {
         disabled={!writable}
         rows={2}
         value={draft}
-        placeholder="What you found, decided, or need."
+        placeholder="Comment · Markdown: tables, images and checklists work; task ids and paths become links"
         onChange={(event) => setDraft(event.target.value)}
         className={cn(fieldClass, "w-full py-1.5")}
       />
@@ -866,7 +1030,10 @@ function Facts({
     parent: useFieldPermission("parent"),
     labels: useFieldPermission("addLabels"),
     defer: useFieldPermission("defer"),
+    changeClass: useFieldPermission("changeClass"),
   };
+  const kind = task.changeClass ?? readTaskChangeClass(task.metadata);
+  const kindLabel = kind === null ? "Not recorded" : TASK_CHANGE_CLASS_LABELS[kind];
   const saveAssignee = (next: string) => save({
     label: 'assignee',
     edit: { assignee: next },
@@ -966,6 +1133,23 @@ function Facts({
             >
               <PriorityMark priority={task.priority} size="chip" hint={false} />
               {band}
+            </FactChip>
+          </Fact>
+
+          <Fact label="Kind">
+            <FactChip
+              label="Kind"
+              valueText={kindLabel}
+              quiet={kind === null}
+              readOnly={!can.changeClass}
+              editor={{ kind: "choice", value: kind ?? "", choices: KIND_CHOICES }}
+              onSave={(next) => save({
+                label: "the kind",
+                edit: { changeClass: isTaskChangeClass(next) ? next : null },
+                undo: { changeClass: kind },
+              })}
+            >
+              {kindLabel}
             </FactChip>
           </Fact>
 
@@ -1421,6 +1605,12 @@ const PRIORITY_CHOICES: FactChoice[] = PRIORITY_BANDS.map((band, index) => ({
   label: band,
   mark: <PriorityMark priority={index} size="chip" hint={false} />,
 }));
+
+/** The five kinds of change a task makes, and the way back to none. */
+const KIND_CHOICES: FactChoice[] = [
+  ...TASK_CHANGE_CLASSES.map((value) => ({ value, label: TASK_CHANGE_CLASS_LABELS[value] })),
+  { value: "", label: "Not recorded" },
+];
 
 /** Who a task can be given to: a hosted workspace's members, else the names
  * that hold work in this project; the current holder always, and nobody. */

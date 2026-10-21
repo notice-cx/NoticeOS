@@ -586,7 +586,7 @@ describe("the writes", () => {
     await ask("PATCH", "/api/tasks/ro-aaa", { card: null, changeClass: null });
     const [unclassed, cleared] = await spawned();
     expect(unclassed?.slice(2, 6)).toEqual(["update", "ro-aaa", "--unset-metadata", "noticeos_change_class"]);
-    expect(cleared?.filter((arg, index) => cleared[index - 1] === "--unset-metadata")).toEqual(["noticeos_card", "noticeos_change_class"]);
+    expect(cleared?.filter((_arg, index) => cleared[index - 1] === "--unset-metadata")).toEqual(["noticeos_card", "noticeos_change_class"]);
     for (const args of [unclassed, cleared]) {
       expect(args).not.toContain("--metadata");
       expect(args).not.toContain("--due");

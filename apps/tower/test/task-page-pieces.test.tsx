@@ -161,6 +161,34 @@ describe("guideSections", () => {
   });
 });
 
+describe("GuideText with the wider Markdown", () => {
+  it("draws a table and a task list inside a labelled section, ids and paths as chips in both", () => {
+    const source = [
+      "WHERE:",
+      "| File | Task |",
+      "| --- | --- |",
+      "| apps/a/b.tsx | os-8f7p.2 |",
+      "",
+      "FIX:",
+      "- [x] Read os-8f7p.3 first",
+      "- [ ] Change docs/x.md",
+    ].join("\n");
+    inRouter(
+      <TaskTextRefsProvider value={{ prefixes: ["os"], taskHref: (id) => `/tasks/${id}`, repoUrl: null }}>
+        <GuideText source={source} />
+      </TaskTextRefsProvider>,
+    );
+    const where = document.querySelector('[data-guide-section="Where"]') as HTMLElement;
+    expect(within(where).getByRole("table")).toBeInTheDocument();
+    expect(within(where).getByRole("link", { name: "os-8f7p.2" })).toHaveAttribute("href", "/tasks/os-8f7p.2");
+    expect(where.querySelector("td [data-path-ref]")?.textContent).toBe("apps/a/b.tsx");
+    const fix = document.querySelector('[data-guide-section="Fix"]') as HTMLElement;
+    expect([...fix.querySelectorAll("[data-task-item]")].map((item) => item.getAttribute("data-task-item"))).toEqual(["done", "open"]);
+    expect(within(fix).getByRole("link", { name: "os-8f7p.3" })).toBeInTheDocument();
+    expect(fix.querySelector("[data-task-item] [data-path-ref]")?.textContent).toBe("docs/x.md");
+  });
+});
+
 describe("DependencyGraph", () => {
   const glyph = <span>·</span>;
   it("places what the item waits on left and what waits on it right, each card opening its page", () => {
