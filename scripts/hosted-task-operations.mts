@@ -315,8 +315,9 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         .filter((id): id is string => typeof id === 'string'));
       const closedSince = new Date(Date.parse(readAt) - closedDays * DAY_MS).toISOString().slice(0, 10);
       const tasks = new Map<string, ReturnType<typeof toLiveTask>>();
-      for (const row of active.length ? rows(await run({ kind: 'active-board', statuses: active })) : []) {
-        const task = toLiveTask(row, ready); if (!task.id) invalid(); tasks.set(task.id, task);
+      const activeRows = active.length ? rows(await run({ kind: 'active-board', statuses: active })) : [];
+      for (const row of activeRows) {
+        const task = toLiveTask(row, ready, activeRows); if (!task.id) invalid(); tasks.set(task.id, task);
       }
       if (statuses.includes('closed')) for (const row of rows(await run({ kind: 'closed-board', since: closedSince, until: readAt }))) {
         const task = toLiveTask(row, ready); if (!task.id) invalid();

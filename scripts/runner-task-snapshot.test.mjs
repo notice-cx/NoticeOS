@@ -51,6 +51,22 @@ test('epics are not work, and a gate is titled by the ask it holds', () => {
   assert.deepEqual(entry.waiting.map((row) => row.title), ['Approve the price change']);
 });
 
+test('snapshot approval titles use blocked context and preserve actual reasons', () => {
+  const held = { id: 'shop-held', title: 'Publish the documentation', status: 'blocked', issue_type: 'task',
+    dependencies: [{ depends_on_id: 'shop-gate', type: 'blocks' }] };
+  for (const title of [undefined, '', '  ', 'Gate: human', 'gate : HUMAN']) {
+    const gate = { id: 'shop-gate', title, status: 'open', issue_type: 'gate', await_type: 'human', description: 'Reason:   ' };
+    const entry = summarizeBeadsProject(PROJECT, { active: ok([held]), ready: ok([]), blocked: ok([held]), closed: ok([]), human: ok([]), gates: ok([gate]) });
+    assert.equal(entry.waiting[0].title, 'Review approval for Publish the documentation');
+    assert.equal(Object.hasOwn(entry.waiting[0], 'reason'), false);
+    assert.equal(gate.description, 'Reason:   ');
+  }
+  const gate = { id: 'shop-gate', title: 'Gate: human', status: 'open', issue_type: 'gate', await_type: 'human', description: 'Reason: Approve the exact scoped action\nAfter checking its result' };
+  const entry = summarizeBeadsProject(PROJECT, { active: ok([]), ready: ok([]), blocked: ok([]), closed: ok([]), human: ok([]), gates: ok([gate]) });
+  assert.equal(entry.waiting[0].title, 'Approve the exact scoped action\nAfter checking its result');
+  assert.equal(gate.description, 'Reason: Approve the exact scoped action\nAfter checking its result');
+});
+
 test('work counts include blocked work once and exclude approval records in every state', () => {
   const task = (id, status = 'open', priority = 2) => ({ id, title: id, status, priority, issue_type: 'task' });
   const open = task('shop-open');

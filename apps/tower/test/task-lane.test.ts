@@ -1172,13 +1172,27 @@ describe("the pieces underneath", () => {
       description: "Ad-hoc gate blocking ro-aaa\n\nReason: Approve the price change",
     };
     expect(toLiveTask(gate, new Set<string>()).title).toBe("Approve the price change");
-    expect(toLiveTask({ ...gate, description: "Ad-hoc gate blocking ro-aaa" }, new Set<string>()).title).toBe("Gate: human");
+    expect(toLiveTask({ ...gate, description: "Ad-hoc gate blocking ro-aaa" }, new Set<string>()).title).toBe("Review approval for ro-aaa");
     // Only a human gate is an ask: a timer gate and a task that happens to
     // say "Reason:" keep their titles.
     expect(toLiveTask({ ...gate, await_type: "timer" }, new Set<string>()).title).toBe("Gate: human");
     expect(
       toLiveTask({ id: "ro-t", title: "Write the FAQ", await_type: null, description: "Reason: users ask" }, new Set<string>()).title,
     ).toBe("Write the FAQ");
+  });
+
+  it("uses available blocked context for generic or absent approval titles without altering reasons", () => {
+    const held = { id: "ro-held", title: "Publish the documentation", dependencies: [{ depends_on_id: "ro-gate", type: "blocks" }] };
+    for (const title of [undefined, "", "  ", "Gate: human", "gate : HUMAN"]) {
+      const gate = { id: "ro-gate", title, issue_type: "gate", await_type: "human", description: "Reason:   " };
+      const shown = toLiveTask(gate, new Set<string>(), [held]);
+      expect(shown.title).toBe("Review approval for Publish the documentation");
+      expect(shown.description).toBe("Reason:");
+      expect(shown.awaitType).toBe("human");
+      expect(shown.ready).toBe(false);
+    }
+    expect(toLiveTask({ id: "ro-gate", issue_type: "gate", await_type: "human" }, new Set<string>()).title).toBe("Review approval request");
+    expect(toLiveTask({ id: "ro-gate", title: "Approve the documented action", await_type: "human" }, new Set<string>()).title).toBe("Approve the documented action");
   });
 
   it("renders a task bd describes in a status this build has never seen", () => {

@@ -519,7 +519,7 @@ function listTasks(spoke: Spoke, statuses: string, opts: Resolved, closedDays = 
       throw refuse(502, "bd_failed", "The task database returned an unreadable list. Refresh to try again.");
     }
     for (const row of json) {
-      const task = toLiveTask(row, ready);
+      const task = toLiveTask(row, ready, json);
       if (task.id === "") throw refuse(502, "bd_failed", "The task database returned a task without an id.");
       // A closed result cannot resurrect an open row, include an older close,
       // or move the query's upper boundary while several calls are running.

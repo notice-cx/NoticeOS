@@ -45,7 +45,7 @@ function parentOf(row, deps) {
     const edge = deps.find((dep) => dep.type === "parent-child");
     return edge?.id ?? null;
 }
-export function toLiveTask(row, ready) {
+export function toLiveTask(row, ready, context = []) {
     const source = (row ?? {});
     const id = text(source.id);
     const deps = dependencies(source.dependencies);
@@ -56,11 +56,8 @@ export function toLiveTask(row, ready) {
     const ended = status === "closed" ? readTaskResolution(metadata, source.closed_at) : null;
     return {
         id,
-        // A human gate is titled by the ask it holds — `bd` titles every one
-        // "Gate: human" — through the same reader the runner's snapshot uses, so
-        // the live board and the snapshot never title one gate two ways. A gate
-        // with no reason keeps its own title.
-        title: awaitType === "human" ? gateTitle(title, source.description) : title,
+        title: awaitType === "human" || (source.issue_type === "gate" && awaitType === null)
+            ? gateTitle(source.title, source.description, { id, tasks: context, dependents: source.dependents }) : title,
         status,
         priority: whole(source.priority, DEFAULT_PRIORITY),
         issueType: text(source.issue_type, "task"),

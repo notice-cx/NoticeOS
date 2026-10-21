@@ -5,15 +5,16 @@
 export declare const GATE_REASON_MAX = 400;
 /** Relationships that keep dependent work from being ready. */
 export declare const TASK_BLOCKING_DEPENDENCIES: readonly string[];
-/**
- * The ask inside a gate's description, or null for a gate created without a
- * reason — which keeps that gate's own title as the fallback rather than
- * inventing a label for it.
- */
+/** The recorded reason, unchanged apart from the title's length bound. */
 export declare function gateReason(description: unknown): string | null;
-/** The title a human gate is shown by: the ask it holds, or its own title when
- * it holds none. */
-export declare function gateTitle(title: string, description: unknown): string;
+export interface GateTitleContext {
+    readonly id?: string;
+    readonly tasks?: readonly unknown[];
+    readonly dependents?: unknown;
+}
+/** The reason names the requested action. A generic or absent title without a
+ * reason uses known blocked work as context; that context grants no approval. */
+export declare function gateTitle(title: unknown, description: unknown, context?: GateTitleContext): string;
 /**
  * Whether a task is in the operator's Waiting on you: an open human gate, which
  * a person approves, or a ready task labelled `human`, which a person answers
