@@ -239,12 +239,12 @@ describe("the views draw their modules", () => {
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "problems", "decide", "agents", "yesterday", "sites", "timeline"]);
+    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "agents", "decide", "problems", "sites", "timeline"]);
     expect(grid(container).getAttribute("class")).toBe("grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0");
     const overview = container.querySelector("[data-home-overview]")!;
     expect(overview).toHaveClass("grid", "@3xl:grid-cols-2", "items-start");
     expect([...overview.children].map((card) => card.matches("[data-incident-list]") ? "problems" : card.matches("[data-decision-queue]") ? "decisions" : card.matches("[data-home-agents]") ? "agents" : card.matches("[data-home-visitors]") ? "visitors" : "unknown"))
-      .toEqual(["problems", "decisions", "agents", "visitors"]);
+      .toEqual(["visitors", "agents", "decisions", "problems"]);
     expect(overview.nextElementSibling).toHaveAttribute("data-home-sites");
     expect(container.querySelectorAll("[data-home-sites]")).toHaveLength(1);
     expect(container.querySelector("[data-home-visitors]")?.querySelector("[data-home-sites]")).toBeNull();

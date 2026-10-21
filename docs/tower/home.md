@@ -7,7 +7,7 @@ description: "How the business is doing, what is broken and what needs your atte
 
 **Home** is the page the Tower opens on: one page that sums up every site, so you can tell in a minute whether anything needs your attention. New to the Tower? Start with [The Tower](/tower/).
 
-Home shows three things, in this order: how the business is doing, what is broken, and what needs your attention. Which parts of Home show them depends on your view; see [Your view](#your-view).
+Home shows how the business is doing, what is broken, and what needs your attention. Which parts of Home show them depends on your view; see [Your view](#your-view).
 
 
 ## What you see
@@ -57,7 +57,7 @@ The view chosen on the first run, or later in [Settings → General → **Your v
 |---|---|
 | **I run the business** | **Site health**, **Money**, **The agents · this week**, **Decisions** |
 | **I build the product** | **Money**, **Where visitors come from · 4 weeks**, **Worth a look**, **Problems**, **Decisions**, **Sites** |
-| **Everything** | **Money** including **Yesterday**, a 2×2 group (**Problems**, **Decisions**, **Agents**, **Visitors in the last 28 days**), **Sites**, **Problems and activity** |
+| **Everything** | **Money** including **Yesterday**, a 2×2 group (**Visitors in the last 28 days**, **Agents**, **Decisions**, **Problems**), **Sites**, **Problems and activity** |
 
 In **I run the business**, Home opens on **Site health**, with the month's money and **Decisions** under it and **The agents · this week** further down:
 

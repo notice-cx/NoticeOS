@@ -752,8 +752,8 @@ describe("Home drawn from the person's view", () => {
   it("draws every module in today's order with no choice stored", () => {
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "problems", "decide", "agents", "yesterday", "sites", "timeline"]);
-    // Problems and Decisions sit above Agents and Visitors in one responsive group.
+    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "agents", "decide", "problems", "sites", "timeline"]);
+    // Visitors and Agents sit above Decisions and Problems in one responsive group.
     const column = container.querySelector("[data-incident-list]")!.parentElement!;
     expect(column.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
     expect(column.querySelector(":scope > [data-home-agents]")).not.toBeNull();

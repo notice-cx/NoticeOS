@@ -17,7 +17,7 @@ export type ViewNavPath = (typeof VIEW_NAV_PATHS)[number];
 /** Home's modules. The first seven, in this order, are what the Everything
  * view draws; the rest are drawn only by the views that name them. `answer`
  * is the one-line summary every view keeps at the top. */
-export declare const HOME_MODULES: readonly ["money", "problems", "decide", "agents", "yesterday", "sites", "timeline", "health", "factory", "channels", "gaps"];
+export declare const HOME_MODULES: readonly ["money", "yesterday", "agents", "decide", "problems", "sites", "timeline", "health", "factory", "channels", "gaps"];
 export type HomeModuleId = (typeof HOME_MODULES)[number];
 /** The site page's tabs, in the Everything view's order. */
 export declare const SITE_TABS: readonly ["overview", "growth", "financials", "search", "codebase", "health", "alerts", "tasks", "activity", "sources", "settings"];
