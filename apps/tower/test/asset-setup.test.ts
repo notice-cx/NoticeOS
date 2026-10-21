@@ -24,7 +24,7 @@ function facts(over: Partial<SetupChecklistFacts> = {}): SetupChecklistFacts {
     sources: [
       { id: "nightly-report", kind: "working" },
       { id: "gsc", kind: "working" },
-      { id: "ga4", kind: "not-connected" },
+      { id: "ga4", kind: "unknown" },
     ],
     firstReportAt: daysAgo(9),
     reportDays: 9,
@@ -120,15 +120,15 @@ describe("item 2 — data sources (read from each source's one status)", () => {
     expect(sources.progress).toEqual({ done: 1, total: 1 });
   });
 
-  it("is pending while any applicable source is not connected", () => {
-    const sources = item(checklist(), "sources");
-    expect(sources.state).toBe("pending");
-    expect(sources.note).toBe("1 of 2 connected, off or not applicable");
-    expect(sources.progress).toEqual({ done: 1, total: 2 });
+  it("does not owe catalog sources that have not been connected", () => {
+    const sources = item(checklist({ sources: [{ id: "gsc", kind: "working" }, { id: "ga4", kind: "not-connected" }] }), "sources");
+    expect(sources.state).toBe("done");
+    expect(sources.note).toBe("1 connected");
+    expect(sources.progress).toEqual({ done: 1, total: 1 });
     expect(sources.href).toBe("/assets/pebble.example/sources");
   });
 
-  it("counts a connected source whatever its health, and an off or inapplicable one, as settled", () => {
+  it("counts connected sources whatever their health and excludes unused inventory", () => {
     const settled: SetupChecklistFacts["sources"] = [
       { id: "nightly-report", kind: "not-connected" },
       { id: "gsc", kind: "working" },
@@ -140,9 +140,31 @@ describe("item 2 — data sources (read from each source's one status)", () => {
     ];
     const sources = item(checklist({ sources: settled }), "sources");
     expect(sources.state).toBe("done");
-    expect(sources.progress).toEqual({ done: 6, total: 6 });
-    expect(sources.note).toBe("6 of 6 connected, off or not applicable");
+    expect(sources.progress).toEqual({ done: 4, total: 4 });
+    expect(sources.note).toBe("4 connected");
     expect(sources.note).not.toMatch(/working|healthy/u);
+  });
+
+  it("finishes setup with the chosen sources even when other integrations are available", () => {
+    expect(assetSetupChecklist(facts({
+      reportDays: 28,
+      sources: [
+        { id: "gsc", kind: "working" },
+        { id: "ga4", kind: "not-connected" },
+        { id: "posthog", kind: "not-connected" },
+        { id: "clarity", kind: "not-applicable" },
+        { id: "bing-webmaster", kind: "not-using" },
+      ],
+    }))).toBeNull();
+  });
+
+  it("does not require a connection for a site declared as sending no report", () => {
+    expect(assetSetupChecklist(facts({
+      noNightlyReport: true,
+      latestReportAt: null,
+      firstReportAt: null,
+      sources: [{ id: "gsc", kind: "not-connected" }],
+    }))).toBeNull();
   });
 
   it("never counts an unanswered monitoring read as done", () => {
@@ -155,13 +177,14 @@ describe("item 2 — data sources (read from each source's one status)", () => {
     expect(Object.keys(item(checklist(), "sources")).sort()).toEqual(["href", "id", "label", "note", "progress", "state"]);
   });
 
-  it("an asset no lane applies to is done, and says so", () => {
+  it("offers sources without making them an obligation when none are connected", () => {
     const sources = item(
       checklist({ sources: [{ id: "nightly-report", kind: "working" }] }),
       "sources",
     );
-    expect(sources.state).toBe("done");
-    expect(sources.note).toBe("No data sources apply to this site.");
+    expect(sources.state).toBe("optional");
+    expect(sources.progress).toBeNull();
+    expect(sources.note).toBe("No data sources connected.");
   });
 });
 
@@ -269,12 +292,12 @@ describe("the fraction and the sentence the ring carries", () => {
       reportDays: 0,
     });
     expect(list.done).toBe(0);
-    expect(list.remaining).toEqual(["Identity", "Data sources"]);
-    expect(list.title).toBe("Setup 0 of 2 — still to do: Identity, Data sources");
+    expect(list.remaining).toEqual(["Identity"]);
+    expect(list.title).toBe("Setup 0 of 1 — still to do: Identity");
     // The report is offered; the unavailable pause check is also uncounted.
     expect(list.items.map((entry) => [entry.id, entry.state])).toEqual([
       ["identity", "pending"],
-      ["sources", "pending"],
+      ["sources", "optional"],
       ["first-report", "optional"],
       ["pause-check", "unavailable"],
     ]);
@@ -347,7 +370,7 @@ describe("an asset declared as sending no nightly report", () => {
       firstReportAt: null,
       reportDays: 0,
       latestReportAt: null,
-      sources: [{ id: "nightly-report", kind: "not-using" }, { id: "gsc", kind: "not-connected" }],
+      sources: [{ id: "nightly-report", kind: "not-using" }, { id: "gsc", kind: "unknown" }],
     });
     expect(list.items.map((entry) => entry.id)).toEqual(["identity", "sources", "pause-check"]);
     expect(list.total).toBe(2);

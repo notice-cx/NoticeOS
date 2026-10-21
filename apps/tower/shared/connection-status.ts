@@ -365,6 +365,12 @@ export const NO_READS: ConnectionReads = { credentials: undefined, items: null }
 /** What one source can read as: a connection status, or not applicable. */
 export type SourceKind = ConnectionKind | "not-applicable";
 
+/** Catalog entries outside setup and connection-health totals. Unknown evidence
+ * stays unresolved rather than being treated as an unused source. */
+export function isUnusedSource(kind: SourceKind): boolean {
+  return kind === "not-connected" || kind === "not-using" || kind === "not-applicable";
+}
+
 /** One source slot of one asset, read through `laneStatus`. */
 export interface SourceReading {
   id: string;
