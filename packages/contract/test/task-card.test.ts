@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { readTaskCard, scoreTaskCard, TASK_CARD_LIMITS, TASK_CARD_POLICY, taskCardOf, taskCardProblem } from '../src/task-card.mjs';
+import { readTaskCard, readTaskCardShipped, scoreTaskCard, TASK_CARD_LIMITS, TASK_CARD_POLICY, taskCardOf, taskCardProblem,
+  taskCardShippedOf } from '../src/task-card.mjs';
 import { isTaskChangeClass, readTaskChangeClass, TASK_CHANGE_CLASS_LABELS, TASK_CHANGE_CLASSES } from '../src/task-change-class.mjs';
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../src/task-metadata.mjs';
 
@@ -61,6 +62,33 @@ describe('a task carries why it is worth doing as a card', () => {
   it('is written by whoever files the task, so it is not a server-only key', () => {
     expect(SERVER_TASK_METADATA).not.toContain(TASK_METADATA.card.name);
     expect(SERVER_TASK_METADATA).not.toContain(TASK_METADATA.changeClass.name);
+  });
+});
+
+describe('a task that closed as done keeps the card it shipped with', () => {
+  const SHIPPED = { card: CARD, closedAt: '2026-10-21T09:30:00Z', commit: 'a1b2c3d' };
+
+  it('is kept under its own key, which only the server writes', () => {
+    expect(TASK_METADATA.cardShipped.name).toBe('noticeos_card_shipped');
+    expect(SERVER_TASK_METADATA).toContain('noticeos_card_shipped');
+  });
+
+  it('reads the card, the close and the commit, frozen, with no absent field present', () => {
+    const read = readTaskCardShipped({ [TASK_METADATA.card.name]: { ...CARD, valuePerMonth: 9 }, noticeos_card_shipped: SHIPPED });
+    expect(read).toEqual(SHIPPED);
+    expect(Object.isFrozen(read) && Object.isFrozen(read!.card)).toBe(true);
+    const { commit: _commit, ...uncommitted } = SHIPPED;
+    expect(Object.keys(taskCardShippedOf(uncommitted)!)).toEqual(['card', 'closedAt']);
+  });
+
+  it('answers null for anything that is not one', () => {
+    for (const value of [undefined, null, 'shipped', CARD, { ...SHIPPED, card: { ...CARD, likelihood: 2 } },
+      { ...SHIPPED, closedAt: 'yesterday' }, { ...SHIPPED, closedAt: 42 }, { ...SHIPPED, commit: 'A1B2C3D' },
+      { ...SHIPPED, commit: 'abc12' }, { ...SHIPPED, commit: 1234567 }, { ...SHIPPED, extra: true }]) {
+      expect(readTaskCardShipped({ noticeos_card_shipped: value })).toBeNull();
+    }
+    expect(readTaskCardShipped(null)).toBeNull();
+    expect(readTaskCardShipped({ [TASK_METADATA.card.name]: CARD })).toBeNull();
   });
 });
 

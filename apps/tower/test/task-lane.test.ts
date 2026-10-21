@@ -568,7 +568,9 @@ describe("the writes", () => {
       kill: { state: "RPM below 12 on the changed pages", date: "2026-12-31" } };
     const reply = await ask("PATCH", "/api/tasks/ro-aaa", { card: { ...card, by: "someone else", at: "2020-01-01T00:00:00Z" } });
     expect(reply.status).toBe(200);
-    const [argv] = await spawned();
+    // The task is read first: a card it shipped with stays as it shipped.
+    const [read, argv] = await spawned();
+    expect(read?.slice(2, 5)).toEqual(["show", "ro-aaa", "--json"]);
     expect(argv?.slice(2, 4)).toEqual(["update", "ro-aaa"]);
     expect(JSON.parse(argv?.[argv.indexOf("--metadata") + 1] ?? "{}")).toEqual({
       noticeos_card: { ...card, by: "test-operator", at: "2026-09-04T12:00:00.000Z" },
@@ -584,7 +586,8 @@ describe("the writes", () => {
     await reset();
     await ask("PATCH", "/api/tasks/ro-aaa", { changeClass: null });
     await ask("PATCH", "/api/tasks/ro-aaa", { card: null, changeClass: null });
-    const [unclassed, cleared] = await spawned();
+    const [unclassed, readFirst, cleared] = await spawned();
+    expect(readFirst?.slice(2, 4)).toEqual(["show", "ro-aaa"]);
     expect(unclassed?.slice(2, 6)).toEqual(["update", "ro-aaa", "--unset-metadata", "noticeos_change_class"]);
     expect(cleared?.filter((_arg, index) => cleared[index - 1] === "--unset-metadata")).toEqual(["noticeos_card", "noticeos_change_class"]);
     for (const args of [unclassed, cleared]) {
@@ -622,6 +625,51 @@ describe("the writes", () => {
       expect(reply).toEqual({ status: 422, body: { error: "invalid_body", detail } });
       expect(await spawned()).toEqual([]);
     }
+  });
+
+  it("keeps a task's card as it shipped when it closes as done, and refuses to change that card after", async () => {
+    const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: "cohort",
+      by: "test-operator", at: "2026-09-01T12:00:00.000Z" };
+    const closedAt = "2026-10-21T09:30:00Z";
+    const closedRow = (metadata: Record<string, unknown>, reason = "Shorter titles shipped in a1b2c3d") =>
+      JSON.stringify([{ ...LIST_ROW, status: "closed", closed_at: closedAt, close_reason: reason, metadata }]);
+    const shipped = { card, closedAt, commit: "a1b2c3d" };
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, close: closedRow({ noticeos_card: card }) });
+    expect((await ask("POST", "/api/tasks/ro-aaa/close", { reason: "Shorter titles shipped in a1b2c3d" })).status).toBe(200);
+    const [, record] = await spawned();
+    expect(JSON.parse(record?.[5] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt,
+      noticeos_resolution: "done", noticeos_card_shipped: shipped });
+
+    // Another resolution keeps none, and a second close as done keeps the first one's.
+    for (const [body, metadata] of [
+      [{ reason: "The pages are going away", resolution: "wont-do" }, { noticeos_card: card }],
+      [{ reason: "Shipped again in e5f6a7b" }, { noticeos_card: { ...card, valuePerMonth: 900 }, noticeos_card_shipped: shipped }],
+    ] as const) {
+      await reset();
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, close: closedRow(metadata, body.reason) });
+      expect((await ask("POST", "/api/tasks/ro-aaa/close", body)).status).toBe(200);
+      const [, written] = await spawned();
+      expect(JSON.parse(written?.[5] ?? "{}")).not.toHaveProperty("noticeos_card_shipped");
+    }
+
+    // A card it shipped with is not set again or taken off; its class still is.
+    for (const body of [{ card: { ...card, valuePerMonth: 900 } }, { card: null }, { card: null, changeClass: null }]) {
+      await reset();
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED,
+        show: JSON.stringify([{ ...LIST_ROW, status: "closed", metadata: { noticeos_card: card, noticeos_card_shipped: shipped } }]) });
+      expect(await ask("PATCH", "/api/tasks/ro-aaa", body)).toEqual({ status: 409,
+        body: { error: "task_refused", detail: "ro-aaa shipped on 2026-10-21, and its card stays as it shipped." } });
+      expect((await spawned()).map((argv) => argv[2])).toEqual(["show"]);
+    }
+    await reset();
+    expect((await ask("PATCH", "/api/tasks/ro-aaa", { changeClass: "copy" })).status).toBe(200);
+    expect((await spawned()).map((argv) => argv[2])).toEqual(["update"]);
+    // Only a close as done writes it.
+    await reset();
+    expect(await ask("POST", "/api/tasks", { project: "root-os", title: "Forged", metadata: { noticeos_card_shipped: shipped } })).toEqual({
+      status: 422, body: { error: "invalid_body", detail: "metadata carries no noticeos_card_shipped; a close as done writes it" } });
+    expect(await spawned()).toEqual([]);
   });
 
   it("will not close a bead without the evidence that closes it", async () => {

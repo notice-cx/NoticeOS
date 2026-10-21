@@ -81,7 +81,7 @@ import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/route
 import { GuideText, MarkdownText, TaskTextRefsProvider, taskListItems, toggleTaskListLine } from "@/routes/tasks/task-markdown";
 import { taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
-import { readTaskCard, scoreTaskCard, type TaskCard } from "@noticeos/contract/task-card";
+import { readTaskCard, readTaskCardShipped, scoreTaskCard, type TaskCard } from "@noticeos/contract/task-card";
 import { TASK_CHANGE_CLASSES, TASK_CHANGE_CLASS_LABELS, isTaskChangeClass, readTaskChangeClass } from "@noticeos/contract/task-change-class";
 import { WhyItRanks } from "@/components/viz/WhyItRanks";
 import { pillControlClass } from "@/components/ui/pill";
@@ -580,7 +580,9 @@ function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
   useEffect(() => {
     setWritten(undefined);
   }, [task.card, task.metadata]);
-  const card = written !== undefined ? written : task.card ?? readTaskCard(task.metadata);
+  // Once the task ships, the card it shipped with is the only one shown.
+  const shipped = task.cardShipped ?? readTaskCardShipped(task.metadata);
+  const card = shipped !== null ? shipped.card : written !== undefined ? written : task.card ?? readTaskCard(task.metadata);
   const canRank = useFieldPermission("card");
   const [ranking, setRanking] = useState(false);
   const done = useAcceptanceToggle(task.id, task.acceptance);
@@ -589,7 +591,15 @@ function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
   return (
     <div className={cn(CONTENT_SECTION, "gap-6")}>
       {card !== null || ranking ? (
-        <WhyItRanksField task={task} card={card} editing={ranking} onEditing={setRanking} onWritten={setWritten} nowMs={nowMs} />
+        <WhyItRanksField
+          task={task}
+          card={card}
+          shippedAt={shipped?.closedAt ?? null}
+          editing={ranking}
+          onEditing={setRanking}
+          onWritten={setWritten}
+          nowMs={nowMs}
+        />
       ) : null}
       <LongTextField
         label="Description"
@@ -668,10 +678,12 @@ function Unranked({ onAdd }: { onAdd: () => void }) {
 
 /** Why the task is worth doing: the card's figures, who recorded them and
  * when, and the causal line, with Edit beside the eyebrow; or the card's form
- * in their place. */
+ * in their place. A card the task shipped with shows "as shipped" and its day
+ * there instead, and opens no form. */
 function WhyItRanksField({
   task,
   card,
+  shippedAt,
   editing,
   onEditing,
   onWritten,
@@ -679,6 +691,7 @@ function WhyItRanksField({
 }: {
   task: LiveTask;
   card: TaskCard | null;
+  shippedAt: string | null;
   editing: boolean;
   onEditing: (editing: boolean) => void;
   onWritten: (card: TaskCard) => void;
@@ -690,13 +703,17 @@ function WhyItRanksField({
     <section className="flex min-w-0 flex-col gap-2" data-task-field="Why it ranks">
       <div className="flex items-center justify-between gap-2">
         <SectionLabel>Why it ranks</SectionLabel>
-        {card !== null && !editing ? (
+        {shippedAt !== null ? (
+          <span className="text-xs text-muted-foreground" data-card-shipped="">
+            {`as shipped · ${calendarDay(localDay(Date.parse(shippedAt)), nowMs)}`}
+          </span>
+        ) : card !== null && !editing ? (
           <Button type="button" variant="ghost" size="sm" aria-label="Edit why it ranks" disabled={!writable} onClick={() => onEditing(true)}>
             <Pencil aria-hidden /> Edit
           </Button>
         ) : null}
       </div>
-      {editing ? (
+      {editing && shippedAt === null ? (
         <TaskCardForm
           card={card}
           onCancel={() => onEditing(false)}

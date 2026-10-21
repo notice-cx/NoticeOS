@@ -118,9 +118,9 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
     } catch (error) {
       if (error instanceof HostedTaskReceiptsUnavailable) return response(503, { error: 'idempotency_unavailable' });
       if (error instanceof TaskMaintenanceRefused) return response(409, { error: 'task_refused', detail: error.message });
-      // A person's own decision or close refused by the task's state, or naming a task the project lacks: the sentence names why.
-      const detail = error instanceof TaskStateRefused && mutation
-        && (hostedTaskAction(mutation.operation) === 'tasks.decide' || mutation.operation.kind === 'close') ? decisionRefusal(error) : null;
+      // A person's own decision, close or edit of a shipped card refused by the task's state, or naming a task the project lacks: the sentence names why.
+      const detail = error instanceof TaskStateRefused && mutation && (hostedTaskAction(mutation.operation) === 'tasks.decide'
+        || mutation.operation.kind === 'close' || error.reason.kind === 'shipped') ? decisionRefusal(error) : null;
       if (detail !== null) return response(409, { error: 'task_refused', detail });
       return response(403, { error: 'hosted_task_refused' });
     }

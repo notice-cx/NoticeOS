@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { answerComment, answerSteps, choiceCloseReason, choiceComment, choiceSteps, closerMetadata, createHostedTaskPlanner, decisionGuardTargets, decisionRefusal,
-  guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision, recordedTaskCard, refusalFromState, TaskStateRefused,
+  guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision, recordedTaskCard, refusalFromState, shippedTaskCard, TaskStateRefused,
   writeGuardReads } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-1111-1111-111111111111';
@@ -530,6 +530,72 @@ test('a stored card names who wrote it and when, whatever the caller sent for th
   assert.deepEqual(stored, { ...CARD, by: 'agent-1', at: '2026-10-21T09:00:00.000Z' });
   assert.ok(Object.isFrozen(stored) && Object.isFrozen(stored.kill));
   assert.equal(recordedTaskCard(CARD, 'n'.repeat(200), '2026-10-21T09:00:00.000Z').by.length, 120, 'a long name is cut to the card\'s limit');
+});
+
+test('a close as done keeps the card as the close left it, with the first commit its reason names, and nothing else does', () => {
+  const card = recordedTaskCard(CARD, 'agent-1', '2026-10-15T09:00:00.000Z');
+  const closed = (reason, extra = {}) => ({ id: 'tt-a', status: 'closed', closed_at: '2026-10-21T09:30:00Z', close_reason: reason,
+    metadata: { noticeos_card: card, noticeos_change_class: 'template' }, ...extra });
+  assert.deepEqual(shippedTaskCard(closed('Shipped in a1b2c3d: shorter titles'), undefined),
+    { card, closedAt: '2026-10-21T09:30:00Z', commit: 'a1b2c3d' });
+  assert.deepEqual(shippedTaskCard(closed('Shipped'), 'done'), { card, closedAt: '2026-10-21T09:30:00Z' }, 'a reason without a commit keeps none');
+  for (const [reason, commit] of [
+    ['abc1234: done', 'abc1234'],
+    ['Merged https://example.com/o/r/commit/0123abcd4567ef89, then 89abcdef0123', '0123abcd4567ef89'],
+    ['a1b2c3d4e5f60718293a4b5c6d7e8f9012345678.', 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'],
+    ['Cut 1234567 bytes', undefined],
+    ['Replaced the defaced banner', undefined],
+    ['Same work as tt-a1b2c3d', undefined],
+    ['ABC1234 upper case', undefined],
+    ['abc12345x is no hash', undefined],
+  ]) assert.equal(shippedTaskCard(closed(reason), 'done')?.commit, commit, reason);
+  // Nothing ships from another resolution, a task without a card, or one not closed.
+  for (const resolution of ['wont-do', 'duplicate', 'cant-reproduce', 'already-handled']) {
+    assert.equal(shippedTaskCard(closed('abc1234: done'), resolution), undefined, resolution);
+  }
+  assert.equal(shippedTaskCard(closed('abc1234: done', { metadata: { noticeos_card: { ...card, likelihood: 2 } } }), 'done'), undefined);
+  assert.equal(shippedTaskCard(closed('abc1234: done', { closed_at: undefined }), 'done'), undefined);
+  // The first ship stands: a task that carries a shipped card keeps it.
+  const first = { card: { ...card, valuePerMonth: 90 }, closedAt: '2026-10-01T09:00:00Z', commit: 'fedcba9' };
+  assert.equal(shippedTaskCard(closed('e5f6a7b: again', { metadata: { noticeos_card: card, noticeos_card_shipped: first } }), 'done'), undefined);
+
+  // The attribution writes it beside the closer, only for a close as done and only from this close.
+  const plan = createHostedTaskPlanner(entries);
+  const shipped = shippedTaskCard(closed('Shipped in a1b2c3d'), undefined);
+  const attribution = { kind: 'attribute', taskId: 'tt-a', closedBy: 'agent-1', closedAt: '2026-10-21T09:30:00Z', shipped };
+  assert.deepEqual(plan(A, request(attribution)).argv.slice(2), ['update', `--metadata=${JSON.stringify({ noticeos_closed_by: 'agent-1',
+    noticeos_closed_at: '2026-10-21T09:30:00Z', noticeos_resolution: 'done', noticeos_card_shipped: shipped })}`, '--', 'tt-a']);
+  assert.deepEqual(closerMetadata({ ...attribution, resolution: 'done' }).noticeos_card_shipped, shipped);
+  for (const operation of [
+    { ...attribution, resolution: 'wont-do' },
+    { ...attribution, closedAt: '2026-10-21T09:31:00Z' },
+    { ...attribution, shipped: { ...shipped, card: { ...card, likelihood: 2 } } },
+    { ...attribution, shipped: { ...shipped, commit: 'not a hash' } },
+    { ...attribution, shipped: card },
+    // Only the server writes it: no caller's metadata carries it.
+    { kind: 'create', title: 'Task', metadata: { noticeos_card_shipped: '{}' } },
+  ]) denied(() => plan(A, request(operation)));
+});
+
+test('a card edit reads the task first and is refused once the task shipped its card', () => {
+  const editing = { kind: 'update', taskId: 'tt-a', card: CARD };
+  assert.deepEqual(writeGuardReads(editing), ['tt-a']);
+  assert.deepEqual(writeGuardReads({ ...editing, card: null }), ['tt-a']);
+  assert.deepEqual(writeGuardReads({ kind: 'update', taskId: 'tt-a', changeClass: 'copy' }), [], 'a change class alone reads nothing');
+  const open = shown({ status: 'open', assignee: '', metadata: { noticeos_card: CARD } });
+  assert.equal(guardedWrite(editing, open, 'agent-1'), editing);
+  const shipped = { ...open, status: 'closed', metadata: { ...open.metadata,
+    noticeos_card_shipped: { card: CARD, closedAt: '2026-10-21T09:30:00Z', commit: 'a1b2c3d' } } };
+  for (const operation of [editing, { ...editing, card: null }, { ...editing, title: 'Faster' }, { ...editing, assignee: 'agent-1' }]) {
+    assert.throws(() => guardedWrite(operation, shipped, 'agent-1'), error => error instanceof TaskStateRefused
+      && assert.deepEqual(error.reason, { kind: 'shipped', closedAt: '2026-10-21T09:30:00Z' }) === undefined);
+  }
+  assert.equal(guardedWrite({ kind: 'update', taskId: 'tt-a', status: 'open' }, undefined, 'agent-1').status, 'open', 'reopening it reads nothing');
+  const refused = refusalFromState(editing, { ...shipped, status: 'open' }, 'agent-1');
+  assert.deepEqual(refused?.reason, { kind: 'shipped', closedAt: '2026-10-21T09:30:00Z' }, 'reopening keeps the shipped card');
+  assert.equal(decisionRefusal(refused), 'tt-a shipped on 2026-10-21, and its card stays as it shipped.');
+  // A value that is not a shipped card freezes nothing.
+  assert.equal(guardedWrite(editing, { ...open, metadata: { noticeos_card: CARD, noticeos_card_shipped: 'garbled' } }, 'agent-1'), editing);
 });
 
 test('a change to a task\'s choices reads the task first and is refused once a person has chosen', () => {

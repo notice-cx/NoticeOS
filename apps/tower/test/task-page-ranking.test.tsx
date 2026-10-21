@@ -267,6 +267,35 @@ describe("why it ranks", () => {
   });
 });
 
+describe("why it ranks, once the task shipped", () => {
+  const SHIPPED = { card: { ...CARD, likelihood: 0.3, note: "Shorter titles were expected to lift clicks." }, closedAt: "2026-09-03T15:00:00Z",
+    commit: "a1b2c3d" };
+
+  it("shows the figures it shipped with, captioned as shipped and its day, with no Edit and none of a later card", async () => {
+    api.fetchTask.mockResolvedValue(detail({ status: "closed", closedAt: SHIPPED.closedAt, card: { ...CARD, valuePerMonth: 900 }, cardShipped: SHIPPED }));
+    const { container } = renderTask();
+    const section = await found(container, '[data-task-field="Why it ranks"]');
+    expect(section.querySelector("[data-card-shipped]")).toHaveTextContent("as shipped · Sep 3");
+    const figures = section.querySelector("[data-why-it-ranks]") as HTMLElement;
+    expect(within(figures).getByText("30%")).toBeInTheDocument();
+    expect(within(figures).queryByText("55%")).toBeNull();
+    expect(section.querySelector("[data-card-note]")).toHaveTextContent("Shorter titles were expected to lift clicks.");
+    expect(section.querySelector("[data-card-recorded]")).toHaveTextContent("recorded by Example Operator · Sep 3");
+    expect(within(section).queryByRole("button", { name: "Edit why it ranks" })).toBeNull();
+    expect(screen.queryByRole("form", { name: "Why it ranks" })).toBeNull();
+    expect(container.querySelector("[data-task-unranked]")).toBeNull();
+  });
+
+  it("reads the shipped card from the task's metadata too", async () => {
+    api.fetchTask.mockResolvedValue(detail({ status: "open", metadata: { noticeos_card: { ...CARD, valuePerMonth: 900 }, noticeos_card_shipped: SHIPPED } }));
+    const { container } = renderTask();
+    const section = await found(container, '[data-task-field="Why it ranks"]');
+    expect(section.querySelector("[data-card-shipped]")).toHaveTextContent("as shipped · Sep 3");
+    expect(within(section.querySelector("[data-why-it-ranks]") as HTMLElement).getByText("30%")).toBeInTheDocument();
+    expect(within(section).queryByRole("button", { name: "Edit why it ranks" })).toBeNull();
+  });
+});
+
 describe("the card's draft", () => {
   it("opens a new card blank and Not measurable, and round-trips a recorded one", () => {
     expect(cardDraft(null)).toMatchObject({ valuePerMonth: "", likelihood: "", measurability: "unmeasured", revenueFamily: "" });

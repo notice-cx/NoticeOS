@@ -10,7 +10,7 @@ import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES } from '../packages/postgres
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused } from './hosted-task-command.mjs';
+import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, shippedTaskCard, taskProposal, TaskMaintenanceRefused, TaskStateRefused } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export class HostedTaskReceiptsUnavailable extends Error {
@@ -80,22 +80,23 @@ function canonical(value) {
     return JSON.stringify(value);
 }
 /** Who closed a task and how it ended, written onto it after its close: the
- * task client keeps no closer. The close stands whether or not this lands; a
- * task without it shows its close, no closer, and reads as done.
+ * task client keeps no closer. A close as done also keeps the task's card as
+ * the close left it (shippedTaskCard). The close stands whether or not this
+ * lands; a task without it shows its close, no closer, and reads as done.
  * `closeOutput` is the close's own answer. */
 export async function recordCloser(run, taskId, closeOutput, closedBy, model, ended = {}) {
     try {
-        const closedAt = (found) => {
-            const row = (Array.isArray(found) ? found : [found]).map(entry => entry && typeof entry === 'object' ? entry : {})
-                .find(entry => entry.id === taskId);
-            return row?.status === 'closed' && typeof row.closed_at === 'string' ? row.closed_at : null;
-        };
-        const at = closedAt(closeOutput) ?? closedAt(await run({ kind: 'show', taskId }));
-        if (at === null)
+        const closed = (found) => (Array.isArray(found) ? found : [found])
+            .map(entry => entry && typeof entry === 'object' ? entry : {})
+            .find(entry => entry.id === taskId && entry.status === 'closed' && typeof entry.closed_at === 'string');
+        const row = closed(closeOutput) ?? closed(await run({ kind: 'show', taskId }));
+        if (row === undefined)
             return;
-        await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: at, ...(model === undefined ? {} : { model }),
+        const shipped = shippedTaskCard(row, ended.resolution);
+        await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: row.closed_at, ...(model === undefined ? {} : { model }),
             ...(ended.resolution === undefined ? {} : { resolution: ended.resolution }),
-            ...(ended.duplicateOf === undefined ? {} : { duplicateOf: ended.duplicateOf }) }));
+            ...(ended.duplicateOf === undefined ? {} : { duplicateOf: ended.duplicateOf }),
+            ...(shipped === undefined ? {} : { shipped }) }));
     }
     catch { /* The close itself is the outcome; its closer stays unrecorded. */ }
 }
