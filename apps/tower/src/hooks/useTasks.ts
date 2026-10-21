@@ -383,7 +383,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
  */
 export function useInboxAnswer(): (answer: InboxAnswer) => void {
   const toast = useOwnerToast();
-  const { schedule: scheduleAnswer, undo: undoAnswer } = useOwnerAnswers();
+  const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
   const api = useTowerApi();
   const selected = useTaskSelection();
@@ -393,15 +393,17 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
       // The captured owner API still refuses dispatch after session retirement.
       const project = selected(answer.project);
       const captured: InboxAnswer = Object.freeze({ ...answer, project });
-      const toastId = `inbox-answer-${answer.id}`;
+      // An exiting toast must never share the next answer's Undo lifecycle.
+      const toastId = `inbox-answer-${crypto.randomUUID()}`;
       toast.success(answeredAs(answer), {
         id: toastId,
         description: answer.title,
         duration: UNDO_WINDOW_MS,
-        action: { label: "Undo", onClick: () => undoAnswer(answer.id) },
+        action: { label: "Undo", onClick: () => undoGroup(toastId) },
       });
       scheduleAnswer({
         id: answer.id,
+        group: toastId,
         send: (keepalive) => sendInboxAnswer(captured, keepalive, api),
         onSent: () => {
           // Undo goes the moment the call is made, even under a hovering
@@ -416,6 +418,6 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
         onUndo: () => toast.dismiss(toastId),
       });
     },
-    [refresh, api, selected, toast, scheduleAnswer, undoAnswer],
+    [refresh, api, selected, toast, scheduleAnswer, undoGroup],
   );
 }
