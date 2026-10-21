@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
+import { archiveComparisonEvidence } from './signal-archive.mjs';
 import { analyzeSignalHistory } from './signal-history-analyze.mjs';
 import { publishSignalHistory } from './signal-history.mjs';
 import { panelReportPath, panelReportRelativePath } from './signal-panel-paths.mjs';
@@ -83,8 +84,13 @@ test('cutover leaves old plain analysis intact and publishes equivalent report, 
   assert.equal(await fs.readFile(path.join(legacy, 'executive.json'), 'utf8'), 'previous plain output');
   assert.deepEqual(await fs.readdir(legacy), ['executive.json']);
   assert.equal(await fs.readFile(path.join(f.output, 'signal-trend-daily.csv'), 'utf8'), trendCsv(TREND));
-  assert.deepEqual(JSON.parse(await fs.readFile(path.join(f.output, 'freshness.json'), 'utf8')),
+  const { stability, ...freshness } = JSON.parse(await fs.readFile(path.join(f.output, 'freshness.json'), 'utf8'));
+  assert.deepEqual(freshness,
     freshnessReport({ asset: ASSET, manifest: [{ ...SOURCE_ROW, asset: ASSET }], maxAgeDays: 7, refreshedAt: NOW }));
+  assert.equal(stability.asset, ASSET);
+  assert.equal(stability.families[0].latest.reportDate, DAY);
+  assert.equal(stability.families[0].latest.resultHash, archiveComparisonEvidence(archive()).resultHash);
+  assert.deepEqual(stability.families[0].comparisons, []);
 
   // Frozen before retirement against the old command on this exact fixture.
   // These are actual reader files, not a second derivation of the findings.

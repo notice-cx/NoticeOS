@@ -25,6 +25,7 @@ import { publishExecutiveSnapshot } from './signal-insights-publish.mjs';
 import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
 import { BING_AI_INTEGRATION, BING_AI_REPORTS } from '../packages/contract/src/signal-families.mjs';
+import { archiveComparisonEvidence, comparablePeriodStability, parseArchive } from './signal-archive.mjs';
 import { archivePath, mergeManifest } from './signal-downloads.mjs';
 import { readJsonFile } from './json-file.mjs';
 import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
@@ -48,6 +49,8 @@ export const REFRESH_DEFAULTS = {
 export const TREND_COLUMNS = ['date', 'integration', 'metric', 'value', 'provisional'];
 export const TREND_FILE = 'signal-trend-daily.csv';
 export const FRESHNESS_FILE = PANEL_FRESHNESS_FILE;
+const STABILITY_ARCHIVES = 64;
+const STABILITY_ARCHIVE_BYTES = 8 * 1024 * 1024;
 
 /**
  * The report families no cron produces: the Bing AI Performance exports, which
@@ -408,6 +411,53 @@ export function freshnessReport(input) {
   };
 }
 
+/** Bounded local evidence only; unavailable archives remain unknown. */
+export async function localStabilityReport(downloadsRoot, asset, manifest) {
+  const families = new Map();
+  for (const row of mergeManifest([], manifest)) {
+    const family = `${row.integration}-${row.report}`;
+    if (!families.has(family)) families.set(family, []);
+    const recent = families.get(family);
+    recent.push(row);
+    if (recent.length > 4) recent.shift();
+  }
+  let read = 0;
+  const assessed = [];
+  for (const [family, recent] of [...families].sort(([a], [b]) => a.localeCompare(b))) {
+    const readings = [];
+    for (const row of recent.reverse()) {
+      const unknown = { family, reportDate: row.reportDate, collectedAt: null, providerDates: [], comparisonKey: null, resultHash: null };
+      if (read >= STABILITY_ARCHIVES) { readings.push(unknown); continue; }
+      read++;
+      let handle;
+      try {
+        handle = await fs.open(archivePath(downloadsRoot, asset, row), 'r');
+        // A bounded read also covers a file growing after stat.
+        const bytes = Buffer.alloc(STABILITY_ARCHIVE_BYTES + 1);
+        let length = 0;
+        while (length < bytes.length) {
+          const chunk = await handle.read(bytes, length, bytes.length - length, null);
+          if (chunk.bytesRead === 0) break;
+          length += chunk.bytesRead;
+        }
+        if (length > STABILITY_ARCHIVE_BYTES) { readings.push(unknown); continue; }
+        const archive = parseArchive(bytes.subarray(0, length).toString('utf8'), { asset, source: 'local stability evidence' });
+        if (archive.integration !== row.integration || archive.report !== row.report || archive.reportDate !== row.reportDate) {
+          readings.push(unknown); continue;
+        }
+        readings.push(archiveComparisonEvidence(archive));
+      } catch {
+        readings.push(unknown);
+      } finally {
+        await handle?.close();
+      }
+    }
+    assessed.push({ family, ...comparablePeriodStability(readings) });
+  }
+  return { schemaVersion: 1, asset, limits: { archives: STABILITY_ARCHIVES, archivesPerFamily: 4, archiveBytes: STABILITY_ARCHIVE_BYTES },
+    archivesRead: read, families: assessed };
+}
+
 async function fileExists(file) {
   try {
     await fs.access(file);
@@ -540,6 +590,7 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     refreshedAt,
     collection,
   });
+  freshness.stability = await localStabilityReport(options.downloadsRoot, asset, merged);
   const history = await writeHistory({ asset, input: downloadsDir, output: historyDir });
   const analysisStartedAt = now();
   const analysis = await analyze({

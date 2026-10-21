@@ -86,6 +86,30 @@ link to the latest version in `<asset>.reports/`. The files are working data,
 not a committed artifact: read them in place, and do not copy them into a
 property repo.
 
+## Repeated report evidence
+
+A refresh records `stability` inside `freshness.json`, separately from collection
+health. It reads only local downloaded archives: at most four report dates per
+family, 64 archives per refresh and 8 MiB per archive. Families are visited in
+name order; inputs outside those limits, unreadable inputs, empty normalized
+results or missing comparison identity remain unknown.
+
+Each family's latest reading records its report date, collection timestamp,
+provider dates and comparison hashes. Up to three earlier report dates have one
+state: `repeated` for equal normalized rows, `changed` for different rows,
+`noncomparable` for different known contexts, or `unknown` for insufficient
+evidence. Queries, reporting windows, markets, devices, resource identities,
+data state and truncation stay in the comparison. Collection timestamps,
+request attempts, response cost and transport metadata do not. Row ordering
+and object key ordering do not affect equality; row multiplicity and every
+normalized value do. Equal summary totals can accompany changed query rows.
+
+This assessment compares distinct report dates. Same-report-date replacement
+continues to use the archive and manifest rules. Repeated provider answers do
+not change collection health or establish a collection failure. Manual download
+and refresh use one path rule:
+`<root>/<asset>/<integration>/<report>/<reportDate>.json`.
+
 ## What `freshness.json` records
 
 Each version's `freshness.json` records how current its sources were when it
@@ -111,10 +135,12 @@ was built:
 }
 ```
 
-- `sources[].newestReportDate` is the newest **provider report day** that
-  integration has on disk — not when the file was written. Providers lag: GSC is
-  typically 1–3 days behind, Bing's top-query and top-page snapshots update
-  weekly.
+- `sources[].newestReportDate` is the newest archive **report date** for that
+  integration. Daily reports use the measured day; snapshots use their report
+  or export day. `provider_date` records a provider row's measured day and
+  `collected_at` records collection time. A later Bing collection can contain
+  the same older provider dates. GSC typically lags 1–3 days; Bing's top-query
+  and top-page snapshots update weekly.
 - `sources[].reports[]` is each family's own newest report day under that
   integration (the example abbreviates it to one source). A collection is in the
   panel only when every one of its families has reached that collection's day; the weekly review

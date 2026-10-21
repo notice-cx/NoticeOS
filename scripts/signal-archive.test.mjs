@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs/promises';
+import { buildExecutiveSnapshot } from './signal-insights.mjs';
 import {
+  archiveComparisonEvidence,
+  comparablePeriodStability,
   INDEX_COVERAGE_FAMILY,
   INDEX_COVERAGE_SOURCES,
   PROVENANCE_COLUMNS,
@@ -347,4 +350,87 @@ test('an archive the rules cannot read is refused by name', () => {
   assert.throws(refusal(JSON.stringify(good).slice(0, 40)), SyntaxError);
   // The GA4 settle rule cannot be skipped by forgetting the manifest.
   assert.throws(() => archiveRows(good, undefined), TypeError);
+});
+
+test('later Bing collections preserve old provider dates without a merge or summed snapshot', () => {
+  const raw = { Date: '/Date(1788307200000)/', Query: 'meal plan', Impressions: 500, Clicks: 10, AvgImpressionPosition: 9 };
+  const archives = ['2026-09-20', '2026-09-21', '2026-09-22'].map((day) => envelope(
+    'bing-webmaster', 'queries', day,
+    [{ request: { method: 'GetQueryStats', siteUrl: 'https://meadow.example/' }, response: { d: [raw] } }],
+  ));
+  const rows = readFamily(archives);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows.map((row) => row.provider_date), ['2026-09-02', '2026-09-02', '2026-09-02']);
+  assert.deepEqual(rows.map((row) => row.report_date), archives.map((archive) => archive.reportDate));
+  assert.deepEqual(rows.map((row) => row.collected_at), archives.map((archive) => archive.collectedAt));
+  const snapshot = buildExecutiveSnapshot({ asset: 'meadow.example',
+    families: new Map([['bing-webmaster-queries', rows]]), archives });
+  assert.equal(snapshot.items.find((item) => item.key === 'bing-search-opportunity').primary.value, '500');
+  const assessment = comparablePeriodStability(archives.map(archiveComparisonEvidence));
+  assert.deepEqual(assessment.comparisons.map((period) => period.state), ['repeated', 'repeated']);
+});
+
+function stabilityArchive(day, over = {}) {
+  return envelope('bing-webmaster', 'queries', day, [{
+    request: { method: 'GetQueryStats', siteUrl: 'https://meadow.example/' },
+    response: { request_id: day, elapsed: 123, d: [
+      { Date: '2026-09-01', Query: 'soup', Impressions: 300, Clicks: 4 },
+      { Date: '2026-09-01', Query: 'salad', Impressions: 200, Clicks: 6 },
+    ] },
+  }], over);
+}
+
+function compareRaw(first, second) {
+  return comparablePeriodStability([first, second].map(archiveComparisonEvidence)).comparisons[0].state;
+}
+
+test('stability ignores volatile envelopes and ordering but compares full normalized row multisets', () => {
+  const first = stabilityArchive('2026-09-20');
+  const later = stabilityArchive('2026-09-21', { collectedAt: '2026-09-22T11:00:00Z', cost: 7 });
+  later.pages[0].request.attempts = 3;
+  later.pages[0].response.d.reverse();
+  later.pages[0].response.d[0].__type = 'volatile-provider-type';
+  assert.equal(compareRaw(first, later), 'repeated');
+  later.pages[0].response.d[0].Clicks = 5;
+  later.pages[0].response.d[1].Clicks = 5;
+  assert.equal(compareRaw(first, later), 'changed', 'equal totals do not imply equal query results');
+  later.pages[0].response.d = [...first.pages[0].response.d, first.pages[0].response.d[0]];
+  assert.equal(compareRaw(first, later), 'changed', 'duplicate rows remain evidence');
+});
+
+test('stability compares only the same known resource, window, query, market and device', () => {
+  const first = stabilityArchive('2026-09-20');
+  for (const [key, value] of Object.entries({ siteUrl: 'https://other.example/', query: 'soup', market: 'en-US', device: 'mobile', window: { start: '2026-09-01', end: '2026-09-02' } })) {
+    const later = stabilityArchive('2026-09-21');
+    later.pages[0].request[key] = value;
+    assert.equal(compareRaw(first, later), 'noncomparable', key);
+  }
+  const later = stabilityArchive('2026-09-21');
+  later.pages[0].response.d[0].Date = '2026-09-02';
+  assert.equal(compareRaw(first, later), 'noncomparable', 'provider reporting dates changed');
+  for (const providerTruncated of [true, undefined]) {
+    assert.equal(compareRaw(first, stabilityArchive('2026-09-21', { providerTruncated })), 'noncomparable');
+  }
+  const missing = stabilityArchive('2026-09-21');
+  delete missing.pages[0].request.siteUrl;
+  assert.equal(compareRaw(first, missing), 'unknown');
+  const undated = stabilityArchive('2026-09-21');
+  for (const row of undated.pages[0].response.d) delete row.Date;
+  assert.equal(compareRaw(first, undated), 'unknown');
+});
+
+test('stability bounds comparisons and excludes same-report-date replacements', () => {
+  const readings = Array.from({ length: 9 }, (_, i) => archiveComparisonEvidence(stabilityArchive(`2026-09-${20 + i}`)));
+  readings.push(readings.at(-1));
+  const assessment = comparablePeriodStability(readings);
+  assert.equal(assessment.latest.reportDate, '2026-09-28');
+  assert.deepEqual(assessment.comparisons.map((row) => row.reportDate), ['2026-09-27', '2026-09-26', '2026-09-25']);
+});
+
+
+test('unsupported or empty normalized responses cannot establish repetition', () => {
+  const archives = ['2026-09-20', '2026-09-21'].map((day) => envelope('dataforseo', 'unsupported-report', day,
+    [{ request: { body: { target: 'meadow.example', date_from: '2026-09-01', date_to: '2026-09-02' } },
+      response: { tasks: [{ result: [{ unrelated: day }] }] } }]));
+  assert.equal(compareRaw(...archives), 'unknown');
 });
