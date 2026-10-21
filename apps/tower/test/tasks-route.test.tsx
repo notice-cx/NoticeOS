@@ -1184,7 +1184,7 @@ describe("/tasks — claim, close and defer in place", () => {
     await waitFor(() => expect(api.closeTask).toHaveBeenCalledWith("md-1w2", "Duplicate of md-9x1", { resolution: "duplicate", duplicateOf: "md-9x1" }));
   });
 
-  it("counts the closes that shipped nothing apart from Done this week, and the Status filter counts every close", () => {
+  it("includes every close in Done this week and the Status filter", () => {
     // The same three closes as the snapshot carries them, on Tuesday of the week the board reads.
     const closes = { since: "2026-07-17", items: [
       { at: "2026-07-28T10:00:00.000Z" },
@@ -1200,8 +1200,8 @@ describe("/tasks — claim, close and defer in place", () => {
     ]) } });
     const figure = container.querySelector("[data-tasks-closed]")!;
     const done = figure.querySelector("dd")!;
-    expect(done.firstChild?.textContent).toBe("1");
-    expect(done.querySelector("span")).toHaveTextContent(/^2 not done$/);
+    expect(done.firstChild?.textContent).toBe("3");
+    expect(figure).not.toHaveTextContent("not done");
     expect(screen.getByRole("option", { name: /^Closed, last 7 days · 3/ })).toBeInTheDocument();
     // A closed row offers no Close as.
     expect(within(row(container, "md-a2")).queryByRole("button", { name: "Close as" })).toBeNull();
@@ -2489,10 +2489,9 @@ describe("/tasks and the Wall: one Done this week and one Done last week", () =>
       const tile = render(<WallWork assets={sitesInWork(wall)} operator={wall.operator} nowMs={NOW.getTime()} />);
       const tileDone = tile.container.querySelector<HTMLElement>('[data-work-figure="Done this week"]')!;
       const tileWeeks = tile.container.querySelector<HTMLElement>("[data-work-weeks]")!;
-      // Tue and Fri at Meadow, three on Thursday and one on Saturday at
-      // Northwind; the Won't do apart.
-      expect(tileDone).toHaveTextContent(/^Done this week6(?!\+)/);
-      expect(within(tileDone).getByLabelText("3 more than last week by today")).toBeInTheDocument();
+      // Three at Meadow including Won't do, and four at Northwind.
+      expect(tileDone).toHaveTextContent(/^Done this week7(?!\+)/);
+      expect(within(tileDone).getByLabelText("4 more than last week by today")).toBeInTheDocument();
       expect(tileWeeks).toHaveTextContent("Done last week by today 3");
       expect(tileWeeks).toHaveTextContent("Done last week total 5");
       tile.unmount();
@@ -2500,11 +2499,11 @@ describe("/tasks and the Wall: one Done this week and one Done last week", () =>
       const { container } = renderBoard({ data: work });
       const boardDone = fig(container, "closed");
       expect(boardDone.querySelector("dt")).toHaveTextContent("Done this week");
-      expect(boardDone.querySelector("dd")!.firstChild?.textContent).toBe("6");
-      expect(boardDone).toHaveTextContent("1 not done");
-      expect(within(boardDone).getByLabelText("3 more than last week by today")).toBeInTheDocument();
+      expect(boardDone.querySelector("dd")!.firstChild?.textContent).toBe("7");
+      expect(boardDone).not.toHaveTextContent("not done");
+      expect(within(boardDone).getByLabelText("4 more than last week by today")).toBeInTheDocument();
       const boardWeeks = container.querySelector<HTMLElement>("[data-tasks-week]")!;
-      expect(boardWeeks).toHaveTextContent("Done this week6 · 6 days in");
+      expect(boardWeeks).toHaveTextContent("Done this week7 · 6 days in");
       expect(boardWeeks).toHaveTextContent("Done last week by today 3");
       expect(boardWeeks).toHaveTextContent("Done last week total 5");
     } finally {

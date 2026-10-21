@@ -355,14 +355,11 @@ export interface WorkCloses {
   items: WorkClose[];
 }
 
-/** Done this calendar week against last week, counted from the closes: each
- * in the week its time falls in on the installation's clock, and done unless
- * it ended another way. */
+/** Every close this calendar week against last week, on the installation's clock. */
 export interface WorkDoneWeek {
   /** Done so far this week; null when the closes do not reach its Monday. */
   now: number | null;
-  /** This week's closes that shipped nothing (Won't do, Duplicate…), counted
-   * apart from `now`; null under the same rule. */
+  /** The subset of `now` closed with another resolution (Won't do, Duplicate…). */
   notDone: number | null;
   /** Done last week up to this moment of its week: what `now` is compared
    * with. Null when the closes do not reach last Monday. */
@@ -407,11 +404,12 @@ function doneWeek(closes: WorkCloses | undefined, now: Date, weekStart: string, 
   const count = { done: 0, notDone: 0, lastWeek: 0, before: 0 };
   for (const close of closes.items) {
     const at = Date.parse(close.at);
-    if (!Number.isFinite(at)) continue;
+    if (!Number.isFinite(at) || at > now.getTime()) continue;
     const day = dayOf(new Date(at));
-    const done = close.resolution === undefined;
-    if (day >= weekStart) count[done ? "done" : "notDone"] += 1;
-    else if (day >= lastStart && done) {
+    if (day >= weekStart) {
+      count.done += 1;
+      if (close.resolution !== undefined) count.notDone += 1;
+    } else if (day >= lastStart) {
       count.lastWeek += 1;
       if (at <= weekAgo) count.before += 1;
     }

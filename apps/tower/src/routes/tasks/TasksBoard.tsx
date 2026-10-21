@@ -276,8 +276,6 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           ...chip(weeks?.blocked.move, A_WEEK_AGO, weeks?.blocked.added) },
         weekDone
           ? { label: "Done this week", value: String(weekDone.now), mark: "tasks-closed",
-            // The closes that shipped nothing, counted apart.
-            ...(weekDone.notDone ? { note: `${formatInt(weekDone.notDone)} not done` } : {}),
             ...chip(weekDone.move, LAST_WEEK_BY_TODAY) }
           : { label: "Done this week", value: String(bounded(null, doneRead)), mark: "tasks-closed" },
       ]}

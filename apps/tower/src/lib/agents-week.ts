@@ -86,7 +86,7 @@ export function agentsWeek(cards: readonly AssetCard[], work: WorkPayload | null
   const names = new Map(cards.map((card) => [card.id, card.displayName]));
   for (const project of work?.projects ?? []) {
     for (const event of project.recentWork ?? []) {
-      if (event.kind !== "closed" || event.resolution !== undefined) continue;
+      if (event.kind !== "closed") continue;
       const evidence = event.evidence?.trim();
       const at = Date.parse(event.at);
       if (!evidence || !Number.isFinite(at)) continue;

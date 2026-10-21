@@ -9,6 +9,7 @@ import {
   type WorkCountsHistory,
 } from "@shared/work";
 import type { SeriesPoint } from "@shared/wall";
+import { TASK_RESOLUTIONS } from '../../../packages/contract/src/task-resolution.mjs';
 
 const DAY = 86_400_000;
 
@@ -58,17 +59,27 @@ function closes(): WorkCloses {
 }
 
 describe("workWeeks: done from the closes", () => {
-  it("counts this calendar week's done closes against last week's, by each close's day in the installation's zone", () => {
+  it("includes every supported resolution in both prior-week readings and rejects future or invalid times", () => {
+    const items = ['2026-10-05', '2026-10-09', '2026-10-12'].flatMap(day => TASK_RESOLUTIONS.map(resolution => ({
+      at: `${day}T12:00:00.000Z`, ...(resolution === 'done' ? {} : { resolution }),
+    })));
+    const week = workWeeks(emptyWorkHistory(), { since: '2026-09-29', items: [...items,
+      { at: '2026-10-15T12:00:00.000Z', resolution: 'duplicate' }, { at: 'invalid' },
+    ] }, WEDNESDAY, 'UTC');
+    expect(week.done).toEqual({ now: 5, notDone: 4, before: 5, lastWeek: 10,
+      move: { by: 0, direction: 'flat', verdict: 'neutral' } });
+    expect(sumWorkWeeks([week, week])?.done).toMatchObject({ now: 10, before: 10, lastWeek: 20 });
+  });
+  it("counts every close reason this week and last week on the installation's clock", () => {
     const weeks = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");
     expect([weeks.weekStart, weeks.daysIn]).toEqual(["2026-10-12", 3]);
     expect(weeks.done).toEqual({
-      // Mon, Tue, Tue and Wed 07:30; the Won't do apart.
-      now: 4,
+      // Mon, Tue, Tue, Won't do and Wed 07:30.
+      now: 5,
       notDone: 1,
-      // Last week up to Wednesday 08:00: Mon 10-05 and Wed 10-07 07:00.
-      before: 2,
-      // Mon, Wed, Wed, Fri and the Sunday 23:30 close; not the duplicate.
-      lastWeek: 5,
+      // Mon, Tuesday's duplicate and Wed 10-07 07:00.
+      before: 3,
+      lastWeek: 6,
       move: { by: 2, direction: "up", verdict: "good" },
     });
   });
@@ -76,7 +87,7 @@ describe("workWeeks: done from the closes", () => {
   it("puts a close in the week its own day falls in on the installation's clock, not UTC's", () => {
     const utc = workWeeks(history21(), closes(), WEDNESDAY, "UTC");
     // In UTC the 06:30 close on 10-12 is Monday's, so this week has one more and last week one fewer.
-    expect(utc.done).toMatchObject({ now: 5, notDone: 1, lastWeek: 4 });
+    expect(utc.done).toMatchObject({ now: 6, notDone: 1, lastWeek: 5 });
   });
 
   it("starts the week on the installation's Monday in a zone ahead of UTC", () => {
@@ -98,12 +109,12 @@ describe("workWeeks: done from the closes", () => {
   it("reads a week the closes do not reach back to as unknown, never as short", () => {
     // A seven-day read: this week is whole, last week is not.
     const week = workWeeks(history21(), { ...closes(), since: "2026-10-07" }, WEDNESDAY, "America/Los_Angeles");
-    expect(week.done).toEqual({ now: 4, notDone: 1, before: null, lastWeek: null, move: null });
+    expect(week.done).toEqual({ now: 5, notDone: 1, before: null, lastWeek: null, move: null });
     // The read's first day may be partial, so last week needs the day before its Monday.
     const boundary = workWeeks(history21(), { ...closes(), since: "2026-10-05" }, WEDNESDAY, "America/Los_Angeles");
     expect(boundary.done.lastWeek).toBeNull();
     const reaches = workWeeks(history21(), { ...closes(), since: "2026-10-04" }, WEDNESDAY, "America/Los_Angeles");
-    expect(reaches.done.lastWeek).toBe(5);
+    expect(reaches.done.lastWeek).toBe(6);
   });
 
   it("has no done reading without closes, whatever the daily history holds", () => {
@@ -149,7 +160,7 @@ describe("sumWorkWeeks", () => {
   it("adds the projects' weeks into the portfolio's", () => {
     const one = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");
     const sum = sumWorkWeeks([one, one]);
-    expect(sum?.done).toEqual({ now: 8, notDone: 2, before: 4, lastWeek: 10, move: { by: 4, direction: "up", verdict: "good" } });
+    expect(sum?.done).toEqual({ now: 10, notDone: 2, before: 6, lastWeek: 12, move: { by: 4, direction: "up", verdict: "good" } });
     expect(sum?.blocked).toEqual({ now: 10, before: 4, added: 10, move: { by: 6, direction: "up", verdict: "bad" } });
   });
 
