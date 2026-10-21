@@ -110,6 +110,14 @@ not change collection health or establish a collection failure. Manual download
 and refresh use one path rule:
 `<root>/<asset>/<integration>/<report>/<reportDate>.json`.
 
+Backlink findings keep provider-observed new, lost and raw net domain totals.
+A same-report-date referring-domain sample records assessed spam scores using
+the existing score boundary of 40, with scores above 40 identified separately.
+Missing or invalid scores remain unassessed. The sample is capped and ordered
+by rank; quality outside it and quality of new/lost domains remain unknown,
+even when every assessed score is 40 or lower. Sample counts are never
+subtracted from the aggregate movement to calculate a clean net.
+
 ## What `freshness.json` records
 
 Each version's `freshness.json` records how current its sources were when it

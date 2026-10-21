@@ -3302,6 +3302,24 @@ function dataForSeoRankChangeInsight(families, market) {
   });
 }
 
+const BACKLINK_SPAM_THRESHOLD = 40;
+
+function backlinkSampleQuality(families, input) {
+  const reportDate = text(input[0]?.report_date);
+  const sample = latestSnapshotRows(families, 'dataforseo-backlinks-referring-domains')
+    .filter((row) => text(row.report_date) === reportDate
+      && text(row.asset) === text(input[0]?.asset));
+  const scores = sample.map((row) => row.backlinks_spam_score).filter((value) =>
+    (typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))
+      && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100,
+  ).map(Number);
+  const highSpam = scores.filter((score) => score > BACKLINK_SPAM_THRESHOLD).length;
+  const quality = scores.length === 0 ? 'Sample quality is unavailable.'
+    : highSpam > 0 ? `${formatInt(highSpam)} of ${formatInt(scores.length)} assessed sample domains have spam scores above ${BACKLINK_SPAM_THRESHOLD}.`
+      : `${formatInt(scores.length)} assessed sample domains have spam scores of ${BACKLINK_SPAM_THRESHOLD} or lower.`;
+  return { sample, assessed: scores.length, quality };
+}
+
 function backlinkMomentumInsight(families) {
   const input = latestSnapshotRows(
     families,
@@ -3324,6 +3342,7 @@ function backlinkMomentumInsight(families) {
     'dataforseo-backlinks-summary',
   )[0];
   const negative = net < 0;
+  const quality = backlinkSampleQuality(families, input);
   return card({
     key: negative
       ? 'dataforseo-backlink-loss'
@@ -3331,21 +3350,29 @@ function backlinkMomentumInsight(families) {
     kind: negative ? 'warning' : 'discovery',
     title: negative
       ? 'More referring domains were lost than gained'
-      : 'Referring-domain momentum is positive',
+      : net === 0 ? 'New and lost referring domains are balanced'
+        : 'Provider observed more new than lost domains',
     summary:
       `Across the stored ${formatInt(window.days)}-period DataForSEO series, ${formatInt(newDomains)} referring domains appeared and ${formatInt(lostDomains)} were lost. ` +
-      `${negative ? 'Review lost authority and affected landing pages.' : 'Identify which pages earned the new links and repeat the useful pattern.'}`,
+      `${quality.quality} Review the domains before treating movement as authority growth.`,
     whyItMatters:
-      'Referring-domain direction is a more useful authority signal than a single backlink stock count, and stored snapshots make the movement auditable.',
+      'Provider inventory movement and sampled link quality measure different things; neither establishes ranking impact.',
     primary: {
       value: `${net >= 0 ? '+' : '−'}${formatInt(Math.abs(net))}`,
-      label: 'net referring domains',
+      label: 'raw net referring domains',
     },
-    confidence: window.days >= 4 ? 'high' : 'medium',
+    confidence: 'medium',
     window,
     evidence: [
       evidence('New referring domains', formatInt(newDomains)),
       evidence('Lost referring domains', formatInt(lostDomains)),
+      evidence('Raw net referring domains', `${net >= 0 ? '+' : '−'}${formatInt(Math.abs(net))}`),
+      evidence('Collection report date', text(input[0].report_date)),
+      evidence('Sample quality', quality.quality),
+      evidence('Quality coverage', quality.sample.length === 0 ? 'Unknown'
+        : `${formatInt(quality.assessed)} of ${formatInt(quality.sample.length)} sampled domains assessed`,
+        quality.sample.length === 0 ? 'No matching quality sample; quality of new/lost domains is unknown.'
+          : `${quality.sample.some((row) => isTrue(row.provider_truncated)) ? 'Truncated sample. ' : ''}Rank-ordered inventory sample; quality outside the sample and quality of the new/lost domains are unknown.`),
       ...(summary
         ? [
             evidence(
@@ -3362,6 +3389,7 @@ function backlinkMomentumInsight(families) {
     ],
     sources: [
       source('dataforseo', 'backlinks-new-lost'),
+      ...(quality.sample.length > 0 ? [source('dataforseo', 'backlinks-referring-domains')] : []),
       ...(summary
         ? [source('dataforseo', 'backlinks-summary')]
         : []),
@@ -3371,11 +3399,10 @@ function backlinkMomentumInsight(families) {
     // that if the card says how small it is. No second observer is wired.
     caveat:
       (summary
-        ? `This is DataForSEO's observed inventory and nothing more: ${formatInt(number(summary.backlinks))} backlinks across ` +
-          `${formatInt(number(summary.referring_domains))} referring domains. Judge the coverage before the direction — a provider that has ` +
-          'indexed a small share of a domain’s real links reports real movement on an unreal basis, and no second link observer is wired to reconcile it. '
+        ? `DataForSEO observed ${formatInt(number(summary.backlinks))} backlinks across ` +
+          `${formatInt(number(summary.referring_domains))} referring domains; no second link observer is wired. `
         : '') +
-      'DataForSEO discovers and revises links on its own crawl schedule. New/lost counts describe provider-observed link inventory, not causal ranking impact.',
+      'DataForSEO discovers and revises links on its own crawl schedule. New/lost totals are raw provider observations. A capped inventory sample cannot establish an exact clean net or the quality of new/lost domains.',
   });
 }
 
@@ -4103,10 +4130,9 @@ function searchIntelligenceSnapshot(families) {
     .filter(Boolean)
     .sort()
     .at(-1);
-  const ANCHOR_SPAM_THRESHOLD = 40;
   const rankedVocabulary = rankedVocabularyOf(rankings);
   const spammyAnchors = anchorRows.filter(
-    (row) => number(row.backlinks_spam_score) > ANCHOR_SPAM_THRESHOLD,
+    (row) => number(row.backlinks_spam_score) > BACKLINK_SPAM_THRESHOLD,
   );
 
   return {

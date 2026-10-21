@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { archiveRows } from './signal-archive.mjs';
 import {
   buildExecutiveSnapshot,
   claritySnapshot,
@@ -4125,4 +4126,76 @@ test('visitors by channel is null when the family is absent, empty, provisional-
     null,
     'rows without a channel or with zero sessions invent no split',
   );
+});
+
+
+function backlinkQualityFixture(scores, { sampleDate = '2026-09-21', truncated = false } = {}) {
+  const raw = (report, result, reportDate = '2026-09-21') => ({
+    schemaVersion: 1, asset: 'meadow.example', integration: 'dataforseo', report, reportDate,
+    collectedAt: `${reportDate}T12:00:00Z`, dataState: 'provider-snapshot', providerTruncated: truncated,
+    pages: [{ request: { body: { target: 'meadow.example', limit: 100, order_by: ['rank,desc'] } },
+      response: { tasks: [{ result: [result] }] } }],
+  });
+  const archives = [raw('backlinks-new-lost', { items: [{ date: '2026-09-14', new_referring_domains: 100, lost_referring_domains: 20 }] }),
+    raw('backlinks-summary', { target: 'meadow.example', referring_domains: 1000, backlinks: 5000 })];
+  if (scores !== null) archives.push(raw('backlinks-referring-domains', { items: scores.map((score, i) => ({
+    domain: `sample-${i}.example`, rank: 100 - i, backlinks_spam_score: score,
+  })) }, sampleDate));
+  return new Map(archives.map((archive) => [`dataforseo-${archive.report}`, archiveRows(archive, new Map())]));
+}
+
+test('positive raw backlink movement is qualified by high-spam sample evidence without inventing a clean net', () => {
+  const item = cardFor(backlinkQualityFixture([90, 85, 0]), 'dataforseo-backlink-growth');
+  assert.equal(item.primary.value, '+80');
+  assert.equal(item.primary.label, 'raw net referring domains');
+  assert.equal(item.title, 'Provider observed more new than lost domains');
+  assert.match(item.summary, /2 of 3 assessed sample domains have spam scores above 40/);
+  assert.ok(item.evidence.some((row) => row.label === 'New referring domains' && row.value === '100'));
+  assert.ok(item.evidence.some((row) => row.label === 'Lost referring domains' && row.value === '20'));
+  assert.ok(item.evidence.some((row) => row.label === 'Raw net referring domains' && row.value === '+80'));
+  assert.match(item.caveat, /cannot establish an exact clean net/);
+});
+
+test('unavailable, invalid, stale and foreign quality samples remain unknown', () => {
+  for (const families of [backlinkQualityFixture(null), backlinkQualityFixture(['', null, undefined, ' ', 'invalid', true, -1, 101]),
+    backlinkQualityFixture([0], { sampleDate: '2026-09-20' })]) {
+    const item = cardFor(families, 'dataforseo-backlink-growth');
+    assert.match(item.summary, /Sample quality is unavailable/);
+    assert.equal(item.primary.value, '+80');
+  }
+  const foreign = backlinkQualityFixture([0]);
+  foreign.get('dataforseo-backlinks-referring-domains')[0].asset = 'other.example';
+  assert.match(cardFor(foreign, 'dataforseo-backlink-growth').summary, /Sample quality is unavailable/);
+});
+
+test('partial and truncated quality coverage stays a sample even beside positive evidence', () => {
+  for (const truncated of [false, true]) {
+    const item = cardFor(backlinkQualityFixture([0, 40, ''], { truncated }), 'dataforseo-backlink-growth');
+    assert.match(item.summary, /2 assessed sample domains have spam scores of 40 or lower/);
+    const coverage = item.evidence.find((row) => row.label === 'Quality coverage');
+    assert.equal(coverage.value, '2 of 3 sampled domains assessed');
+    assert.match(coverage.detail, /quality outside the sample and quality of the new\/lost domains are unknown/);
+    assert.equal(coverage.detail.includes('Truncated sample.'), truncated);
+    assert.equal(item.primary.value, '+80');
+    assert.doesNotMatch(item.summary, /repeat the useful pattern|lost authority|momentum is positive/);
+  }
+});
+
+test('negative and balanced raw backlink movement retain their observed totals', () => {
+  for (const [newDomains, lostDomains, expected, key] of [[2, 7, '−5', 'dataforseo-backlink-loss'], [3, 3, '+0', 'dataforseo-backlink-growth']]) {
+    const families = backlinkQualityFixture([10]);
+    Object.assign(families.get('dataforseo-backlinks-new-lost')[0], { new_referring_domains: newDomains, lost_referring_domains: lostDomains });
+    const item = cardFor(families, key);
+    assert.equal(item.primary.value, expected);
+    assert.match(item.summary, /assessed sample domains/);
+  }
+});
+
+
+test('a fully assessed low-spam sample supports a positive statement only about that sample', () => {
+  const item = cardFor(backlinkQualityFixture([0, 10, 40]), 'dataforseo-backlink-growth');
+  assert.match(item.summary, /3 assessed sample domains have spam scores of 40 or lower/);
+  assert.equal(item.evidence.find((row) => row.label === 'Quality coverage').value, '3 of 3 sampled domains assessed');
+  assert.match(item.evidence.find((row) => row.label === 'Quality coverage').detail, /outside the sample.*unknown/);
+  assert.equal(item.primary.value, '+80');
 });
