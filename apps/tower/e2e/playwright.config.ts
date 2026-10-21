@@ -10,7 +10,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
 // reach only that server (journey-test.ts). The run's one throwaway Postgres
 // starts first (postgres-global-setup.mjs); each server takes its own copies.
 export default defineConfig({
-  testDir: ".", testMatch: ["journeys.spec.ts", "mobile-text-zoom.spec.ts"], fullyParallel: true, workers: parallelServers(),
+  testDir: ".", testMatch: ["journeys.spec.ts", "mobile-text-zoom.spec.ts", "site-setup-polish.spec.ts"], fullyParallel: true, workers: parallelServers(),
   globalSetup: "./postgres-global-setup.mjs",
   forbidOnly: Boolean(process.env.CI), retries: 0, timeout: 60_000,
   expect: { timeout: 10_000 },
