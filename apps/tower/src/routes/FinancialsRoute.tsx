@@ -963,7 +963,7 @@ function NewRecurringPrice({ rows, index, disabled, bookedThrough }: {
       <PopoverContent aria-labelledby={titleId} className="w-80 max-w-[calc(100vw-1rem)]">
         <form className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           <h4 id={titleId} className="text-sm font-medium">New price · {cost.label}</h4>
-          <p className="text-xs text-muted-foreground">The original price ends the month before. Earlier amounts stay unchanged. Earliest month: {nextPeriod(bookedThrough)}.</p>
+          <p className="text-xs text-muted-foreground">Original price ends the month before. Earliest new month: {nextPeriod(bookedThrough)}.</p>
           <label className="flex min-w-0 flex-col gap-1 text-xs">
             USD / month
             <input className={fieldClass} type="number" inputMode="decimal" min="0" step="any"
