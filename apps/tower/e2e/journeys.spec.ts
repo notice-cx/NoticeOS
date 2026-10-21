@@ -2570,14 +2570,15 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(header.locator('[data-nightly-report="none"]')).toHaveText("No report");
   await expect(header.locator("[data-nightly-report-age]")).toHaveCount(0);
   await expect(header.locator('[data-age-state="never"]')).toHaveCount(0);
-  // The setup list offers the report as an uncounted, optional step.
-  await expect(page.locator('[data-setup-item="first-report"]')).toHaveAttribute("data-setup-state", "optional");
+  // Unconnected sources and optional reports leave no setup obligation.
+  await expect(page.getByRole("region", { name: "Data sources", exact: true })).toBeVisible();
+  await expect(page.locator("[data-setup-checklist]")).toHaveCount(0);
   await assertNoPageOverflow(page);
 
   await page.goto(`/assets/${JOURNEY_ASSET}`);
+  await expect(page.locator("[data-site-overview]")).toBeVisible();
   const setup = page.getByRole("status").filter({ hasText: "Data setup" });
-  await expect(setup).toBeVisible();
-  await expect(setup).not.toContainText(/nightly report/i);
+  await expect(setup).toHaveCount(0);
 
   // Home is still the first-run guide: the next step is a source to connect,
   // and nothing on it mentions a nightly report.
