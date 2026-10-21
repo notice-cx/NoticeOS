@@ -85,16 +85,21 @@ describe("readAgentWork", () => {
     ]);
   });
 
-  it("counts and ranks only done closes: a close where nothing shipped moves no figure", () => {
-    const notDone = (["wont-do", "duplicate", "cant-reproduce", "already-handled"] as const).map((resolution, index) =>
-      closed(`nd-${index}`, "claude", "Opus 5.5", 6, 1 + index, { resolution, priority: 0 }));
-    const withThem = readAgentWork(read([...tasks, ...notDone]), NOW, true);
-    expect(withThem.workers.map((worker) => [worker.id, worker.week, worker.days])).toEqual(work.workers.map((worker) => [worker.id, worker.week, worker.days]));
-    expect(withThem.race.players).toEqual(work.race.players);
-    expect(withThem.trophies).toEqual(work.trophies);
-    expect(withThem.velocity).toEqual(work.velocity);
-    expect([withThem.week, withThem.lastWeek]).toEqual([work.week, work.lastWeek]);
-    expect(withThem.events.some((event) => event.kind === "closed" && event.task.id.startsWith("nd-"))).toBe(false);
+  it("counts and ranks every close reason in both weeks and the completed activity", () => {
+    const resolutions = ["wont-do", "duplicate", "cant-reproduce", "already-handled"] as const;
+    const current = resolutions.map((resolution, index) => closed(`nd-${index}`, "claude", "Opus 5.5", 6, 1 + index, { resolution, priority: 0 }));
+    const prior = resolutions.map((resolution, index) => closed(`prior-${index}`, "claude", "Opus 5.5", 210, 192 + index, { resolution }));
+    const withThem = readAgentWork(read([...tasks, ...current, ...prior,
+      closed('reopened', 'claude', 'Opus 5.5', 8, 1, { status: 'open', resolution: 'wont-do' }),
+    ]), NOW, true);
+    expect([withThem.week, withThem.lastWeek]).toEqual([9, 5]);
+    expect(withThem.workers.find(worker => worker.id === 'claude')).toMatchObject({ week: 7, lastWeek: 5 });
+    expect(withThem.race.players.find(player => player.model === 'Opus 5.5')).toMatchObject({ points: 25, closes: expect.any(Array) });
+    expect(withThem.race.players.find(player => player.model === 'Opus 5.5')!.closes).toHaveLength(6);
+    expect(withThem.trophies.find(trophy => trophy.key === 'most')?.value).toBe('6');
+    expect(withThem.velocity.weeks.reduce((sum, week) => sum + week.total, 0)).toBe(15);
+    expect(withThem.events.filter(event => event.kind === "closed" && event.task.id.startsWith("nd-"))).toHaveLength(4);
+    expect(withThem.events.some(event => event.kind === 'closed' && event.task.id === 'reopened')).toBe(false);
   });
 
   it("falls back to the holder when no closer was recorded, and leaves last week unknown without the history", () => {
@@ -102,6 +107,17 @@ describe("readAgentWork", () => {
     expect(unrecorded.workers.map((worker) => [worker.id, worker.agent, worker.week, worker.lastWeek])).toEqual([["claude", false, 1, null]]);
     expect(unrecorded.lastWeek).toBeNull();
     expect(unrecorded.race.players).toEqual([]);
+  });
+
+  it("does not count an older closed read over a newer reopened task, in either read order", () => {
+    const older = closed('ex-reopened', 'claude', 'Opus 5.5', 8, 2, { updatedAt: at(2), resolution: 'duplicate' });
+    const reopened = { ...older, status: 'open', updatedAt: at(1) };
+    for (const rows of [[older, reopened], [reopened, older]]) {
+      const result = readAgentWork(rows.map(row => read([row])[0]!), NOW, true);
+      expect(result.week).toBe(0);
+      expect(result.race.players).toEqual([]);
+      expect(result.events.some(event => event.kind === 'closed')).toBe(false);
+    }
   });
 });
 

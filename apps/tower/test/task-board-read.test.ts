@@ -364,14 +364,14 @@ describe("the board's week against the week before", () => {
     expect(scoped.weeks).toEqual(snapshot.projects[1]!.weeks);
   });
 
-  it("counts the closes that shipped nothing apart from done, from the closes themselves", () => {
+  it("includes non-shipping resolutions in both weeks' completed counts", () => {
     const split = payload({ projects: [weekly("meadow.example", "md", 1, closesOf(1, [
       { at: "2026-07-29T10:00:00.000Z", resolution: "wont-do" },
-      // Sunday, last week: in neither week's done.
+      // Sunday, last week: included in last week's done.
       { at: "2026-07-26T10:00:00.000Z", resolution: "duplicate" },
     ]))] });
     const view = readTaskBoard({ capabilities: { live: false, reason: "read_only_deployment" }, snapshot: split, reads: new Map(), filters });
-    expect(view.weeks?.done).toMatchObject({ now: 6, notDone: 1, lastWeek: 7 });
+    expect(view.weeks?.done).toMatchObject({ now: 7, notDone: 1, lastWeek: 8 });
   });
 
   it("keeps done from the projects with a reading as a lower bound when one project has none", () => {

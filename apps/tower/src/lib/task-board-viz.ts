@@ -44,7 +44,7 @@ export function queueItem({ project, task }: { project: BoardProject; task: Boar
  * live read `blocked` is the stored status and `open` excludes it, so the
  * Blocked figure, the status filter and the hatched segment count one set. A
  * project neither read reached is left out, never drawn as an empty queue.
- * Done is this calendar week's done closes from the project's week reading, as
+ * Done is every close this calendar week from the project's week reading, as
  * the Wall draws it, with last week's beside it; without one, the read's closes.
  */
 export function boardWorkRows(

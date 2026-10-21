@@ -373,8 +373,7 @@ export function beadsWork(activeRows, closedRows) {
     if (!tally.has(key)) tally.set(key, { id, model, closedRecent: 0, inProgress: 0 });
     return tally.get(key);
   };
-  // A close where nothing shipped is no one's work done.
-  for (const row of closed) if (beadsResolution(row).resolution === undefined) entry(beadsCloser(row), beadsModel(row, true)).closedRecent += 1;
+  for (const row of closed) entry(beadsCloser(row), beadsModel(row, true)).closedRecent += 1;
   for (const row of held) entry(beadsText(row.assignee), beadsModel(row, false)).inProgress += 1;
   const workers = [...tally.values()]
     .sort((a, b) => b.closedRecent - a.closedRecent || b.inProgress - a.inProgress || a.id.localeCompare(b.id))

@@ -112,9 +112,9 @@ describe("agentsWeek lines", () => {
     ]);
     const week = agentsWeek(cards, work, NOW);
     expect(week.latest).toEqual([
+      { title: "Dropped idea", site: "Acorn", line: "duplicate of another task" },
       { title: "Faster sign-up page", site: "Acorn", line: "Sign-up loads in half the time" },
       { title: "Latest bet", site: "Acorn", line: "Worked" },
-      { title: "Fix the menu", site: "unknown.example.com", line: "Done" },
     ]);
     expect(agentsWeek(cards, null, NOW).latest).toEqual([
       { title: "Latest bet", site: "Acorn", line: "Worked" },

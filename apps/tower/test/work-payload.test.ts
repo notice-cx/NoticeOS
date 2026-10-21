@@ -593,19 +593,19 @@ describe("the daily history the strip's six numbers ride", () => {
     const utc = payload.projects[0]!.weeks!;
     expect([utc.weekStart, utc.daysIn]).toEqual(["2026-07-27", 6]);
     // Last week by this time on Saturday: Monday to Saturday, six.
-    expect(utc.done).toEqual({ now: 4, notDone: 1, before: 6, lastWeek: 7, move: { by: -2, direction: "down", verdict: "bad" } });
+    expect(utc.done).toEqual({ now: 5, notDone: 1, before: 6, lastWeek: 7, move: { by: -1, direction: "down", verdict: "bad" } });
     // 1 → 1 → 2 → 2 → 1 → 3 → 3 → 3: rises of 1 and 2.
     expect(utc.blocked).toEqual({ now: 3, before: 1, added: 3, move: { by: 2, direction: "up", verdict: "bad" } });
     // The board reads the weeks; the closes stay off its payload.
     expect(payload.projects[0]).not.toHaveProperty("closes");
     const ahead = (await buildWorkPayload(store.call, { now: NOW, timeZone: "Pacific/Kiritimati" })).projects[0]!.weeks!;
-    expect([ahead.weekStart, ahead.daysIn, ahead.done.now, ahead.done.before]).toEqual(["2026-07-27", 7, 4, 6]);
+    expect([ahead.weekStart, ahead.daysIn, ahead.done.now, ahead.done.before]).toEqual(["2026-07-27", 7, 5, 6]);
   });
 
   it("serves done from the closes before the daily history holds a day, and no week with neither", async () => {
     await seed("2026-08-01T11:59:00.000Z", [project({ closes: twoWeeksOfCloses }), project({ asset: "northwind.example", prefix: "nw" })]);
     const payload = await buildWorkPayload(store.call, { now: NOW });
-    expect(payload.projects[0]!.weeks?.done).toMatchObject({ now: 4, lastWeek: 7 });
+    expect(payload.projects[0]!.weeks?.done).toMatchObject({ now: 5, lastWeek: 7 });
     expect(payload.projects[0]!.weeks?.blocked.now).toBeNull();
     expect(payload.projects[1]!.weeks).toBeUndefined();
   });

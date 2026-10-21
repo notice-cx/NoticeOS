@@ -144,7 +144,7 @@ test('the snapshot names who did the work: each worker and model, and the newest
   assert.equal(recentWork[2].evidence, 'Lists print · 3f2a91c');
 });
 
-test('a close where nothing shipped carries its resolution on its row and its line, and is no one\'s work done', async () => {
+test('every close counts as work done while its row and event retain the resolution', async () => {
   const { beadsWork } = await import('./task-snapshot-summary.mjs');
   const closer = (resolution, at, extra = {}) => ({ noticeos_closed_by: 'Dana', noticeos_closed_at: at,
     ...(resolution === undefined ? {} : { noticeos_resolution: resolution }), ...extra });
@@ -167,7 +167,7 @@ test('a close where nothing shipped carries its resolution on its row and its li
     'shop-5': [null, null] }, 'a done close carries no key, so its row reads as it always did');
   const { workers, recentWork } = beadsWork([], closed);
   // shop-4's record names an earlier close, and it has no holder, so its close is nobody's.
-  assert.deepEqual(workers, [{ id: 'Dana', model: null, closedRecent: 2, inProgress: 0 }], 'only done closes count as work done');
+  assert.deepEqual(workers, [{ id: 'Dana', model: null, closedRecent: 4, inProgress: 0 }], 'all attributed closes count as work done');
   assert.deepEqual(recentWork.map(event => [event.taskId, event.resolution ?? null]), [['shop-5', null], ['shop-3', 'duplicate'],
     ['shop-2', 'wont-do'], ['shop-1', null]]);
 });

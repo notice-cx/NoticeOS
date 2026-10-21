@@ -46,7 +46,7 @@ export interface AgentTask {
   evidence: string | null;
   /** Who the close belongs to, or null for a task not closed. */
   closer: string | null;
-  /** Whether a close shipped work: only a done close counts on this page. */
+  /** Whether the task is closed, regardless of its resolution. */
   done: boolean;
   /** The model the closer named, else the one the claimer named. */
   model: string | null;
@@ -128,13 +128,20 @@ export interface AgentWork {
 
 export function agentTasks(reads: readonly AgentProjectRead[]): AgentTask[] {
   const seen = new Map<string, AgentTask>();
+  const updated = new Map<string, number>();
   for (const read of reads) {
     for (const task of read.tasks) {
       if (task.issueType === "epic" || task.issueType === "gate" || task.awaitType !== null) continue;
       const key = `${read.project}\0${task.id}`;
       // The board's read and the history read overlap on the last week; the later state wins.
       const existing = seen.get(key);
-      if (existing && (existing.status === "closed" || task.status !== "closed")) continue;
+      const at = Date.parse(task.updatedAt ?? "");
+      const previous = updated.get(key) ?? Number.NaN;
+      if (existing) {
+        if (Number.isFinite(at) && Number.isFinite(previous) && at !== previous) {
+          if (at < previous) continue;
+        } else if (existing.status === "closed" || task.status !== "closed") continue;
+      }
       const closer = closeAttribution(task);
       seen.set(key, {
         id: task.id,
@@ -148,9 +155,10 @@ export function agentTasks(reads: readonly AgentProjectRead[]): AgentTask[] {
         closedAt: task.status === "closed" ? task.closedAt : null,
         evidence: task.status === "closed" ? task.closeReason : null,
         closer: task.status === "closed" ? closer?.by ?? task.assignee : null,
-        done: task.status === "closed" && (task.resolution ?? "done") === "done",
+        done: task.status === "closed",
         model: closer?.model ?? claimedModel(task),
       });
+      updated.set(key, at);
     }
   }
   return [...seen.values()];
@@ -212,7 +220,6 @@ export function readAgentWork(reads: readonly AgentProjectRead[], nowMs: number,
   const actors = reads.flatMap((read) => read.actors ?? []);
   const label = (id: string) => taskActorLabel(id, reads.some((read) => read.actors) ? actors : undefined);
   const tasks = agentTasks(reads);
-  // A close where nothing shipped (Won't do, Duplicate…) is no one's work done: it is not ranked or counted.
   const closed = tasks.filter((task) => task.done && task.closedAt !== null && task.closer !== null && Date.parse(task.closedAt) <= nowMs
     && nowMs - Date.parse(task.closedAt) <= TASKS_CLOSED_HISTORY_DAYS * DAY_MS);
   const today = Math.floor(nowMs / DAY_MS);
