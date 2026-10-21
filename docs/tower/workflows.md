@@ -5,7 +5,7 @@ description: "What NoticeOS runs on its own for your sites and your work, when e
 
 # Workflows
 
-A **workflow** is something NoticeOS does on its own, on a schedule, for your sites and your work: reading outcome checks, updating the tasks that track them, filing review tasks, sending notifications. Each has a purpose, a schedule and a history of runs. The **Workflows** page lists them; the jobs that keep NoticeOS itself running, such as collection and backups, are on **System health** > **Background operations** instead.
+A **workflow** is something NoticeOS does on its own, on a schedule or when an event occurs, for your sites and your work: reading outcome checks, updating the tasks that track them, filing review tasks, sending notifications. Each has a purpose, a trigger and a history of runs. The **Workflows** page lists them; the jobs that keep NoticeOS itself running, such as collection and backups, are on **System health** > **Background operations** instead.
 
 The Workflows page shows whether anything NoticeOS runs on its own is failing, and when each one runs next.
 
@@ -23,7 +23,7 @@ The Workflows page shows whether anything NoticeOS runs on its own is failing, a
 | **State** | its latest state, such as **Succeeded**, **Failed** or **Paused** |
 | **Hourly activity** | on **Activity**: the last 24 hours as one bar an hour, green when its runs succeeded, red when one failed and grey when they were skipped; a low line is an hour with no runs. Under it, how long ago the latest run started |
 | **Now** to **+24h** | on **Schedule**: when it will run over the next 24 hours |
-| **Next run · Local time** | when it runs next, and its schedule in words, such as **Hourly at :50** |
+| **Next run / trigger** | when it runs next, or **On new alerts** for event-triggered delivery; its schedule or recovery cadence appears below |
 
 A count under the list shows how many of the installed workflows are listed.
 
@@ -45,6 +45,31 @@ A count under the list shows how many of the installed workflows are listed.
 - **Next run** shows **Unconfirmed** when the scheduler has not confirmed the schedule, **No upcoming run** when the workflow is paused, and **Saved change pending** when a schedule you saved has not reached the scheduler yet.
 - **No workflows run here yet.** means none is installed; **No workflows match these filters.** means your filters hide them.
 - **This run is not in the retained execution history.** means a link pointed to a run old enough to have been dropped from the page's history.
+
+## Notification delivery
+
+**Operator notifications** runs when an error alert opens or a data source changes
+to failing. The standalone runner groups events for one second and delivers up
+to ten per message. Repeated failed calls during one failure episode do not send
+additional notifications; a success followed by a failure starts a new episode.
+
+The workflow shows **On new alerts**, its recovery schedule, and **Event** or
+**Recovery** on runs with observed trigger context. **Manage delivery** changes
+the recovery schedule or pauses all delivery, including event-triggered sends.
+The schedule view shows event-triggered delivery instead of timed execution bars.
+
+Failed sends retry from persisted deadlines, starting after 30 seconds and
+backing off to 15 minutes; a provider's retry delay can extend that to an hour.
+A recovery check runs at five minutes past each hour by default, and startup and
+listener reconnection recover missed events. The sender suppresses conditions
+that have resolved, been acknowledged, been replaced, or recovered before sending.
+Pending events expire after 24 hours. Only delivered events receive a notification
+receipt; events beyond the message limit remain pending.
+
+Delivery is at least once: if Discord accepts a message and the process stops
+before its receipt commits, recovery may send it again. The queue and receipts
+remain scoped to one workspace. The synthetic hosted demo runs recovery checks
+without sending external notifications.
 
 ## Related guides
 

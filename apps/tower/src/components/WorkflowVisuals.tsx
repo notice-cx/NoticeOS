@@ -27,11 +27,14 @@ export function WorkflowStateLabel({ state, label, className }: { state: Workflo
   </span>;
 }
 
-/** Marks a run a person started; a scheduled run carries nothing. */
+/** Observed trigger context; legacy records retain no inferred trigger. */
 export function WorkflowRunTrigger({ run }: { run: Pick<WorkflowRun, 'trigger'> }) {
-  if (run.trigger?.kind !== 'manual') return null;
-  return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap" data-run-trigger="manual">
-    <Hand aria-hidden className="size-3.5 shrink-0" />Manual
+  const kind = run.trigger?.kind;
+  if (!kind || kind === 'schedule') return null;
+  const label = kind === 'event' ? 'Event' : kind === 'recovery' ? 'Recovery' : 'Manual';
+  const Icon = kind === 'manual' ? Hand : kind === 'event' ? GitBranch : Clock;
+  return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap" data-run-trigger={kind}>
+    <Icon aria-hidden className="size-3.5 shrink-0" />{label}
   </span>;
 }
 

@@ -38,9 +38,8 @@ export const NOTIFIED_CONDITIONS: readonly NotificationRule[] = [
 ] as const;
 
 /**
- * The most lines one message carries. Past the cap the message says how many
- * more there were, and every one of them is recorded as notified: re-sending
- * them next hour would be the fatigue the cap exists to prevent.
+ * The most events one leased delivery carries. Remaining events stay pending
+ * for another bounded message; only delivered events receive a receipt.
  */
 export const NOTIFY_BATCH_CAP = 10;
 

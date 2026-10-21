@@ -22,7 +22,7 @@ export interface WorkflowRunTrace {
 }
 export interface WorkflowHistory {
   publishHeartbeat(): Promise<void>;
-  beginRun(job: string, startedAtMs: number): null | WorkflowRunTrace;
+  beginRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace;
 }
 
 /**
@@ -49,11 +49,12 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
     });
   }
 
-  function beginRun(job: string, startedAtMs: number): null | WorkflowRunTrace {
+  function beginRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace {
     const definition = WORKFLOW_DEFINITIONS.find((w) => jobRunName(w) === job);
     if (!definition) return null;
     const run: WorkflowRun = { id: `${definition.id}@${new Date(startedAtMs).toISOString()}`, workflowId: definition.id,
-      definitionVersion: definition.version, startedAt: new Date(startedAtMs).toISOString(), state: 'running', steps: [] };
+      definitionVersion: definition.version, startedAt: new Date(startedAtMs).toISOString(), state: 'running', steps: [],
+      ...(trigger ? { trigger } : definition.triggerKind === 'event' ? { trigger: { kind: 'recovery' as const } } : {}) };
     const recorder = createWorkflowRecorder({ changed: (steps) => { run.steps = steps; void publishHeartbeat(); } });
     active.set(run.id, run);
     void publishHeartbeat();
@@ -96,7 +97,7 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
 // The stack's runner's history: this code folder's `.local/`.
 const checkoutHistory = createWorkflowHistory(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));
 export function publishWorkflowHeartbeat(): Promise<void> { return checkoutHistory.publishHeartbeat(); }
-export function beginWorkflowRun(job: string, startedAtMs: number): null | WorkflowRunTrace { return checkoutHistory.beginRun(job, startedAtMs); }
+export function beginWorkflowRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace { return checkoutHistory.beginRun(job, startedAtMs, trigger); }
 
 /** Bounded tail read; a torn first/last JSONL line is never an invented run. */
 export async function readJsonLines(file: string, maxBytes: number = 12 * 1024 * 1024): Promise<unknown[]> {

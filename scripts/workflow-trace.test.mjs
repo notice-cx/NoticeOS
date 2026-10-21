@@ -129,3 +129,27 @@ test('bounded history reader ignores torn lines and never reads an unbounded log
     assert.deepEqual(await readJsonLines(file, 35), [{ value: 2 }]);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('notification history retains observed event and recovery triggers through projections', async () => {
+  const { createWorkflowHistory } = await import('./workflow-history.mjs');
+  const { buildWorkflowHistory } = await import('./workflow-history-view.mjs');
+  const { jobRunName } = await import('./scheduled-jobs.mjs');
+  const root = await mkdtemp(path.join(os.tmpdir(), 'notification-history-'));
+  try {
+    const history = createWorkflowHistory(root);
+    const definition = WORKFLOW_DEFINITIONS.find(workflow => workflow.id === 'notifications');
+    const job = jobRunName(definition);
+    const at = Date.now() - 1000;
+    const event = history.beginRun(job, at, { kind: 'event' });
+    await event.run('notify', async () => ({ sent: 2 }));
+    await event.finish('ran');
+    const recovery = history.beginRun(job, at + 1);
+    await recovery.run('notify', async () => ({ sent: 0, skipped: 'nothing-to-say' }));
+    await recovery.finish('skipped');
+    const traces = await readJsonLines(path.join(root, '.local/logs/workflow-runs.jsonl'));
+    const records = [{ job, at: new Date(at).toISOString(), ms: 1, outcome: 'ran' }];
+    const selected = buildWorkflowHistory(records, traces, [], Date.now(), traces[0].id);
+    assert.equal(selected.selectedRun.trigger.kind, 'event');
+    assert.deepEqual(selected.workflows.find(workflow => workflow.id === 'notifications').runs.map(run => run.trigger.kind), ['recovery', 'event']);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

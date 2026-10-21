@@ -60,6 +60,7 @@ import { recordManualRun, type JobRunOutcome } from './job-runs.js';
  * word per file, and the only thing about config that reaches a log line.
  */
 interface RunConfig {
+  notificationRecovery?: boolean;
   pullEntries: PullAssetConfig[] | undefined;
   counters: CountersConfig | undefined;
   laneRegister: LaneRegister | undefined;
@@ -148,7 +149,14 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   // The hourly tick also asks whether each site is up. A site that hangs its
   // request must not stop the report-freshness alerts.
   freshness: { steps: { freshness: (env) => runFreshnessCheck(env), uptime: (env) => runUptimeChecks(env) } },
-  notifications: { steps: { notify: (env) => runNotifier(env) } },
+  notifications: { steps: { notify: async (env, cfg) => {
+    const result = schedulePaused(cfg.constants, 'notifications')
+      ? { found: 0, fresh: 0, sent: 0, skipped: 'paused' as const }
+      : await runNotifier(env, { recover: cfg.notificationRecovery });
+    const failed = result.skipped === 'delivery-failed' || result.skipped === 'store-unavailable';
+    return { ...result, outcome: failed ? 'failed' as const : result.skipped ? 'skipped' as const : 'ran' as const,
+      detail: failed ? 'Notification delivery failed' : result.skipped ? 'No notifications delivered' : 'Notifications delivered' };
+  } }, answeredBy: 'notify' },
   pull: {
     steps: {
       pull: (env, cfg) => runPullAdapter(env, { entries: cfg.pullEntries, configSources: cfg.configSources }),
@@ -216,12 +224,12 @@ export class UnknownCronError extends Error {
  * mistyped `pnpm os:run-job`, or a trigger added without a job, fails by name
  * instead of running every collector and the notifier at an unplanned time.
  */
-export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowRecorder): Promise<void | ScheduledRunResult> {
+export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowRecorder, trigger: 'event' | 'recovery' = 'recovery'): Promise<void | ScheduledRunResult> {
   const job = ingestJobForCron(cron);
   const lanes = job ? JOB_LANES[job.id] : undefined;
   if (!lanes) throw new UnknownCronError(cron);
   const step = <T>(id: string, fn: () => Promise<T>): Promise<T> => trace ? trace.run(id, fn) : fn();
-  const cfg = runConfig(await step('config', () => readCollectorConfigs(env)));
+  const cfg = { ...runConfig(await step('config', () => readCollectorConfigs(env))), notificationRecovery: trigger !== 'event' };
   const answers: Record<string, unknown> = {};
   await settleWorkflowSteps(Object.entries(lanes.steps).map(([id, lane]) =>
     step(id, async () => (answers[id] = await lane(env, cfg)))));
@@ -262,7 +270,7 @@ export function scheduledStepFailure(cron: string, step: string | null, error: u
  * the steps and never the error itself. An expression no job runs on answers
  * `refused: 'unknown_cron'`, with no step, and the runner door turns it away.
  */
-export async function runScheduledCron(cron: string, env: IngestEnv): Promise<ScheduledRunResult> {
+export async function runScheduledCron(cron: string, env: IngestEnv, trigger: 'event' | 'recovery' = 'recovery'): Promise<ScheduledRunResult> {
   const logged = new Set<unknown>();
   const log = (step: string | null, error: unknown) => {
     logged.add(error);
@@ -270,7 +278,7 @@ export async function runScheduledCron(cron: string, env: IngestEnv): Promise<Sc
   };
   const trace = createWorkflowRecorder({ failed: log });
   try {
-    const result = await runCron(cron, env, trace);
+    const result = await runCron(cron, env, trace, trigger);
     return { ...(result ?? { outcome: 'ran' as const, detail: 'Execution completed' }), steps: trace.steps };
   } catch (error) {
     if (!logged.has(error)) log(null, error);

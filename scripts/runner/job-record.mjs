@@ -113,7 +113,7 @@ export async function runJobLane(
     emit,
     now,
     ship,
-    begin: file === JOB_RUNS_FILE ? beginWorkflowRun : null,
+    begin: file === JOB_RUNS_FILE ? (name, at) => beginWorkflowRun(name, at, deps.trigger) : null,
     stepOf: (value) => (value === REGULAR_LANE_HELD ? stepResult(null) : stepResult(value)),
   });
 }

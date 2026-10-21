@@ -28,10 +28,16 @@ function validTrace(value: unknown, definitions: readonly WorkflowDefinition[]):
     (step.finishedAt === undefined || (typeof step.finishedAt === 'string' && Number.isFinite(Date.parse(step.finishedAt)))));
 }
 
+function readTrigger(value: unknown): WorkflowRun['trigger'] {
+  if (!isObject(value) || !['schedule', 'event', 'recovery', 'manual'].includes(String(value.kind))) return undefined;
+  return { kind: value.kind as NonNullable<WorkflowRun['trigger']>['kind'] };
+}
+
 function readTrace(value: unknown, definitions: readonly WorkflowDefinition[]): WorkflowRun[] {
   if (!validTrace(value, definitions)) return [];
   return [{ id: value.id, workflowId: value.workflowId, definitionVersion: value.definitionVersion, startedAt: value.startedAt,
     ...(value.finishedAt ? { finishedAt: value.finishedAt } : {}), state: value.state,
+    ...(readTrigger(value.trigger) ? { trigger: readTrigger(value.trigger) } : {}),
     steps: value.steps!.map((step) => ({ id: step.id, attempt: step.attempt, startedAt: step.startedAt, state: step.state,
       ...(step.finishedAt ? { finishedAt: step.finishedAt } : {}), ...(step.summary ? { summary: step.summary.slice(0, 500) } : {}),
       ...(isWorkflowStepOutput(step.output) ? { output: step.output } : {}),
@@ -71,7 +77,7 @@ export function buildWorkflowHistory(records: unknown[], traces: unknown[], acti
     const trace = byTrace.get(id);
     return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
       finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',
-      ...(record.trigger === 'manual' ? { trigger: { kind: 'manual' as const } } : {}),
+      ...(record.trigger === 'manual' ? { trigger: { kind: 'manual' as const } } : trace?.trigger ? { trigger: trace.trigger } : {}),
       steps: trace?.steps ?? null } satisfies WorkflowRun];
   });
   const recordedIds = new Set(runs.map((run) => run.id));

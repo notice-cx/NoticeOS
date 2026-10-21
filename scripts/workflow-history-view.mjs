@@ -19,11 +19,17 @@ function validTrace(value, definitions) {
         ['running', 'succeeded', 'failed', 'skipped', 'waiting'].includes(String(step.state)) &&
         (step.finishedAt === undefined || (typeof step.finishedAt === 'string' && Number.isFinite(Date.parse(step.finishedAt)))));
 }
+function readTrigger(value) {
+    if (!isObject(value) || !['schedule', 'event', 'recovery', 'manual'].includes(String(value.kind)))
+        return undefined;
+    return { kind: value.kind };
+}
 function readTrace(value, definitions) {
     if (!validTrace(value, definitions))
         return [];
     return [{ id: value.id, workflowId: value.workflowId, definitionVersion: value.definitionVersion, startedAt: value.startedAt,
             ...(value.finishedAt ? { finishedAt: value.finishedAt } : {}), state: value.state,
+            ...(readTrigger(value.trigger) ? { trigger: readTrigger(value.trigger) } : {}),
             steps: value.steps.map((step) => ({ id: step.id, attempt: step.attempt, startedAt: step.startedAt, state: step.state,
                 ...(step.finishedAt ? { finishedAt: step.finishedAt } : {}), ...(step.summary ? { summary: step.summary.slice(0, 500) } : {}),
                 ...(isWorkflowStepOutput(step.output) ? { output: step.output } : {}),
@@ -66,7 +72,7 @@ export function buildWorkflowHistory(records, traces, active, now, selectedId, d
         const trace = byTrace.get(id);
         return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
                 finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',
-                ...(record.trigger === 'manual' ? { trigger: { kind: 'manual' } } : {}),
+                ...(record.trigger === 'manual' ? { trigger: { kind: 'manual' } } : trace?.trigger ? { trigger: trace.trigger } : {}),
                 steps: trace?.steps ?? null }];
     });
     const recordedIds = new Set(runs.map((run) => run.id));

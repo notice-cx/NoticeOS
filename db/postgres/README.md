@@ -535,6 +535,7 @@ by column; retention and maintenance privileges are checked separately.
 | `mediavine_runs` | append-only | Append-only. |
 | `mediavine_sites` | insert, delete | A fixed mapping, replaced by delete and insert. |
 | `mediavine_state` | insert, update, delete | Retry state. |
+| `notification_outbox` | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at | Delivery intent commits with its source condition; immutable events retain delivery, cancellation, lease and retry state. |
 | `notifications` | append-only | Append-only; the unique key is the dedupe. |
 | `person_preferences` | append-only | Append-only; each save of a person's own preference is a new row, the newest per person and name is the current value, and a reset saves the default. |
 | `pulses` | append-only | A retry is a new revision. |

@@ -48,6 +48,7 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'flag_evidence',
   'flag_tunes',
   'notifications',
+  'notification_outbox',
   'alert_daily_counts',
   'job_runs',
   'task_snapshots',

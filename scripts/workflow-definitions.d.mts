@@ -3,7 +3,7 @@ import type { WorkflowStepDefinition } from '../packages/contract/src/workflows.
 import { type ScheduledJob } from './scheduled-jobs.mjs';
 export interface WorkflowDefinition extends ScheduledJob {
     version: number;
-    triggerKind: 'schedule';
+    triggerKind: 'schedule' | 'event';
     stages: WorkflowStepDefinition[];
 }
 export declare const WORKFLOW_DEFINITIONS: WorkflowDefinition[];

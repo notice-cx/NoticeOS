@@ -21,7 +21,7 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | Ad revenue | 10, 30 and 50 minutes past each hour | Checks for a new Mediavine revenue report when one is due |
 | Subscription revenue | 20 past each hour | Records each completed UTC day's Stripe sales less refunds for the site that names the account; asks Stripe only when a day is missing |
 | Data freshness checks | every hour | Flags a site whose report is late or whose connection stopped |
-| Operator notifications | 5 past each hour | Sends what changed since its last run |
+| Operator notification recovery | 5 past each hour | Retries pending notifications and recovers missed events; new conditions trigger delivery immediately |
 | Nightly reports | 02:30 | Collects the daily provider reports, including Bing Webmaster |
 | NoticeOS report | 03:00 | The installation's own report about itself |
 | Outcome checks | 03:30 | Reads the follow-up window of each shipped change |
@@ -64,7 +64,7 @@ Some things are never caught up, by design: database migrations, restores, setti
 
 A collection fed by a provider connection is changed with that connection: open **Integrations**, select the connection, and use its **Manage** panel. A collection no connection feeds is changed under **Settings** > **Data collection**.
 
-The [Workflows](/tower/workflows) page (`/workflows`) lists the operator automations with their history; their schedules are edited the same way. Saved schedules are kept across restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
+The [Workflows](/tower/workflows) page (`/workflows`) lists operator automations with their history. For Operator notifications, **Manage delivery** edits the recovery schedule; **Paused** stops event-triggered delivery and recovery. Other workflow schedules are edited the same way. Saved schedules are kept across restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
 
 ::: tip Pausing fully stops a job
 A paused job does not run on its schedule, is not caught up after downtime, and blocks **Start collecting** on a connection panel until you resume it.

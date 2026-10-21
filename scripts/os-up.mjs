@@ -19,10 +19,12 @@ import fs from 'node:fs/promises';
 import { syncDevVarsIfPresent } from './dev-secrets.mjs';
 import { runBackup as backupHost, backupRunOutcome } from './host-backup.mjs';
 import { requestContainerBackup } from './container-backup-channel.mjs';
-import { doorErrorCode, localDoorFetch } from './ingest-door.mjs';
+import { doorErrorCode, localDoorFetch, fireScheduledTrigger } from './ingest-door.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runtimeChildEnv, samePath } from './os-runtime.mjs';
-import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
+import { startNotificationEvents } from '../packages/postgres/src/notification-events.mjs';
+import { runtimeDoorOwnership } from './runner/door-ownership.mjs';
 // One responsibility per module under scripts/runner/; the port map and every
 // knob live in scripts/runner/config.mjs.
 import {
@@ -395,7 +397,7 @@ async function supervise({ exposeTowerToLan }) {
 
   // The store's address, before anything starts: DATABASE_URL from home's
   // secrets file, checked as the application login, then handed to the Tower
-  // child's environment and nowhere else. Checking applies nothing.
+  // and the notification listener. Checking applies nothing.
   const database = await runnerDatabase();
   if (!database.ok) {
     log('ERROR', `REFUSING to start: ${database.line}`);
@@ -429,6 +431,7 @@ async function supervise({ exposeTowerToLan }) {
   const tower = towerChild({ exposeTowerToLan, database: database.env });
 
   const children = [tower];
+  let notificationEvents = null;
 
   // Graceful shutdown: stop crons, group-kill children, escalate to SIGKILL.
   const shutdown = async (sig) => {
@@ -436,6 +439,7 @@ async function supervise({ exposeTowerToLan }) {
     beginShutdown();
     log('INFO', `received ${sig} — shutting down`);
     stopScheduler();
+    await notificationEvents?.close();
     for (const c of children) killChild(c, 'SIGTERM');
     await waitForExit(children, 5000);
     for (const c of children) if (c.running) killChild(c, 'SIGKILL');
@@ -475,6 +479,23 @@ async function supervise({ exposeTowerToLan }) {
         status: tower.ready && status.jobs.length > 0 ? 'healthy' : 'starting',
       }),
   });
+
+  const notificationJob = SCHEDULED_JOBS.find(job => job.id === 'notifications');
+  try {
+    notificationEvents = await startNotificationEvents({
+      connectionString: database.env.DATABASE_URL,
+      drain: async (trigger, signal) => {
+        if (isShuttingDown() || !tower.running || !tower.ready || (await runtimeDoorOwnership(tower)).owns !== true) return false;
+        const result = await runJobLane(jobRunName(notificationJob), () => fireScheduledTrigger(
+          `http://${CONFIG.ingestHost}:${CONFIG.ingestPort}`, notificationJob.cron,
+          { trigger, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]), emit: log }), value => value.outcome, { trigger: { kind: trigger } });
+        return result?.steps?.some(step => step.id === 'notify' && step.state === 'succeeded') ?? false;
+      },
+      unavailable: () => log('WARN', 'notification event delivery unavailable; durable queue retained for recovery'),
+    });
+  } catch {
+    log('WARN', 'notification event listener could not start; hourly recovery remains active');
+  }
 
   await writeRunnerState({
     status: tower.ready && scheduler.snapshot().jobs.length > 0 ? 'healthy' : 'starting',
