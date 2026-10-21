@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { TASK_RESOLUTIONS } from "@noticeos/contract/task-resolution";
 import { loadLatestBeadsSnapshot } from "../worker/beads-snapshot";
 import { beadsNeedsYou } from "../worker/task-source";
 import { buildWorkPayload } from "../worker/work-payload";
@@ -93,14 +94,14 @@ describe("partial operator snapshots from the task poller", () => {
     expect(project.recentWork?.map((event) => [event.taskId, event.resolution ?? null])).toEqual([["md-c3", "wont-do"], ["md-c1", null]]);
   });
 
-  it("carries each figure's week on the work payload, an unmeasured count as unknown rather than zero", async () => {
+  it.each(TASK_RESOLUTIONS)("counts %s closes in both weeks while unmeasured counts remain unknown", async (resolution) => {
     // The closes the poller read from 08-21, so this week and last are whole.
     const closes = { since: "2026-08-21", items: [
-      { at: "2026-08-25T10:00:00.000Z" },
+      { at: "2026-08-25T10:00:00.000Z", resolution },
       // Saturday 13:00 last week: after this moment of last week.
       { at: "2026-08-29T13:00:00.000Z" },
       { at: "2026-09-01T10:00:00.000Z" },
-      { at: "2026-09-02T10:00:00.000Z", resolution: "wont-do" },
+      { at: "2026-09-02T10:00:00.000Z", resolution },
       // A resolution the reader does not know reads as done.
       { at: "2026-09-03T10:00:00.000Z", resolution: "fixed" },
       { at: "2026-09-04T10:00:00.000Z" },
@@ -117,8 +118,8 @@ describe("partial operator snapshots from the task poller", () => {
     expect(weeks).toEqual({
       weekStart: "2026-08-31",
       daysIn: 6,
-      // Done is counted from the closes, whatever days the history holds.
-      done: { now: 3, notDone: 1, before: 1, lastWeek: 2, move: { by: 2, direction: "up", verdict: "good" } },
+      // Every close counts; the resolution remains a subset of the total.
+      done: { now: 4, notDone: resolution === "done" ? 0 : 1, before: 1, lastWeek: 2, move: { by: 3, direction: "up", verdict: "good" } },
       waiting: { now: null, before: null, added: null, move: null },
       urgent: { now: null, before: null, added: null, move: null },
       inProgress: { now: 1, before: null, added: null, move: null },

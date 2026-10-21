@@ -84,6 +84,18 @@ interface Captured {
   params: SqlValue[];
 }
 
+interface ExplainNode {
+  "Node Type": string;
+  "Parent Relationship"?: string;
+  Plans?: ExplainNode[];
+}
+
+/** InitPlans prepare the inputs; these nodes select and order the candidates. */
+function candidateNodes(plan: ExplainNode): ExplainNode[] {
+  return [plan, ...(plan.Plans ?? []).filter(node => node["Parent Relationship"] !== "InitPlan").flatMap(candidateNodes)];
+}
+const candidateSorts = (plan: ExplainNode) => candidateNodes(plan).filter(node => /^(Incremental )?Sort$/.test(node["Node Type"]));
+
 const ASSETS = [
   "carry.example",
   "ties.example",
@@ -464,15 +476,29 @@ describe("the trend read keeps each day's newest write", () => {
     expect(await loadSignalTrends(store, 28, { nowMs: NOW_MS })).toEqual(new Map());
   });
 
-  it("sorts the candidates once", async () => {
-    // Pinned as a plan: DISTINCT ON's one sort is also the output order.
+  it.each([false, true])("sorts the candidates once with analyzed statistics %s", async (analyzed) => {
+    // DISTINCT ON sorts the candidates once and supplies the output order.
+    // Statistics may add a separate sort while finding the latest run.
     const raw = await createTestStore();
     const store = await seed(raw);
+    if (analyzed) await raw.analyze();
     for (const read of READS) {
       const { sql, params } = await capture(store, read.days, read.options);
-      const plan = await store.read((tx) => tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${sql}`, params));
-      const sorts = plan.map((row) => row["QUERY PLAN"]).filter((line) => /^\s*(->\s+)?Sort\s+\(/.test(line));
-      expect(sorts, read.name).toHaveLength(1);
+      const explain = async (statement: string) => {
+        const rows = await store.read((tx) => tx.query<{ "QUERY PLAN": string }>(`EXPLAIN (FORMAT JSON) ${statement}`, params));
+        const plans = JSON.parse(rows[0]?.["QUERY PLAN"] ?? "[]") as { Plan: ExplainNode }[];
+        const plan = plans[0]?.Plan;
+        if (!plan) throw new Error("The synthetic trend read has no query plan.");
+        return plan;
+      };
+      const plan = await explain(sql);
+      expect(plan["Node Type"], read.name).toBe("Unique");
+      expect(candidateSorts(plan), read.name).toHaveLength(1);
+      if (read === READS[0]) {
+        // An extra output order must still be detected as a second candidate sort.
+        const reordered = await explain(`SELECT * FROM (${sql}) selected ORDER BY "finishedAt" DESC`);
+        expect(candidateSorts(reordered), read.name).toHaveLength(2);
+      }
     }
   });
 });
