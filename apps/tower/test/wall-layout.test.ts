@@ -136,12 +136,12 @@ describe("the default layout", () => {
 
   it("stacks on a phone as the operator reads: the money, the sites, what is broken, the work and who did it, the loop last", () => {
     const order = [...WALL_WIDGET_TYPES].sort((a, b) => WALL_WIDGET_LIBRARY[a].stackOrder - WALL_WIDGET_LIBRARY[b].stackOrder);
-    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "agents", "feed", "loop", "health", "factory", "channels"]);
+    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "agents", "feed", "loop", "health", "factory", "channels", "next"]);
   });
 
   it("offers none of the retired widgets", () => {
     expect(WALL_WIDGET_TYPES).toEqual([
-      "strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents", "health", "factory", "channels",
+      "strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents", "health", "factory", "channels", "next",
     ]);
     for (const type of RETIRED_WALL_WIDGET_TYPES) {
       expect(Object.keys(WALL_WIDGET_LIBRARY)).not.toContain(type);

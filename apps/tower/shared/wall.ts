@@ -18,7 +18,7 @@ import type { SignalVerification } from "./signal-liveness";
 import type { SeriesPointOrGap } from "./surface";
 import type { RevenueProjection } from './revenue-projection';
 import type { DailyRevenueSummary } from './daily-revenue';
-import type { WorkWeeks } from './work';
+import type { WorkItem, WorkWeeks } from './work';
 
 /** `milestone` is a kind, not a severity — never here. */
 export type Severity = "error" | "warn" | "info";
@@ -967,6 +967,61 @@ export interface WallAgents {
   capturedAt: string | null;
 }
 
+/** What a decision of the operator's asks for. */
+export type WallDecisionAsk = "approve" | "answer" | "choose";
+
+/** The verb for a row already in the operator's inbox: a gate is approved, a
+ * question whose choices nobody has picked is chosen, anything else is
+ * answered. The board applies the same rule (`askVerb`,
+ * src/lib/task-board-read.ts), which the Worker cannot import. */
+export function wallDecisionAsk(item: Pick<WorkItem, "issueType" | "choices" | "choice">): WallDecisionAsk {
+  if (item.issueType === "gate") return "approve";
+  return (item.choices ?? null) !== null && (item.choice ?? null) === null ? "choose" : "answer";
+}
+
+/** One decision the operator owes, as Next up lists it. */
+export interface WallDecision {
+  id: string;
+  title: string;
+  /** The project's site id; the TV names it from the site's card. */
+  asset: string;
+  ask: WallDecisionAsk;
+  /** Whole days since the task was filed; null when the snapshot carries no
+   * filing date for it. */
+  ageDays: number | null;
+  /** How many tasks wait on this decision; null when the snapshot does not
+   * record what waits on what. */
+  releases: number | null;
+}
+
+/** One task somebody holds now. */
+export interface WallWorking {
+  id: string;
+  title: string;
+  asset: string;
+  /** Who holds it, as the task records it. */
+  who: string | null;
+  /** Whole hours since it was claimed; null when the snapshot's recent work
+   * holds no claim for it. */
+  sinceHours: number | null;
+  /** Priority P0 or P1. */
+  urgent: boolean;
+}
+
+/** Next up: the decisions waiting on the operator and the work held now, from
+ * the newest task snapshot. */
+export interface WallNextUp {
+  /** Most-blocking first, then oldest, across projects. */
+  decisions: WallDecision[];
+  /** Days the oldest decision the snapshot listed has waited; null when none
+   * carries a filing date. */
+  oldestAgeDays: number | null;
+  /** Urgent first, then longest held. */
+  working: WallWorking[];
+  /** When the task snapshot behind it was taken. */
+  capturedAt: string;
+}
+
 /** What one Wall refresh computes (`buildWallPayload`): the TV and the desk
  * pages read it, and the MCP `list_properties` tool hands part of it to
  * agents. Every key names the screen that draws it in
@@ -991,6 +1046,9 @@ export interface WallPayload {
   /** Who did the work, for the Agents widget. Absent from an older Worker;
    * null when no snapshot names an agent. */
   agents?: WallAgents | null;
+  /** Next up's decisions and held work. Absent from an older Worker; null
+   * until a task snapshot is read. */
+  next?: WallNextUp | null;
   /** Latest ledger recorded_at: how old the ledger is. The MCP `list_properties`
    * tool hands it to agents beside the portfolio (worker/mcp-route.ts). */
   ledgerRecordedAt: string | null;

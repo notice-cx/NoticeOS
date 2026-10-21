@@ -461,6 +461,9 @@ export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number
   health: { width: 480, height: 200 },
   factory: { width: 288, height: 160 },
   channels: { width: 352, height: 180 },
+  // The count and the top decision's two lines beside the three held tasks;
+  // estimated from its type sizes, not yet measured on the synthetic Wall.
+  next: { width: 576, height: 240 },
 };
 
 /** The preset a fraction lands on when it is within `tolerance` of one. */

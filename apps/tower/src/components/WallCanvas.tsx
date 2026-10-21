@@ -23,6 +23,7 @@ import {
 // Read-only imports only: `/wall` downloads everything this file imports, and
 // the route-split journey fails if editing or task code reaches the TV.
 import { NeedsYou } from "@/components/wall/NeedsYou";
+import { NextUp } from "@/components/wall/NextUp";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { WallFeedWidget } from "@/components/wall/WallFeed";
@@ -254,6 +255,10 @@ export function WallCanvas({
         return <WallFactory week={agentsWeek(data.assets, null, nowMs, Infinity)} />;
       case "channels":
         return <WallChannels assets={filterWallAssets(data.assets, widget.settings)} />;
+      case "next":
+        return (
+          <NextUp next={data.next} operator={data.operator} assets={data.assets} workAssets={sitesInWork(data)} hidden={hidden} nowMs={nowMs} />
+        );
     }
   }
 
