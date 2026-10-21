@@ -196,7 +196,7 @@ describe("one epic's dependencies", () => {
     expect(graph!.progress).toEqual({ closed: 3, total: 9 });
     const node = (id: string) => graph!.nodes.find((candidate) => candidate.id === id);
     expect(graph!.nodes.map((candidate) => candidate.id).sort()).toEqual(["md-e.1", "md-e.2", "md-e.3", "md-e.4", "md-e.5", "md-g"]);
-    expect(node("md-e.1")).toMatchObject({ state: "ok", stateLabel: "Done", caption: "closed 2d ago", href: "/tasks/md-e.1" });
+    expect(node("md-e.1")).toMatchObject({ state: "finished", stateLabel: "Done", caption: "closed 2d ago", href: "/tasks/md-e.1" });
     expect(node("md-e.2")).toMatchObject({ state: "active", stateLabel: "In progress", caption: "agent-x" });
     expect(node("md-e.3")).toMatchObject({ state: "warn", stateLabel: "Blocked", since: "2026-08-05T10:00:00.000Z" });
     expect(node("md-e.4")).toMatchObject({ state: "idle", stateLabel: "Waiting", caption: "waits on 3" });

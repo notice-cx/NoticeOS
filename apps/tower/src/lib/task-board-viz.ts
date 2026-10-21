@@ -223,7 +223,7 @@ function epicNode(task: BoardTask, waitingOn: number, nowMs: number, actors: rea
   switch (word) {
     case "Done": {
       const age = ageMs(nowMs, task.closedAt);
-      return { ...base, state: "ok", stateLabel: word, caption: age === null ? task.id : `closed ${formatAge(age)} ago` };
+      return { ...base, state: "finished", stateLabel: word, caption: age === null ? task.id : `closed ${formatAge(age)} ago` };
     }
     case "Parked":
       return { ...base, state: "absent", stateLabel: word, caption: task.deferUntil ? `until ${task.deferUntil.slice(0, 10)}` : task.id };

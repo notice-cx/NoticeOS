@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 // unless an edge says otherwise. The drawing is aria-hidden: a visually hidden
 // list states every edge, and the nodes read as text.
 
-export type FlowState = "ok" | "active" | "warn" | "error" | "idle" | "absent";
+export type FlowState = "ok" | "finished" | "active" | "warn" | "error" | "idle" | "absent";
 export type FlowEdgeState = "flowing" | "idle" | "broken";
 export type FlowDirection = "horizontal" | "vertical";
 
@@ -77,6 +77,7 @@ export interface FlowGraphProps {
 
 const STATE: Record<FlowState, { word: string; Glyph: LucideIcon | null; frame: string; rule: string; tile: string; glyph: string; ink: string }> = {
   ok: { word: "Working", Glyph: CircleCheck, frame: "border-border bg-card text-foreground", rule: "bg-healthy/45", tile: "bg-muted text-muted-foreground", glyph: "text-healthy", ink: "text-muted-foreground" },
+  finished: { word: "Done", Glyph: CircleCheck, frame: "border-border bg-card text-foreground", rule: "bg-muted-foreground/30", tile: "bg-muted text-muted-foreground", glyph: "text-muted-foreground", ink: "text-muted-foreground" },
   active: { word: "Running", Glyph: null, frame: "border-healthy/45 bg-card text-foreground", rule: "bg-healthy", tile: "bg-healthy-soft text-healthy", glyph: "text-healthy", ink: "text-healthy" },
   warn: { word: "At risk", Glyph: TriangleAlert, frame: "border-warn/60 bg-card text-foreground", rule: "bg-warn", tile: "bg-warn-soft text-warn", glyph: "text-warn", ink: "text-warn" },
   error: { word: "Failing", Glyph: CircleX, frame: "border-error bg-error-soft text-foreground shadow-lg shadow-error/25 ring-4 ring-error/15", rule: "bg-error", tile: "bg-error text-error-foreground", glyph: "text-error", ink: "text-error" },
