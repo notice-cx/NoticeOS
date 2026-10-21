@@ -799,6 +799,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "refused (the rule under the list)",
       "empty",
       "read-only",
+      "paused reason supplied by the containing surface (statesReadOnly=false)",
       "picked from the project's saved funnels",
     ],
   },

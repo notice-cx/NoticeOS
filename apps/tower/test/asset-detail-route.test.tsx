@@ -2612,7 +2612,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(input).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("says the deployment's own sentence once for the pair, not once per list", async () => {
+  it("leaves the deployment sentence to the Sources tab", async () => {
     stubEditing(withGa4({ valueEvents: ["sign_up"], eventParams: ["message"] }), {
       writable: false,
       reason: "Config is files; this build has none.",
@@ -2624,7 +2624,8 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     await findByText("Config is files; this build has none.");
     expect(
       container.querySelectorAll("[data-ga4-config-read-only]"),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
+    expect(container.querySelectorAll("[data-saves-paused]")).toHaveLength(1);
     expect(container.querySelectorAll("[data-collection-read-only]")).toHaveLength(0);
     expect(container.textContent).toContain("sign_up");
     expect(within(collection("value-events")).queryByRole("button", { name: "Add" })).toBeNull();

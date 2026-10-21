@@ -1,4 +1,4 @@
-import { Check, Lock } from "lucide-react";
+import { Check } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { AssetGa4Config } from "@shared/asset-detail";
 import { integrationLabel, type AssetIntegrationLane } from "@shared/integrations";
@@ -29,7 +29,7 @@ import { KnobEditor, type KnobControl } from "@/components/KnobEditor";
 import { type FieldUndoOutcome, useConfigSave, useFieldConfigSave } from "@/hooks/useConfigSave";
 import { Button } from "@/components/ui/button";
 import { validateRegisterField } from "@/lib/knob-validators";
-import { CONFIG_READ_ONLY_FALLBACK, useConfigWritable } from "@/hooks/useConfigWritable";
+import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { useAccountSites } from "@/hooks/useAccountSites";
 import { useGoogleProperties } from "@/hooks/useGoogleProperties";
 import { cn } from "@/lib/utils";
@@ -617,6 +617,7 @@ function LaneMappingList({
   if (field === null || field.type !== "posthog-funnels") return null;
   return (
     <FunnelListEditor
+      statesReadOnly={false}
       label={field.label}
       explain={field.describe}
       assetId={asset}
@@ -699,24 +700,14 @@ export function LanePostureAction({ asset, lane }: { asset: string; lane: AssetI
  * parameters registered as custom dimensions (`config/ga4-custom-dimensions.json`).
  * Neither list touches GA4: the measurement channel is operator-only, and each
  * list records a claim the OS then reads back against what GA4 reports. The
- * read-only sentence is said once for the pair, above them.
+ * read-only sentence is stated once by the Sources tab.
  */
 export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetGa4Config }) {
-  const { writable, reason } = useConfigWritable();
   return (
     <div
       className="flex flex-col gap-4 border-t border-border pt-3"
       data-ga4-config={asset}
     >
-      {writable ? null : (
-        <p
-          className="flex items-center gap-1.5 text-xs text-muted-foreground"
-          data-ga4-config-read-only
-        >
-          <Lock className="size-3 shrink-0" aria-hidden />
-          {reason ?? CONFIG_READ_ONLY_FALLBACK}
-        </p>
-      )}
       {/* This asset's GA4 property mapping belongs here: which property we are
           talking to comes before what we have said about it. */}
       <CollectionEditor
