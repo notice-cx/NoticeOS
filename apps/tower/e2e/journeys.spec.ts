@@ -3164,6 +3164,47 @@ test("a site whose nightly fetch fails lists each failed night on Data sources a
   expect(pageErrors).toEqual([]);
 });
 
+test("settings panel shells preserve content and fit both settings surfaces", async ({ page }, testInfo) => {
+  await createAsset(page);
+  const captures = [
+    { path: "/settings", name: "general", heading: "Clock" },
+    { path: "/settings/tv-dashboard", name: "tv", heading: "Layout" },
+    { path: `/assets/${JOURNEY_ASSET}/settings`, name: "site", heading: "Identity" },
+  ];
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((value) => localStorage.setItem("noticeos:theme", value), theme);
+    for (const capture of captures) {
+      await page.goto(capture.path);
+      const region = page.getByRole("region", { name: capture.heading, exact: true });
+      await expect(region).toBeVisible();
+      await expect(page.locator("html")).toHaveClass(theme === "light" ? /light/ : /^(?!.*\blight\b)/);
+      await expect(region.getByRole("heading", { name: capture.heading, level: 2 })).toBeVisible();
+      if (capture.name === "tv") {
+        await expect(region.getByRole("link", { name: "Edit layout" })).toBeVisible();
+        expect(await region.locator(":scope > div").count()).toBe(1);
+      }
+      await assertNoPageOverflow(page);
+      await page.evaluate(() => document.fonts.ready);
+      await testInfo.attach(`panel-${capture.name}-${theme}-${page.viewportSize()!.width}`, {
+        body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png",
+      });
+    }
+  }
+
+  await page.route("**/api/config", (route) => route.fulfill({ json: {
+    writable: false, reason: "Settings cannot be saved right now.", sources: {},
+  } }));
+  await page.goto("/settings/tv-dashboard");
+  await expect(page.locator("[data-sites-locked]")).toContainText("Saves paused");
+  await expect(page.locator("[data-saves-paused]")).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Layout", exact: true })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  await assertNoPageOverflow(page);
+  await testInfo.attach(`panel-paused-${page.viewportSize()!.width}`, {
+    body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png",
+  });
+});
+
 // A new site's report auth row is a state ("Site token", locked, "Never
 // shown"), never the environment binding as one unbreakable line, and the
 // page fits at every width.

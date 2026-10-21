@@ -11,10 +11,10 @@ import type { AnnotationItem } from "@shared/annotations";
 import { ageMs, formatAge } from "@shared/freshness";
 import type { SurfaceAnnotation } from "@shared/surface";
 import { AgeBadge } from "@/components/AgeBadge";
-import { SectionLabel, eyebrowClass } from "@/components/surface/SectionLabel";
+import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatSeriesDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
+export { Panel, type PanelProps } from "@/components/surface/Panel";
 
 // --- the small pieces every tab draws with --------------------------------
 // Three shapes several tabs share and none of them owns: the card every
@@ -112,22 +112,6 @@ export function SectionCard({
   );
 }
 
-export interface PanelProps {
-  /** The eyebrow. One or two words — "Identity", "Data sources", "P&L". */
-  title: string;
-  /** The quiet count or age beside it. Never a sentence. */
-  count?: ReactNode;
-  /** The header's right-hand slot: a link out, an owner chip, a composer
-   * button. A `ListPanel` takes exactly one link; this takes whatever the
-   * section's header genuinely holds, because Sources puts an owner chip AND a
-   * link there and Settings puts an owner chip on every card. */
-  action?: ReactNode;
-  /** The anchor a deep link lands on — `#setup`, `#timeline`, `#integrations`. */
-  id?: string;
-  children: ReactNode;
-  className?: string;
-}
-
 /**
  * The block that is this surface's answer. `audit:surfaces` measures this
  * element's bottom edge against 900px, and a surface that declares no hero
@@ -144,32 +128,6 @@ export function Hero({ children, id }: { children: ReactNode; id?: string }) {
     <div id={id} data-surface-hero="" className={id ? "scroll-mt-4" : undefined}>
       {children}
     </div>
-  );
-}
-
-/**
- * The card for a section that is not a list of rows: `ListPanel`'s own header,
- * spacing and shell with the row list swapped for whatever the section holds,
- * so the two side by side differ only in content.
- */
-export function Panel({ title, count, action, id, children, className }: PanelProps) {
-  return (
-    <section
-      id={id}
-      className={cn(
-        "flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card",
-        className,
-      )}
-      aria-label={title}
-    >
-      {/* The vocabulary's eyebrow. The trailing slot is a node here rather
-          than a link: what sits at the end of a Settings or Sources panel's
-          header is its owner chip. */}
-      <SectionLabel title={title} caption={count} className="px-4 pb-2 pt-3">
-        {action}
-      </SectionLabel>
-      <div className="px-4 pb-4">{children}</div>
-    </section>
   );
 }
 

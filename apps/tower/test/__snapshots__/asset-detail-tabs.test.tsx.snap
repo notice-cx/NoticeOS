@@ -1284,9 +1284,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </section>
 <div id="pnl">
 <div id="ledger">
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Monthly accounting">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Monthly accounting</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Monthly accounting</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">booked</span>
 <span class="flex items-center gap-2 ms-auto">
 <a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/financials" data-discover="true">All sites →</a>
@@ -3988,9 +3988,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-settings" class="page-arrive flex flex-col gap-4">
 <div id="configuration" class="flex w-full max-w-4xl scroll-mt-4 flex-col gap-4">
 <div data-surface-hero="">
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Identity">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Identity</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Identity</h2>
 </div>
 <div class="px-4 pb-4">
 <div class="flex flex-col gap-2 border-b border-border py-3 last:border-0" data-knob-editor="meadow.example">
@@ -4065,9 +4065,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </section>
 </div>
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Lifecycle">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Lifecycle</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Lifecycle</h2>
 </div>
 <div class="px-4 pb-4">
 <div class="flex flex-col gap-1 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
@@ -4081,17 +4081,17 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <p class="text-sm text-muted-foreground">Determined from collected data. Live after the first collection.</p>
 </div>
 </section>
-<section id="where-it-shows" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Where it shows">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Where it shows</h2>
+<section id="where-it-shows" aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Where it shows</h2>
 </div>
 <div class="px-4 pb-4">
 <span class="text-sm text-muted-foreground">—</span>
 </div>
 </section>
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Automation">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Automation</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Automation</h2>
 </div>
 <div class="px-4 pb-4">
 <div class="flex flex-col gap-2 border-b border-border py-3 last:border-0" data-knob-editor="meadow.example">
@@ -4114,9 +4114,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 </section>
-<section id="data-collection" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Data collection">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Data collection</h2>
+<section id="data-collection" aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Data collection</h2>
 </div>
 <div class="px-4 pb-4">
 <div class="flex flex-col gap-2 border-b border-border py-3 last:border-0" data-knob-editor="meadow.example">
@@ -4226,9 +4226,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 </section>
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Card totals">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Card totals</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Card totals</h2>
 </div>
 <div class="px-4 pb-4">
 <div>
@@ -4242,9 +4242,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 </section>
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Alert rules in force">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert rules in force</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert rules in force</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">no per-site override</span>
 <span class="flex items-center gap-2 ms-auto">
 <a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/settings#alert-rules" data-discover="true">All sites' rules →</a>
@@ -4255,9 +4255,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 </section>
-<section id="tracked-panels" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Tracked search terms">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Tracked search terms</h2>
+<section id="tracked-panels" aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Tracked search terms</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">0 of 31 terms · $0.00 a week</span>
 </div>
 <div class="px-4 pb-4">
@@ -4389,9 +4389,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 </section>
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Archive">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Archive</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Archive</h2>
 </div>
 <div class="px-4 pb-4">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted h-8 px-3 text-xs max-sm:min-h-11" type="button">
@@ -4603,9 +4603,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </li>
 </ol>
 </details>
-<section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Daily metrics">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Daily metrics</h2>
+<section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Daily metrics</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">
 <span data-age-state="aged" class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums bg-muted text-muted-foreground" title="Data age">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock size-3" aria-hidden="true" data-age-glyph="aged">
