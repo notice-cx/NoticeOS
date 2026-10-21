@@ -15,8 +15,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
-import { readDownloadsManifest } from './signal-downloads.mjs';
-import { mergeManifest } from './signal-panels-refresh.mjs';
+import { archivePath, mergeManifest, readDownloadsManifest } from './signal-downloads.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -140,13 +139,7 @@ async function queryManifests(options, deps) {
  * refresh leave byte-identical files.
  */
 async function downloadObject(row, options, deps) {
-  const destination = path.join(
-    options.out,
-    row.asset,
-    row.integration,
-    row.report,
-    `${row.reportDate}.json`,
-  );
+  const destination = archivePath(options.out, row.asset, row);
   await fs.mkdir(path.dirname(destination), { recursive: true });
   const response = await doorRequest(
     deps.get,
