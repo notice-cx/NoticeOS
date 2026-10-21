@@ -71,7 +71,7 @@ export function readBackupWorker({ fs: io = fs } = {}) {
 
 export function backupWorkerEnvironment(env = process.env) {
   const selected = {};
-  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE']) if (env[key] !== undefined) selected[key] = env[key];
+  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'NOTICEOS_HOST_FOLDER', 'NOTICEOS_HOST_BACKUP_OFFSITE_PARENT']) if (env[key] !== undefined) selected[key] = env[key];
   return { ...selected, HOME: BACKUP_PATHS.clientHome, TMPDIR: '/tmp',
     NOTICEOS_HOME: BACKUP_PATHS.state, NOTICEOS_INSTALLATION_DIR: '/state/installation',
     BD_DISABLE_METRICS: '1', BD_DISABLE_ERROR_REPORTING: '1', DO_NOT_TRACK: '1', DOLT_DISABLE_EVENT_FLUSH: '1' };

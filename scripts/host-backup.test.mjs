@@ -128,6 +128,10 @@ test('native D1 backups cover every selected target with gzip and restore custod
   const f = await fixture(t), native = nativeFixture();
   const result = await f.run({ cloudflareD1: native.client });
   assert.equal(result.ok, true, result.detail); assert.equal(result.stages.assets.expected, 3); assert.equal(result.stages.assets.copied, 3);
+  assert.equal(result.backup.complete, true);
+  assert.equal(result.backup.local.path, f.destination);
+  assert.equal(result.backup.offsite.path, path.join(f.offsite, DAY));
+  assert.deepEqual(result.backup.parts.find(part => part.id === 'assets').targets, native.selection.targets.map(target => target.asset));
   assert.deepEqual(native.control.exports, native.selection.targets.map(target => target.databaseId));
   for (const base of [f.destination, path.join(f.offsite, DAY)]) {
     const manifest = JSON.parse(await fs.readFile(path.join(base, 'backup.json'), 'utf8'));

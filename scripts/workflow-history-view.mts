@@ -11,6 +11,7 @@ export interface WorkflowSummary {
   history: WorkflowBucket[]; runs: WorkflowRun[];
 }
 const HOUR = 3_600_000;
+export const WORKFLOW_RECENT_RUN_LIMIT = 30;
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
 
 function validTrace(value: unknown, definitions: readonly WorkflowDefinition[]): value is WorkflowRun {
@@ -101,7 +102,7 @@ export function summarizeWorkflowHistory(records: readonly WorkflowRun[], active
       if (!bucket.runId || run.state === 'failed') bucket.runId = run.id;
     }
     return { id: workflow.id, latest: own[0] ?? null, active: activeRuns.find((r) => r.workflowId === workflow.id) ?? null,
-      history, runs: own.slice(0, 30).map((run) => ({ ...run, steps: null })) };
+      history, runs: own.slice(0, WORKFLOW_RECENT_RUN_LIMIT).map((run) => ({ ...run, steps: null })) };
   });
   return { workflows, selectedRun: selectedId ? runs.find((r) => r.id === selectedId) ?? activeRuns.find((r) => r.id === selectedId) ?? null : null };
 }

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { backupEvidenceFromReport, backupFolder } from '../packages/contract/src/backup-evidence.mjs';
 import { claimBackup, BACKUP_OWNER_FAILURE } from './backup-claim.mjs';
 import { beadsDatabaseName, readTaskHost, taskHostFile } from './task-project-config.mjs';
 import { redactLogText } from './os-log.mjs';
@@ -482,6 +483,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
           }
         }
         result.expected += databases.size;
+        result.targets = [...databases.keys()];
         if (!result.expected) {
           if (taskHub === 'linked' && !composeTaskHub) {
             stages.taskHub = stage('not_configured');
@@ -520,6 +522,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
           const selection = await client.inventory();
           const inventoryKey = cloudflareD1InventoryKey(selection);
           const targets = selection?.targets ?? [];
+          result.targets = [...assetBackups.map(source => source.asset), ...targets.map(target => target.asset)];
           result.expected = assetBackups.length + targets.length;
           const nativeAssets = new Set(targets.map(target => target.asset));
           if (assetBackups.some(source => nativeAssets.has(source.asset))) throw new Error('An asset has both legacy and native D1 backup declarations; choose one before retrying.');
@@ -628,19 +631,30 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
   const complete = storesComplete() && stages.instructions.status === 'completed';
   const ok = Object.values(stages).every((result) => ['completed', 'not_configured'].includes(result.status));
   const backupSet = { path: published ? destination : null, complete: published && complete };
+  const finishedAt = new Date(now()).toISOString();
+  const hostFolder = containerMode ? backupFolder((adapters.env ?? process.env).NOTICEOS_HOST_FOLDER) : null;
+  const hostOffsite = containerMode ? backupFolder((adapters.env ?? process.env).NOTICEOS_HOST_BACKUP_OFFSITE_PARENT) : null;
+  const report = {
+    format: 'noticeos-backup-report-v1', startedAt, finishedAt, ok, backupSet,
+    context: containerMode ? 'backup-worker' : 'host',
+    locations: {
+      local: { path: published ? hostFolder ? path.join(hostFolder, 'state/.local/backups', day) : destination : null, context: hostFolder || !containerMode ? 'host' : 'backup-worker' },
+      offsite: { path: offsiteBackupDir ? path.join(hostOffsite ?? offsiteBackupDir, ...(hostOffsite ? ['backups', day] : [day])) : null, context: hostOffsite || !containerMode ? 'host' : 'backup-worker' },
+    },
+    stages: Object.fromEntries(Object.entries(stages).map(([key, result]) => [key, { label: LABELS[key], ...result }])),
+  };
+  const backup = backupEvidenceFromReport(report);
   let reported = false;
   try {
-    await writeBackupReport(io, path.dirname(root), {
-      format: 'noticeos-backup-report-v1', startedAt, finishedAt: new Date(now()).toISOString(), ok, backupSet,
-      stages: Object.fromEntries(Object.entries(stages).map(([key, result]) => [key, { label: LABELS[key], ...result }])),
-    }, containerMode ? worker : null);
+    await writeBackupReport(io, path.dirname(root), report, containerMode ? worker : null);
     reported = true;
   } catch { /* The returned verdict says the report is missing. */ }
   return {
     ok,
     // Container jobs return only a bounded verdict to the Tower. Full stage
     // diagnostics are in the operator's private backup report.
-    detail: containerMode ? containerSummary(stages, claimIssue, reported) : summary(stages), day, startedAt,
+    detail: containerMode ? containerSummary(stages, claimIssue, reported) : summary(stages), day, startedAt, finishedAt,
+    ...(backup ? { backup } : {}),
     backupSet,
     stages,
     // Existing workflow recording projects outcomes, never arbitrary objects.

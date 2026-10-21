@@ -1,3 +1,4 @@
+import type { BackupRunEvidence } from './backup-evidence.mjs';
 /** Execution evidence is separate from pulse metrics and outcome evaluations. */
 export type WorkflowStepKind = 'task' | 'collection' | 'check' | 'storage' | 'llm' | 'tool' | 'approval';
 export type WorkflowStepState = 'running' | 'succeeded' | 'failed' | 'skipped' | 'waiting';
@@ -35,6 +36,7 @@ export interface WorkflowStepOutput {
   items: { label: string; state: 'succeeded' | 'failed' | 'skipped' | 'unknown'; fields: WorkflowOutputValue[] }[];
   totalItems: number;
   truncated: boolean;
+  backup?: BackupRunEvidence;
 }
 
 export interface WorkflowRun {

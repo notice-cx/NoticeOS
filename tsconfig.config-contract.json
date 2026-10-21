@@ -13,6 +13,7 @@
   },
   "include": [
     "packages/contract/src/cloudflare-d1.mts",
+    "packages/contract/src/backup-evidence.mts",
     "scripts/workflow-history-view.mts",
     "scripts/read-validator.mts",
     "packages/contract/src/configuration.mts",

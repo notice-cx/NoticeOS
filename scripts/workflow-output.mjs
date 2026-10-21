@@ -5,6 +5,7 @@
 //
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Worker and Node import and the `.d.mts` beside it.
+import { isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
 const METRICS = {
     attempted: 'Attempted', succeeded: 'Succeeded', failed: 'Failed', skipped: 'Skipped', unchanged: 'Unchanged',
     checked: 'Checked', found: 'Found', fresh: 'Fresh', sent: 'Sent', stale: 'Stale',
@@ -120,9 +121,10 @@ export function captureWorkflowOutput(value) {
         const sources = Object.values(value.sources);
         metrics.push(entry('savedSettings', 'Saved settings', sources.filter((source) => source === 'store').length), entry('defaultSettings', 'Default settings', sources.filter((source) => source === 'file').length));
     }
-    if (!metrics.length && !details.length && !items.length)
+    const backup = isBackupRunEvidence(value.backup) ? value.backup : undefined;
+    if (!metrics.length && !details.length && !items.length && !backup)
         return undefined;
-    return { version: 1, metrics: metrics.slice(0, 32), fields: details, items, totalItems: collection.length, truncated: collection.length > items.length };
+    return { version: 1, metrics: metrics.slice(0, 32), fields: details, items, totalItems: collection.length, truncated: collection.length > items.length, ...(backup ? { backup } : {}) };
 }
 export function isWorkflowStepOutput(value) {
     const only = (item, keys) => item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).every((key) => keys.includes(key));
@@ -148,7 +150,7 @@ export function isWorkflowStepOutput(value) {
         return finite(item.value);
     };
     const values = (entries, limit) => Array.isArray(entries) && entries.length <= limit && entries.every((item) => only(item, ['key', 'label', 'value', 'unit']) && validValue(item) && (item.unit === undefined || item.key === 'costUsd' && item.unit === 'USD'));
-    return Boolean(only(value, ['version', 'metrics', 'fields', 'items', 'totalItems', 'truncated']) && value.version === 1 && values(value.metrics, 32) && values(value.fields, 16) && Array.isArray(value.items) && value.items.length <= 50 &&
+    return Boolean(only(value, ['version', 'metrics', 'fields', 'items', 'totalItems', 'truncated', 'backup']) && (value.backup === undefined || isBackupRunEvidence(value.backup)) && value.version === 1 && values(value.metrics, 32) && values(value.fields, 16) && Array.isArray(value.items) && value.items.length <= 50 &&
         Number.isInteger(value.totalItems) && value.totalItems >= value.items.length && typeof value.truncated === 'boolean' &&
         value.items.every((item) => only(item, ['label', 'state', 'fields']) && (name(item.label) || /^Item \d+$/.test(item.label)) && ['succeeded', 'failed', 'skipped', 'unknown'].includes(item.state) && values(item.fields, 24)));
 }

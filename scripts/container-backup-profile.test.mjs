@@ -64,7 +64,10 @@ test('a different client UID or GID refuses before an exporter can enter the pri
 
 test('worker children inherit no ambient database, cloud or Docker selection', () => {
   const env = backupWorkerEnvironment({ PATH: '/prepared/bin', DATABASE_URL: 'foreign', DOLT_CLI_PASSWORD: 'foreign',
+    NOTICEOS_HOST_FOLDER: '/example/installation', NOTICEOS_HOST_BACKUP_OFFSITE_PARENT: '/example/Drive',
     BEADS_DOLT_SERVER_HOST: 'foreign', DOCKER_HOST: 'foreign', CLOUDFLARE_API_TOKEN: 'foreign', HOME: '/foreign' });
   assert.equal(env.PATH, '/prepared/bin'); assert.equal(env.HOME, BACKUP_PATHS.clientHome);
+  assert.equal(env.NOTICEOS_HOST_FOLDER, '/example/installation');
+  assert.equal(env.NOTICEOS_HOST_BACKUP_OFFSITE_PARENT, '/example/Drive');
   for (const key of ['DATABASE_URL', 'DOLT_CLI_PASSWORD', 'BEADS_DOLT_SERVER_HOST', 'DOCKER_HOST', 'CLOUDFLARE_API_TOKEN']) assert.equal(env[key], undefined);
 });

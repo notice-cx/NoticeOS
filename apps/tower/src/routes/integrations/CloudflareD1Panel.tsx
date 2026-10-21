@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Check, Loader2, TriangleAlert } from 'lucide-react';
 import { D1_FAILURE_LABELS, type D1Database, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
 import { useTowerApi, useBrowserRuntime } from '@/lib/browser-context';
@@ -80,6 +81,10 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
       })}
     </fieldset>}
     {nightly ? <span className="text-sm text-muted-foreground">Selected databases join nightly backups.</span> : null}
+    {nightly && Object.values(receipts).some(receipt => receipt.state === 'complete') && <div className="space-y-1 text-sm">
+      <p>Export stored in NoticeOS. Full backups create fresh exports and copy completed sets to the configured sync folder.</p>
+      <Link className="font-medium underline underline-offset-4" to="/health/operations/backup">View full backup history</Link>
+    </div>}
     <span className="text-sm text-muted-foreground">Export temporarily blocks database queries.</span>
     {failure ? <span role="alert" className="text-sm text-error">{failure}</span> : null}
     <Button className="mt-auto w-full" onClick={() => void run()} disabled={busy || !canSave || draftAccount !== status.data.accountId || Object.values(picked).some(value => !value)}>

@@ -73,6 +73,8 @@ Old sets are removed only after every stage, including the offsite copy, succeed
 
 Adding a repository to Tasks never authorizes a production export; only this file or that page does. Review the impact on the live database before enabling either.
 
+**Back up selected** stores an on-demand D1 export in NoticeOS object storage. It does not immediately copy that export to the sync folder. A full backup creates fresh exports for the saved selection under `cloudflare-d1/`, then copies the completed set to the configured sync folder.
+
 ## Rehearse a restore
 
 Restore into **isolated stores first**, never over the live ones.
@@ -91,7 +93,9 @@ For a demo installation, the procedure is a stopped backup of its four volumes; 
 
 - The dated folder holds `backup.json`, written last, and `RESTORE.md` lists the result of each part.
 - The finished set is copied under `<offsiteBackupDir>/<date>/`.
-- **System health** > **Background operations** shows the backup job's latest result.
+- Open **System health** > **Background operations** > **Backups** and select a run. Its contents table shows captured counts, selected site and task database identifiers, omissions, and separate local-set and sync-folder results. The destination panels show the folders recorded during that run.
+
+New backup workers attach this metadata to execution history. An older run can show the latest private backup report only when its timestamps match that run. Missing contents or host paths remain unavailable; the page does not substitute today's settings. Workers without recorded host paths display their internal paths instead. **Execution details** expands the recorded stages.
 
 A complete set does not prove the offsite copy is synchronized or restorable; a completed offsite handoff proves the local copy was made, not that the sync client finished uploading. Only your rehearsal proves a restore. A backup never deletes any source rows; a complete backup is never a reason to delete rows from the store.
 
