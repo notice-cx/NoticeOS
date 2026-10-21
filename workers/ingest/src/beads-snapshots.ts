@@ -16,6 +16,8 @@ import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
 import { BEADS_CLOSES_MAX } from '@noticeos/contract/task-snapshot';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
 import { isTaskResolution, TASK_RESOLUTIONS, type TaskResolution } from '@noticeos/contract/task-resolution';
+import { taskCardOf, type TaskCard } from '@noticeos/contract/task-card';
+import { isTaskChangeClass, TASK_CHANGE_CLASSES, type TaskChangeClass } from '@noticeos/contract/task-change-class';
 import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
 export type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
@@ -152,6 +154,11 @@ interface StoredIssue {
   /** The options a person picks from and the pick; present only when the poller sent them. */
   choices?: TaskChoices;
   choice?: TaskChoice;
+  /** Why the task is worth doing and the kind of change it makes; present
+   * only when the poller sent them, so an older poller's row reads as not
+   * recorded rather than as a task with no card. */
+  card?: TaskCard;
+  changeClass?: TaskChangeClass;
   /** How a close that is not done ended, and the task a duplicate names;
    * present only when the poller sent them. */
   resolution?: NotDone;
@@ -301,6 +308,15 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     || choice.label.length > TASK_CHOICE_LIMITS.label || (choice.note?.length ?? 0) > TASK_CHOICE_LIMITS.note)) {
     issues.add(`${path}.choice`, 'custom', `${path}.choice must be a recorded pick: option, label, by and at`);
   }
+  // The card's rules are the contract's (task-card.mts), the ones the task tools enforce.
+  const card = raw.card === undefined || raw.card === null ? null : taskCardOf(raw.card);
+  if (raw.card !== undefined && raw.card !== null && card === null) {
+    issues.add(`${path}.card`, 'custom', `${path}.card must be a task card: valuePerMonth, likelihood, reviewMinutes, daysToSignal and measurability`);
+  }
+  const changeClass = isTaskChangeClass(raw.changeClass) ? raw.changeClass : null;
+  if (raw.changeClass !== undefined && raw.changeClass !== null && changeClass === null) {
+    issues.add(`${path}.changeClass`, 'custom', `${path}.changeClass must be one of ${TASK_CHANGE_CLASSES.join(', ')}`);
+  }
   const resolution = optionalResolution(issues, raw.resolution, `${path}.resolution`);
   const duplicateOf = optionalString(issues, raw.duplicateOf, `${path}.duplicateOf`, BEADS_ID_MAX);
   if (duplicateOf !== null && resolution !== 'duplicate') {
@@ -318,6 +334,8 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     ...(filedModel === null ? {} : { filedModel }),
     ...(choices === null ? {} : { choices }),
     ...(choice === null ? {} : { choice }),
+    ...(card === null ? {} : { card }),
+    ...(changeClass === null ? {} : { changeClass }),
     ...(resolution === null ? {} : { resolution }),
     ...(duplicateOf === null || resolution !== 'duplicate' ? {} : { duplicateOf }),
   };

@@ -950,6 +950,24 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     ]) expect((await post({ projects: [bad] })).status).toBe(422);
   });
 
+  // What the Next tab ranks a snapshot row by.
+  it('stores a task\'s card and change class, leaves out what an older poller never sent, and refuses one it cannot read', async () => {
+    const card = { valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, daysToSignal: 14, measurability: 'holdout', note: 'Recipes rank again' };
+    const stored = await storedProject({ projects: [project({ ready: [issue({ id: 'md-k1', card, changeClass: 'template' }), issue({ id: 'md-k2' })] })] });
+    const ready = stored.ready as Record<string, unknown>[];
+    expect([ready[0]!.card, ready[0]!.changeClass]).toEqual([card, 'template']);
+    expect('card' in ready[1]! || 'changeClass' in ready[1]!).toBe(false);
+    for (const [bad, path] of [
+      [issue({ id: 'md-k1', card: { ...card, likelihood: 2 } }), 'projects.0.ready.0.card'],
+      [issue({ id: 'md-k1', card: 'worth it' }), 'projects.0.ready.0.card'],
+      [issue({ id: 'md-k1', changeClass: 'redesign' }), 'projects.0.ready.0.changeClass'],
+    ] as const) {
+      const res = await post({ projects: [project({ ready: [bad] })] });
+      expect(res.status).toBe(422);
+      expect(((await res.json()) as ValidationBody).issues.map((entry) => entry.path)).toEqual([path]);
+    }
+  });
+
   it('stores how a close that was not done ended, on its row and its line, and refuses one it cannot read', async () => {
     const recentWork = [{ kind: 'closed', taskId: 'md-r2', title: 'Same as the export', by: 'Dana', model: null, at: '2026-08-02T10:00:00.000Z',
       evidence: 'See md-r1', resolution: 'duplicate' }];

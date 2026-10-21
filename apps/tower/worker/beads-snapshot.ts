@@ -8,6 +8,8 @@
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-resolution";
+import { taskCardOf } from "@noticeos/contract/task-card";
+import { isTaskChangeClass } from "@noticeos/contract/task-change-class";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
 import { PRIORITY_BANDS, type WorkCloses, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
@@ -112,12 +114,15 @@ function readItem(value: unknown): WorkItem | null {
   const createdAt = nullableText(value.createdAt);
   // Read through the contract's own rules: an unreadable set or pick is left out.
   const choices = taskChoicesOf(value.choices), choice = taskChoiceOf(value.choice);
+  const card = taskCardOf(value.card), changeClass = isTaskChangeClass(value.changeClass) ? value.changeClass : null;
   const ended = notDone(value.resolution);
   const duplicateOf = ended === "duplicate" ? nullableText(value.duplicateOf) : null;
   return {
     ...(createdAt ? { createdAt } : {}),
     ...(choices ? { choices } : {}),
     ...(choice ? { choice } : {}),
+    ...(card ? { card } : {}),
+    ...(changeClass ? { changeClass } : {}),
     ...(ended ? { resolution: ended } : {}),
     ...(duplicateOf ? { duplicateOf } : {}),
     id,

@@ -5,7 +5,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
-import type { BeadsSnapshot, SnapshotProject } from "../worker/beads-snapshot";
+import type { WorkspaceStore } from "@noticeos/postgres";
+import { loadLatestBeadsSnapshot, type BeadsSnapshot, type SnapshotProject } from "../worker/beads-snapshot";
 import { WALL_NEXT_DECISIONS, WALL_NEXT_WORKING, wallNextUpOf } from "../worker/wall-payload";
 import { wallDecisionAsk } from "../shared/wall";
 import type { WorkEvent, WorkItem } from "../shared/work";
@@ -131,6 +132,26 @@ describe("wallNextUpOf — the decisions", () => {
       ["md-ask", "answer"],
     ]);
     expect(wallDecisionAsk({ issueType: "task" })).toBe("answer");
+  });
+});
+
+describe("a task's card and change class, as the Tower reads the stored row", () => {
+  it("reads each when it is there and readable, and leaves out a card it cannot read", async () => {
+    const card = { valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, daysToSignal: 14, measurability: "holdout" };
+    const store = {
+      read: async (run: (tx: { query: () => Promise<unknown[]> }) => Promise<unknown>) => run({ query: async () => [{
+        captured_at: hoursAgo(0),
+        payload: JSON.stringify({ projects: [{ asset: "meadow.example", prefix: "md", ok: true, error: null, counts: {}, inProgress: [], recentlyClosed: [],
+          ready: [
+            { id: "md-1", title: "Carded", card, changeClass: "copy" },
+            { id: "md-2", title: "Hand-edited", card: { ...card, likelihood: 2 }, changeClass: "redesign" },
+            { id: "md-3", title: "Older row" },
+          ] }] }),
+      }] }),
+    } as unknown as WorkspaceStore;
+    const ready = (await loadLatestBeadsSnapshot(store))!.projects[0]!.ready;
+    expect([ready[0]!.card, ready[0]!.changeClass]).toEqual([card, "copy"]);
+    expect(ready.slice(1).map((item) => ["card" in item, "changeClass" in item])).toEqual([[false, false], [false, false]]);
   });
 });
 
