@@ -456,7 +456,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     });
     const provider = gatedPosthogProvider();
     const response = await handleSignalCollect(collectRequest({ asset: 'meadow.example', families: ['posthog-events'] }), env, {
-      posthog: { fetchImpl: provider.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs },
+      posthog: { fetchImpl: provider.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs, clock: () => nowMs },
     });
     expect(response.status).toBe(429);
     expect(response.headers.get('retry-after')).toBe('1800');

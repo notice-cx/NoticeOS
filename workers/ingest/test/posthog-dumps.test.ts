@@ -9,7 +9,8 @@ import {
   claimPosthogLease,
   posthogLeaseKey,
   posthogQuery,
-  runPosthogDumps,
+  runPosthogDumps as collectPosthogDumps,
+  type PosthogDumpsOptions,
   windowFor,
 } from '../src/posthog-dumps.js';
 import { putCredential } from '../src/credentials.js';
@@ -42,6 +43,10 @@ import {
 const NOW = Date.parse('2026-09-23T12:30:00.000Z');
 const KEY = 'phx_test_personal_key_never_logged';
 const ORIGIN = 'https://us.posthog.com';
+
+function runPosthogDumps(env: IngestEnv, options: PosthogDumpsOptions = {}) {
+  return collectPosthogDumps(env, { ...options, clock: options.clock ?? (() => options.nowMs ?? NOW) });
+}
 
 const CALCULATOR: PosthogFunnel = {
   id: 'calculator',
@@ -1283,6 +1288,40 @@ describe('PostHog query-budget cooldown', () => {
     const after = posthogFetch();
     const resumed = await runPosthogDumps(env, { nowMs: NOW + 1_800_000, fetchImpl: after.fetchImpl, rawKeys: KEYS, laneRegister: register(), retryLimit: 0 });
     expect(resumed).toMatchObject({ attempted: 7, succeeded: 7 });
+  });
+
+  it('starts the provider delay at the response time and checks expiry on the live clock', async () => {
+    let liveNow = NOW;
+    const provider = posthogFetch(call => {
+      liveNow += 30_000;
+      return call.family === 'events'
+        ? Response.json({ code: 'api_queries_budget_exceeded' }, { status: 429, headers: { 'retry-after': '60' } })
+        : answerAll(call);
+    });
+    await runPosthogDumps(env, { nowMs: NOW, clock: () => liveNow, fetchImpl: provider.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    expect(liveNow).toBe(NOW + 90_000);
+    expect(await posthogCooldown(env.STORE, settings, liveNow)).toMatchObject({ nextAttemptAt: '2026-09-23T12:32:30.000Z' });
+    const blocked = posthogFetch();
+    await runPosthogDumps(env, { nowMs: NOW, clock: () => liveNow, fetchImpl: blocked.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    expect(blocked.calls).toHaveLength(0);
+    liveNow += 60_000;
+    const resumed = posthogFetch();
+    expect(await runPosthogDumps(env, { nowMs: NOW, clock: () => liveNow, fetchImpl: resumed.fetchImpl, rawKeys: KEYS, laneRegister: register(), retryLimit: 0 })).toMatchObject({ attempted: 7, failed: 0 });
+    expect(resumed.calls.filter(call => call.method === 'POST')).toHaveLength(7);
+  });
+
+  it.each(['project', 'query'] as const)('persists a %s 429 delay even when its body cannot be decoded', async path => {
+    const provider = posthogFetch(call => (path === 'project' ? call.method === 'GET' : call.family === 'web-daily')
+      ? new Response('{invalid', { status: 429, headers: { 'retry-after': '60', 'content-length': '9000000' } })
+      : answerAll(call));
+    const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl: provider.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    expect(result.budgetStopped).toBe(true);
+    expect(result.outcomes[0]).toMatchObject({ errorCode: 'posthog_rate_limit' });
+    expect(provider.calls).toHaveLength(path === 'project' ? 1 : 2);
+    const blocked = posthogFetch();
+    await runPosthogDumps(env, { nowMs: NOW + 1_000, fetchImpl: blocked.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    expect(blocked.calls).toHaveLength(0);
+    expect(await posthogCooldown(env.STORE, settings, NOW + 1_000)).toMatchObject({ reason: 'rate-limited', nextAttemptAt: '2026-09-23T12:31:00.000Z' });
   });
 
   it('also persists a zero-budget successful response without fabricating a failure', async () => {

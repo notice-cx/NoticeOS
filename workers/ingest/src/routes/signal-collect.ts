@@ -321,7 +321,7 @@ async function handlePosthogCollect(
   }
   const cooldown = result.skipped.find(skip => skip.nextAttemptAt !== undefined);
   if (result.attempted === 0 && cooldown?.nextAttemptAt) {
-    const seconds = Math.max(1, Math.ceil((Date.parse(cooldown.nextAttemptAt) - (options.nowMs ?? Date.now())) / 1_000));
+    const seconds = Math.max(1, Math.ceil((Date.parse(cooldown.nextAttemptAt) - (options.clock ?? Date.now)()) / 1_000));
     return json(
       { error: 'posthog_query_cooldown', reason: cooldown.reason, detail: cooldown.detail, nextAttemptAt: cooldown.nextAttemptAt, asset, families: tags },
       429,

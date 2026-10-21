@@ -155,9 +155,8 @@ export interface PosthogDumpsOptions {
   laneRegister?: LaneRegister;
   configSources?: ConfigSourceMap;
   scope?: PosthogCollectScope;
-  /** The lease clock. Windows are dated from `nowMs`; a lease is dated when it
-   * is taken, because a later asset in a long run must still hold its lease for
-   * the full `POSTHOG_LEASE_MS`. */
+  /** Live clock for leases and provider cooldowns. Report windows remain
+   * dated from `nowMs`; provider delays start when the response arrives. */
   clock?: () => number;
   /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
@@ -244,7 +243,7 @@ interface RetryPass {
 /** Shared state for one run: whether PostHog has told us to stop. */
 interface RunState {
   stop: PosthogQueryCooldown | null;
-  nowMs: number;
+  clock: () => number;
   budgetRemainingBytes: number | null;
   bytesRead: number;
   retry: RetryPass;
@@ -291,7 +290,7 @@ export async function runPosthogDumps(
   const skipped: PosthogSkip[] = [];
   const state: RunState = {
     stop: null,
-    nowMs,
+    clock,
     budgetRemainingBytes: null,
     bytesRead: 0,
     retry: {
@@ -375,7 +374,7 @@ export async function runPosthogDumps(
     try {
       // Check under the asset lease: the previous owner saves its provider
       // delay before releasing, so a waiting caller cannot miss that delay.
-      const cooldown = await posthogCooldown(env.STORE, settings, nowMs);
+      const cooldown = await posthogCooldown(env.STORE, settings, clock());
       if (cooldown !== null) {
         for (const family of families) skipped.push({ asset: candidate.asset, family, ...cooldown });
         continue;
@@ -1032,7 +1031,7 @@ async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDump
       signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
     });
     readBudget(response, state);
-    const payload = await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
+    const payload = await posthogResponseBody(response, state);
     if (!response.ok) throw posthogProviderError(response, payload, state);
 
     const results = queryResults(payload, query.columns);
@@ -1111,7 +1110,7 @@ async function readProjectTimeZone(
     headers: { authorization: `Bearer ${key}` },
     signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
   });
-  const payload = await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
+  const payload = await posthogResponseBody(response, state);
   if (!response.ok) {
     if (response.status === 404) {
       throw new SignalError(
@@ -1132,7 +1131,24 @@ function readBudget(response: Response, state: RunState): void {
   if (response.headers.has(BYTES_READ_HEADER) && Number.isFinite(read)) state.bytesRead += read;
   // Nothing left means the next query would be refused: stop before asking.
   if (response.ok && state.budgetRemainingBytes !== null && state.budgetRemainingBytes <= 0 && state.stop === null) {
-    state.stop = { reason: 'budget-exhausted', detail: 'PostHog reported no query budget left this hour.', nextAttemptAt: posthogRetryAt(response, state.nowMs) };
+    state.stop = { reason: 'budget-exhausted', detail: 'PostHog reported no query budget left this hour.', nextAttemptAt: posthogRetryAt(response, state.clock()) };
+  }
+}
+
+async function posthogResponseBody(response: Response, state: RunState): Promise<unknown> {
+  stopOnRateLimit(response, state);
+  try {
+    return await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
+  } catch (error) {
+    if (response.status === 429) throw posthogProviderError(response, {}, state);
+    throw error;
+  }
+}
+
+/** Status and headers remain usable when the refusal body cannot be decoded. */
+function stopOnRateLimit(response: Response, state: RunState): void {
+  if (response.status === 429) {
+    state.stop = { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.', nextAttemptAt: posthogRetryAt(response, state.clock()) };
   }
 }
 
@@ -1151,8 +1167,8 @@ function posthogProviderError(response: Response, payload: unknown, state: RunSt
   if (status === 429) {
     const budget = stringField(record, 'code') === 'api_queries_budget_exceeded';
     state.stop = budget
-      ? { reason: 'budget-exhausted', detail: 'PostHog’s hourly query budget is used up; the rest of this run was not asked.', nextAttemptAt: posthogRetryAt(response, state.nowMs) }
-      : { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.', nextAttemptAt: posthogRetryAt(response, state.nowMs) };
+      ? { reason: 'budget-exhausted', detail: 'PostHog’s hourly query budget is used up; the rest of this run was not asked.', nextAttemptAt: state.stop?.nextAttemptAt ?? posthogRetryAt(response, state.clock()) }
+      : { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.', nextAttemptAt: state.stop?.nextAttemptAt ?? posthogRetryAt(response, state.clock()) };
     return new SignalError(
       budget ? 'posthog_query_budget_exceeded' : 'posthog_rate_limit',
       `PostHog rejected the query (HTTP 429${budget ? ', hourly query budget used up' : ', request rate limit'}). ${detail}`.slice(0, 500),
