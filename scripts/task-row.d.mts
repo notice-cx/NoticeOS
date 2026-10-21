@@ -2,7 +2,7 @@
 import type { LiveTask, LiveEpic, TaskDependency, TaskComment } from "../apps/tower/shared/tasks";
 declare function text(value: unknown, fallback?: string): string;
 declare function dependencies(value: unknown): TaskDependency[];
-export declare function toLiveTask(row: unknown, ready: ReadonlySet<string>): LiveTask;
+export declare function toLiveTask(row: unknown, ready: ReadonlySet<string>, context?: readonly unknown[]): LiveTask;
 export declare function toEpic(row: unknown): LiveEpic | null;
 export declare function toComment(row: unknown): TaskComment;
 export { text as taskRowText, dependencies as taskRowDependencies };

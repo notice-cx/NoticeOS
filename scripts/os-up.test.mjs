@@ -1881,7 +1881,7 @@ test('a gate’s inbox row is its reason, not the word gate', () => {
   assert.equal(entry.waiting[0].issueType, 'gate');
 });
 
-test('a gate created without a reason keeps its own label', () => {
+test('a gate created without a reason identifies its known blocked task', () => {
   const gates = JSON.stringify([
     {
       id: 'zz-g1',
@@ -1894,8 +1894,7 @@ test('a gate created without a reason keeps its own label', () => {
     },
   ]);
   const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, gates: ok(gates) });
-  // Never invent a label for a gate whose author gave it none.
-  assert.equal(entry.waiting[0].title, 'Gate: human');
+  assert.equal(entry.waiting[0].title, 'Review approval for zz-hpf');
 });
 
 test('a reason is read from bd’s own format and bounded', () => {
@@ -3185,7 +3184,7 @@ function filerDeps(overrides = {}) {
   const lines = [];
   const ran = [];
   const fetched = [];
-  return {
+  const fixture = {
     lines,
     ran,
     fetched,
@@ -3214,6 +3213,7 @@ function filerDeps(overrides = {}) {
       },
       // Every collection here is already in its property's published panel;
       // runner-panel-review.test.mjs covers the wait.
+      readVersion: async () => null,
       readPublished: (asset) =>
         Promise.resolve({ asset, sources: [{ key: 'dataforseo', collected: true, newestReportDate: '2026-08-03' }] }),
       state: { skipping: null, unmapped: new Set() },
@@ -3222,6 +3222,12 @@ function filerDeps(overrides = {}) {
       ...overrides,
     },
   };
+  fixture.deps.createReview ??= async (project, landing) => {
+    const result = await fixture.deps.run(panelReviewCreateArgs(path.resolve(REPO_ROOT, project.repo), landing));
+    if (result.code !== 0) throw new Error(`task client create exited ${result.code}`);
+    return JSON.parse(result.stdout).id;
+  };
+  return fixture;
 }
 
 test('a landed panel with no review becomes one bead in the property’s tracker', async () => {
@@ -3407,7 +3413,7 @@ test('a bd create that failed is a line, never a claimed bead', async () => {
   });
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result.filed, []);
-  assert.match(lines[0], /^ERROR panel review: northwind\.example — bd panel review create exited 1/);
+  assert.match(lines[0], /^ERROR panel review: northwind\.example — review create failed: task client create exited 1/);
 });
 
 test('a property with a collection and no tracker is named once, not hourly', async () => {

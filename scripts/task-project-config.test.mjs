@@ -8,12 +8,16 @@ import { parseBeadsProjects } from './runner/task-hub.mjs';
 import { collectBeadsSnapshot, runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
+let fixtureRoot;
+test.before(async () => { fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-task-config-suite-')); });
+test.after(async () => { await fs.rm(fixtureRoot, { recursive: true, force: true }); });
+
 const old = { asset: 'old.example', prefix: 'old', database: 'old', repo: '../old' };
 const current = { asset: 'current.example', prefix: 'cur', database: 'cur', repo: '../untrusted-request' };
 const host = { repositories: [{ asset: current.asset, prefix: current.prefix, database: current.database, repo: '../linked-checkout' }] };
 
 function options(body, extra = {}) {
-  return { token: 'op', readHost: async () => JSON.stringify(host),
+  return { repoRoot: fixtureRoot, env: {}, token: 'op', readHost: async () => JSON.stringify(host),
     fetchImpl: async (url, init) => {
       assert.equal(new URL(url).pathname, '/api/config-documents');
       assert.equal(init.method, 'GET');
@@ -29,7 +33,8 @@ test('stored membership wins over exported map while repository paths come only 
   await fs.writeFile(path.join(repoRoot, 'config/task-host.json'), JSON.stringify(host));
   const config = options({ spokes: [current], hub: { host: 'untrusted.example' } }, { repoRoot, readHost: undefined });
   const projects = await readTaskProjects(config);
-  assert.deepEqual(projects, [{ ...current, repo: '../linked-checkout' }]);
+  assert.deepEqual(projects.map(({ cwd, ...row }) => row), [{ ...current, repo: '../linked-checkout' }]);
+  assert.ok(projects[0].cwd.startsWith(path.join(repoRoot, 'installation/task-projects/')));
   assert.deepEqual(parseBeadsProjects(await readTaskProjectConfig(config)), projects);
   assert.equal(JSON.stringify(projects).includes('untrusted'), false);
 });
@@ -38,12 +43,12 @@ test('unknown or reassigned project links cannot choose a directory, and do not 
   const projects = resolveTaskProjects({ spokes: [current, old] }, host);
   assert.equal(projects[0].repo, '../linked-checkout');
   assert.equal(projects[1].repo, '');
-  assert.match(projects[1].unavailableReason, /no checkout linked on this host/);
+  assert.match(projects[1].unavailableReason, /no matching task connection on this host/);
   const moved = resolveTaskProjects({ spokes: [{ ...current, prefix: 'new' }] }, host);
   assert.equal(moved[0].repo, '');
   const otherDatabase = resolveTaskProjects({ spokes: [{ ...current, database: 'other' }] }, host);
   assert.equal(otherDatabase[0].repo, '');
-  assert.match(otherDatabase[0].unavailableReason, /no checkout linked on this host/);
+  assert.match(otherDatabase[0].unavailableReason, /no matching task connection on this host/);
   const argv = [];
   const snapshot = await collectBeadsSnapshot({ projects, repoRoot: '/host',
     run: async (args) => { argv.push(args); return { code: 0, stdout: '[]', stderr: '' }; },
@@ -52,7 +57,7 @@ test('unknown or reassigned project links cannot choose a directory, and do not 
   assert.ok(argv.every((args) => args[1] === '/linked-checkout'));
   assert.equal(snapshot.projects[0].ok, true);
   assert.equal(snapshot.projects[1].ok, false);
-  assert.match(snapshot.projects[1].error, /no checkout linked on this host/);
+  assert.match(snapshot.projects[1].error, /no matching task connection on this host/);
 });
 
 test('empty membership stays empty; unavailable or invalid configuration never falls back to a file', async () => {
@@ -78,7 +83,7 @@ test('the runner polls the acknowledged map and publishes per-project setup erro
   });
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].projects.map((row) => [row.asset, row.ok]), [[old.asset, false], [current.asset, true]]);
-  assert.ok(argv.every((args) => args[1].endsWith('/linked-checkout')));
+  assert.ok(argv.every((args) => args[1].startsWith(path.join(fixtureRoot, 'installation/task-projects/'))));
 });
 
 test('physical backup inventory remains available without the workspace store and retains removed projects', async () => {

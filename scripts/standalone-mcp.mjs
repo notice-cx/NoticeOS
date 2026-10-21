@@ -16,7 +16,7 @@ import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory } from './standalone-tasks.mjs';
 import { taskChildEnvironment } from './task-client.mjs';
-import { readTaskProjects } from './task-project-config.mjs';
+import { readTaskProjects, taskProjectDirectory } from './task-project-config.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createPanelOperations } from './panel-mcp.mjs';
 import { PANEL_REPORTS_ROOT } from './signal-panel-paths.mjs';
@@ -41,8 +41,8 @@ export function linkedProjects({ read = () => readTaskProjects(), root = REPO_RO
     return async () => {
         if (cached && now() - cached.at < PROJECTS_TTL_MS)
             return cached.projects;
-        const projects = Object.freeze((await read()).flatMap(({ asset, prefix, database, repo }) => repo && database
-            ? [Object.freeze({ projectId: standaloneProjectId(database), asset, prefix, cwd: path.resolve(root, repo) })] : []));
+        const projects = Object.freeze((await read()).flatMap(project => !project.unavailableReason && project.database && (project.cwd || project.repo)
+            ? [Object.freeze({ projectId: standaloneProjectId(project.database), asset: project.asset, prefix: project.prefix, cwd: taskProjectDirectory(project, root), identityCwd: project.repo ? path.resolve(root, project.repo) : root })] : []));
         cached = { at: now(), projects };
         return projects;
     };
@@ -90,7 +90,8 @@ export async function withLocalTaskMutation(work) {
         await store.close();
     }
 }
-export async function openStandaloneMcp(options) {
+/** The installation's task operations, shared by MCP and automatic filing. */
+export async function openStandaloneTasks(options) {
     const opened = options.store ? null : openStore(options.databaseUrl ?? '', { maxConnections: 2 });
     const store = options.store ?? opened;
     let workspaceId;
@@ -117,15 +118,19 @@ export async function openStandaloneMcp(options) {
                 if (!project)
                     return false;
                 // The Tower records a standalone person's comments with this same local identity.
-                const owner = await new Promise(resolve => execFile('git', ['config', 'user.name'], { cwd: project.cwd, timeout: 2000,
+                const owner = await new Promise(resolve => execFile('git', ['config', 'user.name'], { cwd: project.identityCwd ?? project.cwd, timeout: 2000,
                     encoding: 'utf8', maxBuffer: 4096 }, (error, stdout) => resolve(error ? '' : stdout.trim())));
                 return owner !== '' && operation.owner === owner;
             } }),
         receipts: options.receipts ?? taskReceipts(opened) });
+    return Object.freeze({ admission, operations, workspaceId, close: () => store.close() });
+}
+export async function openStandaloneMcp(options) {
+    const { admission, operations, workspaceId, close } = await openStandaloneTasks(options);
     const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;
     const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;
     const handle = createHostedMcp({ profile: 'standalone', trustedOrigin: STANDALONE_MCP_ORIGIN, standaloneWorkspaceId: workspaceId,
         operations, readModels: async (request) => fetch(tower + MCP_PATH, { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }),
         panels: createPanelOperations({ admission, root: () => panelRoot }) });
-    return Object.freeze({ handle, close: () => store.close() });
+    return Object.freeze({ handle, close });
 }

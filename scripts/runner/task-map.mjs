@@ -5,9 +5,8 @@
 // that will not answer decides nothing.
 
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { TASK_METADATA, taskMetadataValue } from '../../packages/contract/src/task-metadata.mjs';
-import { beadsDatabaseName, readTaskProjectConfig } from '../task-project-config.mjs';
+import { beadsDatabaseName, readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
@@ -275,8 +274,9 @@ async function checkProjectGates(spokes, { run, exists, stopped, emit, failures 
   const projects = [];
   for (const project of spokes) {
     if (stopped()) break;
-    const repoDir = path.resolve(HOME_ROOT, project.repo);
-    if (project.unavailableReason || !exists(repoDir)) continue;
+    if (project.unavailableReason) continue;
+    const repoDir = taskProjectDirectory(project, HOME_ROOT);
+    if (!exists(repoDir)) continue;
     let ok = false;
     try {
       ok = (await run(['-C', repoDir, 'gate', 'check'], 20_000)).code === 0;
@@ -299,7 +299,7 @@ async function reconcileTaskMap(spokes, { run, now, emit, homeAsset, skip, resum
   const self = spokes.find((spoke) => spoke.asset === home);
   if (!self || self.unavailableReason) return skip(`config/beads.json has no "${home}" project to file into`);
 
-  const selfRepo = path.resolve(HOME_ROOT, self.repo);
+  const selfRepo = taskProjectDirectory(self, HOME_ROOT);
   let answer;
   try {
     answer = await run(beadsShowDatabasesArgs(selfRepo));

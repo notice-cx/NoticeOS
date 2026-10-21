@@ -158,21 +158,9 @@ export async function checkBeadsHub({ force = false } = {}) {
 /** A hung `bd` must not stall the tick into the next one. */
 const BEADS_CALL_TIMEOUT_MS = 20_000;
 
-/**
- * The saved task projects (config/beads.json's `spokes`), as every lane reads
- * them. A missing or malformed document is []. A spoke missing `asset`,
- * `prefix` or `repo` is dropped rather than half-polled.
- *
- * `database` is carried rather than required: the poll never uses it (`bd`
- * resolves the database from the repo's own `.beads/config.yaml`), so a
- * project's board is not dropped over a field only the drift check reads. It
- * travels as `null` when it is not usable, and `beadsDatabaseName` is the
- * single answer to what that means.
- *
- * There is no charset guard on `repo`: it only ever becomes one element of a
- * spawn argv array with no shell. If it is ever moved into a shell string or a
- * query, it needs its own guard first.
- */
+/** The runner's resolved project roster. Installation client directories are
+ * carried intact; relative repo paths remain supported for injected fixtures.
+ * Database names also serve the independent physical inventory checks. */
 export function parseBeadsProjects(raw) {
   let cfg;
   try {
@@ -186,17 +174,19 @@ export function parseBeadsProjects(raw) {
   for (const spoke of cfg.spokes) {
     const asset = spoke?.asset;
     const prefix = spoke?.prefix;
-    const repo = spoke?.repo;
+    const repo = spoke?.repo ?? '';
+    const cwd = spoke?.cwd;
     const database = spoke?.database;
     if (typeof asset !== 'string' || asset.trim() === '') continue;
     if (typeof prefix !== 'string' || prefix.trim() === '') continue;
-    if (typeof repo !== 'string' || (repo.trim() === '' && !spoke.unavailableReason)) continue;
+    if (typeof repo !== 'string' || (repo.trim() === '' && !(typeof cwd === 'string' && cwd.trim()) && !spoke.unavailableReason)) continue;
     if (seen.has(asset)) continue;
     seen.add(asset);
     projects.push({
       asset: asset.trim(),
       prefix: prefix.trim(),
       repo: repo.trim(),
+      ...(typeof cwd === 'string' && cwd.trim() ? { cwd: cwd.trim() } : {}),
       ...(typeof spoke.unavailableReason === 'string' ? { unavailableReason: spoke.unavailableReason } : {}),
       // "the backup would use this" and "this is a usable name" are one
       // question with one answer, and it is spelled out in exactly one place.

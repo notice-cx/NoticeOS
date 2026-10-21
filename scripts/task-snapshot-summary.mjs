@@ -589,7 +589,7 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
           const issue = beadsIssue(row, links);
           // "Gate: human" names the mechanism rather than the ask; its reason
           // is the ask, so it takes the title slot.
-          return { ...issue, title: gateTitle(issue.title, row?.description) };
+          return { ...issue, title: gateTitle(row?.title, row?.description, { id: issue.id, tasks: [...rows('active'), ...rows('blocked'), ...rows('ready')], dependents: row?.dependents }) };
         })
         .filter((issue) => issue.id !== '')
     : [];

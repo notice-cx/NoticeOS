@@ -280,8 +280,9 @@ export function createHostedTaskOperations(options) {
                 .filter((id) => typeof id === 'string'));
             const closedSince = new Date(Date.parse(readAt) - closedDays * DAY_MS).toISOString().slice(0, 10);
             const tasks = new Map();
-            for (const row of active.length ? rows(await run({ kind: 'active-board', statuses: active })) : []) {
-                const task = toLiveTask(row, ready);
+            const activeRows = active.length ? rows(await run({ kind: 'active-board', statuses: active })) : [];
+            for (const row of activeRows) {
+                const task = toLiveTask(row, ready, activeRows);
                 if (!task.id)
                     invalid();
                 tasks.set(task.id, task);

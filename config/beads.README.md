@@ -4,16 +4,15 @@ Beads supplies NoticeOS's common model for internal and external work; Dolt is
 its central task authority. One Dolt SQL server — the
 **hub** — holds every project's tasks ([Compose profile](../db/dolt/host/README.md);
 an existing installation may keep a host-managed server,
-[legacy profile](dolt-server.README.md)). Every repo is a **spoke**: a `bd`
-client in server mode holding no database of its own, only connection
-settings. This file maps the three names one project answers to — its
+[legacy profile](dolt-server.README.md)). Each project uses a `bd` client in server mode, with connection settings
+in an installation-owned folder and no database of its own. This file maps the three names one project answers to — its
 **asset id**, its **bead prefix** and its **database** on the hub. Start with
 [Connect a task project](../docs/guides/connect-a-task-project.md) for the complete path.
 
 `config/beads.json` is the product default (the local hub, no projects) and
 `installation/beads.json` this installation's export. Settings, local
 task actions, polling and task filers read the saved document; the runner does
-not fall back to an export when the store is absent. Local checkout links live
+not fall back to an export when the store is absent. Host database bindings live
 separately in [`task-host.json`](task-host.README.md); deployed responses omit
 host fields.
 
@@ -66,7 +65,7 @@ stopped.
   backlogs. The task-map lane reconciles the declared databases against the
   hub's `SHOW DATABASES` and files a `human` bead for a missing one.
 - **`repo`** — legacy metadata kept for document history and guarded Undo,
-  never used for execution. Checkout paths belong to `task-host.json`.
+  never used for execution. An optional checkout path in `task-host.json` is also metadata only.
 
 Local execution requires asset, prefix and database to match the host link
 exactly; a mismatched link leaves that project unavailable while others run.
@@ -83,78 +82,24 @@ details. Adding a row does not provision a database or checkout: the local
 page supplies the setup steps left for the host. Editing an export has no
 runtime effect until a guarded `pnpm config:apply`.
 
-## How a new project joins
+## How a project connects
 
-Add its entry in **Settings → Task projects**, then run the setup checklist's
-command in the project checkout while the hub is running. For a Compose
-installation it calls `scripts/dolt-project.mjs`, which supplies the
-installation's password only to the initialization process (the pinned Beads
-CLI does not read its credentials file during `init`). The legacy managed
-host uses:
-
-```
-bd init --server --external --server-host 127.0.0.1 --server-port 3308 \
-  --server-user root --prefix <PREFIX> --non-interactive --skip-agents --skip-hooks
-```
-
-For later manual `bd` commands on a Compose installation, set
-`BEADS_CREDENTIALS_FILE` to the installation folder's `state/dolt/credentials`.
-
-`--external` keeps the hub-and-spoke shape honest: without it `bd` silently
-starts its own Dolt server when the configured one is unreachable, and the
-project stops sharing the hub while appearing to work. `--skip-agents` keeps
-`bd` from writing `AGENTS.md`, `CLAUDE.md`, `.claude/` and `.codex/`
-scaffolding into the repo; `--skip-hooks` keeps it from repointing
-`core.hooksPath` at `.beads/hooks`, which silently disables the repo's own
-hooks.
-
-**After a legacy `bd init`, fix `.beads/config.yaml`** (the Compose helper
-applies this spoke standard itself):
-
-1. **No `sync.remote`, ever.** `bd init` writes one pointing at the repo's git
-   remote; delete it. With it present, `bd dolt push/pull` has a live target
-   and would fork a private, diverging issue store beside the hub.
-2. **`no-git-ops: true`** — silences the hook's "no Dolt remote configured …
-   repair: `bd dolt push`" advice (that repair is the fork above) and keeps
-   `bd` from running its own git operations.
-3. **`import.auto: false`** — `import.auto` defaults to true: on every git
-   pull/merge/checkout `bd` could upsert-import a stale JSONL export into the
-   shared hub. The hub is authoritative; automatic imports are always wrong.
-
-The three land **together**: removing `sync.remote` without the key pair
-silently arms the reimport hazard.
-
-**Link the checkout on this host** by adding a matching asset, prefix,
-database and repository path to `installation/task-host.json`
-([field contract](task-host.README.md)). This explicit host step grants access
-to the checkout; a database setting cannot select an arbitrary directory.
+Save the asset, prefix and database in **Settings → Task projects**, and record
+those exact names in the host's `task-host.json` inventory. No checkout is
+required. The shared resolver generates private client settings under the
+installation's `task-projects/` directory. MCP, the native Tasks board, runner
+snapshots and review filing execute there using the declared task service.
+Saving a project never initializes or migrates a database. Database provisioning
+remains a separate operator-owned operation.
 
 ### Moving a maintainer checkout
 
-Moving source to another checkout does not create a new task project: the
-existing database, prefix and project identity remain authoritative. Public
-contributors follow [CONTRIBUTING.md](../CONTRIBUTING.md) without private hub
-access.
-
-1. Establish the exact existing service and database from the previous
-   checkout's connection metadata and protected host-client declaration, and
-   obtain the operator's authorization for the new checkout's access.
-2. Create the new checkout's private `.beads/` and copy only the existing
-   `metadata.json`. Set `no-git-ops: true`, `import.auto: false` and
-   `export.auto: false` in its `config.yaml`, with the same connection and
-   prefix; keep `sync.remote` absent. Do not run `bd init`, import a JSONL
-   export, copy a database, or create another project.
-3. For the bundled Docker adapter, add the exact checkout path to the
-   protected host plan's `spokes` list and create its regular
-   `.beads.gate.lock` file. Preserve the accepted image, network, client
-   profile, credentials and other allowed paths; do not restart the hub.
-4. From the new checkout, run `bd ready`, `bd list` and `bd show` for a known
-   task; claim with the actual agent's `--actor`; verify another spoke still
-   works.
-
-The host client's allowed checkout list and the application's
-[`task-host.json`](task-host.README.md) inventory are distinct access
-boundaries: changing the client list grants agent CLI access only.
+Moving source does not change the task connection. Use the existing MCP
+project id, derived from its database; keep the registered database and prefix.
+No `.beads/` metadata, gate lock or ignore entries need to be copied into the
+new checkout. `project:prepare` supplies an optional instruction pointer only.
+Public contributors follow [CONTRIBUTING.md](../CONTRIBUTING.md) without private
+hub access. See [Connect a task project](../docs/guides/connect-a-task-project.md).
 
 ### The spoke stanza
 
@@ -174,7 +119,7 @@ first, then re-stamp the spokes.
 
 ## Semantics worth knowing
 
-- **The spoke's `.beads/` holds no issues** — connection settings plus a
+- **The installation-owned client's `.beads/` holds no issues** — connection settings plus a
   `README` and a `.gitignore`. Deleting it loses nothing but the pointer;
   deleting the hub's data directory loses every task in the portfolio.
 - **The hub must be up before `bd` is useful.** With the service stopped,
@@ -197,13 +142,12 @@ first, then re-stamp the spokes.
 
 ## The Tower's task lane — the operator's hands, not an agent's
 
-`bd` is the only write path an agent uses: an agent claims and closes work in
-the repo where the work happens, because that is where it has the context to be
-honest about what it did. The operator also has a UI. The hub is a Dolt server
+Agents use the MCP task tools to claim and close work with evidence. The
+installation executes the underlying task-client commands. The operator also has a UI. The hub is a Dolt server
 on the installation's network that a Worker cannot reach, but the Tower's dev
 server in the app container can: a local lane (`apps/tower/vite/task-lane.ts`, serving
 `/api/tasks/*` and `/api/gates/*`) runs `bd` for the operator inside the
-checkout `task-host.json` links to each saved project, the same projects the
+installation-owned client directory for each saved project, the same projects the
 poller reads. Three guards, all load-bearing:
 
 - **Same origin** (`apps/tower/vite/lane.ts`, the guard the config lane uses),

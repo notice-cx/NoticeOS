@@ -1,15 +1,18 @@
-// Stored project membership is separate from the host's permission to open a
-// checkout. This adapter is Node-only and is never part of a deployed Worker.
+// Stored project membership and the host inventory select a task database.
+// Client folders belong to the installation; project checkouts are optional.
 //
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the local runner and backups import and the `.d.mts` the Tower's Vite
 // task lane reads.
 
 import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { declaredTaskClient, type TaskClientEnvironment } from './task-client.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
-import { TASK_HOST_FILE as HOST_FILE, readablePath } from './installation.mjs';
+import { TASK_HOST_FILE as HOST_FILE, readablePath, installationPath } from './installation.mjs';
 
 /** Stored and host JSON as this adapter probes it: any shape, every key guarded. */
 type Probe = { readonly [key: string]: unknown } | null | undefined;
@@ -20,6 +23,8 @@ export interface TaskProject {
   prefix: string;
   database: string | null;
   repo: string;
+  /** Installation-owned task client directory; the optional checkout is never executed. */
+  cwd?: string;
   unavailableReason?: string;
 }
 export interface TaskProjectReadOptions {
@@ -28,6 +33,7 @@ export interface TaskProjectReadOptions {
   token?: string;
   fetchImpl?: typeof fetch;
   readHost?: () => Promise<string>;
+  env?: TaskClientEnvironment;
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -35,8 +41,8 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 /** The host's task repository links for the checkout at `repoRoot`: this
  * installation's `task-host.json`, else the product's empty default. The home
  * checkout for the live runner and its lanes. */
-export function taskHostFile(repoRoot: string = REPO_ROOT): string {
-  return readablePath(HOST_FILE, { root: repoRoot });
+export function taskHostFile(repoRoot: string = REPO_ROOT, env: TaskClientEnvironment = process.env): string {
+  return readablePath(HOST_FILE, { root: repoRoot, env });
 }
 
 /** Canonical physical database identifier for backup, poll and drift readers. */
@@ -46,8 +52,8 @@ export function beadsDatabaseName(value: unknown): string | null {
   return /^[A-Za-z0-9_]+$/.test(name) ? name : null;
 }
 
-/** Resolve saved logical rows only against repositories explicitly linked on
- * this host. A stored repo/hub value never grants local filesystem access. */
+/** A saved project must match this host's asset, prefix and database binding.
+ * Saved repo/hub values never select filesystem paths or service endpoints. */
 export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject[] {
   if (!stored || !Array.isArray((stored as Row).spokes)) throw new Error('Saved task projects are invalid.');
   if (!host || !Array.isArray((host as Row).repositories)) throw new Error('Local task repository links are unavailable.');
@@ -55,7 +61,7 @@ export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject
   for (const row of (host as Row).repositories as Probe[]) {
     if (typeof row?.asset !== 'string' || typeof row?.prefix !== 'string'
       || typeof row?.database !== 'string' || !/^[a-z][a-z0-9_]*$/.test(row.database)
-      || typeof row?.repo !== 'string' || !row.repo.trim() || links.has(row.asset)) {
+      || (row.repo !== undefined && typeof row.repo !== 'string') || links.has(row.asset)) {
       throw new Error('Local task repository links are invalid or ambiguous.');
     }
     links.set(row.asset, row);
@@ -75,12 +81,8 @@ export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject
     return {
       asset: row.asset, prefix: row.prefix,
       database: typeof row.database === 'string' ? row.database : null,
-      repo: available ? linked!.repo as string : '',
-      // The state, not an instruction: the Tasks board shows it on the
-      // project, and the lane answers a task action with it beside the
-      // `project_not_linked` code. Linking a checkout is the host-only task
-      // inventory (config/task-host.README.md), which no Tower control reaches.
-      ...(!available ? { unavailableReason: `${row.asset} has no checkout linked on this host` } : {}),
+      repo: available && typeof linked!.repo === 'string' ? linked!.repo : '',
+      ...(!available ? { unavailableReason: `${row.asset} has no matching task connection on this host` } : {}),
     };
   });
 }
@@ -89,14 +91,14 @@ export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject
  * The host's repository links. `absentLinksNone`: no inventory file at all
  * links nothing — a folder `pnpm db:try-tower` made is not a checkout and has neither
  * its own copy nor the product's default, so its task
- * screens say a project has no checkout linked instead of failing on a missing
+ * screens report a missing task connection instead of failing on a missing
  * file. Without it a missing file throws: the managed host's backup must not
  * read a lost inventory as an empty one.
  */
-export async function readTaskHost({ repoRoot = REPO_ROOT, readHost, absentLinksNone = false }: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost'> & { absentLinksNone?: boolean } = {}): Promise<{ repositories: unknown[] }> {
+export async function readTaskHost({ repoRoot = REPO_ROOT, readHost, env = process.env, absentLinksNone = false }: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost' | 'env'> & { absentLinksNone?: boolean } = {}): Promise<{ repositories: unknown[] }> {
   let raw: string;
   try {
-    raw = await (readHost ?? (() => fs.readFile(taskHostFile(repoRoot), 'utf8')))();
+    raw = await (readHost ?? (() => fs.readFile(taskHostFile(repoRoot, env), 'utf8')))();
   } catch (error) {
     if (absentLinksNone && (error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return { repositories: [] };
     throw error;
@@ -108,11 +110,74 @@ export async function readTaskHost({ repoRoot = REPO_ROOT, readHost, absentLinks
   return host;
 }
 
-export async function readTaskProjects({ repoRoot = REPO_ROOT, readHost, ...storeOptions }: TaskProjectReadOptions = {}): Promise<TaskProject[]> {
+export async function readTaskProjects({ repoRoot = REPO_ROOT, readHost, env = process.env, ...storeOptions }: TaskProjectReadOptions = {}): Promise<TaskProject[]> {
   const snapshot = await readConfigSnapshot(storeOptions);
   const saved = snapshot.get('config/beads.json');
   if (!saved) throw new Error('Task projects are not stored yet. Run pnpm config:seed before using task projects.');
-  return resolveTaskProjects(saved.body, await readTaskHost({ repoRoot, readHost, absentLinksNone: true }));
+  const projects = resolveTaskProjects(saved.body, await readTaskHost({ repoRoot, readHost, env, absentLinksNone: true }));
+  for (const project of projects) {
+    if (project.unavailableReason) continue;
+    try { project.cwd = await prepareTaskDirectory(project, { repoRoot, env }); }
+    catch { project.unavailableReason = `${project.asset} task client configuration is unavailable`; }
+  }
+  return projects;
+}
+
+/** The execution directory shared by native tasks, MCP and runner adapters.
+ * Relative repo paths remain supported for injected legacy runner fixtures. */
+export function taskProjectDirectory(project: Pick<TaskProject, 'repo' | 'cwd'>, root: string): string {
+  const directory = project.cwd || project.repo;
+  if (!directory) throw new Error('The task project has no client directory.');
+  return path.resolve(root, directory);
+}
+
+async function regularDirectory(directory: string): Promise<void> {
+  const parent = path.dirname(directory);
+  if (parent !== directory) await regularDirectory(parent);
+  await fs.mkdir(directory, { mode: 0o700 }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'EEXIST') throw error;
+  });
+  const stat = await fs.lstat(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Task client paths must be regular directories.');
+}
+
+/** Local configuration only: never initializes, imports or migrates a database.
+ * Each binding has an immutable folder, so an in-flight command cannot follow
+ * a newly saved database/prefix or a changed service connection. */
+async function prepareTaskDirectory(project: TaskProject, { repoRoot, env }: { repoRoot: string; env: TaskClientEnvironment }): Promise<string> {
+  const client = declaredTaskClient(env);
+  const connection = { dolt_server_host: client?.host ?? '127.0.0.1', dolt_server_port: client?.port ?? 3308,
+    dolt_server_user: client?.user ?? 'root' };
+  const metadata = JSON.stringify({ database: 'dolt', backend: 'dolt', dolt_mode: 'server', dolt_database: project.database, ...connection }) + '\n';
+  const config = `issue-prefix: ${project.prefix}\nno-git-ops: true\nimport.auto: false\nexport.auto: false\ndolt.auto-start: false\n`;
+  const key = createHash('sha256').update(metadata).update(config).digest('hex');
+  const root = installationPath('task-projects', { root: repoRoot, env });
+  await regularDirectory(root);
+  const directory = path.join(root, key);
+  const expected: Readonly<Record<string, string>> = { 'metadata.json': metadata, 'config.yaml': config };
+  let stage: string | null = await fs.mkdtemp(path.join(root, '.prepare-'));
+  try {
+    await fs.mkdir(path.join(stage, '.beads'), { mode: 0o700 });
+    for (const [name, text] of Object.entries(expected)) await fs.writeFile(path.join(stage, '.beads', name), text, { mode: 0o600, flag: 'wx' });
+    try { await fs.rename(stage, directory); stage = null; }
+    catch (error) { if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error; }
+    // Another process may have prepared this same binding. It must contain
+    // exactly the canonical selectors before any command can run there.
+    for (const target of [directory, path.join(directory, '.beads')]) {
+      const stat = await fs.lstat(target);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Invalid task client directory.');
+    }
+    for (const [name, text] of Object.entries(expected)) {
+      const file = await fs.open(path.join(directory, '.beads', name), constants.O_RDONLY | constants.O_NOFOLLOW);
+      try {
+        const stat = await file.stat();
+        if (!stat.isFile() || stat.nlink !== 1 || stat.size !== Buffer.byteLength(text) || await file.readFile('utf8') !== text) {
+          throw new Error('Task client configuration differs from the project register.');
+        }
+      } finally { await file.close(); }
+    }
+    return directory;
+  } finally { if (stage) await fs.rm(stage, { recursive: true, force: true }); }
 }
 
 /** The runner's existing parsers consume one JSON map; host topology is absent. */

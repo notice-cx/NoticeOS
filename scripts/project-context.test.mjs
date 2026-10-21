@@ -34,6 +34,7 @@ test('check mode changes no files and explicit preparation copies the canonical 
   const planned = await prepareProjectContext(f.repo, f.options);
   assert.equal(planned.mode, 'check');
   assert.equal(planned.tasks, 'not_checked');
+  assert.deepEqual(planned.files, ['AGENTS.md']);
   assert.deepEqual(fs.readdirSync(f.repo), before);
   const prepared = await prepareProjectContext(f.repo, { ...f.options, write: true });
   assert.equal(prepared.mode, 'prepared');
@@ -44,6 +45,8 @@ test('check mode changes no files and explicit preparation copies the canonical 
   assert.doesNotMatch(agents, /\]\([^)]*beads\.README\.md\)/u);
   assert.equal(fs.existsSync(path.join(f.repo, '.beads')), false);
   assert.equal(fs.existsSync(path.join(f.repo, 'CLAUDE.md')), false);
+  assert.equal(fs.existsSync(path.join(f.repo, '.gitignore')), false);
+  assert.equal(fs.existsSync(path.join(f.repo, '.beads.gate.lock')), false);
   assert.deepEqual((await prepareProjectContext(f.repo, { ...f.options, write: true })).files, []);
 });
 
@@ -60,7 +63,7 @@ test('existing agent instructions and uncommitted work survive preparation byte-
   assert.equal(fs.readdirSync(f.repo).some(name => name.includes('.noticeos-')), false);
 });
 
-test('an existing local connection remains untouched and its private lock and ignore rules support the Docker adapter', async t => {
+test('existing connection files and ignore rules remain byte-for-byte unchanged', async t => {
   const f = await fixture(t);
   fs.mkdirSync(path.join(f.repo, '.beads'));
   f.write('.beads/metadata.json', '{"backend":"dolt","dolt_database":"ex_tasks","project_id":"synthetic-original"}');
@@ -70,9 +73,8 @@ test('an existing local connection remains untouched and its private lock and ig
   await prepareProjectContext(f.repo, { ...f.options, write: true });
   assert.deepEqual(fs.readFileSync(path.join(f.repo, '.beads/metadata.json')), metadata);
   assert.equal(fs.readFileSync(path.join(f.repo, '.beads/config.yaml'), 'utf8'), 'no-git-ops: true\nimport.auto: false\nexport.auto: false\n');
-  const lock = fs.lstatSync(path.join(f.repo, '.beads.gate.lock'));
-  assert.equal(lock.mode & 0o777, 0o600); assert.equal(lock.size, 0);
-  assert.equal((await f.git(['check-ignore', '.beads/metadata.json', '.beads.gate.lock'])).code, 0);
+  assert.equal(fs.readFileSync(path.join(f.repo, '.gitignore'), 'utf8'), '*\n!/.beads/\n');
+  assert.equal(fs.existsSync(path.join(f.repo, '.beads.gate.lock')), false);
 });
 
 test('tracked task connections are refused before any context write', async t => {
@@ -94,7 +96,7 @@ test('conflicting or malformed task instruction blocks require review without pa
 });
 
 test('aliases, symlink targets and hard links cannot redirect writes or alter another file', async t => {
-  for (const name of ['AGENTS.md', 'CLAUDE.md', '.gitignore', '.beads.gate.lock']) {
+  for (const name of ['AGENTS.md', 'CLAUDE.md']) {
     for (const link of ['symbolic', 'hard']) {
       const f = await fixture(t);
       const target = path.join(f.base, 'owner-file'); fs.writeFileSync(target, 'preserve owner file', { mode: 0o600 });
@@ -104,18 +106,11 @@ test('aliases, symlink targets and hard links cannot redirect writes or alter an
       assert.equal(fs.readFileSync(target, 'utf8'), 'preserve owner file');
     }
   }
-  for (const name of ['.beads']) {
-    const f = await fixture(t);
-    const target = path.join(f.base, 'other-directory'); fs.mkdirSync(target);
-    fs.symlinkSync(target, path.join(f.repo, name));
-    await assert.rejects(prepareProjectContext(f.repo, { ...f.options, write: true }));
-    assert.deepEqual(fs.readdirSync(target), []);
-  }
   const f = await fixture(t); const alias = path.join(f.base, 'alias'); fs.symlinkSync(f.repo, alias);
   await assert.rejects(prepareProjectContext(alias, { ...f.options, write: true }));
 });
 
-test('a changed managed section or broad-access lock is refused', async t => {
+test('a changed managed section is refused', async t => {
   const f = await fixture(t);
   await prepareProjectContext(f.repo, { ...f.options, write: true });
   const file = path.join(f.repo, 'AGENTS.md');
@@ -123,9 +118,7 @@ test('a changed managed section or broad-access lock is refused', async t => {
   fs.writeFileSync(file, changed);
   await assert.rejects(prepareProjectContext(f.repo, { ...f.options, write: true }));
   assert.equal(fs.readFileSync(file, 'utf8'), changed);
-  const other = await fixture(t); other.write('.beads.gate.lock', '', { mode: 0o644 });
-  await assert.rejects(prepareProjectContext(other.repo, { ...other.options, write: true }));
-  assert.equal(fs.existsSync(path.join(other.repo, 'AGENTS.md')), false);
+
 });
 
 test('CLI requires an explicit check or write and never prints file contents or creates a connection', async t => {

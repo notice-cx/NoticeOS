@@ -13,11 +13,7 @@
 export const GATE_REASON_MAX = 400;
 /** Relationships that keep dependent work from being ready. */
 export const TASK_BLOCKING_DEPENDENCIES = ["blocks", "waits-for", "conditional-blocks"];
-/**
- * The ask inside a gate's description, or null for a gate created without a
- * reason — which keeps that gate's own title as the fallback rather than
- * inventing a label for it.
- */
+/** The recorded reason, unchanged apart from the title's length bound. */
 export function gateReason(description) {
     if (typeof description !== "string")
         return null;
@@ -25,10 +21,30 @@ export function gateReason(description) {
     const reason = match ? (match[1] ?? "").trim() : "";
     return reason === "" ? null : reason.slice(0, GATE_REASON_MAX);
 }
-/** The title a human gate is shown by: the ask it holds, or its own title when
- * it holds none. */
-export function gateTitle(title, description) {
-    return gateReason(description) ?? title;
+function record(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+/** The reason names the requested action. A generic or absent title without a
+ * reason uses known blocked work as context; that context grants no approval. */
+export function gateTitle(title, description, context = {}) {
+    const reason = gateReason(description);
+    if (reason !== null)
+        return reason;
+    const own = typeof title === 'string' ? title.trim() : '';
+    if (own && !/^(?:gate(?:\s*:\s*human)?|human)$/iu.test(own))
+        return own;
+    const target = typeof description === 'string' ? /^Ad-hoc gate blocking ([A-Za-z0-9][A-Za-z0-9._-]*)/u.exec(description)?.[1] : undefined;
+    const tasks = [...(context.tasks ?? []), ...(Array.isArray(context.dependents) ? context.dependents : [])].map(record);
+    const held = tasks.find(task => target !== undefined && task.id === target)
+        ?? tasks.find(task => typeof context.id === 'string' && Array.isArray(task.dependencies) && task.dependencies.some((edge) => {
+            const dependency = record(edge);
+            return (dependency.depends_on_id ?? dependency.id) === context.id
+                && TASK_BLOCKING_DEPENDENCIES.includes(String(dependency.type ?? dependency.dependency_type ?? 'blocks'));
+        }))
+        ?? (Array.isArray(context.dependents) ? record(context.dependents[0]) : undefined);
+    const heldTitle = typeof held?.title === 'string' ? held.title.trim() : '';
+    const subject = heldTitle || target;
+    return subject ? `Review approval for ${subject}`.slice(0, GATE_REASON_MAX) : 'Review approval request';
 }
 /**
  * Whether a task is in the operator's Waiting on you: an open human gate, which

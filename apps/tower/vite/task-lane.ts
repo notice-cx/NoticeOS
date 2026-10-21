@@ -9,7 +9,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readTaskProjects, type TaskProjectReadOptions } from "../../../scripts/task-project-config.mjs";
+import { readTaskProjects, taskProjectDirectory, type TaskProjectReadOptions } from "../../../scripts/task-project-config.mjs";
 import { taskChildEnvironment } from "../../../scripts/task-client.mjs";
 import { validateDemoViewer, type DemoViewerDescriptor } from "../shared/demo-viewer";
 import os from "node:os";
@@ -249,6 +249,7 @@ export interface Spoke {
   /** As configured, relative to the repo root — what the page shows. */
   repo: string;
   unavailableReason?: string;
+  cwd?: string;
 }
 
 /** Saved membership, joined to this host's explicit repository links per request. */
@@ -305,7 +306,7 @@ export function runVerb(
       `This lane runs ${Object.keys(ALLOWED_VERBS).join(", ")} — not "${verb}".`,
     );
   }
-  const repoDir = path.resolve(opts.repoRoot, spoke.repo);
+  const repoDir = taskProjectDirectory(spoke, opts.repoRoot);
   const actor = allowed.write ? (opts.actor ?? operatorActor(opts.repoRoot)) : null;
   const argv = [
     "-C",
@@ -518,7 +519,7 @@ function listTasks(spoke: Spoke, statuses: string, opts: Resolved, closedDays = 
       throw refuse(502, "bd_failed", "The task database returned an unreadable list. Refresh to try again.");
     }
     for (const row of json) {
-      const task = toLiveTask(row, ready);
+      const task = toLiveTask(row, ready, json);
       if (task.id === "") throw refuse(502, "bd_failed", "The task database returned a task without an id.");
       // A closed result cannot resurrect an open row, include an older close,
       // or move the query's upper boundary while several calls are running.
