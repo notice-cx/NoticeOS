@@ -601,12 +601,12 @@ describe("a site off the TV by its own setting", () => {
     expect(view.container.querySelectorAll("[data-wall-work] [data-work-row]")).toHaveLength(1);
   });
 
-  it("is a retired site until its TV switch is turned on", () => {
+  it("keeps an archived site hidden even with its TV switch on", () => {
     const retired = [asset("meadow.example", "Meadow Board"), { ...asset("northwind.example", "Northwind"), status: "retired" }];
     const off = canvas(everything, { assets: retired });
     expect(siteRows(off.container)).toEqual(["meadow.example"]);
     off.unmount();
     const on = canvas(everything, { assets: retired, dashboard: { ...PAYLOAD.dashboard, sites: { "northwind.example": { tv: true } } } });
-    expect(siteRows(on.container)).toEqual(["meadow.example", "northwind.example"]);
+    expect(siteRows(on.container)).toEqual(["meadow.example"]);
   });
 });

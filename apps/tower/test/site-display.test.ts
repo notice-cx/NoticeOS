@@ -1,7 +1,5 @@
-// Where each site shows is read in one place: a switch the operator set wins,
-// and a switch nobody set follows the site's stage, so a retired site shows
-// nowhere until somebody turns one on and a stage move never rewrites a
-// switch. The write that flips one switch is the narrowest the stored map
+// Archived sites stay hidden regardless of saved switches. Restoring a site
+// recovers its saved visibility preferences. The write that flips one switch is the narrowest the stored map
 // allows, and its Undo is its exact reverse.
 
 import { describe, expect, it } from "vitest";
@@ -32,7 +30,7 @@ describe("siteShownOn", () => {
   it("reads a switch the operator set over the stage, one switch at a time", () => {
     const display = { "a.example": { tv: false }, "b.example": { list: true } };
     expect(siteShownOn(site("a.example", "live"), display)).toEqual({ list: true, tv: false, work: true });
-    expect(siteShownOn(site("b.example", "retired"), display)).toEqual({ list: true, tv: false, work: false });
+    expect(siteShownOn(site("b.example", "retired"), display)).toEqual({ list: false, tv: false, work: false });
     expect(siteSwitchesSet(site("b.example", "retired"), display)).toEqual({ list: true });
   });
 
@@ -42,8 +40,8 @@ describe("siteShownOn", () => {
   });
 
   it("keeps a hand-set switch through a stage move both ways", () => {
-    const display = { "a.example": { tv: true } };
-    expect(siteShownOn(site("a.example", "retired"), display).tv).toBe(true);
+    const display = { "a.example": { tv: true, list: true, work: true } };
+    expect(siteShownOn(site("a.example", "retired"), display)).toEqual({ list: false, tv: false, work: false });
     expect(siteShownOn(site("a.example", "live"), display).tv).toBe(true);
     const off = { "a.example": { list: false } };
     expect(siteShownOn(site("a.example", "live"), off).list).toBe(false);

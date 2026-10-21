@@ -258,6 +258,8 @@ export interface WorkPayload {
   pollCadenceHours: number;
   owner: string;
   projects: WorkProject[];
+  /** Archived project identities excluded from rows and live catalog reads. */
+  archivedProjects?: readonly { asset: string; prefix: string }[];
   /** How many calendar days the daily rollup holds. */
   historyDays: number;
 }

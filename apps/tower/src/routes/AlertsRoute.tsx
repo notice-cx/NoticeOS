@@ -1,3 +1,4 @@
+import { isRetired } from "@shared/asset-setup";
 import { useEffect } from "react";
 import type {
   AttentionItem,
@@ -349,7 +350,7 @@ function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; 
               onChange={(event) => setFilter("asset", event.target.value)}
             >
               <option value="all">Every site</option>
-              {data.assets.map((card) => (
+              {data.assets.filter((card) => !isRetired(card.status)).map((card) => (
                 <option key={card.id} value={card.id}>
                   {card.displayName}
                 </option>
@@ -468,7 +469,7 @@ function HistoryView({
               onChange={(event) => setFilter("asset", event.target.value, ["offset"])}
             >
               <option value="all">Every site</option>
-              {assets.map((card) => (
+              {assets.filter((card) => !isRetired(card.status)).map((card) => (
                 <option key={card.id} value={card.id}>
                   {card.displayName}
                 </option>

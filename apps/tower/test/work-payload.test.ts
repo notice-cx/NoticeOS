@@ -74,6 +74,26 @@ async function seed(capturedAt: string, projects: unknown[]): Promise<void> {
 }
 
 describe("buildWorkPayload", () => {
+  it.each(["absent", "omitted"])("keeps archive identities from configuration when the snapshot is %s", async kind => {
+    await store.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["meadow.example"]));
+    const snapshot = kind === "absent" ? null : { capturedAt: NOW.toISOString(), projects: [] };
+    const payload = await buildWorkPayload(store.call, { now: NOW, snapshot, projects: [{ asset: "meadow.example", prefix: "md" }] });
+    expect(payload.projects).toEqual([]);
+    expect(payload.archivedProjects).toEqual([{ asset: "meadow.example", prefix: "md" }]);
+  });
+
+  it("removes archived work and preserves its identity and records for Restore", async () => {
+    await seed("2026-08-01T11:59:00.000Z", [project(), project({ asset: "root-os", prefix: "ro" }), project({ asset: "unknown.example", prefix: "uk" })]);
+    await store.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["meadow.example"]));
+    const archived = await buildWorkPayload(store.call, { now: NOW });
+    expect(archived.projects.map(row => row.asset)).toEqual(["root-os", "unknown.example"]);
+    expect(archived.archivedProjects).toEqual([{ asset: "meadow.example", prefix: "md" }]);
+    await store.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'live' WHERE asset_id = $1", ["meadow.example"]));
+    const restored = await buildWorkPayload(store.call, { now: NOW });
+    expect(restored.archivedProjects).toEqual([]);
+    expect(restored.projects[0]?.ready.map(row => row.id)).toEqual(["md-1w2", "md-88x"]);
+  });
+
   it("renders the newest snapshot and says when it was taken", async () => {
     await seed("2026-08-01T11:59:00.000Z", [project()]);
 

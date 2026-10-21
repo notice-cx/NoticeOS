@@ -258,15 +258,15 @@ describe("the sidebar lists the sites under Sites", () => {
     expect(within(assetRows()[0]!).queryByRole("img", { name: /stage/ })).toBeNull();
   });
 
-  it("sinks retired assets to the foot and marks them switched off", () => {
+  it("excludes archived assets from navigation", () => {
     state.assets = [
       asset("gone.example", "Gone", { status: "retired" }),
       asset("meadow.example", "Meadow Board"),
     ];
     renderSidebar("/");
 
-    expect(assetNames()).toEqual(["meadow.example", "gone.example"]);
-    expect(within(assetRows()[1]!).getByRole("img", { name: "Retired" })).toBeInTheDocument();
+    expect(assetNames()).toEqual(["meadow.example"]);
+    expect(screen.queryByRole("link", { name: "Gone" })).toBeNull();
   });
 
   it("lights the row on any tab of that asset, and Sites with it", () => {

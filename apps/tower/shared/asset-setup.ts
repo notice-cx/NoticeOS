@@ -99,9 +99,7 @@ export function isSettingUp(status: string): boolean {
   return SETUP_STAGES.has(status);
 }
 
-/** Is this site retired? Nobody watches it: it is shown nowhere until a
- * switch is turned on (`siteShownOn`), and never counted among the sites
- * that need the operator. */
+/** Archived sites stay hidden until restored. */
 export function isRetired(status: string): boolean {
   return status === "retired";
 }

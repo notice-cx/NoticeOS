@@ -3,6 +3,7 @@ import { Eye, ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sitePath } from "@shared/first-run";
+import { isRetired } from "@shared/asset-setup";
 import { VIEW_LIBRARY } from "@shared/views";
 import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -146,11 +147,12 @@ function LivePaletteBody(props: BodyProps) {
 }
 
 function PaletteBody({
-  assets,
+  assets: allAssets,
   query,
   onQueryChange,
   onClose,
 }: BodyProps & { assets: AssetCard[] }) {
+  const assets = useMemo(() => allAssets.filter((asset) => !isRetired(asset.status)), [allAssets]);
   const navigate = useNavigate();
   const preferences = useOwnerPreferences();
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));

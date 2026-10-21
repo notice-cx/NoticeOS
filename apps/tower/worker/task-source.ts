@@ -15,9 +15,10 @@ import {
 } from "../shared/task-source";
 import { unreadOperatorPosture, type OperatorPosture } from "../shared/wall";
 import type { WorkPayload } from "../shared/work";
-import { loadLatestBeadsSnapshot, type BeadsSnapshot } from "./beads-snapshot";
+import { loadLatestBeadsSnapshot, scopeTaskSnapshot, type BeadsSnapshot } from "./beads-snapshot";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { buildWorkPayload } from "./work-payload";
+import { readSites, type SiteRecord } from "./asset-registry";
 
 /** What a source is read with: the call's store, and the saved settings it
  * counts its projects from. */
@@ -27,6 +28,7 @@ export interface TaskSourceContext {
   /** How many projects the operator saved for each source. Absent where the
    * caller has no settings to hand; a source then counts what its read saw. */
   savedProjects?: Partial<Record<TaskSourceId, number>>;
+  projects?: readonly { asset: string; prefix: string }[];
   /** The installation's clock, which decides where the board's week starts. */
   timeZone?: string;
 }
@@ -149,20 +151,28 @@ export function beadsReading(
   snapshot: BeadsSnapshot | null,
   savedProjects?: number,
   timeZone?: string,
+  sites?: readonly SiteRecord[],
+  projects?: readonly { asset: string; prefix: string }[],
 ): BeadsTaskSourceReading {
+  const scope = scopeTaskSnapshot(snapshot, sites ?? [], projects);
+  const active = scope.snapshot;
+  const archivedConfigured = scope.archivedProjects.filter(project => projects === undefined || projects.some(configured => configured.prefix === project.prefix)).length;
   return {
-    snapshot,
-    status: beadsStatus(snapshot, savedProjects),
-    board: (now) => buildWorkPayload(store, { now, snapshot, timeZone }),
-    needsYou: () => beadsNeedsYou(snapshot),
-    inbox: (asset) => beadsInbox(snapshot, asset),
+    snapshot: active,
+    status: { ...beadsStatus(snapshot, savedProjects),
+      projects: savedProjects === undefined ? active?.projects.length ?? 0 : Math.max(0, savedProjects - archivedConfigured),
+      failing: (active?.projects ?? []).filter(project => !project.ok).length },
+    board: (now) => buildWorkPayload(store, { now, snapshot, timeZone, projects, ...(sites === undefined ? {} : { sites }) }),
+    needsYou: () => beadsNeedsYou(active),
+    inbox: (asset) => beadsInbox(active, asset),
   };
 }
 
 export const beadsTaskSource = {
   id: BEADS,
-  async read({ store, savedProjects, timeZone }: TaskSourceContext): Promise<BeadsTaskSourceReading> {
-    return beadsReading(store, await loadLatestBeadsSnapshot(store), savedProjects?.beads, timeZone);
+  async read({ store, savedProjects, timeZone, projects }: TaskSourceContext): Promise<BeadsTaskSourceReading> {
+    const [snapshot, sites] = await Promise.all([loadLatestBeadsSnapshot(store), readSites(store)]);
+    return beadsReading(store, snapshot, savedProjects?.beads, timeZone, sites, projects);
   },
 } satisfies TaskSourceAdapter;
 

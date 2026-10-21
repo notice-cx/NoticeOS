@@ -6,6 +6,7 @@
 // workers/ingest/src/beads-snapshots.ts).
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
+import { isRetired } from "../shared/asset-setup";
 import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-resolution";
 import { taskCardOf } from "@noticeos/contract/task-card";
@@ -78,6 +79,17 @@ export interface BeadsSnapshot {
   /** When the poller looked, NOT when the Tower rendered. */
   capturedAt: string;
   projects: SnapshotProject[];
+}
+
+/** Keep archive identities for live catalogs; exclude their work from active reads. */
+export function scopeTaskSnapshot(snapshot: BeadsSnapshot | null, sites: readonly { id: string; status: string }[], configured: readonly { asset: string; prefix: string }[] = []) {
+  const archived = new Set(sites.filter(site => isRetired(site.status)).map(site => site.id));
+  const identities = new Map([...(snapshot?.projects ?? []), ...configured].map(({ asset, prefix }) => [prefix, { asset, prefix }]));
+  const archivedProjects = [...identities.values()].filter(project => archived.has(project.asset));
+  return {
+    snapshot: snapshot === null ? null : { ...snapshot, projects: snapshot.projects.filter(project => !archived.has(project.asset)) },
+    archivedProjects,
+  };
 }
 
 /** A condition can include several firings; work filed from any of them still belongs to it. */
