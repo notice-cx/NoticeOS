@@ -124,8 +124,11 @@ async function exportUrl(held: ResolvedCredential, database: string, signal: Abo
 /** One bounded buffer per multipart part, with a streaming hash. No SQL is logged. */
 async function storeExport(env: IngestEnv, key: string, url: string, signal: AbortSignal, options: D1Options) {
   if (signal.aborted) fail('timeout');
-  const response = await d1Bounded((options.fetchImpl ?? fetch)(url, { redirect: 'error', signal }), signal);
-  if (!response.ok || !response.body) fail('provider_unavailable');
+  const response = await d1Bounded((options.fetchImpl ?? fetch)(url, { redirect: 'manual', signal }), signal);
+  if (!response.ok || !response.body) {
+    await d1Bounded(response.body?.cancel() ?? Promise.resolve(), AbortSignal.timeout(2000)).catch(() => undefined);
+    fail('provider_unavailable');
+  }
   const max = Math.min(MAX_BYTES, options.maxBytes ?? MAX_BYTES);
   const declared = response.headers.get('content-length');
   if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > max)) {

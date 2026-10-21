@@ -30,14 +30,15 @@ async function connected() {
 }
 function exporting(): typeof fetch {
   return (async (input, init) => {
+    new Request(input, init);
     if (String(input) === DOWNLOAD) {
       expect(new Headers(init?.headers).has('authorization')).toBe(false);
-      expect(init?.redirect).toBe('error');
+      expect(init?.redirect).toBe('manual');
       return new Response(SQL);
     }
     expect(String(input)).toBe(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/d1/database/${DATABASE}/export`);
     expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${token}`);
-    expect(init?.redirect).toBe('error');
+    expect(init?.redirect).toBe('manual');
     return complete();
   }) as typeof fetch;
 }

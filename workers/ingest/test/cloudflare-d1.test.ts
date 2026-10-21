@@ -15,8 +15,9 @@ afterEach(async () => { await forgetCredentials(); });
 
 function listing(value: string): typeof fetch {
   return (async (input, init) => {
+    new Request(input, init);
     expect(String(input)).toBe(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/d1/database?page=1&per_page=100`);
-    expect(init?.redirect).toBe('error');
+    expect(init?.redirect).toBe('manual');
     expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${value}`);
     return Response.json({ success: true, result: [{ uuid: DATABASE, name: 'Example database' }], result_info: { page: 1, per_page: 100, count: 1, total_count: 1 } });
   }) as typeof fetch;
