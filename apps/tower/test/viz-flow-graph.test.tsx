@@ -99,6 +99,21 @@ describe("flowEdgeState", () => {
 });
 
 describe("FlowGraph", () => {
+  it.each([false, true])("keeps a completed task neutral and accessible (dense=%s)", (dense) => {
+    draw(FLOW_LOOP, { dense, nodes: [
+      { id: "closed", label: "Completed task", state: "finished", stateLabel: "Done", caption: "closed 2d ago", href: "/tasks/closed" },
+      { id: "working", label: "Healthy source", state: "ok" },
+    ], edges: [] });
+    const closed = node("closed");
+    expect(screen.getByRole("link", { name: /Completed task/ })).toBe(closed);
+    expect(within(closed).getByText("Done")).toBeInTheDocument();
+    expect(closed).toHaveTextContent("closed 2d ago");
+    for (const element of [closed, ...closed.querySelectorAll("[class]")]) {
+      expect(element.getAttribute("class")).not.toMatch(/healthy|milestone|success/);
+    }
+    expect(node("working").querySelector(".text-healthy")).not.toBeNull();
+  });
+
   it("is a named figure whose edges are read out in order", () => {
     draw(FLOW_LOOP);
     expect(screen.getByRole("figure", { name: FLOW_LOOP.ariaLabel })).toHaveAttribute("data-flow-graph");
