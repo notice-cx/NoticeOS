@@ -59,10 +59,12 @@ export interface IncidentListProps {
   action?: { label: string; to: string };
   /** Shown when nothing is open. */
   empty?: ReactNode;
+  /** Home overview: at most three issues, with full details on Alerts. */
+  compact?: boolean;
   className?: string;
 }
 
-export function IncidentList({ items, nowMs, marker = null, title = "Problems", action, empty = "Nothing is broken.", className }: IncidentListProps) {
+export function IncidentList({ items, nowMs, marker = null, title = "Problems", action, empty = "Nothing is broken.", compact = false, className }: IncidentListProps) {
   const [showOld, setShowOld] = useState(false);
   const ranked = rankIncidents(items);
   const groups = (["new", "open", "long-standing"] as const).map((group) => ({
@@ -92,6 +94,15 @@ export function IncidentList({ items, nowMs, marker = null, title = "Problems", 
       </header>
       {items.length === 0 ? (
         <p className="m-0 border-t border-border/60 px-5 py-4 text-sm text-muted-foreground">{empty}</p>
+      ) : compact ? (
+        <>
+          <ul className="m-0 list-none border-t border-border/60 p-0">
+            {ranked.slice(0, 3).map((row, index) => (
+              <IncidentRow key={row.key} incident={row} nowMs={nowMs} quiet={false} fresh={incidentGroup(row, nowMs, marker) === "new"} index={index} compact />
+            ))}
+          </ul>
+          {items.length > 3 ? <p className="m-0 border-t border-border/60 px-5 py-2.5 text-xs text-muted-foreground">Showing 3 of {formatInt(items.length)} problems</p> : null}
+        </>
       ) : (
         groups.map(({ group, rows }) => {
           if (rows.length === 0) return null;
@@ -129,7 +140,7 @@ export function IncidentList({ items, nowMs, marker = null, title = "Problems", 
   );
 }
 
-function IncidentRow({ incident, nowMs, quiet, fresh, index }: { incident: Incident; nowMs: number; quiet: boolean; fresh: boolean; index: number }) {
+function IncidentRow({ incident, nowMs, quiet, fresh, index, compact = false }: { incident: Incident; nowMs: number; quiet: boolean; fresh: boolean; index: number; compact?: boolean }) {
   const Glyph = incident.severity === "error" ? CircleAlert : TriangleAlert;
   const ink = incident.severity === "error" ? "text-error" : "text-warn";
   const age = incident.since ? formatAge(ageMs(nowMs, incident.since)) : null;
@@ -139,12 +150,12 @@ function IncidentRow({ incident, nowMs, quiet, fresh, index }: { incident: Incid
       <span aria-hidden className={cn("absolute inset-y-2 start-0 w-0.5 rounded-full bg-current", ink, quiet && "opacity-40")} />
       <Glyph aria-hidden className={cn("size-4 shrink-0", ink, quiet && "opacity-60")} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className={cn("text-sm font-medium", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
+        <span className={cn("text-sm font-medium", compact && "line-clamp-2 [overflow-wrap:anywhere]", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
           {incident.title}
         </span>
         <span className="text-micro text-muted-foreground">{incident.site}</span>
       </span>
-      {incident.evidence ? <span className="hidden w-40 shrink-0 @md:block">{incident.evidence}</span> : null}
+      {incident.evidence && !compact ? <span className="hidden w-40 shrink-0 @md:block">{incident.evidence}</span> : null}
       <span className={cn("flex w-12 shrink-0 flex-col items-end tabular-nums", quiet && "opacity-70")}>
         <span className={cn("text-sm font-semibold", fresh ? ink : "text-foreground")}>{age ?? "?"}</span>
       </span>

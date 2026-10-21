@@ -84,17 +84,19 @@ export interface DecisionQueueProps {
   /** The rows, when each needs its own state (wired verbs): `QueueRow`s in
    * `items` order. Without them the queue draws `items` itself. */
   children?: ReactNode;
+  /** A bounded overview: short links, no age chart or in-place expansion. */
+  compact?: boolean;
   className?: string;
 }
 
-export function DecisionQueue({ items, total = null, totalNote, limit = 4, title = "Decide", action, headerAction, toolbar, empty = "Nothing to decide.", children, className }: DecisionQueueProps) {
+export function DecisionQueue({ items, total = null, totalNote, limit = 4, title = "Decide", action, headerAction, toolbar, empty = "Nothing to decide.", children, compact = false, className }: DecisionQueueProps) {
   const [open, setOpen] = useState(false);
   const count = total ?? items.length;
   const buckets = ageBuckets(items);
   const known = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
   const oldest = items.reduce<number | null>((max, item) => (item.ageDays === null ? max : Math.max(max ?? 0, item.ageDays)), null);
-  const rows = children === undefined ? items.map((item, index) => <QueueRow key={item.id} item={item} index={index} />) : Children.toArray(children);
-  const shown = open ? rows : rows.slice(0, limit);
+  const rows = children === undefined ? items.map((item, index) => <QueueRow key={item.id} item={item} index={index} compact={compact} />) : Children.toArray(children);
+  const shown = open && !compact ? rows : rows.slice(0, limit);
 
   return (
     <section aria-label={title} data-decision-queue="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
@@ -112,12 +114,12 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-figure tabular-nums text-foreground">{formatInt(count)}</span>
             <span className="text-sm text-muted-foreground">
-              for you to decide{oldest !== null ? <> · oldest <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
+              for you to decide{oldest !== null ? <> · oldest{compact ? " known" : ""} <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
               {totalNote ? ` · ${totalNote}` : null}
             </span>
           </div>
         ) : null}
-        {known > 0 ? (
+        {known > 0 && !compact ? (
           <div className="flex flex-col gap-1.5">
             <div role="img" aria-label={`Waiting: ${buckets.map((bucket) => `${bucket.count} ${bucket.label}`).join(", ")}`} className="flex h-2 gap-0.5 overflow-hidden rounded-full">
               {buckets.map((bucket, index) =>
@@ -152,7 +154,11 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
           {shown}
         </ul>
       )}
-      {rows.length > limit ? (
+      {compact && count > shown.length && action ? (
+        <Link to={action.to} className="border-t border-border/60 px-5 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:underline">
+          View all {formatInt(count)} decisions →
+        </Link>
+      ) : !compact && rows.length > limit ? (
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
@@ -167,15 +173,15 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
 
 /** One waiting item: its kind, title, project and age as a length, and its
  * verbs, quiet until the row is pointed at or focused. */
-export function QueueRow({ item, index }: { item: QueueItem; index: number }) {
+export function QueueRow({ item, index, compact = false }: { item: QueueItem; index: number; compact?: boolean }) {
   const Glyph = item.kind === "approval" ? Triangle : CircleHelp;
   const age = item.ageDays;
   const title = item.to ? (
-    <Link to={item.to} state={item.returnTo ? { returnTo: item.returnTo } : undefined} className="font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={item.title}>
+    <Link to={item.to} state={item.returnTo ? { returnTo: item.returnTo } : undefined} className={cn("font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring", compact && "line-clamp-2 [overflow-wrap:anywhere]")} title={item.title}>
       {item.title}
     </Link>
   ) : (
-    <span className="font-medium text-foreground" title={item.title}>{item.title}</span>
+    <span className={cn("font-medium text-foreground", compact && "line-clamp-2 [overflow-wrap:anywhere]")} title={item.title}>{item.title}</span>
   );
   return (
     <li
@@ -190,7 +196,7 @@ export function QueueRow({ item, index }: { item: QueueItem; index: number }) {
           <span>{item.project}</span>
           {age !== null ? (
             <span className="ms-auto flex shrink-0 items-center gap-1.5 tabular-nums" aria-label={`waiting ${ageLabel(age)}`}>
-              <span aria-hidden className="h-1 w-16 overflow-hidden rounded-full bg-viz-track">
+              <span aria-hidden className={cn("h-1 w-16 overflow-hidden rounded-full bg-viz-track", compact && "hidden")}>
                 <span className={cn("block h-full rounded-full", age >= 30 ? "bg-warn" : "bg-muted-foreground/60")} style={{ width: `${ageLength(age) * 100}%` }} />
               </span>
               <span className={cn("w-8 text-end", age >= 30 && "font-semibold text-warn")}>{ageLabel(age)}</span>

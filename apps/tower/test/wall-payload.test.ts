@@ -1570,7 +1570,7 @@ describe("buildWallPayload — populated store", () => {
       { metric: "signups", label: "Signups", value: 0, observedAt: MEADOW_RECEIVED, source: "nightly" },
     ]);
     expect(statements.filter((sql) => sql === LATEST_COUNTER_TOTALS_SQL)).toHaveLength(1);
-    expect(statements.filter((sql) => sql.includes("FROM noticeos.counter_readings"))).toHaveLength(1);
+    expect(statements.filter((sql) => sql.startsWith("SELECT asset_id AS asset, metric, value,"))).toHaveLength(1);
   });
 
   it("COUNTERS: a total with a reading takes its value and age from the fast lane", async () => {
@@ -3895,6 +3895,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
     expect(statements.filter((sql) => sql === CARD_CODEBASE_SQL)).toHaveLength(1);
     expect(statements.filter((sql) => sql === PORTFOLIO_WATCH_WINDOWS_SQL)).toHaveLength(1);
     expect(statements.filter((sql) => sql.includes("noticeos.asset_insight_snapshots"))).toHaveLength(1);
-    expect(statements.filter((sql) => sql.includes("codebase_reports"))).toHaveLength(1);
+    // Lifecycle checks collection existence separately from reading report values.
+    expect(statements.filter((sql) => sql.includes("codebase_reports") && !sql.includes('AS "hasCollectedData"'))).toHaveLength(1);
   });
 });

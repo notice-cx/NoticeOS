@@ -4,7 +4,8 @@
 // sites earned it. A day no source reported is left out, never a zero.
 import { shiftRevenueDate } from "@shared/revenue-projection";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
-import type { BarStripPoint } from "@/components/viz/BarStrip";
+import type { BarStripContributor, BarStripPoint } from "@/components/viz/BarStrip";
+import { assetContributors } from "@/lib/asset-contributors";
 import { monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
 
 export interface HomeMoney {
@@ -25,6 +26,7 @@ export interface HomeMoney {
   waiting: string | null;
   /** The month's reported days, summed over the sites that reported each. */
   days: BarStripPoint[];
+  contributors?: BarStripContributor[];
   /** The mean of the reported days, or null with fewer than three. */
   usualDay: number | null;
   /** Each earning site's share of the month so far, largest first. */
@@ -53,11 +55,15 @@ export function siteDays(asset: Pick<AssetCard, "revenueProjection">): BarStripP
 export function homeMoney(portfolio: PortfolioBand, assets: readonly AssetCard[]): HomeMoney | null {
   const model = monthRevenue(portfolio, assets);
   if (!model) return null;
-  const byDate = new Map<string, number>();
+  const byDate = new Map<string, Record<string, number>>();
   for (const asset of assets) {
-    for (const [date, amount] of reportedDays(asset)) byDate.set(date, (byDate.get(date) ?? 0) + amount);
+    for (const [date, amount] of reportedDays(asset)) {
+      const contributions = byDate.get(date) ?? {};
+      contributions[asset.id] = amount;
+      byDate.set(date, contributions);
+    }
   }
-  const days = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([t, v]) => ({ t, v }));
+  const days = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([t, contributions]) => ({ t, v: Object.values(contributions).reduce((sum, value) => sum + value, 0), contributions }));
   const usualDay = days.length >= 3 ? days.reduce((sum, day) => sum + (day.v ?? 0), 0) / days.length : null;
   const bySite = assets
     .flatMap((asset) => {
@@ -76,6 +82,7 @@ export function homeMoney(portfolio: PortfolioBand, assets: readonly AssetCard[]
     daysLeft: model.pace?.daysLeft ?? null,
     waiting: model.waiting,
     days,
+    contributors: assetContributors(assets).filter((source) => days.some((day) => source.id in day.contributions)),
     usualDay,
     bySite,
   };

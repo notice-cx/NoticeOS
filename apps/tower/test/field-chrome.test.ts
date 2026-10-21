@@ -64,10 +64,6 @@ describe("the desk's field chrome has one owner", () => {
       "components/ProviderCard.tsx",
       "components/TaskComposer.tsx",
       "routes/AlertsRoute.tsx",
-      // The asset page's two fields live in the lifecycle editor and the
-      // Delete confirmation; the entry follows the code rather than the filename.
-      "routes/asset-detail/SettingsTab.tsx",
-      "routes/asset-detail/AssetRetirement.tsx",
       "routes/AssetsRoute.tsx",
       "routes/FinancialsRoute.tsx",
       "routes/TaskRoute.tsx",

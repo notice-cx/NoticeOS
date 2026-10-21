@@ -4,17 +4,17 @@ import type { HomeModuleId } from "@shared/views";
 /*
  * Home is a list of modules, not a fixed page, because the person's view
  * (`useView`) decides which of them are drawn and in what order: Everything
- * draws the first eight of `HOME_MODULES` in order, which is the page as it
+ * draws the first seven of `HOME_MODULES` in order, which is the page as it
  * always was, a narrower view draws a few, and a focus pick moves one to the
  * front. Everything keeps its twelve-column grid, each module carrying its own
- * span, with Problems, Decide and the agents' line stacked in one column
- * whenever they come in a run. Every other view is drawn as rows of column
+ * span, with Problems, Decisions, Agents and Visitors sharing a two-column
+ * group whenever they come in a run. Every other view is drawn as rows of column
  * stacks (`homeRows`), so no module is stretched to the height of the one
  * beside it.
  */
 
-/** The modules that share one stacked column in Everything's grid. */
-const STACKED: ReadonlySet<HomeModuleId> = new Set(["problems", "decide", "agents"]);
+/** The overview cards that share a two-column group in Everything. */
+const STACKED: ReadonlySet<HomeModuleId> = new Set(["problems", "decide", "agents", "yesterday"]);
 
 /** How wide a module is drawn outside Everything: a row of its own, the
  * left column of a row (eight of twelve) or the right one (four). Problems
@@ -27,7 +27,6 @@ export const MODULE_WIDTH: Record<HomeModuleId, "full" | "wide" | "narrow"> = {
   money: "wide",
   factory: "wide",
   channels: "wide",
-  sources: "wide",
   problems: "wide",
   gaps: "narrow",
   decide: "narrow",
@@ -134,7 +133,8 @@ export function HomeModules({
         slot.stacked ? (
           <div
             key={slot.modules.join(" ")}
-            className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0"
+            className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-12 [&>*]:min-w-0"
+            data-home-overview=""
           >
             {slot.modules.map((module) => <Fragment key={module}>{draw[module]()}</Fragment>)}
           </div>
