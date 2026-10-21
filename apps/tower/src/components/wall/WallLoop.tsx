@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/count-label";
 import { Brain, Gavel, Hammer, Radar, Scale } from "lucide-react";
 import { isRetired } from "@shared/asset-setup";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
@@ -31,7 +32,6 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
   const inProgress = counted.reduce((sum, asset) => sum + (asset.work?.inProgress ?? 0), 0);
   const outcomes = data.attention.filter((item) => item.ruleId === "watch-window-closed" && !retired.has(item.asset)).length;
   const waiting = operatorWaiting(data.operator, nowMs);
-  const more = waiting?.partial ? "+" : "";
   const waitingKnown = waiting !== null && !(waiting.count === 0 && (waiting.partial || waiting.stale));
 
   const sense: FlowNode = owed.length === 0
@@ -45,8 +45,8 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
     ? { id: "decide", label: "Decide", column: 2, icon: Gavel, caption: "not read", state: "idle" }
     : waitingKnown
       ? {
-          id: "decide", label: "Decide", column: 2, icon: Gavel, value: `${waiting.count}${more}`,
-          caption: waiting.urgent > 0 ? `for you to decide · ${waiting.urgent}${more} urgent` : "for you to decide",
+          id: "decide", label: "Decide", column: 2, icon: Gavel, value: countLabel(waiting.count, waiting.partial),
+          caption: waiting.urgent > 0 ? `for you to decide · ${countLabel(waiting.urgent, waiting.partial)} urgent` : "for you to decide",
           state: waiting.urgent > 0 ? "warn" : "ok",
         }
       : { id: "decide", label: "Decide", column: 2, icon: Gavel, caption: waiting.partial ? "for you to decide · unknown" : "for you to decide · stale", state: "idle" };

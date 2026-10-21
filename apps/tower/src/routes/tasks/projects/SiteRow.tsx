@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { siteAddress } from "@shared/first-run";
 import { formatInt } from "@/lib/format";
+import { countLabel } from "@/lib/count-label";
 import { cn } from "@/lib/utils";
 import { ProjectCard } from "./ProjectCard";
 import { SiteMark } from "./project-face";
@@ -13,7 +14,7 @@ export function siteTasksPath(asset: string): string {
 
 /** A count the snapshot's sample can only bound from below. */
 export function countWord(n: number, complete: boolean): string {
-  return `${formatInt(n)}${complete ? "" : "+"}`;
+  return countLabel(n, !complete);
 }
 
 /**

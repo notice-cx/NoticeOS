@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/count-label";
 import { CircleCheck, UserRoundCheck } from "lucide-react";
 import { ageMs, formatAge } from "@shared/freshness";
 import { unreadOperatorPosture, type OperatorPosture, type SystemBand } from "@shared/wall";
@@ -43,7 +44,7 @@ function urgentLabel(operator: OperatorPosture | null | undefined, nowMs: number
   const state = operatorState(operator, nowMs);
   if (!state || !operator) return null;
   if (!state.urgentComplete) {
-    return operator.urgentMeasuredProjects > 0 ? `${operator.urgent}+ urgent tasks` : "Tasks unknown";
+    return operator.urgentMeasuredProjects > 0 ? `${countLabel(operator.urgent, true)} urgent tasks` : "Tasks unknown";
   }
   // A count is a count however old the photograph (`operatorLabel`); only a
   // stale zero is unknown rather than calm.

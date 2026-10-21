@@ -2373,6 +2373,23 @@ test("a filtered backlog is closed as Already handled in one action from All tas
   await assertNoPageOverflow(page);
 });
 
+test("partial Wall decisions and loop counts use lower-bound words without comparison chips", async ({ page }, testInfo) => {
+  await wallScene(page);
+  const partial = wallFixturePayload();
+  partial.operator = { ...partial.operator!, waiting: 12, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1 };
+  await page.route("**/api/wall", (route) => route.fulfill({ json: partial }));
+  await page.goto("/wall");
+  const decisions = page.locator('[data-work-figure="Your decisions"]');
+  await expect(decisions).toContainText("at least 12");
+  await expect(decisions).toContainText("at least 1 urgent");
+  await expect(decisions.locator("[data-week-move]")).toHaveCount(0);
+  const decide = page.locator('[data-flow-node="decide"]');
+  await expect(decide).toContainText("at least 12");
+  await expect(decide).toContainText("for you to decide · at least 1 urgent");
+  await assertNoPageOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("wall-partial-counts.png"), fullPage: true });
+});
+
 test("decision filters keep their whole count and restore the hidden decisions when cleared", async ({ page }, testInfo) => {
   await createAsset(page);
   for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);

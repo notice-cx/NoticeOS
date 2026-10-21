@@ -48,6 +48,15 @@ const operator = { waiting: 4, urgent: 0, measuredProjects: 2, urgentMeasuredPro
 const figure = (container: HTMLElement, label: string) => container.querySelector<HTMLElement>(`[data-work-figure="${label}"]`)!;
 
 describe("the Wall's work tile, week against week", () => {
+  it("words a partial inbox as a lower bound and withholds its comparison chip", () => {
+    const { container } = render(<WallWork assets={[asset("a.example", work(weeks()))]}
+      operator={{ ...operator, waiting: 3, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
+    const waiting = figure(container, "Your decisions");
+    expect(waiting).toHaveTextContent("at least 3");
+    expect(waiting).toHaveTextContent("at least 1 urgent");
+    expect(waiting.querySelector("[data-week-move]")).toBeNull();
+  });
+
   it("draws this week's done against last week's on one bar, with the partial week in words", () => {
     const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks()))]} operator={operator} nowMs={NOW} />);
     expect(container.querySelector("[data-work-days-in]")).toHaveTextContent("2 days in");

@@ -40,7 +40,7 @@ describe("partial operator snapshots from the task poller", () => {
       waiting: rows?.length ?? 0, urgent, measuredProjects: 0, urgentMeasuredProjects: 0, projectCount: 1,
     });
     expect(operatorState(posture, NOW.getTime())).toMatchObject({ complete: false, urgentComplete: false, needsAttention: true });
-    expect(operatorLabel(posture, NOW.getTime())).toBe(rows?.length ? `Urgency unknown · ${rows.length}+ need attention` : "Inbox unknown");
+    expect(operatorLabel(posture, NOW.getTime())).toBe(rows?.length ? `Urgency unknown · at least ${rows.length} need attention` : "Inbox unknown");
     const work = await buildWorkPayload(ctx.call, { now: NOW });
     expect(work.projects[0]!.counts.waiting).toBeNull();
     expect(work.projects[0]!.waiting.map((row) => row.id)).toEqual((rows ?? []).map((row) => row.id));
@@ -55,7 +55,7 @@ describe("partial operator snapshots from the task poller", () => {
     ]);
     const posture = beadsNeedsYou(await loadLatestBeadsSnapshot(ctx.call));
     expect(posture).toMatchObject({ waiting: 13, urgent: 6, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 3 });
-    expect(operatorLabel(posture, NOW.getTime())).toBe("6+ urgent · 13+ need attention");
+    expect(operatorLabel(posture, NOW.getTime())).toBe("at least 6 urgent · at least 13 need attention");
   });
 
   it("carries a waiting task's choices and a person's pick, and leaves out what it cannot read", async () => {

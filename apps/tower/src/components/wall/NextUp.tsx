@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/count-label";
 import { CircleCheck, Zap } from "lucide-react";
 import type { AssetCard, OperatorPosture, WallDecision, WallDecisionAsk, WallNextUp, WallWorking } from "@shared/wall";
 import { sumWorkWeeks } from "@shared/work";
@@ -41,7 +42,7 @@ export type DecisionsFigure =
 
 /**
  * The decisions figure, as Needs attention words an inbox count: a lower
- * bound ("3+") when a project went uncounted, "Tasks unknown" when nothing
+ * bound ("at least 3") when a project went uncounted, "Tasks unknown" when nothing
  * was, and an old zero is "Tasks out of date" rather than calm. A count above
  * zero is a count however old the reading.
  */
@@ -52,7 +53,7 @@ export function decisionsFigure(operator: OperatorPosture | null | undefined, no
   }
   if (!state.complete) {
     return operator.waiting > 0
-      ? { kind: "count", count: operator.waiting, text: `${formatInt(operator.waiting)}+`, partial: true }
+      ? { kind: "count", count: operator.waiting, text: countLabel(operator.waiting, true), partial: true }
       : { kind: "word", text: "Tasks unknown" };
   }
   if (operator.waiting === 0 && state.stale) return { kind: "word", text: "Tasks out of date" };

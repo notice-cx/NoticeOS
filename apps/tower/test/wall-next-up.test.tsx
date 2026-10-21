@@ -149,7 +149,7 @@ describe("NextUp", () => {
   });
 
   it("draws a lower bound when a project went uncounted, and an old zero as out of date", () => {
-    expect(decisionsFigure({ ...OPERATOR, waiting: 3, measuredProjects: 1 }, NOW)).toEqual({ kind: "count", count: 3, text: "3+", partial: true });
+    expect(decisionsFigure({ ...OPERATOR, waiting: 3, measuredProjects: 1 }, NOW)).toEqual({ kind: "count", count: 3, text: "at least 3", partial: true });
     expect(decisionsFigure({ ...OPERATOR, waiting: 0, measuredProjects: 1 }, NOW)).toEqual({ kind: "word", text: "Tasks unknown" });
     const old = { ...OPERATOR, waiting: 0, capturedAt: "2026-10-21T09:00:00.000Z" };
     expect(decisionsFigure(old, NOW)).toEqual({ kind: "word", text: "Tasks out of date" });
@@ -158,7 +158,7 @@ describe("NextUp", () => {
     expect(decisionsFigure({ ...OPERATOR, waiting: 0, capturedAt: null }, NOW)).toEqual({ kind: "word", text: "Tasks unknown" });
 
     draw({ operator: { ...OPERATOR, waiting: 3, measuredProjects: 1 } });
-    expect(document.querySelector("[data-next-count]")!.textContent).toBe("3+");
+    expect(document.querySelector("[data-next-count]")!.textContent).toBe("at least 3");
     expect(document.querySelector("[data-next-count-words]")!.textContent).toBe("decisions · oldest 12 days");
   });
 
