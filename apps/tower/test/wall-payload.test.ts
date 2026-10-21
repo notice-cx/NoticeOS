@@ -2342,11 +2342,13 @@ describe("buildWallPayload — the card's work slice", () => {
     }
 
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    // NOW is Sunday: the week began on Monday 06-29, and the history holds two of its days.
+    // NOW is Sunday: the week began on Monday 06-29, and the history holds two
+    // of its days. Every close counts, the Won't do among them, which
+    // `notDone` counts again as the subset it is.
     expect(wall.assets.find((asset) => asset.id === "meadow.example")?.work?.weeks).toMatchObject({
       weekStart: "2026-06-29",
       daysIn: 7,
-      done: { now: 3, notDone: 1, before: 1, lastWeek: 2, move: { by: 2, direction: "up", verdict: "good" } },
+      done: { now: 4, notDone: 1, before: 1, lastWeek: 2, move: { by: 3, direction: "up", verdict: "good" } },
       blocked: { now: 2, before: null },
     });
     expect(wall.assets.find((asset) => asset.id === "northwind.example")?.work).not.toHaveProperty("weeks");
