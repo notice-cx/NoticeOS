@@ -20,7 +20,7 @@ export interface TaskProjectReadOptions {
 /** The host's task repository links for the checkout at `repoRoot`: this
  * installation's `task-host.json`, else the product's empty default. The home
  * checkout for the live runner and its lanes. */
-export declare function taskHostFile(repoRoot?: string): string;
+export declare function taskHostFile(repoRoot?: string, env?: TaskClientEnvironment): string;
 /** Canonical physical database identifier for backup, poll and drift readers. */
 export declare function beadsDatabaseName(value: unknown): string | null;
 /** A saved project must match this host's asset, prefix and database binding.
@@ -34,7 +34,7 @@ export declare function resolveTaskProjects(stored: unknown, host: unknown): Tas
  * file. Without it a missing file throws: the managed host's backup must not
  * read a lost inventory as an empty one.
  */
-export declare function readTaskHost({ repoRoot, readHost, absentLinksNone }?: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost'> & {
+export declare function readTaskHost({ repoRoot, readHost, env, absentLinksNone }?: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost' | 'env'> & {
     absentLinksNone?: boolean;
 }): Promise<{
     repositories: unknown[];

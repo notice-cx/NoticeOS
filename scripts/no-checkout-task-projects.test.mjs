@@ -101,8 +101,13 @@ test('concurrent preparations share immutable bindings, rebind safely and clean 
   const root = path.dirname(directory);
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.prepare-')), false);
   await fs.writeFile(path.join(directory, '.beads/metadata.json'), '{}');
-  f.set([moved], [moved]);
-  await assert.rejects(f.read(), /differs from the project register/);
+  const second = { asset: 'second.example', prefix: 'sy', database: 'second_tasks' };
+  f.set([moved, second], [moved, second]);
+  const failed = await f.read();
+  assert.match(failed[0].unavailableReason, /task client configuration is unavailable/);
+  assert.equal(failed[0].cwd, undefined);
+  assert.ok(failed[1].cwd);
+  assert.equal(failed[1].unavailableReason, undefined);
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.prepare-')), false);
 });
 
@@ -115,4 +120,13 @@ test('task fixture initialization cannot discover a parent project checkout', as
   await fs.mkdir(path.join(root, '.git'));
   assert.throws(() => assertTaskFixtureOutsideGit(nested), /Task fixtures must be outside Git checkouts/);
   assert.deepEqual(await fs.readdir(nested), []);
+});
+
+test('explicit installation selection reads the same host inventory and writes only its client folder', async t => {
+  const f = await fixture(t), selected = path.join(f.root, 'selected-installation');
+  await fs.mkdir(selected);
+  await fs.writeFile(path.join(selected, 'task-host.json'), JSON.stringify({ repositories: [{ asset: 'example.com', prefix: 'ex', database: 'example_tasks' }] }));
+  const [project] = await readTaskProjects({ ...f.options, readHost: undefined, env: { NOTICEOS_INSTALLATION_DIR: selected } });
+  assert.ok(project.cwd.startsWith(path.join(selected, 'task-projects') + path.sep));
+  assert.equal(await fs.stat(path.join(f.root, 'installation')).catch(() => null), null);
 });

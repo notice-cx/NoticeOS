@@ -41,8 +41,8 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 /** The host's task repository links for the checkout at `repoRoot`: this
  * installation's `task-host.json`, else the product's empty default. The home
  * checkout for the live runner and its lanes. */
-export function taskHostFile(repoRoot: string = REPO_ROOT): string {
-  return readablePath(HOST_FILE, { root: repoRoot });
+export function taskHostFile(repoRoot: string = REPO_ROOT, env: TaskClientEnvironment = process.env): string {
+  return readablePath(HOST_FILE, { root: repoRoot, env });
 }
 
 /** Canonical physical database identifier for backup, poll and drift readers. */
@@ -95,10 +95,10 @@ export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject
  * file. Without it a missing file throws: the managed host's backup must not
  * read a lost inventory as an empty one.
  */
-export async function readTaskHost({ repoRoot = REPO_ROOT, readHost, absentLinksNone = false }: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost'> & { absentLinksNone?: boolean } = {}): Promise<{ repositories: unknown[] }> {
+export async function readTaskHost({ repoRoot = REPO_ROOT, readHost, env = process.env, absentLinksNone = false }: Pick<TaskProjectReadOptions, 'repoRoot' | 'readHost' | 'env'> & { absentLinksNone?: boolean } = {}): Promise<{ repositories: unknown[] }> {
   let raw: string;
   try {
-    raw = await (readHost ?? (() => fs.readFile(taskHostFile(repoRoot), 'utf8')))();
+    raw = await (readHost ?? (() => fs.readFile(taskHostFile(repoRoot, env), 'utf8')))();
   } catch (error) {
     if (absentLinksNone && (error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return { repositories: [] };
     throw error;
@@ -114,9 +114,11 @@ export async function readTaskProjects({ repoRoot = REPO_ROOT, readHost, env = p
   const snapshot = await readConfigSnapshot(storeOptions);
   const saved = snapshot.get('config/beads.json');
   if (!saved) throw new Error('Task projects are not stored yet. Run pnpm config:seed before using task projects.');
-  const projects = resolveTaskProjects(saved.body, await readTaskHost({ repoRoot, readHost, absentLinksNone: true }));
+  const projects = resolveTaskProjects(saved.body, await readTaskHost({ repoRoot, readHost, env, absentLinksNone: true }));
   for (const project of projects) {
-    if (!project.unavailableReason) project.cwd = await prepareTaskDirectory(project, { repoRoot, env });
+    if (project.unavailableReason) continue;
+    try { project.cwd = await prepareTaskDirectory(project, { repoRoot, env }); }
+    catch { project.unavailableReason = `${project.asset} task client configuration is unavailable`; }
   }
   return projects;
 }
