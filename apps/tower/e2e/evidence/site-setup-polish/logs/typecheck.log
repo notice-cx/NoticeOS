@@ -1,0 +1,2 @@
+$ tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json && tsc -p e2e/tsconfig.json
+real 66.942 user 75.056 sys 2.896

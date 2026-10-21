@@ -1,0 +1,211 @@
+{
+  "integrations": {
+    "mark": {
+      "left": 277,
+      "right": 291,
+      "top": 86,
+      "bottom": 100
+    },
+    "firstLine": {
+      "left": 303,
+      "right": 412,
+      "top": 85,
+      "bottom": 100
+    },
+    "centerDifference": 0.5,
+    "lines": [
+      {
+        "left": 303,
+        "right": 412,
+        "top": 85,
+        "bottom": 100
+      },
+      {
+        "left": 412,
+        "right": 418,
+        "top": 85,
+        "bottom": 100
+      },
+      {
+        "left": 303,
+        "right": 411.03125,
+        "top": 110,
+        "bottom": 124
+      },
+      {
+        "left": 428.03125,
+        "right": 593.671875,
+        "top": 110,
+        "bottom": 124
+      },
+      {
+        "left": 646.671875,
+        "right": 678.671875,
+        "top": 109,
+        "bottom": 124
+      }
+    ],
+    "bounds": {
+      "left": 264,
+      "right": 1416
+    }
+  },
+  "connect": {
+    "mark": {
+      "left": 1044,
+      "right": 1058,
+      "top": 86,
+      "bottom": 100
+    },
+    "firstLine": {
+      "left": 1070,
+      "right": 1179,
+      "top": 85,
+      "bottom": 100
+    },
+    "centerDifference": 0.5,
+    "lines": [
+      {
+        "left": 1070,
+        "right": 1179,
+        "top": 85,
+        "bottom": 100
+      },
+      {
+        "left": 1179,
+        "right": 1185,
+        "top": 85,
+        "bottom": 100
+      },
+      {
+        "left": 1070,
+        "right": 1178.03125,
+        "top": 102,
+        "bottom": 116
+      },
+      {
+        "left": 1079,
+        "right": 1244.640625,
+        "top": 134,
+        "bottom": 148
+      },
+      {
+        "left": 1297.640625,
+        "right": 1329.640625,
+        "top": 133,
+        "bottom": 148
+      }
+    ],
+    "bounds": {
+      "left": 1031,
+      "right": 1420
+    }
+  },
+  "others": [
+    {
+      "mark": {
+        "left": 294,
+        "right": 310,
+        "top": -3395.71875,
+        "bottom": -3379.71875
+      },
+      "firstLine": {
+        "left": 322,
+        "right": 382,
+        "top": -3395.71875,
+        "bottom": -3380.71875
+      },
+      "centerDifference": 0.5,
+      "lines": [
+        {
+          "left": 322,
+          "right": 382,
+          "top": -3395.71875,
+          "bottom": -3380.71875
+        },
+        {
+          "left": 382,
+          "right": 391,
+          "top": -3395.71875,
+          "bottom": -3380.71875
+        },
+        {
+          "left": 391,
+          "right": 789,
+          "top": -3395.71875,
+          "bottom": -3380.71875
+        }
+      ],
+      "bounds": {
+        "left": 281,
+        "right": 1399
+      }
+    },
+    {
+      "mark": {
+        "left": 294,
+        "right": 308,
+        "top": -3348.71875,
+        "bottom": -3334.71875
+      },
+      "firstLine": {
+        "left": 320,
+        "right": 436,
+        "top": -3349.71875,
+        "bottom": -3334.71875
+      },
+      "centerDifference": 0.5,
+      "lines": [
+        {
+          "left": 320,
+          "right": 436,
+          "top": -3349.71875,
+          "bottom": -3334.71875
+        },
+        {
+          "left": 436,
+          "right": 445,
+          "top": -3349.71875,
+          "bottom": -3334.71875
+        },
+        {
+          "left": 445,
+          "right": 880,
+          "top": -3349.71875,
+          "bottom": -3334.71875
+        }
+      ],
+      "bounds": {
+        "left": 281,
+        "right": 1399
+      }
+    },
+    {
+      "mark": {
+        "left": 294,
+        "right": 304,
+        "top": -3300.71875,
+        "bottom": -3290.71875
+      },
+      "firstLine": {
+        "left": 316,
+        "right": 422,
+        "top": -3303.71875,
+        "bottom": -3288.71875
+      },
+      "centerDifference": 0.5,
+      "lines": [
+        {
+          "left": 316,
+          "right": 422,
+          "top": -3303.71875,
+          "bottom": -3288.71875
+        }
+      ],
+      "bounds": {
+        "left": 281,
+        "right": 1399
+      }
+    }
+  ]
+}

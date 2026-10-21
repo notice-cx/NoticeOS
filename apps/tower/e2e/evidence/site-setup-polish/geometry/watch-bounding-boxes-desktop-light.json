@@ -1,0 +1,59 @@
+{
+  "first": {
+    "left": 1191,
+    "right": 1201,
+    "top": 751,
+    "bottom": 765,
+    "width": 10,
+    "height": 14
+  },
+  "label": {
+    "left": 1182,
+    "right": 1396,
+    "top": 750,
+    "bottom": 766,
+    "width": 214,
+    "height": 16
+  },
+  "clip": {
+    "left": 1182,
+    "right": 1396,
+    "top": 750,
+    "bottom": 766,
+    "width": 214,
+    "height": 16
+  },
+  "marks": [
+    {
+      "tag": "SPAN",
+      "left": 1181.75,
+      "right": 1246.75,
+      "top": 480,
+      "bottom": 496
+    },
+    {
+      "tag": "SPAN",
+      "left": 1254.75,
+      "right": 1266.75,
+      "top": 480,
+      "bottom": 724
+    },
+    {
+      "tag": "BUTTON",
+      "left": 1238.75,
+      "right": 1282.75,
+      "top": 480,
+      "bottom": 524
+    },
+    {
+      "tag": "SPAN",
+      "left": 1252.75,
+      "right": 1268.75,
+      "top": 480,
+      "bottom": 496
+    }
+  ],
+  "hit": true,
+  "color": "rgb(88, 97, 118)",
+  "background": "rgba(0, 0, 0, 0)"
+}
