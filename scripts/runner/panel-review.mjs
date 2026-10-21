@@ -13,9 +13,9 @@ import { isPanelVersion } from '../panel-versions.mjs';
 import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { openStandaloneTasks, ACTOR_HEADER } from '../standalone-mcp.mjs';
 import { standaloneProjectId } from '../standalone-tasks.mjs';
-import { LOCAL_CONNECTION_VARIABLE } from '../database-address.mjs';
+import { DATABASE_URL, readDevSecretBindings } from '../dev-secrets.mjs';
 import { createHash } from 'node:crypto';
-import { CONFIG, HOME_ROOT, OS_CHECKOUT } from './config.mjs';
+import { CONFIG, HOME_ROOT, OS_CHECKOUT, SECRET_FILES } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
@@ -326,8 +326,12 @@ export function panelReviewCreateArgs(repoDir, landing) {
 
 /** A collection's create uses the same durable receipts and mutation reservation
  * as MCP. The key names the project and day, never the current panel version. */
-export async function filePanelReview(project, landing, { open = openStandaloneTasks } = {}) {
-  const tasks = await open({ databaseUrl: process.env[LOCAL_CONNECTION_VARIABLE] ?? '' });
+export async function filePanelReview(project, landing, { open = openStandaloneTasks,
+  readBindings = () => readDevSecretBindings(SECRET_FILES) } = {}) {
+  // The runner keeps the database address out of its environment; the same
+  // bootstrap adapter serves the installation's stdio MCP task operations.
+  const { bindings } = await readBindings();
+  const tasks = await open({ databaseUrl: bindings[DATABASE_URL] });
   try {
     const projectId = standaloneProjectId(project.database);
     const key = 'panel-review:' + createHash('sha256').update(`${projectId}\0${landing.panelDate}`).digest('hex');

@@ -69,7 +69,11 @@ test('a no-checkout review waits for publication and reconciles a lost create ac
     run: async argv => { assert.equal(argv[1], connection.cwd); return { code: 0, stdout: '[]' }; },
     readPublished: async () => publishedNow ? published(project.asset, '2026-09-21', ['serp-panel', 'ranked-keywords']) : null,
     createReview: (resolved, landing) => filePanelReview(resolved, landing, {
-      open: () => openStandaloneTasks({ store, projects, receipts, run: client }),
+      readBindings: async () => ({ bindings: { DATABASE_URL: 'synthetic-bootstrap-address' } }),
+      open: options => {
+        assert.equal(options.databaseUrl, 'synthetic-bootstrap-address');
+        return openStandaloneTasks({ store, projects, receipts, run: client });
+      },
     }),
   });
   await Promise.all([runPanelReviewFiler(UP, pass.deps), runPanelReviewFiler(UP, pass.deps)]);
