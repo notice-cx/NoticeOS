@@ -1563,13 +1563,13 @@ describe("/settings/alert-rules — the replay the fields are edited against", (
     });
   });
 
-  it("shows the longest window against four weeks, with the quietest average it still tests", () => {
+  it("shows the longest window and its evidence requirement", () => {
     state.wall = wall([]);
     const { container } = renderPage();
     const scale = container.querySelector('[data-rule-scale="longest-window"]') as HTMLElement;
     expect(scale).toHaveTextContent("Of four weeks14 days");
     // ln(100) / 14 days at the saved sensitivity of 0.01.
-    expect(scale.querySelector("[data-rule-quietest]")).toHaveTextContent("Tests metrics above 0.33 a day");
+    expect(scale.querySelector("[data-rule-evidence]")).toHaveTextContent("Requires enough history and a drop outside the predicted range");
   });
 
   it("refuses a longest window past four weeks before a Save sends it", async () => {

@@ -81,6 +81,14 @@ describe("alertNormal — a reading against its rule's own normal", () => {
     expect(normal).toMatchObject({ value: 1, ...poissonNormalRange(7.2, 0.01), unit: "in 3 days" });
   });
 
+  it("uses the stored predictive band without reconstructing a Poisson range", () => {
+    const facts = item({ ruleId: "flow-lowvol-window", ruleInputs: { windowObserved: 3, windowHours: 72,
+      baselinePerDay: 11, alpha: 0.01, prediction: { model: "weekday-log-predictive-v1", lower: 6, upper: 120, typical: 30 } } });
+    expect(alertNormal(facts)).toMatchObject({ value: 3, low: 6, high: 120, unit: "in 3 days", level: { value: 30 } });
+    for (const prediction of [null, "future", { model: "future", lower: 6, upper: 120 }, { model: "weekday-log-predictive-v1", lower: 10, upper: 1 }])
+      expect(alertNormal({ ...facts, ruleInputs: { ...facts.ruleInputs, prediction } })).toBeNull();
+  });
+
   it("draws no range a rule did not keep", () => {
     expect(alertNormal(item())).toBeNull();
     // Without its α the rule's line is unknown, so nothing is drawn for it.

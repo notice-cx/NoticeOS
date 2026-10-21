@@ -9,6 +9,11 @@
 
 import type { Transaction } from '@noticeos/postgres';
 
+/** Stored re-evaluation and new reports serialize their count-alert changes. */
+export function holdCountAlerts(tx: Transaction, asset: string): Promise<void> {
+  return holdCondition(tx, asset, 'business-count-alerts');
+}
+
 /** Hold one condition — a site and a rule — until the transaction ends. */
 export async function holdCondition(tx: Transaction, asset: string, ruleId: string): Promise<void> {
   await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [

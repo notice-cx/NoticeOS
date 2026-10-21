@@ -64,7 +64,7 @@ and `sh` runs it. `setup` takes `os:setup`'s options (`--dir`, `--offsite`,
 need a checkout. Afterwards the folder's own launcher runs every command:
 
 ```sh
-~/noticeos/noticeos status    # status, logs, start, stop, restart, apply, backup, capacity, run-job, update, rollback, migrate
+~/noticeos/noticeos status    # status, logs, start, stop, restart, apply, backup, capacity, run-job, refresh-anomalies, update, rollback, migrate
 ```
 
 Each does what the `pnpm os:*` command of the same name does, with the same
@@ -76,6 +76,14 @@ its own path (setup also the offsite folder), and writes as the host user.
 commands run the image the app runs. `NOTICEOS_IMAGE` names another image for
 those three and `NOTICEOS_DOCKER_SOCKET` another socket. The image includes the
 Docker CLI and Compose for this; the app itself never connects to Docker.
+
+`noticeos refresh-anomalies --asset example.com` previews current count-alert
+changes from stored reports without provider calls. Repeat with `--apply` and
+the printed `applyToken` to apply that exact plan within ten minutes. The
+checkout command is `pnpm os:refresh-anomalies -- --asset example.com`.
+[The signal contract](../../docs/02-signal-contract.md#refresh-count-alerts-from-stored-reports)
+describes eligibility, preserved decisions, limits and retry behavior. Both
+preview and apply require specific operator approval for an existing installation.
 
 Setup from the image pins the app to that same image, tests each host port by
 having Docker publish it, and adds to the folder the launcher, its

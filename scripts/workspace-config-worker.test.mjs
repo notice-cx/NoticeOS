@@ -1105,9 +1105,9 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       await admin.query("INSERT INTO noticeos.research_log (workspace_id,research_number,asset_id,provider,endpoint,params_sha256,question,cost_usd,cost_state,object_key,actor,bought_at) VALUES($1,1,'example.test','dataforseo','fixture/report',$2,$3,$4,'reported',$5,$6,now()-interval '2 days')",
         [workspace, questionHash, marker + ' stored question', expected + 1, marker + '/stored-answer', marker + ' recorded buyer']);
       const days = [];
-      for (let ms = Date.parse('2026-05-01T00:00:00Z'); ms <= Date.parse('2026-07-05T00:00:00Z'); ms += 86400000) {
+      for (let ms = Date.parse('2025-12-01T00:00:00Z'); ms <= Date.parse('2026-07-05T00:00:00Z'); ms += 86400000) {
         const date = new Date(ms).toISOString().slice(0, 10), at = date + 'T03:00:00Z';
-        const last24h = date >= '2026-07-01' && date <= '2026-07-0' + expected ? 0 : 10;
+        const last24h = date >= '2026-07-01' && date <= '2026-07-0' + expected ? 0 : 50;
         days.push({ date, at, envelope: { asset: 'example.test', generatedAt: at,
           capabilities: ['signups'], metrics: { signups: { last24h, avg7d: 9.3, total: 4210 } } } });
       }
@@ -1130,7 +1130,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
     const storedWrites = async () => (await admin.query("SELECT (SELECT count(*) FROM noticeos.flags)::int flags,(SELECT count(*) FROM noticeos.config_changes)::int audit,(SELECT count(*) FROM noticeos.config_documents)::int documents,(SELECT count(*) FROM noticeos.research_log)::int purchases,(SELECT count(*) FROM noticeos.annotations)::int annotations")).rows;
     await t.test('MCP and real seasonal replay read colliding evidence only in their selected customer or fixed demo', async () => {
       const before = await storedWrites(), calls = providerCalls.length;
-      for (const [workspace, marker, expected] of [[a, 'tenant-a', 3], [b, 'tenant-b', 0], [demo, 'demo', 1]]) {
+      for (const [workspace, marker, expected, judged] of [[a, 'tenant-a', 3, 28], [b, 'tenant-b', 0, 30], [demo, 'demo', 1, 30]]) {
         const client = workspace === demo ? demoFetch : towerFetch;
         // An unrelated customer's cookie never becomes demo authority.
         const evidence = workspace === demo ? { origin, cookie: otherCookie } : headers(workspace);
@@ -1164,7 +1164,14 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
         const response = await stored(workspace, '/api/alerts/backtest', replay, evidence, client);
         assert.equal(response.status, 200, await response.clone().text());
         const backtest = await response.json();
-        assert.equal(backtest.wouldFire, expected); assert.equal(backtest.judged, 30);
+        assert.equal(backtest.wouldFire, expected); assert.equal(backtest.judged, judged);
+        const longer = backtest.days.filter(day => day.state === 'unjudged');
+        assert.deepEqual(longer.map(day => day.date), expected === 3 ? ['2026-07-04', '2026-07-05'] : []);
+        for (const day of longer) {
+          assert.equal(day.reason, 'out-of-regime');
+          assert.ok(day.comparisons[0].windowHours > 24);
+          assert.equal(day.comparisons[0].comparisonCounts.length, 8);
+        }
         assert.deepEqual(backtest.config, replay.config);
         const miss = await stored(workspace, '/api/mcp', mcpQuestion('research_lookup', { ...researchArgs, windowDays: 1 }), evidence, client);
         assert.equal((await miss.json()).result.structuredContent.found, false);

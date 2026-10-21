@@ -1,16 +1,13 @@
-// Volume-aware anomaly rules (docs/02): a drop is judged by its Poisson tail
-// probability over the shortest whole-day window in which a run of zeros could
-// fire. A busy metric is judged on one day; a quieter one pools more days, up
-// to `maxWindowDays`, and one too quiet for even that is not judged.
-//
-// Every rule is pure and returns a full RuleVerdict, fired or not, so the
-// caller can persist the exact inputs a rule saw as `rule_inputs`.
+// Central count alerts compare complete aligned periods with a future-count
+// prediction. Historical Poisson primitives remain available for old callers.
+// Every verdict preserves the exact decision inputs for storage and replay.
 
+import { COUNT_HISTORY_PERIODS, forecastLowerTail, type CountForecast } from './count-forecast.js';
 import { poissonLowerTail } from './poisson.js';
 import type { FlagKind, FlagSeverity, PulseEnvelope } from './schema.js';
 
 export interface RuleConfig {
-  /** Tail-probability threshold below which a drop fires. docs/02 default 0.01. */
+  /** Sensitivity budget allocated across candidate windows and tails. Default 0.01. */
   alpha: number;
   /** The longest window, in whole days, a quiet metric is pooled over. Default 14. */
   maxWindowDays: number;
@@ -23,8 +20,8 @@ export const DEFAULT_RULE_CONFIG: RuleConfig = {
 };
 
 /** The most `maxWindowDays` may be. Past four weeks a drop is no longer news,
- * and the four earlier windows a window is compared with already reach back
- * more than four months. */
+ * and its eight aligned historical windows reach back
+ * more than seven months. */
 export const MAX_WINDOW_DAYS_LIMIT = 28;
 
 /**
@@ -182,11 +179,42 @@ export function flowLowVolumeAnomaly(
   return { ruleId, outcome: 'ok', inputs };
 }
 
+/** Current central count decision; old functions remain available for replay
+ * comparisons and historical evidence. Both filters share the same inputs. */
+export function flowPredictiveAnomaly(
+  metric: string,
+  observed: number | undefined,
+  baseline: MetricBaseline,
+  config: RuleConfig = DEFAULT_RULE_CONFIG,
+): RuleVerdict {
+  const forecast = baseline.forecast!;
+  const ruleId = baseline.windowHours <= 24 ? 'flow-poisson-low' : 'flow-lowvol-window';
+  const inputs: Record<string, unknown> = {
+    metric, observed: observed ?? null, windowObserved: observed ?? null,
+    windowHours: baseline.windowHours, windowDays: baseline.windowHours / 24,
+    baselinePerDay: baseline.perDay, alpha: config.alpha,
+    prediction: forecast, pooledGroups: baseline.pooledGroups,
+  };
+  if (observed === undefined || !Number.isSafeInteger(observed) || observed < 0 || !baseline.eligible) {
+    inputs.reason = observed === undefined ? 'missing-observation' : 'insufficient-predictive-evidence';
+    return { ruleId, outcome: 'not-applicable', inputs };
+  }
+  const score = forecastLowerTail(observed, forecast);
+  inputs.predictiveScore = score;
+  if (observed < forecast.lower && score < forecast.alpha) {
+    return { ruleId, outcome: 'fired', inputs, flag: {
+      severity: 'warn', kind: 'anomaly', metric,
+      message: `${observed} in last${baseline.windowHours}h (prediction ${forecast.lower}–${forecast.upper}; ${forecast.comparisonCounts.length} comparable periods)`,
+    } };
+  }
+  return { ruleId, outcome: 'ok', inputs };
+}
+
 export interface EvaluateOptions {
   config?: RuleConfig;
   /**
    * Central history-derived baseline per metric. The current implementation
-   * uses four matching weekdays (or four aligned multi-day windows), keeping a
+   * uses eight aligned historical periods, keeping a
    * cyclical property from comparing a weekend with a weekday average.
    */
   baselineByMetric?: Record<string, MetricBaseline>;
@@ -214,7 +242,12 @@ export interface EvaluateOptions {
  */
 export interface MetricBaseline {
   perDay: number;
-  source: 'same-weekday-4w';
+  source: 'same-weekday-4w' | 'same-weekday-8-periods';
+  forecast?: CountForecast;
+  eligible?: boolean;
+  pooledGroups?: number;
+  observed?: number;
+  candidates?: MetricBaseline[];
   sampleSize: number;
   comparisonDates: string[];
   /** The window the baseline was measured over and the metric is judged on;
@@ -236,7 +269,7 @@ export function evaluatePulse(
   const config = options.config ?? DEFAULT_RULE_CONFIG;
   const verdicts: RuleVerdict[] = [];
   for (const [metric, series] of Object.entries(envelope.metrics)) {
-    const historical = options.baselineByMetric?.[metric];
+    let historical = options.baselineByMetric?.[metric];
     if (options.requireHistoricalBaseline && !historical) {
       verdicts.push({
         ruleId: 'flow-seasonal-baseline',
@@ -245,7 +278,7 @@ export function evaluatePulse(
           metric,
           observed: series.last24h,
           reason: 'insufficient-same-weekday-history',
-          requiredWeeks: 4,
+          requiredWeeks: COUNT_HISTORY_PERIODS,
         },
       });
       continue;
@@ -254,8 +287,21 @@ export function evaluatePulse(
     const windowDays = historical
       ? historical.windowHours / 24
       : (windowDaysFor(baselinePerDay, config) ?? config.maxWindowDays);
-    const verdict =
-      windowDays <= 1
+    let verdict: RuleVerdict;
+    if (historical?.candidates?.length) {
+      const candidates = historical.candidates.map((baseline) => ({
+        baseline,
+        verdict: flowPredictiveAnomaly(metric, baseline.observed, baseline, config),
+      }));
+      const selected = candidates.find((candidate) => candidate.verdict.outcome === 'fired')
+        ?? candidates.find((candidate) => candidate.verdict.outcome === 'ok')
+        ?? candidates[candidates.length - 1]!;
+      historical = selected.baseline;
+      verdict = selected.verdict;
+    } else {
+      verdict = historical?.forecast
+      ? flowPredictiveAnomaly(metric, windowDays <= 1 ? series.last24h : options.windowObservedByMetric?.[metric], historical, config)
+      : windowDays <= 1
         ? flowPoissonAnomaly(metric, series.last24h, baselinePerDay, config)
         : flowLowVolumeAnomaly(
             metric,
@@ -264,6 +310,7 @@ export function evaluatePulse(
             windowDays,
             config,
           );
+    }
     if (historical) {
       Object.assign(verdict.inputs, {
         baselineSource: historical.source,

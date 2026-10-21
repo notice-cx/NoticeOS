@@ -23,8 +23,8 @@ most of it in place.
 | `operator_rate_usd_per_min` | What a minute of operator time costs the ledger | the Tower's settings and financials payloads | yes, **General → Budget** |
 | `explore_sleeve` | Share of effort reserved for exploration | reference value; no code reads it | no |
 | `monthly_caps.data_usd` | Hard monthly ceiling on metered data spend | the DataForSEO budget gate (`workers/ingest/src/dataforseo-dumps.ts`), fail-closed | yes, **General → Budget** |
-| `flag_defaults.alpha` | Anomaly sensitivity: the Poisson tail probability an alert must beat | the flag rules (`packages/contract/src/rules.ts`) | yes, **Alert rules** |
-| `flag_defaults.max_window_days` | The most whole days a quiet series is pooled over, 1 to 28: each series is tested over the fewest days in which a run of zeros could fire, and one too quiet for this many is not tested | the flag rules | yes, **Alert rules** |
+| `flag_defaults.alpha` | Anomaly sensitivity, allocated across candidate prediction windows and tails; not a portfolio false-alarm guarantee | the flag rules (`packages/contract/src/rules.ts`) | yes, **Alert rules** |
+| `flag_defaults.max_window_days` | The most whole days an observation can cover, 1 to 28: use the shortest complete window supporting a decline; uncertain or sparse activity can remain unjudged | the flag rules | yes, **Alert rules** |
 | `codebase_rules.growth_percent_30d` | The codebase growth alert fires when lines of code rose at least this percent over the site's codebase report nearest 30 days back (28 to 45 days back). Default 25 | the codebase rules (`workers/ingest/src/codebase.ts`, `packages/contract/src/codebase-measures.ts`), store first, on every codebase report | no |
 | `codebase_rules.growth_min_lines` | The codebase growth alert also needs the code to have grown by at least this many lines. Default 500 | the codebase rules | no |
 | `codebase_rules.duplication_percent` | The repeated-code alert fires when at least this percent of the code is repeated. Default 8 | the codebase rules | no |

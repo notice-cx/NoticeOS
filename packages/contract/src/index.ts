@@ -15,6 +15,9 @@ export * from './validation-issue.js';
 export * from './rules.js';
 export * from './rule-backtest.js';
 export * from './poisson.js';
+export * from './count-forecast.js';
+export * from './count-history.js';
+export * from './legacy-count-warning.js';
 export * from './reporting.js';
 export * from './os-time-zone.js';
 export * from './time-zone-setting.js';
@@ -39,3 +42,5 @@ export * from './site-discovery.js';
 export * from './asset-name.mjs';
 export * from './site-order.js';
 export * from './site-icons.js';
+
+export * from './anomaly-refresh.js';

@@ -59,7 +59,7 @@ export interface RuleBacktestInput {
 export type RuleBacktestDayState = 'fired' | 'quiet' | 'unjudged' | 'no-report';
 
 /** Why a day could not be judged. Absent on every other state. */
-export type RuleBacktestUnjudgedReason = 'no-baseline' | 'out-of-regime';
+export type RuleBacktestUnjudgedReason = 'no-baseline' | 'out-of-regime' | 'missing-observation' | 'insufficient-predictive-evidence';
 
 export interface RuleBacktestDay {
   /** `YYYY-MM-DD`, UTC — the `pulses` grain. */
@@ -69,6 +69,8 @@ export interface RuleBacktestDay {
    * Empty unless `state` is `fired`. */
   firings: { metric: string; severity: FlagSeverity }[];
   reason?: RuleBacktestUnjudgedReason;
+  /** Selected count windows and their stored-model evidence, never a provider read. */
+  comparisons?: { metric: string; windowHours: number; observed: number | null; lower: number; upper: number; comparisonDates: string[]; comparisonCounts: number[] }[];
   /** Did this rule actually fire on this day — a stored `flags` row, not a
    * replay? Per day, so the candidate can be read against reality where it
    * differs. */

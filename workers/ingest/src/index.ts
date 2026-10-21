@@ -99,6 +99,7 @@ import {
   moveAsset,
 } from './asset-state.js';
 import { backtestRule } from './rule-backtest.js';
+import { handleAnomalyRefresh } from './routes/anomaly-refresh.js';
 import { handleAnnotations } from './routes/annotations.js';
 import { handleOpenReclamationTargets, handleReclamationTargets } from './routes/reclamation-targets.js';
 import { handleAssetState, handleAssetStateEdit } from './routes/asset-state.js';
@@ -148,6 +149,8 @@ import { discoverSites } from './site-discovery.js';
 /** Every HTTP route, run with the call's env (withCallStore). */
 async function route(request: Request, env: IngestEnv): Promise<Response> {
   const { pathname } = new URL(request.url);
+
+  if (request.method === 'POST' && pathname === '/api/anomaly-refresh') return handleAnomalyRefresh(request, env);
 
   if (request.method === 'POST' && pathname === '/api/pulse') {
     return handlePulse(request, env);

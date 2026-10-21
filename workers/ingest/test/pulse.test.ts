@@ -1,8 +1,9 @@
+import { shiftDate } from '../src/db.js';
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ASSET_TOKENS } from './fixtures.js';
 import { rollUpAlertDay } from '../src/alert-daily.js';
-import { call, insertAnnotation, insertFlag, pgCount, pgRows, reset } from './helpers.js';
+import { call, insertAnnotation, insertFlag, insertPulse, pgCount, pgRows, reset } from './helpers.js';
 
 const MEADOW = 'meadow.example';
 
@@ -33,13 +34,13 @@ function validEnvelope(generatedAt = '2026-07-05T03:00:00.000Z') {
 }
 
 async function seedSeasonalHistory(): Promise<void> {
-  for (const date of ['2026-06-07', '2026-06-14', '2026-06-21', '2026-06-28']) {
+  for (let back = 131; back >= 1; back--) {
+    const date = shiftDate('2026-07-05', -back);
     const envelope = validEnvelope(`${date}T03:00:00.000Z`);
     envelope.metrics.signups.last24h = 10;
-    envelope.metrics.plansSaved.last24h = 6;
+    envelope.metrics.plansSaved.last24h = 30;
     envelope.flags = [];
-    const res = await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]));
-    expect(res.status).toBe(201);
+    await insertPulse({ asset: MEADOW, date, generatedAt: envelope.generatedAt, receivedAt: envelope.generatedAt, capabilities: envelope.capabilities, envelope });
   }
 }
 
@@ -84,7 +85,64 @@ describe('POST /api/pulse — validation', () => {
 });
 
 describe('POST /api/pulse — write + flag explosion + central rules', () => {
-  it('raises no alert until four matching weekdays establish a central baseline', async () => {
+  const legacy = { severity: 'warn', kind: 'anomaly', metric: 'plansSaved', msg: 'last24h 0 vs avg7d 6.2 (rule poisson-24h, P<=0.002)' };
+
+  it('suppresses only recognized legacy arithmetic matching the report', async () => {
+    const envelope = { ...validEnvelope(), flags: [legacy, { ...legacy, msg: 'Database unavailable' },
+      { ...legacy, msg: 'last24h 0 vs avg7d 99.0 (rule poisson-24h, P<=0.001)' }] };
+    const res = await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]));
+    expect(((await res.json()) as { envelopeFlags: number }).envelopeFlags).toBe(2);
+    const rows = await pgRows<{ message: string; resolved: boolean }>(`SELECT message, resolved_at IS NOT NULL AS resolved FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'asset-declared'`, [MEADOW]);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => !r.resolved)).toBe(true);
+  });
+
+  async function oldDeclared(flag = legacy, disposition: string | null = null, until: string | null = null) {
+    const envelope = { ...validEnvelope('2026-07-04T03:00:00.000Z'), flags: [flag] };
+    const pulseId = await insertPulse({ asset: MEADOW, date: '2026-07-04', generatedAt: envelope.generatedAt, receivedAt: envelope.generatedAt, capabilities: envelope.capabilities, envelope });
+    return insertFlag({ asset: MEADOW, pulseId, firedAt: envelope.generatedAt, severity: flag.severity, kind: flag.kind, metric: flag.metric, message: flag.msg,
+      ruleId: 'asset-declared', ruleInputs: JSON.stringify({ source: 'envelope', ...flag }), disposition,
+      dispositionAt: disposition ? envelope.generatedAt : null, snoozeUntil: until });
+  }
+
+  it('retires proven legacy warnings but preserves custom and technical warnings', async () => {
+    const old = await oldDeclared();
+    const custom = await oldDeclared({ ...legacy, msg: 'last24h 0 vs avg7d 99.0 (rule poisson-24h, P<=0.001)' });
+    const technical = await oldDeclared({ ...legacy, severity: 'error', msg: 'Database unavailable' });
+    await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
+    const rows = await pgRows<{ number: number; resolved: boolean }>(`SELECT flag_number::int AS number, resolved_at IS NOT NULL AS resolved FROM noticeos.current_flags WHERE flag_number = ANY($1::bigint[]) ORDER BY flag_number`, [[old, custom, technical]]);
+    expect(rows).toEqual([{ number: old, resolved: true }, { number: custom, resolved: false }, { number: technical, resolved: false }]);
+  });
+
+  it.each([['2099-01-01T00:00:00Z', 0], ['2020-01-01T00:00:00Z', 1]] as const)('honors recognized legacy snooze until %s', async (until, expected) => {
+    await seedSeasonalHistory();
+    await oldDeclared(legacy, 'snooze', until);
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
+    expect(((await res.json()) as { centralFlags: number }).centralFlags).toBe(expected);
+  });
+
+  it('does not transfer an unrelated custom-warning snooze', async () => {
+    await seedSeasonalHistory();
+    await oldDeclared({ ...legacy, msg: 'Database unavailable' }, 'snooze', '2099-01-01T00:00:00Z');
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
+    expect(((await res.json()) as { centralFlags: number }).centralFlags).toBe(1);
+  });
+
+  it('preserves an active legacy snooze when history cannot judge recovery', async () => {
+    const id = await oldDeclared(legacy, 'snooze', '2099-01-01T00:00:00Z');
+    await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_flags WHERE flag_number = $1 AND resolved_at IS NULL`, [id])).toBe(1);
+  });
+
+  it('preserves a central snooze when the chosen count window changes', async () => {
+    await seedSeasonalHistory();
+    await insertFlag({ asset: MEADOW, firedAt: '2026-07-04T03:00:00Z', severity: 'warn', kind: 'anomaly', metric: 'plansSaved',
+      ruleId: 'flow-lowvol-window', disposition: 'snooze', dispositionAt: '2026-07-04T04:00:00Z', snoozeUntil: '2099-01-01T00:00:00Z' });
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
+    expect(((await res.json()) as { centralFlags: number }).centralFlags).toBe(0);
+  });
+
+  it('raises no alert until eight complete periods establish a central baseline', async () => {
     const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     const body = (await res.json()) as { centralFlags: number };
@@ -112,7 +170,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     expect(body.envelopeFlags).toBe(1);
     expect(body.centralFlags).toBe(1);
 
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEADOW])).toBe(5);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEADOW])).toBe(132);
 
     // asset-declared milestone flag exploded verbatim
     const [declared] = await pgRows<{ severity: string; kind: string; metric: string }>(
@@ -144,13 +202,14 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       baselineComparisonDates: string[];
     };
     expect(inputs.observed).toBe(0);
-    expect(inputs.baselinePerDay).toBe(6);
-    expect(inputs.baselineSource).toBe('same-weekday-4w');
+    expect(inputs.baselinePerDay).toBe(30);
+    expect(inputs.baselineSource).toBe('same-weekday-8-periods');
     expect(inputs.baselineComparisonDates).toEqual([
       '2026-06-28',
       '2026-06-21',
       '2026-06-14',
       '2026-06-07',
+      '2026-05-31', '2026-05-24', '2026-05-17', '2026-05-10',
     ]);
   });
 
@@ -184,16 +243,17 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       baselineSampleSize: number;
       baselineComparisonDates: string[];
     };
-    // All four weekdays, the distorted one included, and the same ruler as the
+    // All eight weekdays, the distorted one included, and the same ruler as the
     // run with no annotation filed.
     expect(inputs.baselineComparisonDates).toEqual([
       '2026-06-28',
       '2026-06-21',
       '2026-06-14',
       '2026-06-07',
+      '2026-05-31', '2026-05-24', '2026-05-17', '2026-05-10',
     ]);
-    expect(inputs.baselineSampleSize).toBe(4);
-    expect(inputs.baselinePerDay).toBe(6);
+    expect(inputs.baselineSampleSize).toBe(8);
+    expect(inputs.baselinePerDay).toBe(30);
   });
 
   it('same-day re-push replaces the row and re-derives flags without duplicating', async () => {
@@ -203,7 +263,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     const second = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(second.status).toBe(201);
 
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEADOW])).toBe(5);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEADOW])).toBe(132);
     // still exactly one of each derived flag, not two
     expect(
       await pgCount(`SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'asset-declared'`, [
@@ -295,7 +355,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
      * A healthy level well clear of the floor keeps the later collapse a
      * collapse.
      */
-    const HEALTHY = 20;
+    const HEALTHY = 50;
 
     /** One pulse, on a Sunday so every date here shares a seasonal weekday. */
     async function push(date: string, plansSaved: number): Promise<number> {
@@ -310,8 +370,13 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
 
     /** Four healthy Sundays, then a fifth where plansSaved collapses to zero. */
     async function historyThenOneAlert(): Promise<void> {
-      for (const date of ['2026-06-07', '2026-06-14', '2026-06-21', '2026-06-28']) {
-        expect(await push(date, HEALTHY)).toBe(0);
+      for (let back = 131; back >= 1; back--) {
+        const date = shiftDate('2026-07-05', -back);
+        const envelope = validEnvelope(`${date}T03:00:00.000Z`);
+        envelope.metrics.signups.last24h = 10;
+        envelope.metrics.plansSaved.last24h = HEALTHY;
+        envelope.flags = [];
+        await insertPulse({ asset: MEADOW, date, generatedAt: envelope.generatedAt, receivedAt: envelope.generatedAt, capabilities: envelope.capabilities, envelope });
       }
       expect(await push('2026-07-05', 0)).toBe(1);
     }
@@ -348,7 +413,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
 
       // The next Sunday: a different pulse row, and the same collapse — the
       // test below proves this pulse fires when nothing is parked.
-      expect(await push('2026-07-12', 0)).toBe(0);
+      expect(await push('2026-07-06', 0)).toBe(0);
       expect(await openFlowAlerts()).toBe(0);
 
       // The parked row is untouched — same id, same silence, same date.
@@ -366,7 +431,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       await historyThenOneAlert();
       await snoozeFlowAlert('2020-01-01T00:00:00.000Z');
 
-      expect(await push('2026-07-12', 0)).toBe(1);
+      expect(await push('2026-07-06', 0)).toBe(1);
       expect(await openFlowAlerts()).toBe(1);
     });
 
@@ -374,7 +439,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       await historyThenOneAlert();
       const parked = await snoozeFlowAlert('2099-01-01T00:00:00.000Z');
 
-      expect(await push('2026-07-12', HEALTHY)).toBe(0);
+      expect(await push('2026-07-06', HEALTHY)).toBe(0);
 
       // A snooze says "ask me later", and the metric has answered. Leaving the
       // row parked would hand back a month-old false alarm on its date.
@@ -395,7 +460,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
         ),
       );
 
-      await push('2026-07-12', HEALTHY);
+      await push('2026-07-06', HEALTHY);
 
       // Ack and resolve are the operator saying "done with this"; a lane may
       // not rewrite that. Only the disposition that ASKS TO BE REVISITED is
@@ -409,12 +474,13 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
   });
 
   it('compares a Saturday with prior Saturdays instead of a misleading weekday average', async () => {
-    for (const date of ['2026-06-06', '2026-06-13', '2026-06-20', '2026-06-27']) {
+    for (let back = 131; back >= 1; back--) {
+      const date = shiftDate('2026-07-04', -back);
       const envelope = validEnvelope(`${date}T03:00:00.000Z`);
       envelope.metrics.signups.last24h = 20;
       envelope.metrics.plansSaved.last24h = 20;
       envelope.flags = [];
-      expect((await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]))).status).toBe(201);
+      await insertPulse({ asset: MEADOW, date, generatedAt: envelope.generatedAt, receivedAt: envelope.generatedAt, capabilities: envelope.capabilities, envelope });
     }
 
     const saturday = validEnvelope('2026-07-04T03:00:00.000Z');

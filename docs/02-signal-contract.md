@@ -50,59 +50,110 @@ database; assets with D1 keep using D1.
 
 ### Volume-aware anomaly rules
 
-A fixed threshold ("0 in last24h when avg7d > ~1 → warn") produces constant
-false positives on low-volume assets: at an average of 4.1/day, a day with
-zero is ordinary Poisson noise, and after a stream of meaningless warnings the
-operator stops reading the alerts, which defeats the purpose of monitoring.
+Central business-count alerts use eight complete, weekday-aligned historical
+periods and a prediction interval for the next observation. Low-volume or
+variable activity can remain unjudged. Uptime, report freshness and other
+technical failure checks keep their existing timing.
 
-- Model each flow metric as Poisson(seasonal baseline·w) over a window of w
-  whole days, and flag only when `P(observed | baseline·w) < α` (default
-  α = 0.01).
-- w is the shortest window, at most `max_window_days` (default 14), in which a
-  run of zeros could fire: the smallest w with `e^(−baseline·w) < α`, which is
-  `⌈ln(1/α) ÷ baseline⌉` days. At α = 0.01 a metric averaging 4.61 a day or more
-  is tested on one day, 3 a day on two, 1.5 on four, 1 on five and 0.5 on ten.
-  Under `ln(1/α) ÷ max_window_days` (0.33 a day by default) no window can fire,
-  and the metric is not tested.
-- Every daily metric uses the mean of its four matching prior weekdays:
-  a Saturday is compared with the four prior Saturdays, not Friday or a flat
-  seven-day mean. The asset-supplied `avg7d` remains diagnostic wire data and
-  never changes the central baseline.
-- A multi-day window is compared with four earlier windows of the same length
-  that end on the same weekday, spaced ⌈w ÷ 7⌉ weeks apart so that none
-  overlaps another or the window being tested. The window grows one day at a
-  time until those four windows hold enough events for a run of zeros to fire.
-  A missing observation in any cohort means the rule raises no alert for that
-  metric; it does not switch to a different baseline.
-- Percentage-drop rules apply only above minimum absolute counts.
-- A rule starts evaluating only after all four comparison windows exist, so a
-  new metric raises no alerts for at least 28 days, and a metric tested over
-  more than a week for at least 8 weeks plus the window. The Tower's one-week
-  visual reference is context, not itself an alert threshold.
-- When a new reading arrives, the prior open central flow alert for that
-  metric is resolved before the current event is evaluated. If the anomaly
-  persists, the new daily event opens; if it recovered, the property no longer
-  shows an outdated yellow state. Operator-dispositioned history is never
-  auto-reopened.
-- Thresholds are in NoticeOS config, tunable per asset; every raised flag
-  records the rule + inputs so false positives can be audited and the rules
-  themselves improved (the Learn stage applies here too).
-- **A day distorted by a reporting-timezone change stays in the baseline cohort.**
-  When a provider's reporting timezone changes, the change day and the day
-  before it are shorter or longer only because of the change, and the Tower
-  marks both on every chart that includes them. These rules keep those days in
-  their cohorts because the distortion is not in the data they use: the cohort
-  is built from stored **reports** (`pulses`) — an asset's own counters from
-  its own database — while a reporting timezone is a setting on a
-  **provider's** property (GA4), and changing it moves hours only within that
-  provider's series. Excluding the day would also do more harm than good: a
-  cohort is used only when all four matching weekdays are present, so dropping
-  one would stop alerts for that metric for four weeks, a month with no
-  monitoring, to remove a bias that is not in the data. **The limit:** the
-  first rule that reads a provider-bucketed daily series (the GA4/GSC
-  `signal_values` rows the Tower charts) must exclude the distorted days from
-  its own cohort; `distortedDays()` in
-  `workers/ingest/src/time-zone-change.ts` returns those days.
+- Test complete windows from one day through `max_window_days` (default 14).
+  Each window uses eight earlier windows of the same length, ending on the
+  same weekday and spaced ⌈window days ÷ 7⌉ weeks apart. These windows overlap
+  neither one another nor the tested window. Select the shortest window that
+  supports an alert. A missing or invalid count is unknown; a real zero stays
+  zero. Missing required comparisons stop longer candidates; shorter complete
+  candidates remain available.
+  Report envelopes currently declare `last24h` without explicit period bounds or
+  completeness metadata. Complete windows here require every stored daily
+  counter; the detector cannot identify a reporter that supplies a number for
+  an incomplete measurement. It never reconstructs absent reports as zeros.
+- Fit a linear recent trend to `log1p(count)`. Use a Student-t future-observation
+  interval with six residual degrees of freedom, including both residual
+  variability and uncertainty in the fitted trend. A count-noise variance floor
+  and the largest available weekday-specific residual variance can only widen
+  the interval. At least four complete weekday fits are required. The fitted
+  trend reference is not an arithmetic expected count.
+- Allocate `alpha / (2 × max_window_days)` to each tail of each candidate
+  interval. A decline must also pass a Poisson Chernoff noise filter using the
+  smaller of the fitted reference and historical mean. The two filters are
+  dependent; their probabilities are not multiplied. The log-count model is an
+  approximation. These settings provide no universal false-alarm guarantee
+  across repeated daily checks, assets or arbitrary seasonal patterns.
+- A window is eligible only if a zero count could support an alert under both
+  filters. A wide range that includes zero cannot produce a warning. Sparse
+  activity may need several days, or remain unjudged through the maximum.
+  The model handles matching weekdays and recent trends; it does not explicitly
+  fit annual seasonality or holidays.
+- The first daily prediction needs eight matching periods plus enough prior
+  weekdays to estimate variability, at least 59 days. The default maximum
+  history read is 131 days. Longer windows need more history. Asset-supplied
+  `avg7d` never replaces missing central history.
+- Every new alert stores its model version, comparison dates and counts,
+  observation window, predicted range and decision inputs. The Tower displays
+  that stored range. Older Poisson alerts retain their original interpretation;
+  unknown model versions receive no inferred range. Replay uses the same
+  historical assembly and scoring, and displays the selected window and why
+  a day could not be judged.
+- A new report resolves prior untouched central count warnings for its metrics,
+  then records any current warning. Recognized legacy asset count warnings are
+  replaced only when their arithmetic matches their owning report. Arbitrary
+  asset warnings and technical failures remain unchanged. Active recognized
+  legacy snoozes suppress replacement warnings until expiry or recovery;
+  acknowledged and resolved operator history is preserved.
+- Sensitivity and maximum observation length remain operator-controlled in
+  **Alert rules**. The synthetic rolling benchmark in
+  `packages/contract/test/count-detection-simulation.test.ts` checks warning
+  days, warning episodes, eligibility, incident detection and detection delay
+  against frozen seeds and acceptance criteria. It does not establish live
+  outcome performance.
+- Provider reporting-timezone changes do not alter these asset-reported
+  counters. Rules using provider-bucketed daily series must exclude distorted
+  dates using `distortedDays()` in `workers/ingest/src/time-zone-change.ts`.
+
+The future-observation interval includes residual and fitted-trend uncertainty
+([NIST](https://www.itl.nist.gov/div898/handbook/pmd/section5/pmd512.htm)).
+Rolling validation trains only on observations before each tested window
+([Forecasting: Principles and Practice](https://otexts.com/fpp3/tscv.html)).
+
+### Refresh count alerts from stored reports
+
+After a rule rollout, an operator can preview a refresh for one active asset:
+
+```sh
+pnpm os:refresh-anomalies -- --asset example.com
+```
+
+The preview reads the latest stored report, its historical comparisons, current
+settings and relevant alert decisions. It lists alerts to retire, preserve or
+create, and metrics with insufficient evidence. It makes no provider requests
+and writes nothing. The latest report must be no older than the report-age
+limit; historical dates are comparisons, never new current observations.
+
+Apply by repeating the command with `--apply` followed by the printed
+`applyToken`. The token expires after ten minutes. Apply rechecks the report,
+history, settings, evidence and operator decisions under a shared lock with
+report ingestion. A changed input or a snooze expiring during review requires
+a new preview. The token identifies the reviewed state; existing operator
+authentication authorizes the request.
+
+Apply retires only recognized count warnings and records replacements against
+the original report and generation time, with stored-report provenance.
+Acknowledged and resolved history, active snoozes, unsupported evidence,
+independent warnings and technical checks remain intact. Expired snoozes can
+be retired while their disposition history remains stored. Reports, arrival
+times, source health and notification scheduling remain unchanged. Merge,
+restart and update do not run this refresh.
+
+Each request allows at most 64 metrics and 200 candidate count-alert rows.
+Input rows are bounded to 64 KiB, report and alert collections to 2 MiB each,
+and the result to 512 KiB. Database statements and lock waits have five-second
+timeouts. Limits cause refusal, never a partial apply. Alert changes and the
+receipt commit together. Retrying an applied token returns its receipt without
+duplicating changes; receipts follow `job_runs` retention, and an expired token
+with no receipt cannot apply again. The standalone installation launcher also
+supports `noticeos refresh-anomalies --asset example.com`.
+
+Both the preview read and apply against an existing installation require
+specific operator approval under the production-access policy.
 
 ### Codebase report
 

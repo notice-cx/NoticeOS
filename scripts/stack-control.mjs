@@ -14,11 +14,13 @@
 //   pnpm os:run-job -- "<cron>"  Fire the jobs scheduled on one cron expression now.
 //   pnpm os:collect -- --asset <id> [--families <a,b>]  Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed.
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
+//   pnpm os:refresh-anomalies -- --asset <id> [--apply <preview-token>]  Re-evaluate current count alerts from stored reports, with no provider calls.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
 //   pnpm os:bd -- <arguments>  Run bd in the installation's task project; `--project <prefix>` picks one of several.
 //
 // The stack is the one `.local/stack.json` (or --config) selects.
 import * as fs from 'node:fs';
+import { anomalyRefreshArgs } from './anomaly-refresh-args.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { imageInstallation } from './image-installation.mjs';
@@ -29,14 +31,15 @@ import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'mcp', 'bd'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'mcp', 'bd'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
 /** How long a job run inside the app container may take. */
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
-const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, mcp: Infinity, bd: 600_000 };
+const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000, mcp: Infinity, bd: 600_000 };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
        stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>
+       stack-control.mjs refresh-anomalies --asset <id> [--apply <preview-token>]
        stack-control.mjs collect --asset <id> [--families <a,b>] [--start <YYYY-MM-DD> --end <YYYY-MM-DD>]`;
 function refuse(message) { throw new Error(message); }
 export function validateSelector(value) {
@@ -122,6 +125,7 @@ export function actionArgs(action, args) {
     return { job: ['run-job', args[0]] };
   }
   if (action === 'collect') return { job: ['collect', ...collectJobArgs(args)] };
+  if (action === 'refresh-anomalies') { anomalyRefreshArgs(args); return { job: ['refresh-anomalies', ...args] }; }
   if (action === 'capacity') {
     if (args.length > 1 || args.length === 1 && args[0] !== '--json') refuse(HELP);
     return { job: ['capacity', ...args] };

@@ -48,7 +48,11 @@ export function BacktestStrip({ backtest, className }: BacktestStripProps) {
           data-backtest-note="unjudged"
         >
           <TriangleAlert className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          Not enough history to replay
+          {days.some((day) => day.reason === "missing-observation")
+            ? "Missing counts prevent evaluation"
+            : days.some((day) => day.reason === "insufficient-predictive-evidence")
+              ? "Not enough evidence to judge a decline"
+              : "Not enough history to replay"}
         </p>
       ) : (
         <p className="text-sm text-foreground">
@@ -161,9 +165,16 @@ function dayTitle(day: RuleBacktestDay): string {
         : day.state === "no-report"
           ? "no report filed"
           : day.reason === "out-of-regime"
-            ? "not judged — the metric was outside this rule's volume range"
+            ? day.comparisons?.length
+              ? "not judged by this rule — another observation window was selected"
+              : "not judged — the metric was outside this rule's volume range"
+            : day.reason === "missing-observation"
+              ? "not judged — a report count is missing from the observation window"
+              : day.reason === "insufficient-predictive-evidence"
+                ? "not judged — history is too variable or sparse for a supported decline"
             : "not judged — too few earlier reports to compare with";
-  return `${day.date}: ${replay}${day.stored ? " · really fired" : ""}`;
+  const comparisons = (day.comparisons ?? []).map((c) => `${c.metric}: ${c.observed ?? "missing"} in ${c.windowHours / 24} days; predicted ${c.lower}–${c.upper}; ${c.comparisonCounts.length} matching periods`).join(" · ");
+  return `${day.date}: ${replay}${comparisons ? ` · ${comparisons}` : ""}${day.stored ? " · really fired" : ""}`;
 }
 
 /**

@@ -1,18 +1,4 @@
-// The alert-rule replay: how often would this rule have fired in the last 30
-// days with these settings?
-//
-// The whole value of the answer is that it is PRODUCED, not estimated — the real
-// `evaluatePulse` over the real stored pulses against the same four-matching-
-// weekday baseline the nightly lane uses. So these tests seed actual `pulses`
-// rows and assert the count MOVES with the settings in the direction the
-// detector's own mathematics says it must, rather than asserting a fixture.
-//
-// The fixture is deliberately flat — every day 10 signups — so the baseline for
-// every judged day is exactly 10 and each anomalous day's Poisson tail is a
-// number that can be reasoned about by hand:
-//   0 of an expected 10  →  P(X<=0) = e^-10   ≈ 4.54e-5
-//   4 of an expected 10  →  P(X<=4)          ≈ 2.93e-2
-
+// Replay must use the same stored history and model as ingestion.
 import { createExecutionContext, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RuleBacktest, RuleBacktestInput, RuleConfig } from '@noticeos/contract';
@@ -25,8 +11,8 @@ const METRIC = 'signups';
 const RULE = 'flow-poisson-low';
 /** The replay's last day — a fixed date, so the fixture never drifts under it. */
 const THROUGH = '2026-07-05';
-/** Deep enough that every day of the window has its four matching weekdays. */
-const FIRST_SEEDED = '2026-05-01';
+/** Deep enough that every day of the window has eight aligned prior periods. */
+const FIRST_SEEDED = '2025-12-01';
 
 const DEFAULTS: RuleConfig = {
   alpha: 0.01,
@@ -38,8 +24,8 @@ const DIPS: Record<string, number> = {
   '2026-07-01': 0,
   '2026-07-02': 0,
   '2026-07-03': 0,
-  '2026-07-04': 4,
-  '2026-07-05': 4,
+  '2026-07-04': 20,
+  '2026-07-05': 20,
 };
 
 function worker(): IngestWorker {
@@ -73,7 +59,7 @@ function envelope(asset: string, date: string, last24h: number) {
 async function seedPulses(asset: string, first: string, last: string): Promise<void> {
   const days: { date: string; at: string; capabilities: string[]; envelope: string }[] = [];
   for (let date = first; date <= last; date = shift(date, 1)) {
-    const body = envelope(asset, date, DIPS[date] ?? 10);
+    const body = envelope(asset, date, DIPS[date] ?? 50);
     days.push({ date, at: body.generatedAt, capabilities: body.capabilities, envelope: JSON.stringify(body) });
   }
   // One statement: each day's first report.
@@ -140,8 +126,7 @@ describe('backtestRule — the count moves with the settings', () => {
 
   it('fires on the days the shipped settings would have fired on', async () => {
     const result = await backtest();
-    // The three zero-days clear alpha 0.01 (P ≈ 4.5e-5); the two 4-days do not
-    // (P ≈ 0.029).
+    // Complete outages clear the default prediction; the partial drops do not.
     expect(result.wouldFire).toBe(3);
     const fired = result.days.filter((day) => day.state === 'fired').map((day) => day.date);
     expect(fired).toEqual(['2026-07-01', '2026-07-02', '2026-07-03']);
@@ -165,8 +150,7 @@ describe('backtestRule — the count moves with the settings', () => {
   });
 
   it('moves to a two-day window once the sensitivity is too strict for one empty day', async () => {
-    // At 1 in a million an empty day of an expected 10 (e^-10 ~= 4.5e-5) cannot
-    // fire, so the one-day rule judges no day; two days of an expected 20 can.
+    // The stricter prediction needs two complete empty days at this volume.
     const strict = { ...DEFAULTS, alpha: 0.000001 };
     const oneDay = await backtest({ config: strict });
     expect(oneDay.judged).toBe(0);
@@ -175,8 +159,7 @@ describe('backtestRule — the count moves with the settings', () => {
 
     const twoDays = await backtest({ ruleId: 'flow-lowvol-window', config: strict });
     expect(twoDays.judged).toBe(30);
-    // 07-01 pairs a zero with a full day (10 of 20); 07-02 and 07-03 are two
-    // empty days; 07-04 and 07-05 hold 4 and 8.
+    // Only July 2 and 3 contain two complete empty days.
     expect(
       twoDays.days.filter((day) => day.state === 'fired').map((day) => day.date),
     ).toEqual(['2026-07-02', '2026-07-03']);
@@ -189,7 +172,7 @@ describe('backtestRule — the count moves with the settings', () => {
     expect(result.wouldFire).toBe(0);
     expect(result.judged).toBe(0);
     expect(result.days.every((day) => day.state === 'unjudged')).toBe(true);
-    expect(result.days[0]!.reason).toBe('out-of-regime');
+    expect(result.days[0]!.reason).toBe('insufficient-predictive-evidence');
   });
 });
 
@@ -205,7 +188,7 @@ describe('backtestRule — what it will not claim', () => {
   });
 
   it('marks days with no same-weekday cohort unjudged, not quiet', async () => {
-    // Ten days of history: the window's own days exist, the four weeks behind
+    // Ten days of history: the window's own days exist, the eight periods behind
     // them do not.
     await seedPulses(ASSET, shift(THROUGH, -9), THROUGH);
     const result = await backtest();
