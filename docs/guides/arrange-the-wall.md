@@ -33,7 +33,7 @@ Each of the three views has a ready-made layout:
 
 | Start from | Layout |
 |---|---|
-| **I run the business** | **Top strip**, then **Site health** over **Revenue** on the left, beside **Needs attention** over **The agents** on the right |
+| **I run the business** | **Top strip**, then **Next up** across the TV, then **Site health** over **Revenue** on the left, beside **Needs attention** over **The agents** on the right |
 | **I build the product** | **Top strip**, then **Revenue** over **Visitors by channel** on the left, beside **Sites** over **Work** on the right |
 | **Everything** | the default layout |
 

@@ -55,9 +55,10 @@ export interface WallWidgetSpec {
     /**
      * Its place in the one column the Wall becomes on a portrait tablet or a
      * phone: the strip, revenue, the site rows, then what is broken (the last
-     * 24 hours, Needs attention), the work, the feed and the loop last. The sites come
-     * before the problems because their numbers are what changes. By type, so
-     * any saved layout reads the same.
+     * 24 hours, Needs attention), what waits on the operator (Next up), the
+     * work, the feed and the loop last. The sites come before the problems
+     * because their numbers are what changes. By type, so any saved layout
+     * reads the same.
      */
     stackOrder: number;
     /** Renders nothing — and yields its track — when it has nothing to show: an

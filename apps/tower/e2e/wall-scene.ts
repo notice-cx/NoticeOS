@@ -1,4 +1,4 @@
-// The fixture's Wall, set up once. Seven Wall journeys draw the same synthetic Wall (wall-fixture.ts): the same
+// The fixture's Wall, set up once. The Wall journeys draw the same synthetic Wall (wall-fixture.ts): the same
 // clock pin and the same five reads answered from the fixture. `wallScene`
 // registers those reads once, each payload built once per variant.
 // `wallAt` shows the Wall at a screen size: the first call loads it, and later
@@ -10,6 +10,7 @@
 // readings in sessionStorage, and a restored reading from an earlier load
 // would measure the wrong variant's Wall.
 import type { Page } from "@playwright/test";
+import type { ViewId } from "../shared/views";
 import type { WallLayout } from "../shared/wall-layout";
 import { expect } from "./journey-test";
 import {
@@ -56,12 +57,13 @@ export interface WallScene {
  * Answer the Wall's reads from the fixture's `variant`, and pin the browser's
  * clock at the fixture's 12:30 PM PT unless `clock` is false: the live-feed
  * journey runs on the journey server's own clock. With `layout`, the payload
- * carries it as the saved layout; without, the Wall draws its default.
+ * carries it as the saved layout; without, the Wall draws the preset of
+ * `view` as the workspace's view, or the default with no view.
  */
 export async function wallScene(
   page: Page,
   variant: WallFixtureVariant = "six",
-  { clock = true, layout }: { clock?: boolean; layout?: WallLayout } = {},
+  { clock = true, layout, view }: { clock?: boolean; layout?: WallLayout; view?: ViewId } = {},
 ): Promise<WallScene> {
   const scene: WallScene = { variant };
   const built = new Map<WallFixtureVariant, WallReads>();
@@ -69,7 +71,7 @@ export async function wallScene(
     let found = built.get(scene.variant);
     if (!found) {
       found = {
-        wall: savedLayout(wallFixturePayload(scene.variant), layout),
+        wall: savedLayout(wallFixturePayload(scene.variant), layout, view),
         realtime: wallFixtureRealtime(20, scene.variant),
         calendar: wallFixtureCalendar(),
         health: wallFixtureHealth(scene.variant),
@@ -89,8 +91,9 @@ export async function wallScene(
   return scene;
 }
 
-function savedLayout(payload: ReturnType<typeof wallFixturePayload>, layout: WallLayout | undefined) {
-  return layout ? { ...payload, dashboard: { ...payload.dashboard, wall: { layout, history: [] } } } : payload;
+function savedLayout(payload: ReturnType<typeof wallFixturePayload>, layout: WallLayout | undefined, view: ViewId | undefined) {
+  const dashboard = view ? { ...payload.dashboard, view: { default: view } } : payload.dashboard;
+  return { ...payload, dashboard: layout ? { ...dashboard, wall: { layout, history: [] } } : dashboard };
 }
 
 type Size = readonly [width: number, height: number];
@@ -124,7 +127,7 @@ async function wallSettled(page: Page) {
     const shape = () => {
       const root = document.querySelector(".wall-root");
       const boxes = [...document.querySelectorAll(
-        ".wall-root, [data-wall-strip], [data-wall-revenue], [data-wall-needs], [data-wall-sites], [data-wall-feed], [data-site-row], [data-site-chart], [data-feed-item]",
+        ".wall-root, [data-wall-strip], [data-wall-revenue], [data-wall-needs], [data-wall-sites], [data-wall-feed], [data-site-row], [data-site-chart], [data-feed-item], [data-wall-next], [data-wall-health-row], [data-wall-factory]",
       )].map((element) => {
         const box = element.getBoundingClientRect();
         return `${box.x},${box.y},${box.width},${box.height}`;

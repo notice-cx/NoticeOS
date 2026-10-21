@@ -319,7 +319,7 @@ describe("the presets on the canvas", () => {
   } as unknown as WallPayload;
 
   it.each([
-    ["business", ["strip", "health", "revenue", "needs", "factory"]],
+    ["business", ["strip", "next", "health", "revenue", "needs", "factory"]],
     ["product", ["strip", "revenue", "channels", "sites", "work"]],
   ] as const)("draws every widget of %s", (view, types) => {
     render(<WallCanvas layout={WALL_PRESETS[view]} data={payload} nowMs={NOW} />);
@@ -328,5 +328,13 @@ describe("the presets on the canvas", () => {
     if (view === "business") {
       expect(within(document.querySelector('[data-wall-slot="health"]') as HTMLElement).getByText("Slow Site")).toBeInTheDocument();
     }
+  });
+
+  it("stacks the business preset on a phone with what waits on the operator right after what is broken", () => {
+    render(<WallCanvas layout={WALL_PRESETS.business} data={payload} nowMs={NOW} />);
+    const stacked = [...document.querySelectorAll<HTMLElement>("[data-wall-slot]")]
+      .sort((a, b) => Number(a.style.order) - Number(b.style.order))
+      .map((node) => node.getAttribute("data-wall-slot"));
+    expect(stacked).toEqual(["strip", "revenue", "needs", "next", "health", "factory"]);
   });
 });

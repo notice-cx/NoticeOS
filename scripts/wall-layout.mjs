@@ -107,7 +107,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: false,
-        stackOrder: 9,
+        stackOrder: 10,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -148,7 +148,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: true,
-        stackOrder: 6,
+        stackOrder: 7,
         hidesWhenEmpty: false,
         settings: ['assets'],
     },
@@ -190,7 +190,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: 30,
         unique: true,
         prefersFill: true,
-        stackOrder: 8,
+        stackOrder: 9,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -205,7 +205,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: 30,
         unique: true,
         prefersFill: false,
-        stackOrder: 7,
+        stackOrder: 8,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -220,7 +220,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: true,
-        stackOrder: 10,
+        stackOrder: 11,
         hidesWhenEmpty: false,
         settings: ['assets'],
     },
@@ -235,7 +235,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: 40,
         unique: true,
         prefersFill: false,
-        stackOrder: 11,
+        stackOrder: 12,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -250,7 +250,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: false,
-        stackOrder: 12,
+        stackOrder: 13,
         hidesWhenEmpty: false,
         settings: ['assets'],
     },
@@ -265,7 +265,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: false,
-        stackOrder: 13,
+        stackOrder: 6,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -358,12 +358,14 @@ export const DEFAULT_WALL_LAYOUT = {
  * so `sameWallLayout` recognises one after a round trip through the store.
  */
 export const WALL_PRESETS = {
-    // Is every site healthy, is the money on pace, what needs a decision and
-    // what the agents did.
+    // What needs a decision, is every site healthy, is the money on pace and
+    // what the agents did. The decisions come first, across the TV under the
+    // strip, the width at which Next up is shortest.
     business: {
         version: WALL_LAYOUT_VERSION,
         rows: [
             { id: 'strip', height: 'auto', widgets: [{ id: 'strip', type: 'strip', width: 1 }] },
+            { id: 'next', height: 'auto', widgets: [{ id: 'next', type: 'next', width: 1 }] },
             {
                 id: 'body',
                 height: 'fill',

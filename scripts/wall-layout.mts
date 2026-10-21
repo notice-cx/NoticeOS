@@ -127,9 +127,10 @@ export interface WallWidgetSpec {
   /**
    * Its place in the one column the Wall becomes on a portrait tablet or a
    * phone: the strip, revenue, the site rows, then what is broken (the last
-   * 24 hours, Needs attention), the work, the feed and the loop last. The sites come
-   * before the problems because their numbers are what changes. By type, so
-   * any saved layout reads the same.
+   * 24 hours, Needs attention), what waits on the operator (Next up), the
+   * work, the feed and the loop last. The sites come before the problems
+   * because their numbers are what changes. By type, so any saved layout
+   * reads the same.
    */
   stackOrder: number;
   /** Renders nothing — and yields its track — when it has nothing to show: an
@@ -264,7 +265,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 9,
+    stackOrder: 10,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -305,7 +306,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: true,
-    stackOrder: 6,
+    stackOrder: 7,
     hidesWhenEmpty: false,
     settings: ['assets'],
   },
@@ -347,7 +348,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: 30,
     unique: true,
     prefersFill: true,
-    stackOrder: 8,
+    stackOrder: 9,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -362,7 +363,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: 30,
     unique: true,
     prefersFill: false,
-    stackOrder: 7,
+    stackOrder: 8,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -377,7 +378,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: true,
-    stackOrder: 10,
+    stackOrder: 11,
     hidesWhenEmpty: false,
     settings: ['assets'],
   },
@@ -392,7 +393,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: 40,
     unique: true,
     prefersFill: false,
-    stackOrder: 11,
+    stackOrder: 12,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -407,7 +408,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 12,
+    stackOrder: 13,
     hidesWhenEmpty: false,
     settings: ['assets'],
   },
@@ -422,7 +423,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 13,
+    stackOrder: 6,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -535,12 +536,14 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
  * so `sameWallLayout` recognises one after a round trip through the store.
  */
 export const WALL_PRESETS: Readonly<Record<ViewId, WallLayout>> = {
-  // Is every site healthy, is the money on pace, what needs a decision and
-  // what the agents did.
+  // What needs a decision, is every site healthy, is the money on pace and
+  // what the agents did. The decisions come first, across the TV under the
+  // strip, the width at which Next up is shortest.
   business: {
     version: WALL_LAYOUT_VERSION,
     rows: [
       { id: 'strip', height: 'auto', widgets: [{ id: 'strip', type: 'strip', width: 1 }] },
+      { id: 'next', height: 'auto', widgets: [{ id: 'next', type: 'next', width: 1 }] },
       {
         id: 'body',
         height: 'fill',

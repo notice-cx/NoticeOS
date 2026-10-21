@@ -461,9 +461,10 @@ export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number
   health: { width: 480, height: 200 },
   factory: { width: 288, height: 160 },
   channels: { width: 352, height: 180 },
-  // The count and the top decision's two lines beside the three held tasks;
-  // estimated from its type sizes, not yet measured on the synthetic Wall.
-  next: { width: 576, height: 240 },
+  // At 1920×1080, with the fixture's five decisions and three held tasks of
+  // 72 to 92 characters, it draws whole from 780 × 519 px, its least area
+  // (784 is 49 rem). Narrower, its titles take more lines and the area grows.
+  next: { width: 784, height: 519 },
 };
 
 /** The preset a fraction lands on when it is within `tolerance` of one. */

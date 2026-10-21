@@ -19,6 +19,7 @@ import {
 } from "@shared/wall-layout";
 import {
   WALL_UNDO_LIMIT,
+  WALL_WIDGET_MIN_PX,
   roundWallWidth,
   wallAddTarget,
   wallCanRedo,
@@ -726,6 +727,12 @@ describe("dividers and size presets", () => {
     expect(wallTooSmall("sites", { width: 1000, height: 200 }, true)).toBe("short");
     expect(wallTooSmall("sites", { width: 1000, height: 200 }, false)).toBeNull();
     expect(wallTooSmall("feed", { width: 400, height: 900 }, true)).toBeNull();
+  });
+
+  it("never draws Next up too short in the business preset: its row is as tall as its content", () => {
+    expect(wallWidgetHeightIsGiven(WALL_PRESETS.business, "next")).toBe(false);
+    expect(wallTooSmall("next", { width: WALL_WIDGET_MIN_PX.next.width - 2, height: 900 }, true)).toBe("narrow");
+    expect(wallTooSmall("next", { width: WALL_WIDGET_MIN_PX.next.width, height: 200 }, false)).toBeNull();
   });
 });
 
