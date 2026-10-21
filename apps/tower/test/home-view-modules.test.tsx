@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, CardChannels, CardDataSource, CardProduct, SeriesPoint, SignalTrend, WallPayload } from "@shared/wall";
 import type { WorkPayload } from "@shared/work";
+import type { RevenueProjection } from "@shared/revenue-projection";
 
 // Home's four business modules (site health, the agents' week, where visitors
 // come from, what is worth a look) and the views that draw them. The wall,
@@ -123,6 +124,56 @@ function tree(children: ReactNode) {
 
 const renderHome = () => render(tree(<HomeRoute />));
 
+const revenueProjection: RevenueProjection = {
+  period: "2026-10", status: "ready", reason: null, reportedThrough: "2026-10-18",
+  earnedMinor: 1800, projectedMinor: 3100, dailyPaceMinor: 100,
+  previousPeriod: "2026-09", previousMonthMinor: 3000, changePercent: null,
+  historyDays: 84, holidayHistoryDays: 0,
+  points: Array.from({ length: 31 }, (_, index) => ({
+    date: `2026-10-${String(index + 1).padStart(2, "0")}`,
+    cumulativeMinor: (index + 1) * 100, projected: index >= 18,
+  })),
+};
+
+describe("Home's combined revenue card", () => {
+  const dailyRevenue = { date: "2026-10-18", amountMinor: 1176, reportedThrough: "2026-10-18", timeZone: "UTC" };
+
+  it.each(["everything", "business", "product"])("shows yesterday within the month card in the %s view", (view) => {
+    state.payload = wall([healthy("first.example.com", { revenueProjection, dailyRevenue })]);
+    storeView(view);
+    const { container } = renderHome();
+    const hero = container.querySelector<HTMLElement>("[data-money-hero]")!;
+    const yesterday = within(hero).getByRole("link", { name: `Yesterday $11.76 ${view === "business" ? "so far" : "est."}` });
+    expect(yesterday).toHaveAttribute("href", "/financials");
+    expect(yesterday.getAttribute("title")).toContain("UTC");
+    expect(hero.textContent?.match(/projected/gi)).toHaveLength(1);
+    expect(within(hero).getByRole("img", { name: /^Revenue a day, October/ })).toBeInTheDocument();
+    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
+    expect(container.querySelector('[data-stat="Visitors, yesterday"]') !== null).toBe(view === "everything");
+  });
+
+  it.each([
+    ["zero", { ...dailyRevenue, amountMinor: 0 }, "Yesterday $0.00 est."],
+    ["missing", { ...dailyRevenue, amountMinor: null }, "Yesterday · not reported yet"],
+    ["stale", { ...dailyRevenue, date: "2026-10-17" }, "Yesterday · not reported yet"],
+  ])("preserves %s revenue without inventing an amount", (_state, summary, label) => {
+    state.payload = wall([healthy("first.example.com", { revenueProjection, dailyRevenue: summary })]);
+    const { container } = renderHome();
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent(label);
+  });
+
+  it("labels partial reporting and withholds a total across different reporting clocks", () => {
+    const first = healthy("first.example.com", { revenueProjection, dailyRevenue });
+    const second = healthy("second.example.com", { revenueProjection });
+    state.payload = wall([first, second]);
+    const { container, rerender } = renderHome();
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 sites");
+    state.payload = wall([first, { ...second, dailyRevenue: { ...dailyRevenue, timeZone: "Europe/London" } }]);
+    rerender(tree(<HomeRoute />));
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday · mixed report days · no total");
+  });
+});
+
 /** The board's grid: the second child of the brief, under the answer. */
 const grid = (container: HTMLElement) => container.querySelector("[data-home-brief]")!.children[1]!;
 
@@ -140,7 +191,7 @@ function modulesDrawn(container: HTMLElement): string[] {
     else if (child.hasAttribute("data-home-health")) drawn.push("sources");
     else if (child.hasAttribute("data-home-timeline")) drawn.push("timeline");
     else if (child.querySelector("[data-one-site-lead], [data-portfolio-rows]")) drawn.push("sites");
-    else if (child.textContent?.includes("Revenue, yesterday")) drawn.push("yesterday");
+    else if (child.hasAttribute("data-home-visitors")) drawn.push("yesterday");
     else {
       for (const member of [...child.children]) {
         if (member.hasAttribute("data-incident-list")) drawn.push("problems");
@@ -194,7 +245,7 @@ function expectContentHeight(container: HTMLElement) {
 }
 
 describe("the views draw their modules", () => {
-  it("leaves Everything's grid exactly as it was with no choice stored", () => {
+  it("keeps Everything's module order with the visitors card beside revenue", () => {
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
 
@@ -202,7 +253,7 @@ describe("the views draw their modules", () => {
     expect(grid(container).getAttribute("class")).toBe("grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0");
     expect([...grid(container).children].map((child) => child.getAttribute("class"))).toEqual([
       "@3xl:col-span-2 @6xl:col-span-8",
-      "grid gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1",
+      "@3xl:col-span-2 @6xl:col-span-4",
       "self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8",
       "grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0",
       "@3xl:col-span-2 @6xl:col-span-12",
