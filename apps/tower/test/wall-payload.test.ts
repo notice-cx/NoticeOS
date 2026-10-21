@@ -9,6 +9,8 @@ import { type AssetDetailDeps, buildAssetDetailPayload } from "../worker/asset-d
 import { loadLatestBeadsSnapshot } from "../worker/beads-snapshot";
 import { LATEST_COUNTER_TOTALS_SQL, type CounterReading, type CountersConfig, resolveCounterCards, resolveWallCounters } from "../worker/counters";
 import type { IntegrationsConfig } from "../shared/integrations";
+import { backupStatus } from "@/lib/backups";
+import { withSystemIssues } from "@/lib/wall-system-state";
 import { isAmber } from "../shared/freshness";
 import {
   AMBER_MULTIPLIER,
@@ -667,7 +669,7 @@ describe("buildWallPayload — populated store", () => {
     // Nothing draws agents, a queue, a cap, a work widget or a report age, so
     // none is computed.
     expect(Object.keys(p.system).sort()).toEqual(
-      ["assetId", "dailyCapUsd", "hasPulse", "ingest", "scheduledLanes", "spendTodayUsd"],
+      ["assetId", "backupLastGoodAt", "backupSchedule", "dailyCapUsd", "hasPulse", "ingest", "scheduledLanes", "spendTodayUsd"],
     );
     expect(p.system.assetId).toBe("root-os");
     expect(p.system.hasPulse).toBe(true);
@@ -752,6 +754,55 @@ describe("buildWallPayload — populated store", () => {
     const noOs = await buildWallPayload(noOsStore.call, OPTIONS);
     expect(noOs.system.assetId).toBeNull();
     expect(noOs.system.hasPulse).toBe(false);
+  });
+
+  it("SYSTEM: carries the effective backup schedule, including saved timezone and disabled state", async () => {
+    expect((await buildWallPayload(ctx.call, OPTIONS)).system.backupSchedule).toEqual({ enabled: true, cron: "0 4 * * *" });
+    for (const enabled of [true, false]) {
+      const backup = { enabled, cron: "30 9 * * 1", timezone: "Asia/Kathmandu" };
+      const payload = await buildWallPayload(ctx.call, { ...OPTIONS, schedules: { backup } });
+      expect(payload.system.backupSchedule).toEqual(backup);
+    }
+  });
+
+  it.each(["skipped", "missing"])("SYSTEM: observes %s backup opportunities while unrelated jobs run, and clears on success", async (kind) => {
+    const night = (day: number) => `2026-07-0${day}T04:00:00.000Z`;
+    const insert = (job: string, at: string, outcome: string, detail: string | null = null) => ctx.call.write((tx) => tx.execute(
+      `INSERT INTO noticeos.job_runs (workspace_id, job, started_at, finished_at, outcome, detail, recorded_at)
+       VALUES ($1::uuid, $2, $3::timestamptz, $3::timestamptz + interval '1 minute', $4, $5, $3::timestamptz + interval '1 minute')`,
+      [tx.workspaceId, job, at, outcome, detail],
+    ));
+    await insert("backup", night(1), "ran");
+    for (const day of [2, 3]) {
+      if (kind === "skipped") await insert("backup", night(day), "skipped");
+      await insert("beads-snapshot", night(day), "ran");
+      const now = new Date(night(day));
+      const { system } = await buildWallPayload(ctx.call, { ...OPTIONS, now });
+      expect(system.scheduledLanes.find((lane) => lane.job === "backup")?.failedRuns).toBe(0);
+      expect(backupStatus(system.scheduledLanes, now.getTime(), system.backupSchedule, system.backupLastGoodAt))
+        .toMatchObject({ state: day === 2 ? "missed" : "failing", failingSince: night(2) });
+      expect(withSystemIssues([], system, now.getTime()).filter((issue) => issue.key === "system-backups-failing")).toHaveLength(day === 2 ? 0 : 1);
+    }
+    const at = "2026-07-03T10:00:00.000Z";
+    await insert("backup", at, "ran", kind === "skipped" ? MANUAL_RUN_DETAIL : null);
+    const { system } = await buildWallPayload(ctx.call, { ...OPTIONS, now: new Date(at) });
+    expect(backupStatus(system.scheduledLanes, Date.parse(at), system.backupSchedule, system.backupLastGoodAt))
+      .toMatchObject({ state: "working", failingSince: null, missedRuns: 0 });
+    expect(withSystemIssues([], system, Date.parse(at)).filter((issue) => issue.key === "system-backups-failing")).toEqual([]);
+  });
+
+  it("SYSTEM: a manual-only backup supplies good-copy evidence without a scheduled firing", async () => {
+    const at = "2026-07-01T10:00:00.000Z";
+    await ctx.call.write((tx) => tx.execute(
+      `INSERT INTO noticeos.job_runs (workspace_id, job, started_at, finished_at, outcome, detail, recorded_at)
+       VALUES ($1::uuid, 'backup', $2::timestamptz, $2::timestamptz + interval '1 minute', 'ran', $3, $2::timestamptz + interval '1 minute')`,
+      [tx.workspaceId, at, MANUAL_RUN_DETAIL],
+    ));
+    const { system } = await buildWallPayload(ctx.call, OPTIONS);
+    expect(system.scheduledLanes).toEqual([]);
+    expect(system.backupLastGoodAt).toBe(at);
+    expect(backupStatus(system.scheduledLanes, NOW_MS, system.backupSchedule, system.backupLastGoodAt))
+      .toMatchObject({ state: "failing", lastGoodAt: at, failingSince: "2026-07-02T04:00:00.000Z" });
   });
 
   it("SYSTEM: Wall and asset #0 read the same latest firing for every scheduled lane", async () => {

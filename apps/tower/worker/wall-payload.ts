@@ -17,7 +17,7 @@ import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
 import { alertHandoffsOf, type BeadsSnapshot, loadLatestBeadsSnapshot, type SnapshotProject } from "./beads-snapshot";
 import { beadsReading } from "./task-source";
 import { loadWorkWeeks } from "./work-payload";
-import { readLatestJobRuns } from "./job-runs";
+import { readBackupLastGoodAt, readLatestJobRuns } from "./job-runs";
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
 import { cardIcons, loadSiteIcons } from "./site-icons";
 import { loadCardCodebases, loadCardInsights } from "./card-readings";
@@ -32,7 +32,7 @@ import { cents, loadAssetMonths, monthDate } from "./ledger-history";
 import { flagDbRow } from "./flag-records";
 import { readPulseCoverage } from "./pulse-history";
 import { countersCadenceHours, readCounterReadings, readLatestCounterTotals, resolveWallCounters, type CountersConfig } from "./counters";
-import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
+import { SCHEDULED_JOBS, scheduleFor, type ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 import { projectRevenue, REVENUE_HISTORY_DAYS } from '../shared/revenue-projection';
 import { revenueHolidays } from './revenue-holidays';
 import { operatorRevenueClock, revenueCalendarDate, yesterdayRevenue, type SiteRevenueHistory } from '../shared/daily-revenue';
@@ -654,6 +654,8 @@ export async function buildWallPayload(
     dailyCapUsd,
     ingest,
     scheduledLanes: await readLatestJobRuns(store),
+    backupLastGoodAt: await readBackupLastGoodAt(store),
+    backupSchedule: scheduleFor(SCHEDULED_JOBS.find((job) => job.id === "backup")!, schedules ?? {}),
   };
 
   // One evidence-reviewed selection owns both card counts and attention rows.

@@ -31,3 +31,13 @@ export async function readLatestJobRuns(store: WorkspaceStore): Promise<Schedule
     }))
     .sort((a, b) => a.job.localeCompare(b.job));
 }
+
+/** A manual-only backup has no scheduled firing to appear in the lane read.
+ * Read its good copy separately so it cannot make a silent scheduler look alive. */
+export async function readBackupLastGoodAt(store: WorkspaceStore): Promise<string | null> {
+  const rows = await store.read((tx) => tx.query<{ last_ran_at: string | null }>(
+    "SELECT max(started_at) AS last_ran_at FROM noticeos.job_runs WHERE job = 'backup' AND outcome = 'ran'",
+  ));
+  const at = rows[0]?.last_ran_at;
+  return at == null ? null : javascriptInstant(at);
+}

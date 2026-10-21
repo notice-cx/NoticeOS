@@ -10,7 +10,7 @@ import type { IntegrationHealthItem } from "@noticeos/contract/integration-healt
 import { connectionStatus, type ConnectionKind } from "@shared/connection-status";
 import type { SystemBand } from "@shared/wall";
 import { scheduledLanePosture } from "@/components/ScheduledLanes";
-import { backupStatus, lastGoodCopy, type BackupState } from "@/lib/backups";
+import { backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
 import type { FlowEdge, FlowNode, FlowState } from "@/components/viz/FlowGraph";
 import { formatAge } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
@@ -29,6 +29,7 @@ const PROVIDER_STATE: Record<ConnectionKind, FlowState> = {
 
 const BACKUP_NODE: Record<BackupState, FlowState> = {
   none: "absent",
+  off: "absent",
   working: "ok",
   missed: "warn",
   failing: "error",
@@ -89,10 +90,10 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
   const failingSources = sourceNodes.filter((node) => node.state === "error").length;
   const lateSources = sourceNodes.filter((node) => node.state === "warn").length;
   const reading = sourceNodes.filter((node) => node.state === "ok" || node.state === "active").length;
-  const lanes = system?.scheduledLanes ?? [];
+  const lanes = (system?.scheduledLanes ?? []).filter((lane) => system?.backupSchedule?.enabled !== false || !isBackupLane(lane));
   const posture = system ? scheduledLanePosture(lanes, nowMs) : "unknown";
   const latestRun = lanes.reduce<string | null>((at, lane) => (at === null || lane.startedAt > at ? lane.startedAt : at), null);
-  const backups = backupStatus(lanes);
+  const backups = backupStatus(system?.scheduledLanes ?? [], nowMs, system?.backupSchedule, system?.backupLastGoodAt);
 
   const nodes: FlowNode[] = [
     ...sourceNodes,
@@ -139,7 +140,7 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
       icon: Archive,
       state: BACKUP_NODE[backups.state],
       since: backups.failingSince,
-      caption: lastGoodCopy(backups, nowMs),
+      caption: backups.state === "off" ? "Off" : lastGoodCopy(backups, nowMs),
       href: "/workflows",
     },
   ];
@@ -148,7 +149,7 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
     { from: "runner", to: "collectors", state: posture === "failed" || posture === "silent" ? "broken" : posture === "healthy" ? "flowing" : "idle" },
     { from: "collectors", to: "store", state: sourceNodes.length === 0 ? "idle" : "flowing" },
     { from: "store", to: "tower", state: system ? "flowing" : "idle" },
-    { from: "store", to: "backups", state: backups.state === "failing" ? "broken" : backups.state === "none" ? "idle" : "flowing" },
+    { from: "store", to: "backups", state: backups.state === "failing" ? "broken" : (backups.state === "none" || backups.state === "off") ? "idle" : "flowing" },
   ];
   return { nodes, edges };
 }
