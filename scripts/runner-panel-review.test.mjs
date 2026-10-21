@@ -167,6 +167,34 @@ test('publication movement cannot change the version whose families the filer ch
   assert.equal((await readPublishedFreshness(asset, null, root)).sources[0].newestReportDate, '2026-09-14');
 });
 
+test('a missing, invalid or unreadable publication version files nothing until immutable evidence is available', async () => {
+  for (const unavailable of [null, 'invalid', new Error('synthetic publication read failure')]) {
+    const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }] });
+    let version = unavailable;
+    const checkedVersions = [];
+    pass.deps.readVersion = async () => {
+      if (version instanceof Error) throw version;
+      return version;
+    };
+    pass.deps.readPublished = async (asset, pinned) => {
+      checkedVersions.push(pinned);
+      return published(asset, '2026-09-21');
+    };
+    for (let poll = 0; poll < 2; poll++) {
+      assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
+    }
+    assert.deepEqual(checkedVersions, [], 'a mutable current publication cannot substitute for a version');
+    assert.equal(pass.ran.some(argv => argv.includes('create')), false);
+    assert.equal(pass.lines.length, 1, 'the same publication gap is reported once');
+    version = VERSION;
+    assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed,
+      [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
+    assert.deepEqual(checkedVersions, [VERSION]);
+    const create = pass.ran.find(argv => argv.includes('create')).join(' ');
+    assert.match(create, new RegExp(`"noticeos_panel_version":"${VERSION}"`, 'u'));
+  }
+});
+
 test('an invalid task-list shape files nothing and leaves the next pass available', async () => {
   const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], existing: '{}' });
   const result = await runPanelReviewFiler(UP, pass.deps);
