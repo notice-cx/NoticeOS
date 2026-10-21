@@ -976,7 +976,7 @@ function NewRecurringPrice({ rows, index, disabled, bookedThrough }: {
               onChange={(event) => { setMonth(event.target.value); setError(null); }} />
           </label>
           {error ? <p id={errorId} role="alert" className="text-xs text-error">{error}</p> : null}
-          {disabled ? <p role="status" className="text-xs text-muted-foreground">Saves paused</p> : null}
+          {disabled ? <p role="status" data-status-for="config:saves" className="text-xs text-muted-foreground">Saves paused</p> : null}
           <div className="flex gap-2">
             <Button type="submit" size="sm" disabled={disabled || saving}>{saving ? "Saving…" : "Save"}</Button>
             <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setOpen(false)}>Cancel</Button>
