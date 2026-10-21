@@ -172,9 +172,24 @@ export function taskRefusal(error) {
     if (error instanceof TaskProjectRefused)
         return new McpToolError(projectRefusal(error));
     if (error instanceof TaskStoreFailed) {
-        return new McpToolError((error.timedOut ? 'unavailable: the task store did not answer in time. '
-            : 'unavailable: the task store did not complete this call, and nothing in the task\'s state explains it. ')
-            + 'Retry the same call; with the same idempotency_key a change lands at most once.');
+        const failure = {
+            failed: 'the task store did not complete this call, and nothing in the task\'s state explains it',
+            timeout: 'the task store did not answer in time',
+            exit: 'the task store client exited without success',
+            cancelled: 'the task store request was cancelled',
+            'output-limit': 'the task store response exceeded the safe output limit',
+            'invalid-output': 'the task store returned an invalid JSON response',
+            launch: 'the task store client could not start',
+        }[error.failure];
+        const step = error.step === undefined ? undefined : {
+            'record-maintenance': 'recording the owner answer or maintenance evidence',
+            comment: 'adding the decision evidence comment',
+            'record-choice': 'saving the selected option',
+            'hand-back': 'returning the task to agents',
+            close: 'closing the resolved request',
+        }[error.step];
+        return new McpToolError(`unavailable: ${failure}.${step ? ` Failed while ${step}. Read get_task to check which steps landed, then retry with the same idempotency_key.`
+            : ' Retry the same call; with the same idempotency_key a change lands at most once.'}`);
     }
     return new McpToolError(REFUSED);
 }

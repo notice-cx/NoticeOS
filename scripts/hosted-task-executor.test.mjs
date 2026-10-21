@@ -9,7 +9,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { createHostedTaskExecutor, HostedTaskRefused } from './hosted-task-executor.mjs';
-import { HumanDecisionRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
+import { HumanDecisionRefused, TaskStateRefused, TaskStoreFailed, taskProposal } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -67,6 +67,7 @@ else if(args.includes('sql')){
  }else if(sql.startsWith('SELECT value AS issue_prefix')) console.log(JSON.stringify({rows:[{issue_prefix:c.prefix??'tt'}]}));
  else console.log(JSON.stringify({rows:[{database:db,branch:'main',user:process.env.BEADS_DOLT_SERVER_USER,host:'%',permissions:'write'}]}));
 }else if(c.failBlocked&&args.includes('blocked')){process.exit(1)}
+else if(c.failMaintenance&&args.some(a=>a.startsWith('--metadata=')&&a.includes('noticeos_maintenance'))){console.error('private backend detail');process.exit(1)}
 else if(c.overflow){process.stdout.write('x'.repeat(9*1024*1024))}
 else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason,closed_at:c.closedAt,assignee:c.assignee,dependencies:c.dependencies,dependents:c.dependents,metadata:c.metadata}))}
 else if(c.stateful&&!args.includes('--readonly')&&(args.includes('update')||args.includes('close')||args.includes('comments')&&args.includes('add'))){
@@ -243,7 +244,7 @@ test('wrong target, already decided and failed decision refuse without close/com
   }
   assert.equal((await f.commands()).filter(row => row.args.includes('human') || row.args.includes('gate')).length, 0);
   await f.control({ taskType: 'decision', human: true, taskStatus: 'open', decisionFailure: true });
-  await refused(() => f.executor.execute(request(), A, task({ kind: 'respond', taskId: 'tt-human', response: 'Answer' })));
+  await assert.rejects(f.executor.execute(request(), A, task({ kind: 'respond', taskId: 'tt-human', response: 'Answer' })), TaskStoreFailed);
   assert.equal((await f.commands()).filter(row => row.args.includes('human')).length, 1);
   assert.equal((await f.commands()).filter(row => row.args.includes('close') || row.args.includes('add')).length, 0);
 }));
@@ -435,7 +436,8 @@ test('platform catalog verification checks the actual project prefix without cha
 test('excess output refuses and awaits child close before retiring its profile', () => fixture(async f => {
   await f.control({ overflow: true });
   // Admitted and verified: the refusal names the task client as what failed.
-  await assert.rejects(f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })), TaskStoreFailed);
+  await assert.rejects(f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })),
+    error => error instanceof TaskStoreFailed && error.failure === 'output-limit');
 }));
 
 
@@ -796,4 +798,33 @@ test('reads refuses an unadmitted caller before the directory, credentials or an
   await refused(() => f.executor.reads(request(), B, R, run => run({ kind: 'ready' })));
   assert.equal(f.state.directoryCalls, 0); assert.equal(f.state.resolves, 0);
   assert.deepEqual(await f.commands(), []);
+}));
+
+
+test('a hosted decision-record write failure preserves its safe cause and step after verification', () => fixture(async f => {
+  await f.control({ human: true, stateful: true, failMaintenance: true });
+  const row = await f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' }));
+  const operation = { kind: 'maintain', taskId: 'tt-a', action: 'answer', answerMode: 'direct',
+    proposal: taskProposal(row), owner: 'Owner', response: 'Use the compact layout',
+    question: 'Which local layout should we build?', scope: 'Local layout only',
+    source: 'codex://threads/layout', explanation: 'Record the owner answer.', evidence: 'Owner chat reply' };
+  await assert.rejects(f.executor.execute(request(), A, task(operation)), error => {
+    assert.ok(error instanceof TaskStoreFailed);
+    assert.equal(error.failure, 'exit');
+    assert.equal(error.step, 'record-maintenance');
+    assert.equal(error.message.includes('private backend detail'), false);
+    return true;
+  });
+  const writes = (await f.commands()).filter(({ args }) => args.some(a => a.startsWith('--metadata=')));
+  assert.equal(writes.length, 1);
+  assert.equal((await f.commands()).some(({ args }) => args.includes('--remove-label=human')), false);
+}));
+
+
+test('verified batched reads retain store failures but pre-verification failures remain opaque', () => fixture(async f => {
+  await f.control({ overflow: true });
+  await assert.rejects(f.executor.reads(request(), A, P, run => run({ kind: 'show', taskId: 'tt-a' })),
+    error => error instanceof TaskStoreFailed && error.failure === 'output-limit');
+  await f.control({ overflow: false, configFail: true });
+  await refused(() => f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })));
 }));

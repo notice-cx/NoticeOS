@@ -636,15 +636,24 @@ export class TaskStateRefused extends Error {
         this.reason = reason;
     }
 }
-/** The task client did not complete a command every check before it allowed:
- * it ran out of time, or failed with no cause the task's own state shows. */
 export class TaskStoreFailed extends Error {
     timedOut;
+    failure;
+    step;
     name = 'TaskStoreFailed';
-    constructor(timedOut) {
+    constructor(timedOut, failure = timedOut ? 'timeout' : 'failed', step) {
         super(timedOut ? 'The task client did not answer in time.' : 'The task client failed.');
         this.timedOut = timedOut;
+        this.failure = failure;
+        this.step = step;
     }
+}
+/** Add the fixed decision step without including its command or contents. */
+export function taskStoreStepFailure(error, step) {
+    if (error instanceof TaskStoreFailed && ['record-maintenance', 'comment', 'record-choice', 'hand-back', 'close'].includes(step)) {
+        throw new TaskStoreFailed(error.timedOut, error.failure, step);
+    }
+    throw error;
 }
 /** The dependency types the task client counts as live blockers while the other task is open. */
 function rowsOf(value) {

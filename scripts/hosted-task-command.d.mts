@@ -373,11 +373,17 @@ export declare class TaskStateRefused extends Error {
 }
 /** The task client did not complete a command every check before it allowed:
  * it ran out of time, or failed with no cause the task's own state shows. */
+export type TaskStoreFailure = 'failed' | 'exit' | 'timeout' | 'cancelled' | 'output-limit' | 'invalid-output' | 'launch';
+export type TaskStoreStep = 'record-maintenance' | 'comment' | 'record-choice' | 'hand-back' | 'close';
 export declare class TaskStoreFailed extends Error {
     readonly timedOut: boolean;
+    readonly failure: TaskStoreFailure;
+    readonly step?: TaskStoreStep | undefined;
     name: string;
-    constructor(timedOut: boolean);
+    constructor(timedOut: boolean, failure?: TaskStoreFailure, step?: TaskStoreStep | undefined);
 }
+/** Add the fixed decision step without including its command or contents. */
+export declare function taskStoreStepFailure(error: unknown, step: HostedTaskOperation['kind']): never;
 export declare function sameActor(a: string, b: string): boolean;
 /** The tasks an executor reads before this write: the decisions it must not
  * stand in for, then the task whose own state decides it. */
