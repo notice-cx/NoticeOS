@@ -1,4 +1,4 @@
-import { parseLegacyCountWarning } from "@noticeos/contract";
+import { parseLegacyCountWarning } from "@noticeos/contract/legacy-count-warning";
 // Alert language — the one place a stored alert becomes a sentence an operator
 // can act on. The store stays factual (`message` and `rule_inputs` are the
 // rule's own evidence, never rewritten); translation happens here, at read

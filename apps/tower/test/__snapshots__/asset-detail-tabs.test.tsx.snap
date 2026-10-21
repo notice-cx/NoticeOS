@@ -1480,80 +1480,80 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="order-last col-span-2 min-w-0 @lg:order-none @lg:col-span-1">
 <div class="@container/strip relative flex flex-col h-12" data-bar-strip="">
 <div role="img" aria-label="Active users, Jun 8 to Jul 5, Jun 8 to Jul 5; Jul 4 70; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
-<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-08" title="Jun 8 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-09" title="Jun 9 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-10" title="Jun 10 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-11" title="Jun 11 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-12" title="Jun 12 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-13" title="Jun 13 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-14" title="Jun 14 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-15" title="Jun 15 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-16" title="Jun 16 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-17" title="Jun 17 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-18" title="Jun 18 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-19" title="Jun 19 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-20" title="Jun 20 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-21" title="Jun 21 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-22" title="Jun 22 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-23" title="Jun 23 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-24" title="Jun 24 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-25" title="Jun 25 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-26" title="Jun 26 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-27" title="Jun 27 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
-</span>
-</span>
-<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
+<span aria-hidden="true" data-bar="2026-06-28" title="Jun 28 · 90" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
+<span aria-hidden="true" data-bar="2026-06-29" title="Jun 29 · 100" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
+<span aria-hidden="true" data-bar="2026-06-30" title="Jun 30 · 104" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
+<span aria-hidden="true" data-bar="2026-07-01" title="Jul 1 · 110" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
+<span aria-hidden="true" data-bar="2026-07-02" title="Jul 2 · 106" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+<span aria-hidden="true" data-bar="2026-07-03" title="Jul 3 · 94" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
+<span aria-hidden="true" data-bar="2026-07-04" title="Jul 4 · 70" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" title="Jul 5 · 99" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
 </span>
 </span>
 </div>
-<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<div class="mt-1 flex shrink-0 items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
 <span class="whitespace-nowrap">Jun 8</span>
 <span class="whitespace-nowrap">Jul 5</span>
 </div>
@@ -1607,80 +1607,80 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="order-last col-span-2 min-w-0 @lg:order-none @lg:col-span-1">
 <div class="@container/strip relative flex flex-col h-12" data-bar-strip="">
 <div role="img" aria-label="Clicks, Jun 8 to Jul 5, Jun 8 to Jul 5; Jul 4 31; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
-<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-08" title="Jun 8 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-09" title="Jun 9 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-10" title="Jun 10 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-11" title="Jun 11 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-12" title="Jun 12 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-13" title="Jun 13 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-14" title="Jun 14 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-15" title="Jun 15 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-16" title="Jun 16 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-17" title="Jun 17 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-18" title="Jun 18 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-19" title="Jun 19 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-20" title="Jun 20 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-21" title="Jun 21 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-22" title="Jun 22 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-23" title="Jun 23 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-24" title="Jun 24 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-25" title="Jun 25 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-26" title="Jun 26 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-27" title="Jun 27 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 75%; --viz-i: 20;">
-</span>
-</span>
-<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 86.66666666666667%; --viz-i: 21;">
+<span aria-hidden="true" data-bar="2026-06-28" title="Jun 28 · 45" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 75%; --viz-i: 20;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 91.66666666666666%; --viz-i: 22;">
+<span aria-hidden="true" data-bar="2026-06-29" title="Jun 29 · 52" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 86.66666666666667%; --viz-i: 21;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 95%; --viz-i: 23;">
+<span aria-hidden="true" data-bar="2026-06-30" title="Jun 30 · 55" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 91.66666666666666%; --viz-i: 22;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 83.33333333333334%; --viz-i: 24;">
+<span aria-hidden="true" data-bar="2026-07-01" title="Jul 1 · 57" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 95%; --viz-i: 23;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 71.66666666666667%; --viz-i: 25;">
+<span aria-hidden="true" data-bar="2026-07-02" title="Jul 2 · 50" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 83.33333333333334%; --viz-i: 24;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 51.66666666666667%; --viz-i: 26;">
+<span aria-hidden="true" data-bar="2026-07-03" title="Jul 3 · 43" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 71.66666666666667%; --viz-i: 25;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 100%; --viz-i: 27;">
+<span aria-hidden="true" data-bar="2026-07-04" title="Jul 4 · 31" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-traffic bg-current viz-glow" style="height: 51.66666666666667%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" title="Jul 5 · 60" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 100%; --viz-i: 27;">
 </span>
 </span>
 </div>
-<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<div class="mt-1 flex shrink-0 items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
 <span class="whitespace-nowrap">Jun 8</span>
 <span class="whitespace-nowrap">Jul 5</span>
 </div>
@@ -1713,80 +1713,80 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="order-last col-span-2 min-w-0 @lg:order-none @lg:col-span-1">
 <div class="@container/strip relative flex flex-col h-12" data-bar-strip="">
 <div role="img" aria-label="Impressions, Jun 8 to Jul 5, Jun 8 to Jul 5; Jul 4 700; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
-<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-08" title="Jun 8 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-09" title="Jun 9 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-10" title="Jun 10 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-11" title="Jun 11 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-12" title="Jun 12 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-13" title="Jun 13 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-14" title="Jun 14 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-15" title="Jun 15 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-16" title="Jun 16 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-17" title="Jun 17 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-18" title="Jun 18 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-19" title="Jun 19 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-20" title="Jun 20 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-21" title="Jun 21 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-22" title="Jun 22 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-23" title="Jun 23 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-24" title="Jun 24 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-25" title="Jun 25 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-26" title="Jun 26 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-27" title="Jun 27 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
-</span>
-</span>
-<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
+<span aria-hidden="true" data-bar="2026-06-28" title="Jun 28 · 900" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
+<span aria-hidden="true" data-bar="2026-06-29" title="Jun 29 · 1K" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
+<span aria-hidden="true" data-bar="2026-06-30" title="Jun 30 · 1K" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
+<span aria-hidden="true" data-bar="2026-07-01" title="Jul 1 · 1.1K" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
+<span aria-hidden="true" data-bar="2026-07-02" title="Jul 2 · 1.1K" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+<span aria-hidden="true" data-bar="2026-07-03" title="Jul 3 · 940" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
+<span aria-hidden="true" data-bar="2026-07-04" title="Jul 4 · 700" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" title="Jul 5 · 990" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
 </span>
 </span>
 </div>
-<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<div class="mt-1 flex shrink-0 items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
 <span class="whitespace-nowrap">Jun 8</span>
 <span class="whitespace-nowrap">Jul 5</span>
 </div>
@@ -2520,82 +2520,82 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="mt-1">
 <div class="@container/strip relative flex flex-col h-14" data-bar-strip="">
 <div role="img" aria-label="Visitors a day, last 28 days, Jun 8 to Jul 5; Jul 4 70; usual 96; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
-<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-08" title="Jun 8 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-09" title="Jun 9 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-10" title="Jun 10 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-11" title="Jun 11 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-12" title="Jun 12 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-13" title="Jun 13 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-14" title="Jun 14 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-15" title="Jun 15 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-16" title="Jun 16 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-17" title="Jun 17 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-18" title="Jun 18 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-19" title="Jun 19 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-20" title="Jun 20 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-21" title="Jun 21 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-22" title="Jun 22 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-23" title="Jun 23 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-24" title="Jun 24 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-25" title="Jun 25 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-26" title="Jun 26 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-27" title="Jun 27 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
-</span>
-</span>
-<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
+<span aria-hidden="true" data-bar="2026-06-28" title="Jun 28 · 90" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
+<span aria-hidden="true" data-bar="2026-06-29" title="Jun 29 · 100" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
+<span aria-hidden="true" data-bar="2026-06-30" title="Jun 30 · 104" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
+<span aria-hidden="true" data-bar="2026-07-01" title="Jul 1 · 110" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
+<span aria-hidden="true" data-bar="2026-07-02" title="Jul 2 · 106" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+<span aria-hidden="true" data-bar="2026-07-03" title="Jul 3 · 94" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
+<span aria-hidden="true" data-bar="2026-07-04" title="Jul 4 · 70" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" title="Jul 5 · 99" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
 </span>
 </span>
 <span aria-hidden="true" data-bar-baseline="" class="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/70" style="bottom: 87.53246753246754%;">
 </span>
 </div>
-<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<div class="mt-1 flex shrink-0 items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
 <span class="whitespace-nowrap">Jun 8</span>
 <span class="hidden whitespace-nowrap @[15rem]/strip:inline">avg 96</span>
 <span class="whitespace-nowrap">Jul 5</span>
@@ -2615,82 +2615,82 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="mt-1">
 <div class="@container/strip relative flex flex-col h-14" data-bar-strip="">
 <div role="img" aria-label="Search clicks, last 28 days, Jun 8 to Jul 5; Jul 4 31; usual 48; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
-<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-08" title="Jun 8 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-09" title="Jun 9 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-10" title="Jun 10 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-11" title="Jun 11 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-12" title="Jun 12 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-13" title="Jun 13 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-14" title="Jun 14 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-15" title="Jun 15 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-16" title="Jun 16 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-17" title="Jun 17 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-18" title="Jun 18 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-19" title="Jun 19 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-20" title="Jun 20 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-21" title="Jun 21 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-22" title="Jun 22 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-23" title="Jun 23 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-24" title="Jun 24 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-25" title="Jun 25 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-26" title="Jun 26 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+<span aria-hidden="true" data-bar="2026-06-27" title="Jun 27 · not reported" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 75%; --viz-i: 20;">
-</span>
-</span>
-<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 86.66666666666667%; --viz-i: 21;">
+<span aria-hidden="true" data-bar="2026-06-28" title="Jun 28 · 45" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 75%; --viz-i: 20;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 91.66666666666666%; --viz-i: 22;">
+<span aria-hidden="true" data-bar="2026-06-29" title="Jun 29 · 52" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 86.66666666666667%; --viz-i: 21;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 95%; --viz-i: 23;">
+<span aria-hidden="true" data-bar="2026-06-30" title="Jun 30 · 55" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 91.66666666666666%; --viz-i: 22;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 83.33333333333334%; --viz-i: 24;">
+<span aria-hidden="true" data-bar="2026-07-01" title="Jul 1 · 57" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 95%; --viz-i: 23;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 71.66666666666667%; --viz-i: 25;">
+<span aria-hidden="true" data-bar="2026-07-02" title="Jul 2 · 50" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 83.33333333333334%; --viz-i: 24;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 51.66666666666667%; --viz-i: 26;">
+<span aria-hidden="true" data-bar="2026-07-03" title="Jul 3 · 43" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark bg-current/30" style="height: 71.66666666666667%; --viz-i: 25;">
 </span>
 </span>
-<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
-<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 100%; --viz-i: 27;">
+<span aria-hidden="true" data-bar="2026-07-04" title="Jul 4 · 31" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-traffic bg-current viz-glow" style="height: 51.66666666666667%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" title="Jul 5 · 60" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y flex w-full flex-col-reverse overflow-hidden rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 100%; --viz-i: 27;">
 </span>
 </span>
 <span aria-hidden="true" data-bar-baseline="" class="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/70" style="bottom: 79.28571428571428%;">
 </span>
 </div>
-<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<div class="mt-1 flex shrink-0 items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
 <span class="whitespace-nowrap">Jun 8</span>
 <span class="hidden whitespace-nowrap @[15rem]/strip:inline">avg 48</span>
 <span class="whitespace-nowrap">Jul 5</span>
