@@ -8,6 +8,8 @@ import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { setTimeout as delay } from 'node:timers/promises';
+import { CHANGE_CHECK_MS, CHANGE_TOPICS } from './change-topics.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { captureHostedDemoServerOptions, hostedDemoRuntimeFileContent, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, statcounterTag, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
@@ -40,7 +42,7 @@ function fixture(input = { seed: 'gateway-fixture', cutoff: '2026-10-04T00:00:00
 }
 function request(url, { method = 'GET', headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
-    const outgoing = http.request({ host: '127.0.0.1', port: 6409, path: url, method, headers: { host: 'demo.example.com', ...headers } }, incoming => {
+    const outgoing = http.request({ agent: false, host: '127.0.0.1', port: 6409, path: url, method, headers: { host: 'demo.example.com', ...headers } }, incoming => {
       const chunks = []; incoming.on('data', chunk => chunks.push(chunk)); incoming.on('end', () => resolve({ status: incoming.statusCode, headers: incoming.headers, text: Buffer.concat(chunks).toString() }));
     }); outgoing.on('error', reject); outgoing.end(body);
   });
@@ -54,6 +56,129 @@ function adapters(overrides = {}) {
       dispose: async () => { closed.push('workers'); } }; }, ...overrides };
   return { composed, calls, closed };
 }
+
+async function until(predicate) {
+  for (let attempt = 0; attempt < 200; attempt++) { if (predicate()) return; await delay(5); }
+  assert.fail('Synthetic stream did not reach its expected state');
+}
+function stream(headers = {}) {
+  return new Promise((resolve, reject) => {
+    const outgoing = http.get({ agent: false, host: '127.0.0.1', port: 6409, path: '/api/changes', headers: { host: 'demo.example.com', ...headers } }, incoming => {
+      let text = '';
+      const closed = new Promise(done => incoming.once('close', done));
+      incoming.on('data', chunk => { text += chunk; });
+      incoming.on('error', () => {});
+      resolve({ incoming, text: () => text, closed, close: async () => { incoming.destroy(); outgoing.destroy(); await closed; } });
+    });
+    outgoing.once('error', reject);
+  });
+}
+
+test('shared demo SSE streams incrementally, outlives the ordinary deadline, and releases its last watch', async t => {
+  const f = fixture(), reads = [], clients = []; let server, version = 'a', block = false, interrupted;
+  const a = adapters({ openWorkers: () => ({ getWorker: async () => ({}), dispose: async () => {},
+    dispatchFetch: async (url, init) => {
+      if (new URL(url).pathname === '/api/session') return Response.json({ mode: 'demo' });
+      reads.push({ url, init });
+      if (block) return new Promise((_resolve, reject) => init.signal.addEventListener('abort', () => { interrupted = true; reject(new Error('cancelled')); }, { once: true }));
+      const tag = `"${new URL(url).pathname === '/api/work' ? version : 'a'}"`;
+      return init.headers['if-none-match'] === tag ? new Response(null, { status: 304, headers: { etag: tag } }) : Response.json({}, { headers: { etag: tag } });
+    } }) });
+  try {
+    server = await startHostedDemoServer(f.options, a.composed);
+    t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+    clients.push(await stream({ cookie: 'unrelated=synthetic' }));
+    await until(() => reads.length === CHANGE_TOPICS.length && clients[0].text().includes('retry: 5000'));
+    clients.push(await stream());
+    await until(() => clients[1].text().includes('retry: 5000'));
+    assert.equal(reads.length, 4, 'a second visitor shares the same initial read');
+    for (const client of clients) {
+      assert.equal(client.incoming.statusCode, 200);
+      assert.match(client.incoming.headers['content-type'], /^text\/event-stream/u);
+      assert.equal(client.incoming.headers['x-accel-buffering'], 'no');
+      assert.equal(client.incoming.headers['x-noticeos-release'], release);
+    }
+    version = 'b';
+    t.mock.timers.tick(CHANGE_CHECK_MS);
+    await until(() => clients.every(client => client.text().includes('"topics":["work"]')));
+    assert.equal(reads.length, 8, 'one read per topic per tick for both visitors');
+    for (const { url, init } of reads) {
+      assert.equal(new URL(url).origin, origin);
+      assert.equal(init.headers['x-noticeos-workspace-id'], f.options.tasks.demoWorkspaceId);
+      for (const name of ['cookie', 'authorization', 'x-noticeos-session-id']) assert.equal(init.headers[name], undefined);
+    }
+    t.mock.timers.tick(21_000);
+    await until(() => reads.length === 12 && clients.every(client => client.text().includes(':\n\n')));
+    assert.ok(clients.every(client => !client.incoming.destroyed), 'admitted streams remain open past 35 seconds');
+    await clients[0].close();
+    block = true; t.mock.timers.tick(CHANGE_CHECK_MS);
+    await until(() => reads.length === 13);
+    const pending = reads.at(-1).init.signal;
+    await clients[1].close();
+    await until(() => pending.aborted && interrupted);
+    const count = reads.length; t.mock.timers.tick(60_000); await delay(10);
+    assert.equal(reads.length, count, 'no timer reads after last disconnect');
+    block = false; clients.push(await stream());
+    await until(() => reads.length === count + 4);
+    block = true; t.mock.timers.tick(CHANGE_CHECK_MS); await until(() => reads.length === count + 5);
+    const shutdownRead = reads.at(-1).init.signal;
+    await server.close(); await clients[2].closed;
+    assert.equal(shutdownRead.aborted, true);
+    t.mock.timers.tick(60_000); await delay(10); assert.equal(reads.length, count + 5);
+  } finally { for (const client of clients) await client.close(); await server?.close(); t.mock.timers.reset(); f.close(); }
+});
+
+test('demo stream rejects foreign authority, selectors, sessions, methods and releases before watching', async () => {
+  const f = fixture(), a = adapters(); let server;
+  try {
+    server = await startHostedDemoServer(f.options, a.composed);
+    for (const [url, options, status] of [
+      ['/api/changes', { headers: { host: 'foreign.example.com' } }, 400],
+      ['/api/changes', { headers: { origin: 'https://foreign.example.com' } }, 403],
+      ['/api/changes', { headers: { 'sec-fetch-site': 'cross-site' } }, 403],
+      ['/api/changes', { headers: { 'x-noticeos-workspace-id': '22222222-2222-4222-8222-222222222222' } }, 403],
+      ['/api/changes', { headers: { 'x-noticeos-session-id': '22222222-2222-4222-8222-222222222222' } }, 403],
+      ['/api/changes', { headers: { authorization: 'Bearer synthetic' } }, 403],
+      ['/api/changes', { method: 'POST', body: '{}' }, 405],
+      ['/api/changes?workspace=other', {}, 405],
+      ['/api/changes', { headers: { 'x-noticeos-release': 'b'.repeat(64) } }, 409],
+      [`/visit/${'a'.repeat(32)}/api/changes`, {}, 404],
+    ]) assert.equal((await request(url, options)).status, status, JSON.stringify(options));
+    assert.equal(a.calls.filter(call => call.lane === 'worker').length, 0);
+  } finally { await server?.close(); f.close(); }
+  const denied = fixture(), inactive = adapters({ openWorkers: () => ({ getWorker: async () => ({}), dispose: async () => {}, dispatchFetch: async () => new Response(null, { status: 403 }) }) });
+  try { server = await startHostedDemoServer(denied.options, inactive.composed); assert.equal((await request('/api/changes')).status, 403); }
+  finally { await server?.close(); denied.close(); }
+});
+
+test('ordinary demo requests retain their deadline and abort pending work', async t => {
+  const f = fixture(); let server, signal;
+  const a = adapters({ openWorkers: () => ({ getWorker: async () => ({}), dispose: async () => {},
+    dispatchFetch: async (_url, init) => { signal = init.signal; return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled')), { once: true })); },
+  }) });
+  try {
+    server = await startHostedDemoServer(f.options, a.composed);
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const pending = assert.rejects(request('/api/ordinary'), error => error.code === 'ECONNRESET');
+    await until(() => signal !== undefined);
+    t.mock.timers.tick(35_000); await pending; assert.equal(signal.aborted, true);
+  } finally { await server?.close(); t.mock.timers.reset(); f.close(); }
+});
+
+test('shutdown releases a stream still waiting for session admission, including a late response', async () => {
+  const f = fixture(); let server, signal, finish, cancelled = false;
+  const a = adapters({ openWorkers: () => ({ getWorker: async () => ({}), dispose: async () => {},
+    dispatchFetch: async (_url, init) => { signal = init.signal; return new Promise(resolve => { finish = resolve; }); },
+  }) });
+  try {
+    server = await startHostedDemoServer(f.options, a.composed);
+    const pending = assert.rejects(request('/api/changes'), error => error.code === 'ECONNRESET');
+    await until(() => signal !== undefined);
+    await server.close(); await pending; assert.equal(signal.aborted, true);
+    finish(new Response(new ReadableStream({ cancel() { cancelled = true; } })));
+    await until(() => cancelled);
+  } finally { await server?.close(); f.close(); }
+});
 
 test('private config and artifact validation refuse overrides, private files and changed bytes before acquisition', () => {
   const f = fixture();

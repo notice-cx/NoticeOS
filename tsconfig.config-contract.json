@@ -16,6 +16,7 @@
     "packages/contract/src/backup-evidence.mts",
     "scripts/workflow-history-view.mts",
     "scripts/read-validator.mts",
+    "scripts/change-topics.mts",
     "packages/contract/src/configuration.mts",
     "packages/contract/src/product-use.mts",
     "packages/contract/src/ledger-coverage.mts",

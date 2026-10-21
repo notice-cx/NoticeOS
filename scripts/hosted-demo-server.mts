@@ -12,6 +12,9 @@ import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { createDemoRealtime } from './demo-realtime.mjs';
 import { createDemoCalendar } from './demo-calendar.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
+import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
+import { CHANGE_STREAM_PATH } from './change-topics.mjs';
+import { createChangeWatch, topicReader } from './change-watch.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import type { Readable } from 'node:stream';
 
@@ -323,10 +326,18 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
   const dispatch = async (proof: Request): Promise<Response> => workers!.dispatchFetch(proof.url, { method: proof.method,
     headers: Object.fromEntries(proof.headers), signal: proof.signal,
     ...(['GET', 'HEAD'].includes(proof.method) ? {} : { body: await proof.arrayBuffer() }) });
+  // Only this fixed demo workspace is watched. No visitor's cookie, session,
+  // workspace selector or forwarded authority reaches the shared reader.
+  const readTopic = topicReader(request => {
+    const headers = new Headers(request.headers);
+    headers.set(WORKSPACE_SELECTION_HEADER, configuration.tasks.demoWorkspaceId!);
+    return dispatch(new Request(request, { headers }));
+  }, () => configuration.publicOrigin);
+  const changes = createChangeWatch(readTopic);
   const pending = new Set<Promise<void>>(), aborts = new Set<AbortController>();
   let closing: Promise<void> | undefined, ready = false;
   const server = createServer((incoming, outgoing) => {
-    if (pending.size >= 32) { outgoing.writeHead(503, { 'connection': 'close' }); outgoing.end(); return; }
+    if (pending.size - changes.clients.size >= 32) { outgoing.writeHead(503, { 'connection': 'close' }); outgoing.end(); return; }
     const abort = new AbortController(); aborts.add(abort);
     const stop = () => { abort.abort(); outgoing.destroy(); }; const disconnected = () => { if (!outgoing.writableEnded) stop(); };
     const timeout = setTimeout(stop, 35000); timeout.unref();
@@ -358,6 +369,29 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
         else if (target.pathname.startsWith('/api/')) {
           const clientRelease = headers.get(RELEASE_HEADER);
           if (clientRelease !== null && clientRelease !== artifact.release) response = json(409, { error: 'app_release_changed' });
+          else if (target.pathname === CHANGE_STREAM_PATH) {
+            const selected = headers.get(WORKSPACE_SELECTION_HEADER);
+            if (method !== 'GET' || target.search) response = json(405, { error: 'method_not_allowed' });
+            else if (selected !== null && selected !== configuration.tasks.demoWorkspaceId
+              || headers.has(WORKSPACE_SESSION_HEADER) || headers.has('authorization')
+              || headers.has('origin') && headers.get('origin') !== configuration.publicOrigin
+              || headers.has('sec-fetch-site') && headers.get('sec-fetch-site') !== 'same-origin') response = json(403, { error: 'demo_stream_refused' });
+            else if (changes.clients.size >= 32) response = json(503, { error: 'demo_unavailable' });
+            else {
+              const session = await readTopic('/api/session', null, abort.signal);
+              if (session.status !== 200) response = json(403, { error: 'demo_stream_refused' });
+              else if (changes.clients.size >= 32) response = json(503, { error: 'demo_unavailable' });
+              else if (abort.signal.aborted || outgoing.destroyed) return;
+              else {
+                // Only an admitted SSE response outlives the ordinary deadline.
+                // The watch writes frames directly, including the initial retry.
+                clearTimeout(timeout);
+                outgoing.setHeader(RELEASE_HEADER, artifact.release);
+                await new Promise<void>(resolve => { outgoing.once('close', resolve); changes.open(outgoing); });
+                return;
+              }
+            }
+          }
           else if (target.pathname === '/api/app-release') response = method === 'GET' && !target.search ? json(200, { release: artifact.release }) : json(405, { error: 'method_not_allowed' });
           else if (target.pathname === '/api/ga4/realtime') response = method === 'GET' && !target.search ? json(200, realtime.read(Date.now())) : json(405, { error: 'method_not_allowed' });
           else if (target.pathname === '/api/calendar/upcoming') response = method === 'GET' && !target.search ? json(200, calendar.read(Date.now())) : json(405, { error: 'method_not_allowed' });
@@ -395,9 +429,10 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
   server.on('upgrade', (_request, socket) => socket.destroy());
   const close = (): Promise<void> => closing ??= (async () => {
     ready = false; for (const abort of aborts) abort.abort();
+    const watching = changes.stop();
     const stopped = new Promise<void>((resolve, reject) => server.close(error => error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve()));
     server.closeAllConnections();
-    await stopped; await Promise.allSettled([...pending]);
+    await stopped; await Promise.allSettled([...pending]); await watching;
     const results = await Promise.allSettled([Promise.resolve().then(() => activity?.close()), Promise.resolve().then(() => tasks?.close()), Promise.resolve().then(() => workers?.dispose())]);
     for (const result of results) if (result.status === 'rejected') throw result.reason;
   })();

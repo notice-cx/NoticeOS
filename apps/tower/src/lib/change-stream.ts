@@ -43,9 +43,9 @@ function decode(kind: string, data: string): ChangeEvent | null {
   return null;
 }
 
-/** Opens the change stream for a standalone page, or returns the idle stream
+/** Opens the change stream for a standalone or shared demo page, or returns the idle stream
  * where the browser lacks what it needs. */
-export function createChangeStream(queries: QueryClient, window: Window): ChangeStream {
+export function createChangeStream(queries: QueryClient, window: Window, streamUrl = CHANGE_STREAM_PATH): ChangeStream {
   const page = window as Window & typeof globalThis;
   if (typeof page.EventSource !== 'function' || typeof page.BroadcastChannel !== 'function' || !page.navigator.locks) return NO_CHANGE_STREAM;
   const listeners = new Set<() => void>();
@@ -55,6 +55,11 @@ export function createChangeStream(queries: QueryClient, window: Window): Change
   const setConnected = (value: boolean) => {
     if (connected === value) return;
     connected = value;
+    // Every tab includes changes before it joined, or while no leader held
+    // the stream. Followers can first connect through a status reply.
+    if (value) for (const { topic } of CHANGE_TOPICS) {
+      for (const queryKey of REFRESHES[topic]) void queries.invalidateQueries({ queryKey });
+    }
     for (const listener of listeners) listener();
   };
   const apply = (message: TabMessage) => {
@@ -73,20 +78,15 @@ export function createChangeStream(queries: QueryClient, window: Window): Change
       });
     }
   };
-  const channel = new page.BroadcastChannel(CHANNEL);
+  const channel = new page.BroadcastChannel(`${CHANNEL}:${streamUrl}`);
   channel.onmessage = (event: MessageEvent<TabMessage>) => apply(event.data);
   const relay = (message: TabMessage) => { apply(message); if (!closed) channel.postMessage(message); };
   const stop = new AbortController();
-  const holdStream = () => page.navigator.locks.request(CHANNEL, { signal: stop.signal }, () => new Promise<void>((release) => {
+  const holdStream = () => page.navigator.locks.request(`${CHANNEL}:${streamUrl}`, { signal: stop.signal }, () => new Promise<void>((release) => {
     leading = true;
-    let reopened = false;
-    const source = new page.EventSource(CHANGE_STREAM_PATH);
+    const source = new page.EventSource(streamUrl);
     source.addEventListener('open', () => {
       relay({ kind: 'status', connected: true });
-      // After a dropped stream (a server restart), whatever changed while it
-      // was down is read once; a first stream follows the page's own reads.
-      if (reopened) relay({ kind: 'change', topics: CHANGE_TOPICS.map((entry) => entry.topic) });
-      reopened = true;
     });
     source.addEventListener('error', () => relay({ kind: 'status', connected: false }));
     for (const kind of ['change', 'fresh'] as const) {

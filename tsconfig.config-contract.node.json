@@ -15,6 +15,7 @@
     "scripts/hosted-demo.mts",
     "scripts/hosted-demo-runtime.mts",
     "scripts/hosted-demo-server.mts",
+    "scripts/change-watch.mts",
     "scripts/hosted-demo-setup.mts",
     "scripts/hosted-job-runner.mts",
     "scripts/hosted-job-definition.mts",
