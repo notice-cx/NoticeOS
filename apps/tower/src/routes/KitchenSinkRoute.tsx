@@ -129,6 +129,9 @@ import { CopyCommand } from "@/components/CopyCommand";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { A_WEEK_AGO, LAST_WEEK_BY_TODAY, WorkWeekChip } from "@/components/viz/WorkFlow";
+import { TaskProgressBar } from "@/components/viz/TaskProgressBar";
+import { ProjectJourneys } from "@/components/viz/ProjectJourneys";
+import { PROJECT_JOURNEYS_NOW_MS, PROJECT_JOURNEYS_WEEK_START, projectJourneyRows } from "@/components/viz/ProjectJourneys.fixtures";
 import { FinishLine } from "@/components/surface/FinishLine";
 import {
   ProviderCard,
@@ -210,6 +213,8 @@ import { WallCanvas } from "@/components/WallCanvas";
 import { WallAgents } from "@/components/wall/WallAgents";
 import { WallChannels } from "@/components/wall/WallChannels";
 import { WallFactory } from "@/components/wall/WallFactory";
+import { NextUp } from "@/components/wall/NextUp";
+import { nextUpDemo, nextUpOperator } from "@/routes/kitchen-sink/next-up-demo";
 import { WallHealth } from "@/components/wall/WallHealth";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
@@ -2947,6 +2952,16 @@ export function KitchenSinkRoute() {
           </Section>
           <Section title="Visual kit for a site's tabs: ChangeRows, FunnelBars">
             <p className="text-xs text-muted-foreground">Staged in the gallery above, under Changes and funnels.</p>
+          </Section>
+          <Section title="Visual kit for Tasks: TaskProgressBar, ProjectJourneys">
+            <div className="flex w-full flex-col gap-5">
+              <div className="flex w-full max-w-sm flex-col gap-3">
+                <TaskProgressBar segments={[...Array.from({ length: 6 }, () => ({ state: "done" as const })), { state: "needs-you" }, { state: "blocked" }, { state: "blocked" }]} />
+                <TaskProgressBar segments={[{ state: "done" }, { state: "done" }, { state: "in-progress" }, { state: "ready" }, { state: "waiting" }, { state: "parked" }, { state: "unknown" }]} />
+                <TaskProgressBar size="sm" segments={Array.from({ length: 5 }, () => ({ state: "done" as const }))} />
+              </div>
+              <ProjectJourneys rows={projectJourneyRows} nowMs={PROJECT_JOURNEYS_NOW_MS} weekStart={PROJECT_JOURNEYS_WEEK_START} />
+            </div>
           </Section>
 
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
@@ -5800,6 +5815,24 @@ export function KitchenSinkRoute() {
             </div>
             <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
               <WallFactory week={{ building: null, shipped: null, proven: 0, watching: 0, latest: [] }} />
+            </div>
+          </Section>
+
+          <Section title="NextUp (decisions with the agents now / nothing waits, nothing in progress / tasks unknown)">
+            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+              <NextUp next={nextUpDemo(wallFixture.assets, iso(0))} operator={nextUpOperator(iso(0))} assets={wallFixture.assets} workAssets={wallFixture.assets} nowMs={NOW} />
+            </div>
+            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+              <NextUp
+                next={{ decisions: [], oldestAgeDays: null, working: [], capturedAt: iso(0) }}
+                operator={{ ...nextUpOperator(iso(0)), waiting: 0, urgent: 0 }}
+                assets={wallFixture.assets}
+                workAssets={wallFixture.assets}
+                nowMs={NOW}
+              />
+            </div>
+            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+              <NextUp next={null} operator={null} assets={[]} workAssets={[]} nowMs={NOW} />
             </div>
           </Section>
 
