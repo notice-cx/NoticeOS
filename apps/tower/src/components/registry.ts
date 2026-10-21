@@ -1202,6 +1202,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["7d", "28d selected (the default)", "90d", "custom options", "phone (44px floor)"],
   },
   {
+    name: "Panel",
+    file: "components/surface/Panel.tsx",
+    purpose:
+      "The shared non-list section shell for portfolio Settings and site detail: an anchored, heading-labelled region with a caption, action slot and optional body. Settings rows stack; other content keeps block flow. ListPanel retains its own row disclosure behavior.",
+    variants: ["block content", "stacked settings rows", "caption and action", "header only", "saves paused", "anchor and data marks"],
+  },
+  {
     name: "SectionLabel",
     file: "components/surface/SectionLabel.tsx",
     purpose:

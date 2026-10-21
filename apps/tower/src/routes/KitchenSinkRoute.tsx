@@ -272,6 +272,8 @@ import { ListPanel, ListRow } from "@/components/surface/ListPanel";
 import { FilterBar, FilterControls, FilterFold, FilterToggle } from "@/components/surface/FilterBar";
 import { RangeSelector } from "@/components/surface/RangeSelector";
 import { SectionLabel } from "@/components/surface/SectionLabel";
+import { Panel } from "@/components/surface/Panel";
+import { PanelLock } from "@/routes/settings/SettingsPanel";
 import { SmallMultiple, SmallMultipleStrip } from "@/components/surface/SmallMultiple";
 import { ChartArea, ChartDot, ChartLine } from "@/components/surface/ChartMarks";
 import { MinutePulse } from "@/components/surface/MinutePulse";
@@ -6620,6 +6622,19 @@ function SurfaceSections() {
               </FilterControls>
             </FilterFold>
           </Labeled>
+        </div>
+      </Section>
+
+      <Section title="Panel — shared settings and site sections">
+        <div className="flex w-full max-w-4xl flex-col gap-4">
+          <Panel id="panel-block-demo" title="Identity" count="one site" action={<OwnerChip path="db · assets row" />} data-panel-demo="block">
+            <p className="text-sm">Example site</p>
+          </Panel>
+          <Panel id="panel-stack-demo" title="Collection" count="2 settings" action={<PanelLock />} bodyLayout="stack" data-panel-demo="stack">
+            <div className="border-b border-border py-3 text-sm first:pt-1">Every day</div>
+            <div className="py-3 text-sm last:pb-0">UTC</div>
+          </Panel>
+          <Panel id="panel-header-demo" title="Layout" action={<Button variant="outline" size="sm">Edit layout</Button>} data-panel-demo="header" />
         </div>
       </Section>
 
