@@ -48,7 +48,7 @@ An asset operation whose write was acknowledged for the requested asset. A dupli
 An asset whose creation was confirmed but whose requested configuration has not been confirmed.
 
 **Archived asset**:
-An asset taken out of collection and off the desk, with its history and its domain kept. It is the one way out: an asset is never deleted, and restoring one returns it to the stage it left.
+An asset taken out of collection and off the desk, with its history and its domain kept. It is the one way out: an asset is never deleted, and restoring one resumes monitoring with its stage computed from collection history. A recorded pre-launch hold remains in place.
 
 ### Integration evidence
 

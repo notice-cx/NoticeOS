@@ -62,18 +62,24 @@ describe('createAsset — what a wizard may bring into being', () => {
     });
   });
 
-  it('takes an explicit stage and posture when the wizard asked for them', async () => {
+  it('takes an explicit launch hold and automation permission', async () => {
     const result = await createAsset(
       env,
-      { id: NEW_ID, displayName: 'Brand New', status: 'live', senseOnly: 0 },
+      { id: NEW_ID, displayName: 'Brand New', status: 'pre-launch', senseOnly: 0 },
       NOW,
     );
     expect(result.ok).toBe(true);
     expect(await stored(NEW_ID)).toMatchObject({
-      status: 'live',
+      status: 'pre-launch',
       sense_only: 0,
       domain: null,
     });
+  });
+
+  it.each(['live', 'baselining'])('refuses a manually assigned initial stage %s', async (status) => {
+    const result = await createAsset(env, { id: NEW_ID, displayName: 'Brand New', status }, NOW);
+    expect(result).toMatchObject({ ok: false, error: 'validation', issues: [{ path: 'status', code: 'derived' }] });
+    expect(await stored(NEW_ID)).toBeNull();
   });
 
   // asset #0 is a fact about this repo, and it decides which asset the Tower
@@ -105,7 +111,7 @@ describe('createAsset — what a wizard may bring into being', () => {
     expect(await stored('second.test')).toBeNull();
   });
 
-  it.each(['retired', 'live'] as const)('returns the domain holder lifecycle %s without changing it', async status => {
+  it.each(['retired', 'onboarding'] as const)('returns the domain holder lifecycle %s without changing it', async status => {
     await createAsset(env, { id: NEW_ID, domain: 'held.test', displayName: 'Held', status }, NOW);
     const before = await stored(NEW_ID);
     expect(await createAsset(env, { id: 'duplicate.test', domain: 'held.test', displayName: 'Again' }, NOW))
@@ -207,7 +213,7 @@ describe('a failed site transaction', () => {
 
     const before = await stored('meadow.example');
     await expect(
-      writeAssetColumn(withStore(refusingSiteStatements), { asset: 'meadow.example', column: 'status', value: 'live' }, NOW),
+      writeAssetColumn(withStore(refusingSiteStatements), { asset: 'meadow.example', column: 'status', value: 'retired' }, NOW),
     ).rejects.toThrow();
     expect(await stored('meadow.example')).toEqual(before);
   });
@@ -219,7 +225,7 @@ describe('a failed site transaction', () => {
     expect(await stored(NEW_ID)).toBeNull();
 
     // A later retry creates the site normally.
-    expect(await createAsset(env, { id: NEW_ID, displayName: 'Brand New', status: 'live' }, NOW + 1000)).toMatchObject({ ok: true });
+    expect(await createAsset(env, { id: NEW_ID, displayName: 'Brand New' }, NOW + 1000)).toMatchObject({ ok: true });
     expect(await stored(NEW_ID)).toMatchObject({ status: 'live', updated_at: new Date(NOW + 1000).toISOString() });
   });
 });

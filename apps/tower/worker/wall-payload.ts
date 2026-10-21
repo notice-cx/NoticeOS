@@ -422,6 +422,7 @@ export async function buildWallPayload(
     id: row.id,
     displayName: assetDisplayName(row.isOs, row.displayName),
     status: row.status,
+    hasCollectedData: row.hasCollectedData,
     senseOnly: row.senseOnly,
     isOs: row.isOs,
   }));
@@ -751,6 +752,7 @@ export async function buildWallPayload(
       id: a.id,
       displayName: a.displayName,
       status: a.status,
+      hasCollectedData: a.hasCollectedData,
       senseOnly,
       worstSeverity: f ? severityFromRank(toNum(f.worst) ?? 0) : null,
       openError: f ? (toNum(f.err) ?? 0) : 0,

@@ -423,13 +423,13 @@ describe("the site-health module", () => {
     }
   });
 
-  it("writes each row's problems beside it, else Fine, else that it is still setting up", () => {
+  it("writes each row's problems beside it, else Fine, else that nothing is measured yet", () => {
     const { container } = render(tree(<HealthModule cards={cards} issues={[]} />));
 
     const note = (id: string) => row(container, id).querySelector("[data-site-health-note]")!.textContent;
     expect(note("slow.example.com")).toBe("Slow for 1 in 4 visitors · 3 people hit an error");
     expect(note("fine.example.com")).toBe("Fine");
-    expect(note("new.example.com")).toBe("Still setting up · nothing measured yet");
+    expect(note("new.example.com")).toBe("Nothing measured yet");
   });
 
   it("colours a home page that did not load in the error colour", () => {

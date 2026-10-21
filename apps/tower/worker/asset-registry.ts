@@ -4,6 +4,7 @@
 // (`SITE_ORDER`, shared with ingest). A site is never deleted: retired ones are
 // listed too and each reader decides whether to show them.
 
+import { assetLifecycleStatus } from "@noticeos/contract/asset-lifecycle";
 import { SITE_ORDER } from "@noticeos/contract";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 
@@ -13,6 +14,8 @@ export interface SiteRecord {
   domain: string | null;
   displayName: string;
   status: string;
+  storedStatus: string;
+  hasCollectedData: boolean;
   /** 1 = the OS observes only; 0 = it may act. */
   senseOnly: number;
   /** 1 for the OS's own row. */
@@ -22,6 +25,7 @@ export interface SiteRecord {
 }
 
 type StoredSite = {
+  hasCollectedData: boolean;
   id: string;
   domain: string | null;
   displayName: string;
@@ -32,12 +36,21 @@ type StoredSite = {
   updatedAt: string;
 };
 
-const SITE_COLUMNS = `asset_id AS id, domain, display_name AS "displayName", status,
-       sense_only AS "senseOnly", is_os AS "isOs", created_at AS "createdAt", updated_at AS "updatedAt"`;
+const SITE_SELECT = `SELECT asset_id AS id, domain, display_name AS "displayName", status,
+       sense_only AS "senseOnly", is_os AS "isOs", created_at AS "createdAt", updated_at AS "updatedAt",
+       (EXISTS (SELECT 1 FROM noticeos.current_pulses d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id)
+        OR EXISTS (SELECT 1 FROM noticeos.counter_readings d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id)
+        OR EXISTS (SELECT 1 FROM noticeos.signal_runs d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id AND d.status = 'success' AND d.observation_count > 0)
+        OR EXISTS (SELECT 1 FROM noticeos.revenue_observations d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id)
+        OR EXISTS (SELECT 1 FROM noticeos.ledger_entries d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id AND d.kind IN ('revenue', 'cost'))
+        OR EXISTS (SELECT 1 FROM noticeos.hygiene_checks d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id)
+        OR EXISTS (SELECT 1 FROM noticeos.codebase_reports d WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id)) AS "hasCollectedData" FROM noticeos.assets a`;
 
 function record(row: StoredSite): SiteRecord {
   return {
     ...row,
+    storedStatus: row.status,
+    status: assetLifecycleStatus(row.status, row.hasCollectedData),
     senseOnly: row.senseOnly ? 1 : 0,
     isOs: row.isOs ? 1 : 0,
     createdAt: javascriptInstant(row.createdAt),
@@ -48,7 +61,7 @@ function record(row: StoredSite): SiteRecord {
 /** Every site, retired ones included, by its place in the list. */
 export async function readSites(store: WorkspaceStore): Promise<SiteRecord[]> {
   const rows = await store.read((tx) =>
-    tx.query<StoredSite>(`SELECT ${SITE_COLUMNS} FROM noticeos.assets ORDER BY ${SITE_ORDER}`),
+    tx.query<StoredSite>(`${SITE_SELECT} ORDER BY ${SITE_ORDER}`),
   );
   return rows.map(record);
 }
@@ -57,7 +70,7 @@ export async function readSites(store: WorkspaceStore): Promise<SiteRecord[]> {
 export async function readSitesById(store: WorkspaceStore, ids: readonly string[]): Promise<Map<string, SiteRecord>> {
   if (ids.length === 0) return new Map();
   const rows = await store.read((tx) =>
-    tx.query<StoredSite>(`SELECT ${SITE_COLUMNS} FROM noticeos.assets WHERE asset_id = ANY($1::text[])`, [ids]),
+    tx.query<StoredSite>(`${SITE_SELECT} WHERE asset_id = ANY($1::text[])`, [ids]),
   );
   return new Map(rows.map((row) => [row.id, record(row)]));
 }
@@ -65,7 +78,7 @@ export async function readSitesById(store: WorkspaceStore, ids: readonly string[
 /** One site, or null when the store holds none with this id. */
 export async function readSite(store: WorkspaceStore, id: string): Promise<SiteRecord | null> {
   const [row] = await store.read((tx) =>
-    tx.query<StoredSite>(`SELECT ${SITE_COLUMNS} FROM noticeos.assets WHERE asset_id = $1`, [id]),
+    tx.query<StoredSite>(`${SITE_SELECT} WHERE asset_id = $1`, [id]),
   );
   return row ? record(row) : null;
 }

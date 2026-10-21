@@ -99,7 +99,7 @@ const ASSETS: AssetCard[] = [
     displayName: "Areas",
     status: "baselining",
     activeUsers: users(100),
-    pulseReceivedAt: "2026-07-30T10:00:00.000Z",
+    pulseReceivedAt: "2026-08-01T10:00:00.000Z",
   }),
   assetCard({
     id: "ferns.example",
@@ -199,7 +199,7 @@ describe("/assets — which site needs attention, and how each is doing", () => 
     expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
     expect(row(container, "meadow.example")).toHaveTextContent("Off track");
     expect(row(container, "northwind.example")).toHaveTextContent("At risk");
-    expect(row(container, "acorn.example")).toHaveTextContent("Setting up");
+    expect(row(container, "acorn.example")).toHaveTextContent("On track");
     expect(within(row(container, "meadow.example")).getByRole("link")).toHaveAttribute("href", "/assets/meadow.example");
     // A site with no number yet has an empty Overview, so its row opens its Data sources.
     expect(within(row(container, "ferns.example")).getByRole("link")).toHaveAttribute("href", "/assets/ferns.example/sources");
@@ -238,14 +238,22 @@ describe("/assets — which site needs attention, and how each is doing", () => 
     expect(answer.querySelector("[data-visitors-figure]")).toHaveTextContent("1,500");
   });
 
-  it("says All on track when no site needs attention, and counts the ones still setting up apart", () => {
+  it("says All on track when no site needs attention, regardless of manual stage", () => {
     const calm = [assetCard({ id: "one.example" }), assetCard({ id: "two.example" })];
     const { container, unmount } = renderAssets("/assets", calm);
     expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 sites on track");
     unmount();
     const young = [assetCard({ id: "one.example" }), assetCard({ id: "two.example", status: "baselining" })];
     const second = renderAssets("/assets", young);
-    expect(second.container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 2 sites on track1 setting up");
+    expect(second.container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 sites on track");
+  });
+
+  it("includes a late reporting site in attention counts during baselining", () => {
+    const late = assetCard({ id: "late.example", status: "baselining", pulseReceivedAt: "2026-07-30T10:00:00.000Z" });
+    const { container } = renderAssets("/assets", [late, assetCard({ id: "fine.example" })]);
+    expect(row(container, late.id)).toHaveTextContent("At risk");
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 2 sites at risk");
+    expect(screen.queryByRole("button", { name: /setting up/i })).toBeNull();
   });
 
   it("answers for the portfolio, not the narrowed view", () => {
@@ -268,14 +276,14 @@ describe("/assets — the health split is the Health filter", () => {
   it("splits the whole portfolio by health word, worst first, with each count in its legend", () => {
     const { container } = renderAssets();
 
-    const bar = screen.getByRole("img", { name: "Site health: 1 off track, 1 at risk, 2 setting up" });
+    const bar = screen.getByRole("img", { name: "Site health: 1 off track, 1 at risk, 2 on track" });
     expect([...bar.querySelectorAll("[data-segment]")].map((segment) => segment.getAttribute("data-segment"))).toEqual([
-      "off-track", "at-risk", "setting-up",
+      "off-track", "at-risk", "on-track",
     ]);
     expect(bar.querySelector('[data-segment="off-track"]')!.className).toContain("bg-error");
-    expect(bar.querySelector('[data-segment="setting-up"]')!.className).not.toMatch(/bg-(error|warn)/u);
+    expect(bar.querySelector('[data-segment="on-track"]')!.className).not.toMatch(/bg-(error|warn)/u);
     expect(within(screen.getByRole("group", { name: "Health" })).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "1 off track", "1 at risk", "2 setting up",
+      "1 off track", "1 at risk", "2 on track",
     ]);
     expect(pressed("Health")).toEqual([]);
     expect(container.querySelector("[data-assets-summary]")).toBeNull();
@@ -284,13 +292,13 @@ describe("/assets — the health split is the Health filter", () => {
   it("shows only a word's sites on a press, and all of them on a second", () => {
     const { container } = renderAssets();
 
-    fireEvent.click(screen.getByRole("button", { name: "2 setting up" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 on track" }));
     expect(shown(container)).toEqual(["acorn.example", "ferns.example"]);
-    expect(pressed("Health")).toEqual(["2 setting up"]);
+    expect(pressed("Health")).toEqual(["2 on track"]);
     expect(container.querySelector('[data-segment="off-track"]')!.className).toContain("opacity-25");
-    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · health: setting up");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · health: on track");
 
-    fireEvent.click(screen.getByRole("button", { name: "2 setting up" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 on track" }));
     expect(shown(container)).toHaveLength(4);
     expect(pressed("Health")).toEqual([]);
   });
@@ -302,10 +310,10 @@ describe("/assets — the health split is the Health filter", () => {
     expect(pressed("Health")).toEqual(["1 at risk"]);
     expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("1 of 4 sites · stage: live · health: at risk");
 
-    const nobody = renderAssets("/assets?health=on-track");
-    expect(within(nobody.container.querySelector<HTMLElement>("[data-health-split]")!).getByRole("button", { name: "0 on track" }))
+    const nobody = renderAssets("/assets?health=monitor-only");
+    expect(within(nobody.container.querySelector<HTMLElement>("[data-health-split]")!).getByRole("button", { name: "0 monitor only" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(nobody.container.querySelector("[data-assets-summary]")).toHaveTextContent("0 of 4 sites · health: on track");
+    expect(nobody.container.querySelector("[data-assets-summary]")).toHaveTextContent("0 of 4 sites · health: monitor only");
   });
 });
 
@@ -317,7 +325,6 @@ describe("/assets — the stage", () => {
       "All stages · 4",
       "Pre-launch · 0",
       "Onboarding · 1",
-      "Baselining · 1",
       "Live · 2",
       "Retired · 0",
     ]);

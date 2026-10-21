@@ -211,24 +211,25 @@ describe('POST /api/asset-state — what it will edit', () => {
 });
 
 describe('POST /api/asset-state — what it stores', () => {
-  it('moves the lifecycle and stamps updated_at from the runtime clock', async () => {
-    const { status, body } = await edit({
-      asset: 'meadow.example',
-      column: 'status',
-      value: 'baselining',
-    });
-    expect(status).toBe(200);
-    expect(body).toMatchObject({
-      updated: true,
-      asset: 'meadow.example',
-      column: 'status',
-      value: 'baselining',
-    });
+  it.each(['baselining', 'live'])('rejects a manual active stage %s without changing the row', async (value) => {
+    const { status, body } = await edit({ asset: 'meadow.example', column: 'status', value });
+    expect(status).toBe(422);
+    expect(body.issues?.[0]?.code).toBe('derived');
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding', updated_at: SEEDED_AT });
+  });
 
-    const row = await stored('meadow.example');
-    expect(row).toMatchObject({ status: 'baselining', sense_only: 0 });
-    expect(row?.updated_at).toBe(body.updatedAt);
-    expect(row?.updated_at).not.toBe(SEEDED_AT);
+  it('records an archive decision and stamps updated_at', async () => {
+    const { status, body } = await edit({ asset: 'meadow.example', column: 'status', value: 'retired' });
+    expect(status).toBe(200);
+    expect(await stored('meadow.example')).toMatchObject({ status: 'retired', updated_at: body.updatedAt });
+  });
+
+  it('resumes monitoring without restoring an assigned progress stage', async () => {
+    await changeSites(['meadow.example'], { status: 'retired' });
+    const { status, body } = await edit({ asset: 'meadow.example', column: 'status', value: 'live' });
+    expect(status).toBe(200);
+    expect(body.value).toBe('onboarding');
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding' });
   });
 
   it('flips the posture flag and leaves the lifecycle alone', async () => {

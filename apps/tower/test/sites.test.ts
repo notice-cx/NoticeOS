@@ -34,6 +34,6 @@ describe.skipIf(postgresUnavailable() !== null)("direct Postgres site fixtures",
     const fixture = await createTestStore();
     await seedAssets(fixture);
     const expected = [INVENTED.os, ...INVENTED.sites.slice(0, 5)];
-    expect(await readSites(fixture.call)).toEqual(expected);
+    expect(await readSites(fixture.call)).toEqual(expected.map((site) => ({ ...site, storedStatus: site.status, hasCollectedData: false, status: site.status === "retired" || site.status === "pre-launch" ? site.status : "onboarding" })));
   });
 });

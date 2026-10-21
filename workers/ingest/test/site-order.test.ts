@@ -41,7 +41,7 @@ async function places(): Promise<Map<string, number>> {
 /** Add these sites through the product, one after another. */
 async function created(ids: string[]): Promise<void> {
   for (const id of ids) {
-    const result = await createAsset(env, { id, displayName: id, domain: id, status: 'live' }, NOW);
+    const result = await createAsset(env, { id, displayName: id, domain: id }, NOW);
     expect(result.ok).toBe(true);
   }
 }
