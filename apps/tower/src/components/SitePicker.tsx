@@ -8,7 +8,7 @@ import { googleListingGrant, providerName } from "@shared/connect-panel";
 import {
   COLLECT_REFUSAL_LABEL,
   chosenSite,
-  initialSelection,
+  reconcileSiteChoices,
   marketOf,
   planSites,
   rowCollectable,
@@ -23,6 +23,7 @@ import {
   type SiteRow,
   type SitePlan,
   type SiteSelection,
+  type SiteChoices,
   type SitesPayload,
   type StartPlan,
 } from "@shared/site-discovery";
@@ -66,6 +67,7 @@ export interface SitePickerProps {
 }
 
 const NOTHING_CHOSEN: SiteSelection = { checked: new Set(), picks: {}, declined: {} };
+const NO_CHOICES: SiteChoices = { checked: {}, picks: {}, declined: {} };
 
 type Phase =
   | { phase: "choosing" }
@@ -92,7 +94,11 @@ type Phase =
  * (`declineOps`). No reason is preselected. The spend preview counts every
  * site the weekly job will bill, undecided ones included.
  */
-export function SitePicker({
+export function SitePicker(props: SitePickerProps) {
+  return <SitePickerSession key={props.provider.id} {...props} />;
+}
+
+function SitePickerSession({
   provider,
   payload,
   failed = false,
@@ -104,16 +110,16 @@ export function SitePicker({
   onStarted,
   onClose,
 }: SitePickerProps) {
-  const plan = useMemo(() => (payload ? planSites(payload, preselect) : null), [payload, preselect]);
+  const plan = useMemo(() => (payload?.discovery.ok ? planSites(payload, preselect) : null), [payload, preselect]);
   const iconsOf = useSiteIcons();
-  // The selection belongs to the plan it was made on: a new plan starts from
-  // its own suggestions in the same render, so Start is never drawn disabled
-  // for one frame over rows that are already ticked.
-  const [chosen, setChosen] = useState<{ plan: SitePlan | null; selection: SiteSelection }>({ plan: null, selection: NOTHING_CHOSEN });
-  if (plan !== null && chosen.plan !== plan) setChosen({ plan, selection: initialSelection(plan) });
-  const selection = plan !== null && chosen.plan === plan ? chosen.selection : plan ? initialSelection(plan) : NOTHING_CHOSEN;
-  const setSelection = (change: (current: SiteSelection) => SiteSelection) =>
-    setChosen((current) => ({ plan: current.plan, selection: change(current.selection) }));
+  // Reconcile in the same render so Start never uses a previous reading's
+  // options or guards. The component's lifetime bounds the unsaved choices.
+  const [chosen, setChosen] = useState<{ plan: SitePlan | null; choices: SiteChoices; selection: SiteSelection }>({ plan: null, choices: NO_CHOICES, selection: NOTHING_CHOSEN });
+  const current = plan !== null && chosen.plan !== plan ? { plan, ...reconcileSiteChoices(plan, chosen.choices) } : chosen;
+  if (current !== chosen) setChosen(current);
+  const selection = plan ? current.selection : NOTHING_CHOSEN;
+  const setChoices = (change: (choices: SiteChoices) => SiteChoices) =>
+    setChosen((value) => ({ plan: value.plan, ...reconcileSiteChoices(value.plan!, change(value.choices)) }));
   const [phase, setPhase] = useState<Phase>({ phase: "choosing" });
   // Focus follows the panel's primary action: the form the key was typed in
   // has just gone, so Start (then Open, or Done) is where Enter should land.
@@ -124,6 +130,7 @@ export function SitePicker({
   const primary = useRef<HTMLElement | null>(null);
   const keep = (node: HTMLElement | null) => { primary.current = node; };
   const steered = useRef(false);
+  const hasPlan = plan !== null;
   useEffect(() => {
     const steer = () => { steered.current = true; };
     document.addEventListener("keydown", steer, true);
@@ -134,10 +141,10 @@ export function SitePicker({
     };
   }, []);
   useEffect(() => {
-    if (!plan || phase.phase === "starting") return;
+    if (!hasPlan || phase.phase === "starting") return;
     const dropped = document.activeElement === null || document.activeElement === document.body;
     if (dropped || !steered.current) primary.current?.focus();
-  }, [plan, phase.phase]);
+  }, [hasPlan, phase.phase]);
 
   const name = providerName(provider);
   const discovery = payload?.discovery;
@@ -250,28 +257,25 @@ export function SitePicker({
     .filter(Boolean)
     .join(" · ");
 
-  const toggle = (row: SiteRow, on: boolean) => setSelection((current) => {
-    const checked = new Set(current.checked);
+  const toggle = (row: SiteRow, on: boolean) => setChoices((current) => {
     const declined = { ...(current.declined ?? {}) };
     if (on) {
-      checked.add(row.asset.id);
       // Ticked again: collected, so no longer declined.
       delete declined[row.asset.id];
-    } else checked.delete(row.asset.id);
-    return { ...current, checked, declined };
+    }
+    return { ...current, checked: { ...current.checked, [row.asset.id]: on }, declined };
   });
-  const decline = (row: SiteRow, reason: string) => setSelection((current) => ({
+  const decline = (row: SiteRow, reason: string) => setChoices((current) => ({
     ...current,
     declined: { ...(current.declined ?? {}), [row.asset.id]: reason },
   }));
-  const pick = (row: SiteRow, lane: SiteLane, ref: string) => setSelection((current) => {
+  const pick = (row: SiteRow, lane: SiteLane, ref: string) => setChoices((current) => {
     const lanes = { ...(current.picks[row.asset.id] ?? {}) };
     if (ref === "") delete lanes[lane.lane];
     else lanes[lane.lane] = ref;
-    const checked = new Set(current.checked);
-    if (ref === "") checked.delete(row.asset.id);
-    else checked.add(row.asset.id);
-    return { checked, picks: { ...current.picks, [row.asset.id]: lanes } };
+    const declined = { ...current.declined };
+    if (ref !== "") delete declined[row.asset.id];
+    return { checked: { ...current.checked, [row.asset.id]: ref !== "" }, picks: { ...current.picks, [row.asset.id]: lanes }, declined };
   });
 
   async function start() {
@@ -395,7 +399,10 @@ function ChoiceRow({
   const collectable = rowCollectable(row, selection);
   const checked = collectable && selection.checked.has(row.asset.id);
   const unlisted = row.lanes.filter((lane) => lane.state === "unlisted");
-  const choosable = row.excluded === null ? unlisted.filter((lane) => lane.choices.length > 0) : [];
+  const choosable = row.excluded === null ? row.lanes.filter((lane) => {
+    const pick = selection.picks[row.asset.id]?.[lane.lane];
+    return lane.choices.length > 0 && (lane.state === "unlisted" || (pick !== undefined && pick !== lane.site?.ref));
+  }) : [];
   const addSite = provider.connect?.addSite;
   const id = `site-${provider.id}-${row.asset.id}`;
   const reason = selection.declined?.[row.asset.id] ?? null;

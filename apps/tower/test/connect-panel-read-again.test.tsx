@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "./render";
+import { act, fireEvent, render, screen, waitFor } from "./render";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { INTEGRATION_PROVIDERS, type CredentialSummary, type DiscoveredSite } from "@noticeos/contract";
@@ -20,10 +20,12 @@ vi.mock("@/hooks/useIntegrationHealth", () => ({
   INTEGRATION_HEALTH_KEY: ["integration-health"],
   useIntegrationHealth: () => ({ data: undefined, isError: false, status: { items: [] } }),
 }));
-const reads = vi.hoisted(() => ({ answers: [] as SitesPayload[], fetchProviderSites: vi.fn() }));
+const reads = vi.hoisted(() => ({ answers: [] as SitesPayload[], fetchProviderSites: vi.fn(), collectProviderSites: vi.fn(), save: vi.fn() }));
+vi.mock("@/hooks/useConfigSave", () => ({ useInlineConfigSave: () => reads.save }));
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   fetchProviderSites: reads.fetchProviderSites,
+  collectProviderSites: reads.collectProviderSites,
 }));
 
 import { ProviderConnectPanel } from "@/routes/integrations/ProviderConnectPanel";
@@ -52,10 +54,54 @@ function google(): IntegrationProviderStatus {
 
 afterEach(() => {
   reads.fetchProviderSites.mockReset();
+  reads.collectProviderSites.mockReset();
+  reads.save.mockReset();
   reads.answers = [];
 });
 
 describe("the Google panel's Read again", () => {
+  it("preserves unticks and focus through the read, applies new suggestions, and resets on reopening", async () => {
+    const waiting = { ...journey, id: "waiting.example", label: "Waiting", domain: "waiting.example" };
+    const initial = { ...listed([ga4("101", "journey.example")]), assets: [journey, waiting] };
+    const refreshed = { ...initial, discovery: { ...initial.discovery, sites: [ga4("101", "journey.example"), gsc("sc-domain:journey.example", "journey.example"), ga4("102", "waiting.example")] } };
+    let finishRead!: (answer: SitesPayload) => void;
+    reads.fetchProviderSites
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(() => new Promise<SitesPayload>((resolve) => { finishRead = resolve; }))
+      .mockResolvedValueOnce(refreshed);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const panel = () => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ProviderConnectPanel status={google()} opened="sites" asset={null} canConnect items={[]} names={new Map()}
+            onClose={() => {}} onChanged={async () => {}} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const view = render(panel());
+    await screen.findByRole("checkbox", { name: /Journey/ });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
+    const control = screen.getByRole("button", { name: "Read again" });
+    fireEvent.pointerDown(control);
+    control.focus();
+    fireEvent.click(control);
+    await waitFor(() => expect(control).toHaveAttribute("aria-busy", "true"));
+    expect(document.activeElement).toBe(control);
+    expect(screen.getByRole("checkbox", { name: /Journey/ })).not.toBeChecked();
+    await act(async () => { finishRead(refreshed); });
+    await waitFor(() => expect(control).toHaveAttribute("aria-busy", "false"));
+    expect(document.activeElement).toBe(control);
+    expect(screen.getByRole("checkbox", { name: /Journey/ })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Waiting/ })).toBeChecked();
+    expect(reads.save).not.toHaveBeenCalled();
+    expect(reads.collectProviderSites).not.toHaveBeenCalled();
+    expect(reads.fetchProviderSites).toHaveBeenCalledTimes(2);
+    view.unmount();
+    render(panel());
+    await waitFor(() => expect(reads.fetchProviderSites).toHaveBeenCalledTimes(3));
+    expect(await screen.findByRole("checkbox", { name: /Journey/ })).toBeChecked();
+  });
+
   it("reads the account again and lists the newly granted Search Console site in the open panel", async () => {
     reads.answers = [
       listed([ga4("538680421", "journey.example")]),

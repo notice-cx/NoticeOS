@@ -13,12 +13,14 @@ import { declineOps } from "@shared/lane-decline";
 import {
   initialSelection,
   planSites,
+  reconcileSiteChoices,
   rowDecision,
   spendFor,
   startPlan,
   unclaimedSites,
   type SitesAsset,
   type SitesPayload,
+  type StartPlan,
 } from "@shared/site-discovery";
 import { marketLabel } from "@shared/site-markets";
 import { SitePicker } from "@/components/SitePicker";
@@ -113,6 +115,47 @@ describe("matching an account's sites to the portfolio", () => {
     expect(plan.rows.map((row) => [row.asset.id, row.checked, row.excluded])).toEqual([["journey.example", true, null], ["ferns.example", false, "pre-launch"]]);
     expect(marketLabel({ locationCode: 2826, languageCode: "en" })).toBe("United Kingdom · English");
     expect(plan.others).toEqual([]);
+  });
+});
+
+describe("reconciling explicit choices with a fresh reading", () => {
+  it("uses current suggestions for untouched rows and prunes removed rows and lanes", () => {
+    const plan = planSites({
+      ...PAYLOAD,
+      discovery: account([bingSite("https://journey.example/"), bingSite("https://second.example/"), bingSite("https://new.example/")]),
+      assets: [asset("journey.example"), asset("second.example"), asset("new.example")],
+    });
+    const { choices, selection } = reconcileSiteChoices(plan, {
+      checked: { "journey.example": false, "removed.example": true },
+      picks: { "second.example": { vanished: "old-ref" }, "removed.example": { "bing-webmaster": "old-ref" } },
+      declined: { "journey.example": "Replaced by another tool", "removed.example": "No longer used" },
+    });
+    expect(choices).toEqual({
+      checked: { "journey.example": false, "second.example": false }, picks: {},
+      declined: { "journey.example": "Replaced by another tool" },
+    });
+    expect([...selection.checked]).toEqual(["new.example"]);
+    expect(startPlan(plan, selection).declined).toEqual(["journey.example"]);
+  });
+
+  it("uses a new suggestion for an existing untouched row", () => {
+    const previous = reconcileSiteChoices(planSites(PAYLOAD), { checked: {}, picks: {}, declined: {} });
+    const plan = planSites({ ...PAYLOAD, discovery: account([bingSite("https://second.example/")]) });
+    const { selection } = reconcileSiteChoices(plan, previous.choices);
+    expect([...selection.checked]).toEqual(["second.example"]);
+    expect(startPlan(plan, selection).assets).toEqual(["second.example"]);
+  });
+
+  it("keeps a manual option that becomes the current mapped site", () => {
+    const plan = planSites({
+      ...PAYLOAD,
+      assets: [asset("second.example", { cells: { "bing-webmaster": { status: "needs-setup", mapping: { siteUrl: "https://shop.example/" } } } })],
+    });
+    const { selection } = reconcileSiteChoices(plan, {
+      checked: { "second.example": true }, picks: { "second.example": { "bing-webmaster": "https://shop.example/" } }, declined: {},
+    });
+    expect(selection.picks).toEqual({ "second.example": { "bing-webmaster": "https://shop.example/" } });
+    expect(startPlan(plan, selection)).toEqual({ assets: ["second.example"], ops: [], declined: [] });
   });
 });
 
@@ -350,6 +393,144 @@ describe("the picker", () => {
     expect(within(rows[3]!).getByText("Not using")).toBeTruthy();
     expect(screen.getByText("https://blog.journey.example/")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 2 sites");
+  });
+
+  it("preserves explicit choices and reasons, but refreshes untouched suggestions and Start guards", async () => {
+    const onStart = vi.fn(async () => null);
+    const panel = (payload: SitesPayload) => (
+      <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
+    );
+    const view = render(panel({ ...PAYLOAD, assets: [...PAYLOAD.assets, asset("waiting.example")] }));
+    const journey = () => document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
+    fireEvent.click(within(journey()).getByRole("checkbox"));
+    fireEvent.click(within(journey()).getByRole("button", { name: "Replaced by another tool" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Mapped/ }));
+    const mapping = screen.getByRole("combobox", { name: "Site for Second" });
+    fireEvent.change(mapping, { target: { value: "https://shop.example/" } });
+    mapping.focus();
+    const refreshed: SitesPayload = {
+      ...PAYLOAD,
+      discovery: account([bingSite("https://journey.example/"), bingSite("https://mapped.example/"), bingSite("https://shop.example/"), bingSite("https://new.example/"), bingSite("https://waiting.example/")]),
+      assets: [
+        asset("journey.example", { cells: { "bing-webmaster": { status: "failing", note: "Current note", mapping: {} } } }),
+        asset("second.example", { cells: { "bing-webmaster": { status: "needs-setup", mapping: { siteUrl: "https://old.example/" } } } }),
+        PAYLOAD.assets[2]!, asset("new.example"), asset("waiting.example"),
+      ],
+    };
+    view.rerender(panel(refreshed));
+    view.rerender(panel({ ...refreshed }));
+    expect(document.activeElement).toBe(mapping);
+    expect(mapping).toHaveValue("https://shop.example/");
+    expect(screen.getByRole("checkbox", { name: /Second/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Mapped/ })).not.toBeChecked();
+    expect(within(journey()).getByRole("checkbox")).not.toBeChecked();
+    expect(within(journey()).getByRole("button", { name: "Replaced by another tool" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("checkbox", { name: /New/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Waiting/ })).toBeChecked();
+    expect(onStart).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
+    expect(onStart).toHaveBeenCalledWith({
+      assets: ["new.example", "waiting.example", "second.example"], declined: ["journey.example"],
+      ops: [
+        ...declineOps("journey.example", "bing-webmaster", { status: "failing", note: "Current note" }, "Replaced by another tool"),
+        laneFieldOp("new.example", "bing-webmaster", "siteUrl", null, "https://new.example/"),
+        laneFieldOp("waiting.example", "bing-webmaster", "siteUrl", null, "https://waiting.example/"),
+        laneFieldOp("second.example", "bing-webmaster", "siteUrl", "https://old.example/", "https://shop.example/"),
+      ],
+    });
+  });
+
+  it("keeps an available manual choice when a refresh adds a different domain suggestion", async () => {
+    const onStart = vi.fn(async () => null);
+    const panel = (payload: SitesPayload) => (
+      <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
+    );
+    const view = render(panel(PAYLOAD));
+    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    view.rerender(panel({
+      ...PAYLOAD,
+      discovery: account([bingSite("https://journey.example/"), bingSite("https://shop.example/"), bingSite("https://second.example/")]),
+    }));
+    expect(screen.getByRole("combobox", { name: "Site for Second" })).toHaveValue("https://shop.example/");
+    expect(screen.getByRole("checkbox", { name: /Second/ })).toBeChecked();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
+    expect(onStart).toHaveBeenCalledWith({
+      assets: ["second.example", "journey.example"], declined: [],
+      ops: [laneFieldOp("second.example", "bing-webmaster", "siteUrl", null, "https://shop.example/"), laneFieldOp("journey.example", "bing-webmaster", "siteUrl", null, "https://journey.example/")],
+    });
+  });
+
+  it("retains the draft through a refused or failed read until a successful reading", () => {
+    const panel = (payload: SitesPayload, failed = false) => (
+      <MemoryRouter><SitePicker provider={BING} payload={payload} failed={failed} onStart={async () => null} onClose={() => {}} /></MemoryRouter>
+    );
+    const view = render(panel(PAYLOAD));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Replaced by another tool" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    view.rerender(panel({ ...PAYLOAD, discovery: { ok: false, provider: "bing-webmaster", checkedAt: AT, reason: "refused" } }));
+    expect(screen.queryByRole("button", { name: /Start collecting/ })).toBeNull();
+    view.rerender(panel(PAYLOAD, true));
+    expect(screen.queryByRole("button", { name: /Start collecting/ })).toBeNull();
+    view.rerender(panel({ ...PAYLOAD }));
+    expect(screen.getByRole("combobox", { name: "Site for Second" })).toHaveValue("https://shop.example/");
+    expect(screen.getByRole("checkbox", { name: /Journey/ })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Replaced by another tool" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it.each(["removed", "not-ready", "claimed"])("clears a %s manual option and requires confirmation of a replacement", async (change) => {
+    const onStart = vi.fn(async (_plan: StartPlan) => null);
+    const panel = (payload: SitesPayload) => (
+      <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
+    );
+    const view = render(panel(PAYLOAD));
+    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    view.rerender(panel({
+      ...PAYLOAD,
+      discovery: account([
+        bingSite("https://journey.example/"), bingSite("https://second.example/"),
+        ...(change === "removed" ? [] : [bingSite("https://shop.example/", change !== "not-ready")]),
+      ]),
+      assets: [...PAYLOAD.assets, ...(change === "claimed" ? [asset("shop.example")] : [])],
+    }));
+    expect(screen.getByRole("checkbox", { name: /Second/ })).not.toBeChecked();
+    expect(onStart).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
+    const submitted = onStart.mock.calls[0]![0];
+    expect(submitted.assets).not.toContain("second.example");
+    expect(submitted.ops.some((op) => op.pointer.includes("/second.example/"))).toBe(false);
+  });
+
+  it("drops unavailable suggested sites before Start", async () => {
+    const onStart = vi.fn(async () => null);
+    const panel = (payload: SitesPayload) => (
+      <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
+    );
+    const view = render(panel(PAYLOAD));
+    view.rerender(panel({ ...PAYLOAD, discovery: account([bingSite("https://journey.example/", false), bingSite("https://mapped.example/")]) }));
+    const unavailable = screen.getByRole("checkbox", { name: /Journey/ });
+    expect(unavailable).not.toBeChecked();
+    expect(unavailable).toBeDisabled();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
+    expect(onStart).toHaveBeenCalledWith({ assets: ["mapped.example"], ops: [], declined: [] });
+  });
+
+  it("starts from suggestions for a different provider or a reopened session", () => {
+    const panel = (provider = BING, payload = PAYLOAD) => (
+      <MemoryRouter><SitePicker provider={provider} payload={payload} onStart={async () => null} onClose={() => {}} /></MemoryRouter>
+    );
+    const view = render(panel());
+    fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    view.rerender(panel(integrationProvider("mediavine")!, MEDIAVINE_PAYLOAD));
+    expect(screen.getByRole("checkbox", { name: /Journey/ })).toBeChecked();
+    view.rerender(panel());
+    expect(screen.getByRole("checkbox", { name: /Journey/ })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Site for Second" })).toHaveValue("");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
+    view.unmount();
+    render(panel());
+    expect(screen.getByRole("checkbox", { name: /Journey/ })).toBeChecked();
   });
 
   it("offers the provider's own place to add a site the account does not hold", () => {
