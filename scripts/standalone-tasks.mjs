@@ -105,7 +105,7 @@ export function createStandaloneTaskExecutor(options) {
                     const duplicate = operation.duplicateOf === undefined ? undefined : await read(operation.duplicateOf);
                     const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
                         ? await client(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
-                    const verified = operation.action === 'answer' && commentProposalMatches(operation, before, comments, history)
+                    const verified = operation.action === 'answer' && operation.answerMode !== 'direct' && commentProposalMatches(operation, before, comments, history)
                         && await options.verifyOwnerAnswer?.(workspaceId, request.projectId, operation, before, comments) === true;
                     const steps = maintenanceSteps(operation, before, comments, context.principalId, new Date().toISOString(), duplicate, verified);
                     const execute = async (step) => {

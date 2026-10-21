@@ -419,7 +419,7 @@ export function createHostedTaskExecutor(options) {
                                     const duplicate = operation.duplicateOf === undefined ? undefined : await target(operation.duplicateOf);
                                     const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
                                         ? await run(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
-                                    const verified = operation.action === 'answer' && commentProposalMatches(operation, before, comments, history)
+                                    const verified = operation.action === 'answer' && operation.answerMode !== 'direct' && commentProposalMatches(operation, before, comments, history)
                                         && await verifyOwnerAnswer?.(workspaceId, snapshot.projectId, operation, before, comments) === true;
                                     const maintenance = maintenanceSteps(operation, before, comments, last.principalId, new Date().toISOString(), duplicate, verified);
                                     for (const step of maintenance) {
