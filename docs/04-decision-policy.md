@@ -43,6 +43,22 @@ score = (P_success × ΔV_predicted × F) / C_fully_loaded / max(T_signal, 2wk)
   records ΔV per month, P_success, C and T_signal as they stood, and
   grading uses those values, never a later edit.
 
+**Where the card is today.** A task carries its card in its metadata as
+`noticeos_card`, and its change-class as `noticeos_change_class`
+([the fields and their limits](../config/beads.README.md#what-a-task-is-worth)).
+An agent writes both through the task tools' `card` and `change_class`
+arguments on `create_task`, `create_tasks` and `update_task`; the operator
+writes them in the Tower's New task and on a task's page under "Why it
+ranks". The Tower ranks the operator's decisions and the agents' ready work
+with policy v1.0 on every read of the tasks, pricing review minutes at the
+installation's `operator_rate_usd_per_min` (Settings' "Value of your time");
+build minutes are shown beside the score and not priced, and a task without a
+card is listed after the ranked ones with no score. Not built yet: the change
+entry that records ΔV per month, P_success, C and T_signal as they stood at
+ship, so nothing freezes a card when its change ships; and the scheduled batch
+reallocation below, so the ranking is the live order and no batch is planned
+from it.
+
 **Why not a live bandit:** SEO/revenue rewards arrive over weeks-to-months;
 at that delay, online bandit algorithms get too little feedback and end up
 optimizing noise. This policy is EV-scored batch prioritization with

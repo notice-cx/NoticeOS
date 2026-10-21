@@ -356,9 +356,9 @@ full height beside several ([doc 14](14-design.md) § Regions).
   ([`config/tower.README.md`](../config/tower.README.md)).
   `apps/tower/test/wall-canvas.test.tsx` checks the default's
   rows, weights and regions.
-- **The library is twelve widgets** — strip, the loop, the last 24 hours,
+- **The library is thirteen widgets** — strip, the loop, the last 24 hours,
   sites, revenue, work, Needs attention, the feed, Agents, Site health, The
-  agents and Visitors by channel; the default places the first six, the
+  agents, Visitors by channel and Next up; the default places the first six, the
   business and product presets place Site health, The agents and Visitors by
   channel, and the rest are available for a layout that adds them.
   Seven older types (alerts, portfolio net, System, clock, meetings,

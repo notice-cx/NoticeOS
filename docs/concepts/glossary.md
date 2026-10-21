@@ -110,7 +110,7 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : Revenue minus cost for a site or the portfolio in a month. It is a monthly result, not a return on investment.
 
 **Next up**
-: The tasks on the Tasks page that are ready to work, with nothing blocking them. An agent asking for ready work gets the same list.
+: The TV widget that shows how many decisions wait on you, the first of them, and what the agents hold now. On the Tasks page, the ready tasks with nothing blocking them are listed under **Agents, next up**; an agent asking for ready work gets the same list.
 
 **Nightly report**
 : The counts a site's own servers recorded, sent to NoticeOS once a day. A site never queries outside analytics about itself.

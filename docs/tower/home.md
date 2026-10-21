@@ -23,7 +23,7 @@ In the **I run the business** view, the sentence starts with the sites' health o
 
 **Problems.** The open problems the grid does not already show, ranked: what started since you last looked first, then what is still open, and anything open for over a week collapsed into one line. An alert that has a usual range shows the reading against it.
 
-**Decide.** How many decisions are waiting for you, how old the oldest is, and how the waiting decisions split by age. Then the first four, each with its age drawn as a length and its buttons: **Approve** for an approval, **Answer** or **Close as** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board.
+**Decide.** How many decisions are waiting for you, how old the oldest is, and how the waiting decisions split by age. Then the first four, each with its age drawn as a length and its buttons: **Approve** for an approval, **Answer** or **Close as** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board, the Tasks page's **All tasks** tab at `/tasks/all`.
 
 **Sites.** One row per listed site, in your order (set with **Arrange** on the Sites page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one site, Home shows that site's own numbers and chart instead.
 

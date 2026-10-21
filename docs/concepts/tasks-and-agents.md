@@ -11,9 +11,11 @@ This page covers the **Tasks** page, how a piece of work stays linked to its cau
 
 NoticeOS keeps one task database. Every site gets its own project in it, and the **System** (this installation's own NoticeOS) has one too. People and AI agents file, claim, comment on and close tasks in the same place, with the same fields: status, priority, owner, what blocks what, and the evidence that closed it.
 
-The **Tasks** page shows all projects together. At the top is **Your decisions**: decisions that only you can make. Under it, **Next up** is work that is ready with nothing blocking it, then **Urgent**, **Blocked** and **Done this week**, each with its change since last week. Filters narrow it by project, status, priority, label and owner, and any task opens to its history and comments.
+The **Tasks** page shows all projects together, in three tabs. **Next** shows the decision to take first, one only you can make, and why it is first; then your other decisions ranked by what each is worth, the work the agents take next, and the work held back, each with its one reason. **Projects** shows each site's projects, one per epic, as cards or on one time axis. **All tasks** is the board: **Your decisions**; **Urgent**, **Blocked** and **Done this week**, each with its change since last week; filters by project, status, priority, label and owner; and every task, which opens to its history and comments.
 
-A site's own **Tasks** tab shows the same board narrowed to that site.
+A task can carry a card that records what the work is worth: the predicted change in the site's money a month, how likely it is to pay off, your minutes to review it, the days until the result shows, how the change is measured, and the state and date at which the work is given up. An agent writes the card through the task tools, and you write it in **New task** or on the task's page. The Tower ranks tasks by their cards, with the scoring policy in [doc 04, Decision policy](../04-decision-policy.md); a task without a card is listed, not ranked. A task can also record the kind of change it makes: content data, copy, a template, a feature or infrastructure.
+
+A site's own **Tasks** tab shows that site's decisions, ranked the same way, over the board narrowed to that site.
 
 On `example.com`, the project might hold "Rewrite recipe titles", "Fix broken ingredient links" and a review of last week's search rankings that NoticeOS filed automatically.
 
