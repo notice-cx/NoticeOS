@@ -4,19 +4,11 @@
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepRun } from '../packages/contract/src/workflows.js';
-import { captureWorkflowOutput, unreadSiteCount } from './workflow-output.mjs';
+import { captureWorkflowOutput } from './workflow-output.mjs';
 
 /** An operation's result as the verdict reads it: any shape, every key guarded. */
 type Probe = { readonly [key: string]: unknown } | null | undefined;
 type StepVerdict = Pick<WorkflowStepRun, 'state' | 'summary'>;
-
-/** A failed step's first line, naming what failed: sites whose remote could
- * not be read, else collections. */
-function failedSummary(result: unknown, failed: number): string {
-  const sites = unreadSiteCount(result);
-  if (sites !== null) return `${sites} site${sites === 1 ? '' : 's'} could not be read.`;
-  return `${failed} collection${failed === 1 ? '' : 's'} failed.`;
-}
 
 export function stepResult(result: unknown): StepVerdict {
   const failed = typeof (result as Probe)?.failed === 'number' ? (result as Probe)!.failed as number : Array.isArray((result as Probe)?.failed) ? ((result as Probe)!.failed as unknown[]).length : 0;
@@ -24,7 +16,7 @@ export function stepResult(result: unknown): StepVerdict {
       (typeof (result as Probe)?.code === 'number' && (result as Probe)!.code !== 0) ||
       ['delivery-failed', 'store-unavailable'].includes((result as Probe)?.skipped as string) ||
       ((result as Probe)?.projects as Probe[] | undefined)?.some?.((project) => project!.ok === false)) {
-    return { state: 'failed', summary: failed > 0 ? failedSummary(result, failed) : 'The operation reported a failure.' };
+    return { state: 'failed', summary: failed > 0 ? `${failed} collection${failed === 1 ? '' : 's'} failed.` : 'The operation reported a failure.' };
   }
   if (result === null || (result as Probe)?.outcome === 'skipped' || (result as Probe)?.attempted === 0 || typeof (result as Probe)?.skipped === 'string') {
     return { state: 'skipped', summary: 'No work was performed on this pass.' };

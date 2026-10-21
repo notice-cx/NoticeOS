@@ -28,7 +28,7 @@ import {
 const LOCAL_JOBS = SCHEDULED_JOBS.filter((job) => job.local).map((job) => job.id).sort();
 
 test('the startup catch-up pays exactly four host lanes, each looked up by its job id', () => {
-  assert.deepEqual(HOST_CATCHUP_LANES, ['panel-review', 'push-state', 'panel-refresh', 'backup']);
+  assert.deepEqual(HOST_CATCHUP_LANES, ['panel-review', 'task-map', 'panel-refresh', 'backup']);
   for (const lane of HOST_CATCHUP_LANES) {
     assert.ok(LOCAL_JOBS.includes(lane), `${lane} is not a local scheduled job`);
     const policy = STARTUP_CATCHUP_POLICIES.find((candidate) => candidate.kind === lane);

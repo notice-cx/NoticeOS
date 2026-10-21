@@ -393,7 +393,7 @@ it fires exactly once (`CRON_CATCHUP_POLICIES` in `scripts/job-runs.mjs`):
 | Lane cadence | Recovery window | Behavior |
 |---|---:|---|
 | 15-minute counters + Google signals | 1 hour | one current refresh, never a tick-by-tick replay |
-| Hourly freshness, operator notifications, panel review, push state | 2 hours | one latest reconciliation |
+| Hourly freshness, operator notifications, panel review, task project checks | 2 hours | one latest reconciliation |
 | Daily ingest lanes (including the PostHog archive), panel refresh, backup | 36 hours | one latest daily obligation; trailing-window collectors store an unchanged window as `unchanged` |
 | Mediavine (`10,30,50 * * * *`) | 36 hours | checks the cutoff and stored coverage; requests a report only when due |
 | Weekly DataForSEO collection | 8 days | one missed weekly collection |
@@ -443,16 +443,10 @@ lanes against it, each a module under `scripts/runner/` with its cadence in
   project through `bd -C <repo>` and files one `POST /api/beads-snapshot`
   through the ingest door; failure is isolated per project, and it never
   writes a bead.
-- **The push-state filer** (`pushStateCron`) files one `push-state,human` bead
-  when a project's commits have sat unpushed for `pushStaleHours`, closes it
-  when the count returns to zero, and decides nothing on an unreadable state.
-  A linked folder with no `.git` (one that holds only `.beads`) is not a
-  checkout: the lane logs one INFO line per runner start, runs no `git` there
-  and files or closes nothing. The same tick runs `bd gate check` on every
-  spoke, which is what closes `timer` gates.
 - **The task-map lane** (`beadsMapCheckCron`) files one `task-map-drift,human`
   bead for a declared database the hub's `SHOW DATABASES` does not hold; a hub
-  that will not answer decides nothing.
+  that will not answer decides nothing. The same hourly check evaluates timed
+  task gates for each available project, including folders without a code checkout.
 
 ### The panel-review filer
 

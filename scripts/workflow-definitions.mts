@@ -36,6 +36,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
 const localSteps: Readonly<Record<string, string>> = {
   'beads-snapshot': 'Reads each project’s task board and keeps its summary.',
   'watch-readbacks': 'Posts each closed outcome’s verdict on the task that owns its reading.',
+  'task-map': 'Checks project databases and evaluates timed task gates.',
 };
 
 export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = SCHEDULED_JOBS.map((job): WorkflowDefinition => {

@@ -27,8 +27,7 @@ import {
   runBeadsStep,
 } from './task-hub.mjs';
 
-// Panel-review filer — one of the two lanes here that write a bead (the
-// push-state filer is the other). Once an hour the runner asks ingest which
+// Panel-review filer — once an hour the runner asks ingest which
 // properties have a fresh weekly DataForSEO collection, and files the review
 // bead into that property's own spoke if it is not already there. The
 // tracked-query panel is one family of that collection, not the trigger: a

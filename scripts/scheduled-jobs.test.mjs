@@ -25,7 +25,7 @@ test('the catalog covers every ingest trigger and preserves local defaults', asy
   assert.deepEqual([...source.matchAll(/export const \w+ = '([^']+)'/g)].map((match) => match[1]), []);
   const keyed = [...source.matchAll(/dispatchKey\('([a-z0-9-]+)'\)/g)].map((match) => match[1]);
   assert.deepEqual(keyed.sort(), SCHEDULED_JOBS.filter((item) => !item.local).map((item) => item.id).sort());
-  const local = ['beadsHubCheckCron', 'beadsPollCron', 'panelFilerCron', 'pushStateCron', 'watchReadbackCron', 'beadsMapCheckCron', 'panelRefreshCron', 'backupCron'];
+  const local = ['beadsHubCheckCron', 'beadsPollCron', 'panelFilerCron', 'watchReadbackCron', 'beadsMapCheckCron', 'panelRefreshCron', 'backupCron'];
   assert.deepEqual(SCHEDULED_JOBS.filter((item) => item.local).map((item) => item.cron), local.map((key) => CONFIG[key]));
   assert.equal(new Set(SCHEDULED_JOBS.map((item) => item.id)).size, SCHEDULED_JOBS.length);
   for (const item of SCHEDULED_JOBS) assert.equal(schedulesRefusal({ [item.id]: scheduleFor(item) }), null);
@@ -43,6 +43,29 @@ test('every step a scheduled tick runs is a stage its workflow shows', async () 
   assert.deepEqual(towerSteps, ['connection-counts', 'source-history']);
   const hourly = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === 'freshness');
   for (const id of towerSteps) assert.ok(hourly.stages.some((stage) => stage.id === id), `Tower step "${id}" has no stage on the hourly job`);
+});
+
+test('retired unpublished-commit settings do not block or register any scheduled work', async () => {
+  const timers = [];
+  const runner = createScheduledJobRunner({
+    run: async () => {},
+    read: async () => ({ 'push-state': changed, backup: paused }),
+    createTimer: (cron) => {
+      timers.push(cron);
+      return { nextRun: () => null, stop: () => {} };
+    },
+  });
+  try {
+    await runner.refresh();
+    assert.equal(runner.snapshot().error, null);
+    assert.equal(runner.current('push-state'), null);
+    assert.equal(runner.current('backup').enabled, false);
+    assert.equal(timers.length, SCHEDULED_JOBS.length - 1);
+    assert.equal(WORKFLOW_DEFINITIONS.some(item => item.id === 'push-state'), false);
+    assert.equal(STARTUP_CATCHUP_POLICIES.some(item => item.job === 'push-state'), false);
+  } finally {
+    runner.stop();
+  }
 });
 
 test('the daily archive tick re-collects what an offline DataForSEO run skipped, as its own stage', async () => {

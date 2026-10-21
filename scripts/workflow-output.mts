@@ -23,15 +23,9 @@ const METRICS: Readonly<Record<string, string>> = {
   pulseId: 'Report ID', envelopeFlags: 'Reported alerts', centralFlags: 'Central alerts', resolvedAnomalies: 'Anomalies resolved', resolvedFreshness: 'Freshness alerts resolved',
 };
 const COUNTS: Readonly<Record<string, string>> = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progress', blocked: 'Blocked', deferred: 'Deferred', waiting: 'Waiting', highPriority: 'High priority', closedRecent: 'Recently closed' };
-// Why the unpublished-commit check could not read a site's remote (its
-// `failed` items' `reason`).
-const REMOTE_READ_REASONS: Readonly<Record<string, string>> = {
-  'remote-sign-in-refused': 'Remote sign-in refused', 'remote-unreachable': 'Remote unreachable', 'git-read-failed': 'Git could not read the branch',
-};
-// The notifier's `skipped` codes, and the remote-read reasons above.
+// The notifier's `skipped` codes.
 const REASONS: Readonly<Record<string, string>> = {
   'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
-  ...REMOTE_READ_REASONS,
 };
 const DETAILS: readonly unknown[] = ['No Mediavine report is due.', 'Mediavine needs to be reconnected.'];
 const VERDICTS: readonly unknown[] = ['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'];
@@ -70,18 +64,6 @@ function itemState(value: Probe): ItemState {
   if (value?.ok === true || ['success', 'unchanged'].includes(value?.status as string)) return 'succeeded';
   if (value?.status === 'skipped') return 'skipped';
   return 'unknown';
-}
-
-/**
- * How many sites a step could not read, when every item of its `failed` list
- * is a site whose remote the unpublished-commit check could not read;
- * otherwise null. The step summary names those as sites, since
- * nothing was collected from them.
- */
-export function unreadSiteCount(value: unknown): number | null {
-  const failed = (value as Probe)?.failed;
-  if (!Array.isArray(failed) || failed.length === 0) return null;
-  return failed.every((item: Probe) => name(item?.asset) && Object.hasOwn(REMOTE_READ_REASONS, item?.reason as PropertyKey)) ? failed.length : null;
 }
 
 export function captureWorkflowOutput(value: unknown): WorkflowStepOutput | undefined {

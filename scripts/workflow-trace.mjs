@@ -3,22 +3,14 @@
 //
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
-import { captureWorkflowOutput, unreadSiteCount } from './workflow-output.mjs';
-/** A failed step's first line, naming what failed: sites whose remote could
- * not be read, else collections. */
-function failedSummary(result, failed) {
-    const sites = unreadSiteCount(result);
-    if (sites !== null)
-        return `${sites} site${sites === 1 ? '' : 's'} could not be read.`;
-    return `${failed} collection${failed === 1 ? '' : 's'} failed.`;
-}
+import { captureWorkflowOutput } from './workflow-output.mjs';
 export function stepResult(result) {
     const failed = typeof result?.failed === 'number' ? result.failed : Array.isArray(result?.failed) ? result.failed.length : 0;
     if (result === false || result?.outcome === 'failed' || result?.ok === false || failed > 0 ||
         (typeof result?.code === 'number' && result.code !== 0) ||
         ['delivery-failed', 'store-unavailable'].includes(result?.skipped) ||
         result?.projects?.some?.((project) => project.ok === false)) {
-        return { state: 'failed', summary: failed > 0 ? failedSummary(result, failed) : 'The operation reported a failure.' };
+        return { state: 'failed', summary: failed > 0 ? `${failed} collection${failed === 1 ? '' : 's'} failed.` : 'The operation reported a failure.' };
     }
     if (result === null || result?.outcome === 'skipped' || result?.attempted === 0 || typeof result?.skipped === 'string') {
         return { state: 'skipped', summary: 'No work was performed on this pass.' };

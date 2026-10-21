@@ -3,6 +3,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { HOME_ROOT } from './runner/config.mjs';
+import { stepResult } from './workflow-trace.mjs';
 import {
   TASK_MAP_LABEL,
   beadsDatabaseDrift,
@@ -30,6 +31,7 @@ function lane({ held = ['os', 'shop'], open = [], hubCode = 0, home = 'os.exampl
   const config = JSON.parse(SPOKES);
   config.spokes[0].repo = repo;
   const deps = {
+    exists: () => false,
     readConfig: async () => JSON.stringify(config),
     run: async (argv) => {
       ran.push(argv);
@@ -75,6 +77,61 @@ test('a drifting project is filed once, in the OS’s own tracker', async () => 
   const create = ran.find((argv) => argv.includes('create'));
   assert.ok(create.includes(taskMapTitle('shop.example')));
   assert.ok(create.includes(`${TASK_MAP_LABEL},human`));
+});
+
+test('timed gates run in linked task folders without Git or an OS project to file into', async () => {
+  const { deps, ran } = lane({ home: null });
+  const checkedPaths = [];
+  deps.exists = (folder) => { checkedPaths.push(folder); return true; };
+  const result = await runTaskMapCheck(deps);
+  assert.deepEqual(result.projects, [{ asset: 'os.example', ok: true }, { asset: 'shop.example', ok: true }]);
+  assert.deepEqual(ran, [
+    ['-C', path.resolve(HOME_ROOT, '.'), 'gate', 'check'],
+    ['-C', path.resolve(HOME_ROOT, '../shop'), 'gate', 'check'],
+  ]);
+  assert.equal(checkedPaths.some(folder => folder.endsWith('.git')), false);
+});
+
+test('gate failures remain visible each run, allow reconciliation, and log only changes', async () => {
+  const { deps, ran, lines } = lane({ held: ['os'] });
+  deps.exists = () => true;
+  const original = deps.run;
+  let failing = true;
+  deps.run = async (argv, timeout) => {
+    if (argv.includes('gate')) {
+      assert.equal(timeout, 20_000);
+      if (argv[1] === HOME_ROOT && failing) throw new Error('spawn failed');
+      if (failing) return { code: 1 };
+      return { code: 0 };
+    }
+    return original(argv);
+  };
+  for (let pass = 0; pass < 2; pass++) {
+    const result = await runTaskMapCheck(deps);
+    assert.equal(stepResult(result).state, 'failed');
+    assert.equal(result.projects.length, 2);
+    assert.equal(result.filed.length, 1);
+  }
+  assert.equal(lines.filter(line => line.startsWith('WARN task gates:')).length, 2);
+  assert.equal(ran.filter(argv => argv.includes('SHOW DATABASES')).length, 2);
+  failing = false;
+  assert.equal(stepResult(await runTaskMapCheck(deps)).state, 'succeeded');
+  assert.equal(lines.filter(line => line.includes('gate check works again')).length, 2);
+});
+
+test('gate checks skip unavailable projects, missing folders, unreadable settings and shutdown', async () => {
+  const { deps, ran } = lane({ home: null });
+  const config = JSON.parse(SPOKES);
+  config.spokes[0].unavailableReason = 'not linked';
+  deps.readConfig = async () => JSON.stringify(config);
+  deps.exists = folder => folder === HOME_ROOT;
+  assert.equal(await runTaskMapCheck(deps), null);
+  assert.equal(ran.length, 0);
+  deps.readConfig = async () => { throw new Error('settings unavailable'); };
+  assert.equal(await runTaskMapCheck(deps), null);
+  deps.stopped = () => true;
+  assert.equal(await runTaskMapCheck(deps), null);
+  assert.equal(ran.length, 0);
 });
 
 test('a project that agrees again has its open bead closed', async () => {

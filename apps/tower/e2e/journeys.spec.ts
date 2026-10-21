@@ -192,7 +192,7 @@ for (const theme of ["dark", "light"] as const) {
     const startedAt = "2026-09-06T11:40:00.000Z";
     const finishedAt = "2026-09-06T11:40:01.000Z";
     const trace: WorkflowRun = {
-      id: `push-state@${startedAt}`, workflowId: "push-state", definitionVersion: 1,
+      id: `panel-review@${startedAt}`, workflowId: "panel-review", definitionVersion: 1,
       startedAt, finishedAt, state: "failed", steps: [
         { id: "execute", attempt: 1, startedAt, finishedAt, state: "failed",
           summary: "One site could not be checked.",
@@ -203,10 +203,10 @@ for (const theme of ["dark", "light"] as const) {
     const payload: WorkflowsPayload = {
       overrides: null, runtime: null, runtimeFresh: false, observationsFresh: false,
       generatedAt: "2026-09-06T12:00:00.000Z", historyAvailable: true,
-      ...buildWorkflowHistory([{ job: "push-state", at: startedAt, ms: 1000, outcome: "failed" }], [trace], [], Date.parse("2026-09-06T12:00:00.000Z"), trace.id),
+      ...buildWorkflowHistory([{ job: "panel-review", at: startedAt, ms: 1000, outcome: "failed" }], [trace], [], Date.parse("2026-09-06T12:00:00.000Z"), trace.id),
     };
     await page.route("**/api/workflows*", route => route.fulfill({ json: payload }));
-    await page.goto(`/workflows/push-state?run=${encodeURIComponent(trace.id)}`);
+    await page.goto(`/workflows/panel-review?run=${encodeURIComponent(trace.id)}`);
     if (theme === "light") await expect(page.locator("html")).toHaveClass(/light/);
     else await expect(page.locator("html")).not.toHaveClass(/light/);
     const output = page.getByRole("region", { name: "Step output", exact: true });
