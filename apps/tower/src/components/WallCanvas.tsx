@@ -153,9 +153,8 @@ export function WallCanvas({
   editing,
   wordLevel,
 }: WallCanvasProps) {
-  // A site whose TV switch is off is in no widget, whatever the widget's own
-  // site list says. Revenue alone keeps the whole portfolio: hiding a site
-  // does not take its money out of the month.
+  // The TV switch filters site rows and counts. Revenue and the live feed
+  // keep the whole portfolio's money and activity.
   const { data, hidden } = wallOnTv(payload);
 
   function draw(widget: WallWidget): ReactNode {
@@ -231,7 +230,7 @@ export function WallCanvas({
       }
       case "feed":
         // Its own read: only a Wall that places the feed asks for it.
-        return <WallFeedWidget nowMs={nowMs} hidden={hidden} assets={data.assets} />;
+        return <WallFeedWidget nowMs={nowMs} assets={payload.assets} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
       case "health": {

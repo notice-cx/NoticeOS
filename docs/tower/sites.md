@@ -105,7 +105,7 @@ Each site has three switches:
 | Switch | When it is on, the site shows |
 |---|---|
 | **Home and Sites list** | as a row on Home (the data sources grid, the sites and the last 24 hours) and on the Sites page |
-| **TV** | in every widget on the TV |
+| **TV** | in site rows and counts on the TV |
 | **Work this week** | as a project row in the TV's **Work this week**, while its **TV** switch is on too |
 
 The switches are on every row of **Arrange** on the Sites page, on the **Sites** card of **Settings** > **TV dashboard**, and on the site's own **Where it shows** card. A switch with a tick is on; one with a crossed-out eye is off.
@@ -114,7 +114,7 @@ A switch nobody has set follows the site's lifecycle stage: on for every stage e
 
 A retired site that is shown reads **Retired** wherever it is: its status on Home, the Sites page, the TV and its own page, a **Retired** chip beside its name in **Arrange**, on the **Sites** card and in the TV editor's site lists, and **· Retired** after its project's name in the Tasks project list. It is never counted among the sites that need you: not in the Sites page's summary or status bar, not in Home's count of what is broken or its **Problems**, and not in the TV's loop or problems. Its alerts stay on **Alerts** and its tasks on the Tasks board. Restoring it to another stage turns every switch you did not set back on.
 
-A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money.
+A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money. **Live feed** shows tasks and other stored activity from all assets, even when their **TV** switches are off.
 
 The switches are stored in `config/tower.json` at `sites`, by site id, and are exported with the rest of the configuration. The **Light icon** and **Dark icon** addresses are stored in the same site entry.
 

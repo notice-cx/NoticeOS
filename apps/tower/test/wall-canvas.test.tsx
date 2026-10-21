@@ -14,7 +14,7 @@ import { WallCanvas } from "@/components/WallCanvas";
 const NOW = Date.parse("2026-09-05T12:05:00.000Z");
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-09-05T12:05:00.000Z") }));
 
-// The feed polls on its own; here it answered with one row.
+// The feed polls on its own; here it answered with task, site and system activity.
 vi.mock("@/hooks/useWallFeed", () => ({
   useWallFeed: () => ({
     data: {
@@ -24,6 +24,12 @@ vi.mock("@/hooks/useWallFeed", () => ({
       items: [{
         id: "task-1", at: "2026-09-05T11:40:00.000Z", kind: "task-done", label: "Task done",
         asset: "meadow.example", site: "Meadow Board", text: "Recipe cards load faster", count: 1, tone: "healthy",
+      }, {
+        id: "alert-1", at: "2026-09-05T11:30:00.000Z", kind: "alert", label: "Alert",
+        asset: "northwind.example", site: "Northwind", text: "Search traffic dropped", count: 1, tone: "warn",
+      }, {
+        id: "job-1", at: "2026-09-05T11:20:00.000Z", kind: "job-failed", label: "Job failed",
+        asset: null, site: null, text: "Backup failed", count: 1, tone: "error",
       }],
     },
     isError: false,
@@ -559,9 +565,9 @@ describe("every default widget draws its own empty state", () => {
   });
 });
 
-// A site's own TV switch (`config/tower.json` `/sites`) takes it off every
-// widget at once, whatever a widget's site list names; its Work this week
-// switch takes its row out of Work alone. Revenue keeps the whole month.
+// A site's TV switch filters site rows and counts, whatever a widget's site
+// list names; its Work this week switch takes its row out of Work alone.
+// Revenue and the live feed keep every site's money and activity.
 describe("a site off the TV by its own setting", () => {
   const everything: WallLayout = {
     version: 1,
@@ -584,15 +590,32 @@ describe("a site off the TV by its own setting", () => {
   };
   const siteRows = (root: Element) => [...root.querySelectorAll("[data-site-row]")].map((row) => row.getAttribute("data-site-row"));
 
-  it("is in no widget, even one whose own list names it", () => {
+  it("leaves site rows and counts, while its activity stays in the live feed", () => {
     const view = canvas(everything, { dashboard: { ...PAYLOAD.dashboard, sites: { "meadow.example": { tv: false } } } });
     expect(siteRows(view.container)).toEqual(["northwind.example"]);
     expect(view.container.querySelector('[data-wall-timeline] [data-lane="meadow.example"]')).toBeNull();
     expect(view.container.querySelectorAll("[data-wall-work] [data-work-row]")).toHaveLength(1);
     expect(view.container.querySelector("[data-wall-needs]")!.textContent).not.toMatch(/Meadow Board/u);
-    expect(view.container.querySelector("[data-wall-feed]")!.textContent).not.toMatch(/Recipe cards load faster/u);
+    expect(view.container.querySelector("[data-wall-feed]")).toHaveTextContent("Recipe cards load faster");
     // Only the other site's task is in progress on the loop.
     expect(view.container.querySelector('[data-flow-node="act"]')?.textContent).toContain("1");
+  });
+
+  it("keeps tasks, alerts, system activity and site icons when every site is off the TV", () => {
+    const view = canvas(everything, {
+      dashboard: { ...PAYLOAD.dashboard, sites: { "meadow.example": { tv: false }, "northwind.example": { tv: false } } },
+      assets: PAYLOAD.assets.map((site) => ({
+        ...site,
+        icons: { light: null, dark: `https://${site.id}/dark.png`, readAt: null, outcome: "read" as const },
+      })),
+    });
+    expect(siteRows(view.container)).toEqual([]);
+    const feed = view.container.querySelector("[data-wall-feed]")!;
+    expect([...feed.querySelectorAll("[data-feed-text]")].map((row) => row.textContent)).toEqual([
+      "Recipe cards load faster", "Search traffic dropped", "Backup failed",
+    ]);
+    expect(feed.querySelector('[data-property-favicon="meadow.example"] img')).toHaveAttribute("src", "https://meadow.example/dark.png");
+    expect(feed.querySelector('[data-property-favicon="northwind.example"] img')).toHaveAttribute("src", "https://northwind.example/dark.png");
   });
 
   it("leaves Work this week alone when only its Work switch is off", () => {
