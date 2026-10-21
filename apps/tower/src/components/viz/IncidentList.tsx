@@ -150,7 +150,7 @@ function IncidentRow({ incident, nowMs, quiet, fresh, index, compact = false }: 
       <span aria-hidden className={cn("absolute inset-y-2 start-0 w-0.5 rounded-full bg-current", ink, quiet && "opacity-40")} />
       <Glyph aria-hidden className={cn("size-4 shrink-0", ink, quiet && "opacity-60")} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className={cn("text-sm font-medium", compact && "line-clamp-2 [overflow-wrap:anywhere]", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
+        <span className={cn("text-sm font-medium", compact && "[overflow-wrap:anywhere]", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
           {incident.title}
         </span>
         <span className="text-micro text-muted-foreground">{incident.site}</span>
