@@ -195,3 +195,11 @@ export function formatSignedMoney(amount: number | null, currency: string | null
   if (amount === null) return 'Unavailable';
   return `${amount > 0 ? '+' : amount < 0 ? '−' : ''}${formatMoney(Math.abs(amount), currency, opts)}`;
 }
+
+/** "Sep 6–8", "Aug 30–Sep 2", "Sep 6". */
+export function dateRange(start: string, end: string): string {
+  if (start === end) return formatSeriesDate(start);
+  return start.slice(0, 7) === end.slice(0, 7)
+    ? `${formatSeriesDate(start)}–${Number(end.slice(8))}`
+    : `${formatSeriesDate(start)}–${formatSeriesDate(end)}`;
+}

@@ -1285,6 +1285,20 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["closed (the default)", "open", "custom summary"],
   },
   {
+    name: "DailyMeasureChart",
+    file: "components/viz/DailyMeasureChart.tsx",
+    purpose:
+      "One daily measure as bars against a usual level and normal-range band, with caller-selected best, lowest and newest complete days. Changes, alert and watched spans, missing and partial days and an unfinished tail share the dated axis; arrow keys, Home, End and Escape control the readout.",
+    variants: ["normal range with alert, watched window and release", "missing, partial and still counting", "first reported days in a narrow column"],
+  },
+  {
+    name: "SourceHistory",
+    file: "components/viz/SourceHistory.tsx",
+    purpose:
+      "Daily source delivery as dated cells beside each source's current state. The caller supplies cell states, coverage summaries and the headline; missing, late, counting and pre-collection cells remain distinct, and arrow keys move the readout across days and sources.",
+    variants: ["missed and late sources", "still counting and before collection", "no daily record", "no source in use in a narrow column"],
+  },
+  {
     name: "BarStrip",
     file: "components/viz/BarStrip.tsx",
     purpose:

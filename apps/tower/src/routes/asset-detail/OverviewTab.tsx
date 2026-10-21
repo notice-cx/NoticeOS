@@ -79,9 +79,10 @@ import {
   type Measure,
   type MeasureKey,
 } from "@/routes/asset-detail/overview-measures";
-import { OverviewChart } from "@/routes/asset-detail/OverviewChart";
+import { DailyMeasureChart } from "@/components/viz/DailyMeasureChart";
 import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
-import { SourceHistory } from "@/routes/asset-detail/SourceHistory";
+import { SourceHistory } from "@/components/viz/SourceHistory";
+import { sourceHistoryHeadline, sourceHistoryRowSummary } from "./source-history-presentation";
 import { useRange } from "@/routes/asset-detail/useRange";
 import { askFace } from "@/routes/tasks/task-face";
 
@@ -199,7 +200,8 @@ export function OverviewTab({
 
       <div className="grid gap-5 @6xl:grid-cols-12 [&>*]:min-w-0">
         <SourceHistory
-          rows={history.rows}
+          rows={history.rows.map((row) => ({ ...row, summary: sourceHistoryRowSummary(row) }))}
+          headline={sourceHistoryHeadline(history.rows, nowMs)}
           notConnected={history.notConnected}
           domain={history.domain}
           nowMs={nowMs}
@@ -372,8 +374,9 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
 
       {charted ? (
         <div className="rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70" data-surface-hero="">
-          <OverviewChart
+          <DailyMeasureChart
             measure={charted}
+            landmarks={landmarks(charted)}
             tone={INK[charted.key]}
             changes={timelineAnnotations(data.annotations.items)}
             watches={watches}
