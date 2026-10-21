@@ -42,6 +42,14 @@
       "types": "./src/task-gate.d.mts",
       "default": "./src/task-gate.mjs"
     },
+    "./task-card": {
+      "types": "./src/task-card.d.mts",
+      "default": "./src/task-card.mjs"
+    },
+    "./task-change-class": {
+      "types": "./src/task-change-class.d.mts",
+      "default": "./src/task-change-class.mjs"
+    },
     "./ledger-coverage": {
       "types": "./src/ledger-coverage.d.mts",
       "default": "./src/ledger-coverage.mjs"
