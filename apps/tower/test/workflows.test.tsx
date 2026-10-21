@@ -69,7 +69,15 @@ describe('workflow operating surface', () => {
     expect(screen.queryByRole('link', { name: 'Task board refresh' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Backups' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Business signals' })).toBeNull();
-    expect(screen.getByText(/5 of 5 workflows/)).toBeInTheDocument();
+    expect(screen.getByText(/4 of 4 workflows/)).toBeInTheDocument();
+  });
+  it('excludes retired workflow runs from history and attention counts', () => {
+    const startedAt = new Date(now - 60_000).toISOString();
+    const id = `push-state@${startedAt}`;
+    const retired = { ...trace, id, workflowId: 'push-state', startedAt };
+    const history = buildWorkflowHistory([{ job: 'push-state', at: startedAt, ms: 1000, outcome: 'failed' }], [retired], [], now, id);
+    expect(history.workflows.some(workflow => workflow.id === 'push-state')).toBe(false);
+    expect(history.selectedRun).toBeNull();
   });
   it('preserves legacy execution links when an operation moves to System Health', async () => {
     mount(`/workflows/counters?run=${encodeURIComponent(trace.id)}`);

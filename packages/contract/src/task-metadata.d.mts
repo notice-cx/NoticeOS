@@ -46,11 +46,6 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_panel_version";
         legacy: "noticeos_panel_version";
     }>;
-    /** An unpushed-work ask's site. */
-    pushAsset: Readonly<{
-        name: "noticeos_push_asset";
-        legacy: "reindex_push_asset";
-    }>;
     /** A task-map drift report's project. */
     taskMapAsset: Readonly<{
         name: "noticeos_task_map_asset";

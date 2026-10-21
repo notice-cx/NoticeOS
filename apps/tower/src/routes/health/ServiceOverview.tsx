@@ -1,6 +1,6 @@
 import { Activity, ArrowUpRight, CircleHelp, HeartPulse, Radio, Timer, TriangleAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { PUSH_STATE_JOB, backgroundWorkSummary, installedWorkflows, unreadSites, workflowBasePath, workflowState, workflowRunAge } from '@shared/workflows';
+import { backgroundWorkSummary, installedWorkflows, workflowState, workflowRunAge } from '@shared/workflows';
 import { utcRunReference } from '@shared/scheduled-jobs';
 import type { IntegrationStatus } from '@shared/integration-status';
 import { siteCount, siteNoun } from '@shared/site-noun';
@@ -30,10 +30,6 @@ export function ServiceOverview({ dataCurrent, degraded, unverified, setup, inte
     return definition ? [{ definition, summary, state: workflowState(summary, data) }] : [];
   }) ?? [];
   const failures = operations.filter((item) => item.state === 'failed');
-  // Sites whose unpublished commits the runner could not check, and why:
-  // unknown, not failed.
-  const pushCheck = installedWorkflows(data).find((item) => item.id === PUSH_STATE_JOB);
-  const unread = history && pushCheck ? unreadSites(data?.workflows.find((summary) => summary.id === pushCheck.id)?.latest) : null;
   const covered = internal.every((definition) => operations.some((item) => item.definition.id === definition.id && item.state !== 'unknown'));
   const noRuns = operations.some((item) => item.state === 'never');
   const paused = operations.some((item) => item.state === 'paused');
@@ -64,10 +60,6 @@ export function ServiceOverview({ dataCurrent, degraded, unverified, setup, inte
       <p className={cn('text-sm font-medium', item.failed ? 'text-error' : item.ok ? 'text-healthy' : 'text-muted-foreground')}>{item.text}</p><p className={cn("col-span-2 text-xs text-muted-foreground", item.ok && "hidden md:block")}>{item.detail}</p>
     </div>)}</div> : null}
     {failures.length > 0 && <div className="space-y-1 border-t border-border p-3" aria-label="Failed background operations">{failures.slice(0, 3).map(({ definition, summary }) => <Link key={definition.id} to={`/health/operations/${definition.id}${summary.latest ? `?run=${encodeURIComponent(summary.latest.id)}` : ''}`} className="flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"><span className="font-medium">{definition.label}</span><span className="flex items-center gap-4"><WorkflowStateLabel state="failed" />{summary.latest && <time dateTime={summary.latest.startedAt} title={utcRunReference(summary.latest.startedAt)} className="text-xs text-muted-foreground">{workflowRunAge(summary.latest.startedAt, now)}</time>}<ArrowUpRight className="size-4" aria-hidden /></span></Link>)}</div>}
-    {unread && pushCheck && <Link data-unread-sites to={`${workflowBasePath(pushCheck.surface)}/${pushCheck.id}?run=${encodeURIComponent(unread.runId)}`} className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border px-5 py-2 text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring md:px-6">
-      <span className="font-medium">{pushCheck.label}</span>
-      <span className="flex flex-wrap items-center gap-x-4 gap-y-1"><WorkflowStateLabel state="unknown" label={`Unknown · ${unread.sites.length <= 2 ? unread.sites.join(', ') : siteCount(unread.sites.length)}`} />{unread.reasons.length > 0 && <span className="text-xs text-muted-foreground">{unread.reasons.join(' · ')}</span>}<ArrowUpRight className="size-4" aria-hidden /></span>
-    </Link>}
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted-foreground"><p>{backgroundWorkSummary(installedWorkflows(data))}</p><Link to="/health/operations" className="inline-flex min-h-8 items-center gap-1 font-medium text-foreground hover:underline">{failures.length > 3 ? `Inspect all ${failures.length} failures` : 'View background operations'}<ArrowUpRight className="size-3.5" aria-hidden /></Link></div>
   </section>;
 }

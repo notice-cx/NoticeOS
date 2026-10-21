@@ -35,9 +35,8 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | Local research summaries | 13:10 | Refreshes each site's local research files and publishes the summary |
 | Task board refresh | every minute | Copies the task service's current tasks into the store for the Tasks page |
 | Task service health | every 15 minutes | Checks that the task service responds |
-| Task project checks | 5 past each hour | Checks every declared task project still exists |
+| Task project checks | 5 past each hour | Checks every declared task project still exists and evaluates timed task gates |
 | Search review tasks | 25 past each hour | Files a review task when a new search collection arrives |
-| Unpublished commit checks | 40 past each hour | Files a task when a project has commits that are not pushed |
 | Outcome task updates | 50 past each hour | Updates the tasks that track an outcome window |
 
 ### Catch-up after downtime

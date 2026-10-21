@@ -7,7 +7,7 @@
 // else), and spawns and supervises one child: the tower (vite), whose workerd
 // runtime hosts both Workers and holds the one ingest door. It arms the
 // schedules only after proving its own child holds that door, fires the
-// ingest crons and the host lanes (task-hub snapshot, review and push-state
+// ingest crons and the host lanes (task-hub snapshot, review and project checks
 // filers, panel refresh, nightly backup), keeps the job-run record, and shuts
 // down cleanly on SIGINT/SIGTERM.
 //
@@ -52,7 +52,6 @@ import {
 import { closeLog, log, openLog, ts, writeLine } from './runner/log.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
-import { runPushStateFiler } from './runner/push-state.mjs';
 import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime } from './runner/scheduler.mjs';
 import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-report.mjs';
 import { checkBeadsHub, taskHubPortDescription } from './runner/task-hub.mjs';
@@ -315,7 +314,6 @@ export function hostLanes(runtime) {
     },
     'beads-snapshot': { run: () => runBeadsPoll(runtime) },
     'panel-review': { run: () => runPanelReviewFiler(runtime) },
-    'push-state': { run: () => runPushStateFiler() },
     'watch-readbacks': { run: () => runWatchReadbackFiler() },
     'task-map': { run: () => runTaskMapCheck() },
     'panel-refresh': { run: () => runPanelRefresh(runtime) },

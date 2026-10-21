@@ -44,12 +44,12 @@ test("the record is home's .local/logs/job-runs.jsonl", () => {
 test('a firing is appended, read back, and summarized per lane', async () => {
   const lane = throwaway();
   try {
-    await runJobLane('push-state', async () => ({ filed: [] }), undefined, lane.deps);
-    await runJobLane('push-state', async () => null, undefined, { ...lane.deps, now: () => NOW + 60_000 });
+    await runJobLane('panel-review', async () => ({ filed: [] }), undefined, lane.deps);
+    await runJobLane('panel-review', async () => null, undefined, { ...lane.deps, now: () => NOW + 60_000 });
     const kept = await reportJobRuns(NOW + 3 * 3_600_000, lane.deps);
     assert.deepEqual(kept.map((entry) => entry.outcome), ['ran', 'skipped']);
-    assert.deepEqual(summarizeJobRuns(kept).map((entry) => [entry.job, entry.ran, entry.skipped]), [['push-state', 1, 1]]);
-    assert.match(lane.lines.at(-1), /^INFO job-run record — 1 lane\(s\): push-state skipped 3h ago/u);
+    assert.deepEqual(summarizeJobRuns(kept).map((entry) => [entry.job, entry.ran, entry.skipped]), [['panel-review', 1, 1]]);
+    assert.match(lane.lines.at(-1), /^INFO job-run record — 1 lane\(s\): panel-review skipped 3h ago/u);
   } finally {
     lane.cleanup();
   }

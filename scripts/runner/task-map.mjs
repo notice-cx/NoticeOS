@@ -4,6 +4,7 @@
 // tracker; a project that agrees again has it closed with the evidence. A hub
 // that will not answer decides nothing.
 
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { TASK_METADATA, taskMetadataValue } from '../../packages/contract/src/task-metadata.mjs';
 import { beadsDatabaseName, readTaskProjectConfig } from '../task-project-config.mjs';
@@ -206,7 +207,7 @@ export function taskMapOpenBeads(rows) {
   return byAsset;
 }
 
-/** The bead, as argv. P1 and `human` for the push filer's reason: only the
+/** The bead, as argv. P1 and `human` because only the
  * operator can run `bd init` or change the value, and `bd human list` is the
  * operator's inbox. */
 export function taskMapCreateArgs(repoDir, filing) {
@@ -241,7 +242,7 @@ export function taskMapCloseArgs(repoDir, beadId, reason) {
 const taskMapState = { skipping: null };
 
 /**
- * One pass: ask the hub what it holds, file what drifted, close what agrees.
+ * Evaluate timed gates, then reconcile each project's database with the hub.
  * Every dependency that touches the world is injectable.
  */
 export async function runTaskMapCheck(deps = {}) {
@@ -253,6 +254,7 @@ export async function runTaskMapCheck(deps = {}) {
     emit = log,
     stopped = () => isShuttingDown(),
     homeAsset = taskMapHomeAsset,
+    exists = existsSync,
   } = deps;
 
   const { skip, resume } = laneSkips('task map check', state, emit);
@@ -262,6 +264,36 @@ export async function runTaskMapCheck(deps = {}) {
   const { projects: spokes, unreadable } = await readBeadsProjects(readConfig);
   if (unreadable) return skip(unreadable);
   if (spokes.length === 0) return skip('no projects are configured');
+  const projects = await checkProjectGates(spokes, { run, exists, stopped, emit, failures: state.gates ??= new Set() });
+  const mapping = stopped() ? null : await reconcileTaskMap(spokes, { run, now, emit, homeAsset, skip, resume });
+  return projects.length ? { ...mapping, projects } : mapping;
+}
+
+/** Timed gates need a task project folder, including one without a Git checkout.
+ * Failures remain in each run's evidence; logs record only state changes. */
+async function checkProjectGates(spokes, { run, exists, stopped, emit, failures }) {
+  const projects = [];
+  for (const project of spokes) {
+    if (stopped()) break;
+    const repoDir = path.resolve(HOME_ROOT, project.repo);
+    if (project.unavailableReason || !exists(repoDir)) continue;
+    let ok = false;
+    try {
+      ok = (await run(['-C', repoDir, 'gate', 'check'], 20_000)).code === 0;
+    } catch { /* A failed spawn is recorded like a failed check. */ }
+    if (!ok && !failures.has(project.asset)) {
+      emit('WARN', `task gates: ${project.asset} — gate check failed; timed gates could not be evaluated`);
+    } else if (ok && failures.has(project.asset)) {
+      emit('INFO', `task gates: ${project.asset} — gate check works again`);
+    }
+    if (ok) failures.delete(project.asset);
+    else failures.add(project.asset);
+    projects.push({ asset: project.asset, ok });
+  }
+  return projects;
+}
+
+async function reconcileTaskMap(spokes, { run, now, emit, homeAsset, skip, resume }) {
   const home = await homeAsset();
   if (!home) return skip('the store names no OS asset to file into');
   const self = spokes.find((spoke) => spoke.asset === home);

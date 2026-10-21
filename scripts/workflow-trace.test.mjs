@@ -46,28 +46,12 @@ test('each failed step hands its own error to the caller once, and a listener ca
 test('partial collection failure is visible without changing the collector result', () => {
   assert.equal(stepResult({ failed: 1, succeeded: 5 }).state, 'failed');
   assert.equal(stepResult({ failed: [{ property: 'example' }] }).state, 'failed');
+  assert.equal(stepResult({ failed: 2 }).summary, '2 collections failed.');
+  assert.equal(stepResult({ failed: 1 }).summary, '1 collection failed.');
   assert.equal(stepResult({ attempted: 0, failed: 0 }).state, 'skipped');
   assert.equal(stepResult({ outcome: 'skipped' }).state, 'skipped');
   assert.equal(stepResult({ ok: false }).state, 'failed');
   assert.equal(stepResult(undefined).state, 'succeeded');
-});
-
-test('a failed step names what failed: sites whose remote could not be read, else collections', () => {
-  // The unpublished-commit check (runPushStateFiler in scripts/os-up.mjs):
-  // nothing was collected from these sites, so they are not "collections".
-  const pushState = { checked: 2, filed: [], closed: [], failed: [
-    { asset: 'one.example', reason: 'remote-sign-in-refused' },
-    { asset: 'two.example', reason: 'remote-unreachable' },
-    { asset: 'three.example', reason: 'git-read-failed' },
-  ] };
-  assert.deepEqual(stepResult(pushState), { state: 'failed', summary: '3 sites could not be read.' });
-  assert.equal(stepResult({ ...pushState, failed: pushState.failed.slice(0, 1) }).summary, '1 site could not be read.');
-  // Collection lanes keep their wording, counted or listed.
-  assert.equal(stepResult({ failed: 2, succeeded: 5 }).summary, '2 collections failed.');
-  assert.equal(stepResult({ failed: 1 }).summary, '1 collection failed.');
-  assert.equal(stepResult({ failed: [{ property: 'example' }] }).summary, '1 collection failed.');
-  // A list that is not wholly unread sites is not called sites.
-  assert.equal(stepResult({ failed: [...pushState.failed, { asset: 'four.example', error: 'timeout' }] }).summary, '4 collections failed.');
 });
 
 test('parallel stages retain distinct start/end evidence', async () => {

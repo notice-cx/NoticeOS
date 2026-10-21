@@ -16,15 +16,9 @@ const METRICS = {
     pulseId: 'Report ID', envelopeFlags: 'Reported alerts', centralFlags: 'Central alerts', resolvedAnomalies: 'Anomalies resolved', resolvedFreshness: 'Freshness alerts resolved',
 };
 const COUNTS = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progress', blocked: 'Blocked', deferred: 'Deferred', waiting: 'Waiting', highPriority: 'High priority', closedRecent: 'Recently closed' };
-// Why the unpublished-commit check could not read a site's remote (its
-// `failed` items' `reason`).
-const REMOTE_READ_REASONS = {
-    'remote-sign-in-refused': 'Remote sign-in refused', 'remote-unreachable': 'Remote unreachable', 'git-read-failed': 'Git could not read the branch',
-};
-// The notifier's `skipped` codes, and the remote-read reasons above.
+// The notifier's `skipped` codes.
 const REASONS = {
     'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
-    ...REMOTE_READ_REASONS,
 };
 const DETAILS = ['No Mediavine report is due.', 'Mediavine needs to be reconnected.'];
 const VERDICTS = ['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'];
@@ -82,18 +76,6 @@ function itemState(value) {
     if (value?.status === 'skipped')
         return 'skipped';
     return 'unknown';
-}
-/**
- * How many sites a step could not read, when every item of its `failed` list
- * is a site whose remote the unpublished-commit check could not read;
- * otherwise null. The step summary names those as sites, since
- * nothing was collected from them.
- */
-export function unreadSiteCount(value) {
-    const failed = value?.failed;
-    if (!Array.isArray(failed) || failed.length === 0)
-        return null;
-    return failed.every((item) => name(item?.asset) && Object.hasOwn(REMOTE_READ_REASONS, item?.reason)) ? failed.length : null;
 }
 export function captureWorkflowOutput(value) {
     if (value === undefined || value === null)

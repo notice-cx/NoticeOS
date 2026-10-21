@@ -4,8 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ServiceOverview } from '@/routes/health/ServiceOverview';
 import { WORKFLOW_DEFINITIONS, type WorkflowsPayload } from '@shared/workflows';
 import { integrationStatus, type IntegrationStatus } from '@shared/integration-status';
-import { captureWorkflowOutput } from '../../../scripts/workflow-output.mjs';
-import { stepResult } from '../../../scripts/workflow-trace.mjs';
 
 const mock = vi.hoisted(() => ({ data: undefined as WorkflowsPayload | undefined, isError: false }));
 vi.mock('@/hooks/useWorkflows', () => ({ useWorkflows: () => mock }));
@@ -98,48 +96,6 @@ describe('System Health status evidence', () => {
     it('the host installation, which runs every lane', () => {
       mount();
       expect(screen.getByText('Collection, service checks, task-board refreshes and backups')).toBeVisible();
-    });
-  });
-  // Under a service the unpublished-commit check can be refused by a site's
-  // remote. That is on the screen, by site and reason, every run.
-  describe('sites the unpublished-commit check could not read', () => {
-    const pushRun = (failed: { asset: string; reason: string }[]) => {
-      const output = captureWorkflowOutput({ checked: 1, filed: [], closed: [], failed });
-      mock.data!.workflows.push({ id: 'push-state', active: null, history: [], runs: [], latest: {
-        id: 'push-state@2026-09-09T11:40:00.000Z', workflowId: 'push-state', definitionVersion: 1, startedAt: '2026-09-09T11:40:00.000Z', finishedAt: '2026-09-09T11:40:04.000Z',
-        state: failed.length ? 'failed' : 'succeeded',
-        steps: [{ id: 'execute', attempt: 1, startedAt: '2026-09-09T11:40:00.000Z', finishedAt: '2026-09-09T11:40:04.000Z', ...stepResult({ failed }), ...(output ? { output } : {}) }],
-      } });
-    };
-    it('names each unread site and why, and opens that run', () => {
-      pushRun([{ asset: 'northwind.example', reason: 'remote-sign-in-refused' }, { asset: 'ferns.example', reason: 'remote-sign-in-refused' }]);
-      mount();
-      const row = screen.getByRole('link', { name: /Unpublished commit checks/ });
-      expect(row).toHaveTextContent('Unknown · northwind.example, ferns.example');
-      expect(row).toHaveTextContent('Remote sign-in refused');
-      expect(row).toHaveAttribute('href', '/workflows/push-state?run=push-state%402026-09-09T11%3A40%3A00.000Z');
-    });
-    it('counts sites past two and lists each reason once', () => {
-      pushRun([
-        { asset: 'northwind.example', reason: 'remote-sign-in-refused' },
-        { asset: 'ferns.example', reason: 'remote-unreachable' },
-        { asset: 'meadow.example', reason: 'remote-sign-in-refused' },
-      ]);
-      mount();
-      const row = screen.getByRole('link', { name: /Unpublished commit checks/ });
-      expect(row).toHaveTextContent('Unknown · 3 sites');
-      expect(row).toHaveTextContent('Remote sign-in refused · Remote unreachable');
-    });
-    it('says nothing when every site was read, or when the history is unreadable', () => {
-      pushRun([]);
-      mount();
-      expect(screen.queryByRole('link', { name: /Unpublished commit checks/ })).toBeNull();
-      cleanup();
-      mock.data!.workflows = mock.data!.workflows.filter((summary) => summary.id !== 'push-state');
-      pushRun([{ asset: 'northwind.example', reason: 'remote-unreachable' }]);
-      mock.data!.historyAvailable = false;
-      mount();
-      expect(screen.queryByRole('link', { name: /Unpublished commit checks/ })).toBeNull();
     });
   });
   it('cannot report normal checks from an empty operation inventory', () => {

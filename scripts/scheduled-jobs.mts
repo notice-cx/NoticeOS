@@ -107,9 +107,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { id: 'beads-hub', surface: 'system', label: 'Task service health', group: 'System maintenance', cron: '*/15 * * * *', local: true },
   { id: 'beads-snapshot', surface: 'system', label: 'Task board refresh', group: 'System maintenance', cron: '* * * * *', local: true, footer: 'task-board refreshes' },
   { id: 'panel-review', surface: 'workflow', label: 'Search review tasks', group: 'Tasks', cron: '25 * * * *', local: true },
-  { id: 'push-state', surface: 'workflow', label: 'Unpublished commit checks', group: 'Tasks', cron: '40 * * * *', keywords: ['task gates'], local: true },
   { id: 'watch-readbacks', surface: 'workflow', label: 'Outcome task updates', group: 'Outcomes', cron: '50 * * * *', local: true },
-  { id: 'task-map', surface: 'system', label: 'Task project checks', group: 'System maintenance', cron: '5 * * * *', local: true },
+  { id: 'task-map', surface: 'system', label: 'Task project checks', group: 'System maintenance', cron: '5 * * * *', keywords: ['task gates'], local: true },
   { id: 'panel-refresh', surface: 'system', label: 'Local research summaries', group: 'Business signals', cron: '10 13 * * *', local: true },
   { id: 'backup', surface: 'system', label: 'Backups', group: 'System maintenance', cron: '0 4 * * *', keywords: ['central store', 'task hub'], local: true, footer: 'backups' },
 ];
@@ -184,7 +183,8 @@ export function cronIntervalMinutes(cron: string): number | null {
 export function schedulesRefusal(value: unknown): string | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'Schedules must be a job configuration.';
   for (const [id, schedule] of Object.entries(value)) {
-    if (!SCHEDULED_JOBS.some((job) => job.id === id)) return `Unknown scheduled job: ${id}`;
+    // Retained settings for a removed job must not prevent other schedules from starting.
+    if (id !== 'push-state' && !SCHEDULED_JOBS.some((job) => job.id === id)) return `Unknown scheduled job: ${id}`;
     if (!schedule || typeof schedule !== 'object' || Array.isArray(schedule) ||
       Object.keys(schedule).some((key) => !['enabled', 'cron', 'timezone'].includes(key)) ||
       typeof schedule.enabled !== 'boolean') return `Invalid schedule for ${id}.`;
