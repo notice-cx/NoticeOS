@@ -68,7 +68,7 @@ export async function d1Api(account: string, token: string, suffix: string, opti
   if (signal.aborted) throw new CloudflareD1Error('timeout', { kind: 'timeout' });
   try {
     const response = await d1Bounded((options.fetchImpl ?? fetch)(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database${suffix}`, {
-      method: options.method ?? 'GET', redirect: 'error', signal,
+      method: options.method ?? 'GET', redirect: 'manual', signal,
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
     }), signal);
