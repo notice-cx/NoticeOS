@@ -2114,6 +2114,24 @@ describe("/tasks — a decision with choices is one press from Your decisions", 
     expect(api.chooseOnTask).not.toHaveBeenCalled();
   });
 
+  it("gives a second pick its own toast and ignores the first pick's late Undo", async () => {
+    const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
+    const pick = () => fireEvent.click(within(rowOf(container, "md-c1")!).getByRole("button", { name: "(b) Tuesday" }));
+    const lastToast = () => vi.mocked(toasts.success).mock.calls.at(-1)![1] as { id: string; action: { onClick: () => void } };
+    pick();
+    const first = lastToast();
+    act(() => first.action.onClick());
+    pick();
+    const second = lastToast();
+    expect(second.id).not.toBe(first.id);
+    act(() => first.action.onClick());
+    expect(rowOf(container, "md-c1")).toBeNull();
+    act(() => second.action.onClick());
+    expect(rowOf(container, "md-c1")).not.toBeNull();
+    act(() => flushAnswers());
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+  });
+
   it("answers a decision with choices in free text too, from under its options", async () => {
     const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
     fireEvent.click(within(rowOf(container, "md-c1")!).getByRole("button", { name: "Answer" }));
