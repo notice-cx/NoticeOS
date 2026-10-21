@@ -61,6 +61,7 @@ export function AskQueue({ asks, total, complete, filtered, nowMs, showProject, 
     <DecisionQueue
       items={items}
       total={total > 0 ? total : null}
+      partial={!complete}
       totalNote={complete ? undefined : "partial read"}
       title="Your decisions"
       limit={selecting ? Math.max(asks.length, ASK_ROWS) : ASK_ROWS}

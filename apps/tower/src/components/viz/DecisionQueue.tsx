@@ -3,6 +3,7 @@ import { Children, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { formatInt } from "@/lib/format";
+import { countLabel } from "@/lib/count-label";
 import { cn } from "@/lib/utils";
 
 // A queue drawn as a queue: how many are waiting, how old the wait is (the
@@ -68,6 +69,8 @@ export interface DecisionQueueProps {
   items: QueueItem[];
   /** The whole queue's size when only part of it was read into `items`. */
   total?: number | null;
+  /** Some projects were unread, so the count is a lower bound. */
+  partial?: boolean;
   /** What qualifies that count: "partial read", "outdated". */
   totalNote?: string;
   /** Rows shown before "Show all". */
@@ -89,7 +92,7 @@ export interface DecisionQueueProps {
   className?: string;
 }
 
-export function DecisionQueue({ items, total = null, totalNote, limit = 4, title = "Decide", action, headerAction, toolbar, empty = "Nothing to decide.", children, compact = false, className }: DecisionQueueProps) {
+export function DecisionQueue({ items, total = null, partial = false, totalNote, limit = 4, title = "Decide", action, headerAction, toolbar, empty = "Nothing to decide.", children, compact = false, className }: DecisionQueueProps) {
   const [open, setOpen] = useState(false);
   const count = total ?? items.length;
   const buckets = ageBuckets(items);
@@ -112,7 +115,7 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
         </div>
         {count > 0 ? (
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-figure tabular-nums text-foreground">{formatInt(count)}</span>
+            <span className="text-figure tabular-nums text-foreground">{countLabel(count, partial)}</span>
             <span className="text-sm text-muted-foreground">
               for you to decide{oldest !== null ? <> · oldest{compact ? " known" : ""} <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
               {totalNote ? ` · ${totalNote}` : null}

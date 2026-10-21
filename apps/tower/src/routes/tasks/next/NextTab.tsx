@@ -1,3 +1,4 @@
+import { boundedCount } from "@/lib/count-label";
 import { CircleHelp } from "lucide-react";
 import { ageMs, formatAge } from "@shared/freshness";
 import { READ_ONLY_TASKS_HINT } from "@shared/tasks";
@@ -98,7 +99,7 @@ export function NextTab({ scope = null, compact = false }: { scope?: string | nu
 }
 
 interface BoardFacts {
-  /** A count, `12+` for a lower bound, or null when nothing measured it. */
+  /** A count, `at least 12` for a lower bound, or null when nothing measured it. */
   decisions: string | null;
   oldest: number | null;
   /** The week's done, for the brief's last line. */
@@ -113,7 +114,7 @@ function boardFacts(next: NextBoard): BoardFacts {
   // Urgent and blocked are All tasks' figures; the sentence's line keeps to the decisions.
   const anyRead = missingProjects < projects.length;
   const bounded = (complete: number | null, observed: number | null): string | null =>
-    complete !== null ? String(complete) : observed === null || !anyRead ? null : `${observed}+`;
+    boundedCount(complete, observed, anyRead);
   const less = (count: number | null) => (count === null ? null : Math.max(0, count - answered));
   const ages = ranked.decisions.flatMap((row) => (row.ageDays === null ? [] : [row.ageDays]));
   const week = weeks?.done.now != null ? weeks.done : null;

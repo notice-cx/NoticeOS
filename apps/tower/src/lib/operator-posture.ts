@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/count-label";
 // The operator's inbox posture and its one sentence: the pure answers Home's
 // "Needs you" tile and the Wall's Needs you both read.
 
@@ -37,19 +38,18 @@ export function operatorState(operator: OperatorPosture | null | undefined, nowM
 /**
  * The inbox in words: "3 urgent · 12 need attention", "Inbox unknown", "0 need attention".
  *
- * Beside `operatorState` so every surface says exactly the same sentence. The
- * `+` suffixes are load-bearing — a partial snapshot renders a visible LOWER
- * BOUND rather than an exact-looking lie — which is precisely the nuance a
- * second hand-written copy of this sentence would lose.
+ * Beside `operatorState` so every surface says exactly the same sentence.
+ * Partial counts use the shared lower-bound wording so unread projects do
+ * not turn an observed count into an exact total.
  */
 export function operatorLabel(operator: OperatorPosture, nowMs: number): string {
   const state = operatorState(operator, nowMs)!;
-  const total = `${operator.waiting}${state.complete ? "" : "+"} need attention`;
+  const total = `${countLabel(operator.waiting, !state.complete)} need attention`;
   return operator.waiting > 0
     ? state.urgentComplete
-      ? `${operator.urgent} urgent · ${total}`
+      ? `${countLabel(operator.urgent)} urgent · ${total}`
       : operator.urgentMeasuredProjects > 0
-        ? `${operator.urgent}+ urgent · ${total}`
+        ? `${countLabel(operator.urgent, true)} urgent · ${total}`
         : `Urgency unknown · ${total}`
     : !state.complete
       ? "Inbox unknown"

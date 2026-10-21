@@ -579,6 +579,13 @@ describe("Needs attention", () => {
     expect(container.querySelector("[data-needs-meta]")).toBeNull();
   });
 
+  it("uses lower-bound words for urgent tasks in a partially read inbox", () => {
+    const { container } = render(<NeedsYou issues={[]} nowMs={NOW}
+      operator={{ waiting: 3, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 2, capturedAt: new Date(NOW).toISOString() }} />);
+    expect(container.querySelector("[data-needs-meta]")).toHaveTextContent("at least 1 urgent tasks");
+    expect(container).not.toHaveTextContent("Nothing needs attention");
+  });
+
   it("lists the fixture's warning with its site, sentence and age, and the urgent tasks beside the heading", () => {
     const data = wallFixturePayload();
     const { container } = render(

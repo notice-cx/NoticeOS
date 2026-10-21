@@ -1,3 +1,4 @@
+import { countLabel } from "@/lib/count-label";
 import { CircleCheck, Hand, Hourglass } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -38,7 +39,7 @@ export interface WorkFlowRow {
 export interface WorkWaiting {
   count: number;
   urgent: number;
-  /** Not every project was counted: the figures are lower bounds ("3+"). */
+  /** Not every project was counted: the figures are lower bounds ("at least 3"). */
   partial?: boolean;
   /** The task snapshot is old: a zero is not drawn as calm. */
   stale?: boolean;
@@ -294,14 +295,13 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
 function WaitingFigure({ waiting }: { waiting: WorkWaiting | null }) {
   const quiet = "text-sm font-medium text-muted-foreground";
   if (waiting === null) return <span className={quiet}>not read</span>;
-  const more = waiting.partial ? "+" : "";
   if (waiting.count === 0 && (waiting.partial || waiting.stale)) {
     return <span className={quiet}>{waiting.partial ? "unknown" : "stale"}</span>;
   }
   return (
     <>
-      {formatInt(waiting.count)}{more}
-      {waiting.urgent > 0 ? <span className="ms-2 text-sm font-semibold text-error">{formatInt(waiting.urgent)}{more} urgent</span> : null}
+      {countLabel(waiting.count, waiting.partial)}
+      {waiting.urgent > 0 ? <span className="ms-2 text-sm font-semibold text-error">{countLabel(waiting.urgent, waiting.partial)} urgent</span> : null}
     </>
   );
 }

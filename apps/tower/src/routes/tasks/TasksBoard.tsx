@@ -1,3 +1,4 @@
+import { boundedCount, countLabel } from "@/lib/count-label";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import { useEffect, useState, type ReactNode } from "react";
@@ -235,11 +236,11 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const workPanel = workRows.length > 1 ? <WorkByProject rows={workRows} /> : null;
   const openWork = workRows.reduce((sum, row) => sum + workQueue(row), 0);
 
-  /** A count that is missing a project is a lower bound, `12+`. `—` is a count
+  /** A count that is missing a project is a lower bound, `at least 12`. `—` is a count
    * the read cannot bound at all: nothing measured it, or no project was read. */
   const anyRead = missingProjects < projects.length;
   const bounded = (complete: number | null, observed: number | null) =>
-    complete ?? (observed === null || !anyRead ? "—" : `${observed}+`);
+    boundedCount(complete, observed, anyRead) ?? "—";
   // One answer first: what waits on you, in a sentence, with the three counts
   // that change what you do next beside it.
   const waitingCount = bounded(counts.waiting, totals.waiting);
@@ -255,7 +256,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const detail = [
     gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : null,
     // The yardstick the three figures are read against.
-    workRows.length > 0 ? `${formatInt(openWork)}${countsComplete ? "" : "+"} open ${openWork === 1 ? "task" : "tasks"}` : null,
+    workRows.length > 0 ? `${countLabel(openWork, !countsComplete)} open ${openWork === 1 ? "task" : "tasks"}` : null,
   ].filter(Boolean).join(" · ");
   const chip = (move: WeekMove | null | undefined, against: string, added?: number | null) =>
     move ? { change: <WorkWeekChip move={move} against={against} added={added} /> } : {};
@@ -399,7 +400,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
           {/* One banner for projects that could not be read: which, and a way
               to try again. Their rows stay on the board, from the last read or
-              the saved snapshot, without actions; the counts carry a `+`. */}
+              the saved snapshot, without actions; the counts use lower-bound wording. */}
           <StatusBanner
             open={broken.length > 0}
             subject="tasks:projects"
@@ -700,11 +701,10 @@ function Board({
         caption={
           // The mark stays on the span the audit and the tests read. A count,
           // and against what when narrowed: `12 of 29`; an incomplete board
-          // wears the same `+` as the strip.
+          // uses the same lower-bound wording as the summary.
           <span data-tasks-summary className="tabular-nums">
-            {rows.length}
-            {countsComplete ? "" : "+"}
-            {narrowed ? ` of ${total}${countsComplete ? "" : "+"}` : ""}
+            {countLabel(rows.length, !countsComplete)}
+            {narrowed ? ` of ${countLabel(total, !countsComplete)}` : ""}
           </span>
         }
         className="px-4 pb-2 pt-3"

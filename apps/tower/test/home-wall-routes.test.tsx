@@ -1285,6 +1285,18 @@ describe("Home — Decide", () => {
     expect(within(panel).getByRole("link", { name: "View all 120 decisions →" })).toHaveAttribute("href", "/tasks/all");
   });
 
+  it("labels Home's decision count as a lower bound when another project is unread", () => {
+    const unread = project("Unread project", []);
+    unread.ok = false;
+    unread.counts.waiting = null;
+    workState.data = workPayload([project("Meadow Board", [waiting()]), unread]);
+    renderHome();
+    const panel = panelFor("Decisions");
+    expect(panel).toHaveTextContent(/at least 1\s*for you to decide/);
+    expect(panel).toHaveTextContent("partial read");
+    expect(panel).not.toHaveTextContent("Nothing to decide.");
+  });
+
   it("names the wait beside each row, and nothing about the read itself", () => {
     workState.data = workPayload([project("Meadow Board", [waiting({ updatedAt: "2026-07-01T12:05:00.000Z" })])]);
     renderHome();

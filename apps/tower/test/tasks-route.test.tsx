@@ -1846,7 +1846,7 @@ it("shows unavailable project totals as unknown and never declares an empty queu
   const { container } = renderBoard({ live: true, data: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), errors: { "meadow.example": "Local read failed" } });
   for (const mark of ["urgent", "blocked", "closed"] as const) {
     expect(fig(container, mark)).toHaveTextContent("—");
-    expect(fig(container, mark)).not.toHaveTextContent("0+");
+    expect(fig(container, mark)).not.toHaveTextContent("at least 0");
   }
   expect(answerLine(container)).toBe("Couldn't read your decisions");
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Meadow Board");
@@ -1859,7 +1859,7 @@ it("shows unavailable project totals as unknown and never declares an empty queu
 it("labels observed counts as partial when another project's totals are unavailable", () => {
   const { container } = renderBoard({ live: true, data: payload({ projects: [project(), project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ok: false, error: "No snapshot" })] }), boards: { "meadow.example": board([liveTask()]) }, errors: { "northwind.example": "Cannot read Northwind" } });
   const blocked = fig(container, "blocked");
-  expect(blocked).toHaveTextContent("0+");
+  expect(blocked).toHaveTextContent("at least 0");
   expect(blocked).not.toHaveTextContent("observed");
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Northwind");
   expect(row(container, "md-1w2")).toBeInTheDocument();

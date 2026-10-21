@@ -509,6 +509,7 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
     <DecisionQueue
       items={items}
       total={hasSnapshot && total > 0 ? total : null}
+      partial={!complete}
       totalNote={note}
       title="Decisions"
       compact

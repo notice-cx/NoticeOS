@@ -87,7 +87,7 @@ describe("the loop", () => {
     const operator = { waiting: 3, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 2, capturedAt: at(0) };
     const nodes = byId(loopNodes({ assets: [asset("a.example", WORK), asset("b.example", WORK)], attention: [], operator }, NO_READS, NOW));
     expect(nodes.act).toMatchObject({ value: "4", caption: "in progress", state: "active" });
-    expect(nodes.decide).toMatchObject({ value: "3+", caption: "for you to decide · 1+ urgent", state: "warn" });
+    expect(nodes.decide).toMatchObject({ value: "at least 3", caption: "for you to decide · at least 1 urgent", state: "warn" });
     const unknown = byId(loopNodes({ assets: [], attention: [], operator: { ...operator, waiting: 0, urgent: 0 } }, NO_READS, NOW));
     expect(unknown.decide).toMatchObject({ caption: "for you to decide · unknown" });
     expect(unknown.decide?.value).toBeUndefined();
