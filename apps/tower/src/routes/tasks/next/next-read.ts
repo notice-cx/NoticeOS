@@ -32,8 +32,9 @@ export const ASK_LINE: Readonly<Record<InboxAsk, string>> = {
   choose: "Needs your choice",
 };
 
-/** The sentence's verb before the title. */
-const ASK_LEAD: Readonly<Record<InboxAsk, string>> = { approve: "Approve", answer: "Answer", choose: "Choose on" };
+/** The sentence's lead: the kind of decision, never its title, which the
+ * region under the sentence carries (a title can run to a paragraph). */
+const ASK_LEAD: Readonly<Record<InboxAsk, string>> = { approve: "Approve one request", answer: "Answer one question", choose: "Choose one option" };
 
 /** How long a decision has waited, short: `12d`, or the word for under a day. */
 export function waitedShort(days: number | null): string | null {
@@ -66,14 +67,16 @@ export function cardTerms(card: TaskCard): string {
 }
 
 /**
- * The page's one sentence. The first clause of a decision is the strongest
- * fact the row holds: the money its card puts on it, else the work it
- * releases, else how long it has waited.
+ * The page's one sentence: what kind of decision comes first and the
+ * strongest fact behind it, the money its card puts on it, else the work it
+ * releases, else how long it has waited. The title is not in it: the region
+ * under the sentence names the task, and a sentence that repeated it would
+ * say the same thing twice.
  */
 export function nextSentence(board: Pick<RankedBoard, "decisions" | "agents">, { complete }: { complete: boolean }): string {
   const top = board.decisions[0];
   if (top?.ask) {
-    const lead = `${ASK_LEAD[top.ask]} ${top.task.title.trim()}`;
+    const lead = `${ASK_LEAD[top.ask]} first`;
     const clause = top.card !== null && top.score !== null
       ? `it holds about ${formatUsd(top.score.expectedPerMonth)} a month`
       : top.releases.length > 0
@@ -81,7 +84,7 @@ export function nextSentence(board: Pick<RankedBoard, "decisions" | "agents">, {
         : top.ageDays !== null && top.ageDays >= 1
           ? `it has waited ${plural(top.ageDays, "day", "days")}`
           : null;
-    return clause === null ? `${lead} first.` : `${lead}, first: ${clause}.`;
+    return clause === null ? `${lead}.` : `${lead}: ${clause}.`;
   }
   // A project nobody could read may hold decisions: never claim it does not.
   if (!complete) return "Couldn't read your decisions";

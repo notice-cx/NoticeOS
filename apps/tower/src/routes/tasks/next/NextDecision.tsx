@@ -91,7 +91,7 @@ export function NextDecision({ row, project, epic, of }: {
 
       <div className="flex flex-col gap-1.5">
         <h3 id={headingId} className="m-0 text-figure-sm text-foreground">
-          <TaskTitleLink task={task} />
+          <TaskTitleLink task={task} className="line-clamp-3" />
         </h3>
         {why ? <p className="m-0 text-sm text-muted-foreground" data-next-why="">{why}</p> : null}
       </div>
@@ -101,14 +101,19 @@ export function NextDecision({ row, project, epic, of }: {
           <WhyItRanks card={card} score={score} rank={score ? { position: row.rank, of } : null} size="md" />
           <WhyFirst row={row} of={of} href={href} />
         </div>
-      ) : (
-        <p className="m-0 text-sm text-muted-foreground" data-next-unranked="">
-          Not ranked: no card says what it is worth.{" "}
-          <Link to={href.to} state={href.state} className={cn("font-medium text-foreground underline-offset-4 hover:underline", pillControlClass)}>
-            Open the task to add one.
-          </Link>
-        </p>
-      )}
+      ) : project?.actionable ? (
+        // No figures and no explanation of their absence: a board with no
+        // cards would say "not ranked" on every row. One link, where a card
+        // can be written.
+        <Link
+          to={href.to}
+          state={href.state}
+          className={cn("self-start text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline", pillControlClass)}
+          data-next-unranked=""
+        >
+          Add why it ranks
+        </Link>
+      ) : null}
 
       {project?.actionable || reason !== null ? (
         <div className="flex flex-col gap-2.5" data-next-actions="">
