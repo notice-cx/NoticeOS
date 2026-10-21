@@ -449,7 +449,9 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     const version = await readVersion(landing.asset).catch(() => null);
     let gap;
     try {
-      gap = panelPublicationGap(await readPublished(landing.asset, version), landing);
+      gap = isPanelVersion(version)
+        ? panelPublicationGap(await readPublished(landing.asset, version), landing)
+        : 'the published panel has no immutable version';
     } catch (err) {
       emit('ERROR', `panel review: ${landing.asset} — the published panel is unreadable: ${err.message}`);
       continue;
