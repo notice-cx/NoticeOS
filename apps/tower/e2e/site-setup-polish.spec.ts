@@ -129,7 +129,9 @@ for (const mode of ["dark", "light"] as const) {
 
   test(`setup polish: paused Sources and Tune state their reason once in ${mode}`, async ({ page }, info) => {
     await theme(page, mode);
-    await syntheticSite(page);
+    const scene = await syntheticSite(page);
+    const settled = scene.flags.history[0]!;
+    scene.flags.history = Array.from({ length: 6 }, (_, index) => ({ ...settled, id: settled.id + 100 + index }));
     await page.route("**/api/settings", async (route) => {
       const { response, headers } = await fetchToRewrite(route);
       const body = await response.json();
@@ -148,6 +150,8 @@ for (const mode of ["dark", "light"] as const) {
     await expect(page.locator("[data-funnel-editor]")).toContainText("Signup");
     await expect(page.locator(STATEMENTS)).toHaveCount(1);
     await fits(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator("[data-saves-paused]")).toBeInViewport({ ratio: 1 });
     await capture(page, info, `sources-paused-${mode}`);
     await page.goto("/assets/meadow.example/alerts");
     const row = page.locator('[data-material-condition~="open-flags"]').first();
@@ -155,10 +159,16 @@ for (const mode of ["dark", "light"] as const) {
     // Expand through the alert's existing disclosure before opening Tune.
     const collapsed = row.locator('button[aria-expanded="false"]').first();
     if (await collapsed.count()) await collapsed.click();
-    await page.getByRole("button", { name: "Tune rule", exact: true }).first().click();
+    // Open settled history to leave room to scroll the trigger above its panel.
+    await page.getByRole("region", { name: "History", exact: true }).getByRole("button", { name: "Show 6 more", exact: true }).click();
+    const trigger = page.getByRole("button", { name: "Tune rule", exact: true }).first();
+    await trigger.evaluate((element) => window.scrollBy(0, element.getBoundingClientRect().top - 120));
+    await trigger.click();
     const tune = page.getByRole("dialog", { name: /^Tune rule/ });
     await expect(tune.locator(STATEMENTS)).toHaveCount(1);
     await expect(tune.locator("[data-saves-paused]")).toContainText(PAUSED);
+    await expect(tune).toBeInViewport({ ratio: 1 });
+    await expect(tune.locator("[data-saves-paused]")).toBeInViewport({ ratio: 1 });
     await expect(tune.locator("input")).toHaveCount(2);
     for (const input of await tune.locator("input").all()) await expect(input).toBeDisabled();
     await fits(page);
