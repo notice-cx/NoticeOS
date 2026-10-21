@@ -9,7 +9,6 @@ import { runCommand } from './run-command.mjs';
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BEGIN = '<!-- noticeos-project:begin -->';
 const END = '<!-- noticeos-project:end -->';
-const IGNORE = ['/.beads/', '/.beads.gate.lock'];
 const LIMIT = 1024 * 1024;
 const refuse = () => { throw new Error('Project context preparation refused; preserve existing files and review the setup guide.'); };
 
@@ -75,19 +74,6 @@ export async function projectContextPlan(repo, { run = runCommand, env = process
     const before = contents(path.join(repo, name));
     if (name === 'CLAUDE.md' && before === null) continue;
     add(name, before, instructions(before?.text ?? null, block));
-  }
-  const ignore = contents(path.join(repo, '.gitignore'));
-  // Append at the end so earlier broad negations cannot expose task state.
-  const suffix = `# Local NoticeOS task connection\n${IGNORE.join('\n')}\n`;
-  const oldIgnore = ignore?.text ?? '';
-  if (!oldIgnore.endsWith(suffix)) add('.gitignore', ignore, `${oldIgnore}${oldIgnore && !oldIgnore.endsWith('\n') ? '\n' : ''}${suffix}`);
-  const gate = path.join(repo, '.beads.gate.lock');
-  const gateStat = fs.lstatSync(gate, { throwIfNoEntry: false });
-  if (gateStat && (!gateStat.isFile() || gateStat.isSymbolicLink() || gateStat.nlink !== 1 || gateStat.uid !== process.getuid() || (gateStat.mode & 0o077))) refuse();
-  const beads = fs.lstatSync(path.join(repo, '.beads'), { throwIfNoEntry: false });
-  if (beads) {
-    regularDirectory(path.join(repo, '.beads'));
-    if (!gateStat) changes.push({ relative: '.beads.gate.lock', before: null, text: '', mode: 0o600 });
   }
   return { repo, changes };
 }
