@@ -96,6 +96,13 @@ test('a no-checkout review waits for publication and reconciles a lost create ac
   assert.equal(rows[1].id, 'shop-2');
   assert.equal(rows[1].metadata.noticeos_panel_version, VERSION);
   assert.equal(closes, 6);
+  rows[1].labels.push('invalid-automation');
+  await runPanelReviewFiler(UP, pass.deps);
+  await runPanelReviewFiler(UP, pass.deps);
+  assert.equal(creates, 3, 'invalidating the replacement permits one subsequent valid review');
+  assert.equal(rows[2].id, 'shop-3');
+  assert.equal(closes, 7);
+
 
   assert.equal(await fs.stat(path.join(root, '.beads')).catch(() => null), null);
 });
@@ -158,6 +165,14 @@ test('publication movement cannot change the version whose families the filer ch
   await fs.unlink(current); await fs.symlink(path.join(reports, newer), current);
   assert.equal((await readPublishedFreshness(asset, pinned, root)).sources[0].newestReportDate, '2026-09-21');
   assert.equal((await readPublishedFreshness(asset, null, root)).sources[0].newestReportDate, '2026-09-14');
+});
+
+test('an invalid task-list shape files nothing and leaves the next pass available', async () => {
+  const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], existing: '{}' });
+  const result = await runPanelReviewFiler(UP, pass.deps);
+  assert.deepEqual(result, { checked: 0, filed: [] });
+  assert.equal(pass.ran.length, 1);
+  assert.match(pass.lines[0], /invalid task list; filing nothing/);
 });
 
 test('a review is identified by its metadata first and its title second', () => {

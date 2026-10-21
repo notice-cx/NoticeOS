@@ -336,7 +336,7 @@ export async function filePanelReview(project, landing, { open = openStandaloneT
   try {
     const projectId = standaloneProjectId(project.database);
     const key = 'panel-review:' + createHash('sha256').update(JSON.stringify(
-      [projectId, landing.asset, landing.panelDate, [...(landing.invalidated ?? [])].sort()])).digest('hex');
+      [projectId, landing.asset, landing.panelDate, [...new Set(landing.invalidated ?? [])].sort()])).digest('hex');
     const proof = new Request('http://localhost/api/mcp', { method: 'POST', headers: { [ACTOR_HEADER]: PANEL_REVIEW_ACTOR } });
     const outcome = await tasks.operations.write(proof, tasks.workspaceId, { projectId, operation: {
       kind: 'create', title: panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false),
@@ -437,6 +437,10 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     if (existing.unparseable) {
       emit('ERROR', `panel review: ${landing.asset} — bd returned unparseable JSON; filing nothing`);
+      continue;
+    }
+    if (!Array.isArray(existing.rows)) {
+      emit('ERROR', `panel review: ${landing.asset} — bd returned an invalid task list; filing nothing`);
       continue;
     }
     checked += 1;
