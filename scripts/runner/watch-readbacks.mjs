@@ -2,8 +2,7 @@
 // that owns its reading: the store keeps the queue, this lane posts
 // a `bd comment` in the owning project, then tells the store what landed.
 
-import path from 'node:path';
-import { readTaskProjectConfig } from '../task-project-config.mjs';
+import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
@@ -86,7 +85,7 @@ export async function runWatchReadbackFiler(deps = {}) {
     // the inventory's paths are relative to it, not to the code folder.
     let result;
     try {
-      result = await run(['-C', path.resolve(repoRoot, spoke.repo), 'comment', entry.bead, entry.comment]);
+      result = await run(['-C', taskProjectDirectory(spoke, repoRoot), 'comment', entry.bead, entry.comment]);
     } catch (err) {
       failed.push(`${entry.bead}: bd comment spawn error: ${err.message}`);
       continue;

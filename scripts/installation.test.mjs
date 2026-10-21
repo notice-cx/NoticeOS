@@ -95,7 +95,9 @@ test('the host\'s repository links come from the installation, and a fresh clone
 test('the runner resolves the stored task projects against the installation\'s links', async (t) => {
   const home = await checkout(t, { defaults: { 'task-host.json': { repositories: [] } }, installed: { 'task-host.json': HOST } });
   const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 3, body: BEADS }] });
-  assert.deepEqual(await readTaskProjects({ repoRoot: home, token: 'op', fetchImpl: store }), [
+  const connected = await readTaskProjects({ repoRoot: home, token: 'op', fetchImpl: store });
+  assert.ok(connected[0].cwd.startsWith(path.join(home, 'installation/task-projects/')));
+  assert.deepEqual(connected.map(({ cwd, ...row }) => row), [
     { asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' },
   ]);
 
@@ -104,7 +106,7 @@ test('the runner resolves the stored task projects against the installation\'s l
   const fresh = await checkout(t, { defaults: { 'task-host.json': { repositories: [] } } });
   const [project] = await readTaskProjects({ repoRoot: fresh, token: 'op', fetchImpl: store });
   assert.equal(project.repo, '');
-  assert.match(project.unavailableReason, /no checkout linked on this host/);
+  assert.match(project.unavailableReason, /no matching task connection on this host/);
 });
 
 test('a folder pnpm db:try-tower made, with no inventory at all, links no checkouts rather than failing', async (t) => {
@@ -115,7 +117,7 @@ test('a folder pnpm db:try-tower made, with no inventory at all, links no checko
   await assert.rejects(readTaskHost({ repoRoot: started }), { code: 'ENOENT' });
   const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 1, body: BEADS }] });
   const [project] = await readTaskProjects({ repoRoot: started, token: 'op', fetchImpl: store });
-  assert.match(project.unavailableReason, /no checkout linked on this host/);
+  assert.match(project.unavailableReason, /no matching task connection on this host/);
   // A file that is there but broken still fails.
   await fs.mkdir(path.join(started, 'installation'), { recursive: true });
   await fs.writeFile(path.join(started, 'installation', 'task-host.json'), '{broken');

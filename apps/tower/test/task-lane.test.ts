@@ -278,14 +278,14 @@ describe("the guards", () => {
   });
 });
 
-describe("which repo bd runs in", () => {
-  it("runs in the spoke config/beads.json names for the project", async () => {
+describe("which task client directory bd runs in", () => {
+  it("runs in the installation directory resolved for the saved project", async () => {
     await reset();
     const reply = await ask("GET", "/api/tasks?project=other.example");
     expect(reply.status).toBe(200);
     const dirs = (await spawned()).map((argv) => argv[1]);
     expect(dirs.length).toBeGreaterThan(0);
-    expect(new Set(dirs)).toEqual(new Set([path.resolve(repoRoot(), "../other.example")]));
+    expect(new Set(dirs)).toEqual(new Set([(await fixtureProjects())[1]!.cwd]));
   });
 
   it("derives the spoke from the id's prefix when only an id is given", async () => {
@@ -293,7 +293,7 @@ describe("which repo bd runs in", () => {
     const reply = await ask("GET", "/api/tasks/ro-aaa");
     expect(reply.status).toBe(200);
     for (const argv of await spawned()) {
-      expect(argv.slice(0, 2)).toEqual(["-C", path.resolve(repoRoot(), ".")]);
+      expect(argv.slice(0, 2)).toEqual(["-C", (await fixtureProjects())[0]!.cwd]);
     }
   });
 
@@ -530,7 +530,7 @@ describe("the writes", () => {
     expect(reply).toEqual({ status: 201, body: { id: "ro-new", project: "root-os" } });
 
     const [argv] = await spawned();
-    expect(argv?.slice(0, 4)).toEqual(["-C", repoRoot(), "create", "Filed from the Tower"]);
+    expect(argv?.slice(0, 4)).toEqual(["-C", (await fixtureProjects())[0]!.cwd, "create", "Filed from the Tower"]);
     expect(argv).toContain("--description");
     expect(argv).toContain("--labels");
     expect(argv?.[argv.indexOf("--labels") + 1]).toBe("tower,tasks");
@@ -544,7 +544,7 @@ describe("the writes", () => {
     const reply = await ask("PATCH", "/api/tasks/ro-aaa", { claim: true });
     expect(reply.status).toBe(200);
     const [argv] = await spawned();
-    expect(argv?.slice(0, 5)).toEqual(["-C", repoRoot(), "update", "ro-aaa", "--claim"]);
+    expect(argv?.slice(0, 5)).toEqual(["-C", (await fixtureProjects())[0]!.cwd, "update", "ro-aaa", "--claim"]);
   });
 
   it("maps each allowlisted edit onto its own bd flag", async () => {
@@ -956,7 +956,7 @@ describe("when bd refuses", () => {
       ["comments", "add", "ro-aaa", "Response: Use the chosen option", "--json", "--actor", "test-operator"],
       ["close", "ro-aaa", "--reason", "Responded", "--json", "--actor", "test-operator"],
     ]);
-    for (const argv of calls) expect(argv.slice(0, 2)).toEqual(["-C", repoRoot()]);
+    for (const argv of calls) expect(argv.slice(0, 2)).toEqual(["-C", (await fixtureProjects())[0]!.cwd]);
     for (const argv of calls.filter(argv => argv[2] !== "show")) expect(argv.slice(-2)).toEqual(["--actor", "test-operator"]);
     for (const argv of calls.filter(argv => argv[2] === "show")) expect(argv).not.toContain("--actor");
   });
@@ -1119,7 +1119,7 @@ describe("the pieces underneath", () => {
   });
 
   it("reads the stored map joined to the same host links as the poller", async () => {
-    expect(await fixtureProjects()).toEqual(SPOKES.spokes);
+    expect((await fixtureProjects()).map(({ cwd, ...row }) => row)).toEqual(SPOKES.spokes);
   });
 
   it("takes the prefix off an id, including a child task's", () => {
@@ -1191,7 +1191,7 @@ describe("the pieces underneath", () => {
 
 
 describe("saved project routing", () => {
-  it("uses saved membership with trusted host paths for reads and actions, ignoring the exported roster", async () => {
+  it("uses the same installation connection for a project with no checkout, ignoring saved paths", async () => {
     await reset();
     const saved = { asset: "new.example", prefix: "nx", database: "nx", repo: "/untrusted" };
     const readProjects = () => readSpokes(repoRoot(), {
@@ -1199,7 +1199,7 @@ describe("saved project routing", () => {
       fetchImpl: async () => Response.json({ ready: true, documents: [
         { file: "config/beads.json", version: 8, body: { spokes: [saved] } },
       ] }),
-      readHost: async () => JSON.stringify({ repositories: [{ ...saved, repo: "../other.example" }] }),
+      readHost: async () => JSON.stringify({ repositories: [{ asset: saved.asset, prefix: saved.prefix, database: saved.database }] }),
     });
     const options = { repoRoot: repoRoot(), actor: "test-operator", readProjects };
     const read = await handleTasksRequest({ method: "GET", url: "/api/tasks?project=new.example", headers: SAME_ORIGIN, body: "" }, options);
@@ -1210,11 +1210,15 @@ describe("saved project routing", () => {
     expect(old.status).toBe(404);
     const commands = await spawned();
     expect(commands.length).toBeGreaterThan(0);
-    expect(commands.every((args) => args[1] === path.join(root, "other.example"))).toBe(true);
+    const [project] = await readProjects();
+    expect(project!.repo).toBe("");
+    expect(commands.every((args) => args[1] === project!.cwd)).toBe(true);
+    expect(JSON.parse(await fs.readFile(path.join(project!.cwd!, ".beads/metadata.json"), "utf8")).dolt_database).toBe("nx");
+    expect(await fs.readdir(path.join(root, "other.example"))).toEqual([]);
     expect(commands.some((args) => args.includes("--claim"))).toBe(true);
   });
 
-  it("answers a folder with no host inventory at all, as a project with no checkout linked", async () => {
+  it("answers a folder with no host inventory at all, as a project with no matching task connection", async () => {
     // The folder is not a checkout, so it has neither its own task-host.json
     // nor the product's default beside it.
     await reset();

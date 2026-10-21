@@ -11,6 +11,8 @@ export interface StandaloneTaskProject {
     readonly prefix: string;
     /** The project's own folder, where the task client finds its settings. */
     readonly cwd: string;
+    /** Optional host checkout used only to read the existing comment author identity. */
+    readonly identityCwd?: string;
 }
 /** One row of the site list as the store holds it. */
 export interface StandaloneSite {

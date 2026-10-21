@@ -10,7 +10,7 @@ import path from 'node:path';
 import { checkoutRelative, installationPath } from '../installation.mjs';
 import { PANEL_FRESHNESS_FILE, panelReportPath, panelReportRelativePath } from '../signal-panel-paths.mjs';
 import { isPanelVersion } from '../panel-versions.mjs';
-import { readTaskProjectConfig } from '../task-project-config.mjs';
+import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, OS_CHECKOUT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
@@ -397,7 +397,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
       emit('WARN', `panel review: ${project.unavailableReason}`);
       continue;
     }
-    const repoDir = path.resolve(HOME_ROOT, project.repo);
+    const repoDir = taskProjectDirectory(project, HOME_ROOT);
 
     const existing = await readBeadsList(run, panelReviewListArgs(repoDir), 'panel review list');
     if (existing.failure) {

@@ -5,8 +5,7 @@ export * from '../task-snapshot-summary.mjs';
 // its ingest door, which is what the Tower's task screens render. It also
 // joins each project's Tower handoff beads and its panel-review state.
 
-import path from 'node:path';
-import { readTaskProjectConfig } from '../task-project-config.mjs';
+import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
@@ -29,7 +28,7 @@ export async function collectBeadsSnapshot({ projects, run, nowMs = Date.now(), 
       entries.push(beadsProjectError(project, project.unavailableReason));
       continue;
     }
-    const repoDir = path.resolve(repoRoot, project.repo);
+    const repoDir = taskProjectDirectory(project, repoRoot);
     const args = beadsPollArgs(repoDir, reach.closesSince);
     const results = {};
     let failed = null;
