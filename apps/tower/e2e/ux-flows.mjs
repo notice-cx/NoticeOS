@@ -521,12 +521,16 @@ FLOWS["tasks-bulk-close"] = {
 };
 
 /** A question declined with a resolution from its row (Jira's resolutions):
- * Close as, the resolution, a one-line note, then the commit, with Undo after. */
+ * Close as, the resolution, a one-line note, then the commit, with Undo after.
+ * The rows under Next's first decision carry one button each, so the decline
+ * is on All tasks, where every decision's row offers Close as. */
 FLOWS["inbox-close-as"] = {
   title: "Close a question as Won't do (Close as on the row, a note)",
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
+    await w.click(w.page.getByRole("tab", { name: /^All tasks/ }), "All tasks", { role: "choose" });
+    await w.waitFor("All tasks → board", () => w.page.locator("[data-waiting-list]").waitFor());
     const ask = w.page.locator('[data-inbox-row="jt-review"]');
     await w.click(ask.getByRole("button", { name: "Close as", exact: true }), "Close as", { role: "choose" });
     await w.click(w.page.getByRole("menuitem", { name: "Won't do", exact: true }), "Won't do", { role: "choose" });

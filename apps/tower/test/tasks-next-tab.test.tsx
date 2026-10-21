@@ -82,11 +82,12 @@ function sections(container: HTMLElement): string[] {
 }
 
 describe("the Next tab", () => {
-  it("leads with the top decision: its sentence carries the money its card puts on it", () => {
+  it("leads with the top decision: its sentence carries the kind of decision and the money its card puts on it, never the title", () => {
     const { container } = renderNext();
     expect(container.querySelector("[data-next-answer] h2")).toHaveTextContent(
-      "Choose on Pick the newsletter day, first: it holds about $770 a month.",
+      "Choose one option first: it holds about $770 a month.",
     );
+    expect(container.querySelector("[data-next-answer] h2")).not.toHaveTextContent("Pick the newsletter day");
     const region = container.querySelector<HTMLElement>("[data-next-decision]")!;
     expect(region).toHaveAttribute("data-next-decision", "md-c1");
     expect(within(region).getByRole("heading", { level: 3 })).toHaveTextContent("Pick the newsletter day");
@@ -95,14 +96,14 @@ describe("the Next tab", () => {
     expect(region.querySelector("[data-why-it-ranks]")).toHaveTextContent("Rank1of 3 · policy v1.0");
   });
 
-  it("draws the facts under the sentence with the board's counts", () => {
+  it("draws one fact under the sentence, the decisions and the oldest wait; the board's other counts and Working now stay on All tasks", () => {
     const { container } = renderNext();
     const facts = container.querySelector<HTMLElement>("[data-next-facts]")!;
     expect(facts.querySelector('[data-next-fact="decisions"]')).toHaveTextContent("3 decisions for you · oldest 12d");
     expect(facts.querySelector('[data-next-fact="decisions"]')).toHaveClass("text-warn");
-    expect(facts.querySelector('[data-next-fact="urgent"]')).toHaveTextContent("1 urgent");
-    expect(facts.querySelector('[data-next-fact="blocked"]')).toHaveTextContent("2 blocked");
-    expect(container.querySelector("[data-tasks-working]")).toHaveTextContent(/Working now\s*agent-x 1\s*Agents →/u);
+    expect(facts.querySelectorAll("[data-next-fact]")).toHaveLength(1);
+    expect(facts.textContent).not.toMatch(/urgent|blocked|done this week/u);
+    expect(container.querySelector("[data-tasks-working]")).toBeNull();
     expect(facts.textContent).not.toContain("—");
   });
 
@@ -113,10 +114,38 @@ describe("the Next tab", () => {
       liveTask({ id: "md-r2", title: "Design the header", status: "blocked", dependencies: [{ id: "md-a1", type: "blocks", title: "Name the newsletter", status: "open" }] }),
     ];
     const { container } = renderNext({ boards: { "meadow.example": board(tasks) } });
-    expect(container.querySelector("[data-next-answer] h2")).toHaveTextContent("Answer Name the newsletter, first: 2 tasks wait on it.");
+    expect(container.querySelector("[data-next-answer] h2")).toHaveTextContent("Answer one question first: 2 tasks wait on it.");
     const region = container.querySelector<HTMLElement>("[data-next-decision]")!;
     expect(region.querySelector("[data-next-why]")).toHaveTextContent("2 tasks wait on this answer.");
-    expect(region.querySelector("[data-next-unranked]")).toHaveTextContent("Not ranked: no card says what it is worth. Open the task to add one.");
+    // No figures and no "not ranked": one link to where a card is written.
+    expect(region.querySelector("[data-why-it-ranks]")).toBeNull();
+    expect(region.textContent).not.toMatch(/not ranked/iu);
+    expect(within(region).getByRole("link", { name: "Add why it ranks" })).toHaveAttribute("href", "/tasks/md-a1");
+  });
+
+  it("keeps a board without a card quiet: rows carry one button and no money line, and the caption names the board's own order", () => {
+    const paragraph = "Use the existing login once to push the branch, open a PR and read its CI. After the merge, rebase the checkout to the merged tree and restart with health waits. No merge, migration, export or credential changes.";
+    const tasks = [
+      liveTask({ id: "md-a1", title: "Name the newsletter", labels: ["human"], ready: true, priority: 1 }),
+      liveTask({ id: "md-a2", title: paragraph, labels: ["human"], ready: true }),
+      liveTask({ id: "md-a3", title: "Create the ads account", labels: ["human"], ready: true }),
+    ];
+    const { container } = renderNext({ boards: { "meadow.example": board(tasks) } });
+    const then = container.querySelector<HTMLElement>("[data-then-for-you]")!;
+    expect(then).toHaveTextContent("by what each answer releases, then the longest wait");
+    expect(then.textContent).not.toContain("ranked by what each decision is worth");
+    const rows = [...then.querySelectorAll<HTMLElement>("[data-then-row]")];
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.querySelector("[data-money]")).toBeNull();
+      expect(row.textContent).not.toMatch(/not ranked/iu);
+      expect(within(row).getAllByRole("button").map((button) => button.textContent?.trim())).toEqual(["Answer"]);
+      expect(within(row).getByRole("link", { name: /./u })).toHaveClass("line-clamp-2");
+    }
+    // The region keeps Close as, as the task page does.
+    const region = within(container.querySelector<HTMLElement>("[data-next-decision]")!);
+    expect(region.getAllByRole("button").map((button) => button.textContent?.trim())).toEqual(["Answer", "Close as"]);
+    expect(region.getByRole("heading", { level: 3 }).querySelector("a")).toHaveClass("line-clamp-3");
   });
 
   it("draws the five sections in order", () => {
@@ -253,9 +282,9 @@ describe("the Next tab's words", () => {
 
   it("falls back to the wait when a decision holds no money and releases nothing", () => {
     const ranked = rankBoard({ tasks: [], inbox: [row({ id: "ex-q", title: "Pick a name" })], operatorRateUsdPerMin: 2, now: NOW });
-    expect(nextSentence(ranked, { complete: true })).toBe("Answer Pick a name, first: it has waited 10 days.");
+    expect(nextSentence(ranked, { complete: true })).toBe("Answer one question first: it has waited 10 days.");
     const gate = rankBoard({ tasks: [], inbox: [row({ id: "ex-g", title: "Spend $40", issueType: "gate", awaitType: "human", createdAt: NOW.toISOString() })], operatorRateUsdPerMin: 2, now: NOW });
-    expect(nextSentence(gate, { complete: true })).toBe("Approve Spend $40 first.");
+    expect(nextSentence(gate, { complete: true })).toBe("Approve one request first.");
     expect(nextSentence({ decisions: [], agents: [] }, { complete: false })).toBe("Couldn't read your decisions");
   });
 
