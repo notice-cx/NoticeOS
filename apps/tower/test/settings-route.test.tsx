@@ -2260,6 +2260,11 @@ describe("/settings — who owns what", () => {
     renderPage();
 
     fireEvent.click(within(entities()).getByRole("button", { name: "Add" }));
+    expect(addForm().querySelectorAll("input, select, textarea")).toHaveLength(4);
+    for (const name of ["Id", "Name", "Legal form", "Registered in"]) {
+      expect(within(addForm()).getByLabelText(name)).toBeTruthy();
+    }
+    expect(within(addForm()).queryByLabelText(/assets|sites/i)).toBeNull();
     fireEvent.change(within(addForm()).getByLabelText("Id"), { target: { value: "second-co" } });
     fireEvent.change(within(addForm()).getByLabelText("Name"), { target: { value: "Second Co" } });
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
@@ -2267,6 +2272,9 @@ describe("/settings — who owns what", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
     // No `assets` key: an entity that owns nothing yet is a real state.
     const added = { slug: "second-co", name: "Second Co" };
+    const body = calls.find((c) => c.method === "PUT")!.body as { ops: { value: unknown }[] };
+    expect(body.ops[0]!.value).toEqual(added);
+    expect(body.ops[0]!.value).not.toHaveProperty("assets");
     expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({
       ops: [
         {

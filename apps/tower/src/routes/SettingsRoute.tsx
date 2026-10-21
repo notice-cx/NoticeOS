@@ -1076,6 +1076,7 @@ function EntitiesSection({ settings }: { settings: SettingsPayload }) {
           rows={entities.rows as unknown as JsonValue[]}
           // The asset list is read below and changed on the asset's own page.
           columns={["slug", "name", "form", "jurisdiction"]}
+          addFields={["slug", "name", "form", "jurisdiction"]}
           headed={false}
           slug="declare-an-entity"
           emptyHint="Sites have no owner"
