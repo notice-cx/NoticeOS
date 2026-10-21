@@ -25,6 +25,7 @@ import { publishExecutiveSnapshot } from './signal-insights-publish.mjs';
 import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
 import { BING_AI_INTEGRATION, BING_AI_REPORTS } from '../packages/contract/src/signal-families.mjs';
+import { archivePath, mergeManifest } from './signal-downloads.mjs';
 import { readJsonFile } from './json-file.mjs';
 import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
 
@@ -256,40 +257,7 @@ export function selectAssets(roster, options) {
   return roster.assets.filter((entry) => entry.enabled);
 }
 
-/** Where one archive lands on disk. Identical to the layout
- * scripts/signal-dumps-download.mjs writes, so the two are interchangeable. */
-export function archivePath(downloadsRoot, asset, row) {
-  return path.join(
-    downloadsRoot,
-    asset,
-    row.integration,
-    row.report,
-    `${row.reportDate}.json`,
-  );
-}
-
-/**
- * Merge this pass's manifest rows over whatever an earlier pass recorded, by
- * (integration, report, reportDate) with the newer row winning: the panel dir
- * keeps history the window no longer reaches, and dropping the old rows would
- * make the manifest claim the property has no history. `signals:download`
- * writes the same file with this rule.
- */
-export function mergeManifest(previous, current) {
-  const byKey = new Map();
-  for (const row of [...previous, ...current]) {
-    if (!row || typeof row !== 'object') continue;
-    const { integration, report, reportDate } = row;
-    if (typeof integration !== 'string' || typeof report !== 'string') continue;
-    if (typeof reportDate !== 'string') continue;
-    byKey.set(`${integration}\0${report}\0${reportDate}`, row);
-  }
-  return [...byKey.values()].sort((a, b) =>
-    `${a.reportDate}${a.integration}${a.report}`.localeCompare(
-      `${b.reportDate}${b.integration}${b.report}`,
-    ),
-  );
-}
+export { archivePath, mergeManifest } from './signal-downloads.mjs';
 
 /** RFC 4180 enough for the values this CSV carries (dates, ids, numbers). */
 function csvCell(value) {

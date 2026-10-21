@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { refreshAsset } from './signal-panels-refresh.mjs';
 import { DEFAULT_DOOR } from './ingest-door.mjs';
 import { archiveRows, manifestConfirmations, parseArchive, reportDayKey } from './signal-archive.mjs';
 import { readDownloadsManifest } from './signal-downloads.mjs';
@@ -271,4 +272,34 @@ test('nothing matched writes nothing at all', async () => {
 // reached only through its ingest: --remote reads nothing and says so.
 test('--remote is refused before anything is read', () => {
   assert.throws(() => parseArgs(['--asset', 'meadow.example', '--remote']), (error) => error.message === REMOTE_REFUSED);
+});
+
+
+test('manual download and refresh replace the same row at one path with identical bytes', async (t) => {
+  t.mock.method(console, 'log', () => {});
+  const { dir, options } = await scratch();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const { get } = stubDoor();
+  const manual = await downloadSignalDumps(options, { get, token: 'op' });
+  const destination = manual.files[0];
+  const original = await fs.readFile(destination, 'utf8');
+  await fs.writeFile(destination, '{"sentinel":true}\n');
+  const revised = { ...ROW, objectKey: 'signals/northwind.example/revised.json.gz' };
+  let historyInput;
+  await refreshAsset(options.asset, {
+    downloadsRoot: options.out, analysisRoot: path.join(dir, 'reports'),
+    historyRoot: path.join(dir, 'history'), door: options.door, publish: false,
+  }, {
+    token: 'op', windowDays: 35, freshnessMaxAgeDays: 7,
+    get: async (url) => new URL(url).pathname === '/api/panel-source'
+      ? { ok: true, json: async () => ({ asset: options.asset, manifest: [revised], trend: [] }) }
+      : { ok: true, text: async () => JSON.stringify(ARCHIVE) },
+    writeHistory: async ({ input }) => { historyInput = input; return { generation: 1 }; },
+    analyze: async () => ({}),
+  });
+  assert.equal(historyInput, path.dirname(path.dirname(path.dirname(destination))));
+  assert.equal(await fs.readFile(destination, 'utf8'), original);
+  const manifest = await readDownloadsManifest(path.join(options.out, options.asset));
+  assert.deepEqual(manifest.objects.map((row) => row.objectKey), [revised.objectKey]);
+  assert.deepEqual(await fs.readdir(path.dirname(destination)), ['2026-08-01.json']);
 });
