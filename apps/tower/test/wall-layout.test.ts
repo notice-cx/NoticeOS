@@ -134,9 +134,9 @@ describe("the default layout", () => {
     }
   });
 
-  it("stacks on a phone as the operator reads: the money, the sites, what is broken, the work and who did it, the loop last", () => {
+  it("stacks on a phone as the operator reads: the money, the sites, what is broken, what waits on the operator, the work and who did it, the loop last", () => {
     const order = [...WALL_WIDGET_TYPES].sort((a, b) => WALL_WIDGET_LIBRARY[a].stackOrder - WALL_WIDGET_LIBRARY[b].stackOrder);
-    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "agents", "feed", "loop", "health", "factory", "channels", "next"]);
+    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "next", "work", "agents", "feed", "loop", "health", "factory", "channels"]);
   });
 
   it("offers none of the retired widgets", () => {
@@ -158,10 +158,12 @@ describe("the founder views' presets", () => {
     expect(validateWallLayout(WALL_PRESETS[view])).toEqual({ ok: true, layout: WALL_PRESETS[view] });
   });
 
-  it("business: the strip, then site health over revenue beside Needs attention over the agents", () => {
+  it("business: the strip, Next up across the TV, then site health over revenue beside Needs attention over the agents", () => {
     const layout = WALL_PRESETS.business;
-    expect(layout.rows.map((r) => [r.id, r.height])).toEqual([["strip", "auto"], ["body", "fill"]]);
-    const [a, b] = row(layout, 1).widgets as WallColumn[];
+    expect(layout.rows.map((r) => [r.id, r.height])).toEqual([["strip", "auto"], ["next", "auto"], ["body", "fill"]]);
+    // Alone in its row, at the content's height: the TV's full width is where Next up is shortest.
+    expect(row(layout, 1).widgets).toEqual([{ id: "next", type: "next", width: 1 }]);
+    const [a, b] = row(layout, 2).widgets as WallColumn[];
     expect(a?.width).toBe(1.4);
     expect(a?.rows.flatMap((inner) => inner.widgets.map((w) => w.type))).toEqual(["health", "revenue"]);
     expect(b?.rows.flatMap((inner) => inner.widgets.map((w) => w.type))).toEqual(["needs", "factory"]);

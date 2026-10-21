@@ -588,8 +588,10 @@ channel" and "Next up" widgets stay in the widget library for an operator who
 wants them on the Wall.
 
 **Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
-"I run the business": the strip, then Site health over the revenue beside
-Needs attention over "The agents". "I build the product": the strip, then the
+"I run the business": the strip, "Next up" across the TV, then Site health
+over the revenue beside Needs attention over "The agents"; the decisions are
+the view's subject, and at the TV's full width "Next up" is at its shortest.
+"I build the product": the strip, then the
 revenue over "Visitors by channel" beside the site rows over the work.
 "Everything": the default above. With no layout saved, the TV and the editor
 draw the preset of the workspace default view (`config/tower.json` `/view`);
@@ -610,9 +612,9 @@ channel's visits and share, and under them the largest funnel drop across the
 sites. "Next up" shows the decisions waiting on the operator as one large
 figure with the oldest one's age, the top decision by name with its site and
 age, the next four as site marks with their ages, and beside them up to three
-tasks in progress, urgent first, over the week's done with its change chip; it
-is in no preset, and the payload carries it under `next`, from the newest task
-snapshot.
+tasks in progress, urgent first, over the week's done with its change chip;
+the business preset places it, and the payload carries it under `next`, from
+the newest task snapshot.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
 renders rows of thirteen widget types: the strip, the loop, revenue, the last 24
@@ -624,8 +626,8 @@ that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining
 height, and the one-column order a portrait tablet or a phone stacks into
 (`stackOrder`): the strip, revenue, the site rows, the last 24 hours, Needs
-attention, work, the agents' ranking, the feed, the loop, Site health, "The
-agents", "Visitors by channel" and "Next up". A layout with neither the site rows nor
+attention, "Next up", work, the agents' ranking, the feed, the loop, Site
+health, "The agents" and "Visitors by channel". A layout with neither the site rows nor
 Site health is warned "No sites on the TV", and one with none of the last 24
 hours, Needs attention or Site health "No alerts on the TV". The
 same validator runs on every path a layout can be written through, so the

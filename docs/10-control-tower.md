@@ -360,7 +360,8 @@ full height beside several ([doc 14](14-design.md) § Regions).
   sites, revenue, work, Needs attention, the feed, Agents, Site health, The
   agents, Visitors by channel and Next up; the default places the first six, the
   business and product presets place Site health, The agents and Visitors by
-  channel, and the rest are available for a layout that adds them.
+  channel, the business preset places Next up across the TV under the strip,
+  and the rest are available for a layout that adds them.
   Seven older types (alerts, portfolio net, System, clock, meetings,
   countdown, the asset cards) are **retired types**: a saved layout that names
   one is still read — never

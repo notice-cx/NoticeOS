@@ -61,7 +61,7 @@ While no TV layout is saved, the TV shows the preset of the workspace default vi
 
 | Workspace default | What the TV shows |
 |---|---|
-| **I run the business** | the strip, then **Site health** over **Revenue this month** on the left, beside **Needs attention** over **The agents · this week** on the right |
+| **I run the business** | the strip, then **Next up** across the screen, then **Site health** over **Revenue this month** on the left, beside **Needs attention** over **The agents · this week** on the right |
 | **I build the product** | the strip, then **Revenue this month** over **Visitors by channel** on the left, beside **Sites** over **Work this week** on the right |
 | **Everything** | the default layout |
 

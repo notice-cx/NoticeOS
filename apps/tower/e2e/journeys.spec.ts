@@ -1,9 +1,10 @@
 import { formatSeriesDate } from "../src/lib/format";
+import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
 import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
-import { wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
+import { WALL_PRESETS, wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
 import { WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFixturePayload, wallFixtureRealtime } from "./wall-fixture";
 import { WALL_FEED_OS } from "./wall-feed-fixture";
@@ -1369,6 +1370,115 @@ test.describe(() => {
         await page.screenshot({ path: testInfo.outputPath(`wall-budget-${width}-${variant}.png`), fullPage: width === 390 });
       }
     }
+  });
+
+  // The business view's preset, drawn with nothing saved: Next up across the
+  // TV under the strip, then Site health over revenue beside Needs attention
+  // over the agents' week. It fits 1920×1080 and every laptop `pnpm
+  // audit:wall-fit -- --viewports laptops` measures, by that tool's own
+  // function, with the fixture's longest task titles, healthy, on fire and
+  // with eight sites; on the TV every widget keeps its editor floor.
+  test("the business view's Wall fits the TV and every laptop with Next up across the top, cutting off no text", desktopOnly("walks the TV and laptop sizes itself"), async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const preset = WALL_PRESETS.business;
+    const widgets = wallLayoutWidgets(preset);
+    const scene = await wallScene(page, "six", { view: "business" });
+    for (const [width, height] of [[1920, 1080], [1280, 720], [1366, 768], [1440, 900], [1470, 830], [1512, 860], [1728, 1000]] as const) {
+      for (const variant of ["six", "fire", "eight"] as const) {
+        scene.variant = variant;
+        const at = `${variant} at ${width}×${height}`;
+        await openWall(page, [width, height]);
+        await expect(page.locator("#boot-splash")).toHaveCount(0);
+        await expect(page.locator("[data-wall-slot]")).toHaveCount(widgets.length);
+        const next = page.locator("[data-wall-next]");
+        await expect(next.locator("[data-next-then-item]")).toHaveCount(4);
+        await expect(next.locator("[data-next-working]")).toHaveCount(3);
+        await expect(page.locator("[data-wall-health-row]")).toHaveCount(wallFixturePayload(variant).assets.length);
+        await page.evaluate(() => document.fonts.ready);
+        // Each widget's box in the Wall's own pixels: a laptop zooms the TV's.
+        const boxes = await page.evaluate(() => {
+          const root = document.querySelector(".wall-root") as HTMLElement & { currentCSSZoom?: number };
+          const zoom = root.currentCSSZoom ?? 1;
+          return Object.fromEntries([...document.querySelectorAll("[data-wall-slot]")].map((slot) => {
+            const r = slot.firstElementChild!.getBoundingClientRect();
+            return [slot.getAttribute("data-wall-slot")!, { left: r.left / zoom, right: r.right / zoom, top: r.top / zoom, bottom: r.bottom / zoom, width: r.width / zoom, height: r.height / zoom }];
+          }));
+        });
+        expect(boxes.next!.top, `${at}: Next up under the strip`).toBeGreaterThanOrEqual(boxes.strip!.bottom);
+        for (const below of ["health", "needs"]) expect(boxes[below]!.top, `${at}: ${below} under Next up`).toBeGreaterThanOrEqual(boxes.next!.bottom);
+        expect(Math.abs(boxes.next!.left - boxes.health!.left), `${at}: Next up from the TV's left edge`).toBeLessThanOrEqual(1);
+        expect(Math.abs(boxes.next!.right - boxes.needs!.right), `${at}: Next up to the TV's right edge`).toBeLessThanOrEqual(1);
+        if (width === 1920) {
+          for (const widget of widgets) {
+            const floor = WALL_WIDGET_MIN_PX[widget.type];
+            const box = boxes[widget.type]!;
+            expect(box.width + 1, `${at}: ${widget.type} at least its floor's width`).toBeGreaterThanOrEqual(floor.width);
+            if (wallWidgetHeightIsGiven(preset, widget.id)) expect(box.height + 1, `${at}: ${widget.type} at least its floor's height`).toBeGreaterThanOrEqual(floor.height);
+          }
+        }
+        const measured = await page.evaluate(measureWallFit);
+        if ("error" in measured) throw new Error(`${at}: ${measured.error}`);
+        const verdict = wallFitVerdict(measured);
+        expect(verdict.fits, `${at}: past the screen by ${verdict.overWidth}×${verdict.overHeight} px: ${JSON.stringify(measured.worst)}`).toBe(true);
+        expect(measured.ink, `${at}: painting outside its own box`).toEqual([]);
+        expect(measured.clipped, `${at}: text cut off`).toEqual([]);
+        if (variant === "six") await page.screenshot({ path: testInfo.outputPath(`wall-business-${width}.png`) });
+      }
+    }
+  });
+
+  // Next up in a box exactly its editor floor on the TV: the five decisions
+  // and the three held tasks with the fixture's longest titles all drawn, in
+  // its two parts side by side, and nothing reaching past the box or cut off.
+  test("Next up on the Wall draws whole in a box of its floor on the TV", desktopOnly("the TV's geometry"), async ({ page }, testInfo) => {
+    await wallScene(page, "six", {
+      layout: {
+        version: 1,
+        rows: [
+          { id: "strip", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] },
+          { id: "body", height: "fill", widgets: [{ id: "next", type: "next", width: 1 }] },
+        ],
+      },
+    });
+    await openWall(page, [1920, 1080]);
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    const next = page.locator("[data-wall-next]");
+    await expect(next.locator("[data-next-then-item]")).toHaveCount(4);
+    await expect(next.locator("[data-next-working]")).toHaveCount(3);
+    await page.evaluate(() => document.fonts.ready);
+    const floor = WALL_WIDGET_MIN_PX.next;
+    const found = await next.evaluate(async (section, size) => {
+      section.style.width = `${size.width}px`;
+      section.style.height = `${size.height}px`;
+      section.style.alignSelf = "start";
+      section.style.justifySelf = "start";
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      const box = section.getBoundingClientRect();
+      const past = (r: DOMRect) => r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1;
+      const outside: string[] = [];
+      for (const el of section.querySelectorAll("*")) {
+        const r = el.getBoundingClientRect();
+        if (el.closest(".sr-only") || (r.width === 0 && r.height === 0)) continue;
+        if (past(r)) outside.push(`${el.tagName} ${(el.textContent ?? "").trim().slice(0, 40)}`);
+      }
+      const walker = document.createTreeWalker(section, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.nodeValue?.trim() || node.parentElement!.closest(".sr-only")) continue;
+        range.selectNodeContents(node);
+        if ([...range.getClientRects()].some((r) => r.width > 0 && past(r))) outside.push(`text ${node.nodeValue.trim().slice(0, 40)}`);
+      }
+      const decisions = section.querySelector("[data-next-decisions]")!.getBoundingClientRect();
+      const agents = section.querySelector("[data-next-agents]")!.getBoundingClientRect();
+      return { width: Math.round(box.width), height: Math.round(box.height), outside, sideBySide: agents.left >= decisions.right - 1 };
+    }, floor);
+    expect(found).toEqual({ width: floor.width, height: floor.height, outside: [], sideBySide: true });
+    const measured = await page.evaluate(measureWallFit);
+    if ("error" in measured) throw new Error(measured.error);
+    expect(measured.ink, "painting outside its own box").toEqual([]);
+    expect(measured.clipped, "text cut off").toEqual([]);
+    await next.screenshot({ path: testInfo.outputPath("wall-next-up-floor.png") });
   });
 });
 

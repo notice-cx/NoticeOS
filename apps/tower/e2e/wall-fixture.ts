@@ -11,7 +11,7 @@ import type {
 } from "@noticeos/contract";
 import { ga4MinuteBuckets } from "@noticeos/contract";
 import type {
-  AssetCard, AttentionItem, CardDataSource, PortfolioBand, SeriesPoint, SystemBand, WallPayload, WorkSummary,
+  AssetCard, AttentionItem, CardDataSource, PortfolioBand, SeriesPoint, SystemBand, WallNextUp, WallPayload, WorkSummary,
 } from "@shared/wall";
 import { weekMove, type WorkWeeks } from "@shared/work";
 
@@ -172,6 +172,34 @@ const ATTENTION = [{
 }] as AttentionItem[];
 
 /**
+ * Next up's two lists as the newest task snapshot gives them: the five
+ * decisions it lists at most (approvals first) and the three held tasks, the
+ * oldest decision older than the top one. Every title is a long one, 72 to 92
+ * characters, so Next up is drawn at its tallest.
+ */
+const NEXT: WallNextUp = {
+  decisions: [
+    { id: "pl-41", title: "Approve moving the newsletter sign-up above the fold on every recipe page before the launch", asset: "plume.example", ask: "approve", ageDays: 9, releases: 3 },
+    { id: "ac-5", title: "Approve the redirect map from the old atlas addresses to the new region pages", asset: "acorn.example", ask: "approve", ageDays: 2, releases: null },
+    { id: "mo-17", title: "Answer whether restaurant pages without a menu stay in the sitemap until a menu is added", asset: "mosaic.example", ask: "answer", ageDays: 12, releases: null },
+    { id: "la-8", title: "Choose the annual plan's pricing layout: one column of tiers or a comparison table", asset: "lantern.example", ask: "choose", ageDays: 4, releases: 1 },
+    { id: "ri-3", title: "Answer which search terms the index tracks in its first month of reports", asset: "ripple.example", ask: "answer", ageDays: 1, releases: null },
+  ],
+  oldestAgeDays: 12,
+  working: [
+    { id: "pl-44", title: "Restore the checkout button on the annual plan page after the payment script stopped loading", asset: "plume.example", who: "claude", sinceHours: 2, urgent: true },
+    { id: "mo-21", title: "Rewrite the restaurant pages' structured data so results show opening hours and price ranges", asset: "mosaic.example", who: "codex", sinceHours: 5, urgent: false },
+    { id: "la-11", title: "Compress every hero image on the blog index to bring its largest paint under two seconds", asset: "lantern.example", who: "Ada", sinceHours: 26, urgent: false },
+  ],
+  capturedAt: iso(9 * MINUTE),
+};
+
+/** Next up with only the decisions and held work of `ids`' sites. */
+function nextFor(ids: ReadonlySet<string>): WallNextUp {
+  return { ...NEXT, decisions: NEXT.decisions.filter((d) => ids.has(d.asset)), working: NEXT.working.filter((w) => ids.has(w.asset)) };
+}
+
+/**
  * The Wall at every size the contract budgets for, all from the six sites above:
  *
  *   one, two, three  the first one, two or three sites (the focus and roomier tiers)
@@ -235,14 +263,15 @@ export function wallFixturePayload(variant: WallFixtureVariant = "six"): WallPay
     generatedAt: iso(40_000), portfolio: PORTFOLIO, system: SYSTEM,
     dashboard: { countdown: { emoji: "🌁", label: "SF Trip", targetAt: new Date(NOW + 12 * DAY).toISOString() } },
     assets: ASSETS, attention: ATTENTION, snoozed: [],
-    operator: { waiting: 4, urgent: 1, measuredProjects: 6, urgentMeasuredProjects: 6, projectCount: 6, capturedAt: iso(9 * MINUTE) },
+    operator: { waiting: 7, urgent: 1, measuredProjects: 6, urgentMeasuredProjects: 6, projectCount: 6, capturedAt: iso(9 * MINUTE) },
+    next: NEXT,
     ledgerRecordedAt: iso(2 * DAY),
   } as WallPayload;
   const first = FIRST_SITES[variant];
   if (first) {
     const assets = ASSETS.slice(0, first);
     const ids = new Set(assets.map((asset) => asset.id));
-    return { ...base, assets, attention: ATTENTION.filter((item) => ids.has(item.asset)) };
+    return { ...base, assets, attention: ATTENTION.filter((item) => ids.has(item.asset)), next: nextFor(ids) };
   }
   if (variant === "fire") return { ...base, ...onFire() };
   return { ...base, assets: [...ASSETS, ...extraSites(variant)] };
