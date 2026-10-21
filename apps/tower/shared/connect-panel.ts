@@ -2,8 +2,8 @@
 // `connection-status.ts`; Checking lives in the panel alone, because it lasts
 // one call.
 
-import type { ConnectVerdict, IntegrationProvider } from "@noticeos/contract";
-import { acceptedAs, integrationProvider } from "@noticeos/contract/integrations";
+import type { ConnectVerdict, ConnectionFailure, IntegrationProvider } from "@noticeos/contract";
+import { acceptedAs, connectionFailureLabel, integrationProvider } from "@noticeos/contract/integrations";
 
 /** Does this provider connect in the one panel (the contract declares a kind)? */
 export function connectsInPanel(provider: Pick<IntegrationProvider, "connect">): boolean {
@@ -144,8 +144,10 @@ export type ConnectPhase =
 export function refusalLine(
   provider: Pick<IntegrationProvider, "label" | "fields" | "connect">,
   verdict: "refused" | "unreachable",
+  failure?: ConnectionFailure,
 ): string {
   const name = providerName(provider);
+  if (failure) return `${name}: ${connectionFailureLabel(failure)}`;
   if (verdict === "unreachable") return `No response from ${name}`;
   const typed = provider.fields.filter((field) => field.managed !== true).length;
   // Named for what was given, as the accepted chip is: an address is not a key.

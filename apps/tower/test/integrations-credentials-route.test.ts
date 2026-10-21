@@ -637,6 +637,17 @@ describe("POST /api/integrations/:provider/connect", () => {
     expect(connects).toEqual([{ provider: "bing-webmaster", fields: { BING_WEBMASTER_API_KEY: SECRET } }]);
   });
 
+  it("passes safe Cloudflare failure details through the connection route", async () => {
+    const failure = { kind: "http", status: 400, providerCode: 10000 } as const;
+    const { ingest } = stubIngest({ connect: { ok: true, verdict: "unreachable", checkedAt: NOW.toISOString(), failure } });
+    const request = connect({ fields: { CLOUDFLARE_ACCOUNT_ID: "a".repeat(32), CLOUDFLARE_API_TOKEN: SECRET } }, {}, "cloudflare");
+    const response = await handleIntegrationConnectRequest(request, new URL(request.url), ingest, "cloudflare");
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual({ verdict: "unreachable", checkedAt: NOW.toISOString(), failure });
+    expect(text).not.toContain(SECRET);
+  });
+
   it("keeps a refusal and an unreachable provider 200s — each is the answer", async () => {
     for (const verdict of ["refused", "unreachable"] as const) {
       const { ingest } = stubIngest({ connect: { ok: true, verdict, checkedAt: NOW.toISOString() } });
