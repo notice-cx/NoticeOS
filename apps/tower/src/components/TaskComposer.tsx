@@ -687,7 +687,7 @@ export function TaskComposer({
                 id={`${fieldId}-description`}
                 label="Description"
                 aside={
-                  <div role="group" aria-label="Description view" className="inline-flex items-center gap-0.5 rounded-md border border-border p-0.5">
+                  <div role="group" aria-label="Write or preview" className="inline-flex items-center gap-0.5 rounded-md border border-border p-0.5">
                     {[false, true].map((preview) => (
                       <button
                         key={String(preview)}
