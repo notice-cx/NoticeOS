@@ -179,8 +179,12 @@ function withWorkStatus(
   statuses: ReadonlyMap<string, string> = new Map(rows.map(task => [task.id, task.status])),
 ): BoardTask[] {
   return rows.map(task => ({ ...task, workStatus: task.status === "open" && (
-    blockedIds.has(task.id) || task.dependencies?.some(edge => blocks(edge)
-      && (statuses.get(edge.id) ?? edge.status) !== "closed")
+    blockedIds.has(task.id) || task.dependencies?.some(edge => {
+      if (!blocks(edge)) return false;
+      const status = statuses.get(edge.id) ?? edge.status;
+      // Ready confirms that an unlisted blocker closed outside the read window.
+      return status == null ? !task.ready : status !== "closed";
+    })
   ) ? "blocked" : task.status }));
 }
 
@@ -452,12 +456,14 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   const statusCounts = new Map<string, number>();
   const priorityCounts = new Map<string, number>();
   const assigneeCounts = new Map<string, number>();
-  for (const task of allTasks.filter(isWork)) {
+  for (const task of allTasks) {
+    // Assignees also filter the inbox, including people assigned only approvals.
+    if (task.assignee) assigneeCounts.set(task.assignee, (assigneeCounts.get(task.assignee) ?? 0) + 1);
+    if (!isWork(task)) continue;
     const status = STORED_TO_KEY.get(task.workStatus ?? task.status);
     if (status !== undefined) statusCounts.set(status, (statusCounts.get(status) ?? 0) + 1);
     const priority = PRIORITY_BANDS[clampBand(task.priority)]!;
     priorityCounts.set(priority, (priorityCounts.get(priority) ?? 0) + 1);
-    if (task.assignee) assigneeCounts.set(task.assignee, (assigneeCounts.get(task.assignee) ?? 0) + 1);
   }
   const inbox = projects.flatMap(project => project.waiting.map(task => ({ project, task })))
     .filter(row => matches(row.task)).sort((a, b) => inboxOrder(a.task, b.task));

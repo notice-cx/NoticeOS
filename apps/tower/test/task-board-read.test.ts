@@ -511,3 +511,36 @@ describe("work count parity", () => {
     expect(view.projects[0]!.totals.tasks).toBe(59);
   });
 });
+
+
+it.each([
+  { ready: true, status: null, blocked: 0 },
+  { ready: false, status: null, blocked: 1 },
+  { ready: true, status: "open", blocked: 1 },
+])("uses readiness for an unlisted blocker only when its status is unknown: %j", ({ ready, status, blocked }) => {
+  const live = liveTask({ ready, dependencies: [{ id: "outside-window", type: "blocks", title: null, status }] });
+  const saved = item({ dependencies: [{ id: "outside-window", type: "blocks", ...(status === null ? {} : { status }) }] });
+  const snapshot = payload({ projects: [project({ ready: ready ? [saved] : [], blocked: ready ? [] : [saved], inProgress: [],
+    counts: { ...project().counts, open: 1, blocked, ready: Number(ready), inProgress: 0, highPriority: 0 } })] });
+  for (const enabled of [true, false]) {
+    const view = read({ snapshot, capabilities: { live: enabled, reason: null },
+      reads: new Map([["meadow.example", success(board([live]))]]) });
+    expect(view.projects[0]!.stats).toMatchObject({ open: 1, blocked });
+    expect(view.statusCounts.get(blocked ? "blocked" : "open")).toBe(1);
+    expect(view.allTasks[0]!.ready).toBe(ready);
+  }
+});
+
+it.each([true, false])("keeps an assignee used only by approvals available to inbox filters (live=%s)", enabled => {
+  const approval = liveTask({ id: "md-approval", issueType: "gate", awaitType: "human", assignee: "owner" });
+  const snapshot = payload({ projects: [project({ ready: [], inProgress: [], waiting: [approval],
+    counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 1 } })] });
+  const options = { snapshot, capabilities: { live: enabled, reason: null },
+    reads: new Map([["meadow.example", success(board([approval]))]]) };
+  const view = read(options);
+  expect(view.assigneeCounts.get("owner")).toBe(1);
+  expect(view.statusCounts.size).toBe(0);
+  expect(view.totals.live).toBe(0);
+  expect(view.inbox.map(row => row.task.id)).toEqual(["md-approval"]);
+  expect(read({ ...options, filters: { ...filters, assignee: "owner" } }).inbox.map(row => row.task.id)).toEqual(["md-approval"]);
+});
