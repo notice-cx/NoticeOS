@@ -501,8 +501,8 @@ test('a close interrupted after it landed replays on a retry with the same key; 
   f.put('ex-work', { status: 'in_progress', assignee: AGENT }); f.put('ex-dep'); f.link('ex-work', 'ex-dep');
   const args = inProject({ task: 'ex-work', reason: 'Done in abc123', idempotency_key: 'close-work-0002' });
   f.failNext('close');
-  assert.equal(await f.refusal('close_task', args), 'unavailable: the task store did not complete this call, and nothing in the task\'s state '
-    + 'explains it. Retry the same call; with the same idempotency_key a change lands at most once.');
+  assert.equal(await f.refusal('close_task', args), 'unavailable: the task store client exited without success. '
+    + 'Retry the same call; with the same idempotency_key a change lands at most once.');
   assert.equal(f.tasks.get('ex-work').status, 'closed', 'the close landed although its answer was lost');
   const retried = (await f.call('close_task', args)).structuredContent;
   assert.deepEqual([retried.replayed, retried.task.status], [true, 'closed']);
