@@ -171,7 +171,7 @@ describe('moveAsset — the one write that changes a place', () => {
   it('changes no other site, keeps the same set of places, and a gap stays where it was', async () => {
     await created(['a.test']);
     // A refused create has used a place: the list now has a gap after a.test.
-    expect(await createAsset(env, { id: 'a.test', displayName: 'Again' }, NOW)).toEqual({ ok: false, error: 'asset_exists', asset: 'a.test', existingStatus: 'live' });
+    expect(await createAsset(env, { id: 'a.test', displayName: 'Again' }, NOW)).toEqual({ ok: false, error: 'asset_exists', asset: 'a.test', existingStatus: 'onboarding' });
     await created(['b.test', 'c.test']);
     const before = await places();
     expect(before.get('b.test')! - before.get('a.test')!).toBe(2);

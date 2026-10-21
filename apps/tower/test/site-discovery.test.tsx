@@ -285,13 +285,13 @@ describe("the sites and collect routes", () => {
     };
   };
 
-  it("answers the account's sites beside the portfolio's live assets and their saved mapping", async () => {
+  it("lists monitored sites with their derived stage and saved mapping", async () => {
     const binding = ingest(account([bingSite("https://journey.example/")]));
     const d = await deps(binding);
     const res = await handleSitesRequest(new Request("http://t/api/integrations/bing-webmaster/sites"), new URL("http://t/api/integrations/bing-webmaster/sites"), d, "bing-webmaster", "sites");
     const body = (await res.json()) as SitesPayload;
     expect(res.status).toBe(200);
-    expect(body.assets).toEqual([{ id: "journey.example", label: "Journey Example", domain: "journey.example", status: "live",
+    expect(body.assets).toEqual([{ id: "journey.example", label: "Journey Example", domain: "journey.example", status: "onboarding",
       cells: { "bing-webmaster": { status: "needs-setup", note: "", mapping: { siteUrl: "https://journey.example/" } } } }]);
     expect(body.spend).toBeNull();
     expect(body.domainMatch).toEqual(["bing-webmaster"]);
