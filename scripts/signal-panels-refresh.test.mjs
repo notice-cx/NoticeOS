@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   DEFAULT_DOOR,
   FRESHNESS_FILE,
+  localStabilityReport,
   REFRESH_DEFAULTS,
   TREND_FILE,
   archivePath,
@@ -680,4 +681,63 @@ test('refreshPanels: an explicitly empty or disabled roster never revives file d
     });
     assert.deepEqual(result, { results: [], failures: [] });
   }
+});
+
+
+test('local stability publishes repeated-provider evidence separately from successful collection', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'signal-stability-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const asset = 'meadow.example';
+  const manifest = [];
+  for (let day = 20; day <= 25; day++) {
+    const reportDate = `2026-09-${day}`;
+    const row = { integration: 'bing-webmaster', report: 'queries', reportDate, objectKey: reportDate };
+    manifest.push(row);
+    const archive = { schemaVersion: 1, asset, ...row, collectedAt: `${reportDate}T12:00:00Z`,
+      dataState: 'provider-snapshot', providerTruncated: false,
+      pages: [{ request: { method: 'GetQueryStats', siteUrl: 'https://meadow.example/' },
+        response: { d: [{ Date: '2026-09-01', Query: 'soup', Impressions: 500 }] } }] };
+    const file = archivePath(root, asset, row);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify(archive));
+  }
+  const report = await localStabilityReport(root, asset, manifest);
+  assert.equal(report.archivesRead, 4);
+  assert.deepEqual(report.families[0].comparisons.map((row) => row.state), ['repeated', 'repeated', 'repeated']);
+  assert.equal(report.families[0].latest.collectedAt, '2026-09-25T12:00:00Z');
+  assert.deepEqual(report.families[0].latest.providerDates, ['2026-09-01']);
+  const collection = { readAt: '2026-09-25T13:00:00Z', available: true, items: [{ asset, capability: 'bing-archive', report: 'queries',
+    reportDate: '2026-09-25', state: 'healthy', lastSuccessAt: '2026-09-25T12:00:00Z' }] };
+  const freshness = freshnessReport({ asset, manifest, maxAgeDays: 7, refreshedAt: '2026-09-25T13:00:00Z', collection });
+  assert.equal(freshness.families[0].collection.state, 'healthy');
+  assert.equal(freshness.fresh, true);
+
+  let published;
+  await realRefreshAsset(asset, { downloadsRoot: root, historyRoot: path.join(root, 'history'),
+    analysisRoot: path.join(root, 'reports'), door: 'http://door.test', publish: false }, {
+    token: 'fixture', windowDays: 35, freshnessMaxAgeDays: 7,
+    get: async (url) => new URL(url).pathname === '/api/panel-source'
+      ? { ok: true, json: async () => ({ asset, manifest, trend: [] }) }
+      : { ok: true, text: async () => fs.readFile(archivePath(root, asset, manifest.find((row) => row.reportDate === new URL(url).searchParams.get('key'))), 'utf8') },
+    writeHistory: async () => ({ generation: 1 }),
+    analyze: async ({ reportFiles }) => { published = reportFiles; return {}; },
+  });
+  const publishedEvidence = JSON.parse(published[FRESHNESS_FILE]).stability;
+  assert.equal(publishedEvidence.asset, asset);
+  assert.deepEqual(publishedEvidence.families[0].comparisons.map((row) => row.state), ['repeated', 'repeated', 'repeated']);
+});
+
+test('local stability bounds total archives and bytes, recording unavailable inputs as unknown', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'signal-stability-limits-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const asset = 'meadow.example';
+  const manifest = Array.from({ length: 70 }, (_, index) => ({ integration: 'gsc', report: `report-${index}`, reportDate: '2026-09-21' }));
+  const oversized = archivePath(root, asset, manifest[0]);
+  await fs.mkdir(path.dirname(oversized), { recursive: true });
+  await fs.writeFile(oversized, '{}');
+  await fs.truncate(oversized, 8 * 1024 * 1024 + 1);
+  const report = await localStabilityReport(root, asset, manifest);
+  assert.equal(report.archivesRead, 64);
+  assert.equal(report.families.length, 70);
+  assert.ok(report.families.every((family) => family.latest.comparisonKey === null));
 });

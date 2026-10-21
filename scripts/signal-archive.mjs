@@ -75,6 +75,8 @@
 // empty family is PostHog answering with no rows; a missing one is a family
 // nobody collected.
 
+import { createHash } from 'node:crypto';
+
 import {
   POSTHOG_FAMILIES as CONTRACT_POSTHOG_FAMILIES,
   POSTHOG_FAMILY_ROWS,
@@ -1241,5 +1243,92 @@ function baseRow(archive) {
     collected_at: string(archive.collectedAt),
     data_state: string(archive.dataState),
     provider_truncated: archive.providerTruncated === true,
+  };
+}
+
+/** Stable JSON preserves row multiplicity and every measured value. */
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (record(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
+function fingerprint(value) {
+  return createHash('sha256').update(canonical(value)).digest('hex');
+}
+
+const SNAPSHOT_REPORTS = new Set([
+  'bing-webmaster-feeds', 'bing-webmaster-crawl-issues',
+  'dataforseo-ranked-keywords', 'dataforseo-backlinks-summary',
+  'dataforseo-backlinks-referring-domains', 'dataforseo-backlinks-anchors',
+  'dataforseo-keyword-ideas', 'dataforseo-serp-competitors', 'dataforseo-serp-panel',
+]);
+
+function hasReportingWindow(value) {
+  if (Array.isArray(value)) return value.some(hasReportingWindow);
+  if (!record(value)) return false;
+  const complete = (start, end) => typeof start === 'string' && start !== '' && typeof end === 'string' && end !== '';
+  return complete(value.startDate, value.endDate) || complete(value.date_from, value.date_to)
+    || complete(record(value.window)?.start, record(value.window)?.end)
+    || Object.values(value).some(hasReportingWindow);
+}
+
+/** A collection's comparison evidence, independent of same-report-day replacement.
+ * Only known transport fields are discarded; query/resource/window fields stay. */
+export function archiveComparisonEvidence(archive) {
+  const family = archiveFamily(archive);
+  const pages = array(archive.pages);
+  const requests = pages.map((page) => {
+    const request = { ...record(page?.request) };
+    delete request.attempts;
+    return request;
+  });
+  const normalized = pages.map((page, index) => ({
+    request: requests[index],
+    rows: archiveRows({ ...archive, pages: [page] }, new Map()).map((row) => {
+      const result = { ...row };
+      for (const key of ['asset', 'report_date', 'collected_at', 'provider_cost_usd', 'provider_attempts']) delete result[key];
+      return canonical(result);
+    }).sort(),
+  }));
+  const allRows = archiveRows(archive, new Map());
+  const providerDates = [...new Set(allRows.map((row) => string(row.provider_date) || string(row.date)).filter(Boolean))].sort();
+  const resource = string(archive.propertyRef) || requests.map((request) =>
+    string(request.siteUrl) || string(request.property) || string(request.propertyId)
+      || string(request.projectId) || string(record(request.body)?.target),
+  ).filter(Boolean).sort().join('|');
+  // Undated daily/rolling reports cannot establish which period they measured.
+  const explicitWindow = requests.some(hasReportingWindow);
+  const comparable = allRows.length > 0 && pages.length > 0 && requests.every((request) => Object.keys(request).length > 0)
+    && Boolean(resource) && (providerDates.length > 0 || explicitWindow || SNAPSHOT_REPORTS.has(family));
+  return {
+    family,
+    reportDate: string(archive.reportDate),
+    collectedAt: string(archive.collectedAt),
+    providerDates,
+    comparisonKey: comparable ? fingerprint({ family, asset: archive.asset, resource,
+      requests: requests.map(canonical).sort(), providerDates,
+      dataState: archive.dataState ?? null, truncated: archive.providerTruncated ?? null }) : null,
+    resultHash: fingerprint(normalized.map(canonical).sort()),
+  };
+}
+
+/** At most four distinct report dates, newest first. Repetition is evidence
+ * about the provider answer, never evidence of collection failure. */
+export function comparablePeriodStability(readings) {
+  const byDate = new Map();
+  for (const reading of readings) byDate.set(reading.reportDate, reading);
+  const bounded = [...byDate.values()].sort((a, b) => b.reportDate.localeCompare(a.reportDate)).slice(0, 4);
+  const [latest, ...previous] = bounded;
+  if (!latest) return { latest: null, comparisons: [] };
+  return {
+    latest,
+    comparisons: previous.map((reading) => ({
+      reportDate: reading.reportDate, collectedAt: reading.collectedAt, providerDates: reading.providerDates,
+      comparisonKey: reading.comparisonKey, resultHash: reading.resultHash,
+      state: latest.comparisonKey === null || reading.comparisonKey === null ? 'unknown'
+        : latest.comparisonKey !== reading.comparisonKey ? 'noncomparable'
+        : latest.resultHash === reading.resultHash ? 'repeated' : 'changed',
+    })),
   };
 }
