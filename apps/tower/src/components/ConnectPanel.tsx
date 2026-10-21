@@ -275,7 +275,7 @@ export function ConnectPanel({
             data-connect-state={answer.verdict}
           >
             {answer.verdict === "refused" ? <TriangleAlert className="size-4 shrink-0" aria-hidden /> : <WifiOff className="size-4 shrink-0" aria-hidden />}
-            {refusalLine(provider, answer.verdict)}
+            {refusalLine(provider, answer.verdict, answer.failure)}
           </p>
         ) : failed ? (
           <p className="flex items-center gap-2 text-sm text-error" data-connect-state="failed">

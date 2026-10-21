@@ -8,6 +8,7 @@
 
 import type {
   ConnectCredentialResult,
+  ConnectionFailure,
   ConnectFacts,
   IntegrationProvider,
   PutCredentialInput,
@@ -36,8 +37,8 @@ export interface ConnectOptions {
 /** What the provider said about the details, before anything is stored. */
 export type CandidateAnswer =
   | { verdict: 'accepted'; facts: ConnectFacts }
-  | { verdict: 'refused' }
-  | { verdict: 'unreachable' };
+  | { verdict: 'refused'; failure?: ConnectionFailure }
+  | { verdict: 'unreachable'; failure?: ConnectionFailure };
 
 /**
  * `ok: true` carries the provider's verdict; `refused` and `unreachable` store
@@ -77,12 +78,12 @@ export async function connectCredential(
 
   // Mediavine's proof is a sign-in, so asking and keeping happen together
   // under its one lease; every other provider is asked, then stored.
-  const answer = provider.id === 'mediavine'
+  const answer: CandidateAnswer | Extract<ConnectCredentialResult, { ok: false }> = provider.id === 'mediavine'
     ? await connectMediavine(env, fields, options)
     : await askProvider(provider, fields, options.fetchImpl ?? fetch);
   if ('ok' in answer) return answer;
   const checkedAt = new Date(options.nowMs ?? Date.now()).toISOString();
-  if (answer.verdict !== 'accepted') return { ok: true, verdict: answer.verdict, checkedAt };
+  if (answer.verdict !== 'accepted') return { ok: true, verdict: answer.verdict, checkedAt, ...(answer.failure ? { failure: answer.failure } : {}) };
 
   if (provider.id !== 'mediavine') {
     const stored = await putCredential(env, { provider: provider.id, fields });
@@ -122,7 +123,12 @@ export async function askProvider(
       const databases = await listD1Databases(fields, fetchImpl);
       return { verdict: 'accepted', facts: { databases: databases.length, cloudflareD1: { accountId: fields.CLOUDFLARE_ACCOUNT_ID!, databases } } };
     }
-    catch (error) { return { verdict: error instanceof CloudflareD1Error && ['access_denied', 'invalid_configuration'].includes(error.code) ? 'refused' : 'unreachable' }; }
+    catch (error) {
+      return {
+        verdict: error instanceof CloudflareD1Error && ['access_denied', 'invalid_configuration'].includes(error.code) ? 'refused' : 'unreachable',
+        ...(error instanceof CloudflareD1Error && error.failure ? { failure: error.failure } : {}),
+      };
+    }
   }
   if (provider.id === 'bing-webmaster') return askBing(fields, fetchImpl);
   if (provider.id === 'dataforseo') return askDataForSeo(fields, fetchImpl);

@@ -554,6 +554,8 @@ describe('the account credit a card reports', () => {
     expect(probeLine({ outcome: 'answered', facts: { creditUsd: '1.005' } })).toBe('Answered · $1.01 credit');
     expect(probeLine({ outcome: 'answered', facts: { databases: 1 } })).toBe('Answered · 1 database');
     expect(probeLine({ outcome: 'answered', facts: { databases: 2 } })).toBe('Answered · 2 databases');
+    expect(probeLine({ outcome: 'unreachable', failure: { kind: 'dns' } })).toBe('No answer · Address lookup failed');
+    expect(probeLine({ outcome: 'refused', failure: { kind: 'http', status: 403, providerCode: 10000 } })).toBe('Refused · Request failed · HTTP 403 · Code 10000');
   });
 });
 
