@@ -33,8 +33,7 @@ let recordDemoSearchReports: SeedStep<{ reports: number }>;
 let recordDemoSiteChecks: SeedStep<{ checks: number; fired: number; pageSpeed: number }>;
 const scenario = generateDemoScenario({ seed: 'display-store', cutoff: '2026-10-01T07:00:00.000Z', release: 'a'.repeat(40) });
 
-// Compilation and the relational seed are integration-fixture preparation,
-// separately bounded on shared CI runners. The reader keeps its normal deadline.
+// Integration fixtures have bounded preparation; each reader keeps its normal deadline.
 beforeAll(async () => {
   const root = path.resolve(import.meta.dirname, '../../..');
   home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-demo-display-reader-')));
@@ -72,15 +71,20 @@ afterAll(async () => {
 
 describe('saved demo display readers', () => {
   let display: Awaited<ReturnType<typeof seedDemoDisplay>>;
+  let report: Observation;
   beforeAll(async () => {
     if (!home || !fixture) throw new Error('The disposable demo fixture is absent.');
     display = await seedDemoDisplay({ home, installation, scenario, capability, helpers });
+    report = await recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
   }, 30_000);
 
-  it('saved demo display and the released OS observer reach ordinary Wall readers without any scheduler evidence', async () => {
-    if (!home || !fixture) throw new Error('The disposable demo fixture is absent.');
+  it('saves the generated display with released helpers', () => {
     expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'insights', 'jobs', 'reports', 'snapshots', 'uptime', 'watch']);
     expect(display.documents).toEqual(generateDemoDisplay(scenario));
+  });
+
+  it('books each recurring bill at its configured amount', async () => {
+    if (!fixture) throw new Error('The disposable demo fixture is absent.');
     // Money names each operating bill by the label of the subscription it is
     // filed under, and books it at that subscription's declared amount.
     const recurringCosts = display.documents['config/recurring-costs.json'].costs;
@@ -90,11 +94,17 @@ describe('saved demo display readers', () => {
     expect(bills.map(line => [recurringCosts.find(cost => `recurring:${cost.id}` === line.source)?.label, line.amount, line.rows]).sort())
       .toEqual(recurringCosts.map(cost => [cost.label, cost.amountUsdPerMonth, 1]).sort());
     expect(recurringCosts.map(cost => cost.label)).toEqual(['Light Brief hosting', 'Pinwell hosting', 'Weeknight Pantry hosting', 'Trail Notes hosting', 'Fresh Rows hosting', 'App servers']);
-    const report = await recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
+  });
+
+  it('records OS observations without scheduler evidence', () => {
     expect(report.capabilities).not.toContain('cronRunSuccess');
     expect(Object.keys(report.metrics)).not.toContain('heartbeat');
     expect(report.metrics.pulsesReceived?.total).toBe(scenario.pulses.length);
     expect(report.metrics.ledgerRows?.total).toBe(scenario.ledger.length);
+  });
+
+  it('shows the saved display and OS observation on the Wall without scheduled jobs', async () => {
+    if (!fixture) throw new Error('The disposable demo fixture is absent.');
     const wall = await buildWallPayload(fixture.call, {
       now: new Date(scenario.manifest.cutoff), osTimeZone: 'UTC', constants: { dataUsd: 25 },
       integrations: { catalog: [], assets: {} }, pullConfig: [], serpPanel: { assets: {} },
@@ -116,10 +126,13 @@ describe('saved demo display readers', () => {
     }
     expect(configuredSites).toBe(5);
     expect(await fixture.call.read(tx => tx.query('SELECT count(*)::int AS jobs FROM noticeos.job_runs'))).toEqual([{ jobs: 0 }]);
+  });
+
+  it('rejects reseeding without changing configuration versions', async () => {
+    if (!home || !fixture) throw new Error('The disposable demo fixture is absent.');
     await expect(seedDemoDisplay({ home, installation, scenario, capability, helpers })).rejects.toThrow('existing exports');
     expect((await helpers.getConfigDocuments(capability, display.files)).every(document => document.version === 1)).toBe(true);
   });
-
 });
 
 describe('seeded search and site-check readers', () => {
@@ -131,13 +144,16 @@ describe('seeded search and site-check readers', () => {
     checks = await recordDemoSiteChecks(capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
   }, 30_000);
 
-  it('the seeded weekly reports and nightly site checks give every founder view its readings', async () => {
-    if (!fixture) throw new Error('The disposable demo fixture is absent.');
+  it('records weekly reports and first site-check readings', () => {
     expect(reports.reports).toBe(5);
     // First readings: nothing to compare with, so no alert.
     expect(checks.fired).toBe(0);
     // A week of nightly page speed for the four measured sites.
     expect(checks.pageSpeed).toBe(28);
+  });
+
+  it('shows weekly reports and site checks on the Wall', async () => {
+    if (!fixture) throw new Error('The disposable demo fixture is absent.');
     const wall = await buildWallPayload(fixture.call, {
       now: new Date(scenario.manifest.cutoff), osTimeZone: 'UTC', constants: { dataUsd: 25 },
       integrations: { catalog: [], assets: {} }, pullConfig: [], serpPanel: { assets: {} }, dashboard: {},
@@ -157,16 +173,18 @@ describe('seeded search and site-check readers', () => {
     expect(keys('weeknightpantry.example')).toContain('posthog-funnel-drop-recipe-to-sign-up');
     expect(keys('lightbrief.example')).toContain('ai-referral-floor');
     expect(keys('trailnotes.example')).toContain('concentration-risk');
+  });
+
+  it.each(scenario.assets.filter(asset => !asset.isOs))('shows $id site-check readings in its Health tab', async (site) => {
+    if (!fixture) throw new Error('The disposable demo fixture is absent.');
     // The site's Health tab: security headers, sitemap, crawlers and page speed.
     const deps = { now: new Date(scenario.manifest.cutoff), osTimeZone: 'UTC', flagDefaults: {}, monthlyCaps: { dataUsd: 25 }, operatorRateUsdPerMin: 2,
       integrations: { catalog: [], assets: {} }, counters: { assets: {} }, pullConfig: [], serpPanel: { assets: {} }, signalPanels: { assets: {} }, valueEvents: { assets: {} }, ga4EventParams: { assets: {} } };
-    for (const site of scenario.assets.filter(asset => !asset.isOs)) {
-      const hygiene = (await buildAssetDetailPayload(fixture.call, site.id, deps))?.hygiene;
-      expect(hygiene?.headers?.headers.filter(header => header.present).length, site.id).toBe(site.prefix === 'pw' ? 4 : 6);
-      expect(hygiene?.sitemap.latest?.status, site.id).toBe('ok');
-      expect(hygiene?.bots.length && hygiene.bots.every(bot => bot.allowed), site.id).toBe(true);
-      if (site.prefix === 'fr') expect(hygiene?.pageSpeed ?? null).toBeNull();
-      else expect(hygiene?.pageSpeed?.vitals?.lcp, site.id)[site.prefix === 'pw' ? 'toBeGreaterThan' : 'toBeLessThanOrEqual'](site.prefix === 'pw' ? 4000 : 2500);
-    }
+    const hygiene = (await buildAssetDetailPayload(fixture.call, site.id, deps))?.hygiene;
+    expect(hygiene?.headers?.headers.filter(header => header.present).length, site.id).toBe(site.prefix === 'pw' ? 4 : 6);
+    expect(hygiene?.sitemap.latest?.status, site.id).toBe('ok');
+    expect(hygiene?.bots.length && hygiene.bots.every(bot => bot.allowed), site.id).toBe(true);
+    if (site.prefix === 'fr') expect(hygiene?.pageSpeed ?? null).toBeNull();
+    else expect(hygiene?.pageSpeed?.vitals?.lcp, site.id)[site.prefix === 'pw' ? 'toBeGreaterThan' : 'toBeLessThanOrEqual'](site.prefix === 'pw' ? 4000 : 2500);
   });
 });
