@@ -40,16 +40,22 @@ function fixture(t, { scenarioVersion = 4, migrations = 'digest-one', installedD
   const log = path.join(dir, 'docker.log'), dockerRoot = path.join(dir, 'docker-root');
   fs.mkdirSync(dockerRoot);
   // Images and the containers that use them come from the environment; an
-  // image a container uses refuses removal, as Docker's does.
+  // image a container uses refuses removal, as Docker's does. A STUB_USED
+  // entry image@project stops being used once that project is taken down.
   fs.writeFileSync(path.join(stubs, 'docker'), `#!/bin/sh
 echo "$*" >> "$STUB_DOCKER_LOG"
+used() { for u in $STUB_USED; do p=\${u#*@}; [ "$p" != "$u" ] && grep -qxF "$p" "$STUB_DOCKER_LOG.down" 2>/dev/null && continue; echo "\${u%@*}"; done; }
 case "$*" in
   "info") exit 0 ;;
   "info --format {{.DockerRootDir}}") echo "$STUB_DOCKER_ROOT" ;;
   "image ls noticeos-demo --format {{.Repository}}:{{.Tag}}") for i in $STUB_IMAGES; do grep -qxF "$i" "$STUB_DOCKER_LOG.removed" 2>/dev/null || echo "$i"; done ;;
-  "ps -a --format {{.Image}}") for i in $STUB_USED; do echo "$i"; done ;;
-  "image rm "*) for i in $STUB_USED; do [ "$3" = "$i" ] && exit 1; done; echo "$3" >> "$STUB_DOCKER_LOG.removed" ;;
+  "ps -a --format {{.Image}}") used ;;
+  "image rm "*) used | grep -qxF "$3" && exit 1; echo "$3" >> "$STUB_DOCKER_LOG.removed" ;;
   *"up -d --wait app"*) case "$*" in *"-p $STUB_FAIL_PROJECT "*) exit 1 ;; esac ;;
+  *" down --volumes")
+    p=$(echo "$*" | sed -n 's/.* -p \\([^ ]*\\) .*/\\1/p')
+    case " $STUB_DOWN_FAIL " in *" $p "*) echo "cannot remove $p" >&2; exit 1 ;; esac
+    echo "$p" >> "$STUB_DOCKER_LOG.down" ;;
 esac
 exit 0
 `, { mode: 0o755 });
@@ -79,7 +85,8 @@ esac
       encoding: 'utf8', env: { PATH: `${stubs}:${process.env.PATH}`, HOME: dir, STUB_DOCKER_LOG: log, STUB_MAIN_SHA: NEW,
         STUB_ARCHIVE: path.join(dir, 'source.tar.gz'), STUB_OURS_VERSION: '4', STUB_OURS_MIGRATIONS: 'digest-one', STUB_FAIL_PROJECT: 'none',
         STUB_HEALTH_COUNT: path.join(dir, 'health.count'), STUB_HEALTH_FAIL_FIRST: '0',
-        STUB_DOCKER_ROOT: dockerRoot, STUB_DF_COUNT: path.join(dir, 'df.count'), STUB_DF_KB: String(50 * GIB), STUB_IMAGES: '', STUB_USED: '', ...env },
+        STUB_DOCKER_ROOT: dockerRoot, STUB_DF_COUNT: path.join(dir, 'df.count'), STUB_DF_KB: String(50 * GIB), STUB_IMAGES: '', STUB_USED: '',
+        STUB_DOWN_FAIL: '', ...env },
     });
     return { ...result, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : [] };
   };
@@ -88,7 +95,7 @@ esac
     setEnv: text => fs.writeFileSync(envFile, text) };
 }
 /** Housekeeping reads and removals, which the deploy steps below leave out. */
-const housekeeping = line => line === 'info' || /^(info --format|image ls|ps -a|image rm|builder prune)/u.test(line);
+const housekeeping = line => line === 'info' || /^(info --format|image ls|ps -a|image rm|builder prune|system df)/u.test(line);
 const compose = result => result.log.filter(line => !housekeeping(line) && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
 
 test('a compatible release swaps the app in place: build, image tag only, dolt before app, data kept', t => {
@@ -203,6 +210,17 @@ test("the operator's Statcounter line survives an in-place swap and a fresh gene
 const C = 'c'.repeat(40), D = 'd'.repeat(40), E = 'e'.repeat(40);
 const images = (...releases) => releases.map(release => `noticeos-demo:${release}`).join(' ');
 const removed = result => result.log.filter(line => line.startsWith('image rm ')).map(line => line.slice('image rm noticeos-demo:'.length));
+/** A generation an earlier fresh deploy left stopped, as update.sh writes it under generations/. */
+function stoppedGeneration(f, name) {
+  const dir = path.join(f.operator, 'generations', name);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'demo.env'), `NOTICEOS_DEMO_IMAGE=noticeos-demo:${C}\nNOTICEOS_DEMO_PROJECT=${name}\n`);
+  fs.writeFileSync(path.join(dir, 'compose.yaml'), 'services: {}\n');
+  return dir;
+}
+const downs = result => result.log.filter(line => / down --volumes$/u.test(line)).map(line => line.match(/ -p (\S+) /u)[1]);
+/** The env file of a running generation named `name`, seeded from OLD. */
+const running = (f, name) => f.setEnv(`NOTICEOS_DEMO_IMAGE=noticeos-demo:${OLD}\nNOTICEOS_DEMO_CONFIG=${f.operator}/demo.json\nNOTICEOS_DEMO_HTTP_PORT=16448\nNOTICEOS_DEMO_PROJECT=${name}\n`);
 
 test('after a healthy deploy the images no container uses go, except the new release and the one it replaced', t => {
   for (const options of [{}, { scenarioVersion: 5 }]) {
@@ -211,7 +229,7 @@ test('after a healthy deploy the images no container uses go, except the new rel
     const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD, NEW, C, D, E), STUB_USED: `noticeos-demo:${D}` });
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(removed(result), [C, E]);
-    assert.ok(result.log.includes('builder prune -f'), 'unused build cache goes too');
+    assert.ok(result.log.includes('builder prune --all --force'), 'all unused build cache goes too');
     assert.match(result.stdout, /removed unused image noticeos-demo:c+$/mu);
     assert.match(result.stdout, /^50\.0 GiB free for Docker$/mu);
     assert.ok(!result.log.some(line => /\bvolume\b|\bdown\b|^(rm|container rm|system prune)/u.test(line)), 'no volume or container is removed');
@@ -230,17 +248,89 @@ test('short of space, the update frees unused images before it builds', t => {
   assert.deepEqual(removed(result), [C, D], 'the running release stays, and nothing is removed twice');
 });
 
-test('still short after freeing, the update stops before building and names the purge of a stopped generation', t => {
+test('still short after removing images and stopped generations, the update stops before building and shows what Docker holds', t => {
   const f = fixture(t);
-  const stopped = path.join(f.operator, 'generations/demo-g1');
-  fs.mkdirSync(stopped, { recursive: true });
-  fs.writeFileSync(path.join(stopped, 'demo.env'), 'NOTICEOS_DEMO_PROJECT=demo-g1\n');
-  fs.writeFileSync(path.join(stopped, 'compose.yaml'), 'services: {}\n');
-  const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD), STUB_DF_KB: String(8 * GIB) });
+  const stopped = stoppedGeneration(f, 'demo-g1');
+  const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD, C), STUB_USED: `noticeos-demo:${C}@demo-g1`, STUB_DF_KB: String(8 * GIB) });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /still only 8\.0 GiB free for Docker; a build needs 12\.0\. Nothing was built or changed\./u);
-  assert.match(result.stderr, new RegExp(`-p demo-g1 -f ${stopped}/compose\\.yaml down --volumes`, 'u'));
-  assert.ok(!result.log.some(line => line.startsWith('build ') || line.startsWith('compose')), 'nothing was built or recreated');
-  assert.deepEqual(removed(result), [], 'the running release is never removed');
+  assert.match(result.stderr, /still only 8\.0 GiB free for Docker; a build needs 12\.0\. Nothing was built and the running demo is unchanged\./u);
+  assert.ok(result.log.includes('system df'), 'what Docker holds is shown');
+  assert.deepEqual(downs(result), ['demo-g1']); assert.ok(!fs.existsSync(stopped));
+  assert.deepEqual(removed(result), [C], 'the stopped generation\'s image goes; the running release never does');
+  assert.ok(!result.log.some(line => line.startsWith('build ') || /^compose .* (up|stop) /u.test(line)), 'nothing was built, started or stopped');
+  assert.ok(fs.existsSync(path.join(f.operator, 'generations/demo-preview/compose.yaml')), 'the running generation stays');
   assert.match(f.env(), new RegExp(`^NOTICEOS_DEMO_IMAGE=noticeos-demo:${OLD}$`, 'mu'));
+});
+
+test('a healthy fresh generation removes every stopped generation but the one it replaced, then their images', t => {
+  const f = fixture(t, { scenarioVersion: 5 });
+  running(f, 'demo-g3');
+  const g2 = stoppedGeneration(f, 'demo-g2'), preview = stoppedGeneration(f, 'demo-preview');
+  const result = f.run(['--commit', NEW], {
+    STUB_IMAGES: images(OLD, NEW, D, E), STUB_USED: `noticeos-demo:${OLD}@demo-g3 noticeos-demo:${D}@demo-g2 noticeos-demo:${E}@demo-preview`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`demo now runs ${NEW} as generation demo-g4$`, 'mu'));
+  assert.deepEqual(downs(result).sort(), ['demo-g2', 'demo-preview']);
+  assert.ok(!fs.existsSync(g2) && !fs.existsSync(preview), 'their folders go after Docker removed them');
+  assert.ok(fs.existsSync(path.join(f.operator, 'generations/demo-g3/demo.env')), 'the replaced generation stays for a rollback');
+  assert.ok(fs.existsSync(path.join(f.operator, 'generations/demo-g4/demo.json')), 'the new generation stays');
+  assert.match(result.stdout, /previous generation demo-g3 stays stopped with its volumes until the next update/u);
+  assert.match(result.stdout, /-p demo-g3 -f \S+ down --volumes$/mu, 'the command that removes it sooner is printed');
+  assert.deepEqual(removed(result).sort(), [D, E].sort(), 'freed images go; the replaced release stays');
+  const purge = result.log.findIndex(line => / down --volumes$/u.test(line));
+  const app = result.log.findIndex(line => /-p demo-g4 .*up -d --wait app/u.test(line));
+  assert.ok(app >= 0 && purge > app, 'nothing is removed before the new generation is up');
+});
+
+test('a healthy compatible swap removes every stopped generation, never the running one', t => {
+  const f = fixture(t);
+  running(f, 'demo-g2');
+  const preview = stoppedGeneration(f, 'demo-preview');
+  const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD, NEW, D), STUB_USED: `noticeos-demo:${D}@demo-preview` });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /compatible release/u);
+  assert.deepEqual(downs(result), ['demo-preview']); assert.ok(!fs.existsSync(preview));
+  assert.match(result.stdout, /^removed stopped generation demo-preview with its volumes$/mu);
+  assert.ok(fs.existsSync(path.join(f.operator, 'generations/demo-g2/compose.yaml')), 'the running generation stays');
+  assert.deepEqual(removed(result), [D]);
+});
+
+test('short of space, stopped generations go before the build when removing images is not enough', t => {
+  const f = fixture(t);
+  running(f, 'demo-g2');
+  const g1 = stoppedGeneration(f, 'demo-g1');
+  const result = f.run(['--commit', NEW], {
+    STUB_IMAGES: images(OLD, D), STUB_USED: `noticeos-demo:${D}@demo-g1`,
+    STUB_DF_KB_1: String(8 * GIB), STUB_DF_KB_2: String(9 * GIB), STUB_DF_KB_3: String(16 * GIB),
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^9\.0 GiB free for Docker: removing stopped generations$/mu);
+  assert.match(result.stdout, /^16\.0 GiB free now$/mu);
+  const purge = result.log.findIndex(line => / down --volumes$/u.test(line));
+  const build = result.log.findIndex(line => line.startsWith('build '));
+  assert.ok(purge >= 0 && purge < build, 'the stopped generation goes before the build');
+  assert.ok(!fs.existsSync(g1)); assert.deepEqual(removed(result), [D]);
+  assert.ok(fs.existsSync(path.join(f.operator, 'generations/demo-g2/compose.yaml')), 'the running generation stays');
+});
+
+test('a stopped generation Docker cannot remove keeps its folder and names the command to remove it', t => {
+  const f = fixture(t);
+  running(f, 'demo-g3');
+  const g1 = stoppedGeneration(f, 'demo-g1'), g2 = stoppedGeneration(f, 'demo-g2');
+  const result = f.run(['--commit', NEW], { STUB_DOWN_FAIL: 'demo-g1' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(fs.existsSync(path.join(g1, 'demo.env')) && !fs.existsSync(g2));
+  assert.match(result.stderr, /cannot remove demo-g1\ncould not remove stopped generation demo-g1; to remove it by hand:\n.*-p demo-g1 -f \S+ down --volumes$/mu);
+});
+
+test('a fresh generation that fails health removes no stopped generation', t => {
+  const f = fixture(t, { scenarioVersion: 5 });
+  running(f, 'demo-g3');
+  const g2 = stoppedGeneration(f, 'demo-g2');
+  const result = f.run(['--commit', NEW], { STUB_FAIL_PROJECT: 'demo-g4' });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /the volumes of demo-g4 are kept for diagnosis until the next update/u);
+  assert.deepEqual(downs(result), []);
+  assert.ok(fs.existsSync(g2) && fs.existsSync(path.join(f.operator, 'generations/demo-g4/demo.env')));
 });
