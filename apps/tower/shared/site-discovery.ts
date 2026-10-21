@@ -83,7 +83,8 @@ export interface SiteLane {
   state: SiteLaneState;
   /** The site this lane would be collected from, before any pick. */
   site: DiscoveredSite | null;
-  /** Ready sites of this lane that no asset claims, for an unlisted row. */
+  /** Ready sites of this lane that no asset claims, including manual picks
+   * retained when a refreshed list offers a new domain suggestion. */
   choices: DiscoveredSite[];
   /** The register's mapping fields as held now; null when there is no cell. */
   saved: Record<string, string | number> | null;
@@ -187,7 +188,7 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
     const excluded = exclusionOf(asset, lanes, kind, listed);
     const siteLanes: SiteLane[] = entries.map((entry) => ({
       ...entry,
-      choices: entry.state === "unlisted" && kind === "account" ? unclaimed.filter((site) => site.lane === entry.lane && site.ready) : [],
+      choices: kind === "account" ? unclaimed.filter((site) => site.lane === entry.lane && site.ready) : [],
     }));
     const collectable = excluded === null && siteLanes.some((lane) => lane.site !== null && lane.site.ready);
     const suggested = siteLanes.some((lane) => lane.state === "mapped" || lane.state === "matched" || lane.state === "listed");
@@ -221,6 +222,36 @@ export function initialSelection(plan: SitePlan): SiteSelection {
   return { checked: new Set(plan.rows.filter((row) => row.checked).map((row) => row.asset.id)), picks: {}, declined: {} };
 }
 
+/** Only explicit operator choices; absent rows follow the latest suggestions. */
+export interface SiteChoices {
+  checked: Readonly<Record<string, boolean>>;
+  picks: SiteSelection["picks"];
+  declined: NonNullable<SiteSelection["declined"]>;
+}
+
+/** Rebase unsaved choices on the current list and register guards. A lost
+ * manual option unticks its row so a replacement needs confirmation. */
+export function reconcileSiteChoices(plan: SitePlan, previous: SiteChoices): { choices: SiteChoices; selection: SiteSelection } {
+  const checked: Record<string, boolean> = {};
+  const picks: Record<string, Record<string, string>> = {};
+  const declined: Record<string, string> = {};
+  for (const row of plan.rows) {
+    const id = row.asset.id;
+    if (previous.checked[id] !== undefined) checked[id] = previous.checked[id];
+    if (previous.declined[id] !== undefined) declined[id] = previous.declined[id];
+    for (const [laneId, ref] of Object.entries(previous.picks[id] ?? {})) {
+      const lane = row.lanes.find((entry) => entry.lane === laneId);
+      const available = lane && [lane.site, ...lane.choices].some((site) => site?.ref === ref && site.ready);
+      if (row.excluded === null && available) (picks[id] ??= {})[laneId] = ref;
+      else checked[id] = false;
+    }
+  }
+  const selection: SiteSelection = { checked: new Set(), picks, declined };
+  selection.checked = new Set(plan.rows.filter((row) =>
+    (checked[row.asset.id] ?? row.checked) && rowCollectable(row, selection)).map((row) => row.asset.id));
+  return { choices: { checked, picks, declined }, selection };
+}
+
 /**
  * What one row will come to when Start is pressed:
  *  - `collect`    — ticked: its mapping saved and its first collection run now;
@@ -245,7 +276,7 @@ export function rowDecision(row: SiteRow, selection: SiteSelection): RowDecision
 /** The site a row's lane will be collected from under the current selection. */
 export function chosenSite(row: SiteRow, lane: SiteLane, selection: SiteSelection): DiscoveredSite | null {
   const pick = selection.picks[row.asset.id]?.[lane.lane];
-  if (pick !== undefined) return lane.choices.find((site) => site.ref === pick) ?? null;
+  if (pick !== undefined) return [lane.site, ...lane.choices].find((site) => site?.ref === pick && site.ready) ?? null;
   return lane.site !== null && lane.site.ready ? lane.site : null;
 }
 
