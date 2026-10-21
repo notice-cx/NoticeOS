@@ -109,6 +109,8 @@ export type HostedTaskOperation = TaskMaintenance | {
     readonly description?: string;
     readonly type?: HostedTaskType;
     readonly priority?: number;
+    /** Internal filing deadline; public parsers expose only the card kill date. */
+    readonly due?: string;
     readonly labels?: readonly string[];
     readonly parent?: string;
     readonly acceptance?: string;

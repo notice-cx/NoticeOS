@@ -426,7 +426,7 @@ function command(input) {
         }
         case 'create': {
             keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'card',
-                'changeClass', 'model', 'operationId', 'filedBy']);
+                'changeClass', 'model', 'operationId', 'filedBy', 'due']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
                 argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
@@ -449,7 +449,10 @@ function command(input) {
             if (Object.hasOwn(op, 'acceptance'))
                 argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
             // A card's kill date is also the task's due date.
-            const due = Object.hasOwn(op, 'card') ? cardOf(op.card).kill?.date : undefined;
+            const due = Object.hasOwn(op, 'card') ? cardOf(op.card).kill?.date : op.due;
+            if (Object.hasOwn(op, 'due') && (typeof op.due !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(op.due)
+                || !Number.isFinite(Date.parse(op.due)) || new Date(op.due).toISOString().slice(0, 10) !== op.due))
+                invalid();
             if (due !== undefined)
                 argv.push(`--due=${due}`);
             // In the create itself, so a task, its filer, its choices and its card land together.

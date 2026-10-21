@@ -100,7 +100,9 @@ export type HostedTaskOperation =
   | { readonly kind: 'active-board'; readonly statuses: readonly Exclude<HostedTaskStatus, 'closed'>[] }
   | { readonly kind: 'closed-board'; readonly since: string; readonly until: string }
   | { readonly kind: 'create'; readonly title: string; readonly description?: string;
-      readonly type?: HostedTaskType; readonly priority?: number; readonly labels?: readonly string[];
+      readonly type?: HostedTaskType; readonly priority?: number;
+      /** Internal filing deadline; public parsers expose only the card kill date. */
+      readonly due?: string; readonly labels?: readonly string[];
       readonly parent?: string; readonly acceptance?: string; readonly metadata?: Readonly<Record<string, string>>;
       readonly links?: readonly HostedTaskLink[];
       /** The options a person picks from, kept on the task (task-choices.mts). */
@@ -499,7 +501,7 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
     }
     case 'create': {
       keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'card',
-        'changeClass', 'model', 'operationId', 'filedBy']);
+        'changeClass', 'model', 'operationId', 'filedBy', 'due']);
       argv.push('create');
       if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'type')) argv.push(`--type=${choice(op.type, TYPES)}`);
@@ -514,7 +516,9 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       if (Object.hasOwn(op, 'links')) argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
       // A card's kill date is also the task's due date.
-      const due = Object.hasOwn(op, 'card') ? cardOf(op.card).kill?.date : undefined;
+      const due = Object.hasOwn(op, 'card') ? cardOf(op.card).kill?.date : op.due;
+      if (Object.hasOwn(op, 'due') && (typeof op.due !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(op.due)
+        || !Number.isFinite(Date.parse(op.due)) || new Date(op.due).toISOString().slice(0, 10) !== op.due)) invalid();
       if (due !== undefined) argv.push(`--due=${due}`);
       // In the create itself, so a task, its filer, its choices and its card land together.
       if (['metadata', 'operationId', 'filedBy', 'model', ...FIELD_METADATA.map(([field]) => field)].some(key => Object.hasOwn(op, key))) {

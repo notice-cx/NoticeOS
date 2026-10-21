@@ -8,9 +8,13 @@ export { PANEL_REVIEW_LABEL, INVALID_PANEL_REVIEW_LABEL, PANEL_REVIEW_ASSET_KEY,
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { checkoutRelative, installationPath } from '../installation.mjs';
-import { PANEL_FRESHNESS_FILE, panelReportPath, panelReportRelativePath } from '../signal-panel-paths.mjs';
+import { PANEL_FRESHNESS_FILE, PANEL_REPORTS_ROOT, panelReportPath, panelReportRelativePath } from '../signal-panel-paths.mjs';
 import { isPanelVersion } from '../panel-versions.mjs';
 import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
+import { openStandaloneTasks, ACTOR_HEADER } from '../standalone-mcp.mjs';
+import { standaloneProjectId } from '../standalone-tasks.mjs';
+import { LOCAL_CONNECTION_VARIABLE } from '../database-address.mjs';
+import { createHash } from 'node:crypto';
 import { CONFIG, HOME_ROOT, OS_CHECKOUT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
@@ -24,7 +28,6 @@ import {
   readBeadsList,
   readBeadsProjects,
   runBd,
-  runBeadsStep,
 } from './task-hub.mjs';
 
 // Panel-review filer — once an hour the runner asks ingest which
@@ -93,9 +96,10 @@ export function parsePanelLandings(body) {
 
 /** The published panel's freshness.json for a property, or null when no
  * refresh has published one. */
-export async function readPublishedFreshness(asset) {
+export async function readPublishedFreshness(asset, version = null, root = PANEL_REPORTS_ROOT) {
+  if (version !== null && !isPanelVersion(version)) throw new Error('Invalid published panel version.');
   try {
-    return JSON.parse(await fs.readFile(path.join(panelReportPath(asset), PANEL_FRESHNESS_FILE), 'utf8'));
+    return JSON.parse(await fs.readFile(path.join(version ? path.join(`${panelReportPath(asset, root)}.reports`, version) : panelReportPath(asset, root), PANEL_FRESHNESS_FILE), 'utf8'));
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     throw error;
@@ -104,9 +108,9 @@ export async function readPublishedFreshness(asset) {
 
 /** The published panel version the property's link names now, or null. A
  * review records it, so its reader opens the evidence it was filed on. */
-export async function readPublishedVersion(asset) {
+export async function readPublishedVersion(asset, root = PANEL_REPORTS_ROOT) {
   try {
-    const version = path.basename(await fs.readlink(panelReportPath(asset)));
+    const version = path.basename(await fs.readlink(panelReportPath(asset, root)));
     return isPanelVersion(version) ? version : null;
   } catch {
     return null;
@@ -320,6 +324,26 @@ export function panelReviewCreateArgs(repoDir, landing) {
   });
 }
 
+/** A collection's create uses the same durable receipts and mutation reservation
+ * as MCP. The key names the project and day, never the current panel version. */
+export async function filePanelReview(project, landing, { open = openStandaloneTasks } = {}) {
+  const tasks = await open({ databaseUrl: process.env[LOCAL_CONNECTION_VARIABLE] ?? '' });
+  try {
+    const projectId = standaloneProjectId(project.database);
+    const key = 'panel-review:' + createHash('sha256').update(`${projectId}\0${landing.panelDate}`).digest('hex');
+    const proof = new Request('http://localhost/api/mcp', { method: 'POST', headers: { [ACTOR_HEADER]: PANEL_REVIEW_ACTOR } });
+    const outcome = await tasks.operations.write(proof, tasks.workspaceId, { projectId, operation: {
+      kind: 'create', title: panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false),
+      type: 'task', priority: 2, labels: [PANEL_REVIEW_LABEL], due: panelReviewDueDate(landing.panelDate),
+      metadata: { [PANEL_REVIEW_ASSET_KEY]: landing.asset, [PANEL_REVIEW_DATE_KEY]: landing.panelDate,
+        ...(landing.version ? { [PANEL_REVIEW_VERSION_KEY]: landing.version } : {}) },
+      description: panelReviewDescription(landing), acceptance: panelReviewAcceptance(landing.panel !== false),
+    } }, key);
+    if (outcome.status !== 'done') throw new Error(`Review filing ${outcome.status}; retry this collection unchanged.`);
+    return outcome.value?.id ?? null;
+  } finally { await tasks.close(); }
+}
+
 /** The panel filer's name for the same reader, kept because this lane's
  * vocabulary block is a contract other readers navigate by name. */
 export const panelReviewCreatedId = beadsCreatedId;
@@ -340,6 +364,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     readConfig = () => readTaskProjectConfig({ repoRoot: HOME_ROOT }),
     readToken = operatorToken,
     run = runBd,
+    createReview = filePanelReview,
     get = fetch,
     readPublished = readPublishedFreshness,
     readVersion = readPublishedVersion,
@@ -411,9 +436,10 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     checked += 1;
     if (panelReviewAlreadyFiled(existing.rows, landing.panelDate)) continue;
 
+    const version = await readVersion(landing.asset).catch(() => null);
     let gap;
     try {
-      gap = panelPublicationGap(await readPublished(landing.asset), landing);
+      gap = panelPublicationGap(await readPublished(landing.asset, version), landing);
     } catch (err) {
       emit('ERROR', `panel review: ${landing.asset} — the published panel is unreadable: ${err.message}`);
       continue;
@@ -433,18 +459,12 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     waiting.delete(collection);
 
-    const version = await readVersion(landing.asset).catch(() => null);
-    const created = await runBeadsStep(
-      run,
-      panelReviewCreateArgs(repoDir, { ...landing, version }),
-      'create',
-      'panel review create',
-    );
-    if (created.failure) {
-      emit('ERROR', `panel review: ${landing.asset} — ${created.failure}`);
+    let beadId;
+    try { beadId = await createReview(project, { ...landing, version }); }
+    catch (error) {
+      emit('ERROR', `panel review: ${landing.asset} — review create failed: ${error.message}`);
       continue;
     }
-    const beadId = panelReviewCreatedId(created.result.stdout);
     filed.push({ asset: landing.asset, panelDate: landing.panelDate, beadId });
     emit(
       'INFO',
