@@ -18,7 +18,7 @@
 | `os:dev` | Run the app from this checkout's live source; edits refresh it. | `scripts/stack-development.mjs` |
 | `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
-| `os:run-job` | Fire the jobs scheduled on one cron expression now. | `scripts/stack-control.mjs run-job` |
+| `os:run-job` | Run one allowed local job with `--id <job-id>`, or fire one cron expression now. | `scripts/stack-control.mjs run-job` |
 | `os:collect` | Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
@@ -196,6 +196,7 @@ pnpm os:restart               # the whole stack, in dependency order, waiting fo
 pnpm os:capacity              # store size and growth per table, read-only
 pnpm os:backup                # one full backup now (Postgres + R2 + hub, then offsite)
 pnpm os:run-job -- "0 * * * *"   # fire the jobs scheduled on one cron expression now
+pnpm os:run-job -- --id panel-refresh   # rebuild local research summaries now
 pnpm os:collect -- --asset example.com --families posthog-events   # one site's report families now
 ```
 
@@ -206,6 +207,36 @@ its scheduler armed; a configured backup worker answers; and the Tower and
 the ingest door both answer inside the container
 (`deploy/compose/health.mjs`). Status never exposes credentials, addresses or
 raw database errors.
+
+### Run one local job now
+
+`pnpm os:run-job -- --id <job-id>` runs exactly the named local job inside the
+app container through the running scheduler. Supported IDs are `panel-refresh`,
+`panel-review`, `beads-snapshot`, `beads-hub`, `task-map` and `watch-readbacks`.
+Unknown IDs, provider jobs and `backup` are rejected; backups use `pnpm os:backup`.
+The existing quoted cron invocation continues to dispatch ingest schedules.
+
+For example, after an approved collection, run
+`pnpm os:run-job -- --id panel-refresh` to rebuild the summaries that `get_panel`
+reads from already collected archives. This runs no other job and changes no
+schedule. The job's existing implementation determines its work and prerequisites.
+
+In the Tower, open **System health → Background operations → Local research
+summaries**, then select **Run now**. Each supported job's detail page has the
+same action; **Search review tasks** is under **Workflows**. The action displays
+progress and the result, then refreshes execution history. Local jobs are
+available only when the installation's runner advertises them; demo and hosted
+views do not expose this standalone control.
+
+Manual execution refreshes saved settings first and rejects a paused job, a
+job already running, unavailable settings, an unavailable runtime or shutdown.
+Manual, scheduled, startup recovery and first-snapshot runs share the scheduler's
+exclusion. Requests enter the supervisor through a private Unix socket in
+`.local/runner-jobs.sock`; they start no second scheduler. Jobs keep their
+existing execution records, workflow traces and error logs; manual traces are
+marked **Manual**. The command exits nonzero for rejection, failure or a skipped
+run. If a caller disconnects or times out, an accepted job retains exclusion
+until its execution finishes; check its history before retrying.
 
 ## Shared configuration code
 

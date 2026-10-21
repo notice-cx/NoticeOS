@@ -215,6 +215,7 @@ pnpm os:restart      # the whole stack in dependency order, waiting for health
 pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
+pnpm os:run-job -- --id panel-refresh   # run exactly this local job through the live scheduler
 pnpm os:collect -- --asset example.com --families posthog-events   # one site's report families now; DataForSEO calls are billed
 pnpm os:capacity     # the store's size and growth per table; -- --json
 pnpm os:mcp          # at a terminal, the line that connects an agent to the Tower's /api/mcp; run by an agent, the same server over stdio; -- --actor <name>
@@ -223,6 +224,9 @@ pnpm os:bd -- ready  # the task tool, inside the app; -- --project <prefix> pick
 
 Without a checkout, run each as `~/noticeos/noticeos <command>`, with the same
 options and no `--` ([above](#install-with-docker-alone)).
+For example, `~/noticeos/noticeos run-job --id panel-refresh` rebuilds local
+research summaries. The supported IDs, Tower action and refusal behavior are
+documented in [Run one local job now](../../scripts/README.md#run-one-local-job-now).
 
 Start, stop and restart never create containers, build or pull images, apply
 migrations or remove volumes. A failed step stops the sequence; read status

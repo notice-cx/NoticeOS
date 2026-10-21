@@ -1619,6 +1619,21 @@ async function fetchWorkflowsRequest(fetch: ApiTransport, runId?: string, signal
   if (!response.ok) throw new ApiError(`GET /api/workflows failed: ${response.status}`, response.status);
   return response.json() as Promise<WorkflowsPayload>;
 }
+async function runLocalJobRequest(fetch: ApiTransport, id: string): Promise<{ job: string; outcome: string }> {
+  const response = await fetch('/api/workflows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+  const result = await response.json() as { job: string; outcome: string; error?: string };
+  if (!response.ok) {
+    const messages: Record<string, string> = {
+      job_busy: 'This job is already running.',
+      job_paused: 'Resume the schedule before running this job.',
+      runner_unavailable: 'The runner is unavailable. Check system health.',
+      job_unavailable: 'The runner is unavailable. Check system health.',
+      local_job_not_allowed: 'This job cannot be run here.',
+    };
+    throw new Error(messages[result.error ?? ''] ?? 'The job failed. Check its latest run.');
+  }
+  return result;
+}
 async function fetchInstallationRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<InstallationFacts> {
   const response = await fetch('/api/installation', { signal });
   if (!response.ok) throw new ApiError(`GET /api/installation failed: ${response.status}`, response.status);
@@ -1671,6 +1686,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     syncMediavine: bind(syncMediavineRequest),
     saveMediavineSettings: bind(saveMediavineSettingsRequest),
     fetchWorkflows: bind(fetchWorkflowsRequest),
+    runLocalJob: bind(runLocalJobRequest),
     fetchInstallation: bind(fetchInstallationRequest),
     fetchWall: bind(fetchWallRequest),
     fetchWallFeed: bind(fetchWallFeedRequest),
@@ -1745,6 +1761,7 @@ export const {
   syncMediavine,
   saveMediavineSettings,
   fetchWorkflows,
+  runLocalJob,
   fetchInstallation,
   fetchWall,
   fetchWallFeed,

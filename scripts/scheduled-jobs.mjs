@@ -9,6 +9,11 @@ export const SCHEDULES_WAITING = 'waiting';
 export const SCHEDULES_FILE = 'config/constants.json';
 export const SCHEDULES_POINTER = '/schedules';
 export const SCHEDULE_STATUS_FILE = '.local/scheduled-jobs.json';
+export const LOCAL_JOB_SOCKET = '.local/runner-jobs.sock';
+/** Backups retain their dedicated command and worker admission. */
+export function manualLocalJob(id) {
+    return SCHEDULED_JOBS.find((job) => job.id === id && job.local && job.id !== 'backup') ?? null;
+}
 export const WORKFLOW_GROUPS = [
     { label: 'Business signals' },
     { label: 'Site health' },

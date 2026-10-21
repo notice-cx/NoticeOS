@@ -27,7 +27,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `os:dev` | Run the app from this checkout's live source; edits refresh it. | `scripts/stack-development.mjs` |
 | `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
-| `os:run-job` | Fire the jobs scheduled on one cron expression now. | `scripts/stack-control.mjs run-job` |
+| `os:run-job` | Run one allowed local job with `--id <job-id>`, or fire one cron expression now. | `scripts/stack-control.mjs run-job` |
 | `os:collect` | Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |

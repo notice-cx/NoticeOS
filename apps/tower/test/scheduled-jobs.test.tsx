@@ -162,3 +162,32 @@ describe('schedule status read endpoint', () => {
     expect(JSON.stringify(result.body)).not.toContain('raw provider response');
   });
 });
+
+describe('named local job submission on the existing workflows boundary', () => {
+  const request = { method: 'POST', url: '/api/workflows', headers: { host: 'localhost:4187', origin: 'http://localhost:4187', 'content-type': 'application/json' }, body: JSON.stringify({ id: 'panel-refresh' }) };
+  it('forwards one allowed job ID to the private runner channel and returns its result', async () => {
+    const runJob = vi.fn(async () => ({ status: 200, body: { job: 'panel-refresh', outcome: 'ran' } }));
+    expect(await handleScheduledJobsRequest(request, { runJob })).toEqual({ status: 200, body: { job: 'panel-refresh', outcome: 'ran' } });
+    expect(runJob).toHaveBeenCalledExactlyOnceWith('panel-refresh');
+  });
+  it('rejects cross-origin, non-JSON and malformed or unapproved jobs before contacting the runner', async () => {
+    const runJob = vi.fn();
+    const attempts = [
+      { ...request, headers: { ...request.headers, origin: 'https://foreign.example' } },
+      { ...request, headers: { ...request.headers, 'sec-fetch-site': 'cross-site' } },
+      { ...request, headers: { ...request.headers, 'content-type': 'text/plain' } },
+      ...['counters', 'backup', 'missing', '../panel-refresh', 'panel-refresh;id'].map(id => ({ ...request, body: JSON.stringify({ id }) })),
+      ...['{', '[]', '{}', JSON.stringify({ id: 'panel-refresh', command: 'id' })].map(body => ({ ...request, body })),
+      { ...request, url: '/api/scheduled-jobs' },
+    ];
+    for (const attempt of attempts) expect((await handleScheduledJobsRequest(attempt, { runJob })).status).toBeGreaterThanOrEqual(400);
+    expect(runJob).not.toHaveBeenCalled();
+  });
+  it('rejects a synthetic demo before contacting the runner', async () => {
+    const runJob = vi.fn();
+    const demoViewer = { version: 1 as const, synthetic: true as const, release: 'a'.repeat(40), scenarioHash: 'b'.repeat(64),
+      workspaceId: '11111111-1111-4111-8111-111111111111', cutoff: '2026-09-09T12:00:00.000Z', generatedAt: null };
+    expect((await handleScheduledJobsRequest(request, { runJob, demoViewer })).status).toBe(403);
+    expect(runJob).not.toHaveBeenCalled();
+  });
+});

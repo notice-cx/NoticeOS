@@ -108,12 +108,16 @@ export async function runJobLane(
   deps = {},
 ) {
   const { file = JOB_RUNS_FILE, emit = log, now = Date.now, ship = shipJobRuns } = deps;
+  const begin = deps.begin ?? (file === JOB_RUNS_FILE ? beginWorkflowRun : null);
   return runRecordedLane(job, fn, outcomeOf, {
     file,
     emit,
     now,
-    ship,
-    begin: file === JOB_RUNS_FILE ? (name, at) => beginWorkflowRun(name, at, deps.trigger) : null,
+    ship: async (record) => {
+      deps.onRecord?.(record);
+      await ship(record);
+    },
+    begin: begin ? (name, at) => begin(name, at, deps.trigger) : null,
     stepOf: (value) => (value === REGULAR_LANE_HELD ? stepResult(null) : stepResult(value)),
   });
 }

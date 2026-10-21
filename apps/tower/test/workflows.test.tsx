@@ -402,3 +402,66 @@ it('shows notification events separately from recovery timing and keeps event ru
   expect(screen.getByText('Recovery frequency')).toBeVisible();
   expect(screen.getByText('Delivery')).toBeVisible();
 });
+
+describe('run a local job from its detail page', () => {
+  function enable() { data.runtime!.manualJobs = ['panel-refresh', 'panel-review', 'beads-snapshot']; }
+  function replyToRun(reply: () => Promise<Response>) {
+    const read = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation((url, init) => init?.method === 'POST' ? reply() : read(url, init));
+  }
+  it('runs only the displayed job once, keeps a pending state and refreshes history after completion', async () => {
+    enable();
+    let finish!: (response: Response) => void;
+    replyToRun(() => new Promise(resolve => { finish = resolve; }));
+    mount('/health/operations/panel-refresh');
+    const run = await screen.findByRole('button', { name: 'Run Local research summaries now' });
+    fireEvent.click(run);
+    await screen.findByText('Running…');
+    expect(run).toBeDisabled();
+    fireEvent.click(run);
+    const calls = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual(['/api/workflows', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'panel-refresh' }) }]);
+    finish(new Response(JSON.stringify({ job: 'panel-refresh', outcome: 'ran' })));
+    expect(await screen.findByText('Run completed.')).toBeVisible();
+    expect(run).toBeEnabled();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method !== 'POST').length).toBeGreaterThan(1);
+  });
+  it.each([
+    ['job_busy', 409, 'This job is already running.'],
+    ['job_paused', 409, 'Resume the schedule before running this job.'],
+    ['runner_unavailable', 503, 'The runner is unavailable. Check system health.'],
+    ['local_job_failed', 500, 'The job failed. Check its latest run.'],
+  ])('shows a useful %s response without exposing server text', async (error, status, message) => {
+    enable();
+    replyToRun(async () => new Response(JSON.stringify({ error, detail: 'PRIVATE-SENTINEL' }), { status }));
+    mount('/workflows/panel-review');
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Search review tasks now' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.queryByText('PRIVATE-SENTINEL')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Run Search review tasks now' })).toBeEnabled());
+  });
+  it('disables a paused job and explains how to make it available', async () => {
+    enable(); data.runtime!.jobs.find(job => job.id === 'panel-refresh')!.enabled = false;
+    mount('/health/operations/panel-refresh');
+    expect(await screen.findByRole('button', { name: 'Run Local research summaries now' })).toBeDisabled();
+    expect(screen.getByText('Resume the schedule to run now.')).toBeVisible();
+  });
+  it('disables a job when the runner is stale', async () => {
+    enable(); data.runtimeFresh = false;
+    mount('/health/operations/panel-refresh');
+    expect(await screen.findByRole('button', { name: 'Run Local research summaries now' })).toBeDisabled();
+    expect(screen.getByText('Check system health before running.')).toBeVisible();
+  });
+  it('does not offer a manual run without the runner capability', async () => {
+    mount('/health/operations/panel-refresh');
+    await screen.findByRole('heading', { name: 'Local research summaries' });
+    expect(screen.queryByRole('button', { name: /Run .* now/ })).toBeNull();
+  });
+  it('does not offer provider jobs or backups through the local control', async () => {
+    enable();
+    mount('/health/operations/backup');
+    await screen.findByRole('heading', { name: 'Backups' });
+    expect(screen.queryByRole('button', { name: /Run .* now/ })).toBeNull();
+  });
+});

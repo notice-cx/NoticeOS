@@ -65,10 +65,23 @@ export interface ScheduleStatus {
   onlyListedJobs?: boolean;
   /** Deployment registry, available even before the first settings read. */
   registeredJobs?: readonly string[];
+  /** Named jobs this runner admits through its private local control socket. */
+  manualJobs?: readonly string[];
 }
 export const SCHEDULES_FILE = 'config/constants.json';
 export const SCHEDULES_POINTER = '/schedules';
 export const SCHEDULE_STATUS_FILE: string = '.local/scheduled-jobs.json';
+export const LOCAL_JOB_SOCKET: string = '.local/runner-jobs.sock';
+
+/** Backups retain their dedicated command and worker admission. */
+export function manualLocalJob(id: unknown): ScheduledJob | null {
+  return SCHEDULED_JOBS.find((job) => job.id === id && job.local && job.id !== 'backup') ?? null;
+}
+
+export interface LocalJobReply {
+  status: number;
+  body: { job?: string; outcome?: string; error?: string };
+}
 
 export const WORKFLOW_GROUPS: { label: string }[] = [
   { label: 'Business signals' },
