@@ -10,7 +10,7 @@ import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
 import { commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
-  isHumanDecision, maintenanceSteps, TaskStoreFailed, writeGuardReads, type OwnerAnswerVerifier, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
+  isHumanDecision, maintenanceSteps, TaskStoreFailed, taskStoreStepFailure, writeGuardReads, type OwnerAnswerVerifier, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
@@ -115,7 +115,7 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
           const result = await run(argv, project.cwd);
           // Admitted, in a linked project: what failed is the task client itself.
           if (result.code !== 0) throw new TaskStoreFailed(result.timedOut === true);
-          try { return JSON.parse(result.stdout) as unknown; } catch { throw new TaskStoreFailed(false); }
+          try { return JSON.parse(result.stdout) as unknown; } catch { throw new TaskStoreFailed(false, 'invalid-output'); }
         };
         if (operation.kind === 'maintain') {
           const read = async (id: string) => {
@@ -139,7 +139,7 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
             return client([argv[0]!, argv[1]!, `--actor=${context.principalId}`, ...argv.slice(2)]);
           };
           for (const step of steps) {
-            await execute(step);
+            try { await execute(step); } catch (error) { taskStoreStepFailure(error, step.kind); }
             if (step.kind === 'close') {
               const after = await read(operation.taskId);
               if (after.status !== 'closed') refuse();

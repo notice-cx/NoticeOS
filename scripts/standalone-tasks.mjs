@@ -7,7 +7,7 @@
  */
 import { createHash } from 'node:crypto';
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
-import { commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, maintenanceSteps, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
+import { commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, maintenanceSteps, TaskStoreFailed, taskStoreStepFailure, writeGuardReads } from './hosted-task-command.mjs';
 export class StandaloneTaskRefused extends Error {
     name = 'StandaloneTaskRefused';
     constructor() { super('Task operation refused.'); }
@@ -89,7 +89,7 @@ export function createStandaloneTaskExecutor(options) {
                         return JSON.parse(result.stdout);
                     }
                     catch {
-                        throw new TaskStoreFailed(false);
+                        throw new TaskStoreFailed(false, 'invalid-output');
                     }
                 };
                 if (operation.kind === 'maintain') {
@@ -114,7 +114,12 @@ export function createStandaloneTaskExecutor(options) {
                         return client([argv[0], argv[1], `--actor=${context.principalId}`, ...argv.slice(2)]);
                     };
                     for (const step of steps) {
-                        await execute(step);
+                        try {
+                            await execute(step);
+                        }
+                        catch (error) {
+                            taskStoreStepFailure(error, step.kind);
+                        }
                         if (step.kind === 'close') {
                             const after = await read(operation.taskId);
                             if (after.status !== 'closed')

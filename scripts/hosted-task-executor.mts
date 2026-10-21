@@ -12,7 +12,7 @@ import { spawn } from 'node:child_process';
 import type { TaskDirectory, TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import { answerSteps, choiceSteps, commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
-  isHumanDecision, maintenanceSteps, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, writeGuardReads, type DecisionStep, type HostedTaskOperation,
+  isHumanDecision, maintenanceSteps, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, taskStoreStepFailure, writeGuardReads, type DecisionStep, type HostedTaskOperation,
   type HostedTaskRequest, type OwnerAnswerVerifier } from './hosted-task-command.mjs';
 import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
@@ -79,6 +79,10 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const BUDGET_MS = 30_000;
 const OUTPUT_BYTES = 8 * 1024 ** 2;
 function fail(): never { throw new HostedTaskRefused(); }
+/** Process details remain private until project verification has completed. */
+class TaskProcessFailed extends Error {
+  constructor(readonly failure: TaskStoreFailed['failure']) { super('Task process failed.'); }
+}
 interface Lifetime { readonly deadline: number; readonly signal?: AbortSignal; readonly expectedPrefix?: string }
 function lifetime(input?: TaskVerificationControls): Lifetime {
   const now = Date.now();
@@ -195,23 +199,28 @@ async function command(binary: string, argv: readonly string[], cwd: string,
   const remaining = life.deadline - Date.now();
   return new Promise((resolve, reject) => {
     const child = spawn(binary, [...argv], { cwd, env, shell: false, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    let output = '', bytes = 0, refused = false;
-    const stop = () => {
-      refused = true;
+    let output = '', bytes = 0;
+    let failure: TaskStoreFailed['failure'] | undefined;
+    const stop = (reason: TaskStoreFailed['failure']) => {
+      failure ??= reason;
       if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* close/error still owns settlement */ } }
     };
-    const timer = setTimeout(stop, remaining);
-    life.signal?.addEventListener('abort', stop, { once: true });
-    if (life.signal?.aborted) stop();
+    const timer = setTimeout(() => stop('timeout'), remaining);
+    const cancelled = () => stop('cancelled');
+    life.signal?.addEventListener('abort', cancelled, { once: true });
+    if (life.signal?.aborted) cancelled();
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (data: string) => {
       bytes += Buffer.byteLength(data);
-      if (bytes > OUTPUT_BYTES) stop(); else output += data;
+      if (bytes > OUTPUT_BYTES) stop('output-limit'); else output += data;
     });
     // Never expose raw stderr, including credentials or connection details.
-    child.stderr.on('data', (data: Buffer) => { bytes += data.length; if (bytes > OUTPUT_BYTES) stop(); });
-    child.once('error', () => { refused = true; });
-    child.once('close', code => { clearTimeout(timer); life.signal?.removeEventListener('abort', stop); if (refused || code !== 0) reject(new HostedTaskRefused()); else resolve(output); });
+    child.stderr.on('data', (data: Buffer) => { bytes += data.length; if (bytes > OUTPUT_BYTES) stop('output-limit'); });
+    child.once('error', () => { failure ??= 'launch'; });
+    child.once('close', code => {
+      clearTimeout(timer); life.signal?.removeEventListener('abort', cancelled);
+      if (failure || code !== 0) reject(new TaskProcessFailed(failure ?? 'failed')); else resolve(output);
+    });
   });
 }
 
@@ -296,7 +305,7 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
         // fixed decision dispatch discards that bounded successful output;
         // it requires a same-target authoritative JSON readback afterwards.
         if (plainSuccess) return undefined;
-        try { return JSON.parse(output) as unknown; } catch { fail(); }
+        try { return JSON.parse(output) as unknown; } catch { throw new TaskProcessFailed('invalid-output'); }
       };
       const read = (sql: string) => run(['--sandbox', '--readonly', '--json', 'sql', sql]);
       const meta = rows(await read(METADATA_SQL));
@@ -348,7 +357,15 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
       if (branch.length !== 1 || branch[0]!.database !== selected.databaseKey
         || branch[0]!.branch !== 'main' || branch[0]!.user !== client.user || branch[0]!.host !== '%' || branch[0]!.permissions !== 'write') fail();
       checkpoint(life);
-      const result = await work(run);
+      const result = await work(async (args, plainSuccess) => {
+        try { return await run(args, plainSuccess); } catch (error) {
+          if (error instanceof TaskProcessFailed) throw new TaskStoreFailed(error.failure === 'timeout', error.failure);
+          if (error instanceof HostedTaskRefused && (life.signal?.aborted || Date.now() >= life.deadline)) {
+            throw new TaskStoreFailed(!life.signal?.aborted, life.signal?.aborted ? 'cancelled' : 'timeout');
+          }
+          throw error;
+        }
+      });
       checkpoint(life); return result;
     } finally { await fs.rm(home, { recursive: true, force: false }); }
   }
@@ -413,7 +430,8 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                     checkpoint(life);
                     const stepped = createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId,
                       { projectId: snapshot.projectId, operation: step }).argv;
-                    await run([stepped[0]!, stepped[1]!, `--actor=${last.principalId}`, ...stepped.slice(2)]);
+                    try { await run([stepped[0]!, stepped[1]!, `--actor=${last.principalId}`, ...stepped.slice(2)]); }
+                    catch (error) { taskStoreStepFailure(error, step.kind); }
                     if (step.kind === 'close') {
                       const after = await target();
                       if (after.status !== 'closed') fail();
@@ -502,7 +520,7 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                   const argv = [planned[0]!, planned[1]!, `--actor=${effect.principalId}`, ...planned.slice(2)];
                   if (action !== 'tasks.decide') {
                     // Admitted and verified up to here: what failed is the task client itself.
-                    try { return await run(argv); } catch { throw new TaskStoreFailed(Date.now() >= life.deadline); }
+                    return run(argv);
                   }
                   if (steps !== null) {
                     for (const step of steps) {
@@ -618,7 +636,10 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
             }
           });
         });
-      } catch { fail(); }
+      } catch (error) {
+        if (error instanceof TaskStoreFailed) throw error;
+        fail();
+      }
     },
     async verifyProject(input: TaskProjectMapping, controls?: TaskVerificationControls): Promise<VerifiedTaskProject> {
       try {

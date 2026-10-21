@@ -6,7 +6,8 @@ import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createStandaloneTaskExecutor } from './standalone-tasks.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
-import { commentProposalMatches, ownerResponseSteps, taskProposal } from './hosted-task-command.mjs';
+import { taskRefusal } from './hosted-task-mcp.mjs';
+import { commentProposalMatches, ownerResponseSteps, taskProposal, TaskStoreFailed } from './hosted-task-command.mjs';
 
 // The task tools' write guards and refusals end to end: the MCP endpoint, the shared
 // operations and the standalone executor, over a stand-in task client that
@@ -27,7 +28,7 @@ const origin = 'http://localhost';
  * killed after its commit would. */
 function store() {
   const tasks = new Map(), edges = [], commands = [], comments = [];
-  let failOnce = null, slow = null, rival = null;
+  let failOnce = null, slow = null, rival = null, rejected = null;
   const put = (id, fields = {}) => tasks.set(id, { id, title: id, status: 'open', priority: 2, issue_type: 'task', labels: [], assignee: '', updated_at: '2026-10-17T10:00:00Z', ...fields });
   const link = (from, to, type = 'blocks') => edges.push({ from, to, type });
   const embed = (id, type) => ({ ...tasks.get(id), dependency_type: type });
@@ -43,6 +44,11 @@ function store() {
     const words = argv.filter(word => !['--sandbox', '--readonly', '--json'].includes(word) && !word.startsWith('--actor='));
     const id = argv.at(-1), flag = name => words.find(word => word.startsWith(`--${name}=`))?.slice(name.length + 3);
     const verb = words[0];
+    if (rejected?.verb === (verb === 'comments' && words[1] === 'add' ? 'comment' : verb)) {
+      const result = rejected; rejected = null;
+      if (result.thrown) throw new Error('private backend detail');
+      return result.malformed ? { code: 0, stdout: 'private backend detail' } : { code: 1, stdout: 'private backend detail' };
+    }
     if (slow === verb) { slow = null; return { code: 1, stdout: '', timedOut: true }; }
     // Another caller's write lands between this caller's read and its own write.
     if (rival?.verb === verb && !words.includes('show')) { const land = rival.land; rival = null; land(); }
@@ -105,7 +111,7 @@ function store() {
     return ok(result);
   };
   return { tasks, edges, commands, comments, put, link, run, failNext: verb => { failOnce = verb; }, slowNext: verb => { slow = verb; },
-    rivalFirst: (verb, land) => { rival = { verb, land }; } };
+    rivalFirst: (verb, land) => { rival = { verb, land }; }, rejectNext: (verb, malformed = false, thrown = false) => { rejected = { verb, malformed, thrown }; } };
 }
 
 function fixture({ admit = () => true, trustedSources = true } = {}) {
@@ -600,4 +606,59 @@ test('a write the task store refuses is named from the task as it stands after: 
     'refused: ex-follow already depends on ex-lead as blocks, and a dependency keeps the type it was added with. '
     + 'To record it as related, remove_dependency first, then add it again.');
   assert.deepEqual(f.edges.filter(edge => edge.from === 'ex-follow').map(edge => edge.type), ['blocks']);
+});
+
+
+test('decision recording failures name the failed step without backend output and retry from partial progress', async () => {
+  for (const [verb, malformed, expected] of [
+    ['update', false, 'the task store did not complete this call, and nothing in the task\'s state explains it. Failed while recording the owner answer or maintenance evidence.'],
+    ['update', true, 'the task store returned an invalid JSON response. Failed while recording the owner answer or maintenance evidence.'],
+    ['comment', false, 'the task store did not complete this call, and nothing in the task\'s state explains it. Failed while adding the decision evidence comment.'],
+  ]) {
+    const f = fixture({ trustedSources: false });
+    f.put('ex-build', { labels: ['human'], metadata: { noticeos_choices: choices } });
+    const detail = (await f.call('get_task', inProject({ task: 'ex-build' }))).structuredContent;
+    const args = inProject({ task: 'ex-build', proposal: detail.proposal, explanation: 'Record the chosen layout.',
+      evidence: 'Owner reply in the linked chat.', idempotency_key: `record-error-${verb}-${malformed}`,
+      ...directAnswer, response: 'A', option: 'a' });
+    f.rejectNext(verb, malformed);
+    const failure = await f.refusal('reconcile_task', args);
+    assert.equal(failure, `unavailable: ${expected} Read get_task to check which steps landed, then retry with the same idempotency_key.`);
+    assert.equal(failure.includes('private backend detail'), false);
+    assert.deepEqual(f.tasks.get('ex-build').labels, ['human'], 'a failed recording does not clear the human request');
+    assert.equal(Boolean(f.tasks.get('ex-build').metadata.noticeos_maintenance), verb === 'comment', 'partial evidence is retained');
+    const retry = await f.call('reconcile_task', args);
+    assert.equal(retry.isError, undefined, JSON.stringify(retry));
+    assert.equal(retry.structuredContent.task.awaitingHuman, false);
+    assert.equal(retry.structuredContent.task.choice.option, 'a');
+    assert.equal(f.comments.length, 1, 'retry records one evidence comment');
+  }
+});
+
+
+test('an unexpected decision backend error stays opaque and never grants a choice', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-build', { labels: ['human'], metadata: { noticeos_choices: choices } });
+  f.rejectNext('update', false, true);
+  const result = await maintain(f, 'ex-build', { ...directAnswer, response: 'A', option: 'a' });
+  assert.equal(result.isError, true);
+  assert.equal(result.content[0].text, 'refused: this workspace, project or task is not available to you, or the change was not accepted');
+  assert.deepEqual(f.tasks.get('ex-build').labels, ['human']);
+  assert.equal(f.tasks.get('ex-build').metadata.noticeos_choice, undefined);
+});
+
+
+test('safe task-store categories reach MCP while arbitrary error text stays private', () => {
+  for (const [failure, phrase] of [
+    ['timeout', 'did not answer in time'], ['cancelled', 'request was cancelled'],
+    ['output-limit', 'exceeded the safe output limit'], ['invalid-output', 'invalid JSON response'],
+    ['launch', 'client could not start'],
+  ]) {
+    const reply = taskRefusal(new TaskStoreFailed(failure === 'timeout', failure, 'record-maintenance'));
+    assert.ok(reply.message.includes(phrase), reply.message);
+    assert.ok(reply.message.includes('Failed while recording the owner answer or maintenance evidence'));
+    assert.ok(reply.message.includes('same idempotency_key'));
+  }
+  const reply = taskRefusal(Object.assign(new Error('private backend detail'), { name: 'TaskStoreFailed', failure: 'private backend detail' }));
+  assert.equal(reply.message, 'refused: this workspace, project or task is not available to you, or the change was not accepted');
 });
