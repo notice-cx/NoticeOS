@@ -8,6 +8,7 @@ import { linkedProjects, openStandaloneMcp } from './standalone-mcp.mjs';
 import { standaloneProjectId } from './standalone-tasks.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { collectBeadsSnapshot } from './runner/task-snapshot.mjs';
+import { assertTaskFixtureOutsideGit } from './test-fixtures/hosted-task-projects.mjs';
 import { parseBeadsProjects } from './runner/task-hub.mjs';
 
 const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6';
@@ -103,4 +104,15 @@ test('concurrent preparations share immutable bindings, rebind safely and clean 
   f.set([moved], [moved]);
   await assert.rejects(f.read(), /differs from the project register/);
   assert.equal((await fs.readdir(root)).some(name => name.startsWith('.prepare-')), false);
+});
+
+test('task fixture initialization cannot discover a parent project checkout', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-fixture-git-guard-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const nested = path.join(root, 'scratch/fixture');
+  await fs.mkdir(nested, { recursive: true });
+  assertTaskFixtureOutsideGit(nested);
+  await fs.mkdir(path.join(root, '.git'));
+  assert.throws(() => assertTaskFixtureOutsideGit(nested), /Task fixtures must be outside Git checkouts/);
+  assert.deepEqual(await fs.readdir(nested), []);
 });

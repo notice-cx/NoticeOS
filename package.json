@@ -66,7 +66,7 @@
     "audit:wall-fit": "node scripts/wall-fit-check.mjs",
     "audit:surfaces": "node scripts/surface-audit.mjs",
     "test:scripts": "node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test scripts/*.test.mjs",
-    "test:task-store": "node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test-concurrency=1 --test scripts/hosted-task-operations-compose.test.mjs scripts/hosted-task-executor-compose.test.mjs scripts/hosted-task-snapshot-compose.test.mjs scripts/hosted-task-http-native.test.mjs scripts/hosted-demo.test.mjs",
+    "test:task-store": "node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test-concurrency=1 --test scripts/hosted-task-operations-compose.test.mjs scripts/hosted-task-executor-compose.test.mjs scripts/no-checkout-task-projects-compose.test.mjs scripts/hosted-task-snapshot-compose.test.mjs scripts/hosted-task-http-native.test.mjs scripts/hosted-demo.test.mjs",
     "test:journeys": "pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && { pnpm --filter @noticeos/tower run test:journeys; journeys=$?; pnpm --filter @noticeos/tower run test:ux-flows && exit $journeys; }"
   },
   "devDependencies": {

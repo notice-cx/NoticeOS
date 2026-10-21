@@ -26,6 +26,15 @@ const OTHER_CREDENTIAL = '99999999-9999-4999-8999-999999999999';
 const headers = { origin: 'https://tower.example.com', 'sec-fetch-site': 'same-origin', [WORKSPACE_SESSION_HEADER]: SESSION };
 const request = workspace => new Request('https://tower.example.com/api/tasks', { method: 'POST', headers: { ...headers, [WORKSPACE_SELECTION_HEADER]: workspace } });
 
+/** A task initializer may commit connection files when it discovers Git above
+ * its working directory. Synthetic task stores must be outside every checkout. */
+export function assertTaskFixtureOutsideGit(directory) {
+  for (let current = fs.realpathSync(directory); ; current = path.dirname(current)) {
+    assert.equal(fs.existsSync(path.join(current, '.git')), false, 'Task fixtures must be outside Git checkouts');
+    if (current === path.dirname(current)) break;
+  }
+}
+
 // Test-only physical fixture. No raw SQL, provisioning credentials, or mutable
 // readiness assertion crosses this callback. The outer lifetime owns every
 // container, file, command observer, and awaited cleanup even when work fails.
@@ -59,6 +68,7 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
   const free = fs.statfsSync(os.tmpdir());
   assert.ok(free.bavail * free.bsize >= 8 * 1024 ** 3 + 128 * 1024 ** 2);
   const suppliedBase = process.env.NOTICEOS_TEST_HOSTED_TASK_OWNED_BASE;
+  assertTaskFixtureOutsideGit(suppliedBase ?? os.tmpdir());
   const base = suppliedBase ?? fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'noticeos-task-executor-'));
   assert.ok(path.isAbsolute(base) && fs.realpathSync(base) === base
     && path.basename(base).startsWith('noticeos-task-executor-') && fs.statSync(base).uid === process.getuid()
