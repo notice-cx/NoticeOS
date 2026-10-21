@@ -10,7 +10,7 @@ import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES } from '../packages/postgres
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused } from './hosted-task-command.mjs';
+import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export class HostedTaskReceiptsUnavailable extends Error {
@@ -36,7 +36,7 @@ export class TaskProjectRefused extends Error {
     }
 }
 export const EDITABLE_TASK_FIELDS = Object.freeze(['status', 'priority', 'title', 'description', 'claim', 'assignee',
-    'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']);
+    'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels', 'card', 'changeClass']);
 const STATUSES = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const ACTIVE = Object.freeze(['open', 'in_progress', 'blocked', 'deferred']);
 const RECEIPTED = ['create', 'update', 'comment', 'close', 'maintain'];
@@ -400,9 +400,13 @@ export function createHostedTaskOperations(options) {
                     await attribute(proof, workspaceId, planned, value, context.principalId);
                     return answer(value);
                 };
-                // A new task's filer is the admitted actor, as a close's closer is.
-                const filed = kind === 'create'
-                    ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation, filedBy: context.principalId }) })
+                // A new task's filer is the admitted actor, as a close's closer is, and
+                // a card records that actor and the time it was written.
+                const card = request.operation.kind === 'create' || request.operation.kind === 'update' ? request.operation.card : undefined;
+                const filed = kind === 'create' || card
+                    ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation,
+                            ...(kind === 'create' ? { filedBy: context.principalId } : {}),
+                            ...(card ? { card: recordedTaskCard(card, context.principalId, new Date(now()).toISOString()) } : {}) }) })
                     : request;
                 if (idempotencyKey === undefined || !receipts) {
                     return { status: 'done', value: await effect(filed), replayed: false };
@@ -434,7 +438,7 @@ export function createHostedTaskOperations(options) {
                 }
                 const planned = kind === 'create'
                     ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...filed.operation, operationId: receipt.operationId }) })
-                    : request;
+                    : filed;
                 let value;
                 try {
                     value = await effect(planned);

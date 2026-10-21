@@ -62,6 +62,12 @@ export const TASK_METADATA = Object.freeze({
   duplicateOf: Object.freeze({ name: "noticeos_duplicate_of", legacy: "noticeos_duplicate_of" }),
   /** Evidence and scope of the last task maintenance operation. Never grants authority by itself. */
   maintenance: Object.freeze({ name: "noticeos_maintenance", legacy: "noticeos_maintenance" }),
+  /** Why the task is worth doing, as the task tools validated it
+   * (task-card.mts): the figures the ranking reads. Written by whoever files
+   * or edits the task, so it has no older name. */
+  card: Object.freeze({ name: "noticeos_card", legacy: "noticeos_card" }),
+  /** The kind of change the task makes (task-change-class.mts). */
+  changeClass: Object.freeze({ name: "noticeos_change_class", legacy: "noticeos_change_class" }),
 } satisfies Record<string, TaskMetadataField>);
 
 /** The names only the server writes. A caller's metadata never carries them,

@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process';
 import { answerSteps, choiceSteps, commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, maintenanceSteps, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
+import { taskCardOf } from '../packages/contract/src/task-card.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 export class HostedTaskRefused extends Error {
     name = 'HostedTaskRefused';
@@ -95,6 +96,10 @@ function snapshotRequest(input, workspaceId) {
             // Nested data: the copy is checked again, so what runs is what was checked.
             const set = record(value);
             operation[key] = taskChoicesOf({ ...set, options: (Array.isArray(set.options) ? set.options : []).map(option => ({ ...record(option) })) }) ?? fail();
+        }
+        else if (key === 'card' && value !== null) {
+            const card = record(value);
+            operation[key] = taskCardOf({ ...card, ...(Object.hasOwn(card, 'kill') ? { kill: { ...record(card.kill) } } : {}) }) ?? fail();
         }
         else if (Array.isArray(value))
             operation[key] = Object.freeze([...value]);

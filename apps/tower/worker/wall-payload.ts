@@ -62,10 +62,14 @@ import {
   type SystemBand,
   type WallAgents,
   type WallAgentStanding,
+  type WallDecision,
+  type WallNextUp,
   type WallPayload,
+  type WallWorking,
   type WorkSummary,
+  wallDecisionAsk,
 } from "../shared/wall";
-import type { WorkWeeks } from "../shared/work";
+import type { WorkItem, WorkWeeks } from "../shared/work";
 
 /** The tunables the SYSTEM band needs, sourced from config/constants.json. */
 export interface WallConstants {
@@ -278,6 +282,93 @@ export function wallAgentsOf(snapshot: BeadsSnapshot | null): WallAgents | null 
 }
 /** The most standings a Wall's Agents widget draws. */
 export const WALL_AGENT_ROWS = 6;
+
+/** The most decisions and held tasks Next up lists. */
+export const WALL_NEXT_DECISIONS = 5;
+export const WALL_NEXT_WORKING = 3;
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+
+/** Whole units since an instant, or null when there is no readable instant. */
+function wholeSince(at: string | null | undefined, nowMs: number, unitMs: number): number | null {
+  const parsed = Date.parse(at ?? "");
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor((nowMs - parsed) / unitMs)) : null;
+}
+
+/** Which of two inbox rows blocks more: a gate, then the higher priority, then
+ * the older filing; a row with no filing date ranks after one with a date. */
+function blocksFirst(a: WorkItem, b: WorkItem): number {
+  const gate = Number(b.issueType === "gate") - Number(a.issueType === "gate");
+  if (gate !== 0) return gate;
+  if (a.priority !== b.priority) return a.priority - b.priority;
+  const filed = (item: WorkItem) => {
+    const parsed = Date.parse(item.createdAt ?? "");
+    return Number.isFinite(parsed) ? parsed : Infinity;
+  };
+  return filed(a) - filed(b);
+}
+
+/**
+ * Next up from the newest snapshot: the operator's decisions across every
+ * project read, and the work held now. Each project's `waiting` list is
+ * already most-blocking first, so the projects are merged by their heads and
+ * no project's own order is changed. The snapshot records no edges between
+ * tasks, so what a decision holds is null rather than a count it cannot make.
+ */
+export function wallNextUpOf(snapshot: BeadsSnapshot | null, now: Date): WallNextUp | null {
+  if (!snapshot) return null;
+  const nowMs = now.getTime();
+  const read = snapshot.projects.filter((project) => project.ok);
+
+  const queues = read.map((project) => ({ asset: project.asset, items: [...project.waiting] }));
+  const decisions: WallDecision[] = [];
+  while (decisions.length < WALL_NEXT_DECISIONS) {
+    let next: (typeof queues)[number] | null = null;
+    for (const queue of queues) {
+      const head = queue.items[0];
+      if (head && (next === null || blocksFirst(head, next.items[0]!) < 0)) next = queue;
+    }
+    const item = next?.items.shift();
+    if (!next || !item) break;
+    decisions.push({
+      id: item.id,
+      title: item.title,
+      asset: next.asset,
+      ask: wallDecisionAsk(item),
+      ageDays: wholeSince(item.createdAt, nowMs, DAY_MS),
+      releases: null,
+    });
+  }
+  const ages = read.flatMap((project) => project.waiting)
+    .map((item) => wholeSince(item.createdAt, nowMs, DAY_MS))
+    .filter((age): age is number => age !== null);
+
+  const working: WallWorking[] = read.flatMap((project) => project.inProgress.map((item) => {
+    // The newest claim of this task the snapshot's recent work recorded.
+    const claim = (project.recentWork ?? [])
+      .filter((event) => event.kind === "claimed" && event.taskId === item.id)
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0];
+    return {
+      id: item.id,
+      title: item.title,
+      asset: project.asset,
+      who: item.assignee ?? claim?.by ?? null,
+      sinceHours: wholeSince(claim?.at, nowMs, HOUR_MS),
+      urgent: item.priority <= 1,
+    };
+  }));
+  // Stable: rows that tie keep the snapshot's order.
+  working.sort((a, b) =>
+    Number(b.urgent) - Number(a.urgent) || (b.sinceHours ?? -1) - (a.sinceHours ?? -1));
+
+  return {
+    decisions,
+    oldestAgeDays: ages.length > 0 ? Math.max(...ages) : null,
+    working: working.slice(0, WALL_NEXT_WORKING),
+    capturedAt: snapshot.capturedAt,
+  };
+}
 
 export async function buildWallPayload(
   /** The call's store, which every read below takes. */
@@ -803,6 +894,7 @@ export async function buildWallPayload(
     snoozed,
     operator,
     agents: wallAgentsOf(beadsSnapshot),
+    next: wallNextUpOf(beadsSnapshot, now),
     ledgerRecordedAt: ledger?.ts ? javascriptInstant(ledger.ts) : null,
   };
 }

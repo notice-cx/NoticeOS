@@ -3,6 +3,8 @@
 // coordination state, not signals: nothing here is evidence about an asset,
 // and there is no write path from the Tower to the hub.
 
+import type { TaskCard } from "@noticeos/contract/task-card";
+import type { TaskChangeClass } from "@noticeos/contract/task-change-class";
 import type { TaskChoice, TaskChoiceKey, TaskChoices } from "@noticeos/contract/task-choices";
 import type { TaskResolution } from "@noticeos/contract/task-resolution";
 import { calendarDateIn, revenueCalendarDate } from "./daily-revenue";
@@ -61,6 +63,12 @@ export interface WorkItem {
   resolution?: TaskResolution | null;
   /** The task a close as a duplicate names, null otherwise. */
   duplicateOf?: string | null;
+  /** Why the task is worth doing (task-card.mts), null when it carries no
+   * card the reader accepts; absent from a row read before cards existed. A
+   * task without one is listed, never ranked. */
+  card?: TaskCard | null;
+  /** The kind of change it makes (task-change-class.mts), null when unrecorded. */
+  changeClass?: TaskChangeClass | null;
 }
 
 /**

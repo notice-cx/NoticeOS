@@ -275,6 +275,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["under", "near", "over"],
   },
   {
+    name: "WhyItRanks",
+    file: "components/viz/WhyItRanks.tsx",
+    purpose:
+      "Why a task is worth doing, as its card's figures in one row: the money at stake a month, how likely it is to pay off (a ten-cell meter), the operator's minutes, when the ledger will show it, the kill date and, when ranked, its place and the policy version. One figure per fact with its unit a step lighter; `sm` sits in a row, `md` leads a card or a page section.",
+    variants: ["md with a kill date and a rank", "sm in a row", "no kill date", "a loss avoided (negative value)"],
+  },
+  {
     name: "ProgressRing",
     file: "components/ProgressRing.tsx",
     purpose:
@@ -839,7 +846,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "TaskComposer / FileTaskButton",
     file: "components/TaskComposer.tsx",
     purpose:
-      "File a task with a button: a slide-over opened prefilled from `taskHandoffPrefill`, the same computation the copied `bd create` command is rendered from. Title, project and priority first with Enter filing; type, parent, labels, description and acceptance criteria under More; the handoff labels and `noticeos_*` metadata locked. Filing lands on /tasks/<id>; a deployed build disables the trigger with the reason on hover.",
+      "File a task with a button: a slide-over opened prefilled from `taskHandoffPrefill`, the same computation the copied `bd create` command is rendered from. Title, project and priority first with Enter filing; under More the type, parent, the kind of change (a segmented control, Not recorded until picked), labels, the description with a Write | Preview toggle (MarkdownText), Done when as a checklist editor sent as `- [ ]` lines, and Why it is worth doing: the card's figures with likelihood and signal pills, checked by `taskCardProblem` only once started and ranked live with WhyItRanks; the handoff labels and `noticeos_*` metadata locked. Filing lands on /tasks/<id>; a deployed build disables the trigger with the reason on hover.",
     variants: [
       "handoff prefill (locked labels, linked line)",
       "new task (nothing prefilled)",
@@ -1397,6 +1404,20 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["rank funnel with shares and an unmeasured step"],
   },
   {
+    name: "TaskProgressBar",
+    file: "components/viz/TaskProgressBar.tsx",
+    purpose:
+      "A project's tasks as one row of equal segments, filled from the left: done in ink, in progress half filled, waiting on the operator outlined in warn, blocked filled in warn, ready and waiting as the empty track, parked and unplaced work hatched. Its accessible name is the counts as a sentence; past 40 tasks it draws one run per state.",
+    variants: ["needs you and blocked", "moving with parked work", "finished", "small"],
+  },
+  {
+    name: "ProjectJourneys",
+    file: "components/viz/ProjectJourneys.tsx",
+    purpose:
+      "Every project on one time axis, weeks back and ahead of today: closes as dots, work in progress as a green run to today, a question waiting on the operator as a warn run from the day it was asked, held tasks as hollow circles past today, parked wake-ups and kill dates ahead on a dashed track. Labels move over the track rather than overlap; the box scrolls sideways on a phone.",
+    variants: ["three projects around today"],
+  },
+  {
     name: "WallHealth",
     file: "components/wall/WallHealth.tsx",
     purpose:
@@ -1409,6 +1430,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "The TV's agents widget: building, finished this week and proven as three figures joined by chevrons, read from agentsWeek, how many changes are still being watched, and plain lines about the newest work under the figures, as many whole lines as fit the widget's height. A count nobody can read is a dash, never a zero.",
     variants: ["counted with lines", "unknown counts, nothing finished"],
+  },
+  {
+    name: "NextUp",
+    file: "components/wall/NextUp.tsx",
+    purpose:
+      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its site, age and what it holds, the next four as site marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
+    variants: ["decisions with the agents now", "nothing waits, nothing in progress", "tasks unknown"],
   },
   {
     name: "WallChannels",

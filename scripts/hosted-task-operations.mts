@@ -12,7 +12,7 @@ import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused, type HostedTaskOperation, type HostedTaskRequest,
+import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused, type HostedTaskOperation, type HostedTaskRequest,
   type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 
@@ -88,7 +88,7 @@ export class TaskProjectRefused extends Error {
 }
 
 export const EDITABLE_TASK_FIELDS = Object.freeze(['status', 'priority', 'title', 'description', 'claim', 'assignee',
-  'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']);
+  'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels', 'card', 'changeClass']);
 const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const ACTIVE = Object.freeze(['open', 'in_progress', 'blocked', 'deferred'] as const);
 const RECEIPTED: readonly string[] = ['create', 'update', 'comment', 'close', 'maintain'];
@@ -411,9 +411,13 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
           await attribute(proof, workspaceId, planned, value, context.principalId);
           return answer(value);
         };
-        // A new task's filer is the admitted actor, as a close's closer is.
-        const filed: HostedTaskRequest = kind === 'create'
-          ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation, filedBy: context.principalId }) })
+        // A new task's filer is the admitted actor, as a close's closer is, and
+        // a card records that actor and the time it was written.
+        const card = request.operation.kind === 'create' || request.operation.kind === 'update' ? request.operation.card : undefined;
+        const filed: HostedTaskRequest = kind === 'create' || card
+          ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation,
+            ...(kind === 'create' ? { filedBy: context.principalId } : {}),
+            ...(card ? { card: recordedTaskCard(card, context.principalId, new Date(now()).toISOString()) } : {}) }) })
           : request;
         if (idempotencyKey === undefined || !receipts) {
           return { status: 'done', value: await effect(filed), replayed: false };
@@ -441,7 +445,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         }
         const planned: HostedTaskRequest = kind === 'create'
           ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...filed.operation, operationId: receipt.operationId }) })
-          : request;
+          : filed;
         let value: unknown;
         try {
           value = await effect(planned);

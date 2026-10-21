@@ -119,6 +119,18 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_maintenance";
         legacy: "noticeos_maintenance";
     }>;
+    /** Why the task is worth doing, as the task tools validated it
+     * (task-card.mts): the figures the ranking reads. Written by whoever files
+     * or edits the task, so it has no older name. */
+    card: Readonly<{
+        name: "noticeos_card";
+        legacy: "noticeos_card";
+    }>;
+    /** The kind of change the task makes (task-change-class.mts). */
+    changeClass: Readonly<{
+        name: "noticeos_change_class";
+        legacy: "noticeos_change_class";
+    }>;
 }>;
 /** The names only the server writes. A caller's metadata never carries them,
  * so no filer can forge who filed or closed a task and how, a write's

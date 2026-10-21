@@ -154,7 +154,7 @@ export function snapshotRows(project: WorkProject): BoardTask[] {
 
 /** Rank by the work an answer releases, then age. Approval records inherit
  * their dependent work's urgency rather than outranking every decision. */
-function inboxOrder(a: BoardTask, b: BoardTask): number {
+export function inboxOrder(a: BoardTask, b: BoardTask): number {
   const priority = (a.decisionImpact?.priority ?? a.priority) - (b.decisionImpact?.priority ?? b.priority);
   if (priority !== 0) return priority;
   const releases = (b.decisionImpact?.proceeds.length ?? 0) - (a.decisionImpact?.proceeds.length ?? 0);
@@ -170,7 +170,7 @@ function inboxOrder(a: BoardTask, b: BoardTask): number {
  * below that; both are still on the board, because a deferral must never
  * silently vanish.
  */
-function boardOrder(a: BoardTask, b: BoardTask): number {
+export function boardOrder(a: BoardTask, b: BoardTask): number {
   const rank = restRank(a) - restRank(b);
   if (rank !== 0) return rank;
   if (a.priority !== b.priority) return a.priority - b.priority;

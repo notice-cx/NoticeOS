@@ -2,6 +2,8 @@
 import type { LiveTask, LiveEpic, TaskDependency, TaskComment } from "../apps/tower/shared/tasks";
 import { gateTitle } from "../packages/contract/src/task-gate.mjs";
 import { readTaskChoice, readTaskChoices } from "../packages/contract/src/task-choices.mjs";
+import { readTaskCard } from "../packages/contract/src/task-card.mjs";
+import { readTaskChangeClass } from "../packages/contract/src/task-change-class.mjs";
 import { readTaskResolution } from "../packages/contract/src/task-resolution.mjs";
 
 function text(value: unknown, fallback = ""): string {
@@ -89,6 +91,8 @@ export function toLiveTask(row: unknown, ready: ReadonlySet<string>): LiveTask {
     awaitType,
     choices: readTaskChoices(metadata),
     choice: readTaskChoice(metadata),
+    card: readTaskCard(metadata),
+    changeClass: readTaskChangeClass(metadata),
     resolution: ended?.resolution ?? null,
     duplicateOf: ended?.duplicateOf ?? null,
   };

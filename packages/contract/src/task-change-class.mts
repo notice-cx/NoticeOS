@@ -1,0 +1,34 @@
+// The kind of change a task makes to a site, the five classes the autonomy
+// ladder and the ranking's likelihood priors are kept by (docs/05 and docs/04).
+// A task carries it in its metadata under `noticeos_change_class`
+// (task-metadata.mts); the task tools validate it with `isTaskChangeClass`,
+// and every reader goes through `readTaskChangeClass`, which answers null for
+// anything else, so an older or hand-edited value never draws a wrong word.
+//
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and `.d.mts`
+// beside it.
+
+import { TASK_METADATA } from "./task-metadata.mjs";
+
+export const TASK_CHANGE_CLASSES = Object.freeze(["content-data", "copy", "template", "feature", "infra"] as const);
+export type TaskChangeClass = (typeof TASK_CHANGE_CLASSES)[number];
+
+/** Each class's words on screen, quoted exactly by the docs. */
+export const TASK_CHANGE_CLASS_LABELS: Readonly<Record<TaskChangeClass, string>> = Object.freeze({
+  "content-data": "Content data",
+  copy: "Copy",
+  template: "Template",
+  feature: "Feature",
+  infra: "Infrastructure",
+});
+
+export function isTaskChangeClass(value: unknown): value is TaskChangeClass {
+  return typeof value === "string" && (TASK_CHANGE_CLASSES as readonly string[]).includes(value);
+}
+
+/** The class a task's metadata records, or null when it records none it can read. */
+export function readTaskChangeClass(metadata: unknown): TaskChangeClass | null {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const value = (metadata as Record<string, unknown>)[TASK_METADATA.changeClass.name];
+  return isTaskChangeClass(value) ? value : null;
+}

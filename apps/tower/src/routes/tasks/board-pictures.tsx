@@ -1,5 +1,4 @@
 import { eyebrowClass } from "@/components/surface/SectionLabel";
-import { fieldClass } from "@/components/ui/field";
 import type { WorkWeeks } from "@shared/work";
 import { BarStrip, type BarStripPoint } from "@/components/viz/BarStrip";
 import { FlowGraph } from "@/components/viz/FlowGraph";
@@ -8,6 +7,8 @@ import { WorkFlow, weekDaysIn, type WorkFlowRow } from "@/components/viz/WorkFlo
 import { formatInt } from "@/lib/format";
 import { netFlow, stripTotals, weekLine, type EpicGraph, type InOut } from "@/lib/task-board-viz";
 import { cn } from "@/lib/utils";
+import { ProjectRail, type RailItem } from "./projects/ProjectRail";
+import { attentionOrder, projectModel } from "./projects/project-model";
 
 /** The board's panels share one frame: flat, on a hairline ring. */
 const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70";
@@ -167,19 +168,22 @@ export function EpicPanel({ graphs, selected, onSelect, nowMs, className }: {
           <span className="text-base font-semibold text-foreground [overflow-wrap:anywhere]">{graph.title}</span>
           <span className="text-xs text-muted-foreground">{facts.join(" · ")}</span>
         </div>
-        {graphs.length > 1 ? (
-          <>
-            <label className="sr-only" htmlFor="tasks-epic">Epic</label>
-            <select id="tasks-epic" className={cn(fieldClass, "max-w-full")} value={graph.id} onChange={(event) => onSelect(event.target.value)}>
-              {graphs.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.title} · {candidate.project.name}
-                </option>
-              ))}
-            </select>
-          </>
-        ) : null}
       </header>
+      {graphs.length > 1 ? (
+        <>
+          <ProjectRail items={railItems(graphs, nowMs)} selected={graph.id} onSelect={onSelect} label="Epics" />
+          {/* The pick as a native control too, out of sight and out of the
+              tab order: the rail is the control a person uses. */}
+          <label className="sr-only" htmlFor="tasks-epic" aria-hidden>Epic</label>
+          <select id="tasks-epic" className="sr-only" tabIndex={-1} aria-hidden value={graph.id} onChange={(event) => onSelect(event.target.value)}>
+            {graphs.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.title} · {candidate.project.name}
+              </option>
+            ))}
+          </select>
+        </>
+      ) : null}
       <FlowGraph nodes={graph.nodes} edges={graph.edges} nowMs={nowMs} ariaLabel={`${graph.title}: its tasks and what each waits on`} />
       {graph.hidden > 0 ? (
         <span className="text-xs text-muted-foreground">
@@ -188,4 +192,17 @@ export function EpicPanel({ graphs, selected, onSelect, nowMs, className }: {
       ) : null}
     </section>
   );
+}
+
+/** The epics the graph can draw, as the project rail's cards, in "Needs
+ * attention first" order; the ring is the rollup's all-time count when the
+ * snapshot carries one. */
+function railItems(graphs: readonly EpicGraph[], nowMs: number): RailItem[] {
+  const projects = [...new Map(graphs.map((graph) => [graph.project.asset, graph.project])).values()];
+  const records = new Map(projectModel({ projects, snapshots: [], now: new Date(nowMs) })
+    .flatMap((site) => site.projects).map((record) => [record.id, record]));
+  return graphs.flatMap((graph) => {
+    const record = records.get(graph.id);
+    return record ? [{ record: { ...record, title: graph.title }, progress: graph.progress }] : [];
+  }).sort((a, b) => attentionOrder(a.record, b.record));
 }

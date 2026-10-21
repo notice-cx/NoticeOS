@@ -132,6 +132,26 @@ test('a new task records who filed it and with which model, with or without a ke
   assert.deepEqual([filed('tt-1'), filed('tt-2')], [[PERSON, 'Opus 5.5'], [PERSON, undefined]]);
 });
 
+test('a card records the admitted actor and the time of the write, with or without a key, whatever the request said', async () => {
+  const f = fixture();
+  const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort',
+    kill: { state: 'RPM below 12', date: '2026-12-31' } };
+  const claimed = { ...card, by: 'someone else', at: '2020-01-01T00:00:00.000Z' };
+  const request = { projectId: P, operation: { kind: 'create', title: 'Worth it', card: claimed, changeClass: 'copy' } };
+  await f.operations.write(proof(), A, request, KEY);
+  assert.deepEqual(f.tasks.get('tt-1').metadata.noticeos_card, { ...card, by: PERSON, at: '2026-10-07T12:00:00.000Z' });
+  assert.equal(f.tasks.get('tt-1').metadata.noticeos_change_class, 'copy');
+  // A retry with the same key and card replays: the stamp is not part of what the key names.
+  f.advance(60_000);
+  assert.equal((await f.operations.write(proof(), A, request, KEY)).replayed, true);
+  assert.deepEqual(f.effects, [['create', 'tt-1']]);
+  f.advance(60_000);
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'update', taskId: 'tt-1', card } });
+  assert.deepEqual(f.tasks.get('tt-1').metadata.noticeos_card, { ...card, by: PERSON, at: '2026-10-07T12:02:00.000Z' });
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'update', taskId: 'tt-1', card: null } }, 'agent-retry-0002');
+  assert.equal('noticeos_card' in f.tasks.get('tt-1').metadata, false);
+});
+
 test('a close records who closed it and with which model; the close stands if that record fails', async () => {
   const f = fixture();
   await f.operations.write(proof(), A, create, KEY);

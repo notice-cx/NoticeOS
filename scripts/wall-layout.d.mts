@@ -17,7 +17,7 @@ export declare const WALL_TV_WIDTH: number;
 export declare const WALL_TV_HEIGHT: number;
 /** The Wall's widgets: the default's in its reading order, then the ones an
  * operator may add. */
-export declare const WALL_WIDGET_TYPES: readonly ["strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents", "health", "factory", "channels"];
+export declare const WALL_WIDGET_TYPES: readonly ["strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents", "health", "factory", "channels", "next"];
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
 /** The widgets the Wall no longer has. A saved layout may still name them; see
  * the header. */

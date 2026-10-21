@@ -129,6 +129,9 @@ import { CopyCommand } from "@/components/CopyCommand";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { A_WEEK_AGO, LAST_WEEK_BY_TODAY, WorkWeekChip } from "@/components/viz/WorkFlow";
+import { TaskProgressBar } from "@/components/viz/TaskProgressBar";
+import { ProjectJourneys } from "@/components/viz/ProjectJourneys";
+import { PROJECT_JOURNEYS_NOW_MS, PROJECT_JOURNEYS_WEEK_START, projectJourneyRows } from "@/components/viz/ProjectJourneys.fixtures";
 import { FinishLine } from "@/components/surface/FinishLine";
 import {
   ProviderCard,
@@ -143,6 +146,8 @@ import { OwnerChip } from "@/components/OwnerChip";
 import { PageHeader } from "@/components/PageHeader";
 import { PageDecisions } from "@/components/PageDecisions";
 import { ProgressRing } from "@/components/ProgressRing";
+import { WhyItRanks } from "@/components/viz/WhyItRanks";
+import { scoreTaskCard } from "@noticeos/contract/task-card";
 import { PriorityBar } from "@/components/PriorityBar";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { DemoViewerStatus } from "@/components/DemoViewerStatus";
@@ -208,6 +213,8 @@ import { WallCanvas } from "@/components/WallCanvas";
 import { WallAgents } from "@/components/wall/WallAgents";
 import { WallChannels } from "@/components/wall/WallChannels";
 import { WallFactory } from "@/components/wall/WallFactory";
+import { NextUp } from "@/components/wall/NextUp";
+import { nextUpDemo, nextUpOperator } from "@/routes/kitchen-sink/next-up-demo";
 import { WallHealth } from "@/components/wall/WallHealth";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
@@ -2946,6 +2953,16 @@ export function KitchenSinkRoute() {
           <Section title="Visual kit for a site's tabs: ChangeRows, FunnelBars">
             <p className="text-xs text-muted-foreground">Staged in the gallery above, under Changes and funnels.</p>
           </Section>
+          <Section title="Visual kit for Tasks: TaskProgressBar, ProjectJourneys">
+            <div className="flex w-full flex-col gap-5">
+              <div className="flex w-full max-w-sm flex-col gap-3">
+                <TaskProgressBar segments={[...Array.from({ length: 6 }, () => ({ state: "done" as const })), { state: "needs-you" }, { state: "blocked" }, { state: "blocked" }]} />
+                <TaskProgressBar segments={[{ state: "done" }, { state: "done" }, { state: "in-progress" }, { state: "ready" }, { state: "waiting" }, { state: "parked" }, { state: "unknown" }]} />
+                <TaskProgressBar size="sm" segments={Array.from({ length: 5 }, () => ({ state: "done" as const }))} />
+              </div>
+              <ProjectJourneys rows={projectJourneyRows} nowMs={PROJECT_JOURNEYS_NOW_MS} weekStart={PROJECT_JOURNEYS_WEEK_START} />
+            </div>
+          </Section>
 
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">
@@ -3333,6 +3350,22 @@ export function KitchenSinkRoute() {
             <ProgressRing done={2} total={4} title="Setup 2 of 4 — still to do: Data sources, Baseline · 28 days" size="md" />
             <ProgressRing done={5} total={9} title="5 of 9 done" size="md" />
             <ProgressRing done={1} total={1} title="1 of 1 done" size="md" />
+          </Section>
+
+          <Section title="WhyItRanks (a task's card as figures)">
+            <div className="w-full max-w-2xl">
+              <WhyItRanks
+                card={{ valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, buildMinutes: 120, daysToSignal: 14, measurability: "holdout", kill: { state: "Sessions still under baseline", date: "2026-11-11" } }}
+                score={scoreTaskCard({ valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, daysToSignal: 14, measurability: "holdout" }, { operatorRateUsdPerMin: 2 })}
+                rank={{ position: 1, of: 35 }}
+              />
+            </div>
+            <div className="w-full max-w-xl">
+              <WhyItRanks size="sm" card={{ valuePerMonth: 300, likelihood: 0.55, reviewMinutes: 15, daysToSignal: 28, measurability: "cohort" }} score={null} />
+            </div>
+            <div className="w-full max-w-xl">
+              <WhyItRanks size="sm" card={{ valuePerMonth: -40, likelihood: 0.5, reviewMinutes: 0, daysToSignal: 5, measurability: "unmeasured" }} score={null} />
+            </div>
           </Section>
 
           <Section title="Setup checklist panel (the asset page's Overview)">
@@ -5782,6 +5815,24 @@ export function KitchenSinkRoute() {
             </div>
             <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
               <WallFactory week={{ building: null, shipped: null, proven: 0, watching: 0, latest: [] }} />
+            </div>
+          </Section>
+
+          <Section title="NextUp (decisions with the agents now / nothing waits, nothing in progress / tasks unknown)">
+            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+              <NextUp next={nextUpDemo(wallFixture.assets, iso(0))} operator={nextUpOperator(iso(0))} assets={wallFixture.assets} workAssets={wallFixture.assets} nowMs={NOW} />
+            </div>
+            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+              <NextUp
+                next={{ decisions: [], oldestAgeDays: null, working: [], capturedAt: iso(0) }}
+                operator={{ ...nextUpOperator(iso(0)), waiting: 0, urgent: 0 }}
+                assets={wallFixture.assets}
+                workAssets={wallFixture.assets}
+                nowMs={NOW}
+              />
+            </div>
+            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+              <NextUp next={null} operator={null} assets={[]} workAssets={[]} nowMs={NOW} />
             </div>
           </Section>
 

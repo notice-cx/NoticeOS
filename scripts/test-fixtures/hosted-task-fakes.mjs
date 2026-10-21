@@ -69,7 +69,10 @@ export function fakeTaskExecutor({ principal, clock }) {
           metadata: { ...(operation.operationId ? { noticeos_operation_id: operation.operationId } : {}),
             ...(operation.filedBy ? { noticeos_filed_by: operation.filedBy } : {}),
             ...(operation.model ? { noticeos_filed_model: operation.model } : {}),
-            ...(operation.choices ? { noticeos_choices: structuredClone(operation.choices) } : {}) } });
+            ...(operation.choices ? { noticeos_choices: structuredClone(operation.choices) } : {}),
+            ...(operation.card ? { noticeos_card: structuredClone(operation.card) } : {}),
+            ...(operation.changeClass ? { noticeos_change_class: operation.changeClass } : {}) },
+          ...(operation.card?.kill ? { due_at: `${operation.card.kill.date}T00:00:00Z` } : {}) });
         if (operation.parent) edges.push({ from: id, to: operation.parent, type: 'parent-child' });
         for (const link of operation.links ?? []) {
           if (link.type === 'blocks') edges.push({ from: link.taskId, to: id, type: 'blocks' });
@@ -91,6 +94,11 @@ export function fakeTaskExecutor({ principal, clock }) {
         // As --metadata merges the new set in and --unset-metadata takes it off.
         if (operation.choices === null) { const { noticeos_choices: _gone, ...kept } = task.metadata ?? {}; task.metadata = kept; }
         else if (operation.choices !== undefined) task.metadata = { ...task.metadata, noticeos_choices: structuredClone(operation.choices) };
+        for (const [field, name] of [['card', 'noticeos_card'], ['changeClass', 'noticeos_change_class']]) {
+          if (operation[field] === null) { const { [name]: _gone, ...kept } = task.metadata ?? {}; task.metadata = kept; }
+          else if (operation[field] !== undefined) task.metadata = { ...task.metadata, [name]: structuredClone(operation[field]) };
+        }
+        if (operation.card?.kill) task.due_at = `${operation.card.kill.date}T00:00:00Z`;
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
         if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
         if (operation.addLabels) task.labels = [...new Set([...(task.labels ?? []), ...operation.addLabels])];

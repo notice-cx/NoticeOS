@@ -541,6 +541,15 @@ test('labels and handoff metadata are captured before asynchronous authority/tar
   assert.deepEqual(JSON.parse(result.args.find(arg => arg.startsWith('--metadata=')).slice(11)), { noticeos_key: 'original join' });
 }));
 
+test('a card and its kill criterion are captured before asynchronous authority/target reads', () => fixture(async f => {
+  const kill = { state: 'RPM below 12', date: '2026-12-31' };
+  const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort', kill };
+  f.state.onDirectory = () => { card.likelihood = 0.99; kill.date = '2030-01-01'; };
+  const result = await f.executor.execute(request(), A, task({ kind: 'create', title: 'Snapshot card', card }));
+  assert.ok(result.args.includes('--due=2026-12-31'));
+  const stored = JSON.parse(result.args.find(arg => arg.startsWith('--metadata=')).slice(11)).noticeos_card;
+  assert.deepEqual([stored.likelihood, stored.kill.date], [0.4, '2026-12-31']);
+}));
 test('aborted original or server signal refuses mutations before authority and capability acquisition', () => fixture(async f => {
   const abort = new AbortController(); abort.abort();
   const operation = task({ kind: 'comment', taskId: 'tt-a', text: 'never issued' });

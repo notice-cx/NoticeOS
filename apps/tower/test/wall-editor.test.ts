@@ -288,6 +288,7 @@ describe("the Add drawer's rows", () => {
       ["health", null],
       ["factory", null],
       ["channels", null],
+      ["next", null],
     ]);
     const twice: WallLayout = {
       version: 1,
@@ -300,7 +301,7 @@ describe("the Add drawer's rows", () => {
   it("offers a widget again once it is taken off", () => {
     const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "work" });
     const options = wallLibraryOptions(state.layout);
-    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed", "agents", "health", "factory", "channels"]);
+    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed", "agents", "health", "factory", "channels", "next"]);
   });
 });
 

@@ -16,6 +16,7 @@ import { answerSteps, choiceSteps, commentProposalMatches, createHostedTaskPlann
   type HostedTaskRequest, type OwnerAnswerVerifier } from './hosted-task-command.mjs';
 import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
+import { taskCardOf } from '../packages/contract/src/task-card.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
 export interface HostedTaskTarget {
@@ -141,6 +142,9 @@ function snapshotRequest(input: unknown, workspaceId: string): HostedTaskRequest
       // Nested data: the copy is checked again, so what runs is what was checked.
       const set = record(value);
       operation[key] = taskChoicesOf({ ...set, options: (Array.isArray(set.options) ? set.options : []).map(option => ({ ...record(option) })) }) ?? fail();
+    } else if (key === 'card' && value !== null) {
+      const card = record(value);
+      operation[key] = taskCardOf({ ...card, ...(Object.hasOwn(card, 'kill') ? { kill: { ...record(card.kill) } } : {}) }) ?? fail();
     } else if (Array.isArray(value)) operation[key] = Object.freeze([...value]);
     else if (value !== null && typeof value === 'object') operation[key] = Object.freeze(record(value));
   }

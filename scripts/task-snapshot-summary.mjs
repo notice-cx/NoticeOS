@@ -3,6 +3,8 @@ import { gateReason, gateTitle } from '../packages/contract/src/task-gate.mjs';
 import { HANDOFF_LABELS, recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { BEADS_CLOSES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
+import { readTaskCard } from '../packages/contract/src/task-card.mjs';
+import { readTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
 import { readTaskResolution } from '../packages/contract/src/task-resolution.mjs';
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
@@ -257,7 +259,16 @@ function beadsIssue(row) {
     deferUntil: beadsInstant(row?.defer_until),
     ...beadsChoices(row),
     ...beadsResolution(row),
+    ...beadsCard(row),
   };
+}
+
+/** Why the task is worth doing and the kind of change it makes, as the task
+ * tools recorded them; no keys when it carries neither, so a row without them
+ * reads as it always did. */
+function beadsCard(row) {
+  const card = readTaskCard(row?.metadata), changeClass = readTaskChangeClass(row?.metadata);
+  return { ...(card === null ? {} : { card }), ...(changeClass === null ? {} : { changeClass }) };
 }
 
 /** How a closed task's close ended, when it is not done; no keys for a done

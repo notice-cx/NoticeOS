@@ -2,6 +2,8 @@ import { demoFetch } from './demo-visit';
 import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
 import type { TaskChoiceKey } from '@noticeos/contract/task-choices';
 import type { TaskResolution } from '@noticeos/contract/task-resolution';
+import type { TaskCard } from '@noticeos/contract/task-card';
+import type { TaskChangeClass } from '@noticeos/contract/task-change-class';
 import { responseJson } from './response-value';
 import { decodeWallMoney, decodeAssetMoney, decodeFinancials } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
@@ -1178,6 +1180,9 @@ export interface NewTask {
   parent?: string;
   acceptance?: string;
   metadata?: Record<string, unknown>;
+  /** What the work is worth, which the Tower ranks by; the lane records who wrote it and when. */
+  card?: TaskCard;
+  changeClass?: TaskChangeClass;
 }
 
 async function createTaskRequest(fetch: ApiTransport, input: NewTask): Promise<TaskCreated> {
@@ -1207,6 +1212,9 @@ export interface TaskEdit {
   acceptance?: string;
   addLabels?: string[];
   removeLabels?: string[];
+  /** Why it ranks and the kind of change; null clears what is recorded. */
+  card?: TaskCard | null;
+  changeClass?: TaskChangeClass | null;
 }
 
 async function updateTaskRequest(fetch: ApiTransport, id: string, edit: TaskEdit, project?: string): Promise<void> {

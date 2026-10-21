@@ -25,7 +25,10 @@ import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from ".
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
 import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../../packages/contract/src/task-resolution.mjs";
-import { choiceSteps, closerMetadata, decisionRefusal, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+import { TASK_CHANGE_CLASSES, isTaskChangeClass, type TaskChangeClass } from "../../../packages/contract/src/task-change-class.mjs";
+import type { TaskCard } from "../../../packages/contract/src/task-card.mjs";
+import { choiceSteps, closerMetadata, decisionRefusal, ownerResponseSteps, recordedTaskCard, sentTaskCard, TaskMaintenanceRefused, TaskStateRefused,
+  type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
@@ -106,6 +109,14 @@ export const UPDATE_FIELDS: Readonly<Record<string, string>> = {
 export const UPDATE_LABEL_FIELDS: Readonly<Record<string, string>> = {
   addLabels: "--add-label",
   removeLabels: "--remove-label",
+};
+
+/** Edits kept in the task's metadata, each under its key: set in one merged
+ * `--metadata`, or taken off with null as `--unset-metadata`. `bd` takes one
+ * or the other in a change, never both. */
+export const UPDATE_METADATA_FIELDS: Readonly<Record<string, string>> = {
+  card: TASK_METADATA.card.name,
+  changeClass: TASK_METADATA.changeClass.name,
 };
 
 /** The sub-actions `POST /api/tasks/:id/<action>` accepts. An answer on a task
@@ -383,6 +394,29 @@ function optionalString(source: Record<string, unknown>, key: string): string | 
   return value;
 }
 
+/** A card the operator sends, checked against the task tools' rules and
+ * recorded under the actor who writes it, now; null for none. */
+function cardInput(value: unknown, opts: Resolved & { actor: string }): TaskCard | null {
+  if (value === undefined || value === null) return null;
+  const sent = sentTaskCard(value);
+  if ("problem" in sent) throw refuse(422, "invalid_body", `${sent.problem.field} (${sent.problem.rule})`);
+  return recordedTaskCard(sent.card, opts.actor, opts.now().toISOString());
+}
+
+function changeClassInput(value: unknown): TaskChangeClass | null {
+  if (value === undefined || value === null) return null;
+  if (!isTaskChangeClass(value)) throw refuse(422, "invalid_body", `changeClass is one of ${TASK_CHANGE_CLASSES.join(", ")}`);
+  return value;
+}
+
+/** The metadata a card and a class write, under their keys. */
+function worthMetadata(card: TaskCard | null, changeClass: TaskChangeClass | null): Record<string, unknown> {
+  return {
+    ...(card === null ? {} : { [TASK_METADATA.card.name]: card }),
+    ...(changeClass === null ? {} : { [TASK_METADATA.changeClass.name]: changeClass }),
+  };
+}
+
 /** The spoke a request names, or a 404 that says which projects exist. */
 async function spokeByAsset(asset: string | null, opts: Resolved): Promise<Spoke> {
   const spokes = await opts.readProjects();
@@ -570,16 +604,27 @@ async function createTask(request: LaneRequest, opts: Resolved): Promise<LaneRep
   if (parent !== null) args.push("--parent", parent, "--no-inherit-labels");
   const acceptance = optionalString(input, "acceptance");
   if (acceptance !== null) args.push("--acceptance", acceptance);
-  // The handoff metadata travels as a JSON object and reaches `bd` as one.
+  // The handoff metadata travels as a JSON object and reaches `bd` as one,
+  // with the card and class merged in; those arrive in their own fields, checked.
   const metadata = input.metadata;
   if (metadata !== undefined && metadata !== null) {
     if (typeof metadata !== "object" || Array.isArray(metadata)) {
       throw refuse(422, "invalid_body", "metadata must be a JSON object");
     }
-    args.push("--metadata", JSON.stringify(metadata));
+    for (const [field, name] of Object.entries(UPDATE_METADATA_FIELDS)) {
+      if (Object.hasOwn(metadata, name)) throw refuse(422, "invalid_body", `metadata carries no ${name}; send it as ${field}`);
+    }
+  }
+  const changeClass = changeClassInput(input.changeClass);
+  const writer = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+  const card = cardInput(input.card, writer);
+  // A card's kill date is also the task's due date.
+  if (card?.kill) args.push("--due", card.kill.date);
+  if ((metadata !== undefined && metadata !== null) || card !== null || changeClass !== null) {
+    args.push("--metadata", JSON.stringify({ ...(metadata as Record<string, unknown> | null | undefined), ...worthMetadata(card, changeClass) }));
   }
 
-  const { result, json } = runVerb("create", args, spoke, opts);
+  const { result, json } = runVerb("create", args, spoke, writer);
   const created = (json ?? {}) as Record<string, unknown>;
   const id = text(created.id);
   if (id === "") {
@@ -620,17 +665,36 @@ async function updateTask(id: string, request: LaneRequest, opts: Resolved): Pro
       if (value.length > 0) args.push(labelFlag, (value as string[]).join(","));
       continue;
     }
+    if (UPDATE_METADATA_FIELDS[key] !== undefined) continue;
     throw refuse(
       400,
       "field_not_allowed",
-      `This lane edits ${["claim", ...Object.keys(UPDATE_FIELDS), ...Object.keys(UPDATE_LABEL_FIELDS)].join(", ")} — not "${key}".`,
+      `This lane edits ${["claim", ...Object.keys(UPDATE_FIELDS), ...Object.keys(UPDATE_LABEL_FIELDS), ...Object.keys(UPDATE_METADATA_FIELDS)].join(", ")} — not "${key}".`,
     );
+  }
+
+  let writer: Resolved = opts;
+  const kept = Object.entries(UPDATE_METADATA_FIELDS).filter(([field]) => Object.hasOwn(input, field));
+  const removed = kept.filter(([field]) => input[field] === null);
+  if (removed.length > 0 && removed.length < kept.length) {
+    throw refuse(422, "invalid_body", "set card and changeClass in one change, and take them off with null in another");
+  }
+  if (removed.length > 0) {
+    for (const [, name] of removed) args.push("--unset-metadata", name);
+  } else if (kept.length > 0) {
+    const changeClass = changeClassInput(input.changeClass);
+    const recorder = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+    const card = cardInput(input.card, recorder);
+    writer = recorder;
+    args.push("--metadata", JSON.stringify(worthMetadata(card, changeClass)));
+    // A new card's kill date moves the due date; a card taken off leaves it.
+    if (card?.kill) args.push("--due", card.kill.date);
   }
 
   if (args.length === 1) {
     throw refuse(422, "invalid_body", "nothing to update");
   }
-  runVerb("update", args, spoke, opts);
+  runVerb("update", args, spoke, writer);
   return { status: 200, body: { id, project: spoke.asset } };
 }
 

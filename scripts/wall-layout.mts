@@ -75,6 +75,7 @@ export const WALL_WIDGET_TYPES = [
   'health',
   'factory',
   'channels',
+  'next',
 ] as const;
 
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
@@ -409,6 +410,21 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     stackOrder: 12,
     hidesWhenEmpty: false,
     settings: ['assets'],
+  },
+  // The decisions waiting on the operator, the top one by name, beside what
+  // the agents hold now and the week's done, sized to be read across a room.
+  next: {
+    type: 'next',
+    label: 'Next up',
+    shows: ['Your decisions', 'Oldest decision', 'Agents now', 'Done this week'],
+    defaultWidth: 1,
+    minWidthRem: 36,
+    maxWidthRem: null,
+    unique: true,
+    prefersFill: false,
+    stackOrder: 13,
+    hidesWhenEmpty: false,
+    settings: [],
   },
 };
 

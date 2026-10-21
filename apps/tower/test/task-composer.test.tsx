@@ -114,7 +114,7 @@ describe('hosted composer fields', () => {
     fireEvent.click(fileTask());
     await waitFor(() => expect(lane.calls).toHaveLength(1));
     expect(lane.calls[0]).toMatchObject({ project: 'meadow.example', title: 'Linked finding', parent: 'md-parent',
-      labels: ['noticeos'], acceptance: 'Observed result', metadata });
+      labels: ['noticeos'], acceptance: '- [ ] Observed result', metadata });
   });
   it('does not dispatch linked content through read-only hosted permission', async () => {
     lane.capability = { live: true, writable: false, reason: null, projectSelection: true, operations: ['create'] };
@@ -365,7 +365,7 @@ describe("TaskComposer", () => {
       type: "chore",
       priority: 0,
       parent: "md-1w2",
-      acceptance: "The hub ranks for its own name.",
+      acceptance: "- [ ] The hub ranks for its own name.",
       labels: [...prefill.labels, "content"],
     });
   });

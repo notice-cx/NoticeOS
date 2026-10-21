@@ -77,12 +77,12 @@ import { AGENTS_ROUTE } from "@/components/nav-items";
 const PAGE_ROWS = 25;
 
 /** Location state that opens the board's composer without changing the URL. */
-const COMPOSE_STATE = "newTask";
+export const COMPOSE_STATE = "newTask";
 
 /** The read-only banner's sentence, which a row's disabled Close as names as its reason. */
 const BOARD_READ_ONLY_REASON_ID = "tasks-read-only-reason";
 
-function composeRequested(state: unknown): boolean {
+export function composeRequested(state: unknown): boolean {
   return typeof state === "object" && state !== null && (state as Record<string, unknown>)[COMPOSE_STATE] === true;
 }
 
@@ -448,7 +448,7 @@ function errorText(err: unknown, fallback: string): string {
 }
 
 /** Who holds work right now, busiest first, and the way to the Agents page. */
-function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
+export function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
   const counts = new Map<string, { name: string; n: number }>();
   for (const task of tasks) {
     if (task.status !== "in_progress" || !task.assignee) continue;

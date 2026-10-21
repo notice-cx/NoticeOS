@@ -170,10 +170,14 @@ that can be read quickly, and the kit has a component for it:
 | open problems | one ranked panel: new since the operator last looked first, the long-standing ones collapsed | `IncidentList` |
 | several measures, each against its own earlier window | rows divided by thin lines: the figure, its days against the earlier level, the change as a bar from one shared zero line | `ChangeRows` |
 | a count narrowing step by step | bars on one scale, each with its share of the step before; a step with no measurement hatched | `FunnelBars` |
+| why a task ranks | its card's figures in one row, read left to right, each with its unit a step lighter: the money at stake, the likelihood as a percent and ten bars, the operator's minutes, the time to signal, the kill date, the rank with its policy version | `WhyItRanks` |
+| one project's tasks by state | one row of equal segments, one per task, filled from the left as the work finishes, its counts as the bar's accessible sentence | `TaskProgressBar` |
+| projects on a time axis, with what waits on the operator drawn from the day it was asked | one row per project on an axis weeks either side of today: closes as dots, work in progress as a green span to today, the open question as a span in the warning colour from the day it was asked, and held, parked and kill-dated work just ahead of today | `ProjectJourneys` |
+| a queue ranked by what each item is worth, each with its reason | the first item whole, with its figures and its verbs, then one row per item: its rank, its reason in one muted line, the money over its odds and minutes, its age as a bar length and its verb | the Tasks page's Next tab (`NextDecision`, `RankedRows`) |
 
 **Tabs are the only way a page in the Tower is divided into sections.** When
 a page covers more than one subject, `Tabs` divides it: the same bar on a
-site's page, Alerts, System health, Workflows and Settings. Each tab has its
+site's page, Alerts, Tasks, System health, Workflows and Settings. Each tab has its
 own URL (the first tab the bare address, each other one a segment after it),
 the arrow keys and Home/End move between tabs, and on a phone the tab strip
 scrolls within its own row. A page never adds its own navigation beside the
@@ -457,14 +461,28 @@ closed bars), then one board grouped by site, worst first, each reading drawn
 on a `NormalBand` against the range its own rule computed, and anything open
 for over a week collapsed under one line.
 
-**Tasks shows the size and age of the queue**: the answer's figures each with
+**Tasks opens on what to do next, and why**, in three tabs. Next is one
+sentence naming the decision to take first and its strongest fact, the line
+of counts, a brief of three to five sentences on request, the first decision
+raised whole (`NextDecision`: its card as `WhyItRanks`, "Why first?" for the
+rest of the card, the same verbs as its queue row), then the other decisions,
+the agents' next work and the held-back work as rows (`RankedRows`,
+`NotNow`), each with its one reason. The decisions and the agents' ready work
+are ranked by policy v1.0 over each task's card ([doc 04](04-decision-policy.md));
+a task with no card is listed after the ranked ones and never scored. Focus
+(`/tasks/focus`) takes the decisions one at a time, full width, with an
+option's letter, Enter and → as its keys. Projects shows each epic as a card
+of its site, with its tasks as a `TaskProgressBar` and its next step or its
+question on the card, or every project on one `ProjectJourneys` axis.
+**All tasks shows the size and age of the queue**: the answer's figures each with
 its change chip against a week ago or last week by today (`WorkWeekChip`, the
 Wall's own), the tasks waiting for the operator as a `DecisionQueue` with the
 spread of their ages, closed and filed a day over two weeks as two dated
 `BarStrip`s on one scale with this week's closes against last week's on a
 `PaceBar`, each project's week as the Wall's `WorkFlow` chart, and the most
 stuck epic as a `FlowGraph`
-whose blocked edges are drawn as broken lines. The full task table follows, with each task's
+whose blocked edges are drawn as broken lines, with a rail of project cards to
+pick another epic. The full task table follows, with each task's
 assignee on its row.
 
 **A task's page shows one task whole**: a header band in its type's surface
@@ -476,11 +494,16 @@ a record once made; Close opens the five ways a close ends as one row of
 chips, `ResolutionChips`, Done first, and a close where nothing shipped is
 one line sent through the inbox's Undo, then read in the band as "Closed as
 Won't do"); under it one raised card
-whose sections are divided inside it (the description in the task guide's
-labelled sections, **Done when** as a checklist, a `DependencyGraph` when the
-task waits on others or others wait on it, an epic's tasks, and a
-`TaskTimeline` ending in the comment box); and beside the card a rail of
-facts, each a `FactChip` that edits in place with an Undo. On a phone the
+whose sections are divided inside it ("Why it ranks" as `WhyItRanks` when
+the task carries a card, its form opened in place by Edit; the description in
+the task guide's labelled sections; **Done when** as a checklist whose boxes
+write the flipped line back; a `DependencyGraph` when the task waits on
+others or others wait on it; an epic's tasks; and a `TaskTimeline` ending in
+the comment box). The description, Done when and comments are Markdown drawn
+by one renderer (`task-markdown.tsx`) that emits React elements and no raw
+HTML, links only `http(s)`, `mailto:` and site-relative addresses, and
+loads images only from `http(s)`. Beside the card is a rail of facts, Kind
+among them, each a `FactChip` that edits in place with an Undo. On a phone the
 facts wrap as one row of chips under the header.
 
 **Agents shows who did the work**: the tasks closed in the last seven days
@@ -560,9 +583,9 @@ against a week ago, this week's done against last week's on a `PaceBar`, one
 row per project, done work as a bar extending left of a centre line over last
 week's done as a dashed outline, and the open queue extending right). That
 is the "Everything" view's layout, `DEFAULT_WALL_LAYOUT`. Anything else belongs on the Tower page for its subject; the Needs
-attention, live feed, agents, Site health, "The agents" and "Visitors by
-channel" widgets stay in the widget library for an operator who wants them on
-the Wall.
+attention, live feed, agents, Site health, "The agents", "Visitors by
+channel" and "Next up" widgets stay in the widget library for an operator who
+wants them on the Wall.
 
 **Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
 "I run the business": the strip, then Site health over the revenue beside
@@ -584,19 +607,25 @@ Building › Finished › Proven as large figures and up to three lines about th
 newest work, spread over the widget's height. "Visitors by channel"
 draws the portfolio's visits by channel on one shared scale with each
 channel's visits and share, and under them the largest funnel drop across the
-sites.
+sites. "Next up" shows the decisions waiting on the operator as one large
+figure with the oldest one's age, the top decision by name with its site and
+age, the next four as site marks with their ages, and beside them up to three
+tasks in progress, urgent first, over the week's done with its change chip; it
+is in no preset, and the payload carries it under `next`, from the newest task
+snapshot.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
-renders rows of twelve widget types: the strip, the loop, revenue, the last 24
+renders rows of thirteen widget types: the strip, the loop, revenue, the last 24
 hours, Needs attention, the site rows, work, the feed, the agents' ranking,
-Site health, "The agents" (the agents' week) and "Visitors by channel". `scripts/wall-layout.mts`
+Site health, "The agents" (the agents' week), "Visitors by channel" and "Next
+up". `scripts/wall-layout.mts`
 defines the composition rules: how many rows and widgets a layout may hold,
 that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining
 height, and the one-column order a portrait tablet or a phone stacks into
 (`stackOrder`): the strip, revenue, the site rows, the last 24 hours, Needs
 attention, work, the agents' ranking, the feed, the loop, Site health, "The
-agents" and "Visitors by channel". A layout with neither the site rows nor
+agents", "Visitors by channel" and "Next up". A layout with neither the site rows nor
 Site health is warned "No sites on the TV", and one with none of the last 24
 hours, Needs attention or Site health "No alerts on the TV". The
 same validator runs on every path a layout can be written through, so the
@@ -810,7 +839,10 @@ when a new shape appears: the form table under Principles lists each form and
 its component. `BarStrip`, `PaceBar`, `NormalBand`, `StatTile`, `HealthGrid`,
 `EventTimeline`, `FlowGraph`, `PortfolioRows`, `DecisionQueue`,
 `IncidentList`, `ChangeRows` and `FunnelBars` in `components/viz/` are the
-kit, shown with invented figures at `/dev/visual-kit`. One `Card` with four
+kit, shown with invented figures at `/dev/visual-kit`. `WhyItRanks` (a task's
+card as figures), `TaskProgressBar` (one project's tasks by state) and
+`ProjectJourneys` (every project on one time axis), in the same folder, are
+shown in the `/dev/kitchen-sink` gallery. One `Card` with four
 kinds. `PageAnswer`, `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for
 a figure combined with its series; `HeroChart` for a dated chart with keys,
 event marks and keyboard inspection; `Sparkline` and `MinutePulse` for the
@@ -826,7 +858,7 @@ one-press pick between the options an agent offered; `ResolutionChips`,
 designed empty, failed and loading state, `Skeleton` for one block of a
 loading shape, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the
 figure. On the Wall: `WallStrip`, `RevenueHero`, `NeedsYou`, `SiteRows`,
-`WallFeed`, and `WallCanvas` that composes them.
+`WallFeed`, `NextUp`, and `WallCanvas` that composes them.
 
 **Charts.** Tabular digits on every figure. One chart style on the Wall, from
 `ChartMarks`; on the Tower's pages, `HeroChart` shows a key for each series

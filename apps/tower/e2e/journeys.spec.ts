@@ -3144,13 +3144,13 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
     ["/health", main.getByRole("region", { name: "System status" })],
     ["/financials", main.locator("[data-money-answer]")],
     ["/alerts", main.locator("[data-alert-filters]")],
-    ["/tasks", main.locator("[data-tasks-filters]")],
+    ["/tasks/all", main.locator("[data-tasks-filters]")],
   ];
   const found: string[] = [];
   for (const [path, drawn] of screens) {
     // Tasks draws only once a task source is connected, and its project
     // filter is what this walk checks, so Beads connects here.
-    if (path === "/tasks") expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
+    if (path === "/tasks/all") expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
     await page.goto(path);
     await expect(drawn).toBeVisible();
     await expect(page.locator("[data-route-loading]")).toHaveCount(0);
@@ -3183,7 +3183,7 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   await page.goto("/alerts");
   await expect(page.locator("[data-alert-filters]")).toBeVisible();
   await expect(page.locator("#alerts-asset")).toHaveCount(0);
-  await page.goto("/tasks");
+  await page.goto("/tasks/all");
   await expect(page.locator("[data-tasks-filters]")).toBeVisible();
   await expect(page.locator("#tasks-project")).toHaveCount(0);
 });

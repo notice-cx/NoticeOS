@@ -11,6 +11,8 @@ import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/ta
 import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice,
   type TaskChoiceKey, type TaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS, type TaskResolution } from '../packages/contract/src/task-resolution.mjs';
+import { TASK_CARD_LIMITS, taskCardOf, taskCardProblem, type TaskCard, type TaskCardProblem } from '../packages/contract/src/task-card.mjs';
+import { isTaskChangeClass, type TaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
 import { TASK_BLOCKING_DEPENDENCIES as BLOCKING } from '../packages/contract/src/task-gate.mjs';
 
 export const MAINTENANCE_ACTIONS = ['answer', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'] as const;
@@ -102,6 +104,10 @@ export type HostedTaskOperation =
       readonly links?: readonly HostedTaskLink[];
       /** The options a person picks from, kept on the task (task-choices.mts). */
       readonly choices?: TaskChoices;
+      /** Why the task is worth doing (task-card.mts). Its kill date is also the task's due date. */
+      readonly card?: TaskCard;
+      /** The kind of change the task makes (task-change-class.mts). */
+      readonly changeClass?: TaskChangeClass;
       /** The model the filer names, kept on the task. */
       readonly model?: string;
       /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
@@ -114,6 +120,9 @@ export type HostedTaskOperation =
       readonly addLabels?: readonly string[]; readonly removeLabels?: readonly string[];
       /** A whole new set of choices, or null to take them off; refused once a person has chosen. */
       readonly choices?: TaskChoices | null;
+      /** A whole new card, or null to take it off; a kill date also sets the due date. */
+      readonly card?: TaskCard | null;
+      readonly changeClass?: TaskChangeClass | null;
       /** With a claim only: the model the claimer names, kept on the task. */
       readonly model?: string }
   | { readonly kind: 'comment'; readonly taskId: string; readonly text: string }
@@ -275,6 +284,41 @@ function choiceSet(value: unknown): TaskChoices {
   if (Object.hasOwn(row, 'options')) copy.options = entries(row.options, 0, TASK_CHOICE_LIMITS.most).map(option => ({ ...record(option) }));
   return taskChoicesOf(copy) ?? invalid();
 }
+/** A task's card, read the same way and checked against task-card.mts. */
+function cardOf(value: unknown): TaskCard {
+  const row = record(value);
+  const copy: Record<string, unknown> = { ...row };
+  if (Object.hasOwn(row, 'kill')) copy.kill = { ...record(row.kill) };
+  return taskCardOf(copy) ?? invalid();
+}
+function changeClassOf(value: unknown): TaskChangeClass {
+  if (!isTaskChangeClass(value)) invalid();
+  return value;
+}
+/** The metadata keys a create or an update writes from a field of its own,
+ * each with the reader that checks that field. */
+const FIELD_METADATA: readonly (readonly [string, string, (value: unknown) => unknown])[] = Object.freeze([
+  ['choices', TASK_METADATA.choices.name, choiceSet],
+  ['card', TASK_METADATA.card.name, cardOf],
+  ['changeClass', TASK_METADATA.changeClass.name, changeClassOf],
+] as const);
+
+/** A card as a caller sends it: its figures, without the by and at only its
+ * writer records, or the field at fault and the rule it breaks. The task
+ * tools and the Tower's local task lane read a caller's card through this. */
+export function sentTaskCard(value: unknown): { readonly card: TaskCard } | { readonly problem: TaskCardProblem } {
+  const figures = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).filter(([name]) => name !== 'by' && name !== 'at')) : value;
+  const problem = taskCardProblem(figures);
+  return problem === null ? { card: taskCardOf(figures)! } : { problem };
+}
+/** The card a task stores: the caller's figures with who recorded them and
+ * when, which only the writer stamps, whatever the caller sent for those two.
+ * The one copy for both writers of a card, the hosted task operations and the
+ * Tower's local task lane. */
+export function recordedTaskCard(card: TaskCard, by: string, at: string): TaskCard {
+  return taskCardOf({ ...card, by: by.slice(0, TASK_CARD_LIMITS.by), at }) ?? invalid();
+}
 /** A close's resolution as the attribution records it: done when the close
  * names none, and the other task a duplicate names, which only a duplicate
  * takes and must take. Written on every attributed close, so a reopened
@@ -288,9 +332,10 @@ function resolutionMetadata(op: Record<string, unknown>, taskId: string): Readon
   return { [TASK_METADATA.resolution.name]: resolution, [TASK_METADATA.duplicateOf.name]: other };
 }
 function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
-  // What only the server writes is never a caller's metadata.
+  // What only the server writes is never a caller's metadata, and what a
+  // field of its own writes arrives in that field, checked.
   const row = record(value); keys(row, [], Object.values(TASK_METADATA).map(field => field.name)
-    .filter(name => !SERVER_TASK_METADATA.includes(name)));
+    .filter(name => !SERVER_TASK_METADATA.includes(name) && !FIELD_METADATA.some(([, kept]) => kept === name)));
   const result: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [key, entry] of Object.entries(row)) result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
   return Object.freeze(result);
@@ -417,9 +462,9 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       argv.push('list', '--status=closed', `--closed-after=${op.since}`, `--closed-before=${op.until}`, '--limit=0', '--include-gates');
       break;
     }
-    case 'create':
-      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'model',
-        'operationId', 'filedBy']);
+    case 'create': {
+      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'card',
+        'changeClass', 'model', 'operationId', 'filedBy']);
       argv.push('create');
       if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'type')) argv.push(`--type=${choice(op.type, TYPES)}`);
@@ -433,23 +478,31 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       // In the create itself, so a task and its links land together or not at all.
       if (Object.hasOwn(op, 'links')) argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
-      // In the create itself, so a task, its filer and its choices land together.
-      if (['metadata', 'operationId', 'filedBy', 'model', 'choices'].some(key => Object.hasOwn(op, key))) {
+      // A card's kill date is also the task's due date.
+      const due = Object.hasOwn(op, 'card') ? cardOf(op.card).kill?.date : undefined;
+      if (due !== undefined) argv.push(`--due=${due}`);
+      // In the create itself, so a task, its filer, its choices and its card land together.
+      if (['metadata', 'operationId', 'filedBy', 'model', ...FIELD_METADATA.map(([field]) => field)].some(key => Object.hasOwn(op, key))) {
         const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
           ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}),
           ...(Object.hasOwn(op, 'filedBy') ? { [TASK_METADATA.filedBy.name]: text(op.filedBy, HOSTED_TASK_LIMITS.identifier) } : {}),
           ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}),
-          ...(Object.hasOwn(op, 'choices') ? { [TASK_METADATA.choices.name]: choiceSet(op.choices) } : {}) };
+          ...Object.fromEntries(FIELD_METADATA.filter(([field]) => Object.hasOwn(op, field)).map(([field, name, read]) => [name, read(op[field])])) };
         argv.push(`--metadata=${JSON.stringify(metadata)}`);
       }
       argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');
       break;
+    }
     case 'update': {
-      const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels', 'choices'];
+      const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels',
+        ...FIELD_METADATA.map(([field]) => field)];
       keys(op, ['kind', 'taskId'], [...fields, 'model']);
       if (!fields.some(key => Object.hasOwn(op, key)) || Object.hasOwn(op, 'model') && op.claim !== true) invalid();
-      // A claim writes its model with --metadata, which the task client will not combine with --unset-metadata.
-      if (Object.hasOwn(op, 'choices') && Object.hasOwn(op, 'claim')) invalid();
+      const kept = FIELD_METADATA.filter(([field]) => Object.hasOwn(op, field));
+      const removed = kept.filter(([field]) => op[field] === null);
+      // The task client takes one --metadata object, merged, or --unset-metadata
+      // keys, never both in one change; a claim writes its model with the first.
+      if (kept.length && Object.hasOwn(op, 'claim') || removed.length && removed.length !== kept.length) invalid();
       argv.push('update');
       if (Object.hasOwn(op, 'status')) argv.push(`--status=${choice(op.status, STATUSES)}`);
       if (Object.hasOwn(op, 'priority')) argv.push(`--priority=${integer(op.priority, 0, 4)}`);
@@ -462,10 +515,11 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'addLabels')) argv.push(`--add-label=${labelList(op.addLabels).join(',')}`);
       if (Object.hasOwn(op, 'removeLabels')) argv.push(`--remove-label=${labelList(op.removeLabels).join(',')}`);
-      if (Object.hasOwn(op, 'choices')) {
-        argv.push(op.choices === null ? `--unset-metadata=${TASK_METADATA.choices.name}`
-          : `--metadata=${JSON.stringify({ [TASK_METADATA.choices.name]: choiceSet(op.choices) })}`);
-      }
+      if (removed.length) argv.push(...removed.map(([, name]) => `--unset-metadata=${name}`));
+      else if (kept.length) argv.push(`--metadata=${JSON.stringify(Object.fromEntries(kept.map(([field, name, read]) => [name, read(op[field])])))}`);
+      // A new card's kill date moves the due date; a card taken off leaves it.
+      const due = Object.hasOwn(op, 'card') && op.card !== null ? cardOf(op.card).kill?.date : undefined;
+      if (due !== undefined) argv.push(`--due=${due}`);
       // In the claim itself, so the claim and its model land together.
       if (Object.hasOwn(op, 'model')) argv.push(`--metadata=${JSON.stringify({ [TASK_METADATA.claimedModel.name]: model(op.model) })}`);
       argv.push('--', task(op.taskId));
