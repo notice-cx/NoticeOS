@@ -24,8 +24,9 @@ import {
 } from '../job-runs.mjs';
 import { workerCrons } from '../os-runtime.mjs';
 import { createScheduledJobRunner } from '../scheduled-job-runner.mjs';
-import { SCHEDULED_JOBS, SCHEDULE_STATUS_FILE, jobRunName } from '../scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, SCHEDULE_STATUS_FILE, jobRunName, manualLocalJob } from '../scheduled-jobs.mjs';
 import { publishWorkflowHeartbeat, WORKFLOW_SESSION_ID } from '../workflow-history.mjs';
+import { stepResult } from '../workflow-trace.mjs';
 import { CONFIG, HOME_ROOT, INGEST_WRANGLER } from './config.mjs';
 import { cronFireDecision, runtimeDoorOwnership } from './door-ownership.mjs';
 import { REGULAR_LANE_HELD, runJobLane } from './job-record.mjs';
@@ -149,13 +150,10 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
   const crons = await readCrons();
   const configured = new Set(crons);
   const jobs = SCHEDULED_JOBS.filter((job) => job.local || configured.has(job.cron));
-  const localRuns = Object.fromEntries(
-    Object.entries(lanes).map(([id, lane]) => [id, () => runRegularLane(id, lane.run, lane.outcomeOf)]),
-  );
   scheduledJobRunner = createScheduledJobRunner({
     jobs,
-    run: async (job) => {
-      if (job.local) return localRuns[job.id]();
+    run: async (job, manual = false) => {
+      if (job.local) return runLocalLane(job.id, lanes[job.id], manual);
       const name = jobRunName(job);
       const result = await runRegularLane(name, () => fireScheduled(job.cron, runtime), (fired) => fired);
       retryFailedFiring(name, result, {
@@ -175,6 +173,7 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
       });
     },
     publish: async (status) => {
+      status.manualJobs = jobs.filter((job) => manualLocalJob(job.id)).map((job) => job.id);
       await publishWorkflowHeartbeat();
       const destination = path.join(HOME_ROOT, SCHEDULE_STATUS_FILE);
       await fs.mkdir(path.dirname(destination), { recursive: true });
@@ -214,7 +213,19 @@ export function retryFailedFiring(job, result, { retry, schedule = setTimeout, p
   return timer;
 }
 
-function runRegularLane(job, fn, outcomeOf = (result) => (result === null ? 'skipped' : 'ran')) {
+export async function runLocalLane(id, lane, manual = false, deps = {}) {
+  let record;
+  const result = await runRegularLane(id, lane.run, lane.outcomeOf, {
+    ...deps,
+    ...(manual ? { trigger: { kind: 'manual' } } : {}),
+    onRecord: (value) => { record = value; deps.onRecord?.(value); },
+  });
+  if (!manual) return result;
+  const state = record?.outcome === 'failed' ? 'failed' : record?.workflowState ?? stepResult(result).state;
+  return { outcome: state === 'failed' || state === 'skipped' ? state : record?.outcome ?? 'failed' };
+}
+
+function runRegularLane(job, fn, outcomeOf = (result) => (result === null ? 'skipped' : 'ran'), deps = {}) {
   const decision = scheduledDuringCatchupDecision(startupCatchupOwnership.holds(job), job);
   return runJobLane(
     job,
@@ -229,6 +240,7 @@ function runRegularLane(job, fn, outcomeOf = (result) => (result === null ? 'ski
       result === REGULAR_LANE_HELD
         ? { outcome: decision.outcome, detail: decision.detail }
         : outcomeOf(result),
+    deps,
   );
 }
 
@@ -288,20 +300,24 @@ async function runStartupCatchups(runtime, records, configuredCrons, lanes, nowM
         if (!catchupStillArmed(item, current)) continue;
         log('INFO', `startup catch-up: ${item.job} missed ${item.scheduledAt}`);
         const defaultOutcome = (result) => (result === null ? 'skipped' : 'ran');
-        if (item.kind === 'cron') {
-          await runJobLane(
-            item.job,
-            () => fireScheduled(item.expression, runtime),
-            catchupOutcome((result) => result, item.scheduledAt),
-          );
-        } else if (HOST_CATCHUP_LANES.includes(item.kind)) {
-          const lane = lanes[item.kind];
-          await runJobLane(
-            item.job,
-            () => lane.run(),
-            catchupOutcome(lane.outcomeOf ?? defaultOutcome, item.scheduledAt),
-          );
-        }
+        await scheduledJobRunner.runOnce(job.id, { wait: true, execute: async () => {
+          if (!catchupStillArmed(item, scheduledJobRunner.current(job.id))) return;
+          if (item.kind === 'cron') {
+            return runJobLane(
+              item.job,
+              () => fireScheduled(item.expression, runtime),
+              catchupOutcome((result) => result, item.scheduledAt),
+            );
+          }
+          if (HOST_CATCHUP_LANES.includes(item.kind)) {
+            const lane = lanes[item.kind];
+            return runJobLane(
+              item.job,
+              () => lane.run(),
+              catchupOutcome(lane.outcomeOf ?? defaultOutcome, item.scheduledAt),
+            );
+          }
+        } });
       } finally {
         startupCatchupOwnership.release(item.job);
       }
@@ -331,7 +347,7 @@ function fireFirstBeadsPoll(runtime, lanes) {
     // Through the same lane wrapper as the scheduled poll: this IS the beads
     // snapshot lane firing, and a record that skipped the first one after every
     // restart would understate how often it runs.
-    void runJobLane('beads-snapshot', () => lanes['beads-snapshot'].run());
+    void scheduledJobRunner.runOnce('beads-snapshot');
   }, 500);
   oneShotTimers.add(timer);
 }

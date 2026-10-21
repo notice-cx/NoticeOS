@@ -9,16 +9,27 @@ export interface ScheduledJobRunner {
     snapshot(): ScheduleStatus;
     apply(overrides: ScheduleOverrides | null): void;
     current(id: string): JobSchedule | null;
+    runOnce(id: string, options?: {
+        manual?: boolean;
+        wait?: boolean;
+        execute?: () => Promise<unknown>;
+    }): Promise<JobInvocation>;
     refresh(): Promise<void>;
     stop(): void;
 }
+export type JobInvocation = {
+    status: 'ran';
+    result: unknown;
+} | {
+    status: 'busy' | 'paused' | 'unavailable' | 'unknown';
+};
 export declare function readStoredSchedules(request?: typeof configStoreRequest): Promise<ScheduleOverrides | null>;
 /** Replace only changed timers. Callbacks from stopped timers and overlapping
  * invocations cannot fire a job a second time. A read failure keeps the last
  * acknowledged schedule; a first read failure arms nothing. */
 export declare function createScheduledJobRunner({ jobs, run, read, publish, onReady, createTimer, now, }: {
     jobs?: ScheduledJob[];
-    run: (job: ScheduledJob) => Promise<unknown>;
+    run: (job: ScheduledJob, manual?: boolean) => Promise<unknown>;
     read?: () => Promise<ScheduleOverrides | null>;
     publish?: (status: ScheduleStatus) => Promise<void>;
     onReady?: () => void;

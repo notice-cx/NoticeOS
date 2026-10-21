@@ -3,8 +3,10 @@ import path from 'node:path';
 import type { Plugin } from 'vite';
 import { readStoredSchedules } from '../../../scripts/scheduled-job-runner.mjs';
 import { configStoreRequest } from '../../../scripts/config-store-client.mjs';
-import { SCHEDULE_STATUS_FILE, type ScheduleStatus } from '../shared/scheduled-jobs';
-import { DEFAULT_REPO_ROOT, laneMiddleware, type LaneReply, type LaneRequest } from './lane';
+import { requestLocalJob } from '../../../scripts/local-job-control.mjs';
+import { SCHEDULE_STATUS_FILE, manualLocalJob, type ScheduleStatus } from '../shared/scheduled-jobs';
+import { demoViewerReply, type DemoViewerDescriptor } from '../shared/demo-viewer';
+import { DEFAULT_REPO_ROOT, crossOrigin, isJson, laneMiddleware, type LaneReply, type LaneRequest } from './lane';
 import { createWorkflowHistoryReader } from './workflow-history';
 
 export async function handleScheduledJobsRequest(
@@ -16,8 +18,22 @@ export async function handleScheduledJobsRequest(
       catch { return null; }
     },
     now = Date.now,
+    runJob = (id: string) => requestLocalJob(id, { root: DEFAULT_REPO_ROOT }),
+    demoViewer = null as DemoViewerDescriptor | null,
   } = {},
 ): Promise<LaneReply> {
+  if (request.method === 'POST' && request.url === '/api/workflows') {
+    const demo = demoViewerReply(demoViewer, request.method, request.url);
+    if (demo) return { status: demo.status, body: demo.body as Record<string, unknown> };
+    if (crossOrigin(request.headers)) return { status: 403, body: { error: 'forbidden' } };
+    if (!isJson(request.headers)) return { status: 415, body: { error: 'json_required' } };
+    let input: unknown;
+    try { input = JSON.parse(request.body); } catch { input = null; }
+    if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id' || !manualLocalJob((input as { id?: unknown }).id)) {
+      return { status: 422, body: { error: 'local_job_not_allowed' } };
+    }
+    return runJob((input as { id: string }).id);
+  }
   if (request.method !== 'GET') return { status: 405, body: { error: 'method_not_allowed' } };
   try {
     const [overrides, runtime] = await Promise.all([read(), status()]);
@@ -39,7 +55,7 @@ export async function readManualRuns(request: typeof configStoreRequest = config
   return result.status === 200 ? (result.body as { runs?: unknown })?.runs ?? [] : [];
 }
 
-export function scheduledJobsLane(): Plugin {
+export function scheduledJobsLane({ demoViewer = null }: { demoViewer?: DemoViewerDescriptor | null } = {}): Plugin {
   const history = createWorkflowHistoryReader(DEFAULT_REPO_ROOT, () => readManualRuns());
   return {
     name: 'scheduled-jobs', apply: 'serve', enforce: 'pre',
@@ -47,9 +63,9 @@ export function scheduledJobsLane(): Plugin {
       server.middlewares.use(laneMiddleware({
         matches: (pathname) => pathname === '/api/scheduled-jobs' || pathname === '/api/workflows',
         handle: async (request) => {
-          const response = await handleScheduledJobsRequest(request);
+          const response = await handleScheduledJobsRequest(request, { demoViewer });
           const url = new URL(request.url ?? '/', 'http://localhost');
-          if (url.pathname !== '/api/workflows' || response.status !== 200) return response;
+          if (request.method !== 'GET' || url.pathname !== '/api/workflows' || response.status !== 200) return response;
           const now = Date.now();
           const result = await history(now, url.searchParams.get('run') ?? undefined, (response.body.runtime as ScheduleStatus | null)?.sessionId);
           return { status: 200, body: { ...response.body, ...result, generatedAt: new Date(now).toISOString() } };

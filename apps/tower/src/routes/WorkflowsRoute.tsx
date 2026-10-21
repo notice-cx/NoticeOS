@@ -22,6 +22,7 @@ import { useNow } from '@/hooks/useNow';
 import { cn } from '@/lib/utils';
 import { HealthNavigation } from './health/HealthNavigation';
 import { ScheduleEditor } from './workflows/ScheduleEditor';
+import { RunLocalJob } from './workflows/RunLocalJob';
 
 const ATTENTION = new Set<WorkflowState>(['failed', 'unknown']);
 const INACTIVE = new Set<WorkflowState>(['skipped', 'paused', 'never']);
@@ -214,6 +215,14 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
             keeps the runner's view above and links there; a collection
             nothing is connected for has no link. Every other job's one editor
             is still this one. */}
+        <div className="flex flex-wrap items-start gap-3">
+        {!demoReadonly && data.runtime?.manualJobs?.includes(id) && <RunLocalJob key={id} id={id} label={definition.label}
+          disabledReason={!writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
+          onComplete={async () => {
+            const fresh = await query.refetch();
+            const latest = fresh.data?.workflows.find((workflow) => workflow.id === id)?.latest;
+            if (latest) { const next = new URLSearchParams(search); next.set('run', latest.id); setSearch(next, { replace: true }); }
+          }} />}
         {collection ? (
           scheduleLink ? (
             <Button asChild variant="outline" size="sm">
@@ -223,6 +232,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         ) : (
           <Button ref={editButton} variant="outline" size="sm" disabled={Boolean(editing) || !writable.writable || query.isError} onClick={() => setEditing({ overrides: data.overrides })}><Pencil className="size-3.5" aria-hidden />{definition.triggerKind === 'event' ? 'Manage delivery' : 'Edit schedule'}</Button>
         )}
+        </div>
       </div>
       {definition.triggerKind === 'event' && <p className="text-sm text-muted-foreground">New error alerts and data-source failures trigger delivery. Failed sends retry automatically; recovery checks collect missed events. Pausing stops all delivery.</p>}
       {!collection && editing && <ScheduleEditor job={definition} overrides={editing.overrides} writable={writable.writable && !query.isError}

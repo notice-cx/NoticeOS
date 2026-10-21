@@ -12,7 +12,7 @@
 // down cleanly on SIGINT/SIGTERM.
 //
 // Modes: (default) supervise with loopback Tower · --host (network Tower) ·
-// --tick "<expr>" (os:run-job) · --backup (os:backup). See scripts/README.md.
+// --tick "<expr>" or --run-job <id> (os:run-job) · --backup (os:backup).
 
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -22,7 +22,8 @@ import { requestContainerBackup } from './container-backup-channel.mjs';
 import { doorErrorCode, localDoorFetch, fireScheduledTrigger } from './ingest-door.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runtimeChildEnv, samePath } from './os-runtime.mjs';
-import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, jobRunName, manualLocalJob } from './scheduled-jobs.mjs';
+import { requestLocalJob, startLocalJobControl } from './local-job-control.mjs';
 import { startNotificationEvents } from '../packages/postgres/src/notification-events.mjs';
 import { runtimeDoorOwnership } from './runner/door-ownership.mjs';
 // One responsibility per module under scripts/runner/; the port map and every
@@ -359,6 +360,19 @@ async function tickOnce(expr) {
   }
 }
 
+/** This short-lived command submits to the supervisor; it runs no lane itself. */
+export async function runLocalJobOnce(id, { request = requestLocalJob, root = HOME_ROOT,
+  out = process.stdout, err = process.stderr } = {}) {
+  if (!manualLocalJob(id)) {
+    err.write('Local job refused: choose an allowed local job ID.\n');
+    return 2;
+  }
+  const result = await request(id, { root });
+  const ok = result.status === 200;
+  (ok ? out : err).write(`Local job ${id}: ${result.body.outcome ?? result.body.error ?? 'runner_unavailable'}\n`);
+  return ok && result.body.outcome === 'ran' ? 0 : 1;
+}
+
 // The full supervisor.
 async function supervise({ exposeTowerToLan }) {
   runnerState.commit = codeCommit();
@@ -430,13 +444,15 @@ async function supervise({ exposeTowerToLan }) {
 
   const children = [tower];
   let notificationEvents = null;
+  let jobControl = null;
 
   // Graceful shutdown: stop crons, group-kill children, escalate to SIGKILL.
-  const shutdown = async (sig) => {
+  const shutdown = async (sig, exitCode = 0) => {
     if (isShuttingDown()) return;
     beginShutdown();
     log('INFO', `received ${sig} — shutting down`);
     stopScheduler();
+    await jobControl?.close();
     await notificationEvents?.close();
     for (const c of children) killChild(c, 'SIGTERM');
     await waitForExit(children, 5000);
@@ -449,7 +465,7 @@ async function supervise({ exposeTowerToLan }) {
       schedulerArmed: false,
     });
     log('INFO', 'shutdown complete');
-    process.exit(0);
+    process.exit(exitCode);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
@@ -477,6 +493,15 @@ async function supervise({ exposeTowerToLan }) {
         status: tower.ready && status.jobs.length > 0 ? 'healthy' : 'starting',
       }),
   });
+
+  try {
+    jobControl = await startLocalJobControl({ root: HOME_ROOT, scheduler,
+      ready: () => tower.running && tower.ready, stopped: isShuttingDown });
+  } catch (error) {
+    log('ERROR', `local job control unavailable: ${error.message}`);
+    await shutdown('local job control startup failure', 1);
+    return;
+  }
 
   const notificationJob = SCHEDULED_JOBS.find(job => job.id === 'notifications');
   try {
@@ -515,10 +540,18 @@ async function supervise({ exposeTowerToLan }) {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+  if (argv.includes('--run-job')) {
+    if (argv.length !== 2 || argv[0] !== '--run-job') {
+      process.stderr.write('Use --run-job <job-id> for one allowed local job.\n');
+      process.exitCode = 2;
+      return;
+    }
+    process.exitCode = await runLocalJobOnce(argv[1]);
+    return;
+  }
   await ensureDirs();
   await openLog();
-
-  const argv = process.argv.slice(2);
 
   if (argv.includes('--tick')) {
     // A `--` separator (`node scripts/os-up.mjs --tick -- "0 * * * *"`) may

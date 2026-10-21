@@ -1,0 +1,111 @@
+// Private IPC into the live scheduler; callers never construct or execute a job.
+import { createServer, request } from 'node:http';
+import { createConnection } from 'node:net';
+import { chmod, lstat, unlink } from 'node:fs/promises';
+import path from 'node:path';
+import { LOCAL_JOB_SOCKET, manualLocalJob, type LocalJobReply } from './scheduled-jobs.mjs';
+import type { ScheduledJobRunner } from './scheduled-job-runner.mjs';
+
+export async function invokeLocalJob(id: unknown, {
+  scheduler, ready, stopped,
+}: { scheduler: ScheduledJobRunner; ready: () => boolean; stopped: () => boolean }): Promise<LocalJobReply> {
+  const job = manualLocalJob(id);
+  if (!job) return { status: 422, body: { error: 'local_job_not_allowed' } };
+  // Initialization may start recovery and first-snapshot work. Only the
+  // regular scheduler refresh may do that, never a named manual request.
+  if (stopped() || !ready() || !scheduler.current(job.id)) return { status: 503, body: { error: 'runner_unavailable' } };
+  // A just-saved pause must take effect before a manual invocation.
+  await scheduler.refresh();
+  if (stopped() || !ready()) return { status: 503, body: { error: 'runner_unavailable' } };
+  const invocation = await scheduler.runOnce(job.id, { manual: true });
+  if (invocation.status !== 'ran') {
+    const status = invocation.status === 'busy' || invocation.status === 'paused' ? 409 : 503;
+    return { status, body: { error: `job_${invocation.status}` } };
+  }
+  const outcome = (invocation.result as { outcome?: string } | null)?.outcome ?? 'failed';
+  return { status: outcome === 'failed' ? 500 : 200, body: { job: job.id, outcome } };
+}
+
+/** Remove only a dead Unix socket, never another live runner's admission. */
+async function clearStaleSocket(socketPath: string): Promise<void> {
+  let stat;
+  try { stat = await lstat(socketPath); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error; }
+  if (!stat.isSocket()) throw new Error('Runner control path is not a socket.');
+  const code = await new Promise<string | null>((resolve) => {
+    const socket = createConnection(socketPath);
+    socket.once('connect', () => { socket.destroy(); resolve(null); });
+    socket.once('error', (error: NodeJS.ErrnoException) => resolve(error.code ?? 'unknown'));
+    socket.setTimeout(1_000, () => { socket.destroy(); resolve('timeout'); });
+  });
+  if (code !== 'ECONNREFUSED') throw new Error('Runner control is already owned or unavailable.');
+  await unlink(socketPath);
+}
+
+export async function startLocalJobControl({ root, ...deps }: {
+  root: string; scheduler: ScheduledJobRunner; ready: () => boolean; stopped: () => boolean;
+}): Promise<{ close(): Promise<void> }> {
+  const socketPath = path.join(root, LOCAL_JOB_SOCKET);
+  await clearStaleSocket(socketPath);
+  let closing = false;
+  const server = createServer((req, res) => {
+    const reply = (result: LocalJobReply) => {
+      res.writeHead(result.status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(result.body));
+    };
+    void (async () => {
+      if (closing) { reply({ status: 503, body: { error: 'runner_unavailable' } }); return; }
+      if (req.method !== 'POST' || req.url !== '/') { reply({ status: 405, body: { error: 'method_not_allowed' } }); return; }
+      let body = '';
+      for await (const chunk of req) {
+        body += String(chunk);
+        if (Buffer.byteLength(body) > 256) { reply({ status: 413, body: { error: 'payload_too_large' } }); return; }
+      }
+      let input: unknown;
+      try { input = JSON.parse(body); } catch { input = null; }
+      if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id') {
+        reply({ status: 422, body: { error: 'local_job_not_allowed' } }); return;
+      }
+      reply(await invokeLocalJob((input as { id: unknown }).id, deps));
+    })().catch(() => reply({ status: 500, body: { error: 'local_job_failed' } }));
+  });
+  server.requestTimeout = 5_000;
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, () => { server.removeListener('error', reject); resolve(); });
+  });
+  try { await chmod(socketPath, 0o600); }
+  catch (error) { server.close(); throw error; }
+  return { async close() {
+    closing = true;
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  } };
+}
+
+/** The socket path comes from the installation, never from a request body. */
+export async function requestLocalJob(id: string, { root, timeoutMs = 20 * 60_000 }: {
+  root: string; timeoutMs?: number;
+}): Promise<LocalJobReply> {
+  if (!manualLocalJob(id)) return { status: 422, body: { error: 'local_job_not_allowed' } };
+  return new Promise((resolve) => {
+    const unavailable = () => resolve({ status: 503, body: { error: 'runner_unavailable' } });
+    const req = request({ socketPath: path.join(root, LOCAL_JOB_SOCKET), path: '/', method: 'POST',
+      headers: { 'content-type': 'application/json', connection: 'close' } }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => {
+        body += String(chunk);
+        if (body.length > 4096) req.destroy(new Error('Invalid runner reply.'));
+      });
+      res.on('error', unavailable);
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode ?? 503, body: JSON.parse(body) as LocalJobReply['body'] }); }
+        catch { unavailable(); }
+      });
+    });
+    const deadline = setTimeout(() => req.destroy(new Error('Runner request timed out.')), timeoutMs);
+    req.once('close', () => clearTimeout(deadline));
+    req.once('error', unavailable);
+    req.end(JSON.stringify({ id }));
+  });
+}

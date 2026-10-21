@@ -11,7 +11,8 @@
 //   pnpm os:stop        Stop the app, then backup, then the databases.
 //   pnpm os:restart     Restart the stack in the same order, waiting for each layer's health.
 //   pnpm os:backup      Run one backup now, inside the app container.
-//   pnpm os:run-job -- "<cron>"  Fire the jobs scheduled on one cron expression now.
+//   pnpm os:run-job -- "<cron>"  Run one allowed local job with `--id <job-id>`, or fire one cron expression now.
+//   pnpm os:run-job -- --id <job-id>  Run one allowed local job now through the live scheduler.
 //   pnpm os:collect -- --asset <id> [--families <a,b>]  Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed.
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
 //   pnpm os:refresh-anomalies -- --asset <id> [--apply <preview-token>]  Re-evaluate current count alerts from stored reports, with no provider calls.
@@ -30,6 +31,7 @@ import { runCommand } from './run-command.mjs';
 import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
+import { manualLocalJob } from './scheduled-jobs.mjs';
 
 const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'mcp', 'bd'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
@@ -39,6 +41,7 @@ const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_0
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
        stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>
+       stack-control.mjs run-job --id <job-id>
        stack-control.mjs refresh-anomalies --asset <id> [--apply <preview-token>]
        stack-control.mjs collect --asset <id> [--families <a,b>] [--start <YYYY-MM-DD> --end <YYYY-MM-DD>]`;
 function refuse(message) { throw new Error(message); }
@@ -121,7 +124,8 @@ export function actionArgs(action, args) {
     return parsed;
   }
   if (action === 'run-job') {
-    if (args.length !== 1 || !/^[0-9*/,\- ]{9,64}$/u.test(args[0])) refuse('Name one cron expression: pnpm os:run-job -- "0 6 * * *"');
+    if (args.length === 2 && args[0] === '--id' && manualLocalJob(args[1])) return { job: ['run-job', ...args] };
+    if (args.length !== 1 || !/^[0-9*/,\- ]{9,64}$/u.test(args[0])) refuse('Name one allowed local job: pnpm os:run-job -- --id panel-refresh; or one cron expression: pnpm os:run-job -- "0 6 * * *"');
     return { job: ['run-job', args[0]] };
   }
   if (action === 'collect') return { job: ['collect', ...collectJobArgs(args)] };
@@ -174,7 +178,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
   if (own.job) {
     const app = original.get('noticeos');
     if (app.state !== 'running') refuse('The app is not running; start it first: pnpm os:start');
-    await attached(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', ...own.job], `The ${action} job`, JOB_TIMEOUT_MS[action]);
+    await attached(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', ...own.job], `The ${action} job`, action === 'run-job' && own.job[1] === '--id' ? 1_260_000 : JOB_TIMEOUT_MS[action]);
     return;
   }
   if (action === 'status') {

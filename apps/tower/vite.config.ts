@@ -202,7 +202,7 @@ export default defineConfig(({ command }) => {
     // Each is `enforce: "pre"` so it answers its path before the Cloudflare
     // plugin dispatches it into the Worker, where the built answer lives.
     ...(serverProfile === "standalone" ? [configWriteLane()] : []),
-    ...(serverProfile === "standalone" ? [taskLane({ demoViewer: demoLaunch?.installation.viewer ?? null }), scheduledJobsLane()] : []),
+    ...(serverProfile === "standalone" ? [taskLane({ demoViewer: demoLaunch?.installation.viewer ?? null }), scheduledJobsLane({ demoViewer: demoLaunch?.installation.viewer ?? null })] : []),
     // One check of the pushed reads for every open page (shared/change-topics.ts).
     ...(serverProfile === "standalone" ? [changeLane()] : []),
     // Every MCP tool for an agent on this machine; the synthetic viewer stays read-only.

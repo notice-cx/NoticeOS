@@ -3739,3 +3739,57 @@ test("core Tasks creates, opens and completes work before any user site", async 
   await assertNoPageOverflow(page);
   expect(pageErrors).toEqual([]);
 });
+
+for (const theme of ['dark', 'light'] as const) {
+  test(`named local job runs once with keyboard control and clear results in ${theme} mode`, async ({ page }, testInfo) => {
+    await page.addInitScript(color => localStorage.setItem('noticeos:theme', color), theme);
+    const now = Date.parse(JOURNEY_NOW);
+    const runtime = { updatedAt: JOURNEY_NOW, error: null, manualJobs: ['panel-refresh'],
+      jobs: [{ id: 'panel-refresh', cron: '10 13 * * *', enabled: true, nextRun: new Date(now + 86_400_000).toISOString() }] };
+    let payload: WorkflowsPayload = { overrides: null, runtime, runtimeFresh: true, observationsFresh: true,
+      generatedAt: JOURNEY_NOW, historyAvailable: true, ...buildWorkflowHistory([], [], [], now) };
+    let attempts = 0;
+    let finish!: () => void;
+    const completion = new Promise<void>(resolve => { finish = resolve; });
+    await page.route('**/api/workflows*', async route => {
+      if (route.request().method() !== 'POST') { await route.fulfill({ json: payload }); return; }
+      expect(route.request().postDataJSON()).toEqual({ id: 'panel-refresh' });
+      attempts++;
+      if (attempts === 1) { await route.fulfill({ status: 409, json: { error: 'job_busy' } }); return; }
+      await completion;
+      const startedAt = JOURNEY_NOW;
+      const finishedAt = new Date(now + 1_000).toISOString();
+      const trace: WorkflowRun = { id: `panel-refresh@${startedAt}`, workflowId: 'panel-refresh', definitionVersion: 1,
+        startedAt, finishedAt, state: 'succeeded', trigger: { kind: 'manual' }, steps: [
+          { id: 'execute', attempt: 1, startedAt, finishedAt, state: 'succeeded' },
+          { id: 'record', attempt: 1, startedAt: finishedAt, finishedAt, state: 'succeeded' },
+        ] };
+      payload = { ...payload, ...buildWorkflowHistory([{ job: 'panel-refresh', at: startedAt, outcome: 'ran', ms: 1_000 }], [trace], [], now, trace.id) };
+      await route.fulfill({ json: { job: 'panel-refresh', outcome: 'ran' } });
+    });
+    try {
+      await page.goto('/health/operations/panel-refresh');
+      const run = page.getByRole('button', { name: 'Run Local research summaries now' });
+      await expect(run).toBeEnabled();
+      await keyboardFocus(page, run);
+      await page.keyboard.press('Enter');
+      await expect(page.getByRole('alert')).toHaveText('This job is already running.');
+      await expect(run).toBeEnabled();
+      await keyboardFocus(page, run);
+      await page.keyboard.press('Enter');
+      await expect(run).toBeDisabled();
+      await expect(page.getByText('Running…', { exact: true })).toBeVisible();
+      await expect(page.getByText('This may take a few minutes.')).toBeVisible();
+      await page.keyboard.press('Enter');
+      expect(attempts).toBe(2);
+      await page.screenshot({ path: testInfo.outputPath(`local-job-pending-${theme}.png`), fullPage: true });
+      await assertNoPageOverflow(page);
+      finish();
+      await expect(page.getByText('Run completed.', { exact: true })).toBeVisible();
+      await expect(page.getByText('Manual', { exact: true }).first()).toBeVisible();
+      await expect(run).toBeEnabled();
+      await assertNoPageOverflow(page);
+      await page.screenshot({ path: testInfo.outputPath(`local-job-complete-${theme}.png`), fullPage: true });
+    } finally { finish(); }
+  });
+}

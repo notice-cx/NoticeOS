@@ -18,9 +18,12 @@ export interface ScheduledJobRunner {
   snapshot(): ScheduleStatus;
   apply(overrides: ScheduleOverrides | null): void;
   current(id: string): JobSchedule | null;
+  runOnce(id: string, options?: { manual?: boolean; wait?: boolean; execute?: () => Promise<unknown> }): Promise<JobInvocation>;
   refresh(): Promise<void>;
   stop(): void;
 }
+
+export type JobInvocation = { status: 'ran'; result: unknown } | { status: 'busy' | 'paused' | 'unavailable' | 'unknown' };
 
 export async function readStoredSchedules(request: typeof configStoreRequest = configStoreRequest): Promise<ScheduleOverrides | null> {
   const result = await request(CONFIG_DOCUMENTS_PATH, {
@@ -50,7 +53,7 @@ export function createScheduledJobRunner({
   now = () => new Date(),
 }: {
   jobs?: ScheduledJob[];
-  run: (job: ScheduledJob) => Promise<unknown>;
+  run: (job: ScheduledJob, manual?: boolean) => Promise<unknown>;
   read?: () => Promise<ScheduleOverrides | null>;
   publish?: (status: ScheduleStatus) => Promise<void>;
   onReady?: () => void;
@@ -58,11 +61,29 @@ export function createScheduledJobRunner({
   now?: () => Date;
 }): ScheduledJobRunner {
   const active = new Map<string, { schedule: JobSchedule; timer: ScheduledTimer | null }>();
-  const inFlight = new Set<string>();
-  let refreshing = false;
+  const inFlight = new Map<string, Promise<void>>();
+  let refreshing: Promise<void> | null = null;
   let stopped = false;
   let error: string | null = null;
   let initialized = false;
+
+  async function runOnce(id: string, { manual = false, wait = false, execute }: { manual?: boolean; wait?: boolean; execute?: () => Promise<unknown> } = {}): Promise<JobInvocation> {
+    const job = jobs.find((candidate) => candidate.id === id);
+    if (!job) return { status: 'unknown' };
+    if (stopped || !active.has(id) || (manual && error)) return { status: 'unavailable' };
+    if (!active.get(id)!.schedule.enabled) return { status: 'paused' };
+    if (inFlight.has(id)) {
+      if (!wait) return { status: 'busy' };
+      // Recovery must outlast a regular tick's held-record bookkeeping.
+      // Manual requests never wait for another invocation.
+      await inFlight.get(id);
+      return runOnce(id, { manual, wait, execute });
+    }
+    let release!: () => void;
+    inFlight.set(id, new Promise<void>((resolve) => { release = resolve; }));
+    try { return { status: 'ran', result: await (execute ? execute() : run(job, manual)) }; }
+    finally { inFlight.delete(id); release(); }
+  }
 
   function snapshot(): ScheduleStatus {
     return {
@@ -85,9 +106,8 @@ export function createScheduledJobRunner({
       // The identity check also rejects a callback already queued by the old timer.
       if (schedule.enabled) {
         entry.timer = createTimer(schedule.cron, async () => {
-          if (stopped || active.get(job.id) !== entry || inFlight.has(job.id)) return;
-          inFlight.add(job.id);
-          try { await run(job); } finally { inFlight.delete(job.id); }
+          if (active.get(job.id) !== entry) return;
+          await runOnce(job.id);
         }, scheduleTimezone(schedule));
       }
       previous?.timer?.stop();
@@ -99,26 +119,28 @@ export function createScheduledJobRunner({
     snapshot,
     apply,
     current(id: string) { return active.get(id)?.schedule ?? null; },
+    runOnce,
     async refresh() {
-      if (stopped || refreshing) return;
-      refreshing = true;
-      try {
-        const overrides = await read();
-        if (stopped) return;
-        apply(overrides);
-        error = null;
-        if (!initialized) {
-          initialized = true;
-          onReady();
+      if (stopped) return;
+      if (refreshing) return refreshing;
+      refreshing = (async () => {
+        try {
+          const overrides = await read();
+          if (stopped) return;
+          apply(overrides);
+          error = null;
+          if (!initialized) {
+            initialized = true;
+            onReady();
+          }
+        } catch {
+          // A state code, not a sentence (`ScheduleReadFailure`): the Tower
+          // names it where the operator reads the scheduler's health.
+          error = active.size ? SCHEDULES_HELD : SCHEDULES_WAITING;
         }
-      } catch {
-        // A state code, not a sentence (`ScheduleReadFailure`): the Tower
-        // names it where the operator reads the scheduler's health.
-        error = active.size ? SCHEDULES_HELD : SCHEDULES_WAITING;
-      } finally {
-        refreshing = false;
-      }
-      if (!stopped) await publish(snapshot());
+        if (!stopped) await publish(snapshot());
+      })();
+      try { await refreshing; } finally { refreshing = null; }
     },
     stop() {
       stopped = true;
