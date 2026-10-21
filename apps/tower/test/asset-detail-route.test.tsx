@@ -2621,7 +2621,8 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    await findByText("Config is files; this build has none.");
+    await findByText(/Config is files; this build has none\./);
+    expect(container.querySelector("[data-saves-paused]")).toHaveTextContent("Saves paused · Config is files; this build has none.");
     expect(
       container.querySelectorAll("[data-ga4-config-read-only]"),
     ).toHaveLength(0);
