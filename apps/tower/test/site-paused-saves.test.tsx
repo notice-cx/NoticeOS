@@ -52,7 +52,7 @@ it("states Saves paused once in Tune, keeping both settings read only", () => {
   const knobs = [
     { key: "alpha", label: "Anomaly sensitivity", raw: 0.01, pointer: "/flag_defaults/alpha" },
     { key: "max_window_days", label: "Longest window", raw: 14, pointer: "/flag_defaults/max_window_days" },
-  ].map((knob) => ({ ...knob, value: String(knob.raw), owner: "config/constants.json", explain: "" }));
+  ].map((knob) => ({ ...knob, jargon: knob.key, value: String(knob.raw), owner: "config/constants.json", explain: "" }));
   const { container } = render(wrap(<RuleTunePanel asset="example.com" ruleId="flow-poisson-low" metric="signups"
     knobs={knobs} preview={{ state: "loading" }} onDraftChange={vi.fn()} />));
   expect(statements(container)).toHaveLength(1);
@@ -65,7 +65,7 @@ it("states Saves paused once in Tune, keeping both settings read only", () => {
 });
 
 it("keeps a standalone funnel editor's explanation unless its surface suppresses it", () => {
-  const props = { current: null, refusal: () => null, makeOp: () => ({ kind: "file-json-set" as const, file: "config/integrations.json", pointer: "/assets/example.com/posthog", value: [], expect: null }) };
+  const props = { current: null, refusal: () => null, makeOp: () => ({ kind: "file-json-set" as const, file: "config/integrations.json" as const, pointer: "/assets/example.com/posthog", value: [], expect: null }) };
   const { container, rerender } = render(wrap(<FunnelListEditor {...props} />));
   expect(container.querySelectorAll("[data-funnel-editor-read-only]")).toHaveLength(1);
   rerender(wrap(<FunnelListEditor {...props} statesReadOnly={false} />));
