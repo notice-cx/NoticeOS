@@ -176,8 +176,7 @@ export interface WallIssueInputs {
  * whose onset is unknown sorts after the dated ones of its severity.
  */
 export function wallIssues({ assets: every, attention, connections, calendarState, nowMs }: WallIssueInputs): WallIssue[] {
-  // A retired site is watched by nobody: nothing about it counts as a
-  // problem here. Its alerts stay on Alerts.
+  // Archived sites contribute no active problem.
   const assets = every.filter((asset) => !isRetired(asset.status));
   const retired = new Set(every.filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
   const byId = new Map(assets.map((asset) => [asset.id, asset]));

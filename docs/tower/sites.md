@@ -110,11 +110,11 @@ Each site has three switches:
 
 The switches are on every row of **Arrange** on the Sites page, on the **Sites** card of **Settings** > **TV dashboard**, and on the site's own **Where it shows** card. A switch with a tick is on; one with a crossed-out eye is off.
 
-A switch nobody has set follows the site's lifecycle stage: on for every stage except **Retired**, and off for a retired site. A switch you set stays as you set it when the site's stage changes, so a site you take off the TV stays off after you restore it.
+A switch nobody has set is on for an active site. Saved preferences survive a lifecycle change. An archived site stays hidden regardless of its switches; restoring it applies those preferences again.
 
-A retired site that is shown reads **Retired** wherever it is: its status on Home, the Sites page, the TV and its own page, a **Retired** chip beside its name in **Arrange**, on the **Sites** card and in the TV editor's site lists, and **· Retired** after its project's name in the Tasks project list. It is never counted among the sites that need you: not in the Sites page's summary or status bar, not in Home's count of what is broken or its **Problems**, and not in the TV's loop or problems. Its alerts stay on **Alerts** and its tasks on the Tasks board. Restoring it to another stage turns every switch you did not set back on.
+Archive removes a site from the sidebar, search navigation, Home, the Sites list and the TV. Its alerts, tasks and activity are excluded from portfolio lists and counts. **Arrange** and **Settings** > **TV dashboard** still list it with a **Retired** chip and a **Restore** link. Its visibility switches stay off and disabled until Restore. Stored records and financial history are preserved.
 
-A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money. **Live feed** shows tasks and other stored activity from all assets, even when their **TV** switches are off.
+A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money. **Live feed** shows tasks and other stored activity from all assets that have not been archived, even when their **TV** switches are off.
 
 The switches are stored in `config/tower.json` at `sites`, by site id, and are exported with the rest of the configuration. The **Light icon** and **Dark icon** addresses are stored in the same site entry.
 

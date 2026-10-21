@@ -104,12 +104,12 @@ choice shows.
 ## Where each site shows — `sites`
 
 `sites` holds, by site id, the switches the operator set for where that site
-shows: `list` (a row on Home and on the Sites page), `tv` (every widget on
+shows: `list` (a row on Home and on the Sites page), `tv` (site rows and counts on
 the TV) and `work` (a row in the TV's Work this week). A key is present only
 for a switch somebody set; an absent key, an absent site and an absent or
-`null` map all mean the site follows its stage: every switch on, and every
-switch off for a retired site. A lifecycle move never rewrites a key, so a
-switch set by hand stays as it was set when the site is retired or restored.
+`null` map use the default: every switch on for an active site. An archived
+site stays hidden regardless of its saved switches. A lifecycle move preserves
+those keys; Restore uses the saved preferences again.
 The one reading of the three is `siteShownOn` in
 [`apps/tower/shared/site-display.ts`](../apps/tower/shared/site-display.ts).
 
@@ -118,7 +118,7 @@ The switches are edited on the Sites page (**Arrange**), on Settings
 before the map existed has no `sites` key, so the first switch inserts the
 whole map at `/sites`; after that a switch inserts the site's row, writes its
 key for the first time or sets it, and Undo is the exact reverse of each. A
-hidden site still collects data, raises alerts and files tasks.
+site hidden by a visibility switch still collects data, raises alerts and files tasks. Archive also excludes its alerts and tasks from portfolio views.
 
 A site's row may also hold `lightIcon` and `darkIcon`: an http or https
 address of an image drawn in place of the icon the site's home page declares,

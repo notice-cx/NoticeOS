@@ -18,6 +18,7 @@ import {
 } from "../worker/task-source";
 import { buildWorkPayload } from "../worker/work-payload";
 import { createTestStore, type TestStore } from "./postgres-store";
+import { addSites } from "./sites";
 import { seedSnapshot, workCounts, workProject } from "./panel-fixtures";
 
 // The task source seam: "Connected" is derived from the source's own reading,
@@ -93,6 +94,31 @@ describe("when a task source is connected", () => {
 });
 
 describe("the beads adapter wraps today's snapshot unchanged", () => {
+  it("keeps configured archive identities with no snapshot and suppresses archived read failures", async () => {
+    await addSites(ctx, [{ id: "example.com", displayName: "Archived", status: "retired", senseOnly: 0 }]);
+    const context = { store: ctx.call, projects: [{ asset: "example.com", prefix: "ex" }] };
+    expect((await buildTaskBoard(context, NOW)).archivedProjects).toEqual(context.projects);
+    await seedSnapshot(ctx, CAPTURED, [workProject({ asset: "example.com", prefix: "ex", ok: false, error: "Unavailable" })]);
+    const reading = await beadsTaskSource.read(context);
+    expect(reading.status).toMatchObject({ connected: true, projects: 0, failing: 0 });
+    expect(reading.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 0 });
+  });
+
+  it("removes archived inbox contributions while preserving connection status", async () => {
+    await addSites(ctx, [{ id: "example.com", displayName: "Archived", status: "retired", senseOnly: 0 }]);
+    await seedSnapshot(ctx, CAPTURED, connectedProjects());
+    const reading = await beadsTaskSource.read({ store: ctx.call });
+    expect(reading.status.connected).toBe(true);
+    expect(reading.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 1, measuredProjects: 1 });
+    expect(reading.inbox("example.com").items).toEqual([]);
+    expect((await reading.board(NOW)).projects.map(row => row.asset)).toEqual(["shop.example.com"]);
+    await ctx.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired'", []));
+    await seedSnapshot(ctx, "2026-09-06T11:59:45.000Z", [connectedProjects()[0]!]);
+    const empty = await beadsTaskSource.read({ store: ctx.call });
+    expect(empty.status.connected).toBe(true);
+    expect(empty.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 0 });
+  });
+
   it("answers the board, Needs attention and a site's inbox from one reading", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
     const reading = await beadsTaskSource.read({ store: ctx.call });

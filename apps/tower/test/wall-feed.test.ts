@@ -372,6 +372,35 @@ needsPostgres("buildWallFeed", () => {
 
   const lines = (items: WallFeedItem[]) => items.map((item) => `${item.at.slice(11, 16)} ${item.kind} ${item.site ?? "-"} · ${item.text}`);
 
+  it("excludes archived noise before small source caps, including task and money reads", async () => {
+    await pg.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["recipes.example.com"]));
+    await storeAlerts(pg.call, [flag("codes.example.com", at("17:00"), "Active alert")]);
+    await bookLedger(pg.call, [{ kind: "cost", asset: "recipes.example.com", period: "2026-09", family: "infra", amount_minor: 999,
+      booking_state: "reconciled", recorded_at: at("19:00") }]);
+    await writeResearch(pg.call, [{ asset: "medley.example.com", cost_usd: 0.1, bought_at: at("15:00") }]);
+    await snapshot(pg.call, at("19:29"), {}, {}, {
+      "recipes.example.com": [{ kind: "claimed", taskId: "md-new", title: "Archived claim", by: "codex", at: at("19:28") }],
+      "codes.example.com": [{ kind: "claimed", taskId: "ac-new", title: "Active claim", by: "codex", at: at("19:27") }],
+    });
+    const read = (sql: string, params: SqlValue[]) => pg.call.read(tx => tx.query<{ asset: string }>(sql, params));
+    expect((await read(FEED_FLAGS_FIRED_SQL, [SINCE, 1])).map(row => row.asset)).toEqual(["codes.example.com"]);
+    expect((await read(FEED_TASKS_SQL, [SINCE, NOW.toISOString(), SINCE, 1])).map(row => row.asset)).toEqual(["medley.example.com"]);
+    expect((await read(FEED_WORK_SQL, [SINCE, 1])).map(row => row.asset)).toEqual(["codes.example.com"]);
+    expect((await read(FEED_DUMPS_SQL, [SINCE, SINCE, 1])).map(row => row.asset)).toEqual(["medley.example.com"]);
+    expect((await read(FEED_RESEARCH_SQL, [SINCE, 1])).map(row => row.asset)).toEqual(["medley.example.com"]);
+    expect((await read(FEED_LEDGER_SQL, [1, SINCE, 1])).map(row => row.asset)).toEqual(["os.example.com"]);
+  });
+
+  it("excludes archived events before folding source counts, money and task activity", async () => {
+    await pg.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["recipes.example.com"]));
+    const feed = await buildWallFeed(pg.call, DEPS);
+    expect(feed.items.some(row => row.asset === "recipes.example.com" || row.site === "Recipes")).toBe(false);
+    expect(feed.items.some(row => row.text.includes("Recipe cards") || row.text.includes("recipe card layout"))).toBe(false);
+    expect(feed.items.find(row => row.kind === "revenue" && /reported/i.test(row.text))?.text).toBe("Reported $14.15 for Sep 21");
+    expect(feed.items.some(row => row.text === "Google · 2 sites, none failed")).toBe(true);
+    expect(feed.items.some(row => row.kind === "task-filed" && row.site === "Medley")).toBe(true);
+  });
+
   it("states every source once, newest first, inside the window only, keeping tasks named", async () => {
     const feed = await buildWallFeed(pg.call, DEPS);
     expect(feed.since).toBe(SINCE);
@@ -818,7 +847,8 @@ describe("the feed's reads are bounded", () => {
         return (await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${sql}`, params)).map((row) => row["QUERY PLAN"]).join("\n");
       }, { readOnly: true });
       const dumps = await explain(FEED_DUMPS_SQL, [SINCE, SINCE, 500]);
-      expect(dumps).toMatch(/Index Scan using archive_runs_spend on archive_runs r [^\n]*\n\s+Index Cond: \([^\n]*\(integration = "\*VALUES\*"\.column1\) AND \(requested_at >= /);
+      // Both indexes bound a lane by the collection window; archive joins can change the cheaper choice.
+      expect(dumps).toMatch(/Index Scan using archive_runs_(?:spend|finished) on archive_runs r [^\n]*\n\s+Index Cond: \([^\n]*\(integration = "\*VALUES\*"\.column1\) AND \((?:requested_at|finished_at) >= /);
       expect(dumps).not.toMatch(/Seq Scan|Bitmap/);
       const research = await explain(FEED_RESEARCH_SQL, [SINCE, 500]);
       expect(research).toMatch(/Index Scan Backward using research_log_spend on research_log r [^\n]*\n\s+Index Cond: \([^\n]*\(bought_at >= /);

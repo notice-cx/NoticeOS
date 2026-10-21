@@ -69,7 +69,7 @@ import { ApiError, type TaskEdit } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { useOwnerAnswers } from "@/lib/browser-context";
-import { TASK_STATUSES, askVerb, inboxAsk, liveRows, snapshotRows, type BoardTask } from "@/lib/task-board-read";
+import { TASK_STATUSES, taskProjectsWithoutArchives, askVerb, inboxAsk, liveRows, snapshotRows, type BoardTask } from "@/lib/task-board-read";
 import { blockerEdgeState, epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
 import { evidenceParts } from "@/lib/agent-work";
 import { formatInt } from "@/lib/format";
@@ -262,7 +262,7 @@ export function TaskRoute() {
           const next = new URLSearchParams(params); next.set('project', event.target.value); setParams(next, { replace: true });
         }}>
         <option value="" disabled>Choose project</option>
-        {(catalog.data ?? []).map(row => <option key={row.projectId} value={row.logicalKey}>{row.displayName}</option>)}
+        {taskProjectsWithoutArchives(catalog.data ?? [], snapshot.data).map(row => <option key={row.projectId} value={row.logicalKey}>{row.displayName}</option>)}
       </select> : null}
 
       {!live ? (

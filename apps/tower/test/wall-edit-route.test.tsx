@@ -745,7 +745,7 @@ describe("the selected widget's settings", () => {
     expect(filter).toHaveTextContent("Every site");
   });
 
-  it("reads a retired site Retired in a widget's list, off the TV by its stage until its switch is on", () => {
+  it("keeps an archived site disabled in widget lists even with its TV switch on", () => {
     const retired = ASSETS.map((asset) => (asset.id === "northwind.example" ? { ...asset, status: "retired" } : asset));
     const off = renderEditor(null, undefined, retired);
     fireEvent.click(widget("sites"));
@@ -755,7 +755,7 @@ describe("the selected widget's settings", () => {
     off.unmount();
     renderEditor(null, { "northwind.example": { tv: true } }, retired);
     fireEvent.click(widget("sites"));
-    expect(within(filter()).getByRole("checkbox", { name: /Northwind/u })).toBeEnabled();
+    expect(within(filter()).getByRole("checkbox", { name: /Northwind/u })).toBeDisabled();
     expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
   });
 

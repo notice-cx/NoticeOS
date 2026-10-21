@@ -361,13 +361,19 @@ export function taskBoardProjects(snapshot: WorkPayload | null | undefined, scop
   return (snapshot?.projects ?? []).filter(project => scope === null || project.asset === scope);
 }
 
+/** Both live catalogs and configured task selectors exclude archived projects. */
+export function taskProjectsWithoutArchives<T extends { prefix: string }>(projects: readonly T[], snapshot: WorkPayload | null | undefined): T[] {
+  const archived = new Set(snapshot?.archivedProjects?.map(project => project.prefix) ?? []);
+  return projects.filter(project => !archived.has(project.prefix));
+}
+
 /** A configured catalog establishes the roster, not measured counts. Missing
  * snapshots stay unavailable until the actual live board answers. The catalog
  * keys a project by its logical key and the snapshot by its asset id; the task
  * prefix is the identity both carry, so it joins them. A roster row keeps the
  * logical key as `asset`, because that is what the hosted read is addressed by. */
 export function taskCatalogProjects(catalog: readonly TaskProject[], snapshot: WorkPayload | null | undefined): WorkProject[] {
-  return catalog.map(project => {
+  return taskProjectsWithoutArchives(catalog, snapshot).map(project => {
     const stored = snapshot?.projects.find(row => row.prefix === project.prefix);
     if (stored) return { ...stored, asset: project.logicalKey, name: project.displayName };
     return { asset: project.logicalKey, prefix: project.prefix, name: project.displayName,

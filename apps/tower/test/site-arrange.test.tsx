@@ -127,6 +127,8 @@ describe("Arrange on the Sites page", () => {
     expect(checked("Home and Sites list for Northwind")).toBe("false");
     expect(checked("TV for Northwind")).toBe("true");
     for (const label of ["Home and Sites list", "TV", "Work this week"]) expect(checked(`${label} for Fern Index`)).toBe("false");
+    expect(screen.getByRole("link", { name: "Restore" })).toHaveAttribute("href", "/assets/ferns.example/settings#restore");
+    for (const label of ["Home and Sites list", "TV", "Work this week"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
     // A retired site reads Retired beside its name; the others carry no stage.
     expect(container.querySelector('[data-site-arrange-row="ferns.example"]')).toHaveTextContent("Retired");
     expect(container.querySelector('[data-site-arrange-row="meadow.example"]')).not.toHaveTextContent("Retired");
@@ -211,7 +213,7 @@ describe("Where it shows, on a site's Settings tab", () => {
     expect(document.querySelector("[data-where-it-shows-retired]")).toBeNull();
   });
 
-  it("says of a retired site that it shows nowhere until a switch is on", () => {
+  it("keeps archived switches off and disabled until Restore", () => {
     stubFetch();
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -221,8 +223,11 @@ describe("Where it shows, on a site's Settings tab", () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText("3rd of 3")).toBeInTheDocument();
-    expect(document.querySelector("[data-where-it-shows-retired]")).toHaveTextContent("A retired site shows nowhere until you turn a switch on.");
-    for (const switchEl of screen.getAllByRole("switch")) expect(switchEl).toHaveAttribute("aria-checked", "false");
+    expect(document.querySelector("[data-where-it-shows-retired]")).toHaveTextContent("Restore this site to show it again.");
+    for (const switchEl of screen.getAllByRole("switch")) {
+      expect(switchEl).toHaveAttribute("aria-checked", "false");
+      expect(switchEl).toBeDisabled();
+    }
   });
 });
 

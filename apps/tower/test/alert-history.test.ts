@@ -95,6 +95,19 @@ const query = (over: Partial<Parameters<typeof buildAlertHistoryPayload>[1]> = {
 });
 
 describe("the settled-alert read", () => {
+  it("excludes archived rows before counting and paging, then restores their history", async () => {
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(2), resolvedAt: at(1) });
+    const kept = await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
+    await test.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["meadow.example"]));
+    const page = await buildAlertHistoryPayload(test.call, query({ limit: 1 }), { now: NOW });
+    expect(page.total).toBe(1);
+    expect(page.rows.map(row => row.flag.id)).toEqual([kept]);
+    expect(page.hasMore).toBe(false);
+    expect((await buildAlertHistoryPayload(test.call, query({ asset: "meadow.example" }), { now: NOW })).total).toBe(0);
+    await test.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'live' WHERE asset_id = $1", ["meadow.example"]));
+    expect((await buildAlertHistoryPayload(test.call, query(), { now: NOW })).total).toBe(2);
+  });
+
   it("carries only alerts that were resolved or acknowledged", async () => {
     await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(7) });
     await insertFlag(test, {

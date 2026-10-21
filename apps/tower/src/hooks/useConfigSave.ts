@@ -15,6 +15,7 @@ import type {
 } from "@shared/changeset";
 import {
   refreshConfigBackedQueries,
+  refreshAssetLifecycleQueries,
   useConfigSaveDelay,
 } from "@/hooks/config-backed-queries";
 import { type ConfigSaveResult } from "@/lib/api";
@@ -268,6 +269,7 @@ function useConfigWrite() {
       if (fileOps.length > 0) warnConfigExport(await saveConfig(fileOps, slug), toast);
       for (const op of storeOps) {
         await patchAssetColumn(op.asset, op.column, op.value, op.expect);
+        if (op.column === "status") refreshAssetLifecycleQueries(queryClient);
       }
       if (record) {
         // After the write, never instead of it: an event recorded for a change
@@ -282,7 +284,7 @@ function useConfigWrite() {
       // refreshes immediately; a `file-json-set` may not have touched one either.
       refresh(fileOps.length > 0 ? delayMs : 0);
     },
-    [refresh, delayMs],
+    [refresh, delayMs, queryClient],
   );
 }
 

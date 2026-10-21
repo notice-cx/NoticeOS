@@ -1,10 +1,9 @@
 import { useBrowserContext, useDemoReadonly, useOwnerPreferences } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
-import { ChevronRight, CircleSlash2, Menu, Moon, Pencil, Plus, Search, Sun, X } from "lucide-react";
+import { ChevronRight, Menu, Moon, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { assetStatusLabel } from "@shared/asset-detail";
 import {
   expiringCredentialSeverity,
   expiringCredentialSummary,
@@ -12,6 +11,7 @@ import {
   type IntegrationCredentialsPayload,
 } from "@shared/integrations-page";
 import { sitePath } from "@shared/first-run";
+import { isRetired } from "@shared/asset-setup";
 import type { AssetCard } from "@shared/wall";
 import { RouteLoading } from "@/components/RouteLoading";
 import {
@@ -104,11 +104,9 @@ function patchNavAssets(preferences: ReturnType<typeof useOwnerPreferences>, pat
   }
 }
 
-/** The payload's own order (the index's default is the absence of a sort),
- * with retired assets sunk to the foot. `Array#sort` is stable. */
+/** Active assets in the payload's stored order. */
 function navAssetOrder(assets: AssetCard[]): AssetCard[] {
-  const sunk = (asset: AssetCard) => (asset.status === "retired" ? 1 : 0);
-  return [...assets].sort((a, b) => sunk(a) - sunk(b));
+  return assets.filter((asset) => !isRetired(asset.status));
 }
 
 /** Fetch a screen's code when a pointer rests on its link or focus lands on
@@ -344,8 +342,7 @@ function LiveAssetNav(props: AssetNavProps) {
 
 /**
  * One row per asset under Assets, lighting on any tab of the asset it points
- * at. A severity dot appears only for an open warning or error; retired sites
- * carry a muted switched-off glyph. The chevron is its own control, so
+ * at. A severity dot appears only for an open warning or error. The chevron is its own control, so
  * expanding the list is never mistaken for navigating.
  */
 function AssetNav({
@@ -451,7 +448,6 @@ function AssetNav({
                     />
                     {/* Two lines, never an ellipsis nobody can open on a phone. */}
                     <span className="line-clamp-2 min-w-0 flex-1 break-words">{asset.displayName}</span>
-                    {asset.status === "retired" ? <RetiredGlyph /> : null}
                     {asset.worstSeverity === "error" || asset.worstSeverity === "warn" ? (
                       <SeverityDot
                         severity={asset.worstSeverity}
@@ -494,21 +490,6 @@ function AssetNav({
         </ul>
       ) : null}
     </div>
-  );
-}
-
-/** Retired sites keep a visible, accessible switched-off mark. */
-function RetiredGlyph() {
-  const label = assetStatusLabel("retired");
-  return (
-    <span
-      role="img"
-      aria-label={label}
-      title={label}
-      className="flex shrink-0 items-center text-muted-foreground/70"
-    >
-      <CircleSlash2 aria-hidden className="size-3" />
-    </span>
   );
 }
 

@@ -4,9 +4,9 @@
 
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import type { WorkspaceStore } from "@noticeos/postgres";
-import { readSites } from "./asset-registry";
+import { readSites, type SiteRecord } from "./asset-registry";
 import { loadBeadsDailyHistory } from "./beads-daily";
-import { loadLatestBeadsSnapshot, type BeadsSnapshot } from "./beads-snapshot";
+import { loadLatestBeadsSnapshot, scopeTaskSnapshot, type BeadsSnapshot } from "./beads-snapshot";
 import {
   WORK_OWNER,
   WORK_POLL_CADENCE_HOURS,
@@ -23,6 +23,10 @@ export interface WorkPayloadOptions {
   /** The snapshot the caller already read (the task source seam reads it once
    * per request, `./task-source`); absent reads the newest one here. */
   snapshot?: BeadsSnapshot | null;
+  /** The registry already read by the task source for this request. */
+  sites?: readonly SiteRecord[];
+  /** Configured asset/prefix identities, including projects not yet sampled. */
+  projects?: readonly { asset: string; prefix: string }[];
   /** The installation's clock (`os_time_zone`), which decides where a week
    * starts. UTC when the caller has none. */
   timeZone?: string;
@@ -52,11 +56,13 @@ export async function loadWorkWeeks(store: WorkspaceStore, snapshot: BeadsSnapsh
 /** The whole board. */
 export async function buildWorkPayload(
   store: WorkspaceStore,
-  { now, snapshot: given, timeZone = "UTC" }: WorkPayloadOptions,
+  { now, snapshot: given, sites: givenSites, projects: configured, timeZone = "UTC" }: WorkPayloadOptions,
 ): Promise<WorkPayload> {
   const generatedAt = now.toISOString();
 
-  const snapshot = given === undefined ? await loadLatestBeadsSnapshot(store) : given;
+  const stored = given === undefined ? await loadLatestBeadsSnapshot(store) : given;
+  const sites = givenSites ?? await readSites(store);
+  const { snapshot, archivedProjects } = scopeTaskSnapshot(stored, sites, configured);
   const history = await loadBeadsDailyHistory(store);
 
   if (!snapshot) {
@@ -68,11 +74,12 @@ export async function buildWorkPayload(
       pollCadenceHours: WORK_POLL_CADENCE_HOURS,
       owner: WORK_OWNER,
       projects: [],
+      archivedProjects,
       historyDays: history.days,
     };
   }
 
-  const names = new Map((await readSites(store)).map((site) => [site.id, assetDisplayName(site.isOs, site.displayName)]));
+  const names = new Map(sites.map((site) => [site.id, assetDisplayName(site.isOs, site.displayName)]));
 
   const projects: WorkProject[] = snapshot.projects.map(
     // Card, finding and Wall fields stay off the /work payload: the board
@@ -105,6 +112,7 @@ export async function buildWorkPayload(
     pollCadenceHours: WORK_POLL_CADENCE_HOURS,
     owner: WORK_OWNER,
     projects,
+    archivedProjects,
     historyDays: history.days,
   };
 }

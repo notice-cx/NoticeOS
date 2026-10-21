@@ -15,7 +15,7 @@ import {
 } from "../shared/alert-history";
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
-import { readSitesById } from "./asset-registry";
+import { readSitesById, unarchivedAssetSql } from "./asset-registry";
 import {
   FLAG_COLUMNS,
   type FlagDbRow,
@@ -59,7 +59,7 @@ export interface AlertHistoryDeps {
 /** The filter clause and its bound values, built from the parsed query alone —
  * every operator-supplied value is a placeholder, never interpolated. */
 function filters(query: AlertHistoryQuery): { sql: string; args: string[] } {
-  const clauses = [SETTLED];
+  const clauses = [SETTLED, unarchivedAssetSql("current_flags.asset_id", "current_flags.workspace_id")];
   const args: string[] = [];
   if (query.asset !== null) {
     args.push(query.asset);

@@ -69,7 +69,7 @@ export function WhereItShowsCard({ assetId }: { assetId: string }) {
           />
           {isRetired(site.status) ? (
             <p className="m-0 text-xs leading-snug text-muted-foreground" data-where-it-shows-retired>
-              A retired site shows nowhere until you turn a switch on.
+              Restore this site to show it again.
             </p>
           ) : null}
           <Link

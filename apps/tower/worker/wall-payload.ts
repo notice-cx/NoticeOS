@@ -417,7 +417,8 @@ export async function buildWallPayload(
   const currentPeriod = operatorToday.slice(0, 7);
 
   // --- assets (by their place in the list; the System to SYSTEM, rest to cards) -
-  const assetRows = (await readSites(store)).map((row) => ({
+  const sites = await readSites(store);
+  const assetRows = sites.map((row) => ({
     id: row.id,
     displayName: assetDisplayName(row.isOs, row.displayName),
     status: row.status,
@@ -629,8 +630,8 @@ export async function buildWallPayload(
 
   // One task-hub snapshot feeds every site's work, its panel review and the
   // task source's one reading (`./task-source`).
-  const beadsSnapshot = await loadLatestBeadsSnapshot(store);
-  const tasks = beadsReading(store, beadsSnapshot);
+  const tasks = beadsReading(store, await loadLatestBeadsSnapshot(store), undefined, osTimeZone, sites);
+  const beadsSnapshot = tasks.snapshot;
   const workByAsset = cardWorkOf(beadsSnapshot, await loadWorkWeeks(store, beadsSnapshot, now, osTimeZone));
 
   // --- system: what the strip's one state and Home's System tile read -------
@@ -662,7 +663,7 @@ export async function buildWallPayload(
         `SELECT ${ATTENTION_COLUMNS}
            FROM noticeos.current_flags f
            JOIN noticeos.assets a ON a.workspace_id = f.workspace_id AND a.asset_id = f.asset_id
-          WHERE ${openFlagsSql("f", "$1::timestamptz")}
+          WHERE a.status <> 'retired' AND ${openFlagsSql("f", "$1::timestamptz")}
           ORDER BY CASE f.severity WHEN 'error' THEN 0 WHEN 'warn' THEN 1 ELSE 2 END,
                    f.fired_at DESC, f.flag_id DESC`,
         [nowIso],
@@ -859,7 +860,7 @@ export async function buildWallPayload(
         `SELECT ${ATTENTION_COLUMNS}, f.snooze_until AS "snoozeUntil"
            FROM noticeos.current_flags f
            JOIN noticeos.assets a ON a.workspace_id = f.workspace_id AND a.asset_id = f.asset_id
-          WHERE ${snoozedFlagsSql("f", "$1::timestamptz")}
+          WHERE a.status <> 'retired' AND ${snoozedFlagsSql("f", "$1::timestamptz")}
           ORDER BY f.snooze_until ASC, f.fired_at DESC, f.flag_id DESC`,
         [nowIso],
       ),

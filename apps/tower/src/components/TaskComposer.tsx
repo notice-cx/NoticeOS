@@ -49,6 +49,7 @@ import { operatorRateOf } from "@/hooks/useOperatorRate";
 import { useSettings } from "@/hooks/useSettings";
 import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWork } from "@/hooks/useWork";
+import { taskProjectsWithoutArchives } from "@/lib/task-board-read";
 import { ApiError, type NewTask } from "@/lib/api";
 import type { TaskHandoffKind } from "@/lib/task-handoff";
 import { cn } from "@/lib/utils";
@@ -268,7 +269,7 @@ export function TaskComposer({
   const iconsOf = useSiteIcons();
   const hostedFields = capability.projectSelection === true && !onFile;
 
-  const spokes = projects ?? (hostedFields ? (catalog.data ?? []).map(row => ({ asset: row.logicalKey, prefix: row.prefix, name: row.displayName })) : settings.data?.taskHub.spokes ?? []);
+  const spokes = taskProjectsWithoutArchives(projects ?? (hostedFields ? (catalog.data ?? []).map(row => ({ asset: row.logicalKey, prefix: row.prefix, name: row.displayName })) : settings.data?.taskHub.spokes ?? []), work);
   const projectName = (spoke: Pick<TaskHubSpoke, "asset"> & { name?: string }) =>
     spoke.name ?? work?.projects.find((entry) => entry.asset === spoke.asset)?.name ?? spoke.asset;
   const lockedLabels = useMemo(() => prefill?.labels ?? [], [prefill]);
@@ -377,7 +378,7 @@ export function TaskComposer({
     if (unsupported) return;
     const next: Record<string, string> = {};
     const cleanTitle = title.trim();
-    if (!project) {
+    if (!spoke) {
       next.project = "Choose the site whose repo this task belongs to.";
     }
     if (!cleanTitle) {
