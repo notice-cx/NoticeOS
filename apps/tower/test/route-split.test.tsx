@@ -1,10 +1,11 @@
+import { deferred } from "./deferred";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StrictMode, isValidElement, type ComponentType, type ReactElement } from "react";
 import { act, fireEvent, render, screen } from "./render";
 import type { RouteObject } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Each screen is fetched only when its address is opened, a screen still
 // loading never looks like data, and a screen whose file has gone away
@@ -89,6 +90,14 @@ describe("each screen is its own file", () => {
     ["/workflows/:id?", () => import("@/routes/WorkflowsRoute")],
   ];
 
+  // Cold transforms belong to suite setup, not the first address's assertion
+  // budget. The router still resolves each real lazy function below.
+  beforeAll(async () => {
+    const started = performance.now();
+    await Promise.all(SCREENS.map(([, load]) => load()));
+    if (process.env.NOTICEOS_TEST_SETUP_TIMINGS === "1") console.info(`route import setup: ${(performance.now() - started).toFixed(1)} ms`);
+  });
+
   it.each(SCREENS)("%s resolves to the screen it always drew", async (path, load) => {
     expect(await componentAt(deskRoutes, path)).toBe((await load()).default);
   });
@@ -140,6 +149,18 @@ describe("lazyPage", () => {
   /** A page module whose fetch fails with `error`. */
   const failingLoad = (error: unknown) => (): Promise<{ default: ComponentType }> =>
     Promise.reject(error);
+
+  it("keeps a delayed import pending until the requested module is ready", async () => {
+    const module = deferred<{ default: ComponentType }>();
+    const requested = deferred<void>();
+    const route = lazyPage(() => { requested.resolve(); return module.promise; });
+    let resolved = false;
+    const pending = (route.lazy as () => Promise<RouteObject>)().then(value => { resolved = true; return value; });
+    await requested.promise;
+    expect(resolved).toBe(false);
+    module.resolve({ default: Page });
+    expect((await pending).Component).toBe(Page);
+  });
 
   it("hands the router the module's own component", async () => {
     const route = lazyPage(async () => ({ default: Page }));
@@ -201,12 +222,17 @@ describe("prefetchRoute", () => {
   });
 
   it("forgets a failed fetch silently, so the real navigation tries again", async () => {
-    const failing = vi.fn(async () => Promise.reject(new Error("offline")));
+    const attempt = deferred<never>();
+    const offline = new Error("offline");
+    const failing = vi.fn(() => attempt.promise);
     const routeTable: RouteObject[] = [{ path: "/alerts", lazy: failing }];
     prefetchRoute(routeTable, "/alerts");
-    await vi.waitFor(() => expect(failing).toHaveBeenCalledTimes(1));
-    await Promise.resolve();
-    await Promise.resolve();
+    prefetchRoute(routeTable, "/alerts");
+    expect(failing).toHaveBeenCalledTimes(1);
+    attempt.reject(offline);
+    // Registered after prefetchRoute's rejection handler: settling this same
+    // promise acknowledges that the failed attempt has been forgotten.
+    await expect(attempt.promise).rejects.toBe(offline);
     prefetchRoute(routeTable, "/alerts");
     expect(failing).toHaveBeenCalledTimes(2);
   });

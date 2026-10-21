@@ -1,3 +1,4 @@
+import { deferred } from "./deferred";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,8 @@ import type { AssetCard, WallPayload } from "@shared/wall";
 import { AppShell } from "@/components/AppShell";
 import { RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
 import { lazyPart } from "@/lib/lazy-route";
+import { preloadCommandPalette } from "@/lib/palette-launch";
+import { preloadAssetTab } from "@/routes/asset-detail/lazy-tabs";
 import { AssetDetailRoute } from "@/routes/AssetDetailRoute";
 import { everyTabPayload } from "./asset-detail-fixture";
 import { stubJsonFetch } from "./stub-fetch";
@@ -20,7 +23,7 @@ vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 // Vitest runs a factory the first time something imports the module, and the
 // page imports none of them statically (the first describe checks), so that
 // first import is the lazy fetch. Each factory can be held to see the page while
-// a part's code is on its way. Nothing in this file preloads anything.
+// a part's code is on its way; preload promises acknowledge its actual readiness.
 
 vi.hoisted(() => {
   process.env.TZ = "UTC";
@@ -29,11 +32,24 @@ vi.hoisted(() => {
 const code = vi.hoisted(() => {
   const requested: string[] = [];
   const held = new Map<string, { gate: Promise<void>; open: () => void }>();
+  const requestEvent = () => {
+    let resolve = () => {};
+    const promise = new Promise<void>(ready => { resolve = ready; });
+    return { promise, resolve };
+  };
+  const requests = new Map<string, ReturnType<typeof requestEvent>>();
+  const request = (part: string) => {
+    if (!requests.has(part)) requests.set(part, requestEvent());
+    return requests.get(part)!;
+  };
   /** Parts whose code the "server" no longer has. */
   const gone = new Set<string>();
   return {
     requested,
     gone,
+    whenRequested(part: string) {
+      return request(part).promise;
+    },
     hold(part: string) {
       let open = () => {};
       const gate = new Promise<void>((resolve) => {
@@ -41,11 +57,15 @@ const code = vi.hoisted(() => {
       });
       held.set(part, { gate, open });
     },
+    releaseAll() {
+      for (const item of held.values()) item.open();
+    },
     release(part: string) {
       held.get(part)?.open();
     },
     async arrive(part: string) {
       requested.push(part);
+      request(part).resolve();
       await held.get(part)?.gate;
     },
   };
@@ -78,6 +98,14 @@ vi.mock("@/routes/asset-detail/SearchTab", async (importOriginal) => {
   await code.arrive("search");
   return importOriginal();
 });
+vi.mock("@/routes/asset-detail/CodebaseTab", async (importOriginal) => {
+  await code.arrive("codebase");
+  return importOriginal();
+});
+vi.mock("@/routes/asset-detail/HealthTab", async (importOriginal) => {
+  await code.arrive("health");
+  return importOriginal();
+});
 vi.mock("@/routes/asset-detail/AlertsTab", async (importOriginal) => {
   await code.arrive("alerts");
   return code.gone.has("alerts") ? goneModule("AlertsTab", "AlertsTab.tsx") : importOriginal();
@@ -105,11 +133,19 @@ vi.mock("@/components/CommandPalette", async (importOriginal) => {
 
 // The shell reads the wall and the provider list for its sidebar; neither is
 // what this file is about.
-const ASSETS = [{
+const ASSETS: AssetCard[] = [{
   id: "meadow.example", displayName: "Meadow Board", worstSeverity: null, status: "live",
   // A site that has reported, so its links open its Overview (`sitePath`).
-  activeUsers: { series: [{ t: "2026-09-01", v: 12 }], provisionalFrom: null, collectedAt: null },
-} as AssetCard];
+  senseOnly: false, openError: 0, openWarn: 0,
+  booked: { currency: "USD", revenue: 0, cost: 0, net: 0 },
+  forecast: { currency: "USD", revenue: 0, cost: 0, net: 0 },
+  netPeriod: "2026-07", netByMonthCurrency: "USD", netByMonth: [], netByMonthProvisionalFrom: null,
+  pulseReceivedAt: null, firstReportAt: null, work: null, panelReview: null, latestPanelDate: null,
+  product: null, codebase: null,
+  dataSources: [],
+  searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
+  activeUsers: { series: [{ t: "2026-09-01", v: 12 }], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
+}];
 vi.mock("@/hooks/useWall", () => ({
   useWall: () => ({
     data: { assets: ASSETS } as unknown as WallPayload,
@@ -130,7 +166,30 @@ beforeEach(() => {
   vi.spyOn(Date, "now").mockReturnValue(NOW);
 });
 
+const mountObservers = new Set<MutationObserver>();
+
+/** A DOM commit can follow import readiness (React may schedule a Suspense
+ * retry). Observe that commit within the unchanged test budget. */
+function whenMounted<T extends Element>(query: () => T | null): Promise<T> {
+  const ready = deferred<T>();
+  const check = () => {
+    const element = query();
+    if (!element) return;
+    observer.disconnect();
+    mountObservers.delete(observer);
+    ready.resolve(element);
+  };
+  const observer = new MutationObserver(check);
+  mountObservers.add(observer);
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+  check();
+  return ready.promise;
+}
+
 afterEach(() => {
+  for (const observer of mountObservers) observer.disconnect();
+  mountObservers.clear();
+  code.releaseAll();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   window.localStorage.clear();
@@ -163,7 +222,7 @@ describe("what the page and the shell import", () => {
     // The reading works: the tab bar, which every tab shares, is imported.
     expect(imports).toContain("@/routes/asset-detail/AssetTabs");
     expect(imports).toContain("@/routes/asset-detail/lazy-tabs");
-    const TAB_MODULES = ["Overview", "Growth", "Money", "Search", "Alerts", "Tasks", "Activity", "Sources", "Settings"];
+    const TAB_MODULES = ["Overview", "Growth", "Financials", "Search", "Codebase", "Health", "Alerts", "Tasks", "Activity", "Sources", "Settings"];
     expect(imports.filter((specifier) => TAB_MODULES.some((name) => specifier.endsWith(`/${name}Tab`)))).toEqual([]);
   });
 
@@ -322,19 +381,22 @@ function renderAssetPage(url: string) {
 describe("the asset page's tabs", () => {
   it("fetch each tab's code when it is opened — a deep link's tab first, then each tab in turn", async () => {
     const scrolled: string[] = [];
-    Object.defineProperty(Element.prototype, "scrollIntoView", {
-      configurable: true,
-      writable: true,
-      value(this: Element) {
-        scrolled.push(this.id);
-      },
+    const scroll = deferred<void>();
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+      expect(this.isConnected).toBe(true);
+      expect(this.closest('[role="tabpanel"]')).not.toBeNull();
+      scrolled.push(this.id);
+      scroll.resolve();
     });
     stubJsonFetch(everyTabPayload());
     code.gone.add("alerts");
-    code.hold("activity");
+    for (const part of ["activity", "overview", "growth", "financials", "search", "codebase", "health", "sources", "settings", "tasks", "alerts"]) {
+      code.hold(part);
+    }
 
     // 1. A deep link into a tab whose code is still on its way.
     renderAssetPage("/assets/meadow.example#timeline");
+    await act(() => code.whenRequested("activity"));
     const panel = await screen.findByRole("tabpanel");
     expect(screen.getByTestId("path")).toHaveTextContent("/assets/meadow.example/activity#timeline");
     expect(code.requested).toEqual(["activity"]);
@@ -343,9 +405,13 @@ describe("the asset page's tabs", () => {
     expectNothingDataLike(frame);
     expect(scrolled).toEqual([]);
 
-    code.release("activity");
-    expect(await within(panel).findByText("Timeline")).toBeInTheDocument();
-    await waitFor(() => expect(scrolled).toEqual(["timeline"]));
+    await act(async () => {
+      code.release("activity");
+      expect(await preloadAssetTab("activity")).toBe(true);
+    });
+    expect(within(panel).getByText("Timeline")).toBeInTheDocument();
+    await scroll.promise;
+    expect(scrolled).toEqual(["timeline"]);
 
     const flashes: string[] = [];
     const observer = new MutationObserver((records) => {
@@ -357,6 +423,7 @@ describe("the asset page's tabs", () => {
         }
       }
     });
+    mountObservers.add(observer);
     observer.observe(document.body, { childList: true, subtree: true });
 
     const tab = (name: string) => screen.getByRole("tab", { name: new RegExp(`^${name}`) });
@@ -364,13 +431,15 @@ describe("the asset page's tabs", () => {
 
     // 2. A switch while the next tab's code is on its way keeps the tab being
     // left on screen until it arrives.
-    code.hold("overview");
     fireEvent.click(tab("Overview"));
-    await waitFor(() => expect(code.requested).toContain("overview"));
+    await code.whenRequested("overview");
     expect(showing()).toBe("asset-tab-activity");
     expect(within(panel).getByText("Timeline")).toBeInTheDocument();
-    code.release("overview");
-    await waitFor(() => expect(showing()).toBe("asset-tab-overview"));
+    await act(async () => {
+      code.release("overview");
+      expect(await preloadAssetTab("overview")).toBe(true);
+    });
+    expect(showing()).toBe("asset-tab-overview");
     expect(within(panel).getAllByText("What matters").length).toBeGreaterThan(0);
 
     // 3. Every other tab: not asked for until it is opened.
@@ -378,11 +447,20 @@ describe("the asset page's tabs", () => {
       ["growth", "Growth"],
       ["financials", "Money"],
       ["search", "Search"],
+      ["codebase", "Codebase"],
+      ["health", "Health"],
       ["sources", "Data sources"],
     ] as const) {
       expect(code.requested, `${key} before it was opened`).not.toContain(key);
+      const previous = showing();
       fireEvent.click(tab(label));
-      await waitFor(() => expect(showing()).toBe(`asset-tab-${key}`));
+      await code.whenRequested(key);
+      expect(showing()).toBe(previous);
+      await act(async () => {
+        code.release(key);
+        expect(await preloadAssetTab(key)).toBe(true);
+      });
+      expect(showing()).toBe(`asset-tab-${key}`);
       expect(code.requested, `${key} once opened`).toContain(key);
     }
 
@@ -390,23 +468,38 @@ describe("the asset page's tabs", () => {
     // code before the click.
     expect(code.requested).not.toContain("settings");
     fireEvent.pointerEnter(tab("Settings"));
-    await waitFor(() => expect(code.requested).toContain("settings"));
+    await code.whenRequested("settings");
     expect(showing()).toBe("asset-tab-sources");
     expect(code.requested).not.toContain("tasks");
     fireEvent.focus(tab("Tasks"));
-    await waitFor(() => expect(code.requested).toContain("tasks"));
+    await code.whenRequested("tasks");
+    // The deep link promises the first request. Independent preloads promise
+    // readiness, not completion order; resolve these in the opposite order.
+    await act(async () => {
+      code.release("tasks");
+      expect(await preloadAssetTab("tasks")).toBe(true);
+      code.release("settings");
+      expect(await preloadAssetTab("settings")).toBe(true);
+    });
+    expect(showing()).toBe("asset-tab-sources");
     fireEvent.click(tab("Settings"));
-    await waitFor(() => expect(showing()).toBe("asset-tab-settings"));
+    expect(showing()).toBe("asset-tab-settings");
     fireEvent.click(tab("Tasks"));
-    await waitFor(() => expect(showing()).toBe("asset-tab-tasks"));
+    expect(showing()).toBe("asset-tab-tasks");
 
     observer.disconnect();
+    mountObservers.delete(observer);
     expect(flashes).toEqual([]);
 
     // 5. A tab whose code is gone gets the shared recovery in its panel: the
     // header and the tab bar that did load stay.
     fireEvent.click(tab("Alerts"));
-    const alert = await within(panel).findByRole("alert");
+    await code.whenRequested("alerts");
+    await act(async () => {
+      code.release("alerts");
+      expect(await preloadAssetTab("alerts")).toBe(false);
+    });
+    const alert = within(panel).getByRole("alert");
     expect(alert).toHaveAttribute("data-route-load-failure", "panel");
     expect(alert).toHaveTextContent("This section didn't load");
     expect(within(alert).getByRole("heading", { level: 2 })).toBeInTheDocument();
@@ -414,7 +507,7 @@ describe("the asset page's tabs", () => {
     expect(tab("Alerts")).toHaveAttribute("aria-selected", "true");
 
     expect([...code.requested].sort()).toEqual(
-      ["activity", "alerts", "financials", "growth", "overview", "search", "settings", "sources", "tasks"],
+      ["activity", "alerts", "codebase", "financials", "growth", "health", "overview", "search", "settings", "sources", "tasks"],
     );
   });
 });
@@ -439,7 +532,7 @@ describe("the command palette", () => {
 
     // The modifier alone starts the fetch, the moment before a possible K.
     fireEvent.keyDown(window, { key: "Meta", metaKey: true });
-    await waitFor(() => expect(code.requested).toContain("palette"));
+    await code.whenRequested("palette");
     expect(screen.queryByRole("dialog")).toBeNull();
 
     const before = document.body.innerHTML;
@@ -448,8 +541,12 @@ describe("the command palette", () => {
     expect(document.querySelector("[data-route-loading]")).toBeNull();
     expect(document.body.innerHTML).toBe(before);
 
-    code.release("palette");
-    const dialog = await screen.findByRole("dialog", { name: "Search pages and sites" });
+    const mounted = whenMounted(() => screen.queryByRole("dialog", { name: "Search pages and sites" }));
+    await act(async () => {
+      code.release("palette");
+      expect(await preloadCommandPalette()).toBe(true);
+    });
+    const dialog = await mounted;
     expect(document.activeElement).toBe(within(dialog).getByPlaceholderText("Search pages and sites…"));
 
     fireEvent.keyDown(window, { key: "Escape" });
