@@ -178,9 +178,10 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/routes/financials/SiteMoneyRows.tsx',
   'apps/tower/src/routes/financials/CostComposition.tsx',
   'apps/tower/src/routes/financials/RevenueComposition.tsx',
-  'apps/tower/src/routes/asset-detail/OverviewChart.tsx',
-  'apps/tower/src/routes/asset-detail/SourceHistory.tsx',
+  'apps/tower/src/components/viz/DailyMeasureChart.tsx',
+  'apps/tower/src/components/viz/SourceHistory.tsx',
   'apps/tower/src/routes/asset-detail/overview-measures.ts',
+  'apps/tower/src/routes/asset-detail/source-history-presentation.ts',
   'apps/tower/src/lib/site-health.ts',
   // The Sites list is the portfolio's business index.
   'apps/tower/src/routes/AssetsRoute.tsx',

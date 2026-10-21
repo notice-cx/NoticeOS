@@ -6,10 +6,10 @@ import type { HealthState } from "@/components/viz/HealthGrid";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { dateRange, type SourceDayState, type SourceDays } from "@/routes/asset-detail/overview-measures";
+import type { SourceDayState, SourceHistoryRow, SourceHistoryHeadline } from "./source-history";
 
-// Each data source on the site, one cell per day over the last thirty days.
-// Home's grid says whether a source works now; this says whether it delivered
+// Each data source, one cell per day over the supplied range.
+// HealthGrid shows whether a source works now; this shows whether it delivered
 // every day, so a three-day hole last week is as visible as a failure today.
 // Delivered days recede; a missed day is hatched in the failure's ink; a
 // source that is late now owes its last days in its own state's ink.
@@ -51,70 +51,27 @@ const DAY_WORDS: Record<SourceDayState, string> = {
   before: "before this source began",
 };
 
-function dayWords(row: SourceDays, state: SourceDayState): string {
+function dayWords(row: SourceHistoryRow, state: SourceDayState): string {
   if (state === "late" && (row.state === "failing" || row.state === "overdue")) return "not reported";
   return DAY_WORDS[state];
 }
 
-const range = (dates: readonly string[]) => dateRange(dates[0]!, dates.at(-1)!);
-
-/** A row in words, for a reader who cannot see its cells. */
-function rowSummary(row: SourceDays): string {
-  if (!row.days) return `${row.label}: no daily record`;
-  const owed = row.days.filter((day) => day.state !== "before");
-  const reported = owed.filter((day) => day.state === "reported" || day.state === "counting").length;
-  const missed = row.days.filter((day) => day.state === "missed").map((day) => day.t);
-  return [
-    `${row.label}, ${formatSeriesDate(row.days[0]!.t)} to ${formatSeriesDate(row.days.at(-1)!.t)}: reported ${reported} of ${owed.length} days`,
-    missed.length > 0 ? `missed ${range(missed)}` : null,
-    row.state ? CONNECTION_LABELS[row.state].toLowerCase() : null,
-  ].filter(Boolean).join("; ");
-}
-
-interface Headline {
-  tone: "error" | "warn" | "clear" | "gap";
-  text: string;
-}
-
-/** The one thing the strip leads with: a source failing or late now, else
- * the longest hole in the window, else that every source delivered. */
-function headlineOf(rows: readonly SourceDays[], nowMs: number): Headline | null {
-  const now = rows.find((row) => row.state === "failing") ?? rows.find((row) => row.state === "overdue");
-  if (now) {
-    const age = ageMs(nowMs, now.since);
-    return {
-      tone: now.state === "failing" ? "error" : "warn",
-      text: `${now.name} ${CONNECTION_LABELS[now.state!].toLowerCase()}${age === null ? "" : ` · ${formatAge(age)}`}`,
-    };
-  }
-  const holes = rows
-    .map((row) => ({ row, missed: (row.days ?? []).filter((day) => day.state === "missed").map((day) => day.t) }))
-    .filter(({ missed }) => missed.length > 0)
-    .sort((a, b) => b.missed.length - a.missed.length);
-  const worst = holes[0];
-  if (worst) {
-    const count = worst.missed.length;
-    return { tone: "gap", text: `${worst.row.name} missed ${count} ${count === 1 ? "day" : "days"} · ${range(worst.missed)}` };
-  }
-  return rows.some((row) => row.days) ? { tone: "clear", text: "Every source reported every day" } : null;
-}
-
 export interface SourceHistoryProps {
-  rows: readonly SourceDays[];
+  rows: readonly SourceHistoryRow[];
   notConnected: readonly string[];
   domain: readonly string[];
   nowMs: number;
+  headline: SourceHistoryHeadline | null;
   /** The header's one link out. */
   action?: ReactNode;
   className?: string;
 }
 
-export function SourceHistory({ rows, notConnected, domain, nowMs, action, className }: SourceHistoryProps) {
+export function SourceHistory({ rows, notConnected, domain, nowMs, headline, action, className }: SourceHistoryProps) {
   const titleId = useId();
   const [active, setActive] = useState<{ r: number; c: number } | null>(null);
-  const headline = headlineOf(rows, nowMs);
   const length = domain.length;
-  const daily = rows.map((row, r) => ({ row, r })).filter(({ row }) => row.days !== null);
+  const daily = rows.map((row, r) => ({ row, r })).filter(({ row }) => row.days !== null && row.days.length > 0 && length > 0);
   const undaily = rows.filter((row) => row.days === null);
 
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -170,7 +127,7 @@ export function SourceHistory({ rows, notConnected, domain, nowMs, action, class
           {daily.map(({ row, r }) => (
             <div key={row.id} data-source-row={row.id} data-state={row.state ?? "derived"} className="col-span-full grid grid-cols-subgrid items-center">
               <span title={row.label} className="break-words text-xs font-medium leading-snug text-foreground">{row.name}</span>
-              <div role="img" aria-label={rowSummary(row)} className="relative grid h-4 gap-[2px]" style={{ gridTemplateColumns: `repeat(${length}, minmax(0,1fr))` }}
+              <div role="img" aria-label={row.summary} className="relative grid h-4 gap-[2px]" style={{ gridTemplateColumns: `repeat(${length}, minmax(0,1fr))` }}
                 onPointerLeave={() => setActive(null)}>
                 {row.days!.map((day, c) => (
                   <span key={day.t} aria-hidden data-source-day={day.t} data-state={day.state}
@@ -225,7 +182,7 @@ export function SourceHistory({ rows, notConnected, domain, nowMs, action, class
 
 /** A source's state now: quiet while it works, in its own ink when it fails
  * or is late, with how long. */
-function StateNow({ row, nowMs, compact = false }: { row: SourceDays; nowMs: number; compact?: boolean }) {
+function StateNow({ row, nowMs, compact = false }: { row: SourceHistoryRow; nowMs: number; compact?: boolean }) {
   if (!row.state) {
     return row.through ? <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">through {formatSeriesDate(row.through)}</span> : null;
   }

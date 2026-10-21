@@ -1,3 +1,5 @@
+import type { SourceHistoryRow } from "@/components/viz/source-history";
+import type { DailyMeasureDay as MeasureDay, DailyMeasureGap as MeasureGap, DailyMeasureAlert } from "@/components/viz/daily-measure";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { FlagRecord, ProductDay, PulseMetric } from "@shared/asset-detail";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
@@ -6,9 +8,9 @@ import { productReportSummary } from "@shared/product-reports";
 import { shiftLabel, type RangeDays } from "@shared/surface";
 import type { SeriesPoint, SignalTrend } from "@shared/wall";
 import type { BarStripPoint } from "@/components/viz/BarStrip";
-import type { HealthColumn, HealthRow, HealthState } from "@/components/viz/HealthGrid";
+import type { HealthColumn, HealthRow } from "@/components/viz/HealthGrid";
 import type { StatComparison } from "@/components/viz/StatTile";
-import { formatCompact, formatInt, formatPeriodMonthLong, formatSeriesDate, formatSignedMoney, formatUsd } from "@/lib/format";
+import { formatCompact, formatInt, formatPeriodMonthLong, formatSignedMoney, formatUsd } from "@/lib/format";
 import { ledgerMonth, metricWindow, type Aggregate } from "@/routes/asset-detail/overview-metrics";
 
 /**
@@ -19,37 +21,15 @@ import { ledgerMonth, metricWindow, type Aggregate } from "@/routes/asset-detail
  * source this read holds no daily record for says so rather than drawing one.
  */
 
+export { dateRange } from "@/lib/format";
+
 export type MeasureKey = "money" | "people" | "search" | "product";
 
-export interface MeasureDay {
-  t: string;
-  /** null: nothing reported that day. */
-  v: number | null;
-  /** Sources that owed this day and did not report it. With a value, the day
-   * is partial; without one, it is missing. Empty and null: nothing was owed. */
-  missing: readonly string[];
-}
+export type { DailyMeasureDay as MeasureDay, DailyMeasureGap as MeasureGap } from "@/components/viz/daily-measure";
 
-export interface MeasureGap {
-  start: string;
-  end: string;
-  days: number;
-  /** Who was silent, when the measure has more than one source. */
-  who: string | null;
-  /** Another source still reported: the bars are partial, not missing. */
-  partial: boolean;
-}
-
-export interface MeasureAlert {
+export interface MeasureAlert extends DailyMeasureAlert {
   flagId: number;
-  severity: "error" | "warn";
-  /** Where the condition begins on the chart: its onset, or the chart's first
-   * day when it began before the range. */
-  since: string;
-  /** The day the condition began. */
-  onset: string;
   firstFiredAt: string;
-  headline: string;
 }
 
 export interface Measure {
@@ -95,14 +75,6 @@ const HISTORY_DAYS = 28;
 const count = (value: number) => (value >= 100_000 ? formatCompact(value) : formatInt(value));
 const money = (value: number) => formatUsd(value, { cents: Math.abs(value) < 100 });
 const axisMoney = (value: number) => (value >= 1000 ? `$${formatCompact(value)}` : formatUsd(value));
-
-/** "Sep 6–8", "Aug 30–Sep 2", "Sep 6". */
-export function dateRange(start: string, end: string): string {
-  if (start === end) return formatSeriesDate(start);
-  return start.slice(0, 7) === end.slice(0, 7)
-    ? `${formatSeriesDate(start)}–${Number(end.slice(8))}`
-    : `${formatSeriesDate(start)}–${formatSeriesDate(end)}`;
-}
 
 /** Every calendar day from `end - length + 1` to `end`. */
 export function calendarDays(end: string, length: number, start?: string): string[] {
@@ -546,24 +518,10 @@ export function landmarks(measure: Pick<Measure, "days" | "provisionalFrom">): {
 
 // --- data sources, day by day -------------------------------------------------
 
-export type SourceDayState = "reported" | "counting" | "missed" | "late" | "before";
+export type { SourceDayState } from "@/components/viz/source-history";
 
-export interface SourceDays {
-  id: string;
-  /** What the row prints. */
-  name: string;
-  /** The full name, on hover and to screen readers. */
-  label: string;
-  /** The source's state now, in the grid's words; null for a row read only
-   * from its data. */
-  state: HealthState | null;
-  stateLabel: string | null;
-  since: string | null;
+export interface SourceDays extends Omit<SourceHistoryRow, "summary"> {
   detail: string | null;
-  /** One state per day, oldest first; null when this read holds no daily record. */
-  days: { t: string; state: SourceDayState }[] | null;
-  /** The newest day that reported. */
-  through: string | null;
 }
 
 /** The days each source's own data in this read covers, and its unfinished tail. */

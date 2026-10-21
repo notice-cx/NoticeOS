@@ -1,3 +1,6 @@
+import { DailyMeasureChart } from "@/components/viz/DailyMeasureChart";
+import { SourceHistory } from "@/components/viz/SourceHistory";
+import { DAILY_MEASURE_DEMO, DAILY_MEASURE_LANDMARKS, SOURCE_HISTORY_DOMAIN, SOURCE_HISTORY_NOW, SOURCE_HISTORY_ROWS, SOURCE_HISTORY_HEADLINE } from "./kitchen-sink/overview-visuals-demo";
 import { VisualKitGallery } from "@/routes/VisualKitRoute";
 import { toast } from 'sonner';
 import { useOwnerToast } from '@/lib/browser-context';
@@ -6678,6 +6681,26 @@ function SurfaceSections() {
             />
             <p className="px-4 pb-3 text-xs text-muted-foreground">…the table goes here.</p>
           </div>
+        </div>
+      </Section>
+
+      <Section title="DailyMeasureChart — normal range, alert, watched window and incomplete days">
+        <div className="grid gap-8 rounded-xl bg-card p-5">
+          <DailyMeasureChart measure={DAILY_MEASURE_DEMO} landmarks={DAILY_MEASURE_LANDMARKS} tone="text-traffic"
+            changes={[{ date: "2026-09-04", label: "Navigation updated", detail: "Synthetic release note" }]}
+            watches={[{ start: "2026-09-03", end: "2026-09-09", label: "Watching navigation" }]}
+            alertTo="/dev/kitchen-sink" />
+          <div className="max-w-sm">
+            <DailyMeasureChart measure={{ ...DAILY_MEASURE_DEMO, key: "first-days", name: "First reported days", days: DAILY_MEASURE_DEMO.days.slice(0, 2), normal: null, usual: null, alert: null, gaps: [] }}
+              landmarks={{ best: null, worst: null, newest: DAILY_MEASURE_DEMO.days[1]! }} tone="text-financial-revenue" changes={[]} watches={[]} />
+          </div>
+        </div>
+      </Section>
+      <Section title="SourceHistory — missed, late, counting, before collection and no daily record">
+        <SourceHistory rows={SOURCE_HISTORY_ROWS} headline={SOURCE_HISTORY_HEADLINE} domain={SOURCE_HISTORY_DOMAIN}
+          nowMs={SOURCE_HISTORY_NOW} notConnected={["Product analytics"]} />
+        <div className="mt-4 max-w-sm">
+          <SourceHistory rows={[]} headline={null} domain={SOURCE_HISTORY_DOMAIN} nowMs={SOURCE_HISTORY_NOW} notConnected={["Search"]} />
         </div>
       </Section>
 

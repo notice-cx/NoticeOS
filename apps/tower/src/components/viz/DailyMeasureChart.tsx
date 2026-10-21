@@ -4,11 +4,11 @@ import type { SurfaceAnnotation, SurfaceSpan } from "@shared/surface";
 import { ChartEventMarkers } from "@/components/ChartEventMarkers";
 import { axisLabelWidth } from "@/components/surface/HeroChart";
 import { FitLabel } from "@/components/viz/FitLabel";
-import { formatCalendarRange, formatSeriesDate } from "@/lib/format";
+import { dateRange, formatCalendarRange, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { dateRange, landmarks, type Measure, type MeasureDay, type MeasureGap } from "@/routes/asset-detail/overview-measures";
+import type { DailyMeasureSeries, DailyMeasureDay, DailyMeasureGap, DailyMeasureLandmarks } from "./daily-measure";
 
-// The Overview's hero chart: one measure's days as bars over the page's range,
+// One measure's days as bars over a dated range,
 // read against its yardstick (the window before it as a dashed level, or an
 // alert rule's normal as a band), with what happened on the same axis: shipped
 // changes marked above the plot, and the alert, the windows being watched and
@@ -16,8 +16,9 @@ import { dateRange, landmarks, type Measure, type MeasureDay, type MeasureGap } 
 // newest complete day wears the measure's ink and the best and lowest days are
 // named at their bars, so the picture reads before any number does.
 
-export interface OverviewChartProps {
-  measure: Measure;
+export interface DailyMeasureChartProps {
+  measure: DailyMeasureSeries;
+  landmarks: DailyMeasureLandmarks;
   /** The measure's identity ink: `text-financial-revenue`, `text-traffic`. */
   tone: string;
   changes: readonly SurfaceAnnotation[];
@@ -43,23 +44,24 @@ function niceTop(value: number): number {
 }
 
 /** Inclusive index range of a span on the drawn days; null when it misses them. */
-function placed(days: readonly MeasureDay[], start: string, end: string): { from: number; to: number } | null {
+function placed(days: readonly DailyMeasureDay[], start: string, end: string): { from: number; to: number } | null {
   if (days.length === 0 || end < days[0]!.t || start > days.at(-1)!.t) return null;
   const from = days.findIndex((day) => day.t >= start);
   const to = days.findLastIndex((day) => day.t <= end);
   return from < 0 || to < from ? null : { from, to };
 }
 
-function gapWords(gap: MeasureGap): string {
+function gapWords(gap: DailyMeasureGap): string {
   return `${gap.who ? `${gap.who} not reported` : "Not reported"} · ${dateRange(gap.start, gap.end)}`;
 }
 
-export function OverviewChart({ measure, tone, changes, watches, alertTo, action, className }: OverviewChartProps) {
+export function DailyMeasureChart({ measure, landmarks, tone, changes, watches, alertTo, action, className }: DailyMeasureChartProps) {
   const instructions = useId();
   const [active, setActive] = useState<number | null>(null);
   const { days, provisionalFrom, alert, usual, normal, gaps, format, axis } = measure;
+  if (days.length === 0) return null;
   const n = days.length;
-  const { best, worst, newest } = landmarks(measure);
+  const { best, worst, newest } = landmarks;
   const values = days.flatMap((day) => (day.v === null ? [] : [day.v]));
   const top = niceTop(Math.max(...values, usual?.value ?? 0, normal?.high ?? 0, 0) * 1.15);
   const ticks = [0, top / 2, top];
@@ -84,7 +86,7 @@ export function OverviewChart({ measure, tone, changes, watches, alertTo, action
     })
     .sort((a, b) => a.index - b.index);
 
-  const stateOf = (day: MeasureDay, index: number): BarState => {
+  const stateOf = (day: DailyMeasureDay, index: number): BarState => {
     if (day.v === null) return day.missing.length > 0 ? "missed" : "none";
     if (day.missing.length > 0) return "partial";
     if (provisionalFrom !== null && day.t >= provisionalFrom) return "counting";
@@ -315,16 +317,16 @@ export function OverviewChart({ measure, tone, changes, watches, alertTo, action
 
 /** The best, the lowest and the newest complete day, named at their bars. */
 function Landmarks({ days, best, worst, newest, x, y, format, nowInk }: {
-  days: readonly MeasureDay[];
-  best: MeasureDay | null;
-  worst: MeasureDay | null;
-  newest: MeasureDay | null;
+  days: readonly DailyMeasureDay[];
+  best: DailyMeasureDay | null;
+  worst: DailyMeasureDay | null;
+  newest: DailyMeasureDay | null;
   x: (index: number) => number;
   y: (value: number) => string;
   format: (value: number) => string;
   nowInk: string;
 }) {
-  const labels: { day: MeasureDay; text: string; ink: string; strong: boolean }[] = [];
+  const labels: { day: DailyMeasureDay; text: string; ink: string; strong: boolean }[] = [];
   if (best) labels.push({ day: best, text: `Best · ${formatSeriesDate(best.t)} · ${format(best.v!)}`, ink: "text-foreground", strong: false });
   if (worst && worst !== newest) labels.push({ day: worst, text: `Lowest · ${formatSeriesDate(worst.t)} · ${format(worst.v!)}`, ink: "text-muted-foreground", strong: false });
   if (newest && newest !== best) {
@@ -388,9 +390,9 @@ function Lane({ at, n, ink, kind, children }: {
 
 function Readout({ subject, day, at, measure, counting, spans, changes }: {
   subject: string;
-  day: MeasureDay;
+  day: DailyMeasureDay;
   at: number;
-  measure: Measure;
+  measure: DailyMeasureSeries;
   counting: boolean;
   spans: readonly string[];
   changes: readonly string[];
