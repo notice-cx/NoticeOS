@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -33,6 +36,31 @@ describe("AgentsLine", () => {
     expect(screen.queryByText("Mara")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Agents →" })).toHaveAttribute("href", "/agents");
     expect(screen.queryByText("partial read")).not.toBeInTheDocument();
+  });
+
+  it("shows maker icons by worker name and all of a generic worker's reported models", () => {
+    render(<MemoryRouter><AgentsLine nowMs={NOW} work={work([
+      { workers: [agent("claude-reviewer", 4), { ...agent("worker-1", 3), model: "unrecognized-model" }, { ...agent("worker-2", 2), model: "GPT-5-Codex" }] },
+      { workers: [{ ...agent("worker-1", 1), model: "Opus 5.5" }] },
+    ])} /></MemoryRouter>);
+    const named = screen.getByRole("listitem", { name: "claude-reviewer: 4 closed, 0 in progress" });
+    const inferred = screen.getByRole("listitem", { name: "worker-1: 4 closed, 0 in progress" });
+    for (const row of [named, inferred]) {
+      expect(row.querySelector('[data-agent-maker="anthropic"]')).toHaveAttribute("aria-hidden", "true");
+      expect(row.querySelector("img")).toHaveAttribute("src", "/agents/claude.svg");
+      expect(row.querySelector("img")).toHaveAttribute("alt", "");
+    }
+    expect(within(named).getByText("claude-reviewer")).toBeVisible();
+    expect(within(inferred).getByText("worker-1")).toBeVisible();
+    expect(screen.getByRole("listitem", { name: "worker-2: 2 closed, 0 in progress" }).querySelector("img")).toHaveAttribute("src", "/agents/openai.png");
+  });
+
+  it("uses the original orange Claude tile with a light glyph alongside visible text", () => {
+    const svg = readFileSync(path.resolve(import.meta.dirname, "../public/agents/claude.svg"), "utf8");
+    const sources = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../public/agents/sources.json"), "utf8")) as Record<string, { sha256: string }>;
+    expect(svg).toMatch(/<rect[^>]+fill="#D97757"/);
+    expect(svg).toMatch(/<path[^>]+fill="#FAF9F5"/);
+    expect(createHash("sha256").update(svg).digest("hex")).toBe(sources["claude.svg"]!.sha256);
   });
 
   it("bounds the worker preview to three rows while keeping totals for all agents", () => {

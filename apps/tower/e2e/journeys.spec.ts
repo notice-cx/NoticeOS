@@ -15,7 +15,7 @@ import { buildWorkflowHistory } from "../vite/workflow-history";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
 import { READ_ONLY_DEPLOYMENT } from "@shared/tasks";
-import { emptyWorkHistory } from "@shared/work";
+import { emptyWorkHistory, type WorkPayload } from "@shared/work";
 
 /** A journey the mobile project does not schedule (playwright.config.ts):
  * it walks its own screen sizes, or what it pins does not depend on one. */
@@ -2451,6 +2451,80 @@ async function recordDraws(page: Page, read: string) {
     const note = () => { const value = sample(); if (value !== null && values.at(-1) !== value) values.push(value); };
     new MutationObserver(note).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   }, read);
+}
+
+for (const theme of ["dark", "light"] as const) {
+  test(`Home overview keeps four cards in two columns and its orange agent icon readable in ${theme} mode`, desktopOnly("walks desktop, tablet and phone widths with and without revenue"), async ({ page }, testInfo) => {
+    await wallScene(page, "fire");
+    await page.addInitScript(color => localStorage.setItem("noticeos:theme", color), theme);
+    const wall = wallFixturePayload("fire");
+    const zero = { currency: "USD", revenue: 0, cost: 0, net: 0 };
+    const noRevenue = {
+      ...wall,
+      portfolio: { ...wall.portfolio, booked: zero, forecast: zero, netTrend: [], netTrendAll: [], revenueRecorded: { booked: false, forecast: false } },
+      assets: wall.assets.map(asset => ({ ...asset, revenueProjection: undefined, dailyRevenue: undefined })),
+    };
+    let money = true;
+    await page.route("**/api/wall", route => route.fulfill({ json: money ? wall : noRevenue }));
+    const waiting = Array.from({ length: 6 }, (_, index) => ({
+      id: `ex-${index}`, title: `Review a detailed synthetic change for the site ${index + 1}: ${"a long request ".repeat(12)}`,
+      status: "open", priority: index, issueType: "gate", assignee: null, updatedAt: WALL_FIXTURE_NOW,
+      closedAt: null, parent: null, deferUntil: null,
+    }));
+    const work: WorkPayload = {
+      generatedAt: WALL_FIXTURE_NOW, capturedAt: WALL_FIXTURE_NOW, pollCadenceHours: 1 / 60, owner: "config/beads.json", historyDays: 0,
+      projects: [{ asset: wall.assets[0]!.id, prefix: "ex", name: "Example site", ok: true, error: null,
+        counts: { open: 120, highPriority: 2, ready: 0, inProgress: 3, blocked: 0, closedRecent: 12, deferred: 0, waiting: 120 },
+        history: emptyWorkHistory(), priorities: null, epics: null, ready: [], inProgress: [], recentlyClosed: [], deferred: [], waiting,
+        workers: [{ id: "worker-1", model: "Opus 5.5", closedRecent: 9, inProgress: 2 }, { id: "codex", model: "GPT-5-Codex", closedRecent: 3, inProgress: 1 }],
+      }],
+    };
+    await page.route("**/api/work", route => route.fulfill({ json: work }));
+    for (const withMoney of [true, false]) {
+      money = withMoney;
+      for (const width of [1440, 900, 390]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await page.goto("/");
+        const overview = page.locator("[data-home-overview]");
+        await expect(overview).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        const cards = overview.locator(":scope > *");
+        await expect(cards).toHaveCount(4);
+        const boxes = await cards.evaluateAll(elements => elements.map(element => {
+          const rect = element.getBoundingClientRect();
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        }));
+        if (width === 1440) {
+          expect(boxes[0]!.y).toBeCloseTo(boxes[1]!.y, 0);
+          expect(boxes[2]!.y).toBeCloseTo(boxes[3]!.y, 0);
+          expect(boxes[0]!.x).toBeCloseTo(boxes[2]!.x, 0);
+          expect(boxes[1]!.x).toBeCloseTo(boxes[3]!.x, 0);
+          expect(boxes[0]!.width).toBeCloseTo(boxes[1]!.width, 0);
+          expect(boxes[3]!.height).toBeLessThan(360);
+        } else if (width === 390) {
+          for (let index = 1; index < boxes.length; index++) expect(boxes[index]!.y).toBeGreaterThan(boxes[index - 1]!.y);
+        }
+        await expect(page.locator("[data-money-hero]")).toHaveCount(withMoney ? 1 : 0);
+        await expect(page.locator('[data-stat="Visitors in the last 28 days"]')).toHaveCount(1);
+        await expect(overview.locator("[data-queue-item]")).toHaveCount(3);
+        await expect(overview.locator("button")).toHaveCount(0);
+        await expect(overview.locator("[data-incident]")).toHaveCount(3);
+        expect(await overview.evaluate(element => element.nextElementSibling?.hasAttribute("data-home-sites"))).toBe(true);
+        const mark = overview.locator('[data-agent-maker="anthropic"]');
+        await expect(mark.locator("img")).toHaveAttribute("src", "/agents/claude.svg");
+        await expect.poll(() => mark.locator("img").evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+        const icon = await mark.evaluate(element => {
+          const image = element.querySelector("img")!;
+          return { frame: element.clientWidth, width: image.getBoundingClientRect().width, filter: getComputedStyle(image).filter };
+        });
+        expect(icon.width).toBeCloseTo(icon.frame, 0);
+        expect(icon.filter).toBe("none");
+        await expect(overview.getByText("worker-1", { exact: true })).toBeVisible();
+        await assertNoPageOverflow(page);
+        await page.screenshot({ path: testInfo.outputPath(`home-overview-${theme}-${withMoney ? "money" : "no-money"}-${width}.png`), fullPage: true });
+      }
+    }
+  });
 }
 
 test("Home and Tasks draw once from all their reads: no saved rows before the live ones, and no read sent twice", async ({ page }) => {

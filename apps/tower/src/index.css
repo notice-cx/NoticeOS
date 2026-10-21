@@ -937,7 +937,8 @@
   height: 72%;
   object-fit: contain;
 }
-/* OpenAI's icon is a full square tile with its own clear space. */
+/* These icons are full square tiles with their own backgrounds and clear space. */
+.agent-mark[data-agent-maker="anthropic"] .agent-mark__image,
 .agent-mark[data-agent-maker="openai"] .agent-mark__image {
   width: 100%;
   height: 100%;

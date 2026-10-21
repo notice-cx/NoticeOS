@@ -365,19 +365,21 @@ is heading and what is broken. The month's money is the main figure
 (`MoneyHero`: the month so far as the largest figure on the screen, its
 projected total against last month's total on a `PaceBar`, the month's days as
 a `BarStrip`, yesterday's reported revenue and which sites the revenue came
-from), with visitors in the last 28 days as a `StatTile` beside it. The visitor figure
+from). Visitors in the last 28 days is a `StatTile` in the overview group. Its figure
 sums reported daily counts over 28 calendar days ending at the newest settled
 reading; provisional days are excluded and missing days remain gaps. Home's
 visitor and revenue bars are stacked by site with matching colour legends. With no revenue source anywhere,
-visitors come first and no money figure is drawn. Sites sits directly below
-Visitors in the right-hand column (`PortfolioRows`, in seed order; with only
-one site, Home shows that site's own Overview strip and chart instead).
-Then three compact cards show Problems, Decisions and Agents. Problems
+no money figure is drawn and Visitors stays in the overview group. Four
+compact cards form a two-column, two-row group: Problems and Decisions on the
+first row, Agents and Visitors on the second. On narrow screens they stack
+in that order. Sites follows the group (`PortfolioRows`, in seed order; with
+only one site, Home shows that site's own Overview strip and chart instead). Problems
 includes source failures and shows the three highest-ranked issues with total
 severity counts. Decisions shows the waiting count, oldest known wait and
 three requests as two-line links; full request details and actions are on
 Tasks. Agents shows closes in seven days, work in progress and the three
-workers with the most closes. Unread, partial and outdated readings are
+workers with the most closes, each beside its maker icon. Claude uses the
+official light spark on an orange tile. Unread, partial and outdated readings are
 labelled. The `EventTimeline` below them has the visible heading "Problems
 and activity" and the caption "Last 24 hours". Data sources are shown on the site pages and Integrations. Home's layout depends on its own width: one
 column, two from about 768 px of content, twelve from about 1150 px, so a
