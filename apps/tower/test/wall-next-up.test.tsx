@@ -5,11 +5,13 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { AssetCard, OperatorPosture, WallNextUp, WallPayload } from "@shared/wall";
-import type { WorkWeeks } from "@shared/work";
+import type { WorkItem, WorkWeeks } from "@shared/work";
 import { DEFAULT_WALL_LAYOUT, WALL_WIDGET_LIBRARY, type WallLayout } from "@shared/wall-layout";
 import { WallCanvas } from "@/components/WallCanvas";
 import { NextUp, decisionLine, decisionsFigure, workingLine } from "@/components/wall/NextUp";
 import { wallLibraryOptions } from "@/lib/wall-editor";
+import type { SnapshotProject } from "../worker/beads-snapshot";
+import { wallNextUpOf } from "../worker/wall-payload";
 
 const NOW = Date.parse("2026-10-21T12:00:00.000Z");
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-10-21T12:00:00.000Z") }));
@@ -158,6 +160,25 @@ describe("NextUp", () => {
     draw({ operator: { ...OPERATOR, waiting: 3, measuredProjects: 1 } });
     expect(document.querySelector("[data-next-count]")!.textContent).toBe("3+");
     expect(document.querySelector("[data-next-count-words]")!.textContent).toBe("decisions · oldest 12 days");
+  });
+
+  it("says what the top decision holds when the snapshot records the links, and nothing when it records none", () => {
+    const item = (id: string, over: Partial<WorkItem> = {}): WorkItem => ({ id, title: `Task ${id}`, status: "open", priority: 2, issueType: "task",
+      assignee: null, updatedAt: null, closedAt: null, parent: null, deferUntil: null, createdAt: "2026-10-12T12:00:00.000Z", ...over });
+    const meadow = (over: Partial<SnapshotProject>): SnapshotProject => ({ asset: "meadow.example", prefix: "md", ok: true, error: null,
+      counts: { open: 3, highPriority: 0, ready: 0, inProgress: 0, blocked: 2, closedRecent: 0, deferred: 0, waiting: 1 }, priorities: null, epics: null,
+      ready: [], inProgress: [], recentlyClosed: [], deferred: [], waiting: [], waitingUrgent: 0, panelReview: undefined, handoffs: undefined, ...over });
+    const waits = { dependencies: [{ id: "md-gate", type: "blocks" }] };
+    const linked = wallNextUpOf({ capturedAt: FRESH, projects: [meadow({
+      waiting: [item("md-gate", { issueType: "gate", dependencies: [] })], blocked: [item("md-a", waits), item("md-b", waits)] })] }, new Date(NOW))!;
+    expect(linked.decisions[0]!.releases).toBe(2);
+    const { unmount } = draw({ next: linked });
+    expect(document.querySelector("[data-next-top-line]")!.textContent).toBe("Meadow Board · 9 days · holds 2 tasks");
+    unmount();
+    const older = wallNextUpOf({ capturedAt: FRESH, projects: [meadow({ waiting: [item("md-gate", { issueType: "gate" })] })] }, new Date(NOW))!;
+    expect(older.decisions[0]!.releases).toBeNull();
+    draw({ next: older });
+    expect(document.querySelector("[data-next-top-line]")!.textContent).toBe("Meadow Board · 9 days");
   });
 
   it("omits each clause the data lacks", () => {

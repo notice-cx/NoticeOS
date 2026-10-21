@@ -989,8 +989,8 @@ export interface WallDecision {
   /** Whole days since the task was filed; null when the snapshot carries no
    * filing date for it. */
   ageDays: number | null;
-  /** How many tasks wait on this decision; null when the snapshot does not
-   * record what waits on what. */
+  /** How many open tasks the snapshot lists that wait on this decision; null
+   * when the snapshot does not record what waits on what. */
   releases: number | null;
 }
 

@@ -1,8 +1,9 @@
 // The Projects tab's one derivation: every epic on the board as a project of
 // its site, with where it stands, what it asks of the operator, what moves
 // next and one bar segment per task. It re-reads what `readTaskBoard` already
-// decided; a fact the read does not carry (a snapshot row has no dependencies
-// and no claim time) stays absent rather than being invented.
+// decided; a fact the read does not carry (a snapshot row has no claim time,
+// and one an older poller wrote has no links) stays absent rather than being
+// invented.
 import { TASK_CHANGE_CLASSES, type TaskChangeClass } from "@noticeos/contract/task-change-class";
 import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
 import { taskActorLabel } from "@shared/tasks";
