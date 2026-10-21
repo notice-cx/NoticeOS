@@ -395,7 +395,7 @@ describe("/settings", () => {
     expect(section.getByText("Newer version published")).toBeVisible();
     expect(container.querySelector('[data-installation-command="update"]')).toHaveTextContent("/srv/noticeos/noticeos update");
     expect(container.querySelector('[data-installation-command="status"]')).toHaveTextContent("/srv/noticeos/noticeos status");
-    expect(section.getByText("never")).toBeVisible();
+    expect(section.getByText("no good copy yet")).toBeVisible();
     unmount();
 
     // From a checkout, current, with the stack not yet told its folder.
@@ -412,6 +412,33 @@ describe("/settings", () => {
     state.installation = { ...facts, live: true, published: null };
     const live = renderPage("installation");
     expect(within(live.container.querySelector("#installation") as HTMLElement).getByText("Live source")).toBeVisible();
+  });
+
+  it.each([
+    ["2026-09-03T04:00:00.000Z", "0 4 * * *", true, "Missed", "text-warn"],
+    ["2026-09-02T04:00:00.000Z", "0 4 * * *", true, "Failed", "text-error"],
+    ["2026-08-30T04:00:00.000Z", "0 4 * * 0", true, null, null],
+    ["2026-08-30T04:00:00.000Z", "0 4 * * *", false, "Off", null],
+  ])("uses backup schedule health in Installation after %s", (good, cron, enabled, label, tone) => {
+    stubFetch();
+    state.installation = { folder: null, tower: null, postgresPort: null, taskPort: null, launcher: null, commit: null, live: false, published: null };
+    state.wall = { ...wall([]), system: {
+      assetId: null, hasPulse: false, spendTodayUsd: 0, dailyCapUsd: 1,
+      ingest: { fresh: 0, stale: 0, notExpected: 0, expected: 0 },
+      scheduledLanes: [], backupLastGoodAt: good, backupSchedule: { enabled, cron },
+    } };
+    const { container } = renderPage("installation");
+    const section = within(container.querySelector("#installation") as HTMLElement);
+    const chip = container.querySelector('[data-status-for="installation:backup"]');
+    if (tone) {
+      expect(chip).toHaveTextContent(label!);
+      expect(chip).toHaveClass(tone);
+    } else {
+      expect(chip).toBeNull();
+      if (label) expect(section.getByText(label)).toBeVisible();
+    }
+    // A weekly backup must not inherit a separate daily-age warning.
+    expect(container.querySelector('[data-age-glyph="stale"]')).toBeNull();
   });
 
   it("is sectioned by the desk's tabs, one tab and one URL per section, with no second navigator", () => {

@@ -8,6 +8,7 @@ import {
   type ReportingCoverage,
 } from "@noticeos/contract/reporting";
 import { INTEGRATION_CADENCE_HOURS } from "@noticeos/contract/integration-health";
+import type { JobSchedule } from "./scheduled-jobs";
 import type { SiteIcons } from "@noticeos/contract/site-icons";
 import type { AnnotationItem } from "./annotations";
 import type { FlagReading } from "./alert-language";
@@ -184,6 +185,10 @@ export interface SystemBand {
   ingest: ReportingCoverage;
   /** Every lane currently present in the job-run record, one latest row each. */
   scheduledLanes: ScheduledLane[];
+  /** Effective saved backup schedule; absent on older payloads. */
+  backupSchedule?: JobSchedule;
+  /** Newest successful backup, including histories containing only manual runs. */
+  backupLastGoodAt?: string | null;
 }
 
 /**

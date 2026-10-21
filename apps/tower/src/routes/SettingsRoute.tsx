@@ -37,7 +37,6 @@ import { CountdownEditor, CountdownWidget } from "@/components/DashboardWidgets"
 import { KnobEditor, type KnobControl } from "@/components/KnobEditor";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { KnobRow } from "@/components/KnobRow";
-import { AgeBadge } from "@/components/AgeBadge";
 import { CopyCommand } from "@/components/CopyCommand";
 import { OwnerChip } from "@/components/OwnerChip";
 import { Meter } from "@/components/Meter";
@@ -69,7 +68,7 @@ import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
 import { useWork } from "@/hooks/useWork";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
-import { backupStatus } from "@/lib/backups";
+import { backupStatus, lastGoodCopy } from "@/lib/backups";
 import { cn } from "@/lib/utils";
 import { useBrowserContext } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
@@ -1202,7 +1201,7 @@ function InstallationSection() {
       <PageSkeleton subject="read:installation" shape="form" />
     );
   }
-  const backup = backupStatus(wall?.system.scheduledLanes ?? []);
+  const backup = backupStatus(wall?.system.scheduledLanes ?? [], nowMs, wall?.system.backupSchedule, wall?.system.backupLastGoodAt);
   const backupFailed = backup.state === "missed" || backup.state === "failing";
   const update = updateState(facts);
   return (
@@ -1246,8 +1245,8 @@ function InstallationSection() {
           label="Last good backup"
           value={
             <span className="flex items-center gap-2">
-              {backupFailed ? <StateChip tone={backup.state === "failing" ? "critical" : "caution"} label="Failed" subject="installation:backup" /> : null}
-              <AgeBadge iso={backup.lastGoodAt} cadenceHours={24} nowMs={nowMs} lastGood={backupFailed} />
+              {backupFailed ? <StateChip tone={backup.state === "failing" ? "critical" : "caution"} label={backup.state === "missed" ? "Missed" : "Failed"} subject="installation:backup" /> : null}
+              {backup.state === "off" ? <span className="text-sm text-muted-foreground">Off</span> : <span className="text-sm text-muted-foreground">{lastGoodCopy(backup, nowMs)}</span>}
             </span>
           }
         />

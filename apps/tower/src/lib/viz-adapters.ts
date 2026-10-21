@@ -78,6 +78,7 @@ function laneLabel(lane: ScheduledLane): string {
 
 const BACKUP_CELL: Record<BackupState, HealthCell["state"]> = {
   none: "not-connected",
+  off: "not-using",
   working: "working",
   missed: "overdue",
   failing: "failing",
@@ -88,7 +89,7 @@ export function systemHealthRow(system: SystemBand, nowMs: number, href = "/heal
   const jobs = system.scheduledLanes.filter((lane) => !isBackupLane(lane));
   const failedJobs = jobs.filter((lane) => lane.outcome === "failed");
   const latest = (lanes: readonly ScheduledLane[]) => lanes.reduce<string | null>((at, lane) => (at === null || lane.startedAt > at ? lane.startedAt : at), null);
-  const backups = backupStatus(system.scheduledLanes);
+  const backups = backupStatus(system.scheduledLanes, nowMs, system.backupSchedule, system.backupLastGoodAt);
   const cells: HealthCell[] = [
     { column: "os-report", state: osReportMissing(system) ? "failing" : system.assetId === null ? "not-using" : "working", href },
     jobs.length === 0
@@ -96,7 +97,7 @@ export function systemHealthRow(system: SystemBand, nowMs: number, href = "/heal
       : failedJobs.length > 0
         ? { column: "jobs", state: "failing", since: latest(failedJobs), detail: failedJobs.map(laneLabel).join(", "), href }
         : { column: "jobs", state: "working", href },
-    { column: "backups", state: BACKUP_CELL[backups.state], since: backups.failingSince, detail: lastGoodCopy(backups, nowMs), href },
+    { column: "backups", state: BACKUP_CELL[backups.state], label: backups.state === "off" ? "Off" : undefined, since: backups.failingSince, detail: lastGoodCopy(backups, nowMs), href },
     {
       column: "spend",
       state: system.dailyCapUsd > 0 && system.spendTodayUsd > system.dailyCapUsd ? "overdue" : "working",

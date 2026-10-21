@@ -59,8 +59,9 @@ export function wallSystemState(system: SystemBand, sourcesFailing: number, nowM
   if (failedJobs(system.scheduledLanes).length > 0) {
     return { kind: "job-failed", severity: "error", label: "A scheduled job failed", conditions: ["scheduled-lane-health"] };
   }
-  // Every lane's firing, a backup's included, shows the scheduler alive.
-  if (system.scheduledLanes.length > 0 && schedulerSilent(system.scheduledLanes, nowMs)) {
+  // An intentionally disabled backup owes no further firings.
+  const activeLanes = system.scheduledLanes.filter((lane) => system.backupSchedule?.enabled !== false || !isBackupLane(lane));
+  if (activeLanes.length > 0 && schedulerSilent(activeLanes, nowMs)) {
     return { kind: "jobs-silent", severity: "error", label: "Scheduled jobs silent", conditions: ["scheduled-lane-health"] };
   }
   if (sourcesFailing > 0) {
@@ -125,7 +126,7 @@ export function withSystemIssues(issues: readonly WallIssue[], system: SystemBan
     });
   }
   // One row however many nights failed; it goes when a backup runs.
-  const backups = backupStatus(system.scheduledLanes);
+  const backups = backupStatus(system.scheduledLanes, nowMs, system.backupSchedule, system.backupLastGoodAt);
   if (backups.state === "failing" && !merged.some((issue) => issue.key === "system-backups-failing")) {
     merged.push({
       key: "system-backups-failing", severity: "error", assets: system.assetId ? [system.assetId] : [],
