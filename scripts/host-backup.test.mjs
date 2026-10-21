@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-import { runBackup, backupRunOutcome, hostBackupFile, readOffsiteBackupDir } from './host-backup.mjs';
+import { runBackup, backupRunOutcome, hostBackupFile, readOffsiteBackupDir, assertOffsiteBackupDestination } from './host-backup.mjs';
 import { runJobLane } from './runner/job-record.mjs';
 import { createWorkflowRecorder } from './workflow-trace.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
@@ -591,6 +591,88 @@ test('failed handoff blocks rotation of local and offsite older sets', async (t)
   const result = await f.run({ fs: { ...fs, cp: async () => { throw new Error('Sync folder unavailable'); } } });
   assert.equal(result.stages.retention.status, 'blocked');
   for (const base of [f.backupRoot, f.offsite]) assert.ok((await fs.readdir(base)).includes('2026-08-01'));
+});
+
+for (const kind of ['nested', 'equal', 'symlink', 'custom installation']) test(`an offsite destination inside the ${kind} installation fails and preserves older backups`, async t => {
+  const f = await fixture(t);
+  const installation = path.join(f.repoRoot, kind === 'custom installation' ? 'custom-installation' : 'installation');
+  await fs.mkdir(path.join(installation, 'backup'), { recursive: true });
+  if (kind === 'custom installation') f.adapters.env.NOTICEOS_INSTALLATION_DIR = installation;
+  let offsite = kind === 'equal' ? installation : path.join(installation, 'backup/offsite');
+  if (kind === 'symlink') {
+    const alias = path.join(f.syncParent, 'alias');
+    await fs.symlink(path.join(installation, 'backup'), alias);
+    offsite = path.join(alias, 'offsite');
+  }
+  delete f.settings.offsiteBackupDir;
+  await f.write(path.join(f.repoRoot, 'installation/host-backup.json'), JSON.stringify({ offsiteBackupDir: offsite }));
+  await previousSets(f, ['2026-08-01']);
+  await f.write(path.join(offsite, '2026-08-01/previous'), 'keep older unsafe handoff');
+  await f.write(path.join(offsite, DAY, 'previous'), 'keep current unsafe handoff');
+  const result = await f.run();
+  assert.equal(result.ok, false);
+  assert.equal(result.stages.publication.status, 'completed');
+  assert.equal(result.stages.offsite.status, 'failed');
+  assert.match(result.stages.offsite.errors[0].detail, /Offsite backup destination must be outside the installation folder/u);
+  assert.equal(result.stages.retention.status, 'blocked');
+  await fs.access(path.join(f.backupRoot, '2026-08-01/backup.json'));
+  await fs.access(path.join(f.offsite, '2026-08-01/backup.json'));
+  for (const date of ['2026-08-01', DAY]) assert.match(await fs.readFile(path.join(offsite, date, 'previous'), 'utf8'), /keep/u);
+  const report = JSON.parse(await fs.readFile(path.join(f.repoRoot, '.local/backup-report.json'), 'utf8'));
+  assert.equal(report.stages.offsite.status, 'failed');
+  assert.equal(report.stages.retention.status, 'blocked');
+});
+
+test('an external sibling with the installation name as a prefix succeeds and rotates older backups', async t => {
+  const f = await fixture(t);
+  f.settings.offsiteBackupDir = path.join(f.repoRoot, 'installation-external/backups');
+  await fs.mkdir(path.dirname(f.settings.offsiteBackupDir));
+  await previousSets(f, ['2026-08-01']);
+  const result = await f.run();
+  assert.equal(result.ok, true, result.detail);
+  assert.equal(result.stages.offsite.status, 'completed');
+  assert.equal(result.stages.retention.status, 'completed');
+  await fs.access(path.join(f.settings.offsiteBackupDir, DAY, 'backup.json'));
+  await absent(path.join(f.backupRoot, '2026-08-01'));
+});
+
+test('a missing nested destination is rejected before creating it', async t => {
+  const f = await fixture(t);
+  const installation = path.join(f.repoRoot, 'installation');
+  await fs.mkdir(path.join(installation, 'backup'), { recursive: true });
+  f.settings.offsiteBackupDir = `${installation}/backup/../backup/offsite`;
+  const result = await f.run();
+  assert.equal(result.stages.offsite.status, 'failed');
+  assert.match(result.stages.offsite.errors[0].detail, /must be outside the installation folder/u);
+  assert.equal(result.stages.retention.status, 'blocked');
+  await absent(path.join(installation, 'backup/offsite'));
+});
+
+test('separate container mounts do not conceal a destination nested in the host installation', async t => {
+  const f = await fixture(t);
+  const map = file => path.join(f.repoRoot, 'mounts', file);
+  await fs.mkdir(map('/state'), { recursive: true });
+  await fs.mkdir(map('/backup-offsite'), { recursive: true });
+  const seen = [];
+  const io = { realpath: file => {
+    assert.ok(file === '/state' || file.startsWith('/backup-offsite'), `never resolve a host path in the worker: ${file}`);
+    seen.push(file);
+    return fs.realpath(map(file));
+  } };
+  const env = { NOTICEOS_HOST_FOLDER: '/srv/noticeos', NOTICEOS_HOST_BACKUP_OFFSITE_PARENT: '/srv/noticeos/backup/offsite' };
+  const options = { repoRoot: '/state', directory: '/backup-offsite/backups', transport: 'container', env };
+  await assert.rejects(assertOffsiteBackupDestination(options, { fs: io }), /must be outside the installation folder/u);
+  assert.deepEqual(seen, []);
+  env.NOTICEOS_HOST_BACKUP_OFFSITE_PARENT = '/srv/noticeos/../noticeos/backup/offsite';
+  await assert.rejects(assertOffsiteBackupDestination(options, { fs: io }), /must be outside the installation folder/u);
+  env.NOTICEOS_HOST_BACKUP_OFFSITE_PARENT = '/srv/noticeos-external';
+  await assertOffsiteBackupDestination(options, { fs: io });
+  assert.ok(seen.includes('/state'));
+  await fs.symlink(map('/state'), map('/backup-offsite/backups'));
+  await assert.rejects(assertOffsiteBackupDestination(options, { fs: io }), /must be outside the installation folder/u);
+  for (const key of Object.keys(env)) {
+    await assert.rejects(assertOffsiteBackupDestination({ ...options, env: { ...env, [key]: '' } }, { fs: io }), /requires absolute host installation and offsite parent paths/u);
+  }
 });
 
 test('rotation includes both earlier generated formats and keeps the week-old complete copy', async (t) => {

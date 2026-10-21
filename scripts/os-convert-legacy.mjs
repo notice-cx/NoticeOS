@@ -42,6 +42,7 @@ import { composePrefix } from './stack-database.mjs';
 import { folderRefusal } from './os-setup.mjs';
 import { developStack } from './stack-development.mjs';
 import { recordApplied } from './stack-apply.mjs';
+import { assertOffsiteOutsideInstallation } from './installation-path-guard.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
@@ -340,6 +341,17 @@ export async function convertLegacy(options, { run = runCommand, env = process.e
   const legacyRoot = top.code === 0 && top.stdout.trim() && path.resolve(top.stdout.trim()) !== root ? path.resolve(top.stdout.trim()) : path.dirname(declared.files[0]);
   const found = readInstallation(before, { project: old.project, imageId, legacyRoot });
   const choices = convertedChoices(found, options.dir);
+  if (found.backup) {
+    const profile = found.copies.find(copy => copy.key === 'backupProfile');
+    const file = path.join(profile.from, 'host-backup.json');
+    let settings;
+    try { settings = JSON.parse(fs.readFileSync(file, 'utf8')); }
+    catch { refuse(`the backup settings ${file} could not be read as JSON.`); }
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) refuse(`the backup settings ${file} must be an object.`);
+    if (settings.offsiteBackupDir !== null && settings.offsiteBackupDir !== undefined) {
+      await assertOffsiteOutsideInstallation(path.join(choices.backupOffsite ?? installationPaths(options.dir).backupOffsite, 'backups'), options.dir);
+    }
+  }
   const selector = validateSelector(installationSelector({ dir: options.dir, project: old.project, dockerHost: old.dockerHost, backup: found.backup, root }));
 
   // The new declaration, rendered from an environment file outside the new folder.

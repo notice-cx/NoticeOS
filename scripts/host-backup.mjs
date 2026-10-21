@@ -10,6 +10,7 @@ import { claimBackup, BACKUP_OWNER_FAILURE } from './backup-claim.mjs';
 import { beadsDatabaseName, readTaskHost, taskHostFile } from './task-project-config.mjs';
 import { redactLogText } from './os-log.mjs';
 import { HOST_BACKUP_FILE, checkoutRelative, readablePath, installationDir } from './installation.mjs';
+import { assertOffsiteOutsideInstallation } from './installation-path-guard.mjs';
 import { dumpPostgres, POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { readDoltProfile } from './dolt-host.mjs';
 import { backupDolt } from './dolt-backup.mjs';
@@ -134,6 +135,21 @@ function offsiteDirectory(settings, where) {
     throw new Error(`${where}: offsiteBackupDir must be an absolute folder path, or null for no offsite copy`);
   }
   return dir;
+}
+
+/** Validate the handoff using the paths visible in each filesystem namespace. */
+export async function assertOffsiteBackupDestination({ repoRoot, directory, transport, env = process.env }, { fs: io = fs } = {}) {
+  if (transport === 'container') {
+    const installation = backupFolder(env.NOTICEOS_HOST_FOLDER);
+    const parent = backupFolder(env.NOTICEOS_HOST_BACKUP_OFFSITE_PARENT);
+    if (!installation || !parent) throw new Error('Offsite backup requires absolute host installation and offsite parent paths; retention blocked.');
+    await assertOffsiteOutsideInstallation(path.join(parent, 'backups'), installation, { resolve: false });
+    // Separate mounts can conceal a host-side nested destination. The worker's
+    // /state path alone cannot establish that its offsite mount is external.
+    await assertOffsiteOutsideInstallation(directory, repoRoot, { fs: io });
+  } else {
+    await assertOffsiteOutsideInstallation(directory, installationDir({ root: repoRoot, env }), { fs: io });
+  }
 }
 
 /**
@@ -587,6 +603,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
       }
       if (offsiteBackupDir && published) {
         await attempt('offsite', async () => {
+          await assertOffsiteBackupDestination({ repoRoot, directory: offsiteBackupDir, transport, env: adapters.env ?? process.env }, { fs: io });
           // The existing synchronization parent must exist. Never fabricate a
           // local replacement for an unavailable sync mount.
           await io.access(path.dirname(offsiteBackupDir));

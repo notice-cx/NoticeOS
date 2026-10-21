@@ -36,6 +36,23 @@ default — takes no offsite copy, and the record says so
 exist**: a missing sync mount fails the run rather than creating a local folder
 that only looks offsite.
 
+The resolved destination must be outside the installation folder, including
+when a symlink points into it. A destination equal to or nested under that
+folder fails the offsite handoff before any copy or replacement there and
+blocks retention of older local and offsite sets. Complete local snapshots
+can still be published. Legacy conversion rejects a plan that would put a
+declared offsite destination inside the new installation folder; an unused
+mount with offsite copying disabled does not fail that check.
+
+In the backup container, `/state` and `/backup-offsite` are separate mounts.
+The check also compares the declared host installation folder
+(`NOTICEOS_HOST_FOLDER`) and offsite parent
+(`NOTICEOS_HOST_BACKUP_OFFSITE_PARENT`); missing host paths fail the handoff.
+Host paths must describe the resolved mount sources: the container cannot
+resolve symlinks in the host's filesystem. An external folder alone does not
+prove remote storage or completed synchronization; the operator must configure
+and check that separately.
+
 ## Retention
 
 `retention` keeps the latest `daily` complete dates and the first complete set
