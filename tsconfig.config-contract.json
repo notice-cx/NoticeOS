@@ -12,6 +12,7 @@
     ]
   },
   "include": [
+    "packages/contract/src/agent-stats.mts",
     "packages/contract/src/cloudflare-d1.mts",
     "packages/contract/src/backup-evidence.mts",
     "scripts/workflow-history-view.mts",

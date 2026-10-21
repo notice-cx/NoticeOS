@@ -69,7 +69,7 @@ export const WHATS_CHANGED: readonly string[] = Object.freeze([
 ]);
 
 /** How a session starts, said in every session's instructions. */
-export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
+export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page groups work by model; missing or unrecognized models share Other. Use get_agent_stats for activity statistics without individual task details.';
 /** Said only where the panel tools are offered. */
 export const PANEL_RULE = 'For a site\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
 /** The order of task work, in the tools' own names. */
@@ -659,6 +659,12 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       return { projects: (await operations.projects(proof, workspaceId)).map(entry => ({
         projectId: entry.projectId, key: entry.logicalKey, name: entry.displayName, prefix: entry.prefix })) };
     } },
+  { name: 'get_agent_stats', description: 'Agent work statistics grouped by model: current and blocked counts, closes in 7 days and the 7 before, eight weeks of velocity, ranking and leaders. Unknown models share Other. Returns aggregates without task details. Omit project for the whole workspace; failed projects are named in broken.',
+    inputSchema: schema({ project: { ...PROJECT, description: 'The projectId from list_projects; omit for workspace totals.' } }), annotations: READ,
+    async run({ proof, workspaceId, operations }, args) {
+      only(args, ['project']);
+      return operations.agentStats(proof, workspaceId, args.project === undefined ? undefined : project(args));
+    } },
   { name: 'list_tasks', description: 'List tasks, most urgent first: every open one and those closed in the last 7 days, in one project or, '
       + 'with no project, in every project of the workspace, each then naming its project. '
       + 'Each is a summary, leaving out fields with no value; get_task reads one in full. Filters narrow it live, so search here '
@@ -704,7 +710,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       const kept = (row: LiveTask) => (args.ready !== true || row.ready) && passes(row, filter);
       const nextOf = (shown: number, total: number) => offset + shown < total ? offset + shown : null;
       if (projectId !== undefined) {
-        const board = await operations.board(proof, workspaceId, projectId, statuses as HostedTaskStatus[]);
+        const board = await operations.listTasks(proof, workspaceId, projectId, statuses as HostedTaskStatus[]);
         const tasks = (board.tasks as LiveTask[]).filter(kept).sort(byUrgency);
         const page = tasks.slice(offset, offset + limit);
         return { project: board.project, readAt: board.readAt, closedSince: board.closedSince, total: tasks.length,
@@ -719,7 +725,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       for (const entry of await operations.projects(proof, workspaceId)) {
         const where = { project: entry.logicalKey, projectId: entry.projectId, projectName: entry.displayName };
         let board: Record<string, unknown>;
-        try { board = await operations.board(proof, workspaceId, entry.projectId, statuses as HostedTaskStatus[]); } catch (error) {
+        try { board = await operations.listTasks(proof, workspaceId, entry.projectId, statuses as HostedTaskStatus[]); } catch (error) {
           if (error instanceof AdmissionRefused) throw error;
           unavailable.push(where); continue;
         }

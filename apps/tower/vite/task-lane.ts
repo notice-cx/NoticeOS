@@ -23,6 +23,7 @@ import type {
 } from "../shared/tasks";
 import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
+import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
 import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
 import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../../packages/contract/src/task-resolution.mjs";
 import { TASK_CHANGE_CLASSES, isTaskChangeClass, type TaskChangeClass } from "../../../packages/contract/src/task-change-class.mjs";
@@ -1002,6 +1003,30 @@ async function route(
   opts: Resolved,
 ): Promise<LaneReply> {
   const method = request.method;
+
+  if (pathname === `${TASKS_PATH}/agent-stats`) {
+    if (method !== 'GET') return { status: 405, body: { error: 'method_not_allowed' } };
+    if ([...url.searchParams.keys()].some(key => key !== 'project') || url.searchParams.getAll('project').length > 1) {
+      throw refuse(422, 'invalid_query', 'Only one project may be selected');
+    }
+    const selected = url.searchParams.get('project');
+    const spokes = selected === null ? await opts.readProjects() : [await spokeByAsset(selected, opts)];
+    const readAt = opts.now().toISOString();
+    const since = new Date(Date.parse(readAt) - AGENT_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+    const projects: AgentStatsProject[] = [], broken: string[] = [];
+    for (const spoke of spokes) {
+      try {
+        if (spoke.unavailableReason) throw new Error('Project unavailable');
+        const active = runVerb('list', ['--status', 'in_progress,blocked', '--limit', '0', '--include-gates'], spoke, opts).json;
+        const closed = runVerb('list', ['--status', 'closed', '--closed-after', since, '--closed-before', readAt, '--limit', '0', '--include-gates'], spoke, opts).json;
+        if (!Array.isArray(active) || !Array.isArray(closed)) throw new Error('Unreadable task statistics');
+        const tasks = [...active, ...closed].map(row => toLiveTask(row, new Set<string>()));
+        if (tasks.some(task => !task.id)) throw new Error('Unreadable task statistics');
+        projects.push({ project: spoke.asset, tasks });
+      } catch { broken.push(spoke.asset); }
+    }
+    return { status: 200, body: { readAt, projects: spokes.length, broken, stats: readAgentStats(projects, Date.parse(readAt)) } };
+  }
 
   if (pathname === TASKS_PATH) {
     if (method === "GET") {

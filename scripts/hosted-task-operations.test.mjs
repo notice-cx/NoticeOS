@@ -216,6 +216,31 @@ test('a closed-only read may ask for the Agents page history; the board keeps it
   await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 0));
 });
 
+test('agent statistics read only active work and closed history and serialize aggregates', async () => {
+  const f = fixture();
+  const payload = await f.operations.agentStats(proof(), A);
+  assert.equal(payload.projects, 1);
+  assert.deepEqual(payload.broken, []);
+  assert.deepEqual(f.calls.map(call => call.operation.kind), ['active-board', 'closed-board']);
+  assert.deepEqual(f.calls[0].operation.statuses, ['in_progress', 'blocked']);
+  assert.equal(f.calls[1].operation.since, '2026-08-12');
+  assert.equal('tasks' in payload, false);
+  assert.equal('events' in payload.stats, false);
+  await assert.rejects(f.operations.agentStats(proof(), A, B));
+});
+
+test('MCP task lists retain readiness and rows without unused board enrichment', async () => {
+  const f = fixture();
+  const list = await f.operations.listTasks(proof(), A, P, ['open', 'in_progress', 'blocked', 'deferred', 'closed']);
+  assert.deepEqual(f.calls.map(call => call.operation.kind), ['ready', 'active-board', 'closed-board']);
+  assert.equal('actors' in list, false);
+  assert.equal('epics' in list, false);
+  assert.equal(Array.isArray(list.tasks), true);
+  f.calls.length = 0;
+  await f.operations.listTasks(proof(), A, P, ['closed']);
+  assert.deepEqual(f.calls.map(call => call.operation.kind), ['closed-board']);
+});
+
 test('a board, task or history read runs its commands in one executor session where the executor offers one', async () => {
   const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
     membership: async (_headers, workspaceId) => ({ principalId: PERSON, sessionId: S,

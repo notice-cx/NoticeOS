@@ -4,6 +4,7 @@ import { type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { type WorkspaceAdmission } from './workspace-admission.mjs';
 import { type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
+import { type AgentStatsPayload } from '../packages/contract/src/agent-stats.mjs';
 /** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
 export interface TaskOperationExecutor {
     execute(proof: Request, workspaceId: string, request: HostedTaskRequest, controls?: {
@@ -58,6 +59,9 @@ export interface HostedTaskOperations {
     /** The caller's actor name in this workspace: what a claim records as its assignee. */
     actor(proof: Request, workspaceId: string): Promise<string>;
     capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
+    /** Task summaries need readiness, but no epic progress or actor catalog. */
+    listTasks(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[]): Promise<Record<string, unknown>>;
+    agentStats(proof: Request, workspaceId: string, projectId?: string): Promise<AgentStatsPayload>;
     /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
     board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
     task(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<Record<string, unknown>>;

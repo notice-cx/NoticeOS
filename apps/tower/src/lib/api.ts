@@ -500,12 +500,14 @@ async function fetchIntegrationsRequest(fetch: ApiTransport, signal?: AbortSigna
   return payload;
 }
 
-/**
- * Every portfolio-wide setting, in one read. The Worker builds it purely from
- * the config compiled into the bundle, so this read cannot fail on an empty or
- * unreachable database. A save through the write lane restarts the local
- * Worker, and `useConfigSave` invalidates this query once the restart has landed.
- */
+/** Clock and operator rate without the Settings editor's catalogs. */
+async function fetchSettingsPreferencesRequest(fetch: ApiTransport, signal?: AbortSignal) {
+  const res = await fetch('/api/settings?view=preferences', { signal, headers: { accept: 'application/json' } });
+  if (!res.ok) throw await refusal(res, `GET /api/settings?view=preferences failed: ${res.status}`);
+  return await res.json() as import('@shared/settings').SettingsPreferences;
+}
+
+/** The complete Settings editor, resolved from store-first configuration. */
 async function fetchSettingsRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<SettingsPayload> {
   const res = await fetch("/api/settings", {
     signal,
@@ -1135,6 +1137,13 @@ async function fetchTaskProjectsRequest(fetch: ApiTransport, signal?: AbortSigna
   return payload.projects as TaskProject[];
 }
 
+/** Aggregate model activity, without individual task payloads. */
+async function fetchAgentStatsRequest(fetch: ApiTransport, signal?: AbortSignal) {
+  const res = await fetch('/api/tasks/agent-stats', { signal, headers: { accept: 'application/json' } });
+  if (!res.ok) throw await refusal(res, `GET /api/tasks/agent-stats failed: ${res.status}`);
+  return await res.json() as import('@noticeos/contract/agent-stats').AgentStatsPayload;
+}
+
 /** One project's live board: active/parked work and every recent closure.
  * `status` narrows the stored statuses; closed rows always use the bounded
  * date window reported in `closedSince`, a week unless `closedDays` asks a
@@ -1697,6 +1706,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     fetchWatchQueryHistory: bind(fetchWatchQueryHistoryRequest),
     fetchIntegrations: bind(fetchIntegrationsRequest),
     fetchSettings: bind(fetchSettingsRequest),
+    fetchSettingsPreferences: bind(fetchSettingsPreferencesRequest),
     fetchTaskSource: bind(fetchTaskSourceRequest),
     fetchWork: bind(fetchWorkRequest),
     fetchAlertHistory: bind(fetchAlertHistoryRequest),
@@ -1719,6 +1729,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     fetchTasksCapabilities: bind(fetchTasksCapabilitiesRequest),
     fetchTaskProjects: bind(fetchTaskProjectsRequest),
     fetchTasks: bind(fetchTasksRequest),
+    fetchAgentStats: bind(fetchAgentStatsRequest),
     fetchTask: bind(fetchTaskRequest),
     createTask: bind(createTaskRequest),
     updateTask: bind(updateTaskRequest),
@@ -1772,6 +1783,7 @@ export const {
   fetchWatchQueryHistory,
   fetchIntegrations,
   fetchSettings,
+  fetchSettingsPreferences,
   fetchTaskSource,
   fetchWork,
   fetchAlertHistory,
@@ -1794,6 +1806,7 @@ export const {
   fetchTasksCapabilities,
   fetchTaskProjects,
   fetchTasks,
+  fetchAgentStats,
   fetchTask,
   createTask,
   updateTask,
