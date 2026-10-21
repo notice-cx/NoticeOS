@@ -72,9 +72,9 @@ describe("the Tasks page's tabs", () => {
     const all = screen.getByRole("tab", { name: /^All tasks/u });
     expect(all).toHaveAttribute("href", "/tasks/all");
     expect(all).toHaveAttribute("aria-selected", "false");
-    // The board's own "open tasks": five open (the three decisions among them),
-    // one in progress and two blocked.
-    expect(all).toHaveTextContent("All tasks8");
+    // Six not-started work items include the two blocked tasks; one is in
+    // progress. The approval and parked task are outside the active total.
+    expect(all).toHaveTextContent("All tasks7");
     expect(document.querySelector("[data-tasks-next]")).not.toBeNull();
     expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "tasks-tab-next");
   });

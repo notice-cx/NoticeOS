@@ -40,10 +40,9 @@ export function queueItem({ project, task }: { project: BoardProject; task: Boar
 
 /**
  * Each read project as a work-flow row, from the same counts the answer's
- * figures sum. In the saved snapshot `open` includes the blocked tasks; in the
- * live read `blocked` is the stored status and `open` excludes it, so the
- * Blocked figure, the status filter and the hatched segment count one set. A
- * project neither read reached is left out, never drawn as an empty queue.
+ * figures sum. Open includes the blocked subset in both reads, so subtracting
+ * it gives disjoint segments for not-started work. A project neither read
+ * reached is left out, never drawn as an empty queue.
  * Done is every close this calendar week from the project's week reading, as
  * the Wall draws it, with last week's beside it; without one, the read's closes.
  */
@@ -63,7 +62,7 @@ export function boardWorkRows(
       done: week?.now ?? closed,
       doneLastWeek: week?.lastWeek ?? null,
       inProgress,
-      ready: project.source === "live" ? open : Math.max(0, open - blocked),
+      ready: Math.max(0, open - blocked),
       blocked,
       urgent,
     }];

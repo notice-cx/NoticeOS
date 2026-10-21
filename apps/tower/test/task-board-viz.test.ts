@@ -59,10 +59,25 @@ describe("work by project", () => {
       "meadow.example": ok(board([live({ id: "md-1" }), live({ id: "md-2", status: "blocked" }), live({ id: "md-3", status: "in_progress" })])),
     });
     const [meadow, northwind] = boardWorkRows(board_.projects, (row) => `/tasks?project=${row.asset}`);
-    // Live: `blocked` is the stored status and is not inside `open`.
+    // Both sources use inclusive open counts and disjoint chart segments.
     expect(meadow).toMatchObject({ id: "meadow.example", ready: 1, blocked: 1, inProgress: 1, done: 0, to: "/tasks?project=meadow.example" });
-    // Snapshot: `open` holds the blocked tasks, so they come out of ready.
     expect(northwind).toMatchObject({ ready: 3, blocked: 2, inProgress: 2, done: 4, urgent: 1 });
+  });
+
+  it("draws equal disjoint segments from equivalent live work and authoritative saved counts", () => {
+    const tasks = [live({ id: "md-open" }), live({ id: "md-held", ready: false, dependencies: blocks("md-gate") }),
+      live({ id: "md-stored", status: "blocked" }), live({ id: "md-working", status: "in_progress", dependencies: blocks("md-gate") }),
+      live({ id: "md-done", status: "closed" }), live({ id: "md-gate", issueType: "gate", awaitType: "human", priority: 0 }),
+      live({ id: "md-approved", issueType: "gate", awaitType: "human", status: "closed" })];
+    const snapshot = payload([project({ counts: { ...project().counts, open: 3, blocked: 2, inProgress: 1, closedRecent: 1, highPriority: 0 } })]);
+    const liveBoard = read(snapshot, { "meadow.example": ok(board(tasks)) });
+    const savedBoard = read(snapshot, {}, false);
+    const [row] = boardWorkRows(liveBoard.projects);
+    expect(boardWorkRows(liveBoard.projects)).toEqual(boardWorkRows(savedBoard.projects));
+    expect(row).toMatchObject({ ready: 1, blocked: 2, inProgress: 1, done: 1, urgent: 0, doneLastWeek: null });
+    expect(row!.ready + row!.blocked + row!.inProgress).toBe(liveBoard.totals.live);
+    expect(row!.ready).toBe(liveBoard.statusCounts.get("open"));
+    expect(row!.blocked).toBe(liveBoard.statusCounts.get("blocked"));
   });
 
   it("leaves out a project neither read reached rather than drawing it empty", () => {

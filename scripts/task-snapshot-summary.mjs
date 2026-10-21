@@ -246,7 +246,7 @@ function beadsIssue(row, links) {
       Number.isInteger(row?.priority) && row.priority >= 0 && row.priority <= 9
         ? row.priority
         : BEADS_DEFAULT_PRIORITY,
-    issueType: beadsText(row?.issue_type, 'task'),
+    issueType: beadsText(row?.await_type) !== '' ? 'gate' : beadsText(row?.issue_type, 'task'),
     assignee: beadsText(row?.assignee) || null,
     updatedAt: beadsInstant(row?.updated_at),
     closedAt: beadsInstant(row?.closed_at),
@@ -528,7 +528,7 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
     }
   }
 
-  const work = (issues) => issues.filter((issue) => issue.issueType !== BEADS_CONTAINER_TYPE);
+  const work = (issues) => issues.filter((issue) => issue.issueType !== BEADS_CONTAINER_TYPE && issue.issueType !== 'gate');
   // The recent lists keep their week; the closed read reaches further back.
   const recentFrom = closedSince === undefined ? null : `${closedSince}T00:00:00.000Z`;
   const recentRows = parsed.closed.filter((row) => recentFrom === null || (beadsInstant(row?.closed_at) ?? '') >= recentFrom);
@@ -541,8 +541,12 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
   const links = beadsLinks([...rows('active'), ...rows('deferred'), ...rows('closed')], [...rows('gates'), ...rows('ready'), ...rows('blocked')]);
   const active = work(beadsIssues(parsed.active, links));
   const ready = work(beadsIssues(parsed.ready, links));
-  const blocked = work(beadsIssues(parsed.blocked, links));
-  const everyClose = work(beadsIssues(parsed.closed)).filter((issue) => issue.issueType !== 'gate');
+  const activeStatus = new Map(active.map((issue) => [issue.id, issue.status]));
+  const blocked = [...new Map([
+    ...work(beadsIssues(parsed.blocked, links)).filter((issue) => ['open', 'blocked'].includes(activeStatus.get(issue.id) ?? issue.status)),
+    ...active.filter((issue) => issue.status === 'blocked'),
+  ].map((issue) => [issue.id, issue])).values()];
+  const everyClose = work(beadsIssues(parsed.closed));
   const closed = work(beadsIssues(recentRows, links));
   const inProgress = active.filter((issue) => issue.status === 'in_progress');
   // Whether we looked, which is not the same as finding none: a project whose
@@ -645,9 +649,9 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
     ok: true,
     error: null,
     counts: {
-      // Stored status `open` — not started. `ready` and `blocked` are subsets
-      // of it, not a partition.
-      open: active.filter((issue) => issue.status === 'open').length,
+      // Not-started work includes both stored and dependency-blocked tasks.
+      // Ready and blocked are subsets, not additional work.
+      open: active.filter((issue) => issue.status === 'open' || issue.status === 'blocked').length,
       // Cuts across the other four: a P0 can be open, in flight or blocked.
       highPriority: active.filter((issue) => issue.priority <= BEADS_HIGH_PRIORITY_MAX).length,
       ready: ready.length,
