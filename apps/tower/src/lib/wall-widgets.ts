@@ -83,8 +83,7 @@ function attentionAbout(items: AttentionItem[], wanted: (asset: string) => boole
 /** The payload the TV draws, and the sites left off it. */
 export interface WallOnTv {
   data: WallPayload;
-  /** The site ids whose TV switch is off, for the widgets that read their
-   * own data (the live feed). */
+  /** The site ids whose TV switch is off, for filtering Next up's tasks. */
   hidden: ReadonlySet<string>;
 }
 
