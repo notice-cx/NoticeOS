@@ -1130,7 +1130,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
     const storedWrites = async () => (await admin.query("SELECT (SELECT count(*) FROM noticeos.flags)::int flags,(SELECT count(*) FROM noticeos.config_changes)::int audit,(SELECT count(*) FROM noticeos.config_documents)::int documents,(SELECT count(*) FROM noticeos.research_log)::int purchases,(SELECT count(*) FROM noticeos.annotations)::int annotations")).rows;
     await t.test('MCP and real seasonal replay read colliding evidence only in their selected customer or fixed demo', async () => {
       const before = await storedWrites(), calls = providerCalls.length;
-      for (const [workspace, marker, expected] of [[a, 'tenant-a', 3], [b, 'tenant-b', 0], [demo, 'demo', 1]]) {
+      for (const [workspace, marker, expected, judged] of [[a, 'tenant-a', 3, 28], [b, 'tenant-b', 0, 30], [demo, 'demo', 1, 30]]) {
         const client = workspace === demo ? demoFetch : towerFetch;
         // An unrelated customer's cookie never becomes demo authority.
         const evidence = workspace === demo ? { origin, cookie: otherCookie } : headers(workspace);
@@ -1164,7 +1164,14 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
         const response = await stored(workspace, '/api/alerts/backtest', replay, evidence, client);
         assert.equal(response.status, 200, await response.clone().text());
         const backtest = await response.json();
-        assert.equal(backtest.wouldFire, expected); assert.equal(backtest.judged, 30);
+        assert.equal(backtest.wouldFire, expected); assert.equal(backtest.judged, judged);
+        const longer = backtest.days.filter(day => day.state === 'unjudged');
+        assert.deepEqual(longer.map(day => day.date), expected === 3 ? ['2026-07-04', '2026-07-05'] : []);
+        for (const day of longer) {
+          assert.equal(day.reason, 'out-of-regime');
+          assert.ok(day.comparisons[0].windowHours > 24);
+          assert.equal(day.comparisons[0].comparisonCounts.length, 8);
+        }
         assert.deepEqual(backtest.config, replay.config);
         const miss = await stored(workspace, '/api/mcp', mcpQuestion('research_lookup', { ...researchArgs, windowDays: 1 }), evidence, client);
         assert.equal((await miss.json()).result.structuredContent.found, false);
