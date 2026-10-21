@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { StrictMode } from 'react';
 import { render as renderOwned } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { render, fireEvent, screen, waitFor } from './render';
@@ -22,6 +23,30 @@ function panel(canSave = true, connect = false) {
     presentation="inline" onConnect={async () => ({ verdict: 'accepted', checkedAt: receipt.startedAt, facts: { databases: 1, cloudflareD1: inventory } })}
     next={() => body} /> : body}</QueryClientProvider>);
 }
+it('loads without randomUUID and keeps one read per panel session, including StrictMode', async () => {
+  const read = vi.spyOn(api, 'fetchD1Status').mockResolvedValue(initial);
+  const client = new QueryClient();
+  const body = () => <StrictMode><QueryClientProvider client={client}>
+    <CloudflareD1Panel inventory={inventory} names={new Map([['example.com', 'Example']])} canSave onChanged={async () => {}} />
+  </QueryClientProvider></StrictMode>;
+  const descriptor = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+  Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+  try {
+    const view = render(body());
+    await screen.findByRole('checkbox', { name: 'Example database' });
+    view.rerender(body());
+    expect(read).toHaveBeenCalledTimes(1);
+    view.unmount();
+    read.mockResolvedValue({ ...initial, accountMismatch: true });
+    render(body());
+    await screen.findByText('Account changed · choose databases again');
+    expect(read).toHaveBeenCalledTimes(2);
+  } finally {
+    if (descriptor) Object.defineProperty(crypto, 'randomUUID', descriptor);
+    else Reflect.deleteProperty(crypto, 'randomUUID');
+    client.clear();
+  }
+});
 it('connects then explicitly selects an asset and starts backup with one action', async () => {
   const read = vi.spyOn(api, 'fetchD1Status').mockResolvedValue(initial);
   const save = vi.spyOn(api, 'saveD1Selection').mockResolvedValue(initial);
