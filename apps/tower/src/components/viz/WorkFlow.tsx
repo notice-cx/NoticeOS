@@ -301,7 +301,7 @@ function WaitingFigure({ waiting }: { waiting: WorkWaiting | null }) {
   return (
     <>
       {countLabel(waiting.count, waiting.partial)}
-      {waiting.urgent > 0 ? <span className="ms-2 text-sm font-semibold text-error">{countLabel(waiting.urgent, waiting.partial)} urgent</span> : null}
+      {waiting.urgent > 0 ? <span className="ms-2 inline-block whitespace-nowrap text-sm font-semibold text-error">{countLabel(waiting.urgent, waiting.partial)} urgent</span> : null}
     </>
   );
 }
