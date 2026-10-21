@@ -31,7 +31,7 @@ export function withTowerSteps(
 
 /** Structural so a test can hand in a stub for the Worker RPC binding. */
 export interface RunnerIngest {
-  runScheduled(cron: string): Promise<void | ScheduledRunResult>;
+  runScheduled(cron: string, trigger?: 'event' | 'recovery'): Promise<void | ScheduledRunResult>;
   fetch(request: Request): Promise<Response>;
 }
 
@@ -62,7 +62,9 @@ export async function handleRunnerRequest(
       return jsonError("cron_required", 400);
     }
     try {
-      const answer = await ingest.runScheduled(cron);
+      const trigger = url.searchParams.get('trigger');
+      if (trigger !== null && trigger !== 'event' && trigger !== 'recovery') return jsonError('invalid_trigger', 400);
+      const answer = trigger ? await ingest.runScheduled(cron, trigger) : await ingest.runScheduled(cron);
       // No scheduled job runs on this expression: nothing ran, and the runner
       // and `pnpm os:run-job` report the refusal by its name.
       if (answer?.refused) return jsonError(answer.refused, 400, { cron, message: answer.detail });

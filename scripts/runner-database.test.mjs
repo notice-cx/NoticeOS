@@ -127,9 +127,11 @@ test('the runner checks its database before it writes a heartbeat or starts a ch
   // The refusal is in the log file before the process ends: the managed
   // service's stdout goes nowhere.
   assert.match(supervise, /if \(!database\.ok\) \{\n\s+log\('ERROR', `REFUSING to start: \$\{database\.line\}`\);\n\s+await closeLog\(\);\n\s+process\.exit\(EXIT_NO_DATABASE\);/u);
-  // The address goes to the Tower child and nowhere else in the runner.
-  assert.deepEqual([...supervise.matchAll(/database\.env/gu)].length, 1);
+  // The Tower and the direct notification listener receive the checked address.
+  // No other runner operation may acquire a database connection from it.
+  assert.deepEqual([...supervise.matchAll(/database\.env/gu)].length, 2);
   assert.match(supervise, /towerChild\(\{ exposeTowerToLan, database: database\.env \}\)/u);
+  assert.match(supervise, /startNotificationEvents\(\{\s+connectionString: database\.env\.DATABASE_URL,/u);
   assert.equal(EXIT_NO_DATABASE, 5, 'distinct from 2, 3 (already running) and 4 (unlinked code folder)');
 });
 

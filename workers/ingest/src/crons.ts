@@ -54,7 +54,7 @@ export const DATAFORSEO_DUMPS_CRON = dispatchKey('dataforseo');
 // (`countersCadenceHours`). This tick refreshes both the fast counter cards and
 // GA4/GSC signal snapshots, isolated so one provider cannot block the other.
 export const COUNTERS_CRON = dispatchKey('counters');
-// :05 past every hour: the notification lane. Its own expression so it runs
-// after the lane that raises freshness alerts on the same hour, and so "did
-// the OS notify" has its own row in the run ledger.
+// :05 past every hour: recovery for missed notification events. New events
+// wake the standalone listener immediately; this independent sweep also runs
+// after the hourly freshness check and retains its own execution evidence.
 export const NOTIFY_CRON = dispatchKey('notifications');

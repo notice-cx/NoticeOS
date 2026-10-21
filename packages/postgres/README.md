@@ -8,8 +8,10 @@ and reads and writes every value exactly. The rules are in the header of
 
 Operational settings, evidence and readers use this helper: a Worker reaches
 Postgres only through its `POSTGRES` Hyperdrive binding, one store per call;
-a script writes the store through the ingest's operator-authed door and never
-holds a database credential. The migration runner (`pnpm db:try-migrations`) keeps its own
+a script writes the store through the ingest's operator-authed door. The native
+notification listener receives the runner's checked application connection for
+read-only queue inspection and a direct `LISTEN` session; delivery writes still
+go through the private ingest dispatch. The migration runner (`pnpm db:try-migrations`) keeps its own
 administrative connection and never uses it.
 
 ## Using it
@@ -178,3 +180,16 @@ safety.
   person's approval and role allow.
 - [`postgres-task-receipts.test.mjs`](../../scripts/postgres-task-receipts.test.mjs)
   (`./task-receipts`): a retried task write binds to one request and runs once.
+
+## Notification event listener
+
+`src/notification-events.mts` maintains the native runner's direct PostgreSQL
+subscription. Transaction pooling, including Hyperdrive, cannot maintain a
+`LISTEN` session. The wake-up contains no workspace, alert, provider or credential
+data. Every queue read uses the application store and its workspace row security.
+The listener batches wake-ups for one second, follows persisted retry and lease
+deadlines, and recovers pending work after startup or reconnection. Its close
+method cancels and awaits in-flight delivery, closes the subscription and store,
+and clears its timers. The standalone runner supplies the checked connection
+and the callback that invokes its private ingest dispatch; an explicitly scoped
+hosted consumer must supply its workspace and deployment-owned callback.

@@ -339,6 +339,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (workspace_id, flag_id, observed_at)
 - **Links:** (workspace_id) → `workspaces`; (workspace_id, flag_id) → `flags`
+- **Triggers:** `evidence_notification` (after insert)
 
 ## `flag_tunes`
 
@@ -387,7 +388,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, flag_id); unique (workspace_id, flag_number)
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id, asset_id, pulse_id) → `pulses`; (workspace_id, asset_id, replaced_by_pulse_id) → `pulses`; (workspace_id) → `workspaces`
 - **Row checks:** `((kind <> 'milestone') OR (severity = 'info'))`; `((replaced_by_pulse_id IS NULL) OR ((pulse_id IS NOT NULL) AND (replaced_by_pulse_id <> pulse_id) AND (disposition IS NULL) AND (resolved_at IS NULL)))`
-- **Triggers:** `number_in_workspace` (before insert)
+- **Triggers:** `flag_notification` (after insert); `number_in_workspace` (before insert)
 
 ## `hosted_job_attempts`
 
@@ -508,6 +509,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, connection_id); unique (workspace_id, provider)
 - **Links:** (workspace_id) → `workspaces`
 - **Row checks:** `((balance_usd IS NULL) = (balance_seen_at IS NULL))`
+- **Triggers:** `connection_notification` (after insert or update of last_error, last_used_at, last_ok_at)
 
 ## `integration_health_events`
 
@@ -698,6 +700,31 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (workspace_id, asset_id)
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+
+## `notification_outbox`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `event_id` | uuid | yes |  |
+| `channel` | text | yes | `(channel = 'discord')` |
+| `subject` | text | yes | `(subject IN ('alert', 'data-source'))` |
+| `subject_ref` | text | yes | `(subject_ref <> '')` |
+| `occurrence` | text | yes |  |
+| `connection_id` | uuid | no |  |
+| `occurred_at` | timestamp with time zone | yes |  |
+| `created_at` | timestamp with time zone | yes |  |
+| `state` | text | yes | `(state IN ('pending', 'sent', 'cancelled'))` |
+| `attempts` | integer | yes | `(attempts >= 0)` |
+| `next_attempt_at` | timestamp with time zone | yes |  |
+| `lease_id` | uuid | no |  |
+| `lease_until` | timestamp with time zone | no |  |
+| `finished_at` | timestamp with time zone | no |  |
+
+- **Keys:** primary (workspace_id, event_id); unique (workspace_id, channel, subject, subject_ref, occurrence)
+- **Links:** (workspace_id) → `workspaces`
+- **Row checks:** `((lease_id IS NULL) = (lease_until IS NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((state = 'pending') OR (lease_id IS NULL))`
+- **Triggers:** `notification_wakeup` (after insert)
 
 ## `notifications`
 

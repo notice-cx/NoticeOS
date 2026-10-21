@@ -186,18 +186,28 @@ no call.
 
 - **Two conditions.** `NOTIFIED_CONDITIONS` in `packages/contract` is both what
   the notifier sends and what the card lists: a new open **error** alert,
-  and a data source that turns **Failing** (read through the same
-  `connectionState` as the card's chip). Nothing else.
-- **Once per condition.** The notification job runs hourly at `:05`. The
-  `notifications` table records each condition only after a successful
-  delivery, so a failed send is retried next tick and the Alerts row's
-  *notified* mark means a message was delivered.
-- **A real delivery records a success on the credential** (`last_ok_at`), as
-  the Clarity export does.
-- **Without a `notifications` table, nothing is sent**, and the card shows
-  this; migrations are operator-only.
-- **Only the last 24 hours**, so the first run does not resend older events,
-  and at most ten lines per message with a count of the rest.
+  and a data source that changes to **Failing**. Nothing else.
+- **Event-triggered delivery.** Source transactions save notification intent in
+  `notification_outbox`. The standalone runner listens for committed wake-ups,
+  groups events for one second, and sends up to ten events per message.
+- **Once per failure episode.** Repeated failed provider calls do not create
+  additional notifications. A successful call followed by a failure starts a
+  new episode. An alert receives at most one successful-delivery receipt.
+- **Durable retries.** Failed sends retry after 30 seconds, with exponential
+  backoff capped at 15 minutes and the provider's retry delay honored up to an
+  hour. Startup, reconnection and the hourly `:05` recovery check collect missed
+  events. Unsent events expire after 24 hours; resolved, acknowledged, replaced
+  or recovered conditions are suppressed before delivery.
+- **Delivered items only.** The append-only `notifications` table records only
+  events included in a successfully delivered message. Overflow remains pending
+  for another message. A real delivery also records the credential's outcome.
+- **At least once.** A crash after Discord accepts a message but before its
+  receipt commits can cause a duplicate. Leases prevent concurrent consumers
+  from sending the same claimed batch.
+- **Operator-controlled migration.** An existing installation needs migration
+  `0021_notification_outbox.sql` before updating the application. Startup does
+  not apply it. The schema change is additive and retains the existing receipt
+  table. Without the required queue or receipt store, no message is sent.
 
 ### Clarity: the one per-asset credential
 

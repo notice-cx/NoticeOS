@@ -385,3 +385,20 @@ describe('workflow history evidence', () => {
     expect(screen.getByRole('option', { name: /· Manual$/ })).toBeInTheDocument();
   });
 });
+
+it('shows notification events separately from recovery timing and keeps event run context', async () => {
+  const at = '2026-09-09T16:24:00.000Z';
+  const run: WorkflowRun = { id: `notifications@${at}`, workflowId: 'notifications', definitionVersion: 2,
+    startedAt: at, finishedAt: at, state: 'succeeded', trigger: { kind: 'event' }, steps: [] };
+  data = { ...data, ...buildWorkflowHistory([], [run], [], now) };
+  mount(`/workflows/notifications?run=${encodeURIComponent(run.id)}`);
+  expect(await screen.findByRole('heading', { name: 'Operator notifications' })).toBeVisible();
+  expect(await screen.findByText('Recovery check · Local time')).toBeVisible();
+  expect(screen.getByText('On new alerts')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Manage delivery' })).toBeVisible();
+  expect(screen.getAllByText('Event').length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Manage delivery' }));
+  expect(screen.getByText('Recovery frequency')).toBeVisible();
+  expect(screen.getByText('Delivery')).toBeVisible();
+});

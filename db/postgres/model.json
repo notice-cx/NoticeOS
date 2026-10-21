@@ -371,6 +371,21 @@
       },
       "rule": "Append-only; the unique key is the dedupe."
     },
+    "notification_outbox": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "state",
+          "attempts",
+          "next_attempt_at",
+          "lease_id",
+          "lease_until",
+          "finished_at"
+        ],
+        "delete": false
+      },
+      "rule": "Delivery intent commits with its source condition; immutable events retain delivery, cancellation, lease and retry state."
+    },
     "job_runs": {
       "revision": {
         "insert": true,

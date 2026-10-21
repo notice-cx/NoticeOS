@@ -38,6 +38,23 @@ describe("the runner lane's door check", () => {
 });
 
 describe("firing a cron", () => {
+  it.each(['event', 'recovery'] as const)('forwards the protected notification %s trigger', async trigger => {
+    const ingest = stubIngest();
+    const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=5 * * * *&trigger=${trigger}`);
+    const response = await handleRunnerRequest(request, url, ingest);
+    expect(response.status).toBe(200);
+    expect(ingest.runScheduled).toHaveBeenCalledWith('5 * * * *', trigger);
+  });
+
+  it.each(['manual', 'schedule', 'unexpected'])('rejects an unsupported trigger %s before dispatch', async trigger => {
+    const ingest = stubIngest();
+    const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=5 * * * *&trigger=${trigger}`);
+    const response = await handleRunnerRequest(request, url, ingest);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_trigger' });
+    expect(ingest.runScheduled).not.toHaveBeenCalled();
+  });
+
   it.each(['ran', 'skipped', 'failed'] as const)('preserves the collector outcome %s', async outcome => {
     const ingest = stubIngest({ runScheduled: async () => ({ outcome, detail: 'Stored Mediavine collection evidence.' }) });
     const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=10,30,50 * * * *`);

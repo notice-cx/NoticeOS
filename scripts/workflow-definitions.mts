@@ -6,7 +6,7 @@
 import type { WorkflowStepDefinition, WorkflowStepKind } from '../packages/contract/src/workflows.js';
 import { SCHEDULED_JOBS, type ScheduledJob } from './scheduled-jobs.mjs';
 
-export interface WorkflowDefinition extends ScheduledJob { version: number; triggerKind: 'schedule'; stages: WorkflowStepDefinition[] }
+export interface WorkflowDefinition extends ScheduledJob { version: number; triggerKind: 'schedule' | 'event'; stages: WorkflowStepDefinition[] }
 
 const action = (id: string, label: string, description: string, kind: WorkflowStepKind = 'task', after: string[] = ['config']): WorkflowStepDefinition => ({ id, label, description, kind, after });
 const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
@@ -17,7 +17,7 @@ const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   freshness: [action('freshness', 'Check report freshness', 'Compares received reports with their reporting obligations.', 'check'), action('uptime', 'Check sites are up', 'Fetches each site’s home page and records whether it answered.', 'check'),
     action('connection-counts', 'Record connection counts', 'Records today’s System health connection counts.', 'storage', ['freshness', 'uptime']),
     action('source-history', 'Record source history', 'Records today’s state and freshness of each data source.', 'storage', ['freshness', 'uptime'])],
-  notifications: [action('notify', 'Deliver notifications', 'Delivers eligible operator notifications through connected channels.')],
+  notifications: [action('notify', 'Deliver notifications', 'Delivers new error alerts and data-source failures, with retries for failed deliveries.')],
   pull: [action('pull', 'Collect asset reports', 'Retrieves the reports from assets configured for pull collection.', 'collection'), action('bing', 'Refresh Bing signals', 'Retrieves Bing search signals for connected assets.', 'collection')],
   'asset-zero': [action('report', 'Record the OS report', 'Summarizes the OS’s own operating evidence.', 'storage')],
   'watch-windows': [action('outcomes', 'Evaluate outcome windows', 'Reads completed windows using the existing outcome rules.', 'check')],
@@ -43,6 +43,6 @@ export const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = SCHEDULED_JOBS.map((jo
   const stages = job.local
     ? [action('execute', job.label, localSteps[job.id] ?? 'Runs in the local service on this machine.', job.group === 'Monitoring' ? 'check' : 'task', [])]
     : [action('config', 'Load collection settings', 'Reads the saved configuration for this execution.', 'task', []), ...workerSteps[job.id]!];
-  return { ...job, version: 1, triggerKind: 'schedule', stages: [...stages,
+  return { ...job, version: job.id === 'notifications' ? 2 : 1, triggerKind: job.id === 'notifications' ? 'event' : 'schedule', stages: [...stages,
     action('record', 'Record execution', 'Persists this run’s result for operational history.', 'storage', job.local ? ['execute'] : workerSteps[job.id]!.map((s) => s.id))] };
 });
