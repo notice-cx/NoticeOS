@@ -611,9 +611,9 @@ test('a write the task store refuses is named from the task as it stands after: 
 
 test('decision recording failures name the failed step without backend output and retry from partial progress', async () => {
   for (const [verb, malformed, expected] of [
-    ['update', false, 'the task store did not complete this call, and nothing in the task\'s state explains it. Failed while recording the owner answer or maintenance evidence.'],
+    ['update', false, 'the task store client exited without success. Failed while recording the owner answer or maintenance evidence.'],
     ['update', true, 'the task store returned an invalid JSON response. Failed while recording the owner answer or maintenance evidence.'],
-    ['comment', false, 'the task store did not complete this call, and nothing in the task\'s state explains it. Failed while adding the decision evidence comment.'],
+    ['comment', false, 'the task store client exited without success. Failed while adding the decision evidence comment.'],
   ]) {
     const f = fixture({ trustedSources: false });
     f.put('ex-build', { labels: ['human'], metadata: { noticeos_choices: choices } });
@@ -650,7 +650,7 @@ test('an unexpected decision backend error stays opaque and never grants a choic
 
 test('safe task-store categories reach MCP while arbitrary error text stays private', () => {
   for (const [failure, phrase] of [
-    ['timeout', 'did not answer in time'], ['cancelled', 'request was cancelled'],
+    ['exit', 'client exited without success'], ['timeout', 'did not answer in time'], ['cancelled', 'request was cancelled'],
     ['output-limit', 'exceeded the safe output limit'], ['invalid-output', 'invalid JSON response'],
     ['launch', 'client could not start'],
   ]) {
@@ -659,6 +659,10 @@ test('safe task-store categories reach MCP while arbitrary error text stays priv
     assert.ok(reply.message.includes('Failed while recording the owner answer or maintenance evidence'));
     assert.ok(reply.message.includes('same idempotency_key'));
   }
+  for (const [step, phrase] of [
+    ['comment', 'adding the decision evidence comment'], ['record-choice', 'saving the selected option'],
+    ['hand-back', 'returning the task to agents'], ['close', 'closing the resolved request'],
+  ]) assert.ok(taskRefusal(new TaskStoreFailed(false, 'exit', step)).message.includes(phrase));
   const reply = taskRefusal(Object.assign(new Error('private backend detail'), { name: 'TaskStoreFailed', failure: 'private backend detail' }));
   assert.equal(reply.message, 'refused: this workspace, project or task is not available to you, or the change was not accepted');
 });

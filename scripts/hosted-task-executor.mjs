@@ -203,7 +203,7 @@ async function command(binary, argv, cwd, env, life) {
             clearTimeout(timer);
             life.signal?.removeEventListener('abort', cancelled);
             if (failure || code !== 0)
-                reject(new TaskProcessFailed(failure ?? 'failed'));
+                reject(new TaskProcessFailed(failure ?? 'exit'));
             else
                 resolve(output);
         });

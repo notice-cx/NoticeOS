@@ -794,7 +794,7 @@ test('a hosted decision-record write failure preserves its safe cause and step a
     source: 'codex://threads/layout', explanation: 'Record the owner answer.', evidence: 'Owner chat reply' };
   await assert.rejects(f.executor.execute(request(), A, task(operation)), error => {
     assert.ok(error instanceof TaskStoreFailed);
-    assert.equal(error.failure, 'failed');
+    assert.equal(error.failure, 'exit');
     assert.equal(error.step, 'record-maintenance');
     assert.equal(error.message.includes('private backend detail'), false);
     return true;

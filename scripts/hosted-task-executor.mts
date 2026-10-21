@@ -219,7 +219,7 @@ async function command(binary: string, argv: readonly string[], cwd: string,
     child.once('error', () => { failure ??= 'launch'; });
     child.once('close', code => {
       clearTimeout(timer); life.signal?.removeEventListener('abort', cancelled);
-      if (failure || code !== 0) reject(new TaskProcessFailed(failure ?? 'failed')); else resolve(output);
+      if (failure || code !== 0) reject(new TaskProcessFailed(failure ?? 'exit')); else resolve(output);
     });
   });
 }

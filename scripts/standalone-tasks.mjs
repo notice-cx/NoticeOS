@@ -84,7 +84,7 @@ export function createStandaloneTaskExecutor(options) {
                     const result = await run(argv, project.cwd);
                     // Admitted, in a linked project: what failed is the task client itself.
                     if (result.code !== 0)
-                        throw new TaskStoreFailed(result.timedOut === true);
+                        throw new TaskStoreFailed(result.timedOut === true, result.timedOut ? 'timeout' : 'exit');
                     try {
                         return JSON.parse(result.stdout);
                     }
