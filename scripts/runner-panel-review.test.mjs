@@ -54,11 +54,11 @@ test('a no-checkout review waits for publication and reconciles a lost create ac
     if (argv.includes('create')) {
       creates++;
       assert.equal(flag('--due'), '2026-09-28');
-      rows.push({ id: 'shop-1', title: flag('--title'), status: 'open', issue_type: 'task',
+      rows.push({ id: `shop-${creates}`, title: flag('--title'), status: 'open', issue_type: 'task',
         labels: ['panel-review'], metadata: JSON.parse(flag('--metadata')), created_at: new Date().toISOString() });
       if (loseResponse) { loseResponse = false; return { code: 1, stdout: '' }; }
     }
-    return { code: 0, stdout: JSON.stringify(argv.includes('create') ? rows[0] : rows) };
+    return { code: 0, stdout: JSON.stringify(argv.includes('create') ? rows.at(-1) : rows) };
   };
   const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4,
     reports: ['serp-panel', 'ranked-keywords'] }] });
@@ -88,6 +88,15 @@ test('a no-checkout review waits for publication and reconciles a lost create ac
   assert.ok(create.some(arg => arg.includes(`get_panel asset=shop.example version=${VERSION}`)));
   assert.ok(commands.some(argv => argv.includes('--limit=0') && argv.includes('list')), 'lost response was reconciled through complete task reads');
   assert.equal(closes, 5, 'every opened operation store is closed, including failed and concurrent writes');
+  rows[0].labels.push('invalid-automation');
+  pass.deps.run = async argv => { assert.equal(argv[1], connection.cwd); return { code: 0, stdout: JSON.stringify(rows) }; };
+  await runPanelReviewFiler(UP, pass.deps);
+  await runPanelReviewFiler(UP, pass.deps);
+  assert.equal(creates, 2, 'an invalidated review permits exactly one replacement');
+  assert.equal(rows[1].id, 'shop-2');
+  assert.equal(rows[1].metadata.noticeos_panel_version, VERSION);
+  assert.equal(closes, 6);
+
   assert.equal(await fs.stat(path.join(root, '.beads')).catch(() => null), null);
 });
 

@@ -325,7 +325,8 @@ export function panelReviewCreateArgs(repoDir, landing) {
 }
 
 /** A collection's create uses the same durable receipts and mutation reservation
- * as MCP. The key names the project and day, never the current panel version. */
+ * as MCP. Invalidated reviews permit a replacement; publication versions do
+ * not change the identity of the same collection's retry. */
 export async function filePanelReview(project, landing, { open = openStandaloneTasks,
   readBindings = () => readDevSecretBindings(SECRET_FILES) } = {}) {
   // The runner keeps the database address out of its environment; the same
@@ -334,7 +335,8 @@ export async function filePanelReview(project, landing, { open = openStandaloneT
   const tasks = await open({ databaseUrl: bindings[DATABASE_URL] });
   try {
     const projectId = standaloneProjectId(project.database);
-    const key = 'panel-review:' + createHash('sha256').update(`${projectId}\0${landing.panelDate}`).digest('hex');
+    const key = 'panel-review:' + createHash('sha256').update(JSON.stringify(
+      [projectId, landing.asset, landing.panelDate, [...(landing.invalidated ?? [])].sort()])).digest('hex');
     const proof = new Request('http://localhost/api/mcp', { method: 'POST', headers: { [ACTOR_HEADER]: PANEL_REVIEW_ACTOR } });
     const outcome = await tasks.operations.write(proof, tasks.workspaceId, { projectId, operation: {
       kind: 'create', title: panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false),
@@ -464,7 +466,10 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     waiting.delete(collection);
 
     let beadId;
-    try { beadId = await createReview(project, { ...landing, version }); }
+    try { beadId = await createReview(project, { ...landing, version,
+      invalidated: existing.rows.filter(row => invalidPanelReview(row) && panelReviewPanelDate(row) === landing.panelDate)
+        .map(row => beadsText(row.id)).filter(Boolean),
+    }); }
     catch (error) {
       emit('ERROR', `panel review: ${landing.asset} — review create failed: ${error.message}`);
       continue;
