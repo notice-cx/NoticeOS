@@ -8,6 +8,19 @@ export type BeadsHandoffKind = (typeof BEADS_HANDOFF_KINDS)[number];
 /** The most closes one project's `closes` carries. A poller whose read held
  * more sends none, so the week counts read as unknown rather than short. */
 export declare const BEADS_CLOSES_MAX = 5000;
+/** The most links one task's `dependencies` carries. A poller whose read held
+ * more for a task sends none for it, so its links read as not recorded rather
+ * than short. */
+export declare const BEADS_DEPENDENCIES_MAX = 50;
+/** One link from a task to another, on the task that waits, as `bd list`
+ * reports it: the other task's id and `bd`'s link type (`blocks`, `related`,
+ * …, not an enum). `status` is the other task's stored status where the
+ * poller's reads hold that task, and absent where they do not. */
+export interface BeadsDependencyInput {
+    id: string;
+    type: string;
+    status?: string | null;
+}
 /** One bead, flattened to what a board row needs. */
 export interface BeadsIssueInput {
     id: string;
@@ -39,6 +52,10 @@ export interface BeadsIssueInput {
      * open task, and from an older poller. */
     resolution?: Exclude<TaskResolution, 'done'> | null;
     duplicateOf?: string | null;
+    /** The task's links to other tasks, every type. `[]` when it has none;
+     * absent from an older poller, which recorded none, and from a task with
+     * more than `BEADS_DEPENDENCIES_MAX`. */
+    dependencies?: BeadsDependencyInput[] | null;
 }
 /** One epic container plus what its children are doing. Entirely optional on
  * the wire: absent means this poller could not describe structure, and the
@@ -93,6 +110,10 @@ export interface BeadsProjectInput {
     epics?: BeadsEpicInput[] | null;
     ready: BeadsIssueInput[];
     inProgress: BeadsIssueInput[];
+    /** Open work waiting on another task, the head of `bd blocked`'s answer:
+     * the tasks that wait on a listed decision first, then `bd`'s order.
+     * Optional under the same rule as `counts.highPriority`. */
+    blocked?: BeadsIssueInput[] | null;
     recentlyClosed: BeadsIssueInput[];
     /** Newest-filed work, newest first, each with its filer when known.
      * Optional under the same rule. */

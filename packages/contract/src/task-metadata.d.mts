@@ -131,10 +131,17 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_change_class";
         legacy: "noticeos_change_class";
     }>;
+    /** The card as it stood when the task first closed as done (task-card.mts):
+     * the prediction grading reads. Server-set after that close, never edited. */
+    cardShipped: Readonly<{
+        name: "noticeos_card_shipped";
+        legacy: "noticeos_card_shipped";
+    }>;
 }>;
 /** The names only the server writes. A caller's metadata never carries them,
  * so no filer can forge who filed or closed a task and how, a write's
- * identity, an unvalidated set of choices or a person's pick. */
+ * identity, an unvalidated set of choices, a person's pick or the card a task
+ * shipped with. */
 export declare const SERVER_TASK_METADATA: readonly string[];
 /** Whether the closer recorded in this metadata (`closedBy` and `closedAt`,
  * and the keys written with them) describes the task's close at `closedAt`.

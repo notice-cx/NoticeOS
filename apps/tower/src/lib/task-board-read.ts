@@ -124,14 +124,22 @@ export function liveRows(payload: LiveTasksPayload, { containers = false }: { co
 
 /** A photographed row, widened. `labels` is empty because the photograph does
  * not carry them — which is why the label filter says so rather than silently
- * matching nothing. */
-function snapshotRow(item: WorkItem, project: string, ready: boolean): BoardTask {
+ * matching nothing. A link takes the other task's title and status from the
+ * row the photograph holds for it, and has no title when it holds none. */
+function snapshotRow(item: WorkItem, project: string, ready: boolean, held: ReadonlyMap<string, WorkItem>): BoardTask {
+  const { dependencies, ...rest } = item;
   return {
-    ...item,
+    ...rest,
     project,
     labels: [],
     ready,
     awaitType: item.issueType === "gate" ? "human" : null,
+    ...(dependencies === undefined ? {} : {
+      dependencies: dependencies.map((edge) => {
+        const other = held.get(edge.id);
+        return { id: edge.id, type: edge.type, title: other?.title ?? null, status: other?.status ?? edge.status ?? null };
+      }),
+    }),
   };
 }
 
@@ -139,17 +147,41 @@ function snapshotRow(item: WorkItem, project: string, ready: boolean): BoardTask
  * so this is a sample of the project, never all of it. */
 export function snapshotRows(project: WorkProject): BoardTask[] {
   const readySet = new Set(project.ready.map((item) => item.id));
-  const rows = new Map<string, BoardTask>();
+  const items = new Map<string, WorkItem>();
   for (const item of project.ok ? [
     ...project.waiting,
     ...project.ready,
     ...project.inProgress,
+    ...(project.blocked ?? []),
     ...project.deferred,
     ...project.recentlyClosed,
   ] : []) {
-    if (!rows.has(item.id)) rows.set(item.id, snapshotRow(item, project.asset, readySet.has(item.id)));
+    if (!items.has(item.id)) items.set(item.id, item);
   }
-  return [...rows.values()];
+  return [...items.values()].map((item) => snapshotRow(item, project.asset, readySet.has(item.id), items));
+}
+
+const blocks = (edge: { type: string }) => TASK_BLOCKING_DEPENDENCIES.includes(edge.type);
+
+/**
+ * What answering each row releases: the open tasks among `rows` it holds whose
+ * every other blocker is known to be closed. A row whose read recorded no links
+ * (a snapshot an older poller wrote) gets no `decisionImpact`, so it never
+ * reads as releasing nothing. From the snapshot the rows are its capped
+ * sample, so a task the snapshot does not list is not counted.
+ */
+function withDecisionImpact(rows: readonly BoardTask[]): BoardTask[] {
+  const byId = new Map(rows.map(task => [task.id, task]));
+  return rows.map(task => {
+    if (task.dependencies === undefined) return task;
+    const proceeds = rows.filter(candidate => candidate.issueType !== "epic" && !isGate(candidate)
+      && candidate.status !== "closed" && candidate.status !== PARKED
+      && candidate.dependencies?.some(edge => blocks(edge) && edge.id === task.id)
+      && candidate.dependencies.every(edge => !blocks(edge) || edge.id === task.id || (byId.get(edge.id)?.status ?? edge.status) === "closed")
+      && !(isGate(task) && candidate.choices && !candidate.choice));
+    return { ...task, decisionImpact: { priority: Math.min(...(isGate(task) && proceeds.length ? [] : [task.priority]), ...proceeds.map(row => row.priority)),
+      proceeds: proceeds.map(({ id, title }) => ({ id, title })) } };
+  });
 }
 
 /** Rank by the work an answer releases, then age. Approval records inherit
@@ -214,7 +246,8 @@ function buildProject(
     laneError,
   };
   if (live === null) {
-    const readySet = new Set(project.ready.map((item) => item.id));
+    const tasks = withDecisionImpact(snapshotRows(project));
+    const byId = new Map(tasks.map((task) => [task.id, task]));
     const { open, highPriority, inProgress, blocked, closedRecent } = project.counts;
     return {
       ...base,
@@ -226,10 +259,8 @@ function buildProject(
         ? { open, urgent: highPriority, inProgress, blocked, closed: closedRecent }
         : { open: 0, urgent: null, inProgress: 0, blocked: 0, closed: 0 },
       epicNames: new Map((project.epics ?? []).map((epic) => [epic.id, epic.title])),
-      tasks: snapshotRows(project),
-      waiting: (project.ok ? project.waiting : []).map((item) =>
-        snapshotRow(item, project.asset, readySet.has(item.id)),
-      ),
+      tasks,
+      waiting: (project.ok ? project.waiting : []).flatMap((item) => byId.get(item.id) ?? []),
       totals: {
         waiting: project.ok ? project.counts.waiting ?? project.waiting.length : 0,
         tasks: project.ok ? open + inProgress + blocked + closedRecent : 0,
@@ -237,18 +268,7 @@ function buildProject(
     };
   }
 
-  const rows = liveRows(live);
-  const byId = new Map(rows.map(task => [task.id, task]));
-  const blocks = (edge: LiveTask["dependencies"][number]) => TASK_BLOCKING_DEPENDENCIES.includes(edge.type);
-  const tasks = rows.map(task => {
-    const proceeds = rows.filter(candidate => candidate.issueType !== "epic" && !isGate(candidate)
-      && candidate.status !== "closed" && candidate.status !== PARKED
-      && candidate.dependencies?.some(edge => blocks(edge) && edge.id === task.id)
-      && candidate.dependencies.every(edge => !blocks(edge) || edge.id === task.id || (byId.get(edge.id)?.status ?? edge.status) === "closed")
-      && !(isGate(task) && candidate.choices && !candidate.choice));
-    return { ...task, decisionImpact: { priority: Math.min(...(isGate(task) && proceeds.length ? [] : [task.priority]), ...proceeds.map(row => row.priority)),
-      proceeds: proceeds.map(({ id, title }) => ({ id, title })) } };
-  });
+  const tasks = withDecisionImpact(liveRows(live));
   const active = tasks.filter((task) => task.status !== PARKED && task.status !== "closed");
   // An approval is the one question for its blocked parent. Its task remains
   // accessible in All tasks, without a second competing inbox row.

@@ -12,8 +12,8 @@ import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused, type HostedTaskOperation, type HostedTaskRequest,
-  type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
+import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, shippedTaskCard, taskProposal, TaskMaintenanceRefused, TaskStateRefused,
+  type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 
 /** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
@@ -129,23 +129,24 @@ function canonical(value: unknown): string {
 }
 
 /** Who closed a task and how it ended, written onto it after its close: the
- * task client keeps no closer. The close stands whether or not this lands; a
- * task without it shows its close, no closer, and reads as done.
+ * task client keeps no closer. A close as done also keeps the task's card as
+ * the close left it (shippedTaskCard). The close stands whether or not this
+ * lands; a task without it shows its close, no closer, and reads as done.
  * `closeOutput` is the close's own answer. */
 export async function recordCloser(run: (operation: HostedTaskOperation) => Promise<unknown>, taskId: string,
   closeOutput: unknown, closedBy: string, model?: string,
   ended: Pick<Extract<HostedTaskOperation, { kind: 'close' }>, 'resolution' | 'duplicateOf'> = {}): Promise<void> {
   try {
-    const closedAt = (found: unknown) => {
-      const row = (Array.isArray(found) ? found : [found]).map(entry => entry && typeof entry === 'object' ? entry as Record<string, unknown> : {})
-        .find(entry => entry.id === taskId);
-      return row?.status === 'closed' && typeof row.closed_at === 'string' ? row.closed_at : null;
-    };
-    const at = closedAt(closeOutput) ?? closedAt(await run({ kind: 'show', taskId }));
-    if (at === null) return;
-    await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: at, ...(model === undefined ? {} : { model }),
+    const closed = (found: unknown) => (Array.isArray(found) ? found : [found])
+      .map(entry => entry && typeof entry === 'object' ? entry as Record<string, unknown> : {})
+      .find(entry => entry.id === taskId && entry.status === 'closed' && typeof entry.closed_at === 'string');
+    const row = closed(closeOutput) ?? closed(await run({ kind: 'show', taskId }));
+    if (row === undefined) return;
+    const shipped = shippedTaskCard(row, ended.resolution);
+    await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: row.closed_at as string, ...(model === undefined ? {} : { model }),
       ...(ended.resolution === undefined ? {} : { resolution: ended.resolution }),
-      ...(ended.duplicateOf === undefined ? {} : { duplicateOf: ended.duplicateOf }) }));
+      ...(ended.duplicateOf === undefined ? {} : { duplicateOf: ended.duplicateOf }),
+      ...(shipped === undefined ? {} : { shipped }) }));
   } catch { /* The close itself is the outcome; its closer stays unrecorded. */ }
 }
 

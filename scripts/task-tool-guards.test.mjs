@@ -601,3 +601,39 @@ test('a write the task store refuses is named from the task as it stands after: 
     + 'To record it as related, remove_dependency first, then add it again.');
   assert.deepEqual(f.edges.filter(edge => edge.from === 'ex-follow').map(edge => edge.type), ['blocks']);
 });
+
+test('a close as done keeps the card it shipped with, which get_task returns and update_task then refuses to change', async () => {
+  const f = fixture();
+  const card = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSignal: 28, measurability: 'cohort',
+    by: AGENT, at: '2026-10-15T09:00:00.000Z' };
+  f.put('ex-ship', { metadata: { noticeos_card: card } });
+  f.put('ex-dropped', { metadata: { noticeos_card: card } });
+  const closed = await f.call('close_task', inProject({ task: 'ex-ship', reason: 'Shorter titles shipped in a1b2c3d4', idempotency_key: 'ship-close-0001' }));
+  assert.equal(closed.isError, undefined, JSON.stringify(closed));
+  const shipped = { card, closedAt: '2026-10-16T12:00:00Z', commit: 'a1b2c3d4' };
+  assert.deepEqual(closed.structuredContent.task.cardShipped, shipped);
+  const read = (await f.call('get_task', inProject({ task: 'ex-ship' }))).structuredContent.task;
+  assert.deepEqual([read.card, read.cardShipped], [card, shipped]);
+
+  const said = 'refused: ex-ship shipped on 2026-10-16, and its card stays as it shipped: get_task shows it as cardShipped. '
+    + 'File work that remains, with its own card, with create_task.';
+  const edits = f.commands.length;
+  assert.equal(await f.refusal('update_task', inProject({ task: 'ex-ship', card: { ...card, valuePerMonth: 900 }, idempotency_key: 'ship-edit-0001' })), said);
+  assert.equal(await f.refusal('update_task', inProject({ task: 'ex-ship', card: null, idempotency_key: 'ship-edit-0002' })), said);
+  assert.deepEqual(f.commands.slice(edits).filter(argv => argv.includes('update')), [], 'refused before any write');
+  // Reopened, it keeps the card it shipped with, and the card stays as it shipped.
+  assert.equal((await f.call('update_task', inProject({ task: 'ex-ship', status: 'open', idempotency_key: 'ship-open-0001' }))).isError, undefined);
+  assert.equal(await f.refusal('update_task', inProject({ task: 'ex-ship', card: { ...card, valuePerMonth: 900 }, idempotency_key: 'ship-edit-0003' })), said);
+  // A second close as done keeps the first one's card and commit.
+  f.tasks.get('ex-ship').metadata.noticeos_card = { ...card, valuePerMonth: 900 };
+  await f.call('close_task', inProject({ task: 'ex-ship', reason: 'Shipped again in e5f6a7b8', idempotency_key: 'ship-close-0002' }));
+  assert.deepEqual(f.tasks.get('ex-ship').metadata.noticeos_card_shipped, shipped);
+
+  // Closed as won't do, nothing shipped: no card is kept and the card stays editable.
+  await f.call('close_task', inProject({ task: 'ex-dropped', reason: 'The pages are going away', resolution: 'wont-do', idempotency_key: 'drop-close-0001' }));
+  assert.equal(f.tasks.get('ex-dropped').metadata.noticeos_resolution, 'wont-do');
+  assert.equal('noticeos_card_shipped' in f.tasks.get('ex-dropped').metadata, false);
+  const edited = await f.call('update_task', inProject({ task: 'ex-dropped', card: { ...card, valuePerMonth: 50 }, idempotency_key: 'drop-edit-0001' }));
+  assert.equal(edited.isError, undefined, JSON.stringify(edited));
+  assert.equal(f.tasks.get('ex-dropped').metadata.noticeos_card.valuePerMonth, 50);
+});

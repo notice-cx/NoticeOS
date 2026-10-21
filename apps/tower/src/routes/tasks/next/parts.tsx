@@ -60,12 +60,10 @@ export function AskGlyph({ ask, className }: { ask: InboxAsk; className?: string
   return <Icon aria-hidden className={cn("size-3.5 shrink-0 text-warn", className)} />;
 }
 
-/** The money a card puts at stake, over its odds and the operator's minutes;
- * a row without a card says it is not ranked. */
-export function MoneyFigure({ card }: { card: TaskCard | null }) {
-  if (card === null) {
-    return <span className="text-xs text-muted-foreground" data-money="none">small · not ranked</span>;
-  }
+/** The money a card puts at stake, over its odds and the operator's minutes.
+ * A row without a card draws nothing here: on a board with no cards, "not
+ * ranked" on every row would be the loudest thing on it. */
+export function MoneyFigure({ card }: { card: TaskCard }) {
   return (
     <span className="flex flex-col items-end gap-0.5 text-end tabular-nums" data-money="">
       <span className="whitespace-nowrap text-sm font-semibold text-financial-revenue">{stakePerMonth(card.valuePerMonth)}</span>

@@ -2,7 +2,7 @@
 import type { LiveTask, LiveEpic, TaskDependency, TaskComment } from "../apps/tower/shared/tasks";
 import { gateTitle } from "../packages/contract/src/task-gate.mjs";
 import { readTaskChoice, readTaskChoices } from "../packages/contract/src/task-choices.mjs";
-import { readTaskCard } from "../packages/contract/src/task-card.mjs";
+import { readTaskCard, readTaskCardShipped } from "../packages/contract/src/task-card.mjs";
 import { readTaskChangeClass } from "../packages/contract/src/task-change-class.mjs";
 import { readTaskResolution } from "../packages/contract/src/task-resolution.mjs";
 
@@ -92,6 +92,7 @@ export function toLiveTask(row: unknown, ready: ReadonlySet<string>): LiveTask {
     choices: readTaskChoices(metadata),
     choice: readTaskChoice(metadata),
     card: readTaskCard(metadata),
+    cardShipped: readTaskCardShipped(metadata),
     changeClass: readTaskChangeClass(metadata),
     resolution: ended?.resolution ?? null,
     duplicateOf: ended?.duplicateOf ?? null,
@@ -124,4 +125,4 @@ export function toComment(row: unknown): TaskComment {
   };
 }
 
-export { text as taskRowText };
+export { text as taskRowText, dependencies as taskRowDependencies };

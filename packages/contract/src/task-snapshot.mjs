@@ -5,3 +5,7 @@ export const BEADS_HANDOFF_KINDS = ['query', 'finding', 'page', 'alert'];
 /** The most closes one project's `closes` carries. A poller whose read held
  * more sends none, so the week counts read as unknown rather than short. */
 export const BEADS_CLOSES_MAX = 5000;
+/** The most links one task's `dependencies` carries. A poller whose read held
+ * more for a task sends none for it, so its links read as not recorded rather
+ * than short. */
+export const BEADS_DEPENDENCIES_MAX = 50;

@@ -1535,6 +1535,8 @@ test('one project’s four reads become one board section', () => {
   // `bd ready` tells an agent in that repo to do next.
   assert.deepEqual(entry.ready.map((i) => i.id), ['zz-135', 'zz-4qr']);
   assert.deepEqual(entry.inProgress.map((i) => i.id), ['zz-p6y']);
+  // `bd blocked` answers without links; the list read's row supplies them.
+  assert.deepEqual(entry.blocked.map((i) => [i.id, i.dependencies]), [['zz-hfl', [{ id: 'zz-4qr', type: 'blocks', status: 'open' }]]]);
   assert.deepEqual(entry.recentlyClosed.map((i) => i.id), ['zz-0pb']);
 });
 
@@ -1555,6 +1557,8 @@ test('bd’s snake_case fields land as the camelCase the store speaks', () => {
     parent: null,
     // Only a deferred bead carries one.
     deferUntil: null,
+    // Its links to other tasks, from the list read: none, which is not "not recorded".
+    dependencies: [],
   });
   // An unassigned bead reports null, not an empty string the UI would render.
   assert.equal(entry.ready[1].assignee, null);

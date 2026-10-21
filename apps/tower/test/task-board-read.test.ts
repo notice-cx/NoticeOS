@@ -381,3 +381,31 @@ describe("the board's week against the week before", () => {
     expect(view.doneRead).toBe(6);
   });
 });
+
+describe("the snapshot's links between tasks", () => {
+  const sampled = { capabilities: { live: false, reason: "read_only_deployment" as const }, reads: new Map(), filters };
+  const gate = item({ id: "md-gate", title: "Approve the price change", issueType: "gate", dependencies: [] });
+  const blocked = [
+    item({ id: "md-a", title: "Raise the price", dependencies: [{ id: "md-gate", type: "blocks", status: "open" }] }),
+    item({ id: "md-b", title: "Announce the price", priority: 1, dependencies: [{ id: "md-gate", type: "waits-for" }, { id: "md-gone", type: "blocks", status: "closed" }] }),
+    // Something else the snapshot does not list still holds it.
+    item({ id: "md-c", title: "Reprint the menu", dependencies: [{ id: "md-gate", type: "blocks" }, { id: "md-elsewhere", type: "blocks" }] }),
+  ];
+
+  it("works out what a decision releases from the rows the snapshot lists, as the live read does", () => {
+    const view = readTaskBoard({ ...sampled, snapshot: payload({ projects: [project({ waiting: [gate], blocked })] }) });
+    expect(view.inbox.map((row) => row.task.id)).toEqual(["md-gate"]);
+    expect(view.inbox[0]!.task.decisionImpact).toEqual({ priority: 1,
+      proceeds: [{ id: "md-a", title: "Raise the price" }, { id: "md-b", title: "Announce the price" }] });
+    // The blocked sample is on the board, each link titled from the row the snapshot holds for it.
+    const held = view.allTasks.find((task) => task.id === "md-a")!;
+    expect([held.ready, held.dependencies]).toEqual([false, [{ id: "md-gate", type: "blocks", title: "Approve the price change", status: "open" }]]);
+    expect(view.allTasks.find((task) => task.id === "md-c")!.dependencies![1]).toEqual({ id: "md-elsewhere", type: "blocks", title: null, status: null });
+  });
+
+  it("works out nothing for a snapshot an older poller wrote, which recorded no links", () => {
+    const view = readTaskBoard({ ...sampled, snapshot: payload({ projects: [project({ waiting: [item({ id: "md-gate", issueType: "gate" })] })] }) });
+    expect(view.inbox[0]!.task.decisionImpact).toBeUndefined();
+    expect(Object.hasOwn(view.inbox[0]!.task, "dependencies")).toBe(false);
+  });
+});

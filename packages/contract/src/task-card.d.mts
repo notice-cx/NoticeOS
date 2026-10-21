@@ -83,6 +83,19 @@ export declare function isTaskRevenueFamily(value: unknown): value is TaskRevenu
 export declare function taskCardOf(value: unknown): TaskCard | null;
 /** The card a task's metadata holds, or null when it holds none it can read. */
 export declare function readTaskCard(metadata: unknown): TaskCard | null;
+/** A card as it stood when its task first closed as done. */
+export interface TaskCardShipped {
+    readonly card: TaskCard;
+    /** The close that shipped it, as the task records its close time. */
+    readonly closedAt: string;
+    /** The commit hash the close reason names, when it names one. */
+    readonly commit?: string;
+}
+/** A shipped card as it is stored: plain frozen data, or null for anything
+ * that is not one. */
+export declare function taskCardShippedOf(value: unknown): TaskCardShipped | null;
+/** The card a task shipped with, or null when its metadata holds none it can read. */
+export declare function readTaskCardShipped(metadata: unknown): TaskCardShipped | null;
 export interface TaskCardScore {
     /** Policy v1.0's score; higher ranks first. */
     readonly score: number;

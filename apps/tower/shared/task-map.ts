@@ -42,6 +42,7 @@ export function driftingTaskDatabases(
     for (const item of [
       ...project.ready,
       ...project.inProgress,
+      ...(project.blocked ?? []),
       ...project.waiting,
       ...project.deferred,
     ]) {
