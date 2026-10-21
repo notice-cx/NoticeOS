@@ -357,10 +357,11 @@ describe("the site rows", () => {
 });
 
 describe("a site's signal-bar health indicator", () => {
-  it("shows distinct levels for healthy, warning and unknown sites beside their names", () => {
+  it("shows observed health for active sites and no level for archived sites", () => {
     const data = wallFixturePayload();
-    const container = draw(data.assets, { attention: data.attention });
-    for (const [id, state, bars] of [["mosaic.example", "healthy", 4], ["plume.example", "warn", 2], ["summit.example", "unknown", 0]] as const) {
+    const archived = { ...data.assets[0]!, id: "archived.example", status: "retired" };
+    const container = draw([...data.assets, archived], { attention: data.attention });
+    for (const [id, state, bars] of [["mosaic.example", "healthy", 4], ["plume.example", "warn", 2], ["summit.example", "healthy", 4], ["archived.example", "unknown", 0]] as const) {
       const health = row(container, id).querySelector('[data-site-name] [data-site-health]')!;
       expect(health.getAttribute("data-site-health")).toBe(state);
       expect(health.querySelectorAll('.opacity-100')).toHaveLength(bars);

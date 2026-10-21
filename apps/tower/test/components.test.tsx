@@ -3385,6 +3385,9 @@ describe("kitchen sink covers the registry", () => {
       </QueryClientProvider>,
     );
 
+    // Only the incomplete example has setup work left to display.
+    expect(container.querySelectorAll("[data-setup-checklist]")).toHaveLength(1);
+
     for (const title of [
       "SegmentBar",
       "PriorityBar",

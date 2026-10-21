@@ -226,6 +226,6 @@ describe('a failed site transaction', () => {
 
     // A later retry creates the site normally.
     expect(await createAsset(env, { id: NEW_ID, displayName: 'Brand New' }, NOW + 1000)).toMatchObject({ ok: true });
-    expect(await stored(NEW_ID)).toMatchObject({ status: 'live', updated_at: new Date(NOW + 1000).toISOString() });
+    expect(await stored(NEW_ID)).toMatchObject({ status: 'onboarding', updated_at: new Date(NOW + 1000).toISOString() });
   });
 });
