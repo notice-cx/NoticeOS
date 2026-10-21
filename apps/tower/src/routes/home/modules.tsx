@@ -7,8 +7,8 @@ import type { HomeModuleId } from "@shared/views";
  * draws the first seven of `HOME_MODULES` in order, which is the page as it
  * always was, a narrower view draws a few, and a focus pick moves one to the
  * front. Everything keeps its twelve-column grid, each module carrying its own
- * span, with Problems, Decide and the agents' line stacked in one column
- * whenever they come in a run. Every other view is drawn as rows of column
+ * span, with Problems, Decisions and Agents sharing one row whenever they
+ * come in a run. Every other view is drawn as rows of column
  * stacks (`homeRows`), so no module is stretched to the height of the one
  * beside it.
  */

@@ -1,6 +1,6 @@
 import { Activity, Cable, Check, Plus } from "lucide-react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRunStepKey } from "@shared/first-run";
 import { viewCovers } from "@shared/asset-detail-views";
@@ -473,12 +473,12 @@ function queueItem(row: WaitingRow, nowMs: number): QueueItem {
     kind: row.item.issueType === "gate" ? "approval" : "question",
     ageDays: age === null ? null : age / DAY_MS,
     to: `/tasks/${encodeURIComponent(row.item.id)}`,
-    returnTo: "/",
   };
 }
 
 /** Home's bounded decision summary; full requests and their actions open on Tasks. */
 export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undefined; failed: boolean; nowMs: number }) {
+  const location = useLocation();
   const projects = work?.projects ?? [];
   const rows: WaitingRow[] = projects
     .filter((project) => project.ok)
@@ -502,7 +502,7 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
             : total > 0
               ? "No request details read."
               : "Nothing to decide.";
-  const items = ordered.map((row) => queueItem(row, nowMs));
+  const items = ordered.map((row) => ({ ...queueItem(row, nowMs), returnTo: `${location.pathname}${location.search}` }));
 
   return (
     <DecisionQueue
