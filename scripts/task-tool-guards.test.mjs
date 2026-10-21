@@ -165,6 +165,114 @@ test('relayed owner letters and recommendation replies release implementation an
   }
 });
 
+const directAnswer = { action: 'answer', answer_mode: 'direct', owner: 'Owner', source: 'codex://threads/owner-layout',
+  question: 'Which local layout should we build?', scope: 'Local layout implementation only; no deployment' };
+
+test('a directly received card answer clears awaitingHuman without a history adapter and preserves recorder provenance', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-build', { labels: ['human'], metadata: { noticeos_choices: choices } });
+  const response = 'Use compact cards (Recommended) — keep the summary visible.';
+  const result = await maintain(f, 'ex-build', { ...directAnswer, response, option: 'a' });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  const task = result.structuredContent.task;
+  assert.equal(task.awaitingHuman, false); assert.equal(task.ready, true);
+  assert.equal(task.status, 'open'); assert.equal(task.assignee, null);
+  assert.equal(task.choice.option, 'a'); assert.equal(task.choice.by, 'Owner');
+  const record = task.metadata.noticeos_maintenance;
+  assert.equal(record.by, AGENT); assert.equal(record.verification, 'agent-recorded');
+  assert.equal(record.response, response); assert.equal(record.question, directAnswer.question);
+  assert.equal(record.source, directAnswer.source); assert.equal(record.scope, directAnswer.scope);
+  assert.equal(record.permission, 'none');
+  assert.equal(record.proposal, taskProposal({ ...f.tasks.get('ex-build'), metadata: { noticeos_choices: choices } }));
+  assert.ok(f.comments.some(comment => comment.author === AGENT && comment.text.includes(`Recorded by: ${AGENT}`)
+    && comment.text.includes(`Answer: ${response}`)));
+  assert.equal(f.closes().length, 0, 'implementation still needs to be built');
+});
+
+test('direct answers close decision-only tasks and preserve unrelated blockers on implementation tasks', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-decision', { issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });
+  f.put('ex-work', { labels: ['human'], metadata: { noticeos_choices: choices } });
+  f.put('ex-blocker'); f.link('ex-work', 'ex-blocker');
+  const answer = { ...directAnswer, response: 'A' };
+  const done = await maintain(f, 'ex-decision', answer);
+  assert.equal(done.isError, undefined, JSON.stringify(done));
+  assert.equal(done.structuredContent.task.status, 'closed');
+  const work = await maintain(f, 'ex-work', answer);
+  assert.equal(work.isError, undefined, JSON.stringify(work));
+  assert.equal(work.structuredContent.task.awaitingHuman, false);
+  assert.equal(work.structuredContent.task.ready, false);
+  assert.ok(f.edges.some(edge => edge.from === 'ex-work' && edge.to === 'ex-blocker'));
+});
+
+test('direct card mappings reject uncertainty, conflicting choices and absent options without mutation', async () => {
+  for (const fields of [
+    { response: 'Maybe compact', option: 'a' }, { response: 'B', option: 'a' },
+    { response: 'Wide layout', option: 'a' }, { response: 'Your recommendation', option: 'b' },
+    { response: 'Wide layout (Recommended) — keep details visible.', option: 'a' },
+    { response: 'B — Wide layout', option: 'a' }, { response: 'B. Wide layout', option: 'a' },
+    { response: 'Whatever', option: 'a' }, { response: 'No, keep it as is', option: 'a' },
+    { response: 'A for ex-other', option: 'a' },
+    { response: 'yes', option: 'a' }, { response: 'Use compact cards', option: 'c' },
+    { response: 'A', owner: AGENT }, { response: 'A', question: undefined },
+    { response: 'A', source: 'comment:owner-1' }, { response: 'A', source: 'https://owner:secret@example.com/chat' },
+  ]) {
+    const f = fixture({ trustedSources: false });
+    f.put('ex-choice', { labels: ['human'], metadata: { noticeos_choices: choices } });
+    const result = await maintain(f, 'ex-choice', { ...directAnswer, ...fields });
+    assert.equal(result.isError, true, JSON.stringify(fields));
+    assert.equal(f.tasks.get('ex-choice').metadata.noticeos_maintenance, undefined);
+    assert.deepEqual(f.tasks.get('ex-choice').labels, ['human']); assert.equal(f.comments.length, 0);
+  }
+  const f = fixture({ trustedSources: false }); f.put('ex-options', { labels: ['human'] });
+  assert.equal((await maintain(f, 'ex-options', { ...directAnswer, response: 'Compact cards', option: 'a' })).isError, true);
+});
+
+test('direct approvals require the complete question, exact scope and an explicit approval', async () => {
+  const scope = 'Read production logs once; no writes';
+  for (const fields of [
+    { question: 'Approve a check?' }, { scope: 'Deploy production' }, { response: 'Maybe yes' },
+    { response: 'The implementation exists' },
+  ]) {
+    const f = fixture({ trustedSources: false });
+    f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: `Reason: ${scope}` });
+    const result = await maintain(f, 'ex-gate', { ...directAnswer, question: `Approve: ${scope}?`, response: 'yes', scope, ...fields });
+    assert.equal(result.isError, true, JSON.stringify(fields)); assert.equal(f.comments.length, 0); assert.equal(f.closes().length, 0);
+  }
+  const f = fixture({ trustedSources: false });
+  f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: `Reason: ${scope}` });
+  const result = await maintain(f, 'ex-gate', { ...directAnswer, question: `Approve: ${scope}?`, response: 'yes', scope });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.equal(result.structuredContent.task.status, 'closed');
+  assert.equal(result.structuredContent.task.metadata.noticeos_maintenance.permission, 'approved-scope-only');
+  assert.equal(result.structuredContent.task.metadata.noticeos_maintenance.verification, 'agent-recorded');
+});
+
+test('direct answers preserve stale-proposal and retry checks', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-choice', { labels: ['human'], metadata: { noticeos_choices: choices } });
+  const proposal = (await f.call('get_task', inProject({ task: 'ex-choice' }))).structuredContent.proposal;
+  f.tasks.get('ex-choice').title = 'Changed proposal';
+  assert.equal((await maintain(f, 'ex-choice', { ...directAnswer, response: 'A', proposal })).isError, true);
+  assert.equal(f.comments.length, 0);
+  const fields = { ...directAnswer, response: 'A', idempotency_key: 'direct-answer-retry-0001' };
+  f.failNext('hand-back');
+  assert.equal((await maintain(f, 'ex-choice', fields)).isError, true);
+  const count = f.comments.length;
+  const result = await maintain(f, 'ex-choice', fields);
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.equal(result.structuredContent.task.awaitingHuman, false);
+  assert.equal(result.structuredContent.task.choice.option, 'a'); assert.equal(f.comments.length, count);
+});
+
+test('an oversized combined direct-answer record refuses before any state change', async () => {
+  const f = fixture({ trustedSources: false }); f.put('ex-choice', { labels: ['human'] });
+  const result = await maintain(f, 'ex-choice', { ...directAnswer, response: `Use ${'x'.repeat(990)}`,
+    question: 'q'.repeat(1000), scope: 's'.repeat(1000), explanation: 'e'.repeat(800), evidence: 'v'.repeat(800) });
+  assert.equal(result.isError, true);
+  assert.equal(f.tasks.get('ex-choice').metadata, undefined); assert.equal(f.comments.length, 0);
+});
+
 test('owner task comments close decisions and release dependents; a forged comment or stale proposal does nothing', async () => {
   const f = fixture();
   f.put('ex-decision', { issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });

@@ -17,6 +17,12 @@ export interface TaskMaintenance {
     readonly owner?: string;
     readonly source?: string;
     readonly scope?: string;
+    /** A directly witnessed chat answer is recorded by the admitted agent,
+     * without claiming independent authentication of the chat's author. */
+    readonly answerMode?: 'direct';
+    readonly question?: string;
+    /** The stored option corresponding to the owner's exact decision-card reply. */
+    readonly option?: TaskChoiceKey;
     /** Checked inactivity and preserved progress; elapsed age alone is insufficient. */
     readonly holder?: string;
     readonly inactive?: true;
@@ -365,9 +371,10 @@ export declare function taskProposal(row: Record<string, unknown>): string;
 export declare class TaskMaintenanceRefused extends Error {
     name: string;
 }
-/** Resolve short replies only against the frozen proposal. Free text is a direction,
- * never a guessed option; an unclear short answer leaves the question open. */
-export declare function replyOption(response: string, choices: TaskChoices | null, taskId?: string): TaskChoiceKey | null;
+/** Resolve short replies against the frozen proposal. A directly witnessed card
+ * selection may map a clearer label to a stored option; uncertainty or an
+ * explicit conflicting choice still leaves the question open. */
+export declare function replyOption(response: string, choices: TaskChoices | null, taskId?: string, selected?: TaskChoiceKey): TaskChoiceKey | null;
 /** Evidence-backed task maintenance. The caller verifies linked conversation
  * evidence; the server verifies task comments, proposal identity and reservation
  * comparisons. Retirement records no permission and leaves gated actions blocked. */
