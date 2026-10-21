@@ -12,6 +12,7 @@ import type { HomeModuleId, WordLevel } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
+import { AgentMark } from "@/components/AgentMark";
 import { AddSiteButton } from "@/components/AddSite";
 import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { PageHeader } from "@/components/PageHeader";
@@ -65,8 +66,8 @@ import { MoneyHero } from "@/routes/home/MoneyHero";
 /**
  * Home answers how the business is doing, what is broken and what needs the
  * operator, drawn from the data: the month's money as the lead with
- * yesterday's revenue within it and the last 28 days' visitors and sites beside it;
- * the ranked problems, the decisions waiting and the agents' work; the last day on a time axis. The
+ * yesterday's revenue within it; a two-column group of problems, decisions,
+ * agents and the last 28 days' visitors; the sites compared; the last day on a time axis. The
  * person's view picks which of these regions are drawn and in what order. A
  * fresh install sees the three steps to a first number instead.
  */
@@ -150,18 +151,16 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
   for (const issue of issues) for (const condition of issue.conditions) conditions.add(condition);
 
-  const sitesUnderVisitors = modules.includes("yesterday") && modules.includes("sites");
-  const shownModules = sitesUnderVisitors ? modules.filter((module) => module !== "sites" && (money !== null || module !== "yesterday")) : modules;
+  const visitorsInOverview = modules.includes("yesterday");
   const draw: Record<HomeModuleId, () => ReactNode> = {
-    money: () => (
-      <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
-        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs)} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <div className="flex flex-col gap-5"><PeopleLead assets={data.assets} />{sitesUnderVisitors ? draw.sites() : null}</div>}
+    money: () => money || !visitorsInOverview ? (
+      <div className={cn("@3xl:col-span-2", stacks ? "@6xl:col-span-8" : "@6xl:col-span-12")} data-surface-hero="">
+        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs)} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
       </div>
-    ),
+    ) : null,
     yesterday: () => (
-      <div className="flex flex-col gap-5 @3xl:col-span-2 @6xl:col-span-4" data-home-visitors="">
-        {money ? <VisitorsLast28Days assets={data.assets} /> : null}
-        {sitesUnderVisitors ? draw.sites() : null}
+      <div className="min-w-0" data-home-visitors="">
+        <VisitorsLast28Days assets={data.assets} />
       </div>
     ),
     problems: () => (
@@ -215,7 +214,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
         wordLevel={view.wordLevel}
       />
-      <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
+      <HomeModules modules={modules} draw={draw} layout={stacks ? "stacks" : "grid"} />
     </div>
   );
 }
@@ -310,7 +309,7 @@ function VisitorsLast28Days({ assets, display = false }: { assets: readonly Asse
       size={display ? "display" : "figure"}
       to="/assets"
       history={people && people.series.length >= 3 ? (
-        <BarStrip contributors={people.contributors} partial={people.partial} data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last 28 days" className={display ? "h-20" : "h-10"} />
+        <BarStrip contributors={people.contributors} partial={people.partial} data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last 28 days" className="h-20" />
       ) : null}
       context={people ? <>as of <b>{formatSeriesDate(people.date)}</b>{reported.length < DEFAULT_RANGE_DAYS ? ` · ${reported.length} of ${DEFAULT_RANGE_DAYS} days reported` : people.partial.length > 0 ? " · some sites have missing days" : null}</> : null}
     />
@@ -323,7 +322,7 @@ function PeopleLead({ assets }: { assets: readonly AssetCard[] }) {
 }
 
 /** The sites compared: health, people a day, yesterday's money and its
- * change, share of the month. Sources are left to the grid above. */
+ * change and share of the month. */
 function Sites({ assets, issues, money, nowMs }: { assets: readonly AssetCard[]; issues: readonly WallIssue[]; money: HomeMoney | null; nowMs: number }) {
   const total = money?.bySite.reduce((sum, site) => sum + site.amount, 0) ?? 0;
   const rows: PortfolioRow[] = assets.map((asset) => {
@@ -421,15 +420,16 @@ function LiveAgentsLine({ nowMs }: { nowMs: number }) {
 
 /** The agents' completed and active work, from the same snapshot as Decisions. */
 export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work: WorkPayload | undefined; failed?: boolean; nowMs?: number }) {
-  const totals = new Map<string, { name: string; closed: number; active: number; agent: boolean }>();
+  const totals = new Map<string, { name: string; closed: number; active: number; models: Set<string> }>();
   const projects = work?.projects ?? [];
   for (const project of projects) {
     for (const worker of project.ok ? project.workers ?? [] : []) {
-      const entry = totals.get(worker.id) ?? { name: worker.id, closed: 0, active: 0, agent: false };
-      totals.set(worker.id, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress, agent: entry.agent || worker.model !== null });
+      const entry = totals.get(worker.id) ?? { name: worker.id, closed: 0, active: 0, models: new Set<string>() };
+      if (worker.model !== null) entry.models.add(worker.model);
+      totals.set(worker.id, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress });
     }
   }
-  const agents = [...totals.values()].filter((entry) => entry.agent).sort((a, b) => b.closed - a.closed || a.name.localeCompare(b.name));
+  const agents = [...totals.values()].filter((entry) => entry.models.size > 0).sort((a, b) => b.closed - a.closed || a.name.localeCompare(b.name));
   const hasSnapshot = work?.capturedAt != null;
   const complete = projects.length > 0 && projects.every((project) => project.ok && project.workers !== undefined);
   const note = failed || !complete ? "partial read" : hasSnapshot && isAmber(nowMs, work.capturedAt, WORK_POLL_CADENCE_HOURS) ? "outdated" : undefined;
@@ -449,6 +449,7 @@ export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work:
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {agents.slice(0, 3).map((entry) => (
               <li key={entry.name} className="flex min-w-0 items-center gap-2 text-xs" aria-label={`${entry.name}: ${formatInt(entry.closed)} closed, ${formatInt(entry.active)} in progress`}>
+                <AgentMark name={entry.name} models={[...entry.models]} size="small" />
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">{entry.name}</span>
                 <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-viz-track"><span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${closed > 0 ? entry.closed / closed * 100 : 0}%` }} /></span>
                 <span className="w-10 text-end tabular-nums">{formatInt(entry.closed)}</span>

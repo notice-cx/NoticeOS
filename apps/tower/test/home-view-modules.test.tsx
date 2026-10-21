@@ -235,20 +235,22 @@ function expectContentHeight(container: HTMLElement) {
 }
 
 describe("the views draw their modules", () => {
-  it("draws Everything with Sites below Visitors and the three executive summaries together", () => {
+  it("draws the four overview cards as a responsive two-by-two group with Sites immediately below", () => {
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"]);
+    expect(modulesDrawn(container)).toEqual(["money", "problems", "decide", "agents", "yesterday", "sites", "timeline"]);
     expect(grid(container).getAttribute("class")).toBe("grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0");
-    const visitorsColumn = container.querySelector("[data-home-visitors]")!;
-    expect(visitorsColumn.querySelector("[data-home-sites]")).not.toBeNull();
+    const overview = container.querySelector("[data-home-overview]")!;
+    expect(overview).toHaveClass("grid", "@3xl:grid-cols-2", "items-start");
+    expect([...overview.children].map((card) => card.matches("[data-incident-list]") ? "problems" : card.matches("[data-decision-queue]") ? "decisions" : card.matches("[data-home-agents]") ? "agents" : card.matches("[data-home-visitors]") ? "visitors" : "unknown"))
+      .toEqual(["problems", "decisions", "agents", "visitors"]);
+    expect(overview.nextElementSibling).toHaveAttribute("data-home-sites");
     expect(container.querySelectorAll("[data-home-sites]")).toHaveLength(1);
+    expect(container.querySelector("[data-home-visitors]")?.querySelector("[data-home-sites]")).toBeNull();
     expect(container.querySelector("[data-home-health]")).toBeNull();
-    const summaries = container.querySelector("[data-incident-list]")!.parentElement!;
-    expect(summaries).toHaveClass("@6xl:col-span-12", "@6xl:grid-cols-3");
-    expect(summaries.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
-    expect(summaries.querySelector(":scope > [data-home-agents]")).not.toBeNull();
+    const visitors = overview.querySelector("[data-home-visitors]")!;
+    expect(visitors).not.toHaveClass("h-full", "self-stretch");
     expect(container.querySelector("[data-home-module]")).toBeNull();
     expect(container.querySelector("[data-home-answer-health]")).toBeNull();
     expect(container.querySelector("[data-home-answer] h2")!.textContent).toBe("October so far $45 est. Nothing is broken.");

@@ -22,7 +22,7 @@ describe('the view registry', () => {
     expect(everything.nav).toEqual([...VIEW_NAV_PATHS]);
     // The seven Home modules, in their display order; the modules after them are drawn only
     // by the views that name them.
-    expect(everything.home).toEqual(['money', 'yesterday', 'sites', 'problems', 'decide', 'agents', 'timeline']);
+    expect(everything.home).toEqual(['money', 'problems', 'decide', 'agents', 'yesterday', 'sites', 'timeline']);
     expect(HOME_MODULES.slice(0, 7)).toEqual(everything.home);
     expect(everything.home).not.toContain('sources');
     expect(everything.siteTabs).toContain('sources');
@@ -76,7 +76,7 @@ describe('homeModulesFor', () => {
   it('never adds a module the view does not draw', () => {
     expect(homeModulesFor({ view: 'business', focus: ['visitors', 'site-health'] })).toEqual(['health', 'money', 'factory', 'decide']);
     expect(homeModulesFor({ view: 'everything', focus: ['visitors'] })).toEqual([
-      'sites', 'money', 'yesterday', 'problems', 'decide', 'agents', 'timeline',
+      'sites', 'money', 'problems', 'decide', 'agents', 'yesterday', 'timeline',
     ]);
   });
 });

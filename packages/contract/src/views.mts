@@ -33,11 +33,11 @@ export type ViewNavPath = (typeof VIEW_NAV_PATHS)[number];
  * is the one-line summary every view keeps at the top. */
 export const HOME_MODULES = [
   "money",
-  "yesterday",
-  "sites",
   "problems",
   "decide",
   "agents",
+  "yesterday",
+  "sites",
   "timeline",
   "health",
   "factory",
@@ -125,7 +125,7 @@ export const VIEW_LIBRARY: readonly ViewSpec[] = [
     label: "Everything",
     detail: "Every page and every figure.",
     nav: [...VIEW_NAV_PATHS],
-    home: ["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"],
+    home: ["money", "problems", "decide", "agents", "yesterday", "sites", "timeline"],
     siteTabs: [...SITE_TABS],
     wordLevel: "technical",
   },

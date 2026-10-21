@@ -752,11 +752,14 @@ describe("Home drawn from the person's view", () => {
   it("draws every module in today's order with no choice stored", () => {
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"]);
-    // Problems, Decisions and Agents share one summary row.
+    expect(modulesDrawn(container)).toEqual(["money", "problems", "decide", "agents", "yesterday", "sites", "timeline"]);
+    // Problems and Decisions sit above Agents and Visitors in one responsive group.
     const column = container.querySelector("[data-incident-list]")!.parentElement!;
     expect(column.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
     expect(column.querySelector(":scope > [data-home-agents]")).not.toBeNull();
+    expect(column).toHaveAttribute("data-home-overview");
+    expect(column.querySelector(":scope > [data-home-visitors]")).not.toBeNull();
+    expect(column.nextElementSibling).toHaveAttribute("data-home-sites");
   });
 
   it("draws exactly health, money, the agents' week and decide for a stored business choice", () => {
@@ -1170,7 +1173,7 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(within(rows[0]!).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute("href", "/assets/meadow.example");
     expect(rows[0]).toHaveTextContent("no visitors reported");
     expect(container.querySelector("[data-home-health]")).toBeNull();
-    expect(container.querySelector("[data-home-visitors] [data-home-sites]")).not.toBeNull();
+    expect(container.querySelector("[data-home-overview]")?.nextElementSibling).toHaveAttribute("data-home-sites");
     expect(container.textContent).not.toContain("Automation enabled");
     expect(container.textContent).not.toContain("12 open");
   });
@@ -1582,7 +1585,7 @@ describe("Portfolio card with no ledger row at all", () => {
     }
   });
 
-  it("draws no money on Home rather than a $0 nobody counted, and lets the last 28 days' visitors lead", () => {
+  it("draws no money on Home rather than a $0 nobody counted, and shows visitors once in the overview without a revenue source", () => {
     payload.portfolio = nothing;
 
     const { container } = renderHome();
@@ -1593,10 +1596,11 @@ describe("Portfolio card with no ledger row at all", () => {
     expect(container.querySelector("[data-home-answer]")!.textContent).not.toContain("$");
     expect(container.textContent).not.toContain("$0");
     expect(screen.queryByText(/· estimated|est\./)).toBeNull();
-    // The visitors take the lead's place, once.
+    // The overview retains one visitor card without a duplicate money lead.
     const visitors = container.querySelectorAll('[data-stat="Visitors in the last 28 days"]');
     expect(visitors).toHaveLength(1);
-    expect(visitors[0]!.closest("[data-surface-hero]")).not.toBeNull();
+    expect(visitors[0]!.closest("[data-home-overview]")).not.toBeNull();
+    expect(container.querySelector("[data-surface-hero]")).toBeNull();
   });
 
   it("brings the month's figure back on the first forecast-only row", () => {

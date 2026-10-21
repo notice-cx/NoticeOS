@@ -1,10 +1,10 @@
 {
   "claude.svg": {
     "source": "https://www-cdn.anthropic.com/ae59ca4ca194dac9c9dc3bc78c5829468cb0e8af.zip",
-    "path": "Anthropic media resources/Anthropic logos/Claude logos/3 Claude Spark/SVG/Claude Spark - Clay.svg",
+    "path": "Anthropic media resources/Anthropic logos/Claude logos/4 Claude icon/SVG/ClaudeIcon-Square.svg",
     "reference": "https://www.anthropic.com/press-kit",
-    "retrieved": "2026-10-13",
-    "sha256": "6d53db4be375e899c937c26cf16684a80d6e869b1928d72b37748bef2560e219"
+    "retrieved": "2026-10-21",
+    "sha256": "7f8cf3b32b0baddd3b412d235f472f0ee4081f252e3eaceb29b8398fdfe17645"
   },
   "openai.png": {
     "source": "https://open-vsx.org/api/openai/chatgpt/alpine-arm64/26.5908.31748/file/blossom.dark.png",
