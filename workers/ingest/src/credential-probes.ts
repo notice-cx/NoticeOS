@@ -178,7 +178,15 @@ async function runProbe(
 ): Promise<ProbeFound> {
   if (provider === 'cloudflare') {
     try { return { ok: true, result: { outcome: 'answered', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } } }; }
-    catch (error) { return { ok: false, result: error instanceof CloudflareD1Error && error.code === 'access_denied' ? { outcome: 'refused', fix: { kind: 'replace' } } : { outcome: 'unreachable' } }; }
+    catch (error) {
+      const result: ProbeResult = error instanceof CloudflareD1Error && error.code === 'access_denied'
+        ? { outcome: 'refused', fix: { kind: 'replace' } }
+        : error instanceof CloudflareD1Error && error.code === 'rate_limited'
+          ? { outcome: 'rate-limited', fix: { kind: 'wait' } }
+          : { outcome: 'unreachable' };
+      if (error instanceof CloudflareD1Error && error.failure) result.failure = error.failure;
+      return { ok: false, result };
+    }
   }
   if (provider === 'google') return probeGoogle(env, fields, fetchImpl, nowMs);
   if (provider === 'google-oauth-app') return probeGoogleOAuthApp(fields);

@@ -320,7 +320,7 @@ from the `choices` an agent passes to `create_task`, `create_tasks` or
 `{ question, options: [{ key, label, detail?, recommended? }] }`, two to six
 options keyed `a` to `f` in the order shown, exactly one with
 `recommended: true`. `noticeos_choice` is the pick, written once by the
-choose operation, or by `reconcile_task` after verifying an existing owner answer and its proposal:
+choose operation, or by `reconcile_task` after recording an existing owner answer against its proposal:
 `{ option, label, by, at, note? }`, where `label` is the option's label when
 it was chosen and `by` is the person. Once `noticeos_choice` is present,
 `update_task` refuses to change `noticeos_choices`.
@@ -329,10 +329,22 @@ it was chosen and `by` is the person. Once `noticeos_choice` is present,
 its actor, source, exact proposal and scope. Task history retains earlier
 records. A retired gate records no permission; its unfinished action remains
 blocked, or retains an equivalent open approval when it is a duplicate.
-A linked-conversation answer requires a trusted source adapter. Without that
-adapter, the recorded answer stays available and the operation fails closed;
-the owner does not need to answer again. A task-comment answer must match its
-human owner and the proposal at the comment's timestamp.
+For an answer received directly from the owner in an agent's chat,
+`reconcile_task` takes `answer_mode: "direct"`, the exact `question` and
+`response`, the chat `source` and the authorised `scope`. The admitted agent
+is recorded as the recorder, with `verification: "agent-recorded"`; this does
+not establish independent authentication of the chat's author. `option` maps
+a decision-card selection to its stored option when the displayed wording
+differs, while preserving the exact reply. An approval question must include
+the complete requested action, environment and verification; the answer must
+explicitly approve that scope. An implementation task returns to ready work;
+a decision-only task closes. Other blocking dependencies still apply.
+
+Other linked-conversation answers require a trusted source adapter and record
+`verification: "source-verified"`. Without that adapter, the recorded answer
+stays available and the operation fails closed; the owner does not need to
+answer again. A task-comment answer must match its human owner and the proposal
+at the comment's timestamp.
 
 **Four kinds, and what each one's key is.** `noticeos_kind` names the surface
 that raised the work, and `noticeos_key` is the join back to the exact row:

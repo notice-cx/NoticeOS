@@ -60,8 +60,8 @@ export const TASK_QUALITY = Object.freeze([
  * refusal: oldest first, each one line opening with its date, at most three
  * (a new entry drops the first). */
 export const WHATS_CHANGED = Object.freeze([
-    '2026-10-17: create_task and update_task take choices; a person\'s pick or answer hands the task back to ready work, with choice on it; close_task takes resolution and duplicate_of.',
     '2026-10-17: list_tasks takes assignee ("me" for what you hold) and, with no project, lists every project; list_workspaces returns guideVersion; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
+    '2026-10-21: reconcile_task accepts answers received directly in chat with answer_mode: direct, the exact question and reply, a chat source and scope. It records the admitted agent as the recorder; option maps a decision-card selection to a stored choice. Independent source verification remains the default for other answers.',
     '2026-10-21: create_task, create_tasks and update_task take card, what the work is worth, which the Tower ranks tasks by, and change_class; update_task takes null to take either off; get_task and list_tasks return them as card and changeClass.',
 ]);
 /** How a session starts, said in every session's instructions. */
@@ -78,7 +78,7 @@ export const TASK_WORKFLOW = Object.freeze([
     '6. Found work goes to create_task, or create_tasks for several, in the project that owns it.',
     '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. The owner may answer on Tasks or in an explicitly linked conversation.',
     '8. A person\'s answer or pick on a task of yours takes off its human label and returns it to ready work, with the answer as a comment and the pick as choice; claim it again to carry on. A decision closes on the answer or pick instead.',
-    '9. Use get_task then reconcile_task to record an existing owner answer and its exact scope; do not ask the owner to close the task or release an old assignment. Match short replies to the proposal the owner saw. Apply a clearly scoped batch answer only to its named tasks. If ambiguous, ask one clarification only for the ambiguity.',
+    '9. Use get_task then reconcile_task to record an existing owner answer and its exact scope; do not ask the owner to close the task or release an old assignment. For an answer received directly from the owner in your chat, set answer_mode: direct, include the exact question, reply and chat source, and map a decision-card selection with option when its label differs from the stored choice. This records your relay, not independent authentication. Other sources require verification. Match short replies to the proposal the owner saw. Apply a clearly scoped batch answer only to its named tasks. If ambiguous, ask one clarification only for the ambiguity.',
     '10. With concrete evidence and a plain explanation, reconcile_task may close completed outcomes, obsolete requests, explicitly superseded decisions or duplicates that retain complete scope elsewhere; routine work loses its human label. Code existing does not prove a business decision was approved. Keep history; update_task can reopen a closed task.',
     '11. Assignments are reservations: investigate an old assignment, verify its holder is no longer working and preserve progress before reconcile_task action release. Age alone never proves abandonment.',
     'These tools are the task interface: never run bd, bv or br in a project folder.',
@@ -619,9 +619,9 @@ function readingText(tool) {
         } });
 }
 export const TASK_MCP_TOOLS = Object.freeze([
-    { name: 'reconcile_task', description: 'Record a verified existing owner answer, retire a completed/obsolete/superseded/duplicate human request, '
+    { name: 'reconcile_task', description: 'Record an existing owner answer, retire a completed/obsolete/superseded/duplicate human request, '
             + 'remove a routine human label, or release a confirmed inactive assignment. Read get_task first and send its proposal snapshot. '
-            + 'Evidence and a plain explanation are required. Verify owner identity and the exact proposal in the linked source; never invent an answer. '
+            + 'Evidence and a plain explanation are required. For an answer received directly from the owner in this chat, use answer_mode: direct with the exact question and reply; your authenticated agent identity is recorded as the recorder. Otherwise verify owner identity and the exact proposal in the linked source. Never invent an answer. '
             + 'For batch replies, call once per explicitly named task within the answered scope. '
             + 'Retirement grants no permission; production reads/writes, spending, messages, destructive actions and material commitments still require explicit action-specific approval.',
         inputSchema: schema({ project: PROJECT, task: TASK,
@@ -633,6 +633,9 @@ export const TASK_MCP_TOOLS = Object.freeze([
             owner: { type: 'string', description: 'For answer: verified human author of the cited source, never the relaying agent.' },
             source: { type: 'string', description: 'For answer: comment:<id> on this task, or an explicitly linked https:// or codex://threads/ conversation.' },
             scope: { type: 'string', maxLength: 1000, description: 'For answer: exactly what the owner authorized. An approval gate requires its exact full Reason text.' },
+            answer_mode: { type: 'string', enum: ['direct'], description: 'Only for an answer received directly from the human owner in your chat. Records an agent relay without independent history verification. Omit for source-verified answers.' },
+            question: { type: 'string', maxLength: 1000, description: 'For direct answers: the exact question presented to the owner. Approval questions must include the complete requested action, environment and verification.' },
+            option: { type: 'string', enum: TASK_CHOICE_KEYS, description: 'For a direct decision-card answer: the stored option corresponding to the exact selected reply. Preserve the reply in response; never map an uncertain or conflicting answer.' },
             duplicate_of: { type: 'string', description: 'For duplicate: open task retaining complete scope. Duplicate gates must match the full request.' },
             holder: { type: 'string', description: 'For release: exact current assignee.' },
             inactive: { type: 'boolean', description: 'For release: true only after checking the holder is no longer working; age alone is insufficient.' },
@@ -641,13 +644,15 @@ export const TASK_MCP_TOOLS = Object.freeze([
             model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'idempotency_key']),
         annotations: WRITE,
         async run(context, args) {
-            only(args, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'response', 'owner', 'source', 'scope',
+            only(args, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'response', 'owner', 'source', 'scope', 'answer_mode', 'question', 'option',
                 'duplicate_of', 'holder', 'inactive', 'activity_check', 'progress', 'model', 'idempotency_key']);
             const operation = defined({ kind: 'maintain', taskId: task(args),
                 action: choice(args, 'action', MAINTENANCE_ACTIONS), proposal: textArg(args, 'proposal', 30000),
                 explanation: textArg(args, 'explanation', 800), evidence: textArg(args, 'evidence', 800), model: modelArg(args),
                 response: textArg(args, 'response', 1000, false), owner: textArg(args, 'owner', HOSTED_TASK_LIMITS.identifier, false),
                 source: textArg(args, 'source', 512, false), scope: textArg(args, 'scope', 1000, false),
+                answerMode: choice(args, 'answer_mode', ['direct']), question: textArg(args, 'question', 1000, false),
+                option: choice(args, 'option', TASK_CHOICE_KEYS),
                 duplicateOf: args.duplicate_of === undefined ? undefined : task(args, 'duplicate_of'),
                 holder: textArg(args, 'holder', HOSTED_TASK_LIMITS.identifier, false),
                 inactive: args.inactive, activityCheck: textArg(args, 'activity_check', 800, false),

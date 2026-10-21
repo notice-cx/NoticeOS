@@ -1256,6 +1256,20 @@ describe("testing a connection", () => {
     expect(onReplace).toHaveBeenCalledTimes(1);
   });
 
+  it("shows safe failure details from a probe without displaying an arbitrary message", async () => {
+    api.test.mockResolvedValue({
+      ok: false, message: "private-provider-text",
+      result: { outcome: "unreachable", failure: { kind: "invalid-response", status: 200 } },
+      checkedAt: new Date(NOW).toISOString(),
+    });
+    renderCard(connected());
+    fireEvent.click(document.querySelector("[data-test-connection]") as HTMLElement);
+    await waitFor(() => {
+      expect(document.querySelector('[data-probe-fact="failure"]')).toHaveTextContent("Invalid response · HTTP 200");
+    });
+    expect(document.body.textContent).not.toContain("private-provider-text");
+  });
+
   it("keeps Test connection for a free probe, and names the message for one that reaches the channel", () => {
     // The press that surprises is named on the button itself, before the press.
     const { unmount } = renderCard(

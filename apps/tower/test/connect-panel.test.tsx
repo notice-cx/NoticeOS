@@ -86,6 +86,21 @@ describe("the row's one status", () => {
 });
 
 describe("the connect panel", () => {
+  it("shows a Cloudflare HTTP failure and code instead of claiming there was no response", async () => {
+    const value = crypto.randomUUID();
+    renderPanel(integrationProvider("cloudflare")!, vi.fn(async () => ({
+      verdict: "unreachable", checkedAt: AT, failure: { kind: "http", status: 400, providerCode: 10000 },
+    }) as ConnectVerdict));
+    const dialog = screen.getByRole("dialog", { name: "Cloudflare" });
+    fireEvent.change(within(dialog).getByLabelText("Account ID"), { target: { value: "a".repeat(32) } });
+    fireEvent.change(within(dialog).getByLabelText("API token"), { target: { value } });
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Connect" })));
+    expect(dialog.querySelector('[data-connect-state="unreachable"]')).toHaveTextContent("Cloudflare: Request failed · HTTP 400 · Code 10000");
+    expect(within(dialog).queryByText(/No response/)).toBeNull();
+    expect(within(dialog).getByLabelText("API token")).toHaveValue(value);
+    expect(dialog.textContent).not.toContain(value);
+  });
+
   it("shows Cloudflare database access without calling databases sites or echoing its token", async () => {
     const provider = integrationProvider("cloudflare")!;
     const value = crypto.randomUUID();

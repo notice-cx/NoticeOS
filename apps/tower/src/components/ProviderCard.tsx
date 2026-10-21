@@ -36,7 +36,7 @@ import {
   type ProbeResult,
   type ProviderMeterReading,
 } from "@shared/integrations-page";
-import { acceptedAs, exactUsd, probeOutcomeLabel } from "@noticeos/contract/integrations";
+import { acceptedAs, connectionFailureLabel, exactUsd, probeOutcomeLabel } from "@noticeos/contract/integrations";
 import { siteNoun } from "@shared/site-noun";
 import { type EnvImportBlock } from "@shared/env-import";
 import { ageMs, formatAge } from "@shared/freshness";
@@ -574,7 +574,8 @@ function Verdict({
 function ProbeResultValues({ result, children }: { result: ProbeResult; children?: ReactNode }) {
   const facts = result.facts ?? {};
   const values: { key: string; label: string; mono?: boolean }[] = [];
-  if (result.status !== undefined) values.push({ key: "status", label: `HTTP ${result.status}` });
+  if (result.failure) values.push({ key: "failure", label: connectionFailureLabel(result.failure) });
+  else if (result.status !== undefined) values.push({ key: "status", label: `HTTP ${result.status}` });
   if (facts.sites !== undefined) values.push({ key: "sites", label: `${facts.sites} ${siteNoun(facts.sites)}` });
   if (facts.databases !== undefined) values.push({ key: "databases", label: `${facts.databases} ${facts.databases === 1 ? "database" : "databases"}` });
   if (facts.projects !== undefined) values.push({ key: "projects", label: `${facts.projects} ${facts.projects === 1 ? "project" : "projects"}` });

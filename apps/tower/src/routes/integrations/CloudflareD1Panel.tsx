@@ -14,7 +14,8 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
 }) {
   const api = useTowerApi();
   const nightly = useBrowserRuntime().owner.mode === 'standalone';
-  const [session] = useState(() => crypto.randomUUID());
+  // A cache discriminator only; this panel also runs outside secure contexts.
+  const [session] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const status = useQuery({ queryKey: ['cloudflare-d1', session], queryFn: async () => {
     const saved = await api.fetchD1Status(!inventory);
     return inventory && inventory.accountId !== saved.accountId ? api.fetchD1Status(true) : saved;

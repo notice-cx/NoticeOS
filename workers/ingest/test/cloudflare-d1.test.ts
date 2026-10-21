@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
 import { assertCredentialOwner, credentialSummary, resolveCredential } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
-import { CloudflareD1Error, listD1Databases } from '../src/cloudflare-d1-client.js';
+import { CloudflareD1Error, d1Api, listD1Databases } from '../src/cloudflare-d1-client.js';
 import { storedCredential, forgetCredentials, reset } from './helpers.js';
 
 const ACCOUNT = 'a'.repeat(32);
@@ -15,8 +15,9 @@ afterEach(async () => { await forgetCredentials(); });
 
 function listing(value: string): typeof fetch {
   return (async (input, init) => {
+    new Request(input, init);
     expect(String(input)).toBe(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/d1/database?page=1&per_page=100`);
-    expect(init?.redirect).toBe('error');
+    expect(init?.redirect).toBe('manual');
     expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${value}`);
     return Response.json({ success: true, result: [{ uuid: DATABASE, name: 'Example database' }], result_info: { page: 1, per_page: 100, count: 1, total_count: 1 } });
   }) as typeof fetch;
@@ -40,7 +41,7 @@ it('keeps the working token when its replacement is refused', async () => {
   const result = await connectCredential(env, { provider: 'cloudflare', fields: fields(replacement) }, {
     fetchImpl: (async () => Response.json({ errors: [{ message: replacement }] }, { status: 403 })) as typeof fetch,
   });
-  expect(result).toMatchObject({ ok: true, verdict: 'refused' });
+  expect(result).toMatchObject({ ok: true, verdict: 'refused', failure: { kind: 'http', status: 403 } });
   expect((await resolveCredential(env, 'cloudflare')).fields.CLOUDFLARE_API_TOKEN).toBe(original);
   expect(JSON.stringify(result)).not.toContain(replacement);
 });
@@ -50,8 +51,69 @@ it('reports a provider transport failure without storing or exposing its error',
   const result = await connectCredential(env, { provider: 'cloudflare', fields: fields(value) }, {
     fetchImpl: (async () => { throw new Error(value); }) as typeof fetch,
   });
-  expect(result).toMatchObject({ ok: true, verdict: 'unreachable' });
+  expect(result).toMatchObject({ ok: true, verdict: 'unreachable', failure: { kind: 'network' } });
   expect((await resolveCredential(env, 'cloudflare')).source).toBe('none');
+  expect(JSON.stringify(result)).not.toContain(value);
+});
+
+it.each([400, 401, 403, 429, 500])('preserves HTTP %i and only a numeric provider code without saving the failed token', async status => {
+  const value = token();
+  const result = await connectCredential(env, { provider: 'cloudflare', fields: fields(value) }, {
+    fetchImpl: (async () => Response.json({
+      success: false, errors: [{ code: 10000, message: `${ACCOUNT} ${value}`, details: { token: value } }],
+    }, { status })) as typeof fetch,
+  });
+  expect(result).toMatchObject({
+    ok: true, verdict: status === 401 || status === 403 ? 'refused' : 'unreachable',
+    failure: { kind: status === 429 ? 'rate-limited' : 'http', status, providerCode: 10000 },
+  });
+  expect((await resolveCredential(env, 'cloudflare')).source).toBe('none');
+  expect(JSON.stringify(result)).not.toContain(value);
+  expect(JSON.stringify(result)).not.toContain(ACCOUNT);
+});
+
+it('distinguishes an HTTP response from malformed JSON and an invalid database inventory', async () => {
+  const value = token();
+  for (const [response, failure] of [
+    [new Response(value, { status: 502 }), { kind: 'http', status: 502 }],
+    [new Response(value), { kind: 'invalid-response', status: 200 }],
+    [Response.json({ success: false, errors: [{ code: value, message: value }] }), { kind: 'invalid-response', status: 200 }],
+    [Response.json({ success: true, result: [{ uuid: value, name: value }], result_info: { count: 2 } }), { kind: 'invalid-inventory' }],
+  ] as const) {
+    const result = await connectCredential(env, { provider: 'cloudflare', fields: fields(value) }, { fetchImpl: (async () => response) as typeof fetch });
+    expect(result).toMatchObject({ ok: true, verdict: 'unreachable', failure });
+    expect(JSON.stringify(result)).not.toContain(value);
+    expect((await resolveCredential(env, 'cloudflare')).source).toBe('none');
+  }
+});
+
+it.each([['ENOTFOUND', 'dns'], ['ERR_TLS_CERT_ALTNAME_INVALID', 'tls'], ['ECONNRESET', 'network']])('classifies %s without exposing transport details', async (code, kind) => {
+  const value = token();
+  const result = await connectCredential(env, { provider: 'cloudflare', fields: fields(value) }, {
+    fetchImpl: (async () => { throw new Error(value, { cause: { code, message: value } }); }) as typeof fetch,
+  });
+  expect(result).toMatchObject({ verdict: 'unreachable', failure: { kind } });
+  expect(JSON.stringify(result)).not.toContain(value);
+});
+
+it('bounds a request that never answers and reports a timeout without the abort reason', async () => {
+  const controller = new AbortController(); const value = token();
+  await expect(d1Api(ACCOUNT, value, '', {
+    signal: controller.signal,
+    fetchImpl: (() => { controller.abort(value); return new Promise<Response>(() => {}); }) as typeof fetch,
+  })).rejects.toMatchObject({ code: 'timeout', failure: { kind: 'timeout' }, message: 'timeout' });
+});
+
+it('reports throttling on an existing connection as a wait action with safe diagnostics', async () => {
+  const value = token();
+  await connectCredential(env, { provider: 'cloudflare', fields: fields(value) }, { fetchImpl: listing(value) });
+  const result = await probeCredential(env, 'cloudflare', {
+    fetchImpl: (async () => Response.json({ success: false, errors: [{ code: 10000, message: value }] }, { status: 429 })) as typeof fetch,
+  });
+  expect(result).toMatchObject({
+    ok: false, result: { outcome: 'rate-limited', fix: { kind: 'wait' }, failure: { kind: 'rate-limited', status: 429, providerCode: 10000 } },
+    message: 'Rate limited · Request limit reached · Try again later · HTTP 429 · Code 10000',
+  });
   expect(JSON.stringify(result)).not.toContain(value);
 });
 

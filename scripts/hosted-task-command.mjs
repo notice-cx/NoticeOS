@@ -253,7 +253,7 @@ function command(input) {
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
         case 'maintain': {
-            keys(op, ['kind', 'taskId', 'action', 'proposal', 'explanation', 'evidence'], ['model', 'duplicateOf', 'response', 'owner', 'source', 'scope', 'holder', 'inactive', 'activityCheck', 'progress']);
+            keys(op, ['kind', 'taskId', 'action', 'proposal', 'explanation', 'evidence'], ['model', 'duplicateOf', 'response', 'owner', 'source', 'scope', 'answerMode', 'question', 'option', 'holder', 'inactive', 'activityCheck', 'progress']);
             task(op.taskId);
             choice(op.action, MAINTENANCE_ACTIONS);
             text(op.proposal, 30000);
@@ -269,8 +269,26 @@ function command(input) {
                 // A source must identify a comment or an explicitly linked conversation.
                 if (!/^(?:comment:|https:\/\/|codex:\/\/threads\/)/u.test(String(op.source)))
                     invalid();
+                if (op.answerMode !== undefined) {
+                    choice(op.answerMode, ['direct']);
+                    text(op.question, 1000);
+                    let source;
+                    try {
+                        source = new URL(String(op.source));
+                    }
+                    catch {
+                        return invalid();
+                    }
+                    if (source.username || source.password || !source.hostname || source.pathname === '/'
+                        || !(source.protocol === 'https:' || source.protocol === 'codex:' && source.hostname === 'threads'))
+                        invalid();
+                    if (op.option !== undefined)
+                        choice(op.option, TASK_CHOICE_KEYS);
+                }
+                else if (['question', 'option'].some(key => Object.hasOwn(op, key)))
+                    invalid();
             }
-            else if (['response', 'owner', 'source', 'scope'].some(key => Object.hasOwn(op, key)))
+            else if (['response', 'owner', 'source', 'scope', 'answerMode', 'question', 'option'].some(key => Object.hasOwn(op, key)))
                 invalid();
             if (op.action === 'release') {
                 text(op.holder, HOSTED_TASK_LIMITS.identifier);
@@ -728,34 +746,53 @@ export class TaskMaintenanceRefused extends Error {
     name = 'TaskMaintenanceRefused';
 }
 function maintenanceRefused(message) { throw new TaskMaintenanceRefused(message); }
-/** Resolve short replies only against the frozen proposal. Free text is a direction,
- * never a guessed option; an unclear short answer leaves the question open. */
-export function replyOption(response, choices, taskId) {
-    if (/\?|\b(?:not sure|unsure|maybe|perhaps|need more|need to think|can you explain|what do you mean)\b/iu.test(response)) {
+/** Resolve short replies against the frozen proposal. A directly witnessed card
+ * selection may map a clearer label to a stored option; uncertainty or an
+ * explicit conflicting choice still leaves the question open. */
+export function replyOption(response, choices, taskId, selected) {
+    if (/\?|\b(?:not sure|unsure|maybe|perhaps|need more|need to think|can you explain|what do you mean)\b|^(?:whatever|anything|either|you choose|you decide|no preference)[.!]?$/iu.test(response.trim())) {
         return maintenanceRefused('This reply leaves the decision unresolved. Ask one clarification covering only the uncertainty.');
+    }
+    if (selected !== undefined && !choices?.options.some(option => option.key === selected)) {
+        return maintenanceRefused('The selected option is not in this task’s proposal.');
     }
     if (choices === null)
         return null;
+    const matched = (option) => {
+        if (selected !== undefined && option !== selected)
+            return maintenanceRefused('The selected option conflicts with the owner’s answer.');
+        return option;
+    };
     const reply = response.trim().replace(/[.!]$/u, '').toLowerCase();
+    // Question UIs may append recommendation markers and descriptions to a label.
+    const cardLabel = reply.split(/\s+[—–]\s+/u)[0].replace(/\s*\(recommended\)/gu, '').trim();
     const batch = /^([a-f]) for (.+)$/u.exec(reply);
     const named = batch?.[2]?.match(/[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*/giu) ?? [];
-    const letter = /^\(?([a-f])\)?$/u.exec(reply)?.[1]
+    const letter = /^\(?([a-f])\)?$/u.exec(cardLabel)?.[1]
+        ?? (selected !== undefined ? /^\(?([a-f])[).:]\s+/u.exec(cardLabel)?.[1] : undefined)
         ?? (taskId && named.includes(taskId.toLowerCase()) ? batch?.[1] : undefined);
     if (letter) {
         if (choices.options.some(option => option.key === letter))
-            return letter;
+            return matched(letter);
         return maintenanceRefused('That letter is not an offered option. Ask which offered option the owner means.');
     }
     if (/^(?:yes[, ]+)?(?:your |the )?recommendation(?: please)?$/u.test(reply)
         || /^(?:yes[, ]+)?(?:go with |use |do )(?:your |the )?recommendation$/u.test(reply)) {
-        return choices.options.find(option => option.recommended).key;
+        return matched(choices.options.find(option => option.recommended).key);
     }
-    const label = choices.options.find(option => option.label.toLowerCase() === reply);
+    const label = choices.options.find(option => option.label.toLowerCase() === cardLabel);
     if (label)
-        return label.key;
+        return matched(label.key);
     if (/^(?:yes|no|ok|okay|sure|approved|go ahead|that one|all|both)$/u.test(reply)) {
         return maintenanceRefused('This reply does not identify an option. Ask one clarification naming only the unresolved choice.');
     }
+    if (batch)
+        return maintenanceRefused('This reply does not name this task. Ask one clarification covering only the unresolved choice.');
+    if (selected !== undefined && /^(?:no[, ]|not\b|don't\b|do not\b)/u.test(reply)) {
+        return maintenanceRefused('This reply does not identify an option. Keep the unresolved choice open.');
+    }
+    if (selected !== undefined)
+        return selected;
     if (!/^(?:please )?(?:use|build|keep|switch|remove|add|set|return|make|change|stop|start|leave|ship|do not|don't|skip|choose|go with|move|enable|disable|create|proceed|implement|replace|rename|align|put|show|hide|include|exclude|reduce|increase|retain|drop|combine|split|follow|apply|send|publish|defer|wait|accept|reject|cancel|continue|schedule|run|review|record|close|reopen)\b|^(?:i (?:want|approve|choose|prefer)|let's|let us|we should)\b/u.test(reply)) {
         return maintenanceRefused('This reply does not give a clear direction. Ask one clarification covering only the unresolved choice.');
     }
@@ -794,8 +831,8 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
     const steps = [];
     let answered = [];
     if (operation.action === 'answer') {
-        if (!ownerVerified)
-            return maintenanceRefused('The owner answer could not be authenticated from its source. Keep the recorded answer; connect its trusted source instead of asking the owner again.');
+        if (!ownerVerified && operation.answerMode !== 'direct')
+            return maintenanceRefused('The owner answer could not be authenticated from its source. For an answer received directly in your chat, use answer_mode: direct with the exact question and reply; otherwise keep the answer and connect its trusted source.');
         if (sameActor(operation.owner, actor))
             return maintenanceRefused('An agent cannot supply its own answer as the owner’s.');
         if (operation.source.startsWith('comment:')) {
@@ -807,11 +844,14 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
         if (!isHumanDecision(row) && !same)
             return maintenanceRefused('This task has no unresolved human request.');
         const choices = readTaskChoices(row.metadata);
-        const option = replyOption(operation.response, choices, operation.taskId);
+        const option = replyOption(operation.response, choices, operation.taskId, operation.option);
         if (gate) {
             const scope = /(?:^|\n)Reason:[ \t]*([\s\S]+)$/u.exec(stringOf(row.description))?.[1]?.trim();
             if (!scope || operation.scope !== scope)
                 return maintenanceRefused('Approval scope must exactly match this gate’s requested action, environment and verification.');
+            if (operation.answerMode === 'direct' && !operation.question.includes(scope)) {
+                return maintenanceRefused('The question shown to the owner must include this approval’s complete action, environment and verification.');
+            }
             if (!/^(?:yes|approve|approved|yes[, ]+(?:your |the )?recommendation)[.!]?$/iu.test(operation.response.trim())) {
                 return maintenanceRefused('This is not an explicit approval of the named action. Keep the action blocked and clarify only its approval.');
             }
@@ -827,11 +867,16 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
                 : [handBack(row, operation.taskId)];
         }
     }
-    const value = same ? previous : { identity, by: actor, at, ...operation, permission: operation.action === 'answer' && gate ? 'approved-scope-only' : 'none' };
+    const value = same ? previous : { identity, by: actor, at, ...operation,
+        ...(operation.action === 'answer' ? { verification: operation.answerMode === 'direct' ? 'agent-recorded' : 'source-verified' } : {}),
+        permission: operation.action === 'answer' && gate ? 'approved-scope-only' : 'none' };
     const note = `Task maintenance: ${operation.action}. ${operation.explanation}\nEvidence: ${operation.evidence}`
         + (operation.action === 'answer' ? `\nOwner: ${operation.owner}\nSource: ${operation.source}\nAnswer: ${operation.response}\nScope: ${operation.scope}` : '')
+        + (operation.answerMode === 'direct' ? `\nQuestion: ${operation.question}\nRecorded by: ${actor} (direct chat answer; not independently authenticated)` : '')
         + (operation.action === 'release' ? `\nActivity checked: ${operation.activityCheck}\nProgress preserved: ${operation.progress}` : '')
         + (gate && retiring ? '\nRequest retired. No permission to perform the action was granted.' : '');
+    if (note.length > HOSTED_TASK_LIMITS.comment)
+        return maintenanceRefused('The combined decision record is too long for a task comment. Shorten the explanation and evidence while preserving the exact question, answer and scope.');
     if (!same)
         steps.push({ kind: 'record-maintenance', taskId: operation.taskId, value });
     if (!rowsOf(comments).some(comment => comment.author === actor && comment.text === note)) {

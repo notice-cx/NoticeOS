@@ -405,7 +405,7 @@ export async function handleIntegrationConnectRequest(
   if (result.ok) {
     const answer: ConnectVerdict = result.verdict === "accepted"
       ? { verdict: "accepted", checkedAt: result.checkedAt, facts: result.facts }
-      : { verdict: result.verdict, checkedAt: result.checkedAt };
+      : { verdict: result.verdict, checkedAt: result.checkedAt, ...(result.failure ? { failure: result.failure } : {}) };
     return Response.json(answer, { headers: JSON_HEADERS });
   }
   if (result.error === "unknown_provider") return jsonError("provider_not_found", 404, { provider });

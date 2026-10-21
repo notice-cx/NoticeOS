@@ -182,10 +182,33 @@ export interface ProviderFacts {
   feeds?: number;
 }
 
+/** Safe categories and numeric codes only; provider text and transport errors
+ * can contain credentials and must not enter a connection response. */
+export interface ConnectionFailure {
+  kind: 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large';
+  status?: number;
+  providerCode?: number;
+}
+
+/** Only fixed labels and numeric codes cross the provider boundary. */
+export function connectionFailureLabel(failure: ConnectionFailure): string {
+  const labels: Record<ConnectionFailure['kind'], string> = {
+    network: 'Connection failed', dns: 'Address lookup failed', tls: 'Secure connection failed',
+    timeout: 'Request timed out', http: 'Request failed', 'rate-limited': 'Request limit reached · Try again later',
+    'invalid-response': 'Invalid response', 'invalid-inventory': 'Incomplete or invalid database list',
+    'too-large': 'Response exceeds the connection check limit',
+  };
+  return [
+    labels[failure.kind],
+    failure.status === undefined ? null : `HTTP ${failure.status}`,
+    failure.providerCode === undefined ? null : `Code ${failure.providerCode}`,
+  ].filter(part => part !== null).join(' · ');
+}
+
 export type ConnectVerdict =
   | { verdict: 'accepted'; checkedAt: string; facts: ConnectFacts }
-  | { verdict: 'refused'; checkedAt: string }
-  | { verdict: 'unreachable'; checkedAt: string };
+  | { verdict: 'refused'; checkedAt: string; failure?: ConnectionFailure }
+  | { verdict: 'unreachable'; checkedAt: string; failure?: ConnectionFailure };
 
 /** The ingest's answer to one save-and-test. A refusal and an unreachable
  * provider are ANSWERS (`ok: true` with the verdict); `ok: false` is a request
@@ -1398,6 +1421,7 @@ export type ProbeOutcome = 'answered' | 'refused' | 'unreachable' | 'not-checked
 
 export interface ProbeResult {
   outcome: ProbeOutcome;
+  failure?: ConnectionFailure;
   /** What the answer counted: sites, projects, feeds, the sites holding a
    * token, the prepaid credit, the region, the Google identity used. */
   facts?: ProbeFacts;
@@ -1483,7 +1507,7 @@ export function probeLine(result: ProbeResult): string {
   const credit = exactUsd(facts.creditUsd);
   const parts = [
     PROBE_OUTCOME_WORDS[result.outcome],
-    result.status !== undefined ? `HTTP ${result.status}` : null,
+    result.failure ? connectionFailureLabel(result.failure) : result.status !== undefined ? `HTTP ${result.status}` : null,
     count(facts.sites, 'site', 'sites'),
     count(facts.databases, 'database', 'databases'),
     count(facts.projects, 'project', 'projects'),
