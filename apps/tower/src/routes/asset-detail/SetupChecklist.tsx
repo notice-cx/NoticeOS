@@ -4,7 +4,7 @@ import type { SetupChecklist, SetupChecklistItem } from "@shared/asset-setup";
 
 /**
  * Setup and historical-report progress on Sources, below the Data sources
- * rows. `assetSetupChecklist` controls which manual lifecycle stages show it;
+ * rows. `assetSetupChecklist` derives visibility from incomplete source and report checks;
  * completing a step does not verify current health. Each source's status is
  * its Data sources row above, so the sources step states only its count.
  * Rows link to their destination rather than offering editable checkboxes.

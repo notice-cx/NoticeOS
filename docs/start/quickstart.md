@@ -33,7 +33,7 @@ Setup puts the installation in `~/noticeos`; `~/noticeos/noticeos status` shows 
 
 ## Verify
 
-- **Home** shows the site with the health word **Setting up** until the first numbers arrive.
+- **Home** shows the site's current health. Setup progress is on the site's **Sources** tab.
 - On the **Data sources** tab, the source's row changes from **Collecting** to **Working** when its first result arrives.
 - The site's **Overview** shows a row of figures above one chart.
 

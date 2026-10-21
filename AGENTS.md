@@ -75,6 +75,10 @@ present.
   direct statement. Quote the labels the product shows exactly; changing one
   is a product-copy change. The brand line "Your startup. In clear view." is
   the one exception.
+- **Derive statuses from observed facts.** A state is manually assigned only
+  when it records a human decision, such as a launch hold, retirement or
+  automation permission. Collection, setup progress and health are computed;
+  an old stored stage never substitutes for evidence.
 - **SQL is snake_case.** Migrations are numbered and append-only; the store
   keeps every row of history and is never truncated.
 - **Design is one doc, written as taste** ([doc 14](docs/14-design.md)): the

@@ -1,13 +1,11 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { Archive, ArchiveRestore, Bell, Check, Database, LayoutGrid } from "lucide-react";
 import { useState } from "react";
-import { ASSET_STATUS_LABEL as STATUS_LABEL, stageBeforeRetire } from "@shared/asset-detail";
+import { stageBeforeRetire } from "@shared/asset-detail";
 import type { AnnotationTimeline, AssetInfo, AssetStatus } from "@shared/asset-detail";
 import { RESTORE_HASH } from "@shared/asset-detail-views";
-import { ASSET_STATUS } from "@shared/changeset";
 import { StateChip, type StatusSubject } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
-import { fieldClass } from "@/components/ui/field";
 import { Panel } from "@/routes/asset-detail/shared";
 import { useAssetLifecycle } from "@/hooks/useAssetLifecycle";
 
@@ -75,13 +73,8 @@ function ArchiveConfirm({
   );
 }
 
-/**
- * Archive, and the way back. Restore returns the asset to the stage it left,
- * read from the move the archive recorded on the timeline
- * (`useAssetLifecycle`) rather than remembered here, so a restore from another
- * browser cannot go Live and arm alert rules early. Without a record the card
- * offers a stage picker set to Live.
- */
+/** Restore preserves an explicit launch hold; every active stage is derived
+ * again from collection history rather than restored from an old assignment. */
 export function ArchiveCard({
   asset,
   timeline,
@@ -96,14 +89,13 @@ export function ArchiveCard({
   const [saving, setSaving] = useState(false);
   const retired = asset.status === "retired";
   const recorded = stageBeforeRetire(timeline.items);
-  const [picked, setPicked] = useState<AssetStatus>("live");
-  const restoreTo: AssetStatus = recorded?.stage ?? picked;
+  const restoreTo: AssetStatus = recorded?.stage === "pre-launch" ? "pre-launch" : "onboarding";
 
   function move(target: AssetStatus) {
     if (!writable) return;
-    const from = asset.status;
+    const from = asset.storedStatus ?? asset.status;
     setSaving(true);
-    void moveStage(from, target, `Lifecycle stage → ${STATUS_LABEL[target]}`)
+    void moveStage(from, target, target === "retired" ? "Archive site" : "Restore site")
       .then((ok) => {
         if (!ok) return;
         setConfirming(false);
@@ -119,22 +111,6 @@ export function ArchiveCard({
         count="archived"
       >
         <div className="flex flex-wrap items-center gap-2">
-          {recorded ? null : (
-            <select
-              value={picked}
-              aria-label="Restore to stage"
-              disabled={saving || !writable}
-              onChange={(e) => setPicked(e.target.value as AssetStatus)}
-              className={fieldClass}
-              data-restore-stage
-            >
-              {ASSET_STATUS.filter((stage) => stage !== "retired").map((stage) => (
-                <option key={stage} value={stage}>
-                  {STATUS_LABEL[stage]}
-                </option>
-              ))}
-            </select>
-          )}
           <Button
             type="button"
             variant="outline"
@@ -143,7 +119,7 @@ export function ArchiveCard({
             onClick={() => move(restoreTo)}
           >
             <ArchiveRestore className="size-3.5" aria-hidden />
-            {saving ? "Restoring…" : recorded ? `Restore to ${STATUS_LABEL[restoreTo]}` : "Restore"}
+            {saving ? "Restoring…" : "Restore"}
           </Button>
           {recorded ? (
             <StateChip
@@ -153,7 +129,7 @@ export function ArchiveCard({
             />
           ) : (
             <span data-restore-default>
-              <StateChip tone="na" dot="hollow" label="No recorded stage" subject={`lifecycle:${asset.id}`} />
+              <StateChip tone="na" dot="hollow" label="Stage determined from collected data" subject={`lifecycle:${asset.id}`} />
             </span>
           )}
         </div>

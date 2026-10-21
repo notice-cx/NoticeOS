@@ -100,6 +100,11 @@ describe("the Sites rows", () => {
     expect(none!.earned).toBeNull();
   });
 
+  it("opens the Overview for historical collection even with no current chart or source", () => {
+    const [line] = siteLines([card({ id: "history.example", hasCollectedData: true, pulseReceivedAt: null })], PORTFOLIO, [], NO_READS, NOW);
+    expect(line!.row.to).toBe("/assets/history.example");
+  });
+
   it("states the latest finished day's people, never the day still being counted", () => {
     const series = [{ t: "2026-08-08", v: 40 }, { t: "2026-08-09", v: 77 }, { t: "2026-08-10", v: 5 }];
     const [line] = siteLines([card({ id: "a.example", activeUsers: { ...people(3, 0), series } })], PORTFOLIO, [], NO_READS, NOW);
@@ -113,8 +118,18 @@ describe("the Sites rows", () => {
       PORTFOLIO, [issue("risk.example", "warn")], NO_READS, NOW,
     );
     expect(lines.map((line) => [line.row.health.word, line.row.health.tone])).toEqual([
-      ["Off track", "error"], ["At risk", "warn"], ["Setting up", "quiet"], ["On track", "quiet"],
+      ["Off track", "error"], ["At risk", "warn"], ["On track", "quiet"], ["On track", "quiet"],
     ]);
+  });
+
+  it.each(["onboarding", "baselining"])("uses current health during %s instead of the manual stage", (status) => {
+    const reporting = card({ id: "reporting.example", status, firstReportAt: "2026-01-01T12:00:00.000Z", reportDays: 28 });
+    expect(siteHealth(reporting).key).toBe("on-track");
+    expect(siteHealth({ ...reporting, senseOnly: true }).key).toBe("monitor-only");
+    expect(siteHealth({ ...reporting, openError: 1 }).key).toBe("off-track");
+    expect(siteHealth({ ...reporting, openWarn: 1 }).key).toBe("at-risk");
+    expect(siteHealth(reporting, [issue(reporting.id, "error")]).key).toBe("off-track");
+    expect(siteHealth(reporting, [issue(reporting.id, "warn")]).key).toBe("at-risk");
   });
 
   it("names each source beside its state, from the same cells Home's grid draws", () => {

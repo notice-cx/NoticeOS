@@ -28,7 +28,6 @@ export type SitesOrder = "seed" | "health" | "money" | "users" | "name";
 export const HEALTH_RANK: Readonly<Record<SiteHealthKey, number>> = {
   "off-track": 4,
   "at-risk": 3,
-  "setting-up": 2,
   "monitor-only": 1,
   "on-track": 0,
   retired: -1,

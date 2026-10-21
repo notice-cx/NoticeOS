@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   assetSetupChecklist,
   daysSince,
-  isSettingUp,
   SETUP_BASELINE_DAYS,
   type SetupChecklist,
   type SetupChecklistFacts,
@@ -47,23 +46,9 @@ function item(list: SetupChecklist, id: SetupChecklistItem["id"]): SetupChecklis
   return found;
 }
 
-describe("isSettingUp — which stages carry a checklist", () => {
-  it("covers exactly onboarding and baselining", () => {
-    expect(isSettingUp("onboarding")).toBe(true);
-    expect(isSettingUp("baselining")).toBe(true);
-    expect(isSettingUp("live")).toBe(false);
-    expect(isSettingUp("pre-launch")).toBe(false);
-    expect(isSettingUp("retired")).toBe(false);
-  });
-
-  it("says no to a stage the store has never held, rather than guessing", () => {
-    expect(isSettingUp("mothballed")).toBe(false);
-  });
-});
-
 describe("assetSetupChecklist — when it exists at all", () => {
-  it("returns null for a live asset, which is how the ring disappears", () => {
-    expect(assetSetupChecklist(facts({ status: "live" }))).toBeNull();
+  it("shows incomplete checks even after collection has made the site live", () => {
+    expect(assetSetupChecklist(facts({ status: "live" }))?.remaining).toEqual(["Data sources", "28 days of reports"]);
   });
 
   it("returns null for pre-launch and retired too", () => {
@@ -86,6 +71,10 @@ describe("assetSetupChecklist — when it exists at all", () => {
   });
 
   it.each([0, 9, 28])("leaves data progress unchanged with %s reports and an unavailable pause check", (reportDays) => {
+    if (reportDays === 28) {
+      expect(assetSetupChecklist(facts({ reportDays, sources: [{ id: "gsc", kind: "working" }] }))).toBeNull();
+      return;
+    }
     const list = checklist({ reportDays, sources: [{ id: "gsc", kind: "working" }] });
     expect(item(list, "pause-check")).toEqual({ id: "pause-check", label: "Pause check", state: "unavailable",
       note: "Unavailable · Agent execution is manual.", href: null, progress: null });
@@ -292,17 +281,15 @@ describe("the fraction and the sentence the ring carries", () => {
   });
 
   it("completes a new site's setup without any nightly report", () => {
-    const list = checklist({
+    const list = assetSetupChecklist(facts({
       id: "new.example.com",
       displayName: "New Example",
       sources: [{ id: "gsc", kind: "working" }],
       firstReportAt: null,
       latestReportAt: null,
       reportDays: 0,
-    });
-    expect(list.done).toBe(2);
-    expect(list.remaining).toEqual([]);
-    expect(list.title).toBe("Setup 2 of 2 — all done");
+    }));
+    expect(list).toBeNull();
   });
 
   it("owes both report steps from the first report on", () => {
@@ -325,18 +312,16 @@ describe("the fraction and the sentence the ring carries", () => {
     );
   });
 
-  it("counts four of four without claiming that the website was not already live", () => {
-    const list = checklist({
+  it("removes completed setup regardless of the old lifecycle assignment", () => {
+    const list = assetSetupChecklist(facts({
       sources: [
         { id: "nightly-report", kind: "working" },
         { id: "gsc", kind: "working" },
       ],
       firstReportAt: daysAgo(30),
       reportDays: 28,
-    });
-    expect(list.done).toBe(4);
-    expect(list.remaining).toEqual([]);
-    expect(list.title).toBe("Setup 4 of 4 — all done");
+    }));
+    expect(list).toBeNull();
   });
 });
 
@@ -362,12 +347,12 @@ describe("an asset declared as sending no nightly report", () => {
       firstReportAt: null,
       reportDays: 0,
       latestReportAt: null,
-      sources: [{ id: "nightly-report", kind: "not-using" }, { id: "gsc", kind: "working" }],
+      sources: [{ id: "nightly-report", kind: "not-using" }, { id: "gsc", kind: "not-connected" }],
     });
     expect(list.items.map((entry) => entry.id)).toEqual(["identity", "sources", "pause-check"]);
     expect(list.total).toBe(2);
-    expect(list.remaining).toEqual([]);
-    expect(list.title).toBe("Setup 2 of 2 — all done");
+    expect(list.remaining).toEqual(["Data sources"]);
+    expect(list.title).toBe("Setup 1 of 2 — still to do: Data sources");
   });
 
   it("keeps both steps for an asset that still owes its report", () => {

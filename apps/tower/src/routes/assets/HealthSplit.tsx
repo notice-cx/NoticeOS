@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 const FILL: Record<SiteHealthKey, string> = {
   "off-track": "bg-error",
   "at-risk": "bg-warn",
-  "setting-up": "bg-muted-foreground/25",
   "monitor-only": "bg-muted-foreground/45",
   "on-track": "bg-muted-foreground/45",
   // Never a part of the bar (`healthSplit`); declared so a picked filter word

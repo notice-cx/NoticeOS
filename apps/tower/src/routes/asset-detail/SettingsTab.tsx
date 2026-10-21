@@ -2,14 +2,13 @@ import { useDemoReadonly, useOwnerMutation, useTowerApi } from '@/lib/browser-co
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CollectNowResult } from "@noticeos/contract";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
 import { ASSET_STATUS_LABEL as STATUS_LABEL } from "@shared/asset-detail";
 import { isRetired } from "@shared/asset-setup";
 import type {
   AssetInfo,
   AssetPanelConfig,
-  AssetStatus,
   PortfolioConfig,
   RulesInForce,
   Wiring,
@@ -42,7 +41,6 @@ import {
   entityOfAsset,
 } from "@shared/entities";
 import {
-  ASSET_STATUS,
   type EditableFile,
   type JsonValue,
   type SettingOp,
@@ -57,9 +55,7 @@ import { SavesPaused } from "@/components/SavesPaused";
 import { KnobRow } from "@/components/KnobRow";
 import { SeverityDot } from "@/components/SeverityDot";
 import { StateChip } from "@/components/StateChip";
-import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { Button } from "@/components/ui/button";
-import { fieldClass } from "@/components/ui/field";
 import { validateDisplayLabel, validateUrl } from "@/lib/knob-validators";
 import { useSettings } from "@/hooks/useSettings";
 import { SectionLabel } from "@/components/surface/SectionLabel";
@@ -298,15 +294,23 @@ function OwningEntity({ asset }: { asset: AssetInfo }) {
 }
 
 function LifecycleCard({ asset }: { asset: AssetInfo }) {
-  const spec = lifecycleStepper(asset.status);
+  const demoReadonly = useDemoReadonly();
+  const moveStage = useAssetLifecycle(asset.id);
+  const [saving, setSaving] = useState(false);
+  const stored = asset.storedStatus ?? asset.status;
   return (
-    <Panel title="Manual lifecycle stage">
-      {/* The stepper is the one display of the current stage; the editor below
-          is a "change stage…" action that never restates the current value. */}
-      <Stepper steps={spec.steps} activeIndex={spec.activeIndex} terminal={spec.terminal} />
-      <div className="mt-3">
-        <LifecycleStageEditor asset={asset} />
-      </div>
+    <Panel title="Lifecycle">
+      <KnobRow label="Stage" value={STATUS_LABEL[asset.status]} />
+      <p className="text-sm text-muted-foreground">Determined from collected data. Live after the first collection.</p>
+      {asset.status === "pre-launch" ? (
+        <Button type="button" variant="outline" size="sm" disabled={saving || demoReadonly}
+          onClick={() => {
+            setSaving(true);
+            void moveStage(stored, "onboarding", "Begin monitoring").finally(() => setSaving(false));
+          }}>
+          {saving ? "Starting…" : "Begin monitoring"}
+        </Button>
+      ) : null}
     </Panel>
   );
 }
@@ -335,64 +339,6 @@ function AutomationCard({ asset }: { asset: AssetInfo }) {
   );
 }
 
-/** The lifecycle edit affordance: a "change stage…" picker that names a target
- * without restating the current stage, and a Save that moves the row. The
- * stage lives in the store, so this writes through the Worker and works in
- * every deployment. `expect` is the stage the stepper was drawn from: a page
- * left open while the row moved elsewhere is refused rather than winning. */
-function LifecycleStageEditor({ asset }: { asset: AssetInfo }) {
-  const demoReadonly = useDemoReadonly();
-  const moveStage = useAssetLifecycle(asset.id);
-  const writable = !demoReadonly;
-  const [target, setTarget] = useState<AssetStatus | "">("");
-  const [saving, setSaving] = useState(false);
-
-  // The poll brought a new stage (this save landed, or another surface moved
-  // it): a target chosen against the old one is no longer what it meant.
-  useEffect(() => {
-    setTarget("");
-  }, [asset.status]);
-
-  function submit() {
-    if (!writable || target === "" || target === asset.status) return;
-    setSaving(true);
-    void moveStage(asset.status, target)
-      .then((ok) => {
-        if (ok) setTarget("");
-      })
-      .finally(() => setSaving(false));
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select
-        value={target}
-        aria-label="Change lifecycle stage"
-        disabled={saving || !writable}
-        onChange={(e) => setTarget(e.target.value as AssetStatus | "")}
-        className={fieldClass}
-      >
-        <option value="" disabled>
-          Change stage…
-        </option>
-        {ASSET_STATUS.filter((s) => s !== asset.status).map((s) => (
-          <option key={s} value={s}>
-            {STATUS_LABEL[s]}
-          </option>
-        ))}
-      </select>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={submit}
-        disabled={saving || !writable || target === ""}
-      >
-        {saving ? "Saving…" : "Save"}
-      </Button>
-    </div>
-  );
-}
 
 function DataCollectionCard({ wiring, asset, nowMs }: { wiring: Wiring; asset: AssetInfo; nowMs: number }) {
   const pull = wiring.mode === "pull" ? wiring.pull : null;

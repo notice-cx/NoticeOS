@@ -417,7 +417,7 @@ knobs — `db/README.md` sanctions `assets.status`, `assets.sense_only` and
 | `asset` | the asset id (`shop.example.com`) |
 | `column` | **only** `status`, `sense_only` or `display_name` |
 | `expect` | the current value |
-| `value` | `status` ∈ `pre-launch \| onboarding \| baselining \| live \| retired`; `sense_only` ∈ `0 \| 1`; `display_name` a 1–80-character label |
+| `value` | `status` records a launch hold, archive or restoration; active progress is derived from collected data. `sense_only` ∈ `0 \| 1`; `display_name` a 1–80-character label |
 
 **A `status` op writes TWO rows.** The column, and an annotation recording the
 move — `kind: "config"`, `ref: "lifecycle:<from>><to>"`, the same string the

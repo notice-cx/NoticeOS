@@ -66,6 +66,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       senseOnly: false,
       isOs: false,
       firstReportAt: "2026-05-07T02:00:00.000Z",
+      reportDays: 28,
       createdAt: "2026-05-01T00:00:00.000Z",
       updatedAt: "2026-07-01T00:00:00.000Z",
       worstOpenSeverity: "info",
@@ -842,7 +843,7 @@ describe("Asset Overview — the setup banner", () => {
     expect(container.querySelector('#setup [role="status"]')).not.toBeNull();
   });
 
-  it("disappears entirely once the asset is live", async () => {
+  it("disappears entirely once observed setup is complete", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 

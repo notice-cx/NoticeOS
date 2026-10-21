@@ -1793,6 +1793,8 @@ async function assembleAssetDetail(
     displayName: assetDisplayName(asset.isOs, asset.displayName),
     domain: asset.domain,
     status: asset.status as AssetStatus,
+    storedStatus: asset.storedStatus as AssetStatus,
+    hasCollectedData: asset.hasCollectedData,
     senseOnly: asset.senseOnly === 1,
     isOs: asset.isOs === 1,
     createdAt: asset.createdAt,

@@ -13,7 +13,8 @@ import { cardHasMoney, type AssetCard } from "./wall";
  * source's recorded successful collection. Any one ends its setup.
  */
 export function siteHasFirstNumber(card: AssetCard): boolean {
-  return card.activeUsers.series.length > 0
+  return card.hasCollectedData === true
+    || card.activeUsers.series.length > 0
     || card.searchClicks.series.length > 0
     || card.firstReportAt !== null
     || card.pulseReceivedAt !== null

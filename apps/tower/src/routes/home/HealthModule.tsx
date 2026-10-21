@@ -56,7 +56,7 @@ export function FactDot({ fact, site }: { fact: TechFact; site: string }) {
 /** The words beside a row: its problems (a late report first), or that it is
  * fine, or that nothing about it is measured yet. */
 export function healthNote(health: TechHealth): string {
-  if (health.key === "unknown") return "Still setting up · nothing measured yet";
+  if (health.key === "unknown") return "Nothing measured yet";
   const notes = rowFacts(health).flatMap((fact) => (fact.note ? [fact.note] : []));
   return notes.length > 0 ? notes.join(" · ") : "Fine";
 }
