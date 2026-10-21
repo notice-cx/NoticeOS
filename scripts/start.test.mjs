@@ -386,7 +386,12 @@ test('two developer commands seed a real Tower on its own new database, then sto
   // The commands start Postgres in their own process, where its absence is
   // only an exit code: decide here, as the in-process tests do.
   if (!findPostgres() && !postgresRequired()) return t.skip('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');
-  const base = tempDir(t, 'development-live-');
+  const base = mkdtempSync(path.join(os.tmpdir(), 'development-live-'));
+  let activeRuns = 0;
+  t.after(() => {
+    assert.equal(activeRuns, 0, `active owned processes remain; preserving ${base}`);
+    rmSync(base, { recursive: true, force: true });
+  });
   const home = path.join(base, 'runtime');
   const compose = path.join(base, 'untouched-compose');
   mkdirSync(compose, { mode: 0o700 });
@@ -417,10 +422,30 @@ test('two developer commands seed a real Tower on its own new database, then sto
     CI: '1',
     WRANGLER_SEND_METRICS: 'false',
   };
+  // A PID can be reused after exit. Only the identity captured beneath this
+  // start (and its explicitly owned postmaster) may be inspected or signalled.
+  const identity = pid => {
+    const result = spawnSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8' });
+    if (result.status === 1 && !result.stdout.trim()) return null;
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const waitUntil = async (ready, timeoutMs) => {
+    const deadline = Date.now() + timeoutMs;
+    while (!ready() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+    return ready();
+  };
   const run = async (work) => {
     const child = spawn(process.execPath, [path.join(REPO_ROOT, 'scripts/start.mjs'), '--dir', home, '--port', String(port), '--no-open'], {
       cwd: REPO_ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
     });
+    activeRuns++;
+    const owned = new Map();
+    let postmasterPid;
+    const remember = pid => { const started = identity(pid); if (started) owned.set(pid, started); };
+    const rememberTree = () => { for (const row of processTree(child.pid)) remember(row.pid); };
+    const survivors = () => [...owned].filter(([pid, started]) => identity(pid) === started).map(([pid]) => pid);
+    remember(child.pid);
     let output = '';
     child.stdout.on('data', bytes => { output += bytes; });
     child.stderr.on('data', bytes => { output += bytes; });
@@ -449,7 +474,12 @@ test('two developer commands seed a real Tower on its own new database, then sto
       const password = new URL(secrets.DATABASE_URL).password;
       assert.ok(password.length > 20);
       assert.equal(output.includes(password), false);
-      assert.ok(processTree(child.pid).some(row => /workerd/.test(row.args)));
+      const tree = processTree(child.pid);
+      assert.ok(tree.some(row => /workerd/.test(row.args)));
+      assert.ok(tree.some(row => /vite/.test(row.args)));
+      for (const row of tree) remember(row.pid);
+      postmasterPid = Number(readFileSync(path.join(home, '.local', 'development-postgres', 'data', 'postmaster.pid'), 'utf8').split('\n')[0]);
+      for (const row of processTree(postmasterPid)) remember(row.pid);
       assert.ok(processTree(child.pid).every(row => !row.args.includes(password)));
       const db = openStore(secrets.DATABASE_URL, { maxConnections: 1 });
       try {
@@ -461,9 +491,32 @@ test('two developer commands seed a real Tower on its own new database, then sto
       assert.equal(existsSync(path.join(home, 'postgres')), false);
       assert.equal(existsSync(path.join(home, 'dolt')), false);
     } finally {
-      if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-      const timer = setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }, 15_000);
-      try { await exited; } finally { clearTimeout(timer); }
+      if (child.exitCode === null && child.signalCode === null) {
+        rememberTree();
+        if (postmasterPid && identity(postmasterPid) === owned.get(postmasterPid)) {
+          for (const row of processTree(postmasterPid)) remember(row.pid);
+        }
+        child.kill('SIGTERM');
+      }
+      // The Tower starts a detached process group. Killing only this command's
+      // group cannot retire it when an assertion aborts the proof.
+      const killOwned = () => {
+        for (const pid of survivors()) { try { process.kill(pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
+      };
+      const timer = setTimeout(killOwned, 15_000);
+      try {
+        await exited;
+        assert.ok(await waitUntil(() => survivors().length === 0, 5_000), `owned processes survived stop: ${survivors()}`);
+      } finally {
+        clearTimeout(timer);
+        // Rescue only recorded children if a cleanup assertion itself fails.
+        killOwned();
+        if (await waitUntil(() => survivors().length === 0, 2_000)) activeRuns--;
+      }
+      const holds = await Promise.all([hold(port), hold(port + 1), hold(port + 2)]);
+      try { assert.ok(holds.every(Boolean), 'all owned Tower, ingest and Postgres ports are released'); }
+      finally { await Promise.all(holds.filter(Boolean).map(server => new Promise(resolve => server.close(resolve)))); }
+      t.diagnostic(`retired ${owned.size} exact owned process identities and released all three ports`);
       assert.equal(existsSync(path.join(home, '.local', 'development-postgres')), false, 'owned PG retired before command exit');
       assert.equal(existsSync(plan.lock), false);
       assert.equal(existsSync(path.join(home, '.development-start-active')), false);
@@ -492,6 +545,11 @@ test('two developer commands seed a real Tower on its own new database, then sto
     assert.notEqual(address, firstAddress, 'restart replaces the ephemeral application password');
     const response = await fetch(`${plan.url}api/wall`, { signal: AbortSignal.timeout(30_000) });
     assert.deepEqual((await response.json()).assets, [], 'restart deliberately starts a fresh development DB');
+  });
+  await t.test('an assertion failure after Vite/workerd acquisition retires every owned process and port', async () => {
+    await assert.rejects(run(async () => {
+      assert.fail('injected assertion after development readiness');
+    }), { name: 'AssertionError', message: 'injected assertion after development readiness' });
   });
   assert.equal(readFileSync(sentinel, 'utf8'), planted);
 });
