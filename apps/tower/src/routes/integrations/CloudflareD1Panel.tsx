@@ -27,7 +27,7 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [receipts, setReceipts] = useState<Record<string, D1Receipt>>({});
-  const databases = inventory?.accountId === status.data?.accountId ? inventory!.databases : status.data?.databases ?? [];
+  const databases = inventory && inventory.accountId === status.data?.accountId ? inventory.databases : status.data?.databases ?? [];
   useEffect(() => {
     if (!status.data || draftAccount === status.data.accountId) return;
     const held = status.data;
