@@ -62,6 +62,10 @@ technical failure checks keep their existing timing.
   supports an alert. A missing or invalid count is unknown; a real zero stays
   zero. Missing required comparisons stop longer candidates; shorter complete
   candidates remain available.
+  Report envelopes currently declare `last24h` without explicit period bounds or
+  completeness metadata. Complete windows here require every stored daily
+  counter; the detector cannot identify a reporter that supplies a number for
+  an incomplete measurement. It never reconstructs absent reports as zeros.
 - Fit a linear recent trend to `log1p(count)`. Use a Student-t future-observation
   interval with six residual degrees of freedom, including both residual
   variability and uncertainty in the fitted trend. A count-noise variance floor

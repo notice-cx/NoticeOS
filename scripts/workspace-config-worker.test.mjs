@@ -1105,9 +1105,9 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       await admin.query("INSERT INTO noticeos.research_log (workspace_id,research_number,asset_id,provider,endpoint,params_sha256,question,cost_usd,cost_state,object_key,actor,bought_at) VALUES($1,1,'example.test','dataforseo','fixture/report',$2,$3,$4,'reported',$5,$6,now()-interval '2 days')",
         [workspace, questionHash, marker + ' stored question', expected + 1, marker + '/stored-answer', marker + ' recorded buyer']);
       const days = [];
-      for (let ms = Date.parse('2026-05-01T00:00:00Z'); ms <= Date.parse('2026-07-05T00:00:00Z'); ms += 86400000) {
+      for (let ms = Date.parse('2025-12-01T00:00:00Z'); ms <= Date.parse('2026-07-05T00:00:00Z'); ms += 86400000) {
         const date = new Date(ms).toISOString().slice(0, 10), at = date + 'T03:00:00Z';
-        const last24h = date >= '2026-07-01' && date <= '2026-07-0' + expected ? 0 : 10;
+        const last24h = date >= '2026-07-01' && date <= '2026-07-0' + expected ? 0 : 50;
         days.push({ date, at, envelope: { asset: 'example.test', generatedAt: at,
           capabilities: ['signups'], metrics: { signups: { last24h, avg7d: 9.3, total: 4210 } } } });
       }

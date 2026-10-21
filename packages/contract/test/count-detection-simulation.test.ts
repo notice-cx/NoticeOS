@@ -31,7 +31,7 @@ function poissonFrom(random: () => number): Draw {
   };
 }
 
-function candidate(series: readonly (number | undefined)[], day: number): { judged: boolean; fired: boolean } {
+function candidate(series: readonly (number | undefined)[], day: number): { judged: boolean; fired: boolean; covered?: boolean } {
   const windows = countWindowsFrom((back) => series[day - back], CONFIG.maxWindowDays, CONFIG.alpha);
   const candidates: MetricBaseline[] = [];
   for (const window of windows) {
@@ -53,7 +53,10 @@ function candidate(series: readonly (number | undefined)[], day: number): { judg
     capabilities: ['requests'], metrics: { requests: { last24h: series[day] ?? 0, avg7d: 0, total: 0 } } }, {
     config: CONFIG, requireHistoricalBaseline: true, baselineByMetric: { requests: { ...base, candidates } },
   });
-  return { judged: verdict!.outcome !== 'not-applicable', fired: verdict!.outcome === 'fired' };
+  const prediction = verdict!.inputs.prediction as { lower: number; upper: number };
+  const observed = verdict!.inputs.windowObserved;
+  return { judged: verdict!.outcome !== 'not-applicable', fired: verdict!.outcome === 'fired',
+    ...(typeof observed === 'number' ? { covered: observed >= prediction.lower && observed <= prediction.upper } : {}) };
 }
 
 /** Frozen legacy assembly; probabilities call the existing Poisson primitive. */
@@ -106,9 +109,9 @@ function wilsonUpper(successes: number, n: number): number {
 }
 
 describe('held-out rolling count detection', () => {
-  it('measures warning burden and eligibility, including seasonal and intermittent activity', () => {
+  it('measures warning burden and eligibility, including seasonal and intermittent activity', async ({ annotate }) => {
     for (const scenario of scenarios) {
-      let days = 0, eligible = 0, warnings = 0, episodes = 0, legacyEpisodes = 0, legacyWarnings = 0;
+      let days = 0, eligible = 0, warnings = 0, episodes = 0, legacyEpisodes = 0, legacyWarnings = 0, ranges = 0, covered = 0;
       for (const seed of HELD_OUT_SEEDS) {
         const random = randomFrom(seed);
         const poisson = poissonFrom(random);
@@ -119,13 +122,16 @@ describe('held-out rolling count detection', () => {
           const old = legacy(series, day);
           days++;
           if (current.judged) eligible++;
+          if (current.covered !== undefined) { ranges++; if (current.covered) covered++; }
           if (current.fired) { warnings++; if (!previous) episodes++; }
           if (old) { legacyWarnings++; if (!previousLegacy) legacyEpisodes++; }
           previous = current.fired;
           previousLegacy = old;
         }
       }
-      const row = { scenario: scenario.name, days, eligible, warnings, episodes, legacyWarnings, legacyEpisodes, nominalBinomialUpper: wilsonUpper(warnings, days) };
+      const row = { scenario: scenario.name, days, eligible, warnings, episodes, legacyWarnings, legacyEpisodes,
+        ranges, covered, empiricalCoverage: ranges ? covered / ranges : null, nominalBinomialUpper: wilsonUpper(warnings, days) };
+      await annotate(JSON.stringify(row));
       expect(warnings / days, JSON.stringify(row)).toBeLessThanOrEqual(0.01);
       expect(wilsonUpper(warnings, days), JSON.stringify(row)).toBeLessThanOrEqual(0.02);
       if (scenario.busy) expect(eligible / days, JSON.stringify(row)).toBeGreaterThanOrEqual(0.8);
@@ -133,7 +139,7 @@ describe('held-out rolling count detection', () => {
     }
   }, 60000);
 
-  it('detects sustained incidents without fitting the current window or future observations', () => {
+  it('detects sustained incidents without fitting the current window or future observations', async ({ annotate }) => {
     for (const mean of [11, 50]) for (const fraction of [0, 0.5]) {
       let detected = 0;
       const delays: number[] = [];
@@ -145,6 +151,7 @@ describe('held-out rolling count detection', () => {
         for (let delay = 0; delay < 14; delay++) if (candidate(series, WARMUP + delay).fired) { detected++; delays.push(delay + 1); break; }
       }
       const row = { mean, fraction, trials, detected, delays };
+      await annotate(JSON.stringify(row));
       if (fraction === 0) { expect(detected, JSON.stringify(row)).toBeGreaterThanOrEqual(trials * 0.9); expect(delays.filter((d) => d <= 7).length, JSON.stringify(row)).toBeGreaterThanOrEqual(trials * 0.9); }
       if (mean >= 50 && fraction === 0.5) expect(detected, JSON.stringify(row)).toBeGreaterThanOrEqual(trials * 0.7);
     }
