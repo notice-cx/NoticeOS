@@ -111,6 +111,7 @@ function legacyFixture(t, { live = false } = {}) {
   writeFileSync(path.join(old, 'dolt-secrets', 'root'), 'password\n', { mode: 0o600 });
   writeFileSync(path.join(old, 'compose.json'), '{}');
   writeFileSync(path.join(old, 'compose.env'), '');
+  writeFileSync(path.join(old, 'worker', 'host-backup.json'), JSON.stringify({ offsiteBackupDir: '/backup-offsite/backups' }));
   const local = path.join(base, 'local');
   mkdirSync(path.join(local, 'stack-development'), { recursive: true });
   const selectorFile = path.join(local, 'stack.json');
@@ -151,8 +152,41 @@ function legacyFixture(t, { live = false } = {}) {
     calls.push(disable ? 'os:prod' : 'os:dev');
     if (disable) writeFileSync(selectorFile, JSON.stringify(prepared));
   };
-  return { base, dir: path.join(base, 'noticeos'), selectorFile, selector, prepared, calls, health, run, develop };
+  return { base, dir: path.join(base, 'noticeos'), selectorFile, selector, prepared, calls, health, run, develop, model };
 }
+
+for (const kind of ['nested', 'moved from checkout', 'symlink']) test(`conversion reports an unsafe offsite destination ${kind} before changing the stack`, async t => {
+  const box = legacyFixture(t);
+  let offsite = path.join(box.dir, 'backup/offsite');
+  if (kind === 'moved from checkout') {
+    offsite = path.join(box.base, 'old', 'offsite');
+    mkdirSync(offsite);
+  }
+  if (kind === 'symlink') {
+    mkdirSync(box.dir);
+    offsite = path.join(box.base, 'offsite-alias');
+    symlinkSync(box.dir, offsite);
+  }
+  box.model.services.backup.volumes.find(mount => mount.target === '/backup-offsite').source = offsite;
+  await assert.rejects(convertLegacy(parseOptions(['--dir', box.dir, '--config', box.selectorFile, '--confirm', 'convert']),
+    { run: box.run, out: { write() {} }, interactive: false }), /Offsite backup destination must be outside the installation folder/u);
+  assert.ok(!box.calls.some(line => / (stop|up|down|rm|create)\b/u.test(line)), box.calls.join('\n'));
+  assert.deepEqual(JSON.parse(readFileSync(box.selectorFile, 'utf8')), box.selector);
+  assert.equal(existsSync(path.join(box.dir, 'installation.env')), false);
+});
+
+for (const offsiteBackupDir of [null, undefined]) test(`conversion keeps an unused nested mount when offsite copying is ${offsiteBackupDir === null ? 'disabled' : 'undeclared'}`, async t => {
+  const box = legacyFixture(t);
+  const old = path.join(box.base, 'old');
+  const offsite = path.join(old, 'offsite');
+  mkdirSync(offsite);
+  writeFileSync(path.join(old, 'worker', 'host-backup.json'), JSON.stringify({ offsiteBackupDir }));
+  box.model.services.backup.volumes.find(mount => mount.target === '/backup-offsite').source = offsite;
+  assert.equal(await convertLegacy(parseOptions(['--dir', box.dir, '--config', box.selectorFile, '--confirm', 'convert']),
+    { run: box.run, out: { write() {} }, interactive: false }), 0);
+  assert.equal(JSON.parse(readFileSync(path.join(box.dir, 'backup/profile/host-backup.json'), 'utf8')).offsiteBackupDir, offsiteBackupDir);
+  assert.equal(JSON.parse(readFileSync(box.selectorFile, 'utf8')).envFile, path.join(box.dir, 'installation.env'));
+});
 
 test('without the typed word nothing is stopped, copied or written', async (t) => {
   const box = legacyFixture(t);
