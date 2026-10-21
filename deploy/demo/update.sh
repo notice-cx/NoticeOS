@@ -16,16 +16,20 @@
 #     prepared and seeded by the README's fresh-setup steps, then switched in
 #     on the same loopback port. Nothing of a synthetic demo is migrated.
 #     If the new generation does not pass health, the previous one comes back
-#     and the command fails naming both commits. Old generations stay stopped
-#     with their volumes; the purge command is printed, never run.
+#     and the command fails naming both commits; the failed generation stays
+#     for diagnosis until the next update. The generation a healthy deploy
+#     replaced stays stopped with its volumes until the next update.
 #
-# Every build adds an image of about 2 GB. Before building, the script checks
-# that Docker has room for one; when it has not, it removes noticeos-demo
-# images no container uses and build cache no image needs, and stops before
-# building if that is still not enough. After a healthy deploy it removes the
-# same unused images, keeping the new release and the one it replaced. It
-# never removes a container or a volume, so a stopped generation keeps its
-# image and its data.
+# Every build adds an image of about 2 GB, and every stopped generation holds
+# its image (its stopped containers use it) and its four volumes. After a
+# healthy deploy the script removes every stopped generation except the one
+# that deploy replaced (down --volumes, then its folder under generations/),
+# then the noticeos-demo images no container uses, keeping the new release and
+# the one it replaced, and all unused build cache. Before building it checks
+# that Docker has room for a build; when it has not, it removes those unused
+# images and build cache, then every stopped generation, and stops before
+# building if that is still not enough. It never removes the running
+# generation.
 #
 # After fetching the target source the script runs that commit's own copy of
 # itself, and on success installs it over the copy it was started from, so the
@@ -117,13 +121,26 @@ reclaim() { # release... : these images stay, as does any image a container uses
     if printf '%s\n' "$used" | grep -qxF "$image"; then keep=1; fi
     if [ "$keep" = 0 ] && $DOCKER image rm "$image" >/dev/null 2>&1; then echo "removed unused image $image"; fi
   done
-  $DOCKER builder prune -f >/dev/null 2>&1 || true
+  # Every build copies a new source tree first, so old cache past the base
+  # layers is never reused; --all keeps it from piling up.
+  $DOCKER builder prune --all --force >/dev/null 2>&1 || true
 }
-stopped_generations() { # the purge that frees a stopped generation's image and data
+purge_generations() { # project... : these generations stay; the running one is always among them
   for dir in "$GENERATIONS"/*/; do
     dir=${dir%/}; p=$(basename "$dir")
-    if [ "$p" != "$PROJECT" ] && [ -f "$dir/demo.env" ] && [ -f "$dir/compose.yaml" ]; then
-      echo "  $DOCKER compose --env-file $dir/demo.env -p $p -f $dir/compose.yaml down --volumes"
+    [ -f "$dir/demo.env" ] && [ -f "$dir/compose.yaml" ] || continue
+    keep=0
+    for name in "$@"; do if [ "$p" = "$name" ]; then keep=1; fi; done
+    [ "$keep" = 0 ] || continue
+    # The folder holds the only env and compose file that can address the
+    # generation, so it goes only after Docker has removed the generation.
+    if out=$(compose "$dir/demo.env" "$p" "$dir/compose.yaml" down --volumes 2>&1); then
+      rm -rf "$dir"
+      echo "removed stopped generation $p with its volumes"
+    else
+      printf '%s\n' "$out" >&2
+      echo "could not remove stopped generation $p; to remove it by hand:" >&2
+      echo "  $DOCKER compose --env-file $dir/demo.env -p $p -f $dir/compose.yaml down --volumes" >&2
     fi
   done
 }
@@ -182,13 +199,14 @@ if ! roomy; then
   echo "$(gib "$free") GiB free for Docker and a build needs $(gib "$NEED_KB"): removing demo images no container uses and unused build cache"
   reclaim "$CURRENT" "$COMMIT"
   if ! roomy; then
-    echo "still only $(gib "$free") GiB free for Docker; a build needs $(gib "$NEED_KB"). Nothing was built or changed." >&2
-    purges=$(stopped_generations)
-    if [ -n "$purges" ]; then
-      echo "Stopped generations keep their images and data. Purge one you no longer need, then rerun:" >&2
-      echo "$purges" >&2
+    echo "$(gib "$free") GiB free for Docker: removing stopped generations"
+    purge_generations "$PROJECT"
+    reclaim "$CURRENT" "$COMMIT"
+    if ! roomy; then
+      echo "still only $(gib "$free") GiB free for Docker; a build needs $(gib "$NEED_KB"). Nothing was built and the running demo is unchanged. What Docker holds:" >&2
+      $DOCKER system df >&2 || true
+      exit 1
     fi
-    exit 1
   fi
   echo "$(gib "$free") GiB free now"
 fi
@@ -212,6 +230,7 @@ if [ "$FRESH" = 0 ]; then
   health "$CONFIG" "$PORT"
   install_self
   echo "demo now runs $COMMIT"
+  purge_generations "$PROJECT"
   reclaim "$COMMIT" "$CURRENT"
   echo "$(gib "$(free_kb)") GiB free for Docker"
   exit 0
@@ -256,9 +275,9 @@ rollback() {
     compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait postgres dolt || true
     compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait app || true
     health "$CONFIG" "$PORT" || true
-    echo "deploy of $COMMIT failed; $PROJECT at ${CURRENT:-nothing} is back; the new volumes of $NEW are kept for diagnosis" >&2
+    echo "deploy of $COMMIT failed; $PROJECT at ${CURRENT:-nothing} is back; the volumes of $NEW are kept for diagnosis until the next update" >&2
   else
-    echo "deploy of $COMMIT failed; $PROJECT was not healthy before and stays stopped; the volumes of $NEW are kept for diagnosis" >&2
+    echo "deploy of $COMMIT failed; $PROJECT was not healthy before and stays stopped; the volumes of $NEW are kept for diagnosis until the next update" >&2
   fi
   exit 1
 }
@@ -273,8 +292,9 @@ health "$NEW_CONFIG" "$PORT" || rollback
 cp "$NEW_ENV" "$ENV_FILE"
 install_self
 echo "demo now runs $COMMIT as generation $NEW"
+purge_generations "$NEW" "$PROJECT"
 if [ -n "$CURRENT" ]; then
-  echo "previous generation $PROJECT is stopped with its volumes; to purge it once you are sure:"
+  echo "previous generation $PROJECT stays stopped with its volumes until the next update; to remove it now:"
   echo "  $DOCKER compose --env-file $OLD_ENV -p $PROJECT -f $OLD_COMPOSE down --volumes"
 fi
 reclaim "$COMMIT" "$CURRENT"

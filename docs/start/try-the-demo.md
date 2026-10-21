@@ -87,7 +87,7 @@ Set `NOTICEOS_DEMO_STATCOUNTER=project:security` in the private env file to add 
 
 A compatible release changes only the image tag and recreates Dolt and the app. A release with a different scenario version or schema gets a **fresh generation**: a new project (`demo-g2`, `demo-g3`, …) with new volumes, seeded from scratch and started in place of the old one on the same port. The script takes no backup; take one first.
 
-Each build adds an image of about 2 GB, so the script keeps the disk from filling. Before building it needs 12 GiB free for Docker; with less, it removes demo images no container uses, but never the running release. If that is still not enough it stops before changing anything and prints the command to purge each stopped generation. After a healthy update it removes unused demo images again, keeping the new release and the one it replaced. It never removes a container or a volume.
+Each build adds an image of about 2 GB, and each stopped generation keeps its image and its four volumes, so the script removes what no deploy needs. After a healthy update it removes every stopped generation except the one that update replaced, then demo images no container uses, keeping the new release and the one it replaced, and unused build cache. Before building it needs 12 GiB free for Docker; with less, it removes those unused images and the build cache, then every stopped generation. If that is still not enough it stops before building, leaves the running demo unchanged and prints `docker system df`. It never removes the running generation.
 
 ## Back up a demo
 

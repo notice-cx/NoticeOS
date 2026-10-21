@@ -211,17 +211,22 @@ and its own configuration under `generations/` beside the env file (release =
 target, cutoff = now, the rest copied), prepared and seeded by the fresh-setup
 steps above and switched in on the same loopback port; the env file then names
 the new generation. If the new generation fails its health check, the previous
-one is brought back and the command fails with an error that names both commits. Previous generations
-stay stopped with their volumes; the purge command is printed, never run.
+one is brought back and the command fails with an error that names both commits;
+the failed generation's volumes stay for diagnosis until the next update. The
+generation a healthy deploy replaced stays stopped with its volumes until the
+next update, and the script prints the command that removes it sooner.
 
-Every build adds an image of about 2 GB, so the script keeps the disk from
-filling. Before building it checks that Docker has 12 GiB free (the artifact
-build stops below 10). When it has not, it removes `noticeos-demo` images no
-container uses, never the running release, and build cache no image uses; if
-that is still not enough it stops before building, changes nothing, and prints
-the purge of each stopped generation, whose containers keep their image. After
-a healthy deploy it removes the same unused images, keeping the new release and
-the one it replaced. It never removes a container or a volume. The
+Every build adds an image of about 2 GB, and every stopped generation holds its
+image (its stopped containers use it) and its four volumes, so the script
+removes what no deploy needs. After a healthy deploy it removes every stopped
+generation except the one that deploy replaced (`down --volumes`, then its
+folder under `generations/`), then the `noticeos-demo` images no container
+uses, keeping the new release and the one it replaced, and all unused build
+cache. Before building it checks that Docker has 12 GiB free (the artifact
+build stops below 10). When it has not, it removes those unused images and the
+build cache, then every stopped generation; if that is still not enough it
+stops before building, leaves the running demo unchanged and prints
+`docker system df`. It never removes the running generation. The
 script takes no backup, and after fetching the target source it continues with
 that commit's own copy of itself and installs it over the copy it was started
 from. Keep a copy outside the checkout and run it from the demo host:
@@ -281,7 +286,9 @@ postgres/Dolt and then app. Do not run fresh preparation or reseed. Verify healt
 same demo/task history and simulator progress before routing visitors to it.
 `docker compose down` retains named volumes. `down --volumes` irreversibly removes
 them and is only appropriate for a positively owned disposable proof after its
-backup/recovery evidence is retained.
+backup/recovery evidence is retained, and for the stopped generations
+[update.sh](update.sh) made, which it removes itself as described in
+[Stop, restart and update](#stop-restart-and-update).
 
 For project-wide maintenance and authorization rules, see
 [the operations guide](../../docs/06-operations.md) and
