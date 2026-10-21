@@ -403,7 +403,7 @@ describe("/assets — the orderings", () => {
 });
 
 /** A site whose Home and Sites list switch is off is listed nowhere here and
- * counted as hidden; a retired site is off until somebody turns it on. */
+ * counted as hidden; an archived site stays off until restored. */
 describe("/assets — sites hidden by their own switch", () => {
   it("leaves a list-off site out of the rows, the answer and the stage counts, and says how many are hidden", () => {
     const { container } = renderAssets("/assets", ASSETS, { "northwind.example": { list: false } });
@@ -414,23 +414,21 @@ describe("/assets — sites hidden by their own switch", () => {
     expect(screen.getByRole("option", { name: "Live · 1" })).toBeInTheDocument();
   });
 
-  it("hides a retired site by default and lists it once its switch is on", () => {
+  it("keeps archived sites hidden even with a saved list switch", () => {
     const retired = ASSETS.map((card) => (card.id === "acorn.example" ? { ...card, status: "retired" } : card));
     const off = renderAssets("/assets", retired);
     expect(shown(off.container)).toEqual(["meadow.example", "northwind.example", "ferns.example"]);
     expect(off.container.querySelector("[data-assets-hidden]")).toHaveAttribute("data-assets-hidden", "1");
     off.unmount();
-    // Your order sinks a retired site to the bottom.
     const on = renderAssets("/assets", retired, { "acorn.example": { list: true } });
-    expect(shown(on.container)).toEqual(["meadow.example", "northwind.example", "ferns.example", "acorn.example"]);
-    expect(on.container.querySelector("[data-assets-hidden]")).toBeNull();
+    expect(shown(on.container)).toEqual(["meadow.example", "northwind.example", "ferns.example"]);
+    expect(on.container.querySelector("[data-assets-hidden]")).toHaveAttribute("data-assets-hidden", "1");
   });
 
-  it("counts a listed retired site in neither the answer nor the bar, and reads it Retired", () => {
+  it("excludes archived sites from rows, answer and health bar", () => {
     const retired = ASSETS.map((card) => (card.id === "meadow.example" ? { ...card, status: "retired" } : card));
     const { container } = renderAssets("/assets", retired, { "meadow.example": { list: true } });
-    expect(row(container, "meadow.example")).toHaveTextContent("Retired");
-    expect(row(container, "meadow.example")).not.toHaveTextContent("Off track");
+    expect(row(container, "meadow.example")).toBeNull();
     // Northwind at risk, of the three watched sites.
     expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 sites at risk");
     expect(container.querySelector("[data-health-split]")).not.toHaveTextContent("Retired");

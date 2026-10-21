@@ -1199,9 +1199,8 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(container.textContent).not.toContain("12 open");
   });
 
-  // A retired site is watched by nobody: no row until its switch is on, then
-  // a row that reads Retired, and never a problem counted in the answer.
-  it("leaves a retired site out of its rows and its counts, and reads it Retired once its switch is on", () => {
+  // Archived sites contribute neither rows nor problems, including saved list overrides.
+  it("keeps archived sites out of rows and counts despite saved visibility", () => {
     withSecondSite();
     payload.assets = [...payload.assets, { ...SEEDED_ASSETS[0]!, id: "old.example", displayName: "Old Example", status: "retired", work: null }];
     payload.attention = [alert({ id: 9, severity: "error" }), alert({ id: 10, severity: "error", asset: "old.example", assetDisplayName: "Old Example" })];
@@ -1215,9 +1214,7 @@ describe("Home — the answer, the money and what is broken", () => {
 
     payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "old.example": { list: true } } };
     const shown = renderHome();
-    const old = rows(shown.container).find((row) => row.getAttribute("data-portfolio-row") === "old.example")!;
-    expect(old).toHaveTextContent("Retired");
-    expect(old).not.toHaveTextContent("Off track");
+    expect(rows(shown.container).some(row => row.getAttribute("data-portfolio-row") === "old.example")).toBe(false);
     expect(answerLine(shown.container)).toHaveTextContent("1 thing is broken.");
   });
 

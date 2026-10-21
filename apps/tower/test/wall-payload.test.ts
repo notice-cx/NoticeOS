@@ -462,6 +462,19 @@ describe("buildWallPayload — populated store", () => {
     await seed(ctx);
   });
 
+  it("keeps archived alerts, snoozes and work out of active rows and counts", async () => {
+    await storeAlert(ctx.call, { asset: "northwind.example", firedAt: "2026-07-05T11:00:00.000Z", severity: "warn", kind: "anomaly", ruleId: "asset-declared", metric: "orders" });
+    await insertFlag(ctx, { asset: "meadow.example", fired_at: "2026-07-05T11:00:00.000Z", severity: "warn", kind: "anomaly", rule_id: "asset-declared", disposition: "snooze", snooze_until: "2026-07-06T12:00:00.000Z" });
+    await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject({ counts: workCounts({ waiting: 7 }), waitingUrgent: 4 }), workProject({ asset: "northwind.example", prefix: "nw", counts: workCounts({ waiting: 1 }), waitingUrgent: 1 })]);
+    await ctx.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["meadow.example"]));
+    const wall = await buildWallPayload(ctx.call, OPTIONS);
+    expect(wall.assets.find(row => row.id === "meadow.example")).toMatchObject({ status: "retired", work: null, openError: 0, openWarn: 0 });
+    expect(wall.attention.some(row => row.asset === "meadow.example")).toBe(false);
+    expect(wall.snoozed.some(row => row.asset === "meadow.example")).toBe(false);
+    expect(wall.operator).toMatchObject({ waiting: 1, urgent: 1, projectCount: 1 });
+    expect(wall.attention.some(row => row.asset === "northwind.example")).toBe(true);
+  });
+
   it("PORTFOLIO: the headline books reconciled rows only, estimates ride their own field", async () => {
     await seedLedger(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);

@@ -69,3 +69,9 @@ export async function readSite(store: WorkspaceStore, id: string): Promise<SiteR
   );
   return row ? record(row) : null;
 }
+
+/** A trusted SQL asset expression stays visible unless its registry row is archived. */
+export function unarchivedAssetSql(asset: string, workspace: string): string {
+  return `NOT EXISTS (SELECT 1 FROM noticeos.assets archived_asset
+    WHERE archived_asset.workspace_id = ${workspace} AND archived_asset.asset_id = ${asset} AND archived_asset.status = 'retired')`;
+}

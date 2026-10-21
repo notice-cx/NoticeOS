@@ -37,7 +37,7 @@ In the **I run the business** view, the sentence starts with the sites' health o
 
 **Worth a look.** Up to eight things the sites are missing, in this order: a site that earns nothing (**Example Shop earns nothing**), a site with no data feeds, a site with no task project, a site that sends no code report, then the opportunities the newest readings found, each with its site's name under it. Retired sites are left out, and a site not launched yet is not listed as earning nothing.
 
-**Listed sites.** A site is listed while its **Home and Sites list** switch is on. A site with the switch off has no row in the grid, the sites or the last 24 hours; its problems are still counted in the summary and listed under **Problems**, and its money and visitors are still in the month's figures. A retired site has the switch off until you turn it on. See [Where each site shows](/tower/sites#where-each-site-shows).
+**Listed sites.** A site is listed while its **Home and Sites list** switch is on. A site with the switch off has no row in the grid, the sites or the last 24 hours; its problems are still counted in the summary and listed under **Problems**, and its money and visitors are still in the month's figures. An archived site stays hidden until restored. See [Where each site shows](/tower/sites#where-each-site-shows).
 
 **Until the first site has its first number**, Home shows one sentence and three steps: **Add your first site**, **Connect a source** and **See your first number**. The current step is shown as a button, and each finished step is marked done. Home also shows **Use \<zone>**, which saves your device's time zone in one press.
 
@@ -86,7 +86,7 @@ Each pick from **What matters most?** moves one part to the top, in the order pi
 
 ## States and labels
 
-- A site's status is one of **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track** and **Retired**. Only **At risk** and **Off track** are coloured. A retired site's problems are not counted or listed on Home; they stay on Alerts.
+- A site's status is one of **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track** and **Retired**. Only **At risk** and **Off track** are coloured. An archived site's problems and tasks are excluded from portfolio lists and counts.
 - **est.** marks revenue as an estimate until it is reconciled.
 - A missing figure is shown as a label, never drawn as zero: **not reported yet**, **no revenue**, **no visitors reported**.
 - **Nothing is broken.** means there is no open problem anywhere. Monitoring is still running.

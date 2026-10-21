@@ -150,7 +150,7 @@ export async function handleStoredRead(request: Request, {
     if (request.method !== "GET") return new Response(null, { status: 405, headers: { Allow: "GET" } });
     const cfg = await config();
     try {
-      const payload = await buildTaskSourcePayload({ store, savedProjects: { beads: cfg.beads.spokes.length } });
+      const payload = await buildTaskSourcePayload({ store, savedProjects: { beads: cfg.beads.spokes.length }, projects: cfg.beads.spokes });
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -166,7 +166,8 @@ export async function handleStoredRead(request: Request, {
   // with no task source connected gets an empty board.
   if (url.pathname === "/api/work") {
     try {
-      const payload = await buildTaskBoard({ store, timeZone: (await config()).osTimeZone }, new Date());
+      const cfg = await config();
+      const payload = await buildTaskBoard({ store, timeZone: cfg.osTimeZone, projects: cfg.beads.spokes }, new Date());
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

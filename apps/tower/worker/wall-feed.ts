@@ -14,7 +14,8 @@ import { minorToMajorUnits } from '@noticeos/contract/money';
 // count. A failure never folds into a success and is never superseded.
 
 import { javascriptInstant, type SqlValue, type WorkspaceStore } from "@noticeos/postgres";
-import { readSites } from "./asset-registry";
+import { readSites, unarchivedAssetSql } from "./asset-registry";
+import { isRetired } from "../shared/asset-setup";
 import { cents } from "./ledger-history";
 import { configDocumentFile } from "../../../scripts/config-documents.mjs";
 import { assetDisplayName } from "@noticeos/contract/asset-name";
@@ -63,6 +64,7 @@ export const FEED_FLAGS_FIRED_SQL = `SELECT f.flag_number::int AS id, a.asset_id
          WHERE c.workspace_id = a.workspace_id AND c.asset_id = a.asset_id AND c.fired_at >= $1::timestamptz
          ORDER BY c.fired_at DESC
          LIMIT $2) f
+ WHERE a.status <> 'retired'
  ORDER BY f.fired_at DESC LIMIT $2`;
 
 /** The settled-time index (`flags_asset_settled`, on `settledAtSql`) seeks
@@ -79,6 +81,7 @@ export const FEED_FLAGS_RESOLVED_SQL = `SELECT f.flag_number::int AS id, a.asset
            AND c.resolved_at IS NOT NULL
          ORDER BY c.resolved_at DESC
          LIMIT $2) f
+ WHERE a.status <> 'retired'
  ORDER BY f.resolved_at DESC LIMIT $2`;
 
 /** Transitions only (failed, changed, recovered): the store records one when
@@ -88,7 +91,7 @@ export const FEED_HEALTH_SQL = `SELECT e.event_id AS "eventId", t.provider, t.ca
        e.kind, e.failure_kind AS "failureKind", e.evidence_source AS "evidenceSource", e.evidence_id AS "evidenceId"
   FROM noticeos.integration_health_events e
   JOIN noticeos.capability_targets t ON t.workspace_id = e.workspace_id AND t.target_seq = e.target_seq
- WHERE e.recorded_at >= $1::timestamptz
+ WHERE e.recorded_at >= $1::timestamptz AND ${unarchivedAssetSql("t.asset_id", "t.workspace_id")}
  ORDER BY e.recorded_at DESC LIMIT $2`;
 
 /** Driven from the site list, each site's lane seeking its newest runs down
@@ -106,6 +109,7 @@ export const FEED_SIGNAL_FAILURES_SQL = `SELECT r.run_id AS id, r.asset_id AS as
           AND r.status = 'error'
         ORDER BY r.finished_at DESC, r.run_seq
         LIMIT $2) r
+ WHERE a.status <> 'retired'
  ORDER BY r.finished_at DESC, r.run_seq LIMIT $2`;
 
 /** A site's newest successful run per integration: only the newest says
@@ -121,6 +125,7 @@ export const FEED_SIGNAL_LATEST_SQL = `SELECT r.asset_id AS asset, r.integration
           AND r.status = 'success'
         ORDER BY r.finished_at DESC, r.run_seq
         LIMIT 1) r
+ WHERE a.status <> 'retired'
  ORDER BY r.asset_id COLLATE "C", r.integration COLLATE "C"`;
 
 /** Each lane's runs asked since the run-start slack, one seek per lane down
@@ -132,7 +137,7 @@ export const FEED_DUMPS_SQL = `SELECT d.run_id AS id, d.asset_id AS asset, d.int
  CROSS JOIN LATERAL (
        SELECT r.run_id, r.asset_id, r.integration, r.report, r.finished_at, r.status, r.cost_usd, r.run_seq
          FROM noticeos.archive_runs r
-        WHERE r.integration = lanes.integration
+        WHERE r.integration = lanes.integration AND ${unarchivedAssetSql("r.asset_id", "r.workspace_id")}
           AND r.requested_at >= $1::timestamptz AND r.finished_at >= $2::timestamptz
         ORDER BY r.finished_at DESC, r.run_seq DESC
         LIMIT $3) d
@@ -144,6 +149,7 @@ export const FEED_MEDIAVINE_RUNS_SQL = `SELECT m.run_id AS id, m.asset_id AS ass
   FROM noticeos.assets a
   JOIN noticeos.mediavine_runs m
     ON m.workspace_id = a.workspace_id AND m.asset_id = a.asset_id AND m.attempted_at >= $1::timestamptz
+ WHERE a.status <> 'retired'
  ORDER BY m.attempted_at DESC, m.run_seq DESC LIMIT $2`;
 
 /** Each revenue run's newest reported day and what it earned, from any
@@ -159,6 +165,7 @@ export const FEED_REVENUE_SQL = `SELECT r.id, r.asset, r.day, r."amountMinor", r
                  FROM noticeos.revenue_observations o
                 WHERE o.workspace_id = a.workspace_id AND o.asset_id = a.asset_id AND o.recorded_at >= $1::timestamptz
                 ORDER BY o.recorded_at DESC LIMIT $2) n
+         WHERE a.status <> 'retired'
          ORDER BY n.asset, n.source, n.run_ref, n.day DESC, n.observation_id DESC) r
  ORDER BY r.at DESC, r.observation_id DESC LIMIT $2`;
 
@@ -170,7 +177,7 @@ export const FEED_HYGIENE_SQL = `SELECT h.reading_number::text AS id, h.asset_id
     ON h.workspace_id = a.workspace_id AND h.asset_id = a.asset_id
    AND h.check_id IN ('html-depth','robots-ai-access','sitemap','page-structure')
    AND h.observed_on >= $1::date
- WHERE h.observed_at >= $2::timestamptz
+ WHERE a.status <> 'retired' AND h.observed_at >= $2::timestamptz
  ORDER BY h.observed_at DESC, h.reading_id DESC LIMIT $3`;
 
 /** Money booked: the newest `FEED_TAIL_ROWS` entries by the workspace's own
@@ -178,7 +185,7 @@ export const FEED_HYGIENE_SQL = `SELECT h.reading_number::text AS id, h.asset_id
  * index. A change entry names no money. */
 export const FEED_LEDGER_SQL = `SELECT l.entry_number AS id, l.kind, l.asset_id AS asset, to_char(l.period_month, 'YYYY-MM') AS period,
        l.family, l.currency, l.amount_minor AS "amountMinor", l.recorded_at AS at
-  FROM (SELECT * FROM noticeos.ledger_entries ORDER BY entry_number DESC LIMIT $1) l
+  FROM (SELECT * FROM noticeos.ledger_entries WHERE ${unarchivedAssetSql("ledger_entries.asset_id", "ledger_entries.workspace_id")} ORDER BY entry_number DESC LIMIT $1) l
  WHERE l.recorded_at >= $2::timestamptz AND l.kind IN ('revenue', 'cost')
  ORDER BY l.recorded_at DESC, l.entry_number ASC LIMIT $3`;
 
@@ -188,7 +195,7 @@ export const FEED_LEDGER_SQL = `SELECT l.entry_number AS id, l.kind, l.asset_id 
 export const FEED_RESEARCH_SQL = `SELECT r.research_number::int AS id, r.asset_id AS asset, r.provider,
        COALESCE(r.cost_usd, 0)::float8 AS "costUsd", r.bought_at AS at
   FROM noticeos.research_log r
- WHERE r.bought_at >= $1::timestamptz
+ WHERE r.bought_at >= $1::timestamptz AND ${unarchivedAssetSql("r.asset_id", "r.workspace_id")}
  ORDER BY r.bought_at DESC, r.research_number DESC LIMIT $2`;
 
 /** Each asset's newest two analyses, for assets whose newest is inside the
@@ -207,7 +214,7 @@ export const FEED_INSIGHTS_SQL = `SELECT a.asset_id AS asset, p.snapshot_id AS i
         WHERE q.workspace_id = a.workspace_id AND q.asset_id = a.asset_id
         ORDER BY q.generated_at DESC, q.created_at DESC, q.snapshot_id DESC
         LIMIT 2) p
- WHERE (SELECT max(n.generated_at) FROM noticeos.asset_insight_snapshots n
+ WHERE a.status <> 'retired' AND (SELECT max(n.generated_at) FROM noticeos.asset_insight_snapshots n
          WHERE n.workspace_id = a.workspace_id AND n.asset_id = a.asset_id) >= $1::timestamptz
  ORDER BY a.asset_id COLLATE "C", p.generated_at DESC`;
 
@@ -221,6 +228,7 @@ export const FEED_PULSES_SQL = `SELECT p.day_number::int AS id, a.asset_id AS as
          WHERE c.workspace_id = a.workspace_id AND c.asset_id = a.asset_id AND c.received_at >= $1::timestamptz
          ORDER BY c.received_at DESC
          LIMIT $2) p
+ WHERE a.status <> 'retired'
  ORDER BY p.received_at DESC LIMIT $2`;
 
 /** Each site's changes through its (site, time) index, one bounded seek per
@@ -233,6 +241,7 @@ export const FEED_ANNOTATIONS_SQL = `SELECT n.annotation_number::int AS id, a.as
          WHERE c.workspace_id = a.workspace_id AND c.asset_id = a.asset_id AND c.at >= $1::timestamptz
          ORDER BY c.at DESC, c.annotation_number DESC
          LIMIT $2) n
+ WHERE a.status <> 'retired'
  ORDER BY n.at DESC, n.annotation_number DESC LIMIT $2`;
 
 /** The documents registry, then each document's changes through its
@@ -290,7 +299,7 @@ SELECT DISTINCT ON (i.list, i.value ->> 'id')
         CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(p.value -> l.list) WHEN 'array' THEN p.value -> l.list ELSE '[]' END)
               WITH ORDINALITY AS e(value, n)
        ) i
- WHERE i.at COLLATE "C" >= $3::text
+ WHERE i.at COLLATE "C" >= $3::text AND ${unarchivedAssetSql("p.value ->> 'asset'", "s.workspace_id")}
  ORDER BY i.list, i.value ->> 'id', s.captured_at, s.snapshot_id, p.n, i.list_n, i.item_n
   )
 SELECT list, asset, id, title, at, who, model, resolution FROM first_seen
@@ -307,10 +316,10 @@ export const FEED_WORK_SQL = `SELECT p.value ->> 'asset' AS asset, w.value ->> '
        w.value ->> 'title' AS title, w.value ->> 'by' AS who, w.value ->> 'model' AS model,
        w.value ->> 'evidence' AS evidence, w.value ->> 'at' AS at,
        w.value ->> 'option' AS option, w.value ->> 'label' AS label, w.value ->> 'resolution' AS resolution
-  FROM (SELECT payload FROM noticeos.task_snapshots ORDER BY captured_at DESC, snapshot_id DESC LIMIT 1) s
+  FROM (SELECT workspace_id, payload FROM noticeos.task_snapshots ORDER BY captured_at DESC, snapshot_id DESC LIMIT 1) s
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(s.payload -> 'projects') WHEN 'array' THEN s.payload -> 'projects' ELSE '[]' END) AS p(value)
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(p.value -> 'recentWork') WHEN 'array' THEN p.value -> 'recentWork' ELSE '[]' END) AS w(value)
- WHERE w.value ->> 'at' COLLATE "C" >= $1::text
+ WHERE w.value ->> 'at' COLLATE "C" >= $1::text AND ${unarchivedAssetSql("p.value ->> 'asset'", "s.workspace_id")}
  ORDER BY w.value ->> 'at' COLLATE "C" DESC
  LIMIT $2`;
 
@@ -875,18 +884,21 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     workRows(store, since, cap),
   ]);
 
+  const archived = new Set(assetRows.filter(site => isRetired(site.status)).map(site => site.id));
+  const active = <T extends { asset: string | null }>(rows: readonly T[]): T[] =>
+    rows.filter(row => row.asset === null || !archived.has(row.asset));
   const sites = new Map<string, Site>(assetRows.map((row) => [row.id, { name: assetDisplayName(row.isOs, row.displayName), isOs: row.isOs === 1 }]));
   const known = (asset: string | null): string | null => (asset && sites.has(asset) ? asset : null);
   const events = new Map<string, FeedEvent>();
   const inWindow = (atMs: number) =>
     Number.isFinite(atMs) && atMs >= Date.parse(since) && atMs <= deps.now.getTime() + 60_000;
   const add = (event: FeedEvent) => {
-    if (!inWindow(event.atMs)) return;
+    if (!inWindow(event.atMs) || (event.asset !== null && archived.has(event.asset))) return;
     if (!events.has(event.id)) events.set(event.id, event);
   };
 
   // Alerts that fired, and alerts that resolved.
-  for (const row of fired) {
+  for (const row of active(fired)) {
     add({
       id: `flag:${row.id}`,
       atMs: ms(row.at),
@@ -898,7 +910,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       many: (n, s) => across(plural(n, "alert"), s),
     });
   }
-  for (const row of resolved) {
+  for (const row of active(resolved)) {
     add({
       id: `flag-resolved:${row.id}`,
       atMs: ms(row.at),
@@ -913,7 +925,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
 
   // A source's state moving. A failure recorded against a collection row
   // shares that row's id, so the run below never adds a second line for it.
-  for (const row of health) {
+  for (const row of active(health)) {
     const line = EVIDENCE_LINE[row.evidenceSource];
     const id = line ? `${line}:${row.evidenceId}` : `health:${row.eventId}`;
     const label = monitorLabel(row.provider, row.capability);
@@ -944,24 +956,24 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       foldKey: "source-failed",
       many: (n, s) => across(`${plural(n, "source")} failed`, s),
     });
-  for (const row of signalFailures) {
+  for (const row of active(signalFailures)) {
     failure(`signal_runs:${row.id}`, row.asset, row.at, `${collector(row.integration)} ${row.integration === "gsc" ? "Search Console" : row.integration === "ga4" ? "Analytics" : "report"}`);
     attempts.push({ id: `signal_runs:${row.id}`, asset: row.asset, provider: collector(row.integration), atMs: ms(row.at), ok: false });
   }
-  for (const row of signalLatest) {
+  for (const row of active(signalLatest)) {
     attempts.push({ id: `signal_runs:${row.id}`, asset: row.asset, provider: collector(row.integration), atMs: ms(row.at), ok: true });
   }
-  for (const row of dumps) {
+  for (const row of active(dumps)) {
     const ok = row.status !== "error";
     if (!ok) failure(`signal_dump_runs:${row.id}`, row.asset, row.at, `${collector(row.integration)} report`);
     attempts.push({ id: `signal_dump_runs:${row.id}`, asset: row.asset, provider: collector(row.integration), atMs: ms(row.at), ok });
   }
-  for (const row of mediavine) {
+  for (const row of active(mediavine)) {
     const ok = row.outcome === "success";
     if (!ok) failure(`mediavine_runs:${row.id}`, row.asset, row.at, "Ad revenue report");
     attempts.push({ id: `mediavine_runs:${row.id}`, asset: row.asset, provider: collector("mediavine"), atMs: ms(row.at), ok });
   }
-  for (const row of hygiene) {
+  for (const row of active(hygiene)) {
     // A check that finds a broken page is an alert of its own; the check
     // itself ran.
     attempts.push({ id: `hygiene_checks:${row.id}`, asset: row.asset, provider: collector("hygiene"), atMs: ms(row.at), ok: true });
@@ -970,7 +982,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
 
   // Revenue reported, per report day across sites.
   const byDay = new Map<string, RevenueRow[]>();
-  for (const row of revenue) {
+  for (const row of active(revenue)) {
     const list = byDay.get(row.day) ?? [];
     list.push(row);
     byDay.set(row.day, list);
@@ -997,7 +1009,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
   }
 
   // Money booked into the ledger.
-  for (const row of ledger) {
+  for (const row of active(ledger)) {
     const revenueRow = row.kind === "revenue";
     const family = revenueRow ? (row.family === "ads" ? "ad" : row.family === "subs" ? "subscription" : row.family) : row.family;
     add({
@@ -1013,11 +1025,11 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
   }
 
   // Spend: paid reports per provider per run, and paid research.
-  const paid = dumps
+  const paid = active(dumps)
     .filter((row) => row.costUsd > 0)
     .map((row) => ({ id: `cost:signal_dump_runs:${row.id}`, asset: row.asset, provider: collector(row.integration), atMs: ms(row.at), usd: row.costUsd }));
   for (const line of costLines(paid, "report")) add(line);
-  const bought = research
+  const bought = active(research)
     .filter((row) => row.costUsd > 0)
     .map((row) => ({ id: `cost:research_log:${row.id}`, asset: known(row.asset), provider: collector(row.provider), atMs: ms(row.at), usd: row.costUsd }));
   for (const line of costLines(bought, "lookup")) add(line);
@@ -1025,7 +1037,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
   // Insights: refreshes per run, and every finding the newest analysis has
   // that the one before it did not.
   const byAsset = new Map<string, InsightRow[]>();
-  for (const row of insights) {
+  for (const row of active(insights)) {
     const list = byAsset.get(row.asset) ?? [];
     list.push(row);
     byAsset.set(row.asset, list);
@@ -1079,7 +1091,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
 
   // Nightly reports, per night.
   const byNight = new Map<string, PulseRow[]>();
-  for (const row of pulses) {
+  for (const row of active(pulses)) {
     const list = byNight.get(row.date) ?? [];
     list.push(row);
     byNight.set(row.date, list);
@@ -1101,7 +1113,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
 
   // Deploys and other recorded changes.
   const osDeploys: AnnotationRow[] = [];
-  for (const row of annotations) {
+  for (const row of active(annotations)) {
     // The OS's own moves carry one of three fixed notes: a rollback and a
     // failed deploy are each their own line, never folded.
     const osMove = row.kind === "deploy" ? osDeployOutcome(row.note) : null;
@@ -1199,7 +1211,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
   // snapshot names them. A named close is the task's line; the board's own
   // close is then the same event and is not added twice.
   const closers = new Map<string, WorkRow>();
-  for (const row of work) {
+  for (const row of active(work)) {
     if (!row.id || !row.at || !row.who) continue;
     if (row.kind === "closed") closers.set(`${row.asset}\0${row.id}`, row);
     if (row.kind === "chosen" && row.option?.trim() && row.label?.trim()) {
@@ -1233,7 +1245,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
 
   // Tasks done and tasks filed, once per task whichever snapshots held it. A
   // filed task the snapshot names a filer for reads as that filer's line.
-  for (const row of tasks) {
+  for (const row of active(tasks)) {
     if (!row.id || !row.at) continue;
     const done = row.list === "recentlyClosed";
     const closer = done ? closers.get(`${row.asset}\0${row.id}`) : undefined;
