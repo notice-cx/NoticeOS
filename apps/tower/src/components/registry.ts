@@ -1337,7 +1337,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "HealthGrid",
     file: "components/viz/HealthGrid.tsx",
     purpose:
-      "Subjects × data sources in one grid, each cell a state with its age: a fresh failure solid red, a week-old one outlined, not connected hatched. Rows keep their order; a System row carries its own parts. Below about 640px of its own width each row becomes a strip of shaped dots.",
+      "Subjects × data sources in one grid, each cell a state with its age: a fresh failure solid red, a week-old one outlined, not connected hatched. Summaries count source health without completion scores; unconnected and unused entries stay outside those summaries. Rows keep their order; a System row carries its own parts. Below about 640px of its own width each row becomes a strip of shaped dots.",
     variants: ["a bad afternoon", "calm (working cells recede)", "a good day", "narrow column"],
   },
   {
