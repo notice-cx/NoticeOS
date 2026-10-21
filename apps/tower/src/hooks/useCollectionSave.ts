@@ -63,7 +63,7 @@ function useCollectionWrite() {
         return;
       }
       warnConfigExport(await saveConfig(ops, slug), toast);
-      refreshConfigBackedQueries(queryClient, delayMs);
+      refreshConfigBackedQueries(queryClient, delayMs, ops);
     },
     [queryClient, delayMs],
   );
