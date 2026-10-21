@@ -2387,6 +2387,7 @@ test("partial Wall decisions and loop counts use lower-bound words without compa
   await expect(decide).toContainText("at least 12");
   await expect(decide).toContainText("for you to decide · at least 1 urgent");
   await assertNoPageOverflow(page);
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("wall-partial-counts.png"), fullPage: true });
 });
 
