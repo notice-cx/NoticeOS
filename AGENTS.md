@@ -265,8 +265,9 @@ migration is operator-only: `pnpm os:status` → a backup you can restore
 `pnpm os:update` ([database migrations](scripts/README.md#database-migrations)).
 `os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback`,
 `os:convert-legacy`, `os:apply`, `os:refresh-anomalies` (preview reads stored
-reports; apply changes count alerts) and `os:collect` (it asks providers and can
-spend) are operator-directed. An agent's verbs are `os:status`, `os:logs`, `os:restart` and its one-service
+reports; apply changes count alerts), `os:collect` (it asks providers and can
+spend) and `os:refresh-comparison` (it asks Google) are operator-directed. An
+agent's verbs are `os:status`, `os:logs`, `os:restart` and its one-service
 forms, the task verbs `os:mcp` and `os:bd` and, after a verified merge,
 `os:update`; never `os:migrate`.
 

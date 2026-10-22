@@ -121,6 +121,11 @@ test('a one-service restart names a service the stack has, and nothing else', as
   await assert.rejects(stackControl('restart', selector, { ...lean, args: ['backup'] }), /no backup worker/u);
   assert.deepEqual(lean.writes(), []);
 });
+test('the activity comparison refresh runs inside the running app with no arguments', async () => {
+  const own = fixture(); await stackControl('refresh-comparison', selector, { ...own, args: [] });
+  assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','refresh-comparison']]);
+  assert.throws(() => actionArgs('refresh-comparison', ['--asset', 'example.com']), /Usage/u);
+});
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
   const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\), dolt \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));

@@ -157,10 +157,10 @@ export async function collectComparison(property: string, accessToken: string, f
 export type ComparisonObservation = { observedAt: string; nextAttemptAt: string; ok: boolean; code?: string };
 export async function updateComparison(env: IngestEnv, input: { asset: string; property: string; token: string; zone: string; nowMs: number;
   fetchImpl: typeof fetch; cache: Ga4ReadCache | null; changes?: readonly TimeZoneChange[];
-  shared: SharedComparisons }): Promise<ComparisonObservation | null> {
+  shared: SharedComparisons; /** An operator's on-demand read: the stored retry time does not hold it back. */ force?: boolean }): Promise<ComparisonObservation | null> {
   const { asset, property, token, zone, nowMs, fetchImpl, changes = [], shared } = input;
   const date = dateInTimeZone(nowMs, zone);
-  const prior = await comparisonAttempt(env.STORE, asset, property, date, zone);
+  const prior = input.force ? null : await comparisonAttempt(env.STORE, asset, property, date, zone);
   if (prior && Date.parse(javascriptInstant(prior.next_attempt_at)) > nowMs) return null;
   let observedAt = new Date(nowMs).toISOString(), nextAttemptAt = new Date(nowMs + HOUR).toISOString();
   let payload: string | null = null, code: string | null = null;

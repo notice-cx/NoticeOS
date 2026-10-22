@@ -207,6 +207,52 @@ export async function runGa4Realtime(
   };
 }
 
+export interface ComparisonRefresh {
+  asset: string;
+  ok: boolean;
+  code?: string;
+  observedAt: string;
+  nextAttemptAt?: string;
+}
+
+/**
+ * Read every GA4 property's activity comparison now, for an operator who will
+ * not wait for the hourly retry. The stored retry time and the shared report
+ * cache are skipped; the attempt is stored and observed as a scheduled one is.
+ */
+export async function refreshGa4Comparisons(
+  env: IngestEnv,
+  options: Pick<Ga4RealtimeOptions, 'nowMs' | 'fetchImpl' | 'tokenCache' | 'clock'> = {},
+): Promise<ComparisonRefresh[]> {
+  const clock = options.clock ?? (options.nowMs === undefined ? Date.now : () => options.nowMs!);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const tokenCache = options.tokenCache === undefined ? sharedTokenCache : options.tokenCache;
+  const { resolved, osTimeZone, targets } = await realtimeTargets(env);
+  const health = await tryHealthConnection(env, 'google', resolved.credential, [resolved.oauth?.clientId ?? '', resolved.oauth?.clientSecret ?? '']);
+  const zoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
+  const results: ComparisonRefresh[] = [];
+  for (const [, accountTargets] of groupGoogleTargetsByAccount(targets)) {
+    let token: string;
+    try {
+      token = await accessTokenFor(accountTargets[0]!.auth, env.STORE, clock(), fetchImpl, tokenCache);
+    } catch (error) {
+      const { code } = normalizeSignalError(error, 'Google authentication failed.');
+      const observedAt = new Date(clock()).toISOString();
+      results.push(...accountTargets.map(target => ({ asset: target.asset, ok: false, code, observedAt })));
+      continue;
+    }
+    const shared: SharedComparisons = new Map();
+    for (const target of accountTargets) {
+      const comparison = await updateComparison(env, { asset: target.asset, property: target.propertyRef, token, zone: osTimeZone,
+        nowMs: clock(), fetchImpl, cache: null, shared, changes: zoneChanges.get(target.asset), force: true });
+      if (!comparison) continue;
+      await observeIntegration(env, health, { capability: 'ga4-comparison', asset: target.asset, target: target.propertyRef, ...comparison });
+      results.push({ asset: target.asset, ...comparison });
+    }
+  }
+  return results;
+}
+
 async function realtimeTargets(env: IngestEnv, rawConfig?: string) {
   const resolved = await resolveGoogleCredential(env);
   const accounts = rawConfig ?? resolved.accounts;

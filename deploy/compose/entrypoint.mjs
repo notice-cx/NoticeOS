@@ -55,8 +55,9 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
 }
 
 /** What the container runs: the runner with no job named, or one job beside
- * it (`pnpm os:backup`, `os:run-job`, `os:collect`, `os:capacity`, `os:mcp`, `os:bd` exec it here; `pnpm
- * os:setup` runs `setup` in a one-off container and `seed-settings` in the
+ * it (`pnpm os:backup`, `os:run-job`, `os:collect`, `os:capacity`,
+ * `os:refresh-anomalies`, `os:refresh-comparison`, `os:mcp`, `os:bd` exec it
+ * here; `pnpm os:setup` runs `setup` in a one-off container and `seed-settings` in the
  * new app), each with the environment the runner itself gets. Null for
  * anything else. */
 export function containerCommand(argv) {
@@ -70,6 +71,7 @@ export function containerCommand(argv) {
   if (job === 'collect') { try { return ['scripts/signal-collect.mjs', ...collectJobArgs(rest)]; } catch { return null; } }
   if (job === 'capacity' && (rest.length === 0 || rest.length === 1 && rest[0] === '--json')) return ['scripts/os-capacity.mjs', ...rest];
   if (job === 'refresh-anomalies') { try { anomalyRefreshArgs(rest); return ['scripts/anomaly-refresh.mjs', ...rest]; } catch { return null; } }
+  if (job === 'refresh-comparison' && rest.length === 0) return ['scripts/ga4-comparison-refresh.mjs'];
   if (job === 'mcp' && (rest.length === 0 || rest.length === 2 && rest[0] === '--actor')) return ['scripts/local-mcp.mjs', ...rest];
   if (job === 'bd' && rest.length > 0) return ['scripts/local-bd.mjs', ...rest];
   return null;
@@ -79,7 +81,7 @@ export async function main(argv = process.argv.slice(2), { environment = contain
   // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
   if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
   const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>" or run-job --id <job-id>, collect --asset <id> [--families <a,b>], capacity [--json], refresh-anomalies --asset <id> [--apply <preview-token>], mcp [--actor <name>], bd <arguments>, setup or seed-settings.\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>" or run-job --id <job-id>, collect --asset <id> [--families <a,b>], capacity [--json], refresh-anomalies --asset <id> [--apply <preview-token>], refresh-comparison, mcp [--actor <name>], bd <arguments>, setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();

@@ -35,6 +35,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `os:collect` | Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
+| `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
 | `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |

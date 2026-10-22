@@ -35,6 +35,7 @@
     "os:collect": "node scripts/stack-control.mjs collect",
     "os:capacity": "node scripts/stack-control.mjs capacity",
     "os:refresh-anomalies": "node scripts/stack-control.mjs refresh-anomalies",
+    "os:refresh-comparison": "node scripts/stack-control.mjs refresh-comparison",
     "os:mcp": "node scripts/stack-control.mjs mcp",
     "os:bd": "node scripts/stack-control.mjs bd",
     "os:codebase-report": "node scripts/codebase-report.mjs",

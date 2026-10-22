@@ -24,6 +24,7 @@ export const COMMANDS = Object.freeze({
   backup: ['./stack-control.mjs', ['backup']],
   capacity: ['./stack-control.mjs', ['capacity']],
   'refresh-anomalies': ['./stack-control.mjs', ['refresh-anomalies']],
+  'refresh-comparison': ['./stack-control.mjs', ['refresh-comparison']],
   'run-job': ['./stack-control.mjs', ['run-job']],
   collect: ['./stack-control.mjs', ['collect']],
   apply: ['./stack-apply.mjs', []],
