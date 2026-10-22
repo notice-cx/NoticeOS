@@ -4,6 +4,7 @@
 // a day or an edge nobody read stays absent rather than becoming a zero.
 import type { TaskActor, TaskDependency } from "@shared/tasks";
 import { taskActorLabel } from "@shared/tasks";
+import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
 import { ageMs, formatAge } from "@shared/freshness";
 import { sumWorkHistory, type WorkDoneWeek, type WorkEpic, type WorkProject, type WorkWeeks } from "@shared/work";
 import type { BarStripPoint } from "@/components/viz/BarStrip";
@@ -181,11 +182,11 @@ export interface EpicGraph {
   hidden: number;
 }
 
-/** `blocks` edges only: what `bd ready` waits on. A list row carries the edge
+/** Blocking edges only: what `bd ready` waits on. A list row carries the edge
  * on the dependent, pointing at its blocker. */
 function blockers(task: BoardTask): string[] {
   const deps = (task as BoardTask & { dependencies?: readonly TaskDependency[] }).dependencies;
-  return Array.isArray(deps) ? deps.filter((dep) => dep.type === "blocks").map((dep) => dep.id) : [];
+  return Array.isArray(deps) ? deps.filter((dep) => TASK_BLOCKING_DEPENDENCIES.includes(dep.type)).map((dep) => dep.id) : [];
 }
 
 const finished = (task: BoardTask) => task.status === "closed";
