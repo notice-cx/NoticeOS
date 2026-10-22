@@ -834,6 +834,7 @@ const OWED_COLLECTOR_LABELS: Record<string, string> = {
   pull: "nightly reports",
   hygiene: "search checks",
   "ga4-realtime": "Realtime traffic",
+  "ga4-comparison": "Activity comparison",
   "google-signals": "Google",
   "bing-signals": "Bing",
   "signal-dumps": "traffic archives",

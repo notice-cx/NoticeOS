@@ -959,6 +959,24 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, snapshot_id)
 - **Links:** (workspace_id) → `workspaces`
 
+## `traffic_comparison_reports`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `asset_id` | text | yes |  |
+| `property_ref` | text | yes | `(property_ref <> '')` |
+| `comparison_day` | date | yes |  |
+| `time_zone` | text | yes | `(time_zone <> '')` |
+| `observed_at` | timestamp with time zone | yes |  |
+| `next_attempt_at` | timestamp with time zone | yes |  |
+| `payload` | jsonb | no | `(jsonb_typeof(payload) = 'object')` |
+| `error_code` | text | no |  |
+
+- **Keys:** primary (workspace_id, asset_id, property_ref, comparison_day, time_zone, observed_at)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+- **Row checks:** `((payload IS NOT NULL) <> (error_code IS NOT NULL))`
+
 ## `watch_window_readings`
 
 | Column | Type | Required | Checks |

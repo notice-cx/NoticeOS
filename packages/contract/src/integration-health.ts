@@ -30,6 +30,7 @@ export const INTEGRATION_MONITORS = {
     // Saved Google collection schedule.
     monitor('gsc-daily', 'Search Console daily reports', ['gsc'], 'google-signals', 'property', 'scheduled', 'signal_runs', 'Review the Search Console property connection.'),
     monitor('ga4-realtime', 'Realtime traffic', ['ga4'], 'ga4-realtime', 'property', 'scheduled', 'live-only', 'Review Google access or the realtime collection schedule.'),
+    monitor('ga4-comparison', 'Activity comparison', ['ga4'], 'ga4-realtime', 'property', 'scheduled', 'live-only', 'Review the comparison report, Google access and Core quota.'),
     // One obligation per due family and report date from the collector plan.
     monitor('ga4-archive', 'Analytics report archive', ['ga4'], 'signal-dumps', 'family', 'scheduled', 'signal_dump_runs', 'Review the failed report family and its quota or access guidance.'),
     // One obligation per due family and report date from the collector plan.

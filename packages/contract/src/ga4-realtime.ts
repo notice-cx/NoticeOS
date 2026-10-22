@@ -112,6 +112,8 @@ export interface Ga4RealtimeDay {
   endAt: string;
   minutes: (number | null)[];
   sameDayLastWeek: (number | null)[] | null;
+  comparisonObservedAt?: string;
+  comparisonError?: string | null;
 }
 
 export interface Ga4RealtimeSuccess extends Ga4RealtimeAssetBase {

@@ -187,7 +187,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const setup = def.evidence === 'setup-only';
     const realtimeDelay = Math.max(realtimeCadenceMs,
       stored?.next_attempt_at ? Date.parse(stored.next_attempt_at) - Date.parse(stored.started_at) : 60_000);
-    const obligation = spec.capability === 'ga4-realtime' ? new Date(nowMs - realtimeDelay * 3).toISOString() : requiredSince;
+    const obligation = spec.capability === 'ga4-comparison' ? new Date(nowMs - Math.max(realtimeDelay, 3_600_000) * 3).toISOString() : spec.capability === 'ga4-realtime' ? new Date(nowMs - realtimeDelay * 3).toISOString() : requiredSince;
     const projected = integrationCapabilityHealth({ scope, connection: !spec.connection.configured ? 'disconnected' : spec.paused ? 'paused' : 'connected',
       covered: !setup, observerAvailable: observerAvailable && !legacyUnverified && !unrecordedAttempt && !limitedProviders.has(spec.connection.provider), trigger: def.trigger, observations, requiredSince: obligation, nowMs });
     const state = setup && spec.connection.configured ? 'idle' : projected.state;
@@ -348,7 +348,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         const targets = connection.demo ? [] : googleTargets(google, google.source, googleCredentialResolver(env), register);
         for (const target of targets) {
           const paused = cellDeclined(register.assets[target.asset]?.[target.integration]);
-          if (target.integration === 'ga4') for (const capability of ['ga4-realtime']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused: paused || !realtimeSchedule.enabled });
+          if (target.integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-comparison']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused: paused || !realtimeSchedule.enabled });
           await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, INTEGRATION_CADENCE_HOURS.signals, paused);
           await archive(connection, `${target.integration}-archive`, target.asset, target.propertyRef, target.integration, await integrationArchivePlan(env.STORE, target, nowMs, custom), paused);
         }
@@ -356,7 +356,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         // sign-in does, and records their daily counts; it keeps no archive.
         if (connection.demo) for (const integration of ['ga4', 'gsc'] as const) for (const { asset, ref } of registerMappedAssets(integration, register)) {
           const paused = cellDeclined(register.assets[asset]?.[integration]);
-          if (integration === 'ga4') for (const capability of ['ga4-realtime']) await add({ connection, capability, asset, target: ref, paused: paused || !realtimeSchedule.enabled });
+          if (integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-comparison']) await add({ connection, capability, asset, target: ref, paused: paused || !realtimeSchedule.enabled });
           await daily(connection, `${integration}-daily`, asset, ref, integration, INTEGRATION_CADENCE_HOURS.signals, paused);
         }
       } else if (provider === 'bing-webmaster') {

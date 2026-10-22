@@ -230,4 +230,8 @@ INSERT INTO noticeos.alert_daily_counts (workspace_id, asset_id, day, observed_a
 VALUES (:'ws', :'site', '2026-09-05', '2026-09-05T03:00:00Z', 1, 0, 1, 72),
        (:'ws', NULL, '2026-09-05', '2026-09-05T03:00:00Z', 1, 0, 1, 72);
 
+INSERT INTO noticeos.traffic_comparison_reports
+  (workspace_id,asset_id,property_ref,comparison_day,time_zone,observed_at,next_attempt_at,error_code)
+VALUES (:'ws', :'site', '1', '2026-09-05', 'UTC', '2026-09-05T12:00:00Z', '2026-09-05T13:00:00Z', 'ga4_comparison_waiting');
+
 COMMIT;

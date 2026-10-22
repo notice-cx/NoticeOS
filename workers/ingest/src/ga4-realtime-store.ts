@@ -1,5 +1,6 @@
 import { GA4_PULSE_MINUTES, type Ga4RealtimeAsset, type Ga4RealtimeDay, type Ga4RealtimeQuota } from '@noticeos/contract';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
+import { alignComparisonMinutes, backfillComparison } from './ga4-comparison.js';
 import { dateInTimeZone, shiftCalendarDate, zonedHourStartMs } from './time-zone.js';
 
 type Reading = Extract<Ga4RealtimeAsset, { status: 'success' }>;
@@ -94,7 +95,8 @@ export async function readRealtimeDay(store: WorkspaceStore, asset: string, prop
       if (at >= prior.start && at < prior.end) sameDayLastWeek[(at - prior.start) / MINUTE_MS] = value;
     }
   }
-  return { date, timeZone, startAt: new Date(today.start).toISOString(), endAt: new Date(today.end).toISOString(), minutes,
-    // A different-length DST day cannot be aligned by elapsed minute.
-    sameDayLastWeek: sameDayLastWeek.length === minutes.length ? sameDayLastWeek : null };
+  const day: Ga4RealtimeDay = { date, timeZone, startAt: new Date(today.start).toISOString(), endAt: new Date(today.end).toISOString(), minutes,
+    sameDayLastWeek: alignComparisonMinutes(sameDayLastWeek, prior.start, today.start, minutes.length, timeZone) };
+  await backfillComparison(store, asset, property, day);
+  return day;
 }

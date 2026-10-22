@@ -28,7 +28,7 @@ export const GA4_QUOTA_EXHAUSTED_CODE = 'ga4_quota_exhausted';
 export const GA4_QUOTA_RESERVE = { tokensPerDay: 40_000, tokensPerHour: 8_000 } as const;
 
 /** Which lane spent the tokens, carried into the flag so the fix is obvious. */
-export type Ga4QuotaLane = 'signal-dumps' | 'google-signals' | 'ga4-realtime';
+export type Ga4QuotaLane = 'signal-dumps' | 'google-signals' | 'ga4-realtime' | 'ga4-comparison';
 
 /**
  * The buckets a request reports back. A missing or unusable field stays

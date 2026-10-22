@@ -548,6 +548,7 @@ by column; retention and maintenance privileges are checked separately.
 | `task_daily_counts` | insert, update, delete | One row per project per day, upserted; swept after 400 days. |
 | `task_operation_receipts` | insert; update only state, attempt, result, started_at, finished_at; delete | A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve; swept seven days after its last attempt (retention). |
 | `task_snapshots` | insert; update only captured_at, payload; delete | An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days. |
+| `traffic_comparison_reports` | append-only | Append-only processed activity reports; successful backfills remain available through failed refreshes. |
 | `watch_window_readings` | append-only | Append-only, one per offset. |
 | `watch_windows` | insert; update only status, outcome, closed_at, outcome_note, last_checked_at, readback_bead, readback_posted_at | The registration is fixed; the close is one-way. |
 | `workspace_counters` | insert; update only last_number | The last number each workspace handed out per numbered table, and the last place in its list of assets, started and advanced by the numbering trigger in the inserting transaction; it never moves back. |

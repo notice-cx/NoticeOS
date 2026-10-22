@@ -1,3 +1,5 @@
+import { updateComparison, type SharedComparisons } from './ga4-comparison.js';
+import { timeZoneChangesFor } from './time-zone-change.js';
 import { getConfigDocuments } from './config-store.js';
 import { readGa4Reading, saveGa4Reading, realtimeReadDue, realtimeNextReadAt } from './ga4-realtime-store.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
@@ -95,6 +97,7 @@ export async function runGa4Realtime(
   const health = await tryHealthConnection(env, 'google', resolved.credential, [resolved.oauth?.clientId ?? '', resolved.oauth?.clientSecret ?? '']);
   let monitoringAvailable = health !== null;
   const assets: Ga4RealtimeAsset[] = [];
+  const zoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
   for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     let accessToken: string;
     try {
@@ -122,6 +125,7 @@ export async function runGa4Realtime(
       continue;
     }
 
+    const sharedComparisons: SharedComparisons = new Map();
     const sharedReadings = new Map<string, Promise<Awaited<ReturnType<typeof collectGa4Realtime>>>>();
     for (const target of accountTargets) {
       try {
@@ -178,6 +182,20 @@ export async function runGa4Realtime(
             observedAt: error instanceof Ga4ReadError ? error.observedAt : new Date(clock()).toISOString(), ok: false, code: normalized.code,
             ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt } : {}) });
           monitoringAvailable = recorded && monitoringAvailable;
+        }
+      } finally {
+        try {
+          const cache = responseCache ? { store: env.STORE, cache: responseCache, clock,
+            scope: await ga4CacheScope({ auth: target.auth, property: target.propertyRef }) } : null;
+          const comparison = await updateComparison(env, { asset: target.asset, property: target.propertyRef, token: accessToken,
+            zone: osTimeZone, nowMs: clock(), fetchImpl, cache, shared: sharedComparisons, changes: zoneChanges.get(target.asset) });
+          if (comparison) {
+            const recorded = await observeIntegration(env, health, { capability: 'ga4-comparison', asset: target.asset,
+              target: target.propertyRef, ...comparison });
+            monitoringAvailable = recorded && monitoringAvailable;
+          }
+        } catch {
+          monitoringAvailable = false;
         }
       }
     }

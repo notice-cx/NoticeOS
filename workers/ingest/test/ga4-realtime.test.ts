@@ -19,6 +19,7 @@ function realtimeFetch(status = 200, quota: QuotaFixture = {}, _unused = {}, min
     const body = String(init?.body ?? '');
     calls.push({ url, body });
     if (url === TOKEN_URL) return Response.json({ access_token: 'synthetic-realtime-token', expires_in: 3600 });
+    if (url.endsWith(':runReport')) return Response.json({ dimensionHeaders: [{ name: 'dateHourMinute' }, { name: 'dateRange' }], metricHeaders: [{ name: 'activeUsers' }], rows: [], rowCount: 0, metadata: { timeZone: 'UTC' } });
     if (!url.endsWith(':runRealtimeReport')) throw new Error(`unexpected provider read: ${url}`);
     if (status !== 200) return Response.json({ error: { message: 'GA4 access denied' } }, { status });
     if (isMinutesRequest(body)) return Response.json(minutes.body ?? {
@@ -87,7 +88,7 @@ describe('scheduled GA4 realtime collection', () => {
       await store.close();
       forgetConfigCache();
       await asOwner(['integration_health_events', 'integration_capability_state', 'capability_targets',
-        'integration_leases', 'realtime_traffic_readings', 'assets', 'workspace_counters', 'workspaces'].map((table) =>
+        'integration_leases', 'realtime_traffic_readings', 'traffic_comparison_reports', 'assets', 'workspace_counters', 'workspaces'].map((table) =>
         `DELETE FROM noticeos.${table} WHERE workspace_id = '${workspaceId}';`).join('\n'));
     }
   });
@@ -164,7 +165,7 @@ describe('scheduled GA4 realtime collection', () => {
     const result = await runGa4Realtime(env, { fetchImpl, responseCache: await caches.open(crypto.randomUUID()), tokenCache: new Map(), clock: () => now });
     expect(result.assets[1]?.observedAt).toBe(new Date(NOW + 45_000).toISOString());
   });
-  it('shares one two-request reading per minute and never calls Core reporting', async () => {
+  it('shares realtime reads per minute and bounds Core backfills to one per property per hour', async () => {
     const fixture = realtimeFetch();
     const options = { fetchImpl: fixture.fetchImpl, tokenCache: new Map(), responseCache: await caches.open(crypto.randomUUID()) };
     await runGa4Realtime(env, { ...options, nowMs: NOW });
@@ -172,7 +173,7 @@ describe('scheduled GA4 realtime collection', () => {
     expect(fixture.calls.filter(call => call.url.endsWith(':runRealtimeReport'))).toHaveLength(4);
     await runGa4Realtime(env, { ...options, nowMs: NOW + 60_000 });
     expect(fixture.calls.filter(call => call.url.endsWith(':runRealtimeReport'))).toHaveLength(8);
-    expect(fixture.calls.some(call => call.url.endsWith(':runReport'))).toBe(false);
+    expect(fixture.calls.filter(call => call.url.endsWith(':runReport'))).toHaveLength(2);
   });
 
   it('serves retained counters and a full-day chart without any provider calls', async () => {

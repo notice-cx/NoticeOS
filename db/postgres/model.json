@@ -555,6 +555,14 @@
         "delete": false
       },
       "rule": "Append-only realtime readings; overlapping minutes use the newest provider observation."
+    },
+    "traffic_comparison_reports": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only processed activity reports; successful backfills remain available through failed refreshes."
     }
   },
   "retention": {
