@@ -8,7 +8,7 @@ export function AlertDaily() {
   return (
     <section aria-label="Daily open-alert snapshots" className="min-w-0 rounded-xl bg-card p-4 ring-1 ring-border/70" data-alert-daily="">
       <h2 className="text-sm font-semibold">Daily open-alert snapshots</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Unresolved alerts across every site at each daily observation (UTC), not newly fired alerts. Missing days are unknown; zero means none were open.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Unresolved alerts at each daily observation (UTC), not newly fired alerts. Missing days are unknown; zero means none were open.</p>
       {isError ? <div role="status" data-status-for="read:alert-daily" className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <span>Couldn't load daily alert snapshots.{data ? " Showing the last successful read." : " Counts are unknown."}</span>
         <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>Try again</Button>
