@@ -115,6 +115,8 @@ export interface WallRow {
     id: string;
     /** `fill` takes the height the other rows leave; at most one row may. */
     height: 'auto' | 'fill';
+    /** Shares remaining height by weight, as a row inside a column does. */
+    size?: number;
     widgets: WallSlot[];
 }
 export interface WallLayout {
@@ -175,7 +177,8 @@ export declare function wallLayoutWidgets(layout: WallLayout): WallWidget[];
 /**
  * The default Wall: the strip, then the loop across the TV; below them two
  * columns — the last 24 hours over the site rows, beside revenue over the
- * work. Revenue's band sits beside the sites rather than over them because
+ * work. Work fits its project rows; revenue's month chart takes the remaining
+ * height. Revenue sits beside the sites rather than over them because
  * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
  * way (`pnpm audit:wall-fit`). Needs attention and the live feed stay in the library
  * for a Wall that wants them.

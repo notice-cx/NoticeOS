@@ -78,7 +78,12 @@ export interface WallFitMeasurement {
         clipped: number;
     };
 }
-export declare function measureWallFit(): WallFitMeasurement | {
+/** A preview widget uses its content box as the boundary, in unscaled TV
+ * pixels. With no scope the audit still measures the whole viewport. */
+export declare function measureWallFit(scope?: {
+    root: Element;
+    scale: number;
+} | void): WallFitMeasurement | {
     error: string;
 };
 export interface WallFitVerdict {

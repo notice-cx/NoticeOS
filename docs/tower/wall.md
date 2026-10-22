@@ -13,7 +13,7 @@ The Wall shows: the live count at each step of the loop, what is broken and sinc
 
 ## What you see
 
-The Wall is drawn from a layout you arrange in the Tower. It has no navigation and no controls; the small grey NoticeOS mark in the corner links back to Home. The default layout has six tiles: the strip and the loop across the top, then **Last 24 hours** over **Sites** on the left, beside **Revenue this month** over **Work this week** on the right.
+The Wall is drawn from a layout you arrange in the Tower. It has no navigation and no controls; the small grey NoticeOS mark in the corner links back to Home. The default layout has six tiles: the strip and the loop across the top, then **Last 24 hours** over **Sites** on the left, beside **Revenue this month** over **Work this week** on the right. Work fits its project rows; Revenue's month chart and Sites use the remaining height in their columns.
 
 Until a layout is saved, the Wall shows the preset of the workspace's default view, set in [Settings → General](/tower/settings#general):
 

@@ -192,6 +192,8 @@ export interface WallRow {
   id: string;
   /** `fill` takes the height the other rows leave; at most one row may. */
   height: 'auto' | 'fill';
+  /** Shares remaining height by weight, as a row inside a column does. */
+  size?: number;
   widgets: WallSlot[];
 }
 
@@ -305,7 +307,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     minWidthRem: 0,
     maxWidthRem: null,
     unique: true,
-    prefersFill: true,
+    prefersFill: false,
     stackOrder: 7,
     hidesWhenEmpty: false,
     settings: ['assets'],
@@ -468,7 +470,8 @@ export function wallLayoutWidgets(layout: WallLayout): WallWidget[] {
 /**
  * The default Wall: the strip, then the loop across the TV; below them two
  * columns — the last 24 hours over the site rows, beside revenue over the
- * work. Revenue's band sits beside the sites rather than over them because
+ * work. Work fits its project rows; revenue's month chart takes the remaining
+ * height. Revenue sits beside the sites rather than over them because
  * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
  * way (`pnpm audit:wall-fit`). Needs attention and the live feed stay in the library
  * for a Wall that wants them.
@@ -514,12 +517,12 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
           rows: [
             {
               id: 'money',
-              height: 'auto',
+              height: 'fill',
               widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }],
             },
             {
               id: 'work',
-              height: 'fill',
+              height: 'auto',
               widgets: [{ id: 'work', type: 'work', width: 1 }],
             },
           ],
@@ -708,7 +711,7 @@ function checkRow(
   at: string,
   ids: LayoutIds,
   column: string | null,
-): Checked<'row', WallRow & { size?: number }> {
+): Checked<'row', WallRow> {
   if (!isRecord(rawRow)) return { ok: false, reason: `${at} must be an object.` };
   if (typeof rawRow.id !== 'string' || !ID_RE.test(rawRow.id)) {
     return { ok: false, reason: `${at} needs ${ID_RULE}.` };
@@ -718,10 +721,7 @@ function checkRow(
   if (rawRow.height !== 'auto' && rawRow.height !== 'fill') {
     return { ok: false, reason: `${at} must say whether its height is "auto" or "fill".` };
   }
-  // A top-level row's height is `auto` or `fill` only: the renderer applies a
-  // size inside a column and nowhere else.
   if (rawRow.size !== undefined) {
-    if (column === null) return { ok: false, reason: `${at} can take a size only inside a column.` };
     if (!isWallWidth(rawRow.size)) return { ok: false, reason: `${at} needs a size between ${WALL_WIDTH_MIN} and ${WALL_WIDTH_MAX} in steps of ${WALL_WIDTH_STEP}.` };
   }
   if (!Array.isArray(rawRow.widgets) || rawRow.widgets.length === 0) {
@@ -864,7 +864,7 @@ function checkWidget(rawWidget: unknown, where: string, ids: LayoutIds): Checked
 export function wallLayoutWarnings(layout: WallLayout): string[] {
   const warnings: string[] = [];
   const present = new Set(wallLayoutWidgets(layout).map((w) => w.type));
-  if (!layout.rows.some((row) => row.height === 'fill')) {
+  if (!layout.rows.some((row) => row.height === 'fill' || row.size !== undefined)) {
     warnings.push('Bottom of the TV left empty');
   }
   for (const type of WALL_WIDGET_TYPES) {
@@ -875,9 +875,8 @@ export function wallLayoutWarnings(layout: WallLayout): string[] {
       const place = wallRowPlaces(layout).find(({ row }) =>
         row.widgets.some((w) => !isWallColumn(w) && w.type === type),
       );
-      // A sized row inside a column shares its column's height like a fill row.
-      const stretches = place !== undefined && (place.row.height === 'fill' || ('size' in place.row && place.row.size !== undefined));
-      if (place && (!stretches || (place.parent !== null && place.parent.height !== 'fill'))) {
+      const stretches = place !== undefined && (place.row.height === 'fill' || place.row.size !== undefined);
+      if (place && (!stretches || (place.parent !== null && place.parent.height !== 'fill' && place.parent.size === undefined))) {
         warnings.push(`${spec.label} squeezed into a fixed-height row`);
       }
     }

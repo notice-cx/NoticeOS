@@ -29,6 +29,8 @@ export interface WallDividerGeometry {
   tracks: {
     /** The row's id, or the column's for a `y` track. */
     rowId: string;
+    /** The full canvas stack, rather than a column's stack. */
+    topLevel?: boolean;
     axis: "x" | "y";
     box: Box;
     /** Left to right, or top to bottom: slot or widget ids on `x`, column-row ids on `y`. */
@@ -92,7 +94,7 @@ export function WallDividers({ layout, geometry, scale, onWidths, onSizes }: Wal
           if (track.axis === "y" && !onSizes) return null;
           return (
             <WallDivider
-              key={`${track.rowId}:${item.id}:${next.id}`}
+              key={`${track.topLevel ? "layout" : "slot"}:${track.rowId}:${item.id}:${next.id}`}
               layout={layout}
               track={track}
               index={index}
@@ -134,7 +136,7 @@ function WallDivider({
   const vertical = track.axis === "x";
   const firstSlot = vertical ? findSlot(layout, first.id) : null;
   const secondSlot = vertical ? findSlot(layout, second.id) : null;
-  const column = vertical ? null : findColumn(layout, track.rowId);
+  const column = vertical ? null : track.topLevel ? layout : findColumn(layout, track.rowId);
   const firstRow = column?.rows.find((row) => row.id === first.id) ?? null;
   const secondRow = column?.rows.find((row) => row.id === second.id) ?? null;
   const names = [wallSlotName(layout, first.id), wallSlotName(layout, second.id)];
@@ -148,8 +150,7 @@ function WallDivider({
       items: from.items.map((item) => span(item.box, from.axis)),
       index,
       pointer,
-      // A step clear of the line the too-small state draws at, so a divider
-      // stopped at a minimum never shows it.
+      // Leave room for rounding height weights to the contract's step grid.
       minFirst: minFirst + MIN_MARGIN,
       minSecond: minSecond + MIN_MARGIN,
       snap,

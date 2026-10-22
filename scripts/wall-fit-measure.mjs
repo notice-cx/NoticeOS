@@ -25,21 +25,30 @@
 // itself is deliberately not applied, because making it unnecessary is the point.
 // Then the budget: each region's box, each site row's height, the spare
 // height under the rows, and whether the feed draws only whole rows.
-export function measureWallFit() {
+/** A preview widget uses its content box as the boundary, in unscaled TV
+ * pixels. With no scope the audit still measures the whole viewport. */
+export function measureWallFit(scope) {
     const TOLERANCE = 1;
-    const root = document.querySelector(".wall-root");
+    const root = scope?.root ?? document.querySelector(".wall-root");
     if (!root)
         return { error: "no .wall-root on the page" };
-    const vw = document.documentElement.clientWidth;
-    const vh = document.documentElement.clientHeight;
-    const scrollLeft = window.scrollX;
-    const scrollTop = window.scrollY;
+    const origin = root.getBoundingClientRect();
+    if (scope && (origin.width === 0 || origin.height === 0 || scope.scale <= 0))
+        return { error: "content not laid out" };
+    const rectOf = (el) => localRect(el.getBoundingClientRect());
+    const localRect = (rect) => scope
+        ? new DOMRect((rect.left - origin.left) / scope.scale, (rect.top - origin.top) / scope.scale, rect.width / scope.scale, rect.height / scope.scale)
+        : rect;
+    const vw = scope ? origin.width / scope.scale : document.documentElement.clientWidth;
+    const vh = scope ? origin.height / scope.scale : document.documentElement.clientHeight;
+    const scrollLeft = scope ? 0 : window.scrollX;
+    const scrollTop = scope ? 0 : window.scrollY;
     const round = (value) => Math.round(value * 10) / 10;
     const squash = (text) => (text ?? "").trim().replace(/\s+/g, " ");
     /* A laptop draws the TV's layout zoomed: an element's
      * rects are the screen's pixels, its own sizes (scroll, client, borders)
      * its own, which are the screen's over this zoom. */
-    const zoomOf = (el) => el.currentCSSZoom ?? 1;
+    const zoomOf = (el) => scope ? 1 : el.currentCSSZoom ?? 1;
     const describe = (el) => {
         let out = el.tagName.toLowerCase();
         if (el.id)
@@ -65,7 +74,7 @@ export function measureWallFit() {
     };
     /* Clipping happens at the padding box, so that is the rect to intersect. */
     const paddingBox = (el) => {
-        const rect = el.getBoundingClientRect();
+        const rect = rectOf(el);
         const style = getComputedStyle(el);
         const zoom = zoomOf(el);
         return {
@@ -81,6 +90,8 @@ export function measureWallFit() {
         let left = rect.left, right = rect.right, top = rect.top, bottom = rect.bottom;
         for (let node = fromElement; node && node !== root; node = node.parentElement) {
             const style = getComputedStyle(node);
+            if (style.visibility === "hidden" || style.display === "none")
+                return null;
             const clipsX = style.overflowX !== "visible";
             const clipsY = style.overflowY !== "visible";
             if (!clipsX && !clipsY)
@@ -116,11 +127,15 @@ export function measureWallFit() {
             overX.push({ kind, el: chain(fromElement), right: round(right), by: round(right - vw), text: text.slice(0, 48) });
         if (bottom > vh + TOLERANCE)
             overY.push({ kind, el: chain(fromElement), bottom: round(bottom), by: round(bottom - vh), text: text.slice(0, 48) });
+        if (scope && painted.left < -TOLERANCE)
+            overX.push({ kind, el: chain(fromElement), by: round(-painted.left), text: text.slice(0, 48) });
+        if (scope && painted.top < -TOLERANCE)
+            overY.push({ kind, el: chain(fromElement), by: round(-painted.top), text: text.slice(0, 48) });
     };
     /* 1 — element boxes. */
     const elements = [...root.querySelectorAll("*")];
     for (const el of elements) {
-        const rect = el.getBoundingClientRect();
+        const rect = rectOf(el);
         if (rect.width === 0 && rect.height === 0)
             continue;
         consider(rect, el, "box", squash(el.textContent));
@@ -144,13 +159,13 @@ export function measureWallFit() {
         for (const rect of range.getClientRects()) {
             if (rect.width === 0 && rect.height === 0)
                 continue;
-            consider(rect, node.parentElement, "text", text);
+            consider(localRect(rect), node.parentElement, "text", text);
         }
     }
     range.detach();
     /* 3 — the wall root's own content extent: the clipping box still reports
      * what it hides, which the document's scroll size cannot. */
-    const rootRect = root.getBoundingClientRect();
+    const rootRect = rectOf(root);
     const rootStyle = getComputedStyle(root);
     const scale = zoomOf(root);
     const rootContentRight = rootRect.left + (parseFloat(rootStyle.borderLeftWidth || "0") + root.scrollWidth) * scale + scrollLeft;
@@ -200,6 +215,8 @@ export function measureWallFit() {
         const parent = node.parentElement;
         if (!text || !parent || parent.closest("svg, script, style, title, .sr-only"))
             continue;
+        if (getComputedStyle(parent).visibility === "hidden")
+            continue;
         // Responsive selectors can apply screen-reader-only clipping without
         // putting a literal .sr-only class on the element or its descendants.
         let accessibleOnly = false;
@@ -211,23 +228,36 @@ export function measureWallFit() {
         if (accessibleOnly)
             continue;
         clipRange.selectNodeContents(node);
-        for (const rect of clipRange.getClientRects()) {
+        for (const screenRect of clipRange.getClientRects()) {
+            const rect = localRect(screenRect);
             if (rect.width === 0)
                 continue;
             let left = rect.left, right = rect.right, designed = false;
+            let top = rect.top, bottom = rect.bottom;
             for (let el = parent; el && el !== root; el = el.parentElement) {
                 const style = getComputedStyle(el);
                 if (style.textOverflow === "ellipsis")
                     designed = true;
-                if (style.overflowX === "visible")
+                const clipsX = style.overflowX !== "visible";
+                const clipsY = scope && style.overflowY !== "visible";
+                if (!clipsX && !clipsY)
                     continue;
                 const box = paddingBox(el);
-                left = Math.max(left, box.left);
-                right = Math.min(right, box.right);
+                if (clipsX) {
+                    left = Math.max(left, box.left);
+                    right = Math.min(right, box.right);
+                }
+                if (clipsY) {
+                    top = Math.max(top, box.top);
+                    bottom = Math.min(bottom, box.bottom);
+                }
             }
             const cut = Math.max(rect.right - right, left - rect.left);
             if (cut > TOLERANCE && !designed)
                 clipped.push({ el: chain(parent), axis: "x", delta: round(cut), text: squash(text).slice(0, 48) });
+            const cutY = Math.max(rect.bottom - bottom, top - rect.top);
+            if (cutY > TOLERANCE)
+                clipped.push({ el: chain(parent), axis: "y", delta: round(cutY), text: squash(text).slice(0, 48) });
         }
     }
     clipRange.detach();
@@ -238,7 +268,7 @@ export function measureWallFit() {
         const el = root.querySelector(selector);
         if (!el)
             return null;
-        const r = el.getBoundingClientRect();
+        const r = rectOf(el);
         return {
             top: Math.round(r.top + scrollTop), bottom: Math.round(r.bottom + scrollTop),
             left: Math.round(r.left + scrollLeft), right: Math.round(r.right + scrollLeft),
@@ -248,15 +278,15 @@ export function measureWallFit() {
     const region = root.querySelector("[data-wall-sites]");
     const density = region ? region.getAttribute("data-site-density") : null;
     const rowEls = region ? [...region.querySelectorAll("[data-site-row]")] : [];
-    const rows = rowEls.map((row) => ({ id: row.getAttribute("data-site-row") || "", height: Math.round(row.getBoundingClientRect().height) }));
+    const rows = rowEls.map((row) => ({ id: row.getAttribute("data-site-row") || "", height: Math.round(rectOf(row).height) }));
     const lastRow = rowEls.at(-1);
     const spare = region && lastRow && density !== "focus"
-        ? Math.round(region.getBoundingClientRect().bottom - lastRow.getBoundingClientRect().bottom)
+        ? Math.round(rectOf(region).bottom - rectOf(lastRow).bottom)
         : null;
     const list = root.querySelector("[data-wall-feed] ol");
     const shown = list ? [...list.children].filter((row) => getComputedStyle(row).visibility !== "hidden") : [];
     const lowest = shown.at(-1);
-    const lastRowWhole = list && lowest ? Math.round(lowest.getBoundingClientRect().bottom) <= Math.round(list.getBoundingClientRect().bottom) : null;
+    const lastRowWhole = list && lowest ? Math.round(rectOf(lowest).bottom) <= Math.round(rectOf(list).bottom) : null;
     const worstOf = (list) => list.reduce((worst, item) => (worst === null || item.by > worst.by ? item : worst), null);
     overX.sort((a, b) => b.by - a.by);
     overY.sort((a, b) => b.by - a.by);

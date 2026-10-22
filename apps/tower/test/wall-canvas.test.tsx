@@ -322,31 +322,36 @@ describe("the Wall nobody rearranged is the default", () => {
     for (const id of ["money", "sites", "timeline", "work"]) expect(row(id), id).toHaveLength(1);
   });
 
-  it("gives the body the height the strip and loop leave, the site rows what the timeline leaves, the work what revenue leaves", () => {
+  it("gives the site rows what the timeline leaves and revenue what the work leaves", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     // At the TV's width (`tv:`), where the rows are boxes.
-    for (const id of ["body", "sites", "work"]) {
+    for (const id of ["body", "sites", "money"]) {
       expect(view.container.querySelector(`[data-wall-row='${id}']`), id).toHaveClass("tv:min-h-0", "tv:flex-1");
     }
-    for (const id of ["strip", "loop", "money", "timeline"]) {
+    for (const id of ["strip", "loop", "work", "timeline"]) {
       expect(view.container.querySelector(`[data-wall-row='${id}']`), id).not.toHaveClass("tv:flex-1");
     }
   });
 
-  it("shares a column's height by its rows' sizes when they have them, the fill row weighing one", () => {
+  it("shares top-level and column heights by their row weights, the unsized fill row weighing one", () => {
     const sized = JSON.parse(JSON.stringify(DEFAULT_WALL_LAYOUT)) as typeof DEFAULT_WALL_LAYOUT;
+    sized.rows[0]!.size = 0.5;
+    sized.rows[2]!.size = 2;
     const business = sized.rows[2]!.widgets[0]!;
     if (business.type !== "column") throw new Error("the default's first body slot is a column");
     business.rows[0]!.size = 1;
     business.rows[1]!.size = 2;
     const view = canvas(sized);
+    expect(view.container.querySelector('[data-wall-row="strip"]')).toHaveAttribute("data-wall-row-size", "0.5");
+    expect(view.container.querySelector('[data-wall-row="body"]')).toHaveStyle({ "--wall-row-grow": "2" });
+    expect(view.container.querySelector('[data-wall-row="loop"]')).not.toHaveAttribute("data-wall-row-size");
     const timeline = view.container.querySelector("[data-wall-row='timeline']")!;
     expect(timeline).toHaveClass("tv:grow-(--wall-row-grow)", "tv:basis-0", "tv:min-h-0");
     expect(timeline).not.toHaveClass("tv:flex-1");
     expect(timeline.getAttribute("style")).toContain("--wall-row-grow: 1");
     expect(view.container.querySelector("[data-wall-row='sites']")?.getAttribute("style")).toContain("--wall-row-grow: 2");
     // The other column is untouched: its rows still fit and fill.
-    expect(view.container.querySelector("[data-wall-row='work']")).toHaveClass("tv:flex-1");
+    expect(view.container.querySelector("[data-wall-row='money']")).toHaveClass("tv:flex-1");
     expect(view.container.querySelector("[data-wall-row='money']")?.getAttribute("data-wall-row-size")).toBeNull();
   });
 

@@ -19,7 +19,6 @@ import {
 } from "@shared/wall-layout";
 import {
   WALL_UNDO_LIMIT,
-  WALL_WIDGET_MIN_PX,
   roundWallWidth,
   wallAddTarget,
   wallCanRedo,
@@ -47,7 +46,6 @@ import {
   wallStackChoices,
   wallStackShareSizes,
   wallStackSizes,
-  wallTooSmall,
   wallWidgetAt,
   wallWidgetHeightIsGiven,
   wallWidthShare,
@@ -506,7 +504,7 @@ describe("the Move menu", () => {
   it("steps down through a column, the widget keeping its row's height", () => {
     const layout = move(DEFAULT_WALL_LAYOUT, "revenue", "down")!;
     expect(stack(layout, "side")).toEqual([["work"], ["revenue"]]);
-    expect(column(layout, "side").rows.map((r) => r.height)).toEqual(["fill", "auto"]);
+    expect(column(layout, "side").rows.map((r) => r.height)).toEqual(["auto", "fill"]);
   });
 
   it("steps up out of the top of a column into a row of its own", () => {
@@ -675,6 +673,38 @@ describe("heights", () => {
     expect(wallStackSizes(three, [100, 300, 400], 0, 0.25)).toEqual({ a: 0.5, b: 1.5 });
   });
 
+  it("resizes full-width rows through the same split, preserving other rows and one Undo per drag", () => {
+    const layout: WallLayout = {
+      version: 1,
+      rows: [
+        { id: "above", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] },
+        { id: "below", height: "auto", widgets: [{ id: "work", type: "work", width: 1 }] },
+        { id: "remaining", height: "fill", size: 2, widgets: [{ id: "sites", type: "sites", width: 1 }] },
+      ],
+    };
+    const split = wallDividerSplit({ items: [{ start: 0, size: 100 }, { start: 120, size: 300 }, { start: 440, size: 400 }], index: 0, pointer: 210 });
+    expect(split.snapped).toBe("¼");
+    const sizes = wallStackSizes(layout, [100, 300, 400], 0, split.ratio);
+    expect(sizes).toEqual({ above: 1, below: 1 });
+    const state = run(start(layout),
+      { type: "sizes", sizes, gesture: "top-drag" },
+      { type: "sizes", sizes: { above: 0.5, below: 1.5 }, gesture: "top-drag" });
+    expect(state.past).toHaveLength(1);
+    expect(state.layout.rows.map(row => row.size)).toEqual([0.5, 1.5, 2]);
+    expect(wallChangeSummary(layout, state.layout)).toBe("Resized Top strip, Work");
+    expect(drawable(state.layout)).toBe(true);
+    expect(wallWidgetHeightIsGiven(state.layout, "strip")).toBe(true);
+    expect(run(state, { type: "undo" }).layout).toEqual(layout);
+    expect(run(state, { type: "fit", rowId: "above" }).layout.rows[0]).not.toHaveProperty("size");
+    expect(run(state, { type: "sizes", sizes: { above: null } }).layout.rows[0]).not.toHaveProperty("size");
+    const filled = run(state, { type: "fill", rowId: "above" });
+    expect(filled.layout.rows.map(row => [row.height, row.size])).toEqual([["fill", undefined], ["auto", undefined], ["auto", undefined]]);
+    const sizedParent = run(start(DEFAULT_WALL_LAYOUT), { type: "fit", rowId: "body" }, { type: "sizes", sizes: { body: 2 } });
+    expect(wallWidgetHeightIsGiven(sizedParent.layout, "sites")).toBe(true);
+    expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Bottom of the TV left empty");
+    expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Sites squeezed into a fixed-height row");
+  });
+
   it("knows when a widget's height is given rather than its content's", () => {
     expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "sites")).toBe(true);
     expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "timeline")).toBe(false);
@@ -722,17 +752,8 @@ describe("dividers and size presets", () => {
     expect(wallSlotMinWidth(column(DEFAULT_WALL_LAYOUT, "business"))).toBe(880);
   });
 
-  it("names a widget drawn below its legible size, and never a short one whose content sets its height", () => {
-    expect(wallTooSmall("sites", { width: 600, height: 800 }, true)).toBe("narrow");
-    expect(wallTooSmall("sites", { width: 1000, height: 200 }, true)).toBe("short");
-    expect(wallTooSmall("sites", { width: 1000, height: 200 }, false)).toBeNull();
-    expect(wallTooSmall("feed", { width: 400, height: 900 }, true)).toBeNull();
-  });
-
   it("never draws Next up too short in the business preset: its row is as tall as its content", () => {
     expect(wallWidgetHeightIsGiven(WALL_PRESETS.business, "next")).toBe(false);
-    expect(wallTooSmall("next", { width: WALL_WIDGET_MIN_PX.next.width - 2, height: 900 }, true)).toBe("narrow");
-    expect(wallTooSmall("next", { width: WALL_WIDGET_MIN_PX.next.width, height: 200 }, false)).toBeNull();
   });
 });
 

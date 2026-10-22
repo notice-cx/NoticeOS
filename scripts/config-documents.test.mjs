@@ -618,6 +618,23 @@ test('the TV layout saves twice in a row: created on a store with no /wall, then
   assert.deepEqual(second.documents.get(TOWER), { wall: updated });
 });
 
+test('the TV layout writer preserves weighted full-width rows and refuses an off-grid size', async () => {
+  const layout = structuredClone(DEFAULT_WALL_LAYOUT);
+  layout.rows[0].size = 0.5;
+  layout.rows[2].size = 2;
+  const value = { layout, history: [] };
+  const cs = changeset([{ kind: 'file-json-set', file: TOWER, pointer: '/wall', expect: null, value }]);
+  validateSchemaAndSafety(cs);
+  const result = await resolveOps(cs, null, { readDocument: documentsFrom({ [TOWER]: {} }) });
+  assert.deepEqual(result.mismatches, []);
+  applyDocumentOps(result.resolved, result.documents, { at: '2026-09-24T09:00:00.000Z' });
+  assert.deepEqual(result.documents.get(TOWER), { wall: value });
+  layout.rows[0].size = 1.03;
+  assert.throws(() => validateSchemaAndSafety(changeset([
+    { kind: 'file-json-set', file: TOWER, pointer: '/wall', expect: null, value },
+  ])), /size between/);
+});
+
 test('the workspace default view is written whole, with an id the Tower draws', async () => {
   const write = (op) => validateSchemaAndSafety(changeset([op]));
   const set = (pointer, value, expect = null) => ({ kind: 'file-json-set', file: TOWER, pointer, expect, value });

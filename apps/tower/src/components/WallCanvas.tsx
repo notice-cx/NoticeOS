@@ -272,9 +272,9 @@ export function WallCanvas({
       .map((slot: WallSlot, index) => ({ slot, index }))
       .filter(({ slot }) => shows(slot));
     if (drawn.length === 0) return null;
-    // A sized row shares its column's height by its weight, as the fill row
-    // does by one.
-    const size = column !== null && "size" in row ? row.size : undefined;
+    // Each stack shares remaining height by weight; unsized rows retain
+    // their content height, and an unsized fill row weighs one.
+    const size = row.size;
     return (
       <div
         key={row.id}
