@@ -14,5 +14,5 @@ export function useConnections() {
   const credentials: ReadonlyMap<string, CredentialSummary> | undefined = providers.data
     ? new Map((providers.data.providers ?? []).map((status) => [status.provider.id, status.credential]))
     : undefined;
-  return { providers, monitoring, credentials, items: monitoring.data ? monitoring.status.items : null };
+  return { providers, monitoring, credentials, events: monitoring.data?.events, items: monitoring.data ? monitoring.status.items : null };
 }

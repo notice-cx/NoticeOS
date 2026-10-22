@@ -17,6 +17,7 @@
 import {
   INTEGRATION_MONITORS,
   type IntegrationHealthItem,
+  type IntegrationHealthEvent,
   type IntegrationHealthPayload,
   type IntegrationMonitorDefinition,
 } from "@noticeos/contract/integration-health";
@@ -357,6 +358,7 @@ export function laneStatus(input: {
 export interface ConnectionReads {
   credentials: ReadonlyMap<string, CredentialSummary> | undefined;
   items: IntegrationHealthItem[] | null;
+  events?: readonly IntegrationHealthEvent[];
 }
 
 /** Neither read has answered: every provider's source is Unknown. */

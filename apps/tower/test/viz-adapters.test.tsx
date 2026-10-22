@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { AssetCard, SystemBand } from "@shared/wall";
 import { render, screen } from "./render";
 import { WorkFlow, workQueue, workScale } from "@/components/viz/WorkFlow";
-import { drawnByHealthGrid, incidentsFromIssues, systemHealthRow, workFlowRows } from "@/lib/viz-adapters";
-import type { WallIssue } from "@/lib/wall-issues";
+import { drawnByHealthGrid, incidentsFromIssues, siteHealthRow, timelineFromWall, systemHealthRow, workFlowRows } from "@/lib/viz-adapters";
+import { wallIssues, type WallIssue } from "@/lib/wall-issues";
+import type { CredentialSummary, IntegrationHealthItem, IntegrationHealthEvent } from "@noticeos/contract";
+import type { ConnectionReads } from "@shared/connection-status";
 import { backupLane, backupNight, pressedBackupLane } from "./backup-lanes";
 
 const NOW = Date.parse("2026-10-14T16:00:00.000Z");
@@ -96,5 +98,43 @@ describe("work as flow", () => {
     );
     expect(screen.getByRole("row", { name: "Acorn Atlas: 5 done this week; 12 open, 2 in progress, 3 blocked, 1 high priority" })).toBeTruthy();
     expect(screen.getByText("1 urgent")).toBeTruthy();
+  });
+});
+
+
+describe("observed source onset across health, problem rows and timeline spans", () => {
+  const retry = "2026-10-14T15:00:00.000Z";
+  const onset = "2026-10-09T15:00:00.000Z";
+  const prior = "2026-10-08T15:00:00.000Z";
+  const card = { id: "example.com", displayName: "Example", status: "live", pulseReceivedAt: null,
+    dataSources: [{ id: "ga4", label: "Analytics", state: "live", observedAt: retry }], panelReview: null } as unknown as AssetCard;
+  const credential: CredentialSummary = { provider: "google", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
+    keyVersion: 1, createdAt: prior, updatedAt: prior, lastUsedAt: null, lastOkAt: null, lastError: null };
+  const failure: IntegrationHealthItem = { id: "daily", provider: "google", capability: "ga4-daily", label: "Daily reports", asset: card.id,
+    detail: null, report: null, reportDate: null, state: "failing", lastAttemptAt: retry, lastSuccessAt: null,
+    nextAttemptAt: null, failure: "access", code: "access", action: "Review", coverage: "monitored" };
+  const event = (at: string, kind: IntegrationHealthEvent["kind"] = "failed", itemId = failure.id): IntegrationHealthEvent =>
+    ({ id: `${kind}:${at}`, itemId, provider: "google", label: "Daily reports", asset: card.id, at, kind });
+  function expectOnset(items: IntegrationHealthItem[], events: IntegrationHealthEvent[], since: string | null) {
+    const connections: ConnectionReads = { credentials: new Map([["google", credential]]), items, events };
+    const issues = wallIssues({ assets: [card], attention: [], connections, nowMs: NOW });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.since).toBe(since);
+    expect(siteHealthRow(card, connections, NOW).cells[0]?.since).toBe(since);
+    expect(timelineFromWall([card], issues, [], () => "/assets/example.com").spans[0]?.from).toBe(since);
+  }
+  it("keeps a never-successful retried source unknown without a failure transition", () => {
+    expectOnset([failure], [], null);
+    expectOnset([{ ...failure, lastAttemptAt: new Date(NOW).toISOString() }], [], null);
+    expectOnset([{ ...failure, lastSuccessAt: prior }], [], null);
+  });
+  it("retains a known first failure across retries, including failure reason changes", () => {
+    expectOnset([failure], [event(onset), event(retry, "changed")], onset);
+    expectOnset([{ ...failure, lastSuccessAt: prior }], [event(onset)], onset);
+  });
+  it("ignores another source, invalid/future times, and a failure closed by recovery", () => {
+    expectOnset([failure], [event(onset, "failed", "other"), event("invalid"), event("2099-01-01")], null);
+    expectOnset([failure], [event(prior), event(onset, "recovered"), event(retry)], retry);
+    expectOnset([{ ...failure, lastSuccessAt: onset }], [event(prior)], null);
   });
 });

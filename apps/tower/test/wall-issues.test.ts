@@ -194,7 +194,7 @@ describe("the Wall's issue list", () => {
     };
     const issues = wallIssues({ assets: SITES, attention: [], connections, nowMs: NOW });
     expect(issues).toEqual([
-      expect.objectContaining({ severity: "error", site: "2 sites", line: "GA4 collection failing", mark: "GA4 failing", since: ago(3 * HOUR) }),
+      expect.objectContaining({ severity: "error", site: "2 sites", line: "GA4 collection failing", mark: "GA4 failing", since: null }),
     ]);
     expect(siteMark(issues, "northwind.example")).toEqual({ severity: "error", label: "GA4 failing", more: 0 });
     expect(siteMark(issues, "meadow.example")).toBeNull();

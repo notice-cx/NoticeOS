@@ -3,7 +3,7 @@
 // payload and the connection reads already say; a state nobody recorded stays
 // unknown and an onset nobody recorded stays null.
 import { SYSTEM_NAME } from "@noticeos/contract/asset-name";
-import { connectionLabel, sourceReadings, type ConnectionReads, type SourceReading } from "@shared/connection-status";
+import { connectionLabel, sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { SCHEDULED_JOBS, jobRunName } from "@shared/scheduled-jobs";
 import { osReportMissing, type AssetCard, type ScheduledLane, type SystemBand } from "@shared/wall";
 import type { WallFeedItem } from "@shared/wall-feed";
@@ -12,7 +12,7 @@ import { healthStateOf, type HealthCell, type HealthColumn, type HealthRow } fro
 import type { Incident } from "@/components/viz/IncidentList";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
 import { backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
-import type { WallIssue } from "@/lib/wall-issues";
+import { sourceProblemSince, type WallIssue } from "@/lib/wall-issues";
 
 /** What a source column prints above its cells. */
 const SOURCE_SHORT: Readonly<Record<string, string>> = {
@@ -36,13 +36,6 @@ export const SYSTEM_COLUMNS: readonly HealthColumn[] = [
 
 export const SYSTEM_ROW_ID = "system";
 
-/** When a source entered its state, as far as its reading says: a failure or
- * a lateness dates from its last success. A working source has no onset. */
-function readingSince(reading: SourceReading): string | null {
-  if (reading.kind !== "failing" && reading.kind !== "overdue") return null;
-  return reading.site?.lastSuccessAt ?? reading.site?.failure?.lastAttemptAt ?? reading.observedAt ?? null;
-}
-
 /** The sources as columns, in the payload's own slot order. */
 export function sourceColumns(assets: readonly Pick<AssetCard, "dataSources">[]): HealthColumn[] {
   const seen = new Map<string, HealthColumn>();
@@ -65,7 +58,7 @@ export function siteHealthRow(asset: Pick<AssetCard, "id" | "displayName" | "dat
       column: reading.id,
       state: healthStateOf(reading.kind),
       label: reading.kind === "not-applicable" ? undefined : connectionLabel(reading.kind, "key", reading.id),
-      since: readingSince(reading),
+      since: sourceProblemSince(reading, connections, nowMs),
       detail: reading.detail ?? reading.site?.failure?.detail ?? null,
       href: href ? `${href}?tab=sources` : undefined,
     })),

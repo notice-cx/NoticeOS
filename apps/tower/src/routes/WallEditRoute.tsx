@@ -108,7 +108,7 @@ export function WallEditRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const upcoming = useCalendarUpcoming();
   const realtime = useGa4Realtime();
-  const { credentials, items } = useConnections();
+  const { credentials, items, events } = useConnections();
   // The canvas ticks its own clock and countdown every second (WallSeconds);
   // everything else here reads in minutes, as on the TV.
   const now = useNow();
@@ -369,7 +369,7 @@ export function WallEditRoute() {
               calendarState={calendarReadState(upcoming)}
               ga4Realtime={realtime.data}
               ga4RealtimeError={realtime.isError}
-              connections={{ credentials, items }}
+              connections={{ credentials, items, events }}
               nowMs={now}
               selectedId={state.selectedId}
               onSelect={select}
