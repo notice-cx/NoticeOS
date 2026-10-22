@@ -1,7 +1,6 @@
 # Isolated user journeys
 
-`pnpm test:journeys` is the release journey gate, separate from the four existing
-unit/type/build gates. Install the pinned disposable Chromium once with
+`pnpm test:journeys` runs the isolated browser journey gate. Install the pinned disposable Chromium once with
 `pnpm --filter @noticeos/tower run journey:install` (Linux CI adds
 `--with-deps`; `--dry-run` only prints where it would go). It goes to this
 checkout's `node_modules/.cache/journey-playwright`, which the install prints
@@ -65,59 +64,15 @@ runner — each worker, each flow-gate lane and the harness test — starts
 `server.mjs` the one way `fixture-server.mjs` does: PATH and its port only, ready
 only once the guard is armed, and gone when its runner dies.
 
-The journey covers an empty install, asset creation, a refused and then an
-accepted Bing key in the one-panel connect (nothing stored until Bing says
-yes), site mapping, receipt of deterministic data, completed-period
-metric totals, range retention across tabs, exact task/approval links, gate
-resolution, and a failed setup save followed by retry without duplicate creation.
-Integration health on the provider pages and catalog tiles is the ingest's own
-read: Bing's daily reports go from Awaiting first result to
-Working once data arrives while its report archive still awaits a first run, and
-Mediavine's revenue reads Working after its sync and Not connected after
-Disconnect.
-A Wall journey answers `/api/wall` and
-`/api/ga4/realtime` from the synthetic six-site `wall-fixture.ts` (invented
-`.example` sites) with the first site's live reading out of date, and fails at
-1920×1080 or 1440×900 if any region cuts text off sideways. A second draws
-the same fixture's `WallFixtureVariant`s — one, two, three,
-six, seven and eight sites, and on fire — at 1920×1080 and fails if any reaches
-past the TV, paints outside its own box, cuts text off or draws half a feed row
-(the measurement `pnpm audit:wall-fit` runs, `scripts/wall-fit-measure.mts`), if a
-seventh site's row is not a full 70 px, or if the strip, Needs attention and the site
-marks do not say what is on fire.
-The Wall journeys set this up through `wall-scene.ts`. `wallScene` pins the
-clock and answers the Wall's five reads once, with each load starting from an
-empty sessionStorage. A journey that walks screen sizes loads the Wall once
-(`wallAt`), then resizes the window and waits until the redrawn Wall stops
-moving. The TV-fit journey still loads every variant cold, at the TV, a laptop
-and a phone (`openWall`). The live-feed journey skips the browser's clock one
-30-second poll ahead (`page.clock.runFor`) instead of waiting for it.
-A Sources-tab journey opens every data-source row, disclosure and a new PostHog
-funnel one at a time, and fails naming the row if the page grows wider than the
-viewport or a doc reference is clipped; a synthetic Google property list with
-long names stands in for the connected account.
-Four route-split journeys open `/`, `/wall`,
-`/work`, `/integrations` and `/assets/plume.example` and require each to fetch only
-its own screen module plus the desk shell (the TV fetches no shell); list every
-module `/wall` fetches and fail if rule tuning (`RuleTune`, `KnobEditor`), the
-config registers, `TaskComposer`, `useTasks`, or the desk `Timeline` and its
-`HandoffBeadBadge` is among them; refuse one
-screen's module and require exactly one automatic reload, then the plain retry
-message and a working Reload button; and require a sidebar hover to fetch that
-screen's module before any click. Two more hold the asset
-page's tabs and the command palette to the same rule: a cold asset page fetches
-only the tab it shows (and a missing asset no tab but, at most, Overview),
-opening a tab fetches that tab, the very first ⌘K fetches the palette and cmdk
-and opens it with its field focused, and a `#timeline` deep link lands on its
-section once Activity's code arrives; refusing one tab's module reloads once and
-then says so inside the tab panel, under the header and tab bar that did load.
-Important controls are reached by Tab/Shift+Tab and activated with Enter. With
-the connection's toast up, Tab from the page's last control passes through the
-toast once and on out of the page, and when the toast closes while focused,
-focus returns to that control. Layout
-regressions check overflow, containment and control/tooltip bounds; screenshots
-are attached for review, **not compared to pixel goldens**. CI uploads the report
-and failure traces even when a test fails. A local pass is not a remote CI run.
+## Results
+
+List the current executable scenarios with:
+
+```sh
+pnpm --filter @noticeos/tower run test:journeys -- --list
+```
+
+CI uploads the report and failure traces even when a test fails.
 The HTML report and selected screenshot attachments are written under
 `apps/tower/e2e/playwright-report/`; failure traces use
 `apps/tower/e2e/test-results/`. Both are ignored generated artifacts.
