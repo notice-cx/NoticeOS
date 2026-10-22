@@ -280,6 +280,8 @@ function validRealtimeDay(value: unknown): boolean {
   if (value === undefined) return true;
   if (!isRecord(value) || typeof value.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.date) ||
     typeof value.timeZone !== "string" || !isIso(value.startAt) || !isIso(value.endAt)) return false;
+  if (value.comparisonObservedAt !== undefined && !isIso(value.comparisonObservedAt)) return false;
+  if (value.comparisonError !== undefined && value.comparisonError !== null && typeof value.comparisonError !== "string") return false;
   const length = (Date.parse(value.endAt) - Date.parse(value.startAt)) / 60_000;
   const counts = (items: unknown) => Array.isArray(items) && items.length === length && items.every(nullableNonNegativeInteger);
   return length >= 1_320 && length <= 1_560 && counts(value.minutes) &&

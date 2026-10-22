@@ -1,8 +1,8 @@
 import type { Ga4RealtimeAsset, Ga4RealtimePayload, Ga4RealtimeDay } from "@noticeos/contract";
-import type { CSSProperties, ReactNode } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { Globe } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
-import { currentRealtimeDay, completedRealtimeMinutes } from "@/lib/realtime-day";
+import { currentRealtimeDay, realtimeActivity } from "@/lib/realtime-day";
 import { clockHourNow, intradayUsersPace, paceWindowLabel, type IntradayUsersPace } from "@/lib/intraday-pace";
 import { DeltaChip, paceDirectionLabel, paceTone, performanceToneClass } from "@/components/DeltaChip";
 import { AgeBadge } from "@/components/AgeBadge";
@@ -217,7 +217,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
           <span role="columnheader" className={`${eyebrow} whitespace-nowrap`}>{LIVE_HEADING}</span>
           {/* Scaled, today's column may narrow under its heading, which then
               takes two lines. */}
-          <span role="columnheader" className={`${eyebrow} whitespace-nowrap scaled:whitespace-normal scaled:text-balance`}>{hasDatedHistory ? "Today / latest day" : hasRealtimeHistory ? "Today · users/min" : `Today vs ${lastWeekday}`}</span>
+          <span role="columnheader" className={`${eyebrow} whitespace-nowrap scaled:whitespace-normal scaled:text-balance`}>{hasDatedHistory ? "Today / latest day" : hasRealtimeHistory ? `Today vs ${lastWeekday}` : `Today vs ${lastWeekday}`}</span>
           <span role="columnheader" className={eyebrow}>4 weeks</span>
         </div>
         {assets.map((asset) => (
@@ -383,7 +383,8 @@ function TodayCell({
       <span className={cn("text-traffic block", style.charts === "filling" ? FILLING_CHART : style.today)} data-site-chart={style.charts}>
         <RealtimeTodayChart day={retained} nowMs={nowMs} weight={style.weight} />
       </span>
-      <span className="absolute bottom-0 right-0 text-wall-micro text-muted-foreground" data-realtime-unit>users/min{retained.sameDayLastWeek?.some(value => value !== null) ? ` · vs last ${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: retained.timeZone }).format(new Date(nowMs))}` : ""}</span>
+      <span className={COMPARISON_OVERLAY} data-realtime-pace><ActivityPace day={retained} nowMs={nowMs} /></span>
+      <span className="absolute bottom-0 right-0 text-wall-micro text-muted-foreground" data-realtime-unit>hourly avg users/min</span>
     </span>
   );
   const hourly = snapshot?.status === "success" ? snapshot.hourlyActiveUsers : null;
@@ -426,31 +427,41 @@ function TodayCell({
   );
 }
 
-/** Retained realtime counts share one scale with their own prior-week
- * observations. The metric stays per minute; no sum claims unique visitors. */
+/** Processed history and retained realtime activity share the same minute
+ * unit. Hourly means keep a short live window from becoming vertical spikes. */
 function RealtimeTodayChart({ day, nowMs, weight }: { day: Ga4RealtimeDay; nowMs: number; weight: ChartWeight }) {
   const style = WEIGHT[weight];
-  const minutes = completedRealtimeMinutes(day, nowMs);
-  const prior = day.sameDayLastWeek;
-  const all = [...minutes, ...(prior ?? [])].filter((value): value is number => value !== null);
-  const max = Math.max(1, ...all);
-  const at = (index: number, value: number): ChartPoint => ({ x: 20 + index / Math.max(1, minutes.length - 1) * 960, y: 100 - value / max * 86 });
+  const minute = Math.floor(nowMs / 60_000);
+  const activity = useMemo(() => realtimeActivity(day, minute * 60_000), [day, minute]);
+  const todayValues = activity.hours.map(hour => hour.today);
+  const priorValues = activity.hours.map(hour => hour.prior);
+  const max = Math.max(1, ...[...todayValues, ...priorValues].filter((value): value is number => value !== null));
+  const at = (index: number, value: number): ChartPoint => ({ x: 20 + index / 23 * 960, y: 100 - value / max * 86 });
   const runs = (values: (number | null)[]) => readingRuns(values).map(run => run.map(point => at(point.index, point.value)));
-  const today = runs(minutes);
-  const provisionalFrom = Math.max(0, Math.floor((nowMs - Date.parse(day.startAt)) / 60_000) - 3);
-  const settled = runs(minutes.map((value, index) => index < provisionalFrom ? value : null));
-  const recent = runs(minutes.map((value, index) => index >= provisionalFrom - 1 ? value : null));
-  const last = today.at(-1)?.at(-1);
-  const lastIndex = minutes.findLastIndex(value => value !== null);
-  const fresh = lastIndex >= 0 && nowMs - (Date.parse(day.startAt) + lastIndex * 60_000) < 180_000;
+  const lastHour = todayValues.findLastIndex(value => value !== null);
+  const end = lastHour < 0 ? null : at(lastHour, todayValues[lastHour]!);
   return (
     <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" role="img"
-      aria-label={`Active users per minute today, ${day.timeZone}; missing minutes are gaps; recent minutes may change${prior?.some(value => value !== null) ? "; dashed line is the same weekday last week" : ""}`}>
-      {prior ? <ChartLine runs={runs(prior)} kind="ghost" width={style.ghost} data-realtime-prior /> : null}
-      <g data-realtime-today><ChartLine runs={settled} width={style.line} /><ChartLine runs={recent} width={style.line} className="opacity-55" data-realtime-provisional /></g>
-      {last ? <ChartDot at={last} size={style.dot} halo={fresh} /> : null}
+      aria-label={`Hourly average active users per minute today, ${day.timeZone}; missing hours are gaps; live activity is provisional${activity.hasPrior ? "; dashed line is the same weekday last week" : "; last week comparison pending"}`}>
+      {activity.hasPrior ? <ChartLine runs={runs(priorValues)} kind="ghost" width={style.ghost} data-realtime-prior /> : null}
+      <g data-realtime-today><ChartLine runs={runs(todayValues)} width={style.line} /></g>
+      {end ? <ChartDot at={end} size={style.dot} halo={false} /> : null}
     </svg>
   );
+}
+
+function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
+  const minute = Math.floor(nowMs / 60_000);
+  const activity = useMemo(() => realtimeActivity(day, minute * 60_000), [day, minute]);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, weekday: "short" }).format(new Date(nowMs));
+  const through = activity.through ? new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(activity.through)) : null;
+  const meaning = `Provisional activity pace vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Hourly averages of per-minute active users, not distinct hourly or daily users. Unreported minutes are excluded; GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
+  return activity.change !== null ? (
+    <span className="inline-flex flex-col items-end" title={meaning}>
+      <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={paceTone(activity.change)} meaning={meaning} />
+      <span className="text-wall-micro text-muted-foreground">live pace</span>
+    </span>
+  ) : <span className="text-wall-micro text-muted-foreground" title={meaning}>{activity.hasPrior ? "Gathering pace" : day.comparisonError && day.comparisonError !== "ga4_comparison_waiting" ? "Last week unavailable" : "Last week pending"}</span>;
 }
 
 /** Where an hour sits across the box, in percent: the whole day, inset so the
@@ -797,8 +808,8 @@ function TodayFocusTile({
 }) {
   const tone = paceStep(today.pace);
   if (today.realtimeDay) return (
-    <FocusTile kind="today" label="Today · users/min" weight="sites:flex-[5_1_0%]"
-      figures={<LiveUsers asset={asset} snapshot={today.snapshot} reconnecting={reconnecting} nowMs={nowMs} cell={false} face="text-wall-hero-sm" size="focus" />}
+    <FocusTile kind="today" label={`Today vs ${lastWeekday}`} weight="sites:flex-[5_1_0%]"
+      figures={<><LiveUsers asset={asset} snapshot={today.snapshot} reconnecting={reconnecting} nowMs={nowMs} cell={false} face="text-wall-hero-sm" size="focus" /><ActivityPace day={today.realtimeDay} nowMs={nowMs} /></>}
       axis={<><span>12 AM</span><span>{today.realtimeDay.timeZone}</span><span>12 AM</span></>}>
       <span className="text-traffic absolute inset-0"><RealtimeTodayChart day={today.realtimeDay} nowMs={nowMs} weight="focus" /></span>
     </FocusTile>

@@ -3879,7 +3879,7 @@ for (const theme of ['dark', 'light'] as const) {
   });
 }
 
-test('Wall realtime history refresh keeps live numbers and layout stable', async ({ page }) => {
+test('Wall hourly activity compares last week, shows pace and refreshes without layout shifts', async ({ page }) => {
   await page.clock.install({ time: new Date(WALL_FIXTURE_NOW) });
   await wallScene(page, 'six');
   const realtime = wallFixtureRealtime(20, 'six');
@@ -3907,7 +3907,14 @@ test('Wall realtime history refresh keeps live numbers and layout stable', async
   const live = page.locator(`[data-site-row="${asset}"] [data-live]`);
   await expect(live.locator('[data-live-count]')).toBeVisible();
   await expect(page.locator('[data-realtime-today]').first()).toBeVisible();
+  await expect(page.locator('[data-realtime-prior]').first()).toBeVisible();
+  await expect(page.locator('[data-realtime-pace]').first()).toContainText('%');
+  await expect(page.locator('[data-realtime-pace]').first()).toContainText('live pace');
+  await expect(page.locator('[data-realtime-unit]').first()).toHaveText('hourly avg users/min');
   await page.evaluate(() => document.fonts.ready);
+  await page.clock.runFor(3_000);
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  await test.info().attach("wall-hourly-comparison", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
   const before = await live.locator('[data-live-count]').boundingBox();
   const label = await live.locator('[data-live-recent-count]').textContent();
   const number = await live.locator('[data-live-count]').textContent();
