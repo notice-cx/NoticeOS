@@ -112,7 +112,7 @@ describe("where each collection's schedule is changed", () => {
     for (const job of collections) for (const provider of job.connections ?? []) expect(providers).toContain(provider);
     // What no connection feeds stays in Settings.
     expect([...inSettings]).toEqual(["pull", "counters", "panel-refresh"]);
-    expect(connectionCollections("google").map((job) => job.id)).toEqual(["signal-dumps"]);
+    expect(connectionCollections("google").map((job) => job.id)).toEqual(["signal-dumps", "ga4-realtime"]);
     expect(connectionCollections("bing-webmaster").map((job) => job.id)).toEqual(["signal-dumps"]);
     expect(connectionCollections("mediavine").map((job) => job.id)).toEqual(["mediavine"]);
     expect(connectionCollections("dataforseo").map((job) => job.id)).toEqual(["dataforseo"]);
@@ -136,7 +136,11 @@ describe("a connection's Manage panel", () => {
       const dialog = screen.getByRole("dialog");
       const schedule = dialog.querySelector<HTMLElement>("[data-connection-schedule]")!;
       const rows = [...schedule.querySelectorAll("[data-schedule-row]")].map((row) => row.getAttribute("data-schedule-row"));
-      expect(rows).toEqual(["signal-dumps"]);
+      expect(rows).toEqual(status.provider.id === "google" ? ["signal-dumps", "ga4-realtime"] : ["signal-dumps"]);
+      if (status.provider.id === "google") {
+        expect(within(schedule).getByRole("combobox", { name: "Realtime traffic · how often" })).toHaveValue("minutes");
+        expect(within(schedule).getByRole("combobox", { name: "Realtime traffic · every" })).toHaveValue("1");
+      }
       // Labelled by the job, so the pick reads as the job's, not the provider's.
       expect(within(schedule).getByText("Traffic and search archives")).toBeVisible();
       expect(within(schedule).getByText("Google Analytics · Search Console · Bing")).toBeVisible();

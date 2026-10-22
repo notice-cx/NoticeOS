@@ -54,7 +54,7 @@ describe('durable integration history', () => {
   });
   it.each(['connection', 'capability', 'asset', 'target', 'family'] as const)('isolates %s', async (key) => {
     const failing = item('failure');
-    const other = { ...failing.scope, [key]: key === 'capability' ? 'ga4-hourly' : key === 'asset' ? 'northwind.example' : 'other' };
+    const other = { ...failing.scope, [key]: key === 'capability' ? 'ga4-daily' : key === 'asset' ? 'northwind.example' : 'other' };
     await recordIntegrationObservation(env.STORE, failing);
     await recordIntegrationObservation(env.STORE, item('success', 1000, { scope: other }));
     expect(await rows()).toHaveLength(2);

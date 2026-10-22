@@ -33,7 +33,7 @@ let recordDemoSearchReports: SeedStep<{ reports: number }>;
 let recordDemoSiteChecks: SeedStep<{ checks: number; fired: number; pageSpeed: number }>;
 const scenario = generateDemoScenario({ seed: 'display-store', cutoff: '2026-10-01T07:00:00.000Z', release: 'a'.repeat(40) });
 
-// Integration fixtures have bounded preparation; each reader keeps its normal deadline.
+// Seed and analyze the populated fixture before timing the display readers.
 beforeAll(async () => {
   const root = path.resolve(import.meta.dirname, '../../..');
   home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-demo-display-reader-')));
@@ -76,6 +76,7 @@ describe('saved demo display readers', () => {
     if (!home || !fixture) throw new Error('The disposable demo fixture is absent.');
     display = await seedDemoDisplay({ home, installation, scenario, capability, helpers });
     report = await recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
+    await fixture.analyze();
   }, 30_000);
 
   it('saves the generated display with released helpers', () => {
@@ -142,6 +143,7 @@ describe('seeded search and asset-check readers', () => {
     if (!fixture) throw new Error('The disposable demo fixture is absent.');
     reports = await recordDemoSearchReports(capability, scenario, helpers.writeInsightSnapshot);
     checks = await recordDemoSiteChecks(capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
+    await fixture.analyze();
   }, 30_000);
 
   it('records weekly reports and first asset-check readings', () => {
