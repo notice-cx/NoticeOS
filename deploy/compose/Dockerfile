@@ -1,6 +1,6 @@
 # Build only the context produced by scripts/container-context.mjs.
 # Official Node image index, including Linux amd64 and arm64.
-FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS sqlite-build
+FROM node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567 AS sqlite-build
 # Official SQLite download page publishes this release's SHA3-256 checksum.
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl gcc libc6-dev \
     && curl --fail --location --silent --show-error https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz -o /tmp/sqlite.tar.gz \
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates
     && gcc -O2 -DSQLITE_THREADSAFE=1 -DSQLITE_ENABLE_COLUMN_METADATA -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE \
        /tmp/sqlite-autoconf-3530400/shell.c /tmp/sqlite-autoconf-3530400/sqlite3.c -o /usr/local/bin/sqlite3 -ldl -lpthread -lm \
     && sqlite3 --version
-FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+FROM node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567
 ARG TARGETARCH
 COPY --from=sqlite-build /usr/local/bin/sqlite3 /usr/local/bin/sqlite3
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl git lsof \
