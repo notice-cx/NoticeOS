@@ -2131,8 +2131,11 @@ minute, whether a Wall is open or closed. It uses the saved Google connection
 (service account or sign-in), reuses access tokens for at most 50 minutes, and
 makes two `runRealtimeReport` calls: one for the distinct 0–4 and 0–29 minute
 windows, and one for `activeUsers` grouped by `minutesAgo`. Once per hour it
-also reads a bounded Core `dateHourMinute` report for today and the same
-weekday last week. All assets sharing a property reuse that backfill.
+also reads two bounded Core `dateHourMinute` reports, one for today and one
+for the same weekday last week. Each asks for one date range: with two ranges
+GA4 adds a `dateRange` column and its `rowCount` stops counting the rows sent,
+so truncation could not be detected. All assets sharing a property reuse that
+backfill.
 
 `realtime_traffic_readings` retains each successful reading, with its workspace,
 asset, property, original provider-read timestamp, minute counts and Realtime
@@ -2164,7 +2167,7 @@ nonzero minute; trailing missing rows do not imply zero activity. Reports with
 sampling, thresholding, row loss or truncation supply no backfill. Each failed
 attempt stores and logs (`ga4_comparison_refused`) a code naming the failed
 check, such as `ga4_comparison_incomplete_thresholded` or
-`ga4_comparison_malformed_headers`. The report is read up to 3 MB, the size of
+`ga4_comparison_malformed_headers`. Each report is read up to 3 MB, room for
 its 10,000-row limit as Google sends it.
 
 The Wall draws hourly averages of completed minute activity and a dashed

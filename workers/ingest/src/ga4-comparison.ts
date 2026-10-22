@@ -2,7 +2,7 @@ import type { Ga4PropertyQuota, Ga4RealtimeDay } from '@noticeos/contract';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import { cachedGa4Read, ga4CacheScope, type Ga4ReadCache } from './ga4-read-cache.js';
 import { Ga4ReadError, ga4ReadFailure } from './ga4-read-errors.js';
-import { parseGa4PropertyQuota, recordGa4Quota, quotaPressure } from './ga4-quota.js';
+import { combineGa4Quota, parseGa4PropertyQuota, recordGa4Quota, quotaPressure } from './ga4-quota.js';
 import { responseJson } from './google-auth.js';
 import { normalizeSignalError, SignalError } from './signal-store.js';
 import { arrayField, asRecord, stringField } from './shared.js';
@@ -12,8 +12,8 @@ import { reportingTimeZoneOn, type TimeZoneChange } from './time-zone-change.js'
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const ROW_LIMIT = 10_000;
-/** Google pretty-prints a report at about 230 bytes a row, so a busy site's
- * five days of minutes pass the shared 1 MB bound well inside the row limit. */
+/** Google pretty-prints a minute row at about 180 bytes, so a report inside its
+ * row limit can pass the shared 1 MB bound. */
 const MAX_REPORT_BYTES = ROW_LIMIT * 300;
 type Report = { day: Ga4RealtimeDay; quota: Ga4PropertyQuota | null };
 export type SharedComparisons = Map<string, Promise<{ value: Report; observedAt: string }>>;
@@ -48,54 +48,65 @@ export function emptyComparison(nowMs: number, zone: string): Ga4RealtimeDay {
     minutes: Array<number | null>((end - start) / MINUTE).fill(null), sameDayLastWeek: null };
 }
 
-/** Reports cover only two bounded calendar ranges, including neighbouring
- * property dates so an installation clock need not match its GA4 property. */
-export async function collectComparison(property: string, accessToken: string, fetchImpl: typeof fetch, nowMs: number,
-  zone: string, changes: readonly TimeZoneChange[] = []): Promise<Report> {
-  const day = emptyComparison(nowMs, zone), priorDate = shiftCalendarDate(day.date, -7);
+// One code per check, so a refused report names what it failed. `malformed`
+// and `incomplete` keep each code in its health failure kind.
+const refused = (check: string) => new SignalError(`ga4_comparison_${check}`, 'GA4 returned an incomplete activity comparison.');
+
+/** One calendar range of processed minutes. A request asks for one range only:
+ * with two, GA4 adds a `dateRange` column and its `rowCount` no longer counts
+ * the rows sent, so a complete answer could not be told from a truncated one. */
+async function minuteReport(property: string, accessToken: string, fetchImpl: typeof fetch, nowMs: number,
+  startDate: string, endDate: string): Promise<{ zone: string; rows: unknown[]; quota: Ga4PropertyQuota | null }> {
   const response = await fetchImpl(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(property)}:runReport`, {
     method: 'POST', headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ dimensions: [{ name: 'dateHourMinute' }], metrics: [{ name: 'activeUsers' }],
-      dateRanges: [day.date, priorDate].map((date, i) => ({ name: i ? 'last_week' : 'today', startDate: shiftCalendarDate(date, -1), endDate: i ? shiftCalendarDate(date, 1) : 'today' })),
+    body: JSON.stringify({ dimensions: [{ name: 'dateHourMinute' }], metrics: [{ name: 'activeUsers' }], dateRanges: [{ startDate, endDate }],
       orderBys: [{ dimension: { dimensionName: 'dateHourMinute' } }], limit: ROW_LIMIT, returnPropertyQuota: true }),
     signal: AbortSignal.timeout(10_000),
   });
   const raw = await responseJson(response, MAX_REPORT_BYTES);
   if (!response.ok) throw ga4ReadFailure('ga4_comparison', response, raw, nowMs, nowMs);
   const record = asRecord(raw), metadata = asRecord(record?.metadata);
-  const dimensions = arrayField(record, 'dimensionHeaders').map(v => stringField(asRecord(v), 'name'));
-  const timeIndex = dimensions.indexOf('dateHourMinute'), rangeIndex = dimensions.indexOf('dateRange');
-  const propertyZone = stringField(metadata, 'timeZone');
-  // One code per check, so a refused report names what it failed. `malformed`
-  // and `incomplete` keep each code in its health failure kind.
-  const refused = (check: string) => new SignalError(`ga4_comparison_${check}`, 'GA4 returned an incomplete activity comparison.');
-  const metricHeaders = arrayField(record, 'metricHeaders');
-  if (dimensions.length !== 2 || timeIndex < 0 || rangeIndex < 0 ||
+  const dimensionHeaders = arrayField(record, 'dimensionHeaders'), metricHeaders = arrayField(record, 'metricHeaders');
+  if (dimensionHeaders.length !== 1 || stringField(asRecord(dimensionHeaders[0]), 'name') !== 'dateHourMinute' ||
     metricHeaders.length !== 1 || stringField(asRecord(metricHeaders[0]), 'name') !== 'activeUsers') throw refused('malformed_headers');
-  if (!propertyZone || !isValidTimeZone(propertyZone)) throw refused('malformed_time_zone');
+  const zone = stringField(metadata, 'timeZone');
+  if (!zone || !isValidTimeZone(zone)) throw refused('malformed_time_zone');
   if (metadata?.dataLossFromOtherRow === true) throw refused('incomplete_other_row');
   if (metadata?.subjectToThresholding === true) throw refused('incomplete_thresholded');
   if (arrayField(metadata, 'samplingMetadatas').length > 0) throw refused('incomplete_sampled');
   const rows = arrayField(record, 'rows');
   const rowCount = record?.rowCount ?? 0;
   if (typeof rowCount !== 'number' || rowCount !== rows.length || rows.length > ROW_LIMIT) throw refused('incomplete_row_count');
+  return { zone, rows, quota: parseGa4PropertyQuota(record) };
+}
+
+/** Reports cover only two bounded calendar ranges, including neighbouring
+ * property dates so an installation clock need not match its GA4 property. */
+export async function collectComparison(property: string, accessToken: string, fetchImpl: typeof fetch, nowMs: number,
+  zone: string, changes: readonly TimeZoneChange[] = []): Promise<Report> {
+  const day = emptyComparison(nowMs, zone), priorDate = shiftCalendarDate(day.date, -7);
+  const [current, lastWeek] = await Promise.all([
+    minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(day.date, -1), 'today'),
+    minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(priorDate, -1), shiftCalendarDate(priorDate, 1)),
+  ]);
+  if (current.zone !== lastWeek.zone) throw refused('malformed_time_zone');
+  const propertyZone = current.zone;
   const start = Date.parse(day.startAt), priorStart = zonedHourStartMs(priorDate, 0, zone);
   const priorEnd = zonedHourStartMs(shiftCalendarDate(priorDate, 1), 0, zone);
   const prior = Array<number | null>((priorEnd - priorStart) / MINUTE).fill(0);
-  const today = new Map<number, number | null>(), seen = new Set<string>();
+  const today = new Map<number, number | null>();
   const providerToday = dateInTimeZone(nowMs, propertyZone);
   const clocks = new Map<string, Intl.DateTimeFormat>();
   const hours = new Map<string, number>();
-  for (const rawRow of rows) {
+  /** A row's instant, count and any other instant its local clock repeats at. */
+  const placed = (rawRow: unknown, seen: Set<string>) => {
     const row = asRecord(rawRow), dims = arrayField(row, 'dimensionValues'), metrics = arrayField(row, 'metricValues');
-    const stamp = stringField(asRecord(dims[timeIndex]), 'value'), range = stringField(asRecord(dims[rangeIndex]), 'value');
-    const count = stringField(asRecord(metrics[0]), 'value');
-    if (dims.length !== 2 || metrics.length !== 1) throw refused('malformed_row');
+    const stamp = stringField(asRecord(dims[0]), 'value'), count = stringField(asRecord(metrics[0]), 'value');
+    if (dims.length !== 1 || metrics.length !== 1) throw refused('malformed_row');
     if (!stamp || !/^\d{12}$/.test(stamp)) throw refused('malformed_stamp');
     if (!count || !/^\d+$/.test(count) || !Number.isSafeInteger(Number(count))) throw refused('malformed_count');
-    if (!['today', 'last_week'].includes(range ?? '')) throw refused('malformed_range');
-    if (seen.has(`${range}:${stamp}`)) throw refused('malformed_duplicate_row');
-    seen.add(`${range}:${stamp}`);
+    if (seen.has(stamp)) throw refused('malformed_duplicate_row');
+    seen.add(stamp);
     const date = `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`;
     const hour = Number(stamp.slice(8, 10)), minute = Number(stamp.slice(10));
     if (hour > 23 || minute > 59) throw refused('malformed_minute');
@@ -115,24 +126,32 @@ export async function collectComparison(property: string, accessToken: string, f
     }
     const key = `${stamp.slice(8, 10)}:${stamp.slice(10)}`;
     const repeated = [-HOUR, -HOUR / 2, HOUR / 2, HOUR].map(offset => at + offset).filter(candidate => formatter.format(candidate) === key);
-    const ambiguous = repeated.length > 0;
     if (formatter.format(at) !== key) throw refused('malformed_clock');
-    const index = (at - start) / MINUTE, previous = (at - priorStart) / MINUTE;
-    if (index >= 0 && index < day.minutes.length) {
-      today.set(index, ambiguous ? null : Number(count));
-      for (const repeatedAt of repeated) {
-        const other = (repeatedAt - start) / MINUTE;
-        if (other >= 0 && other < day.minutes.length) today.set(other, null);
-      }
+    return { at, count: repeated.length > 0 ? null : Number(count), repeated };
+  };
+  const seenToday = new Set<string>();
+  for (const row of current.rows) {
+    const { at, count, repeated } = placed(row, seenToday);
+    const index = (at - start) / MINUTE;
+    if (index < 0 || index >= day.minutes.length) continue;
+    today.set(index, count);
+    for (const repeatedAt of repeated) {
+      const other = (repeatedAt - start) / MINUTE;
+      if (other >= 0 && other < day.minutes.length) today.set(other, null);
     }
-    if (previous >= 0 && previous < prior.length) prior[previous] = ambiguous ? null : Number(count);
+  }
+  const seenLastWeek = new Set<string>();
+  for (const row of lastWeek.rows) {
+    const { at, count } = placed(row, seenLastWeek);
+    const previous = (at - priorStart) / MINUTE;
+    if (previous >= 0 && previous < prior.length) prior[previous] = count;
   }
   // Explicit/omitted trailing zeros in an intraday report do not prove that
   // GA4 processed those minutes. Keep the newest nonzero minute provisional.
   const edge = Math.min(Math.floor((nowMs - start) / MINUTE), Math.max(-1, ...[...today].filter(([, value]) => value !== null && value > 0).map(([index]) => index)));
   day.minutes = day.minutes.map((_, i) => i < edge ? today.has(i) ? today.get(i)! : 0 : null);
   day.sameDayLastWeek = alignComparisonMinutes(prior, priorStart, start, day.minutes.length, zone);
-  return { day, quota: parseGa4PropertyQuota(record) };
+  return { day, quota: combineGa4Quota(current.quota, lastWeek.quota) };
 }
 
 export type ComparisonObservation = { observedAt: string; nextAttemptAt: string; ok: boolean; code?: string };
