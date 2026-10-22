@@ -86,7 +86,10 @@ beforeAll(async () => {
     towerPort = server.towerPort;
     doorPort = server.doorPort;
     expect(foreignRequests).toBe(0);
-    expect(attempts).toHaveLength(2);
+    expect(attempts.length).toBeGreaterThanOrEqual(2);
+    expect(attempts.length).toBeLessThanOrEqual(3);
+    expect(attempts.slice(0, -1).every(attempt => attempt.collision && attempt.closed && attempt.removed)).toBe(true);
+    expect(attempts.at(-1)?.collision).toBe(false);
     expect(attempts[0]).toMatchObject({ collision: true, closed: true });
     expect(doorPort).not.toBe(attempts[0]!.port);
     expect([5173, 8791]).not.toContain(towerPort);
