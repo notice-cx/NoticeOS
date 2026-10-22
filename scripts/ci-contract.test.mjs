@@ -21,7 +21,7 @@ const MANIFEST = path.join(REPO_ROOT, 'package.json');
 // would the Workers' suites on the store (workers/ingest/test/postgres-store.test.ts,
 // apps/tower/test/postgres-store.test.ts and runner-door-e2e.test.ts).
 const POSTGRES_STEP =
-  '(test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"';
+  '(test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"';
 
 function runCommands(workflow) {
   return [...workflow.matchAll(/^\s*-\s+run:\s*(.+?)\s*$/gmu)].map((match) => match[1]);
@@ -48,6 +48,7 @@ function jobBlock(workflow, name) {
 // job that starts Postgres puts the server binaries on PATH first.
 const INSTALL = 'pnpm install --frozen-lockfile';
 const BROWSER_INSTALL = 'pnpm --filter @noticeos/tower run journey:install --with-deps';
+const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"';
 const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, 'pnpm --filter @noticeos/tower run test'],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
@@ -56,7 +57,7 @@ const JOBS = {
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journey-harness',
     'pnpm --filter @noticeos/tower run test:ux-flows'],
   // The opt-in real task store suites get their pinned inputs first.
-  'task-store': [INSTALL, POSTGRES_STEP, 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"', 'pnpm test:task-store'],
+  'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, 'pnpm test:task-store'],
 };
 /** The jobs a documentation-only pull request skips (scripts/ci-scope.mjs). */
 const RUNTIME_JOBS = ['tower-unit', 'ingest-unit', 'browser', 'flow-gate', 'task-store'];
@@ -88,6 +89,19 @@ test('a Postgres suite never runs before its job puts the server binaries on PAT
         `${name}: ${suite} runs before the Postgres step`);
     }
   }
+});
+
+// A job downloads only what its own suites start, and PostgreSQL 18 is the
+// one supported major: no job installs, or points a suite at, another.
+test('each job installs only its own prerequisites, on PostgreSQL 18 alone', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  for (const [step, owners] of [[BROWSER_INSTALL, ['browser', 'flow-gate']], [TASK_TOOLS, ['task-store']]]) {
+    const jobs = Object.keys(JOBS).filter((name) => runCommands(jobBlock(workflow, name)).includes(step));
+    assert.deepEqual(jobs, owners, `${step} runs only in the jobs whose suites use it`);
+  }
+  assert.deepEqual([...POSTGRES_STEP.matchAll(/postgresql-(\d+)/gu)].map((match) => match[1]), ['18'], 'the step installs one server major');
+  assert.deepEqual([...new Set([...workflow.matchAll(/postgresql[-/](\d+)/gu)].map((match) => match[1]))], ['18'], 'no job names another PostgreSQL major');
+  assert.doesNotMatch(workflow, /NOTICEOS_TEST_POSTGRES\d+_BIN/u, 'no suite receives a second set of server binaries');
 });
 
 // `pnpm test:journeys` is one command for an agent at a checkout, and two
@@ -173,8 +187,6 @@ test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites 
   assert.equal(Number(/postgresql\/(\d+)\/bin/u.exec(POSTGRES_STEP)[1]), 18);
   // Ubuntu's runner removes PGDG after preparing its bundled PostgreSQL 16.
   assert.match(POSTGRES_STEP, /apt\.postgresql\.org\.sh -y/u);
-  const scripts = jobBlock(workflow, 'scripts');
-  assert.match(scripts, /NOTICEOS_TEST_POSTGRES17_BIN: \/usr\/lib\/postgresql\/17\/bin/u, 'the cross-major restore proof receives explicit old binaries');
   for (const [name, suite] of [['tower-unit', 'pnpm --filter @noticeos/tower run test'], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts'],
     ['task-store', 'pnpm test:task-store']]) {
     const step = new RegExp(`- run: ${suite.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n\\s+env:\\n\\s+NOTICEOS_REQUIRE_POSTGRES: '1'\\n`, 'u');

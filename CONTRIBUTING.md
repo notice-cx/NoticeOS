@@ -130,10 +130,8 @@ pnpm -r build
 pnpm test:journeys
 ```
 
-For the PostgreSQL 17-to-18 restore proof, also set
-`NOTICEOS_TEST_POSTGRES17_BIN` to the installed PostgreSQL 17 binary directory,
-as CI does. Compose qualifications are explicit opt-ins with their own
-generated resources; an ordinary test pass does not prove those skipped paths.
+Compose qualifications are explicit opt-ins with their own generated
+resources; an ordinary test pass does not prove those skipped paths.
 The test runner reports counts and skips. `pnpm test:journeys` includes journey
 types, harness checks, browser journeys and the UX flow gate.
 

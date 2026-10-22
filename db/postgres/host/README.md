@@ -180,7 +180,7 @@ holds neither. Replacing any live store requires explicit operator approval.
   data stays; the database is unavailable for a few seconds.
 - **A major update requires an approved backup and restore into a new volume.**
   This profile uses PostgreSQL 18's `/var/lib/postgresql` volume, with data
-  under `18/docker`. An existing PostgreSQL 17 volume cannot start on 18:
+  under `18/docker`. A volume made by another major cannot start on 18:
   restore its dump into a separately named project and verify it before an
   approved cutover. PostgreSQL 18 receives support through 2030-11-14
   ([version policy](https://www.postgresql.org/support/versioning/)).
@@ -213,10 +213,10 @@ that host. Nothing here is renamed: the service, the volume
   the approved fresh setup, measures the version, locale and versioned data
   directory, checks Unicode ordering, and restarts its own container to prove
   the workspace persists. It removes that project's container and volume.
-- **A synthetic 17-to-18 restore:** [`scripts/postgres-upgrade.test.mjs`](../../../scripts/postgres-upgrade.test.mjs)
-  runs in the required CI root suite with explicit PostgreSQL 17 binaries.
-  It compares every operational row and sequence, the constraints, workspace
-  isolation, ledger immutability and subsequent workspace numbering.
+- **A synthetic restore on PostgreSQL 18:** [`scripts/host-backup-postgres.test.mjs`](../../../scripts/host-backup-postgres.test.mjs)
+  runs in the required CI root suite. It restores a backup into a new, empty
+  cluster and compares every operational row and sequence, the constraints,
+  workspace isolation, ledger immutability and subsequent workspace numbering.
 - **Without Docker, in `pnpm test:scripts`:** [`scripts/postgres-host-profile.test.mjs`](../../../scripts/postgres-host-profile.test.mjs)
   holds the files' guarantees and runs `first-start.sh` and `pg_hba.conf` on
   a throwaway cluster; [`scripts/postgres-secrets.test.mjs`](../../../scripts/postgres-secrets.test.mjs)

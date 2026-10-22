@@ -827,16 +827,20 @@ them required. CI puts PostgreSQL 18's server binaries on PATH before
 `pnpm -r test` and sets it for that and for `pnpm test:scripts`, so there they
 always run (`scripts/ci-contract.test.mjs` keeps both in the workflow).
 
-Fresh throwaway clusters on PostgreSQL 17+ use the builtin `C.UTF-8` locale,
-matching the pinned fresh-install host. The runner proof reads the database's
-locale provider and locale, then checks default ordering of non-ASCII text.
-PostgreSQL 15 and 16 remain supported locally without the newer initdb flags.
+PostgreSQL 18 is the only supported major: CI, the Compose host profile and
+the cloud development setup run it, and no other major is installed or
+qualified. Fresh throwaway clusters on PostgreSQL 17 or later use the builtin
+`C.UTF-8` locale, matching the pinned fresh-install host. The runner proof
+reads the database's locale provider and locale, then checks default ordering
+of non-ASCII text. On a developer's machine the throwaway helpers also start
+PostgreSQL 15 or 16, without the newer initdb flags; CI never runs those.
 
-`scripts/postgres-upgrade.test.mjs` restores a synthetic PostgreSQL 17 dump
-into PostgreSQL 18 and compares every row, sequence and operational constraint.
-It also checks workspace isolation, immutable ledger entries and the next
-workspace number after restore. CI supplies its old binaries through
-`NOTICEOS_TEST_POSTGRES17_BIN`; no installation is discovered.
+[`scripts/host-backup-postgres.test.mjs`](../../scripts/host-backup-postgres.test.mjs)
+dumps a synthetic store and restores it into a new, empty PostgreSQL 18
+cluster. It compares every row, sequence, constraint, policy, function and
+migration record, then checks workspace isolation, immutable ledger entries,
+an amount past 2^53, non-ASCII text and the next workspace number after
+restore.
 
 **Shared memory.** Each running server holds one
 System V shared-memory segment, and a machine has few (macOS: 32). A
@@ -955,7 +959,7 @@ the Compose profile ([`host/`](host/README.md)) where no container app is
 needed:
 
 - **Always:** `compose.yaml` publishes one port, on 127.0.0.1 alone; runs the
-  pinned multi-architecture PostgreSQL 17 with query statistics and the
+  pinned multi-architecture PostgreSQL 18 with query statistics and the
   builtin `C.UTF-8` order; keeps the data on a named volume whose name follows
   the project; comes back by itself; takes every secret as a file and none as
   a value; names no path of one machine. `pg_hba.conf` admits the superuser
