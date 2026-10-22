@@ -95,6 +95,7 @@ it.each([
   mount(previous);
   await toggle();
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(message));
+  expect(screen.getByRole("status")).toHaveAttribute("data-status-for", "cost-comparison:2026-08");
   expect(screen.queryByRole("list", { name: "Cost changes by source" })).toBeNull();
 });
 
@@ -104,8 +105,10 @@ it("shows loading then a failed-read state without inventing amounts", async () 
   mount(undefined, undefined, async () => (await pending).clone());
   await toggle();
   expect(await screen.findByRole("status")).toHaveTextContent("Loading August 2026 costs");
+  expect(screen.getByRole("status")).toHaveAttribute("data-status-for", "cost-comparison:2026-08");
   await act(async () => { fail(Response.json({ error: "unavailable" }, { status: 503 })); });
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Previous month unavailable"));
+  expect(screen.getByRole("status")).toHaveAttribute("data-status-for", "cost-comparison:2026-08");
   expect(screen.queryByRole("list", { name: "Cost changes by source" })).toBeNull();
 });
 
@@ -138,6 +141,7 @@ it("hides last-good comparison amounts when a later history read fails", async (
   await screen.findByRole("list", { name: "Cost changes by source" });
   await act(async () => { await client.invalidateQueries({ queryKey: ["financials", "2026-08"] }); });
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Previous month unavailable"));
+  expect(screen.getByRole("status")).toHaveAttribute("data-status-for", "cost-comparison:2026-08");
   expect(client.getQueryData(["financials", "2026-08"])).toBeDefined();
   expect(screen.queryByRole("list", { name: "Cost changes by source" })).toBeNull();
 });

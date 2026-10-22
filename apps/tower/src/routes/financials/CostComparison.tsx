@@ -32,14 +32,14 @@ function PreviousMonth({ period, previousPeriod, lines, recurringCosts }: {
 }) {
   const history = useFinancials(previousPeriod);
   const previousLabel = formatPeriodMonthYear(previousPeriod);
-  if (history.isError) return <p role="status" className="text-sm text-muted-foreground">Previous month unavailable. Differences cannot be calculated.</p>;
-  if (history.isPending || history.isPlaceholderData) return <p role="status" className="text-sm text-muted-foreground">Loading {previousLabel} costs…</p>;
+  if (history.isError) return <p role="status" data-status-for={`cost-comparison:${previousPeriod}`} className="text-sm text-muted-foreground">Previous month unavailable. Differences cannot be calculated.</p>;
+  if (history.isPending || history.isPlaceholderData) return <p role="status" data-status-for={`cost-comparison:${previousPeriod}`} className="text-sm text-muted-foreground">Loading {previousLabel} costs…</p>;
   const data = history.data;
   if (!data || data.empty || data.period !== previousPeriod || !data.periods.includes(previousPeriod)) {
-    return <p role="status" className="text-sm text-muted-foreground">No history for {previousLabel}. Differences unavailable.</p>;
+    return <p role="status" data-status-for={`cost-comparison:${previousPeriod}`} className="text-sm text-muted-foreground">No history for {previousLabel}. Differences unavailable.</p>;
   }
   if (data.costLines.length === 0 || lines.length === 0) {
-    return <p role="status" className="text-sm text-muted-foreground">No cost records for {data.costLines.length === 0 ? previousLabel : formatPeriodMonthYear(period)}. Differences unavailable.</p>;
+    return <p role="status" data-status-for={`cost-comparison:${previousPeriod}`} className="text-sm text-muted-foreground">No cost records for {data.costLines.length === 0 ? previousLabel : formatPeriodMonthYear(period)}. Differences unavailable.</p>;
   }
   const comparison = compareRecordedCosts(data.costLines, lines);
   return <div className="flex min-w-0 flex-col gap-4 pt-2" data-cost-comparison="">
