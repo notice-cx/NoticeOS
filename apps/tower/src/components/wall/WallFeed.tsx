@@ -13,14 +13,16 @@
 // - Failure. A failed poll keeps the last rows, dims the live dot and says
 //   "Reconnecting" — never an empty feed that reads as "nothing happened".
 //
-// Read-only on the TV: nothing here is a control. Colour is tokens only, and the
+// A task line opens its task page; no other line is a control, and nothing on
+// a TV is pressed. Colour is tokens only, and the
 // glyph carries the kind, so colour is never alone. A task line by a known
 // agent draws that agent's mark in the glyph's place, with the glyph as a badge
 // on its corner; a person's pick keeps the glyph and leads with the person's
 // name and the option chosen; a line about a site draws the site's icon for a
 // dark surface beside its name.
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import type { SiteIcons } from "@noticeos/contract/site-icons";
 import type { AssetCard } from "@shared/wall";
 import {
@@ -58,6 +60,7 @@ import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { useWallFeed } from "@/hooks/useWallFeed";
 import { useWholeRows } from "@/hooks/useWholeRows";
 import { agentMaker, evidenceParts } from "@/lib/agent-work";
+import { taskPath } from "@/lib/task-path";
 import { cn } from "@/lib/utils";
 
 /** One glyph per kind: the shape says what happened, the tone how it went. */
@@ -248,7 +251,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                 aria-hidden={cut || undefined}
                 className={cn("grid shrink-0", tinted && !reduced && "wall-feed-arrive", cut && "invisible", past && "stack:hidden")}
               >
-                <div className="relative grid min-h-0 grid-cols-[1.875rem_minmax(0,1fr)_auto] items-start gap-3 overflow-hidden rounded-xl px-2.5 py-2.5">
+                <FeedRow task={item.task}>
                   {tinted ? (
                     <span
                       aria-hidden
@@ -317,13 +320,27 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                   >
                     {feedClock(atMs, nowMs)}
                   </time>
-                </div>
+                </FeedRow>
               </li>
             );
           })}
         </ol>
       </div>
     </section>
+  );
+}
+
+const ROW = "relative grid min-h-0 grid-cols-[1.875rem_minmax(0,1fr)_auto] items-start gap-3 overflow-hidden rounded-xl px-2.5 py-2.5";
+
+/** A task line is a link to its task page; every other line is text. */
+function FeedRow({ task, children }: { task?: string; children: ReactNode }) {
+  return task ? (
+    <Link to={taskPath(task)} data-feed-task={task}
+      className={cn(ROW, "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
+      {children}
+    </Link>
+  ) : (
+    <div className={ROW}>{children}</div>
   );
 }
 

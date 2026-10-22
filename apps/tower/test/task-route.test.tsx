@@ -637,6 +637,44 @@ describe("every task row opens its task from anywhere on the row", () => {
   });
 });
 
+describe("a link that keeps no work from being ready reads as Related, never as a blocker", () => {
+  it("draws only the blocks edge under Blocked by, and related and discovered-from links from either end under Related", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ dependencies: [
+      { id: "ro-l1ed", type: "parent-child", title: "The epic", status: "open" },
+      { id: "ro-l1ed.1", type: "blocks", title: "A local task lane", status: "closed" },
+      { id: "ro-2hfo", type: "related", title: "A neighbouring task", status: "open" },
+      { id: "ro-9dsc", type: "discovered-from", title: "The work that turned it up", status: "in_progress" },
+    ] }) }));
+    // A task on the board records a related link to this one: it is related
+    // here too, and it waits on nothing.
+    const payload = board();
+    payload.tasks.push(task({ id: "ro-w3eq", title: "Links to this task", status: "open", assignee: null, metadata: null,
+      dependencies: [{ id: ID, type: "related", title: null, status: null }] }));
+    api.fetchTasks.mockResolvedValue(payload);
+    const { container } = renderTask();
+
+    const ids = (selector: string, attribute: string) => [...container.querySelectorAll(selector)].map((node) => node.getAttribute(attribute));
+    await waitFor(() => expect(ids("[data-related-task]", "data-related-task")).toEqual(["ro-2hfo", "ro-9dsc", "ro-w3eq"]));
+    expect(ids('[data-dependency-column="before"] [data-dependency]', "data-dependency")).toEqual(["ro-l1ed.1"]);
+    expect(ids('[data-dependency-column="after"] [data-dependency]', "data-dependency")).toEqual(["ro-l1ed.4"]);
+
+    const related = container.querySelector("[data-task-related]") as HTMLElement;
+    expect(within(related).getByRole("heading", { name: "Related" })).toBeInTheDocument();
+    expect(within(related).getByRole("link", { name: "ro-2hfo A neighbouring task" })).toHaveAttribute("href", "/tasks/ro-2hfo");
+    expect(within(related).getByRole("link", { name: "ro-w3eq Links to this task" })).toHaveAccessibleDescription("Open, high priority");
+    expect(within(related).queryByText("The epic")).toBeNull();
+  });
+
+  it("draws no graph for a task whose only links are related", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ dependencies: [{ id: "ro-2hfo", type: "related", title: "A neighbouring task", status: "open" }] }) }));
+    api.fetchTasks.mockResolvedValue({ ...board(), tasks: [] });
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector('[data-related-task="ro-2hfo"]')).not.toBeNull());
+    expect(container.querySelector("[data-dependency-graph]")).toBeNull();
+    expect(screen.queryByText("Blocked by")).toBeNull();
+  });
+});
+
 describe("the core task page before the snapshot hub status answers", () => {
   it("reads the linked task through the live lane without an optional connection", async () => {
     taskSourceMock.connected = null;

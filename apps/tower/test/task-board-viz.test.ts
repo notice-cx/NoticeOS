@@ -241,6 +241,22 @@ describe("one epic's dependencies", () => {
     expect(epicDrawsGraph(liveRows(board(tasks.map((task) => ({ ...task, dependencies: [] })))), "md-e")).toBe(false);
   });
 
+  it("counts a waits-for or conditional-blocks link as a blocker, as blocks is", () => {
+    const held = [
+      live({ id: "md-w", issueType: "epic", title: "Holiday menu" }),
+      live({ id: "md-w.1", title: "Pick the dishes", parent: "md-w" }),
+      live({ id: "md-w.2", title: "Photograph them", parent: "md-w", ready: false, dependencies: [{ id: "md-w.1", type: "waits-for", title: null, status: null }] }),
+      live({ id: "md-w.3", title: "Publish the menu", parent: "md-w", ready: false, dependencies: [{ id: "md-w.2", type: "conditional-blocks", title: null, status: null }] }),
+    ];
+    const rows = liveRows(board(held), { containers: true });
+    const groups = epicTaskGroups(rows.filter((row) => row.parent === "md-w"), rows);
+    expect(groups.map((group) => [group.word, group.tasks.map((task) => task.id)])).toEqual([
+      ["Ready", ["md-w.1"]],
+      ["Waiting", ["md-w.2", "md-w.3"]],
+    ]);
+    expect(epicDrawsGraph(rows, "md-w")).toBe(true);
+  });
+
   it("leads with the epic most stuck", () => {
     const other = [
       live({ id: "md-f", issueType: "epic", title: "Smaller" }),
