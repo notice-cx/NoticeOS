@@ -1,0 +1,20 @@
+$ node e2e/run-journeys.mjs -- -g 'Money refresh status'
+
+Running 6 tests using 2 workers
+
+(node:5276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5275) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › e2e/money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in light (12.1s)
+  ✓  2 [desktop] › e2e/money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in dark (12.4s)
+(node:5716) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [desktop] › e2e/money-refresh-status/journeys.spec.ts:155:1 › Money refresh status: month switching, missing period and initial failure stay distinct (6.6s)
+(node:5897) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [mobile] › e2e/money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in dark (8.8s)
+  ✓  6 [mobile] › e2e/money-refresh-status/journeys.spec.ts:155:1 › Money refresh status: month switching, missing period and initial failure stay distinct (6.3s)
+  ✓  5 [mobile] › e2e/money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in light (9.3s)
+
+  6 passed (37.0s)

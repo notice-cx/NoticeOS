@@ -1,0 +1,174 @@
+{
+  "base": "537e080c82e8dca66583477e1d7d212fbc336c51",
+  "files": {
+    "apps/tower/src/routes/FinancialsRoute.tsx": "9ef284c528b6ce2b83e2504c841ada631c18af907101e1765cc0bec496b4b924",
+    "apps/tower/test/financials-route.test.tsx": "1441819fe53e94f467a72fd1606b0c9996fe272e65299a817034df7f82a2c4a8",
+    "apps/tower/e2e/money-refresh-status/journeys.spec.ts": "38eab70cf2a895fb001420b6d45c09565237d1c6607d369e812fdb78ae466d00",
+    "pnpm-lock.yaml": "4ba97abdb1f6b93e06be7c54329a360697a00abce1ac90183dd96ac6aa4389d2"
+  },
+  "checks": [
+    {
+      "name": "unit",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@noticeos/tower",
+        "exec",
+        "vitest",
+        "run",
+        "test/financials-route.test.tsx",
+        "test/read-failed.test.tsx",
+        "test/freshness.test.ts"
+      ],
+      "seconds": 9.793,
+      "exit": 0,
+      "log": "logs/unit.log"
+    },
+    {
+      "name": "typecheck",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@noticeos/tower",
+        "run",
+        "typecheck"
+      ],
+      "seconds": 49.978,
+      "exit": 0,
+      "log": "logs/typecheck.log"
+    },
+    {
+      "name": "root-contracts",
+      "argv": [
+        "node",
+        "--import",
+        "./scripts/script-tests-setup.mjs",
+        "--test",
+        "scripts/ui-lexicon.test.mjs",
+        "scripts/ui-noun.test.mjs",
+        "scripts/neutral-code-gate.test.mjs",
+        "scripts/journey-runner.test.mjs",
+        "scripts/journey-isolation-guard.test.mjs",
+        "scripts/journey-browsers.test.mjs",
+        "scripts/journey-port.test.mjs",
+        "scripts/journey-handler-failure.test.mjs"
+      ],
+      "seconds": 5.971,
+      "exit": 0,
+      "log": "logs/root-contracts.log"
+    },
+    {
+      "name": "discovery",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@noticeos/tower",
+        "run",
+        "test:journeys",
+        "--",
+        "--list",
+        "-g",
+        "Money refresh status"
+      ],
+      "seconds": 0.939,
+      "exit": 0,
+      "log": "logs/discovery.log"
+    },
+    {
+      "name": "nested-types",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@noticeos/tower",
+        "exec",
+        "tsc",
+        "-p",
+        "/workspace/NoticeOS/work/money-refresh-status/verifier/tsconfig.journey.json"
+      ],
+      "seconds": 5.491,
+      "exit": 0,
+      "log": "logs/nested-types.log"
+    },
+    {
+      "name": "browser",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@noticeos/tower",
+        "run",
+        "test:journeys",
+        "--",
+        "-g",
+        "Money refresh status"
+      ],
+      "seconds": 37.619,
+      "exit": 0,
+      "log": "logs/browser.log"
+    }
+  ],
+  "final_inputs": {
+    "apps/tower/src/routes/FinancialsRoute.tsx": "9ef284c528b6ce2b83e2504c841ada631c18af907101e1765cc0bec496b4b924",
+    "apps/tower/test/financials-route.test.tsx": "c5241d79e08e52a10ce4ba3f9c83ca2e2a0260bbb0dcff3f1a50bdff144152f3",
+    "apps/tower/e2e/money-refresh-status/journeys.spec.ts": "fd38cf251627aedf259bcf132e8e462972e71813ed0e422b26ce8326c5aa52a4",
+    "pnpm-lock.yaml": "4ba97abdb1f6b93e06be7c54329a360697a00abce1ac90183dd96ac6aa4389d2"
+  },
+  "tested_commit": "47857cab9f82c9f61171be2f9f2fc5e79aed8b4f",
+  "counts": {
+    "unit": {
+      "passed": 109,
+      "skipped": 0
+    },
+    "root_contracts": {
+      "passed": 59,
+      "skipped": 0
+    },
+    "browser": {
+      "passed": 6,
+      "skipped": 0
+    },
+    "ci_discovery": 6
+  },
+  "environment": {
+    "node": "24.21.0",
+    "pnpm": "12.8.1",
+    "postgres": "18.6",
+    "playwright": "1.63.0",
+    "chromium": "153.0.8010.12",
+    "browser_workers": 2,
+    "desktop": "1440x1000",
+    "mobile": "390x844"
+  },
+  "cleanup": {
+    "owned_fixture_directories_removed": [
+      "work/money-refresh-status/verifier/tmp/neutral-gate-7Hvvkh",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-JimVWZ",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-MQwNQa",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-Q83tyz",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-ZP9Jgu",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-ZiWY7L",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-bgisx8",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-cPlWsT",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-pcwz8G",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-tG3Q1S",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-ufXqfi",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-xP7UAa",
+      "work/money-refresh-status/verifier/tmp/neutral-gate-yu7FzZ"
+    ],
+    "remaining_owned_tmp_entries": [
+      "node-compile-cache",
+      "playwright-transform-cache-1000"
+    ],
+    "fixture_processes": "All test subprocess runners exited 0; Postgres/global-setup and journey fixture-server shutdown awaited by existing harness. No existing installation or provider touched.",
+    "browser_cache": "Retained single reusable checkout-pinned Chromium bundle."
+  },
+  "artifacts": {
+    "evidence/desktop-dark.json": "e1d206c681862fe20feec3f7751ed8987faf1c82d8ac5b30bfde127cbf3522e0",
+    "evidence/desktop-dark.png": "9472a5b8bbe22e9731390af4f494e64a16b7d068237109edaf4e24f0d0c59642",
+    "evidence/desktop-light.json": "e1d206c681862fe20feec3f7751ed8987faf1c82d8ac5b30bfde127cbf3522e0",
+    "evidence/desktop-light.png": "cfce741bb849311d5644f13920c85631e9a144ff39c096753b8f74d0781885ce",
+    "evidence/mobile-dark.json": "e98cded08aebdd2ab4d675e3a0235b1f953bcf57507dd4d40b84171b41250e8b",
+    "evidence/mobile-dark.png": "e69f2a78b6f86d057f9271fbfba51dc99dbe91352cdda10ed2c4fb1fd84fd7a5",
+    "evidence/mobile-light.json": "e98cded08aebdd2ab4d675e3a0235b1f953bcf57507dd4d40b84171b41250e8b",
+    "evidence/mobile-light.png": "7afec77d72f1b3aef6529f949282e95c34f14dee4daa4193a7b08d6373b210cd"
+  }
+}
