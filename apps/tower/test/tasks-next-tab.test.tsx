@@ -93,6 +93,7 @@ describe("the Next tab", () => {
     expect(within(region).getByRole("heading", { level: 3 })).toHaveTextContent("Pick the newsletter day");
     expect(region).toHaveTextContent("Needs your choice · waiting 7d");
     expect(region.querySelector("[data-next-epic]")).toHaveTextContent("Newsletter launch2 of 6");
+    expect(within(region.querySelector<HTMLElement>("[data-next-epic]")!).getByRole("link", { name: "Newsletter launch" })).toHaveAttribute("href", "/tasks/md-e");
     expect(region.querySelector("[data-why-it-ranks]")).toHaveTextContent("Rank1of 3 · policy v1.0");
   });
 
@@ -171,6 +172,8 @@ describe("the Next tab", () => {
       ["md-r1", "blocked"], ["md-r2", "blocked"], ["md-p1", "parked"], ["md-x1", "below-cost"],
     ]);
     expect(held.querySelector('[data-not-now-row="md-r1"]')).toHaveTextContent("Waits on Name the newsletter");
+    expect(within(held.querySelector<HTMLElement>('[data-not-now-row="md-r1"]')!).getByRole("link", { name: "Name the newsletter" }))
+      .toHaveAttribute("href", "/tasks/md-a1");
     expect(held.querySelector('[data-not-now-row="md-p1"]')).toHaveTextContent("Parked until Sep 1");
     expect(held.querySelector('[data-not-now-row="md-x1"]')).toHaveTextContent("≈ $7 /mo, under the $60 its review costs");
     expect(within(held).queryByRole("button", { name: /Show all/ })).toBeNull();

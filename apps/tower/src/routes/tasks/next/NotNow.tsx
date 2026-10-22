@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Coins, Lock, Pause, type LucideIcon } from "lucide-react";
 import { SectionLabel } from "@/components/surface/SectionLabel";
+import { formatInt } from "@/lib/format";
 import type { BoardProject } from "@/lib/task-board-read";
 import type { HeldBackReason, HeldBackTask } from "@/lib/task-ranking";
 import { heldBackLine, plural } from "./next-read";
@@ -43,7 +44,7 @@ export function NotNow({ rows, projects }: {
                 <SiteMark site={task.project} name={projects.get(task.project)?.name ?? task.project} className="mt-0.5" />
                 <div className="flex min-w-0 flex-1 basis-56 flex-col gap-0.5">
                   <TaskTitleLink task={task} className="text-sm font-medium" />
-                  <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{heldBackLine(reason)}</span>
+                  <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]"><HeldBackLine reason={reason} project={task.project} /></span>
                 </div>
               </div>
             </li>
@@ -52,5 +53,18 @@ export function NotNow({ rows, projects }: {
       </Rows>
       {shown.length < rows.length ? <ShowAll count={rows.length} onShow={() => setAll(true)} marks={{ "data-not-now-show-all": "" }} /> : null}
     </section>
+  );
+}
+
+/** The reason as its line, with the task it waits on as the link to it. */
+function HeldBackLine({ reason, project }: { reason: HeldBackReason; project: string }) {
+  const first = reason.kind === "blocked" ? reason.by[0] : undefined;
+  if (reason.kind !== "blocked" || !first) return heldBackLine(reason);
+  const title = first.title?.trim() || "another task";
+  return (
+    <>
+      Waits on <TaskTitleLink task={{ id: first.id, title, project }} />
+      {reason.by.length > 1 ? ` and ${formatInt(reason.by.length - 1)} more` : null}
+    </>
   );
 }

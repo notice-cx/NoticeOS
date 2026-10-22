@@ -947,8 +947,9 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
         liveTask({ id: "md-plain", title: "Choose the heading", labels: ["human"], ready: true }),
       ]),
     } });
-    expect(container.querySelector('[data-inbox-row="md-decision"] [data-inbox-proceeds]'))
-      .toHaveTextContent("After your answer: Build the digest sender");
+    const proceeds = container.querySelector<HTMLElement>('[data-inbox-row="md-decision"] [data-inbox-proceeds]')!;
+    expect(proceeds).toHaveTextContent("After your answer: Build the digest sender");
+    expect(within(proceeds).getByRole("link", { name: "Build the digest sender" })).toHaveAttribute("href", "/tasks/md-build");
     expect(container.querySelector('[data-inbox-row="md-plain"] [data-inbox-proceeds]'))
       .toHaveTextContent("After your answer: An agent can continue this task.");
   });
@@ -961,9 +962,10 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
           dependencies: [{ id: "md-decision", type: "blocks", title: null, status: null }] })),
       ]),
     } });
-    const consequence = container.querySelector('[data-inbox-row="md-decision"] [data-inbox-proceeds]');
+    const consequence = container.querySelector<HTMLElement>('[data-inbox-row="md-decision"] [data-inbox-proceeds]')!;
     expect(consequence).toHaveTextContent("After your answer: Sender step 0; Sender step 1; 6 more tasks");
     expect(consequence).not.toHaveTextContent("Sender step 2");
+    expect(within(consequence).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/tasks/md-build-0", "/tasks/md-build-1"]);
   });
 
   it("says nothing else is queued when every task is for you to decide", () => {
@@ -1344,6 +1346,8 @@ describe("/tasks — the shape of the work, drawn", () => {
     // The most stuck epic leads: a blocked task holds the next one.
     expect(graph).toHaveAttribute("data-tasks-epic", "md-e");
     expect(graph).toHaveTextContent("1 stuck");
+    // The header names the epic as the link to its page.
+    expect(graph.querySelector("header a")).toHaveAttribute("href", "/tasks/md-e");
     expect(graph.querySelector('[data-flow-edge="md-e.2->md-e.3"]')).toHaveAttribute("data-state", "broken");
     expect(graph.querySelector('[data-flow-node="md-e.2"]')).toHaveAttribute("data-state", "warn");
     expect(graph.querySelector('[data-flow-node="md-e.3"]')).toHaveAttribute("href", "/tasks/md-e.3");
@@ -1879,7 +1883,7 @@ describe("Task reasons support focus and tap", () => {
     expect(api.createTask).not.toHaveBeenCalled();
   });
 
-  it("exposes a project's refused read and the expanded task's parent meaning", () => {
+  it("exposes a project's refused read and opens the expanded task's parent epic", () => {
     const first = renderBoard({ data: payload({ projects: [project({ ok: false, error: "Task refresh unavailable" })] }) });
     fireEvent.focus(screen.getByRole("button", { name: "Meadow Board: task read failed" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Task refresh unavailable");
@@ -1890,8 +1894,9 @@ describe("Task reasons support focus and tap", () => {
       ready: [item({ parent: "md-epic" })],
     })] }) });
     fireEvent.click(rowFold(container, "md-1w2"));
-    fireEvent.click(screen.getByRole("button", { name: "Parent epic" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("The epic this task hangs off");
+    const part = container.querySelector<HTMLElement>('[data-task-epic="md-epic"]')!;
+    expect(part).toHaveTextContent("Part of Recipe schema overhaul");
+    expect(within(part).getByRole("link", { name: "Recipe schema overhaul" })).toHaveAttribute("href", "/tasks/md-epic");
   });
 });
 

@@ -14,7 +14,7 @@ import type { RankedBoard, RankedTask } from "@/lib/task-ranking";
 import { cn } from "@/lib/utils";
 import { ASK_VERB, briefClause, doneSentence, endSentence, heldSince, plural } from "./next-read";
 import { NOT_NOW_ID } from "./NotNow";
-import { useTaskHref } from "./parts";
+import { TaskTitleLink, useTaskHref } from "./parts";
 
 /** The one preference this brief keeps: whether it is open. */
 const BRIEF_PREFERENCE = "tasks-brief-open";
@@ -25,7 +25,7 @@ type Tone = "decision" | "urgent" | "ready" | "done";
 interface BriefLine {
   key: string;
   tone: Tone;
-  text: string;
+  text: ReactNode;
   action: ReactNode;
 }
 
@@ -53,13 +53,17 @@ function writeOpen(preferences: ReturnType<typeof useOwnerPreferences>, open: bo
 }
 
 /** The decision sentence: which site has waited how long, on what, and the
- * first fact behind it. */
-export function decisionLine(row: RankedTask, site: string): string {
+ * first fact behind it. The task is named as the link to its page, so it can
+ * be read before Approve. */
+function DecisionLine({ row, site }: { row: RankedTask; site: string }) {
   const wait = row.ageDays !== null && row.ageDays >= 1
     ? `${site} has waited ${plural(row.ageDays, "day", "days")} for your call`
     : `${site} is waiting for your call`;
   const clause = briefClause(row);
-  return `${wait}: ${endSentence(row.task.title)}${clause ? ` ${clause}` : ""}`;
+  const title = row.task.title.trim();
+  // The full stop endSentence adds, when the title has none of its own.
+  const stop = endSentence(title).slice(title.length);
+  return <>{wait}: <TaskTitleLink task={{ ...row.task, title }} />{stop}{clause ? ` ${clause}` : ""}</>;
 }
 
 /**
@@ -99,7 +103,7 @@ export function TasksBrief({ ranked, projects, done, focusTo, nowMs }: {
     lines.push({
       key: `decision-${row.task.id}`,
       tone: "decision",
-      text: decisionLine(row, siteOf(row)),
+      text: <DecisionLine row={row} site={siteOf(row)} />,
       action: row.ask === "approve" ? (
         <Button type="button" size="sm" variant="outline" disabled={!approvable}
           onClick={() => answer({ kind: "approve", id: row.task.id, title: row.task.title, project: row.task.project })}

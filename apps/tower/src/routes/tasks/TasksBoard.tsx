@@ -62,6 +62,7 @@ import { SelectBox, SelectToggle, useSelection } from "@/components/SelectionBar
 import { AskQueue } from "./ask-queue";
 import { closeOperation, declinedOnClose, useCloseAs } from "./close-actions";
 import { EpicPanel, InOutPanel, WorkByProject } from "./board-pictures";
+import { TaskTitleLink } from "./next/parts";
 import { OpenTaskLink } from "./open-task-link";
 import { PriorityMark, RestingMark, TaskStatusMark } from "./task-face";
 import { TaskSelection } from "./task-selection";
@@ -1025,9 +1026,11 @@ function RowDetail({
   return (
     <div className="flex flex-col gap-2 rounded-md bg-muted/40 p-2.5 text-xs text-muted-foreground">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {epic ? <InfoTooltip label="Parent epic" trigger={`Part of ${epic}`}>
-          The epic this task hangs off
-        </InfoTooltip> : null}
+        {epic && task.parent ? (
+          <span data-task-epic={task.parent}>
+            Part of <TaskTitleLink task={{ id: task.parent, title: epic, project: task.project }} />
+          </span>
+        ) : null}
         {band ? <span>Priority {band}</span> : null}
         {task.assignee ? <span>Claimed by {taskActorLabel(task.assignee, task.actors)}</span> : null}
         {task.deferUntil ? <span>Parked until {task.deferUntil.slice(0, 10)}</span> : null}

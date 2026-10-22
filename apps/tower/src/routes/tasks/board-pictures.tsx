@@ -7,6 +7,7 @@ import { WorkFlow, weekDaysIn, type WorkFlowRow } from "@/components/viz/WorkFlo
 import { formatInt } from "@/lib/format";
 import { netFlow, stripTotals, weekLine, type EpicGraph, type InOut } from "@/lib/task-board-viz";
 import { cn } from "@/lib/utils";
+import { TaskTitleLink } from "./next/parts";
 import { ProjectRail, type RailItem } from "./projects/ProjectRail";
 import { attentionOrder, projectModel } from "./projects/project-model";
 
@@ -165,7 +166,7 @@ export function EpicPanel({ graphs, selected, onSelect, nowMs, className }: {
       <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h2 className={cn("m-0", eyebrowClass)}>Epic</h2>
-          <span className="text-base font-semibold text-foreground [overflow-wrap:anywhere]">{graph.title}</span>
+          <TaskTitleLink task={{ id: graph.id, title: graph.title, project: graph.project.asset }} className="text-base font-semibold" />
           <span className="text-xs text-muted-foreground">{facts.join(" · ")}</span>
         </div>
       </header>
