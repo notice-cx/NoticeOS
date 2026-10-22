@@ -851,16 +851,21 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       const selected = panelProof(workspace, index, evidence);
       return client.fetch(selected.url, selected.init);
     };
-    await t.test('live panels retain colliding provider identifiers, cached data and health in the selected workspace', async () => {
+    await t.test('stored realtime and cached calendar panels retain colliding provider identifiers in the selected workspace', async () => {
       const calendarConnection = randomUUID();
+      const realtimeHealthBefore = (await admin.query("SELECT count(*)::int AS count FROM noticeos.capability_targets WHERE capability='ga4-realtime'")).rows[0].count;
       for (const [workspace, slug, expected] of [[a, 'tenant-a', 7], [b, 'tenant-b', 14]]) {
         await collectionConfigWrite(workspace, 'config/integrations.json', '/assets/example.test/ga4/propertyId', '12345', undefined);
         const feed = `https://calendar.example.com/${randomBytes(24).toString('base64url')}`;
         calendarFeeds.set(feed, slug);
         await admin.query("INSERT INTO noticeos.integration_connections(workspace_id,connection_id,provider,scope,created_at,updated_at,account) VALUES($1,$2,'calendar','shared',now(),now(),$3)", [workspace, calendarConnection, `${slug} calendar`]);
         assert.equal((await credentialWrite(workspace, 'calendar', 'putCredential', { fields: { CALENDAR_FEEDS: JSON.stringify({ Shared: feed }) } })).status, 204);
+        await admin.query(`INSERT INTO noticeos.realtime_traffic_readings
+          (workspace_id,asset_id,property_ref,observed_at,active_users_five_minutes,active_users_thirty_minutes,minutes)
+          VALUES($1,'example.test','12345',now(),$2,$2,$3::jsonb)`, [workspace, expected, JSON.stringify(Array(30).fill(expected))]);
         const before = providerCalls.length;
         const realtime = await panel(workspace, 0);
+        assert.equal(providerCalls.length, before, 'display reads use retained readings without provider requests');
         assert.equal(realtime.status, 200, await realtime.clone().text());
         const value = await realtime.json();
         assert.equal(value.assets.length, 1); assert.equal(value.assets[0].asset, 'example.test');
@@ -874,7 +879,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
         assert.equal(calendar.calendars[0].id, 'Shared');
         assert.equal(calendar.meetings[0].title, `${slug} meeting`);
         assert.equal(text.includes(feed), false);
-        assert.ok(providerCalls.slice(before).length >= 4);
+        assert.ok(providerCalls.slice(before).length >= 1);
         assert.ok(providerCalls.slice(before).every(call => call.slug === slug));
         const cachedBoundary = providerCalls.length;
         for (const [index, method] of panelMethods.entries()) {
@@ -889,7 +894,8 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
         assert.equal(site.status, 200); assert.deepEqual(await site.json(), { name: 'Generated public website' });
       }
       const rows = (await admin.query("SELECT workspace_id,provider,connection_revision FROM noticeos.capability_targets WHERE capability IN ('ga4-realtime','calendar-feed')")).rows;
-      for (const provider of ['google', 'calendar']) {
+      assert.equal(rows.filter(row => row.provider === 'google').length, realtimeHealthBefore, 'display reads do not write collection health');
+      for (const provider of ['calendar']) {
         const targets = rows.filter(row => row.provider === provider);
         assert.ok(targets.some(row => row.workspace_id === a)); assert.ok(targets.some(row => row.workspace_id === b));
         assert.equal(new Set(targets.map(row => row.connection_revision)).size, 2);

@@ -17,6 +17,10 @@ INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, statu
 VALUES (:'ws', :'site', :'site', :'site', 'live', true, false),
        (:'ws', :'slug' || '-os', NULL, 'NoticeOS', 'live', false, true);
 
+INSERT INTO noticeos.realtime_traffic_readings
+  (workspace_id, asset_id, property_ref, observed_at, active_users_five_minutes, active_users_thirty_minutes)
+VALUES (:'ws', :'site', '1', '2026-09-05T12:00:00Z', 3, 8);
+
 INSERT INTO noticeos.pulses (workspace_id, asset_id, pulse_date, generated_at, envelope, capabilities)
 VALUES (:'ws', :'site', '2026-09-01', '2026-09-01T23:00:00Z', '{"asset":"x","metrics":{}}', '["pageviews"]');
 

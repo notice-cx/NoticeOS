@@ -384,3 +384,17 @@ it('shows no PostHog network failure once the next healthy run has asked the los
   expect(items.map(i => i.detail).sort()).toEqual(POSTHOG_FAMILIES.map(family => `${family} · 2026-09-14`).sort());
   expect(items.every(i => i.failure === null)).toBe(true);
 });
+
+it('uses the saved realtime schedule pause and removes the retired hourly obligation', async () => {
+  await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.config_documents
+    (workspace_id, document_key, body, version, updated_at, updated_by)
+    VALUES ($1::uuid,'constants',$2::json,1,now(),'fixture')
+    ON CONFLICT(workspace_id,document_key) DO UPDATE SET body=excluded.body, version=noticeos.config_documents.version+1`,
+  [tx.workspaceId, JSON.stringify({ schedules: { 'ga4-realtime': { enabled: false, cron: '* * * * *' } } })]));
+  forgetConfigCache();
+  const result = await readIntegrationHealth(env, NOW);
+  const realtime = result.items.filter(item => item.capability === 'ga4-realtime' && item.asset);
+  expect(realtime.length).toBeGreaterThan(0);
+  expect(realtime.every(item => item.state === 'paused')).toBe(true);
+  expect(result.items.some(item => item.capability === 'ga4-hourly')).toBe(false);
+});

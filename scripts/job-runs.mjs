@@ -329,6 +329,8 @@ export async function shipJobRunQueue(record, { state, post = fetch, readToken, 
  * STARTUP_CATCHUP_POLICIES).
  */
 export const CRON_CATCHUP_POLICIES = Object.freeze([
+  // One current read recovers the provider's still-available realtime minutes.
+  { job: 'cron * * * * *', expression: '* * * * *', kind: 'cron', maxAgeMs: 30 * MINUTE_MS },
   { job: 'cron 10,30,50 * * * *', expression: '10,30,50 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 0 * * * *', expression: '0 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
   // Subscription revenue: a day already saved with the same figure writes

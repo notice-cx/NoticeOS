@@ -21,6 +21,7 @@
     "flag_evidence": { "shape": "history", "arrival": "observed_at" },
     "flag_tunes": { "shape": "history", "arrival": "tuned_at" },
     "flags": { "shape": "history", "arrival": "fired_at" },
+    "realtime_traffic_readings": { "shape": "history", "arrival": "observed_at" },
     "hygiene_checks": { "shape": "history", "arrival": "observed_at" },
     "integration_capability_state": { "shape": "state", "arrival": "finished_at" },
     "integration_connections": { "shape": "state", "arrival": "created_at" },

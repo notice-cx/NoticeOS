@@ -1,4 +1,4 @@
-/** Cross-Worker contract for the on-demand GA4 realtime read.
+/** Cross-Worker contract for retained GA4 realtime observations.
  *
  * The ingest Worker owns the Google credential and returns one result per
  * configured GA4 property through a private Service Binding. The Tower proxies
@@ -9,7 +9,7 @@ interface Ga4RealtimeAssetBase {
   asset: string;
   /** When this provider attempt started. Values are one snapshot at this time. */
   observedAt: string;
-  /** The next allowed provider attempt after a failed read; not a promised recovery time. */
+  /** The next permitted provider attempt, including quota backoff; not a promised recovery time. */
   nextAttemptAt?: string;
 }
 
@@ -99,12 +99,24 @@ export interface Ga4RealtimeQuota {
    * unless both said), `remaining` the lower of the two reports.
    */
   realtime: Ga4PropertyQuota | null;
-  /** From the Core `runReport` call behind the hourly pace comparison. */
+  /** Legacy hourly Core quota; retained realtime reads leave this null. */
   core: Ga4PropertyQuota | null;
+}
+
+/** Retained per-minute activity on the installation's current calendar day.
+ * Null minutes were never reported. Counts are never summed into unique users. */
+export interface Ga4RealtimeDay {
+  date: string;
+  timeZone: string;
+  startAt: string;
+  endAt: string;
+  minutes: (number | null)[];
+  sameDayLastWeek: (number | null)[] | null;
 }
 
 export interface Ga4RealtimeSuccess extends Ga4RealtimeAssetBase {
   status: 'success';
+  realtimeDay?: Ga4RealtimeDay;
   /** Distinct active users observed in the inclusive 0–4 minute window. */
   activeUsers5m: number;
   /** Distinct active users observed in the inclusive 0–29 minute window. */
@@ -119,7 +131,8 @@ export interface Ga4RealtimeSuccess extends Ga4RealtimeAssetBase {
    */
   activeUsersByMinute?: (number | null)[] | null;
   /**
-   * One full day on the operator's clock (`timeZone`). Last week's line has
+   * Legacy processed hourly comparison, retained for rolling upgrades.
+   * New observations use realtimeDay instead. Last week's line has
    * all 24 hours; today's future hours are null so the current line stops at
    * the newest observed bucket. These values are not additive DAU totals: a
    * person active in two hours can appear in both.

@@ -4,6 +4,7 @@ import {
   type IntegrationMonitorDefinition, type IntegrationProviderId, type IntegrationObservation,
 } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
+import { cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
 import { getConfigDocument } from './config-store.js';
 import { resolveCredential } from './credentials.js';
 import { resolveGoogleCredential } from './google-oauth.js';
@@ -152,15 +153,19 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   let register: LaneRegister;
   let custom: Ga4CustomDimensionConfig;
   let panel: SerpPanelConfig;
+  let realtimeSchedule: { enabled: boolean; cron: string } = { enabled: true, cron: "* * * * *" };
   try {
-    const reads = await Promise.all(['config/integrations.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json'].map(file => getConfigDocument(env, file)));
-    if (reads.some(read => read.source !== 'store' || read.version === null || !read.body || typeof read.body !== 'object')) throw new Error('Inventory unavailable');
+    const reads = await Promise.all(['config/integrations.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json', 'config/constants.json'].map(file => getConfigDocument(env, file)));
+    if (reads.slice(0, 3).some(read => read.source !== 'store' || read.version === null || !read.body || typeof read.body !== 'object')) throw new Error('Inventory unavailable');
     register = reads[0]!.body as LaneRegister;
     custom = reads[1]!.body as Ga4CustomDimensionConfig;
     panel = reads[2]!.body as SerpPanelConfig;
+    const schedules = (reads[3]?.body as { schedules?: ScheduleOverrides } | undefined)?.schedules;
+    realtimeSchedule = schedules?.['ga4-realtime'] ?? realtimeSchedule;
     if (!register.assets || typeof register.assets !== 'object') throw new Error('Inventory unavailable');
   } catch { return { ...payload, available: false }; }
 
+  const realtimeCadenceMs = (cronIntervalMinutes(realtimeSchedule.cron) ?? 1) * 60_000;
   const add = async (spec: Spec) => {
     const def = definition(spec.connection.provider, spec.capability);
     const scope = await healthScope(spec.connection, spec.capability, spec.asset, spec.target, spec.family);
@@ -180,8 +185,11 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const requiredSince = spec.requiredSince !== undefined ? spec.requiredSince
       : def.trigger === 'demand' && latestAt && nowMs - Date.parse(latestAt) < (spec.capability === 'ga4-realtime' ? 60_000 : spec.capability === 'ga4-hourly' ? 1_800_000 : 600_000) ? latestAt : null;
     const setup = def.evidence === 'setup-only';
+    const realtimeDelay = Math.max(realtimeCadenceMs,
+      stored?.next_attempt_at ? Date.parse(stored.next_attempt_at) - Date.parse(stored.started_at) : 60_000);
+    const obligation = spec.capability === 'ga4-realtime' ? new Date(nowMs - realtimeDelay * 3).toISOString() : requiredSince;
     const projected = integrationCapabilityHealth({ scope, connection: !spec.connection.configured ? 'disconnected' : spec.paused ? 'paused' : 'connected',
-      covered: !setup, observerAvailable: observerAvailable && !legacyUnverified && !unrecordedAttempt && !limitedProviders.has(spec.connection.provider), trigger: def.trigger, observations, requiredSince, nowMs });
+      covered: !setup, observerAvailable: observerAvailable && !legacyUnverified && !unrecordedAttempt && !limitedProviders.has(spec.connection.provider), trigger: def.trigger, observations, requiredSince: obligation, nowMs });
     const state = setup && spec.connection.configured ? 'idle' : projected.state;
     // Public IDs are based on product identity, never on credentials or private targets.
     const id = await healthId([spec.connection.provider, spec.capability, spec.asset ?? '', spec.family ?? '', spec.detail ?? '']);
@@ -340,7 +348,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         const targets = connection.demo ? [] : googleTargets(google, google.source, googleCredentialResolver(env), register);
         for (const target of targets) {
           const paused = cellDeclined(register.assets[target.asset]?.[target.integration]);
-          if (target.integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-hourly']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused });
+          if (target.integration === 'ga4') for (const capability of ['ga4-realtime']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused: paused || !realtimeSchedule.enabled });
           await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, INTEGRATION_CADENCE_HOURS.signals, paused);
           await archive(connection, `${target.integration}-archive`, target.asset, target.propertyRef, target.integration, await integrationArchivePlan(env.STORE, target, nowMs, custom), paused);
         }
@@ -348,7 +356,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         // sign-in does, and records their daily counts; it keeps no archive.
         if (connection.demo) for (const integration of ['ga4', 'gsc'] as const) for (const { asset, ref } of registerMappedAssets(integration, register)) {
           const paused = cellDeclined(register.assets[asset]?.[integration]);
-          if (integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-hourly']) await add({ connection, capability, asset, target: ref, paused });
+          if (integration === 'ga4') for (const capability of ['ga4-realtime']) await add({ connection, capability, asset, target: ref, paused: paused || !realtimeSchedule.enabled });
           await daily(connection, `${integration}-daily`, asset, ref, integration, INTEGRATION_CADENCE_HOURS.signals, paused);
         }
       } else if (provider === 'bing-webmaster') {

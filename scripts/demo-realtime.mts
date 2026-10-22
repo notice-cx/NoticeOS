@@ -3,6 +3,7 @@
 // reading is deterministic in (seed, site, clock minute), so repeated reads
 // within a minute agree and the hour still filling grows monotonically. No
 // provider is called and nothing is written; this is display data only.
+import type { Ga4RealtimeDay } from '../packages/contract/src/ga4-realtime.js';
 import { createHash } from 'node:crypto';
 import { createDemoActivity, DEMO_HOUR_SHARE as HOUR_SHARE } from './demo-activity.mjs';
 import { shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
@@ -21,7 +22,7 @@ const MINUTE_DWELL = 1.6;
 
 export interface DemoRealtimeHour { hour: number; today: number | null; sameDayLastWeek: number }
 export interface DemoRealtimeReading {
-  asset: string; status: 'success'; observedAt: string;
+  asset: string; status: 'success'; observedAt: string; realtimeDay: Ga4RealtimeDay;
   activeUsers5m: number; activeUsers30m: number; activeUsersByMinute: number[];
   hourlyActiveUsers: DemoRealtimeHour[]; timeZone: 'UTC'; hourlyObservedAt: string;
   hourlyErrorCode: null; quota: null; errorCode: null;
@@ -97,7 +98,11 @@ export function createDemoRealtime(input: DemoScenario): { read(nowMs: number): 
         // Windows count distinct users, so each is below its minutes' sum and never below any one minute.
         const activeUsers5m = Math.max(...recent, Math.round(sum(recent) * 0.72));
         const activeUsers30m = Math.max(activeUsers5m, Math.round(sum(activeUsersByMinute) * 0.55));
-        return { asset: site.id, status: 'success', observedAt: iso, activeUsers5m, activeUsers30m, activeUsersByMinute,
+        const minuteUsers = (on: string, m: number) => Math.max(0, Math.round(dailyUsers(site.id, on) * HOUR_SHARE[Math.floor(m / 60)]! / 60 * MINUTE_DWELL * jitter(seed, `${site.id}/${on}/m${m}`, 0.45)));
+        const realtimeDay: Ga4RealtimeDay = { date, timeZone: 'UTC', startAt: `${date}T00:00:00.000Z`, endAt: `${shiftDemoDay(date, 1)}T00:00:00.000Z`,
+          minutes: Array.from({ length: 1440 }, (_, m) => m <= minuteOfDay ? minuteUsers(date, m) : null),
+          sameDayLastWeek: Array.from({ length: 1440 }, (_, m) => minuteUsers(lastWeek, m)) };
+        return { asset: site.id, status: 'success', observedAt: iso, activeUsers5m, activeUsers30m, activeUsersByMinute, realtimeDay,
           hourlyActiveUsers, timeZone: 'UTC', hourlyObservedAt: iso, hourlyErrorCode: null, quota: null, errorCode: null };
       });
       return { generatedAt: iso, assets };

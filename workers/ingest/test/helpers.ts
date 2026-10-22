@@ -28,6 +28,7 @@ export async function reset(): Promise<void> {
 const EMPTIED_BEFORE_EACH_TEST = [
   'workspace_mutation_audit',
   'counter_readings',
+  'realtime_traffic_readings',
   'egress_checks',
   'integration_health_events',
   'integration_capability_state',

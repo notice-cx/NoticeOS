@@ -16,7 +16,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | Integration | Provides | Consumed by | Access | Cost model | Quota / limits in practice | On failure |
 |---|---|---|---|---|---|---|
 | **GSC API** | live collector: daily Google-search clicks, impressions, CTR, average position; daily archive: ten report families ([doc 02](02-signal-contract.md#central-signals)) | Sense (S2), Attribute | service account; Full-user grant per property; read-only API scope | Free | live total query runs 96/day/site; the archive adds 40 base requests/day/property (ten report families × four dates), search-appearance expansion, and pagination. Search Analytics exposes at most 50k rows/day/search type and does not guarantee every row, so an archive is analysis-grade evidence, not a complete log | retain last good snapshot/archive, record the failed report manifest, suppress dependent flags |
-| **GA4 Data API** | live collector: daily active users, sessions, page views, events; on-demand display read: exact distinct users in trailing 30- and 5-minute windows, users per minute over the last 30, plus today-by-hour against the same weekday last week; daily archive: eight report families plus an exact rolling 28-day event-user aggregate ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account; Viewer grant per property; read-only API scope | Free tier (separate token quotas per property and request category) | daily-series query runs 96/day/property; open Tower displays share two Realtime requests/property per minute (both minute ranges, and the per-minute rows of the Wall's per-minute visitor chart), and one bounded Core hourly request/property per 15 minutes for today plus seven days ago; a display whose cache was emptied (a deploy, eviction, a new day or clock) reads at once instead of waiting out that cadence, at most one extra read per window; hidden tabs stop polling, and rejected requests enter a shared cooldown; archive adds 33 base requests/day/property (eight daily families × four revision dates plus one rolling aggregate), plus pagination, and caps each report at 250k rows. Data API is aggregate/modelled reporting, not raw event/session export. **Event parameters** (`customEvent:*`) return data only after an operator registers them as custom dimensions, and are never backfilled. Every GA4 collection sends `returnPropertyQuota`, so token spend is measured rather than inferred from request counts | retain last good daily/display snapshot and archive; record a failed durable report manifest; never turn a provider failure or a future hour into zero; today remains visibly incomplete; an unregistered custom dimension is its own manifest state (`ga4_custom_dimension_unregistered`), never an empty success; scheduled collection records an exhausted token budget as `ga4_quota_exhausted`; display reads return a safe quota category and next permitted attempt, and a bucket under 20% remaining raises `ga4-quota-pressure` before the failures start |
+| **GA4 Data API** | daily active users, sessions, page views and events; scheduled realtime distinct users in trailing 30- and 5-minute windows and retained per-minute activity; daily report archives ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account or Google sign-in; Viewer grant per property; read-only API scope | Free tier, separate token quotas per property and request category | daily-series query runs 96/day/property; realtime makes two requests/property/minute independently of open displays and slows when quota is low; browser reads use saved data; no hourly Core query for the Wall; archives add 33 base requests/day/property plus pagination | retain successful readings; failed or missing collection leaves gaps; show Core and Realtime quota warnings separately in remaining tokens; no sum of minute counts becomes a daily unique-user total |
 | **Bing Webmaster Tools API** | live: asset-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per asset (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can lag behind the current date | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
 | **MS Clarity data-export API** | session behavior aggregates (rage/dead clicks, quickbacks, script errors, scroll) | Sense (UX signals), hypothesis grounding | API token per project | Free, but **10 calls/project/DAY hard cap**; trailing 72h only; ≤3 dims; 1,000 rows, no pagination | one call returns ALL metric blocks per dimension split, so URL + Device = full read in 2 calls; ALWAYS snapshot to store and analyze from disk; counts only — element detail needs dashboard replays; `clarity.ms` is adblock-DNS-listed (undercounts ~15–25%, rankings stay valid; can also block NoticeOS's own probes) | optional data source — degrade without an error, flag staleness |
 | **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; seven bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, record the rejected or skipped family; a 429 stops the run and stores a project retry delay; missing rows are not zeros |
@@ -438,22 +438,23 @@ on: rows under the old label stay as historical evidence.
 
 ### GA4 realtime read path
 
-The live visitor count is a display read, never a ledger or analysis dataset,
-and the one Google collection whose cost is set by a screen's poll rate rather
-than a schedule. One
-realtime request costs a property about 46–49 tokens; polled every 30 seconds
-by a Wall left on all day, that is roughly two thirds of the 200k-token daily
-realtime budget. So every open display shares **one reading a minute** (the two
-realtime requests behind it, both minute windows and the Wall's per-minute
-visitor chart), the today-by-hour Core read is refreshed every 15 minutes,
-hidden tabs stop polling, and rejected requests enter a shared cooldown. Any future cadence
-or multi-display expansion must be justified against the token use GA4 reports
-back, not a request count. How it is built is
-[the ingest README](../workers/ingest/README.md#ga4-realtime-rpc).
+The **Realtime traffic** schedule collects two Realtime reports per property
+per minute: the exact 5- and 30-minute distinct-user counts, and users per
+minute. Saved observations supply every display and retain today's chart
+without an hourly Core report. The collector runs with either service-account
+or Google sign-in authentication. More displays add no provider calls.
 
-**How it fails.** A valid empty report is zero; a failed or malformed one is an
-explicit unavailable state with null values, never a false zero. The Tower keeps
-the last good snapshot during a failed poll and labels it *Reconnecting*.
+Quota is measured from Google's responses. Core and Realtime use separate
+budgets per property. The collector slows as headroom falls, and quota warnings
+show remaining tokens rather than estimating capacity from the latest request's
+cost. The saved schedule can be paused in the Google connection's Manage panel.
+See [the ingest README](../workers/ingest/README.md#ga4-realtime-rpc).
+
+The Wall retains recent numbers through normal refreshes and transient failures.
+After three minutes without a fresh observation, it shows their age. Missing
+minutes remain gaps; the current incomplete minute is omitted. The comparison
+uses retained realtime minutes from the same weekday last week, when present,
+and never processed hourly counts. Daily totals still come from daily reports.
 
 ## Daily provider analysis archive
 

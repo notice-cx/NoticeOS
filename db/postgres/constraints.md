@@ -775,6 +775,22 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 - **Triggers:** `number_in_workspace` (before insert)
 
+## `realtime_traffic_readings`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `asset_id` | text | yes |  |
+| `property_ref` | text | yes | `(property_ref <> '')` |
+| `observed_at` | timestamp with time zone | yes |  |
+| `active_users_five_minutes` | bigint | yes | `(active_users_five_minutes >= 0)` |
+| `active_users_thirty_minutes` | bigint | yes | `(active_users_thirty_minutes >= 0)` |
+| `minutes` | jsonb | no | `((jsonb_typeof(minutes) = 'array') AND (jsonb_array_length(minutes) = 30))` |
+| `quota` | jsonb | no | `(jsonb_typeof(quota) = 'object')` |
+
+- **Keys:** primary (workspace_id, asset_id, property_ref, observed_at)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+
 ## `reclamation_targets`
 
 | Column | Type | Required | Checks |

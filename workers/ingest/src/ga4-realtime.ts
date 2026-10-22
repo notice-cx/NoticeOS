@@ -1,14 +1,10 @@
 import { getConfigDocuments } from './config-store.js';
+import { readGa4Reading, saveGa4Reading, realtimeReadDue, realtimeNextReadAt } from './ga4-realtime-store.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
-// On-demand GA4 realtime read for the Tower, in ingest because ingest alone
-// owns the Google credential; neither the key nor an access token enters the
-// Tower. GA4 answers in the property's own reporting timezone; the hourly
-// series is re-bucketed onto the operator's saved `os_time_zone` (store first,
-// compiled `OS_TIME_ZONE` as fallback), and each snapshot names the zone so the
-// Wall labels its axis with the clock the hours are really on.
+// Scheduled realtime collection owns Google credentials. Display reads use
+// retained observations, so refreshing a dashboard spends no provider quota.
 
 import type {
-  Ga4HourlyActiveUsers,
   Ga4MinuteRow,
   Ga4PropertyQuota,
   Ga4QuotaStatus,
@@ -17,13 +13,6 @@ import type {
   Ga4RealtimeQuota,
 } from '@noticeos/contract';
 import { GA4_PULSE_MINUTES, OS_TIME_ZONE, ga4MinuteBuckets, savedOsTimeZone } from '@noticeos/contract';
-import {
-  dateInTimeZone,
-  hourInTimeZone,
-  isValidTimeZone,
-  shiftCalendarDate,
-  zonedHourStartMs,
-} from './time-zone.js';
 import {
   googleCredentialResolver,
   groupGoogleTargetsByAccount,
@@ -41,12 +30,7 @@ import { resolveGoogleCredential } from './google-oauth.js';
 import { Ga4ReadError, ga4ReadFailure } from './ga4-read-errors.js';
 import { cachedGa4Read, ga4CacheScope, type Ga4ReadCache } from './ga4-read-cache.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
-import { parseGa4PropertyQuota } from './ga4-quota.js';
-import {
-  reportingTimeZoneOn,
-  timeZoneChangesFor,
-  type TimeZoneChange,
-} from './time-zone-change.js';
+import { parseGa4PropertyQuota, recordGa4Quota } from './ga4-quota.js';
 import {
   normalizeSignalError,
   SignalError,
@@ -58,8 +42,6 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const TOKEN_REUSE_MS = 50 * 60 * 1_000;
 const LAST_5_MINUTES = 'last_5_minutes';
 const LAST_30_MINUTES = 'last_30_minutes';
-const TODAY = 'today';
-const SAME_DAY_LAST_WEEK = 'same_day_last_week';
 
 /**
  * One live reading a minute: two realtime requests read together, the exact 5-
@@ -70,7 +52,7 @@ const SAME_DAY_LAST_WEEK = 'same_day_last_week';
 const LIVE_READING_TTL_MS = 60_000;
 /** Names the cached reading's shape: a reading cached before the pulse existed
  * has no minutes and must not be served as one that does. */
-const LIVE_READING_VERSION = 'minutes-v1';
+const LIVE_READING_VERSION = 'retained-minutes-v1';
 
 interface TokenEntry {
   accessToken: string;
@@ -107,42 +89,12 @@ export async function runGa4Realtime(
   const responseCache = options.responseCache === undefined ? options.fetchImpl ? null : caches.default : options.responseCache;
   const tokenCache =
     options.tokenCache === undefined ? sharedTokenCache : options.tokenCache;
-  // Polled every 30 seconds by the Wall, so this read does not stamp
-  // `last_used_at`: a status column is not worth two writes a minute.
-  const resolved = await resolveGoogleCredential(env);
+  // Health observations carry each attempt; reading a credential does not
+  // stamp its last-used column once per minute.
+  const { resolved, osTimeZone, targets } = await realtimeTargets(env, options.rawConfig);
   const health = await tryHealthConnection(env, 'google', resolved.credential, [resolved.oauth?.clientId ?? '', resolved.oauth?.clientSecret ?? '']);
   let monitoringAvailable = health !== null;
-  const accounts = options.rawConfig ?? resolved.accounts;
-  // Signed in with nothing mapped yet is an empty read, not a failure. An
-  // unreadable saved credential is still connected (`resolved.connected`).
-  if (accounts === undefined && !resolved.connected) {
-    return { generatedAt: new Date(nowMs).toISOString(), assets: [] };
-  }
-  // One store read for both documents this read depends on.
-  const [registerRead, constantsRead] = await getConfigDocuments(env, [
-    'config/integrations.json',
-    'config/constants.json',
-  ]);
-  const register = registerRead?.body as LaneRegister;
-  const osTimeZone = savedOsTimeZone(constantsRead?.body, OS_TIME_ZONE);
-  const targets = googleTargets(
-    { accounts, oauth: resolved.oauth },
-    resolved.source,
-    googleCredentialResolver(env),
-    options.rawConfig === undefined ? register : undefined,
-    osTimeZone,
-  ).filter(
-    (target): target is GooglePropertyTarget & { integration: 'ga4' } =>
-      target.integration === 'ga4' &&
-      // Declined on its Data sources row (Not using): not read.
-      !laneDeclined(target.asset, 'ga4', options.rawConfig === undefined ? register : undefined),
-  );
   const assets: Ga4RealtimeAsset[] = [];
-  // One query for the whole portfolio, and a failure is allowed to throw:
-  // falling back to "no changes" would silently convert a property that has
-  // moved zones with the wrong clock.
-  const timeZoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
-
   for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
     let accessToken: string;
     try {
@@ -163,33 +115,37 @@ export async function runGa4Realtime(
           errorResult(target.asset, observedAt, normalized),
         ),
       );
-      for (const target of accountTargets) for (const capability of ['ga4-realtime', 'ga4-hourly']) {
+      for (const target of accountTargets) for (const capability of ['ga4-realtime']) {
         const recorded = await observeIntegration(env, health, { capability, asset: target.asset, target: target.propertyRef, observedAt: new Date(clock()).toISOString(), ok: false, code: normalized.code });
         monitoringAvailable = recorded && monitoringAvailable;
       }
       continue;
     }
 
+    const sharedReadings = new Map<string, Promise<Awaited<ReturnType<typeof collectGa4Realtime>>>>();
     for (const target of accountTargets) {
       try {
+        const prior = await readGa4Reading(env.STORE, target.asset, target.propertyRef);
+        if (prior && !realtimeReadDue(prior, clock())) { assets.push(prior); continue; }
         const cache = responseCache ? { store: env.STORE, cache: responseCache, clock, scope: await ga4CacheScope({
-          auth: target.auth, asset: target.asset, property: target.propertyRef,
-          clock: timeZoneChanges.get(target.asset) ?? [],
+          auth: target.auth, property: target.propertyRef,
         }) } : null;
-        const values = await collectGa4Realtime(
+        let shared = sharedReadings.get(target.propertyRef);
+        if (!shared) {
+          shared = collectGa4Realtime(
           target.propertyRef,
           accessToken,
           fetchImpl,
           clock(),
           osTimeZone,
-          timeZoneChanges.get(target.asset) ?? [],
           cache,
-          async (observation) => {
-            const recorded = await observeIntegration(env, health, { ...observation, asset: target.asset, target: target.propertyRef });
-            monitoringAvailable = recorded && monitoringAvailable;
-          },
+          undefined,
+          clock,
         );
-        assets.push({
+          sharedReadings.set(target.propertyRef, shared);
+        }
+        const values = await shared;
+        const reading: Ga4RealtimeAsset = {
           asset: target.asset,
           status: 'success',
           activeUsers5m: values.activeUsers5m,
@@ -203,13 +159,26 @@ export async function runGa4Realtime(
           observedAt: values.observedAt,
           timeZone: osTimeZone,
           errorCode: null,
-        });
+        };
+        reading.nextAttemptAt = new Date(realtimeNextReadAt(reading, clock())).toISOString();
+        await saveGa4Reading(env.STORE, target.propertyRef, reading);
+        const recorded = await observeIntegration(env, health, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef,
+          observedAt: reading.observedAt, ok: true, nextAttemptAt: reading.nextAttemptAt });
+        monitoringAvailable = recorded && monitoringAvailable;
+        await recordGa4Quota(env, { asset: target.asset, lane: 'ga4-realtime', propertyRef: target.propertyRef, quota: values.quota?.realtime ?? null, at: values.observedAt });
+        assets.push(reading);
       } catch (error) {
         const normalized = normalizeSignalError(
           error,
           'GA4 realtime request failed.',
         );
         assets.push(errorResult(target.asset, observedAt, normalized));
+        if (normalized.code !== 'ga4_read_in_progress') {
+          const recorded = await observeIntegration(env, health, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef,
+            observedAt: error instanceof Ga4ReadError ? error.observedAt : new Date(clock()).toISOString(), ok: false, code: normalized.code,
+            ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt } : {}) });
+          monitoringAvailable = recorded && monitoringAvailable;
+        }
       }
     }
   }
@@ -219,6 +188,46 @@ export async function runGa4Realtime(
     assets,
     ...(!monitoringAvailable ? { monitoringAvailable: false } : {}),
   };
+}
+
+async function realtimeTargets(env: IngestEnv, rawConfig?: string) {
+  const resolved = await resolveGoogleCredential(env);
+  const accounts = rawConfig ?? resolved.accounts;
+  // Signed in with nothing mapped yet is an empty read, not a failure. An
+  // unreadable saved credential is still connected (`resolved.connected`).
+  if (accounts === undefined && !resolved.connected) {
+    return { resolved, osTimeZone: OS_TIME_ZONE, targets: [] };
+  }
+  // One store read for both documents this read depends on.
+  const [registerRead, constantsRead] = await getConfigDocuments(env, [
+    'config/integrations.json',
+    'config/constants.json',
+  ]);
+  const register = registerRead?.body as LaneRegister;
+  const osTimeZone = savedOsTimeZone(constantsRead?.body, OS_TIME_ZONE);
+  const targets = googleTargets(
+    { accounts, oauth: resolved.oauth },
+    resolved.source,
+    googleCredentialResolver(env),
+    rawConfig === undefined ? register : undefined,
+    osTimeZone,
+  ).filter(
+    (target): target is GooglePropertyTarget & { integration: 'ga4' } =>
+      target.integration === 'ga4' &&
+      // Declined on its Data sources row (Not using): not read.
+      !laneDeclined(target.asset, 'ga4', rawConfig === undefined ? register : undefined),
+  );
+  return { resolved, osTimeZone, targets };
+}
+
+/** Browser reads never contact GA4. Scheduled collection owns provider quota. */
+export async function readGa4Realtime(env: IngestEnv, nowMs = Date.now()): Promise<Ga4RealtimePayload> {
+  const { osTimeZone, targets } = await realtimeTargets(env);
+  const assets = await Promise.all(targets.map(async target => {
+    const reading = await readGa4Reading(env.STORE, target.asset, target.propertyRef, { nowMs, timeZone: osTimeZone });
+    return reading ?? errorResult(target.asset, new Date(nowMs).toISOString(), new SignalError('ga4_realtime_waiting', 'Waiting for traffic collection.'));
+  }));
+  return { generatedAt: new Date(nowMs).toISOString(), assets };
 }
 
 async function accessTokenFor(
@@ -251,70 +260,36 @@ export async function collectGa4Realtime(
   accessToken: string,
   fetchImpl: typeof fetch,
   nowMs: number,
-  /** The operator's saved clock the hourly series is re-bucketed onto. */
-  osTimeZone: string,
-  timeZoneChanges: readonly TimeZoneChange[] = [],
+  _osTimeZone: string,
   cache: Ga4ReadCache | null = null,
   observe?: (value: { capability: string; observedAt: string; ok: boolean; code?: string; nextAttemptAt?: string }) => Promise<void>,
-): Promise<{
-  activeUsers5m: number;
-  activeUsers30m: number;
-  activeUsersByMinute: (number | null)[] | null;
-  hourlyActiveUsers: Ga4HourlyActiveUsers[] | null;
-  hourlyErrorCode: string | null;
-  hourlyObservedAt: string;
-  hourlyNextAttemptAt?: string;
-  observedAt: string;
-  quota: Ga4RealtimeQuota | null;
-}> {
-  const [windowsRead, hourlyRead] = await Promise.allSettled([
-    cachedGa4Read(cache && { ...cache, version: LIVE_READING_VERSION }, 'realtime', nowMs, LIVE_READING_TTL_MS, () => collectGa4RealtimeWindows(propertyId, accessToken, fetchImpl, cache?.clock?.() ?? nowMs, cache?.clock)),
-    // The cached hours are only good for the day and the clock they were
-    // bucketed on: a Settings save that moves the zone must not be answered
-    // with hours placed on the old one.
-    cachedGa4Read(cache && { ...cache, version: `${dateInTimeZone(nowMs, osTimeZone)}@${encodeURIComponent(osTimeZone)}` }, 'hourly', nowMs, 15 * 60_000, () => collectGa4HourlyActiveUsers(
-      propertyId,
-      accessToken,
-      fetchImpl,
-      cache?.clock?.() ?? nowMs,
-      osTimeZone,
-      timeZoneChanges,
-      cache?.clock,
-    )),
-  ]);
-  if (observe) for (const [capability, result] of [['ga4-realtime', windowsRead], ['ga4-hourly', hourlyRead]] as const) {
-    if (result.status === 'fulfilled') await observe({ capability, observedAt: result.value.observedAt, ok: true });
-    else {
-      const error = normalizeSignalError(result.reason, 'Traffic unavailable');
-      if (error.code === 'ga4_read_in_progress') continue;
-      await observe({ capability, observedAt: error instanceof Ga4ReadError ? error.observedAt : new Date(nowMs).toISOString(), ok: false,
-        code: error instanceof Ga4ReadError ? error.rateLimit ?? error.code : error.code,
-        ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt } : {}) });
-    }
+  clock: () => number = cache?.clock ?? (() => nowMs),
+): Promise<Omit<Extract<Ga4RealtimeAsset, { status: 'success' }>, 'asset' | 'status' | 'errorCode' | 'timeZone'>> {
+  try {
+    const read = await cachedGa4Read(cache && { ...cache, version: LIVE_READING_VERSION }, 'realtime', nowMs, LIVE_READING_TTL_MS,
+      () => collectGa4RealtimeWindows(propertyId, accessToken, fetchImpl, clock(), clock));
+    if (observe) await observe({ capability: 'ga4-realtime', observedAt: read.observedAt, ok: true });
+    const windows = read.value;
+    return {
+      activeUsers5m: windows.activeUsers5m,
+      activeUsers30m: windows.activeUsers30m,
+      // Anchor retained minutes to the provider read, never to a later cache hit.
+      activeUsersByMinute: windows.minutes === null || Math.floor(windows.minuteAt / 60_000) !== Math.floor(Date.parse(read.observedAt) / 60_000) ? null : ga4MinuteBuckets(windows.minutes, Date.parse(read.observedAt), Date.parse(read.observedAt)),
+      observedAt: read.observedAt,
+      hourlyActiveUsers: null,
+      hourlyErrorCode: 'ga4_realtime_history',
+      hourlyObservedAt: read.observedAt,
+      quota: windows.quota === null ? null : { realtime: windows.quota, core: null },
+    };
+  } catch (error) {
+    const normalized = normalizeSignalError(error, 'Traffic unavailable');
+    if (observe && normalized.code !== 'ga4_read_in_progress') await observe({
+      capability: 'ga4-realtime', ok: false, code: normalized.code,
+      observedAt: error instanceof Ga4ReadError ? error.observedAt : new Date(nowMs).toISOString(),
+      ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt } : {}),
+    });
+    throw error;
   }
-  if (windowsRead.status === 'rejected') throw windowsRead.reason;
-  const windows = windowsRead.value.value;
-  const hourly = hourlyRead.status === 'fulfilled' ? hourlyRead.value.value : null;
-  const hourlyError = hourlyRead.status === 'rejected' ? normalizeSignalError(hourlyRead.reason, 'Hourly traffic is unavailable.') : null;
-  const quota =
-    windows.quota === null && !hourly?.quota
-      ? null
-      : { realtime: windows.quota, core: hourly?.quota ?? null };
-  return {
-    activeUsers5m: windows.activeUsers5m,
-    activeUsers30m: windows.activeUsers30m,
-    // Placed on the clock of this answer, not of the reading: a reading served
-    // from the cache a minute on has not seen the newest minute.
-    activeUsersByMinute: windows.minutes === null
-      ? null
-      : ga4MinuteBuckets(windows.minutes, Date.parse(windowsRead.value.observedAt), cache?.clock?.() ?? nowMs),
-    observedAt: windowsRead.value.observedAt,
-    hourlyActiveUsers: hourly?.hourlyActiveUsers ?? null,
-    hourlyErrorCode: hourlyError?.code ?? null,
-    hourlyObservedAt: hourlyRead.status === 'fulfilled' ? hourlyRead.value.observedAt : hourlyError instanceof Ga4ReadError ? hourlyError.observedAt : new Date(nowMs).toISOString(),
-    ...(hourlyError instanceof Ga4ReadError ? { hourlyNextAttemptAt: hourlyError.nextAttemptAt } : {}),
-    quota,
-  };
 }
 
 /** The per-minute rows' dimension: "00" is the minute the reading is taken in,
@@ -363,6 +338,7 @@ async function collectGa4RealtimeWindows(
   activeUsers5m: number;
   activeUsers30m: number;
   minutes: Ga4MinuteRow[] | null;
+  minuteAt: number;
   quota: Ga4PropertyQuota | null;
 }> {
   const [windowsRead, minutesRead] = await Promise.allSettled([
@@ -424,7 +400,7 @@ async function collectGa4RealtimeWindows(
       !range ||
       !values.has(range) ||
       seen.has(range) ||
-      !Number.isInteger(value) ||
+      rawValue === null || !METRIC_COUNT_PATTERN.test(rawValue) || !Number.isSafeInteger(value) ||
       value < 0
     ) {
       throw new SignalError(
@@ -439,6 +415,7 @@ async function collectGa4RealtimeWindows(
   let minutes: Ga4MinuteRow[] | null = null;
   if (minutesRead.status === 'fulfilled') {
     try {
+      if (Math.floor(clock() / 60_000) !== Math.floor(nowMs / 60_000)) throw new SignalError('ga4_minute_boundary', 'The realtime read crossed a minute boundary.');
       minutes = parseGa4MinuteRows(minutesRead.value);
     } catch (error) {
       logMinutesRefused(propertyId, error);
@@ -451,6 +428,7 @@ async function collectGa4RealtimeWindows(
     activeUsers5m: values.get(LAST_5_MINUTES)!,
     activeUsers30m: values.get(LAST_30_MINUTES)!,
     minutes,
+    minuteAt: nowMs,
     quota: combineRealtimeQuota(
       parseGa4PropertyQuota(record),
       minutesRead.status === 'fulfilled' ? parseGa4PropertyQuota(minutesRead.value) : undefined,
@@ -529,163 +507,6 @@ function combineRealtimeQuota(
   const tokensPerDay = bucket(windows?.tokensPerDay, minutes?.tokensPerDay);
   const tokensPerHour = bucket(windows?.tokensPerHour, minutes?.tokensPerHour);
   return tokensPerDay || tokensPerHour ? { tokensPerDay, tokensPerHour } : null;
-}
-
-const DATE_HOUR_PATTERN = /^\d{10}$/;
-
-async function collectGa4HourlyActiveUsers(
-  propertyId: string,
-  accessToken: string,
-  fetchImpl: typeof fetch,
-  nowMs: number,
-  osTimeZone: string,
-  timeZoneChanges: readonly TimeZoneChange[],
-  clock: () => number = () => nowMs,
-): Promise<{
-  hourlyActiveUsers: Ga4HourlyActiveUsers[];
-  quota: Ga4PropertyQuota | null;
-}> {
-  const response = await fetchImpl(
-    `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
-    {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
-      },
-      // GA4 resolves both the relative dates and the hour bucket in the
-      // property's reporting timezone. The OS day straddles two property days,
-      // so both neighbours are asked for and the re-bucketing below discards
-      // whatever falls outside the OS day.
-      body: JSON.stringify({
-        dimensions: [{ name: 'dateHour' }],
-        metrics: [{ name: 'activeUsers' }],
-        dateRanges: [
-          { name: TODAY, startDate: 'yesterday', endDate: 'today' },
-          {
-            name: SAME_DAY_LAST_WEEK,
-            startDate: '8daysAgo',
-            endDate: '6daysAgo',
-          },
-        ],
-        orderBys: [{ dimension: { dimensionName: 'dateHour' } }],
-        returnPropertyQuota: true,
-      }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    },
-  );
-  const body = await responseJson(response);
-  if (!response.ok) throw ga4ReadFailure('ga4_intraday', response, body, nowMs, clock());
-
-  const record = asRecord(body);
-  const dimensionHeaders = arrayField(record, 'dimensionHeaders').map((value) =>
-    stringField(asRecord(value), 'name'),
-  );
-  const rangeIndex = dimensionHeaders.indexOf('dateRange');
-  const dateHourIndex = dimensionHeaders.indexOf('dateHour');
-  const metricHeaders = arrayField(record, 'metricHeaders');
-  if (
-    dimensionHeaders.length !== 2 ||
-    rangeIndex < 0 ||
-    dateHourIndex < 0 ||
-    metricHeaders.length !== 1 ||
-    stringField(asRecord(metricHeaders[0]), 'name') !== 'activeUsers'
-  ) {
-    throw new SignalError(
-      'ga4_intraday_invalid_response',
-      'GA4 returned unexpected intraday report headers.',
-    );
-  }
-
-  // Without the property's own zone the hours cannot be placed on the
-  // operator's clock, and guessing one would silently shift the whole chart.
-  const propertyTimeZone = stringField(
-    asRecord(record?.metadata),
-    'timeZone',
-  );
-  if (propertyTimeZone === null || !isValidTimeZone(propertyTimeZone)) {
-    throw new SignalError(
-      'ga4_intraday_invalid_response',
-      'GA4 returned no usable reporting timezone.',
-    );
-  }
-
-  const osToday = dateInTimeZone(nowMs, osTimeZone);
-  const osLastWeek = shiftCalendarDate(osToday, -7);
-  const providerToday = dateInTimeZone(nowMs, propertyTimeZone);
-  const today = new Map<number, number>();
-  const sameDayLastWeek = new Map<number, number>();
-  const seen = new Set<string>();
-  for (const rowValue of arrayField(record, 'rows')) {
-    const row = asRecord(rowValue);
-    const dimensions = arrayField(row, 'dimensionValues');
-    const range = stringField(asRecord(dimensions[rangeIndex]), 'value');
-    const dateHour = stringField(asRecord(dimensions[dateHourIndex]), 'value');
-    const rawValue = stringField(
-      asRecord(arrayField(row, 'metricValues')[0]),
-      'value',
-    );
-    const value = Number(rawValue);
-    const propertyHour =
-      dateHour !== null && DATE_HOUR_PATTERN.test(dateHour)
-        ? Number(dateHour.slice(8))
-        : Number.NaN;
-    const key = `${range}\0${dateHour}`;
-    if (
-      (range !== TODAY && range !== SAME_DAY_LAST_WEEK) ||
-      dateHour === null ||
-      !Number.isInteger(propertyHour) ||
-      propertyHour < 0 ||
-      propertyHour > 23 ||
-      seen.has(key) ||
-      !Number.isInteger(value) ||
-      value < 0
-    ) {
-      throw new SignalError(
-        'ga4_intraday_invalid_response',
-        'GA4 returned a malformed intraday report row.',
-      );
-    }
-    seen.add(key);
-
-    // The dateRange name is validated but never routes a row: the OS calendar
-    // date the property hour lands on decides which line it joins.
-    const propertyDate = `${dateHour.slice(0, 4)}-${dateHour.slice(4, 6)}-${dateHour.slice(6, 8)}`;
-    // Each row carries the clock the provider used the day it bucketed that
-    // row: GA4 never reprocesses history, so each side of a change converts
-    // with its own zone.
-    const propertyZone = reportingTimeZoneOn(
-      timeZoneChanges,
-      propertyDate,
-      propertyTimeZone,
-      providerToday,
-    );
-    const startMs = zonedHourStartMs(propertyDate, propertyHour, propertyZone);
-    const osDate = dateInTimeZone(startMs, osTimeZone);
-    const osHour = hourInTimeZone(startMs, osTimeZone);
-    const target =
-      osDate === osToday ? today : osDate === osLastWeek ? sameDayLastWeek : null;
-    // Buckets accumulate rather than reject a collision: on the property's
-    // fall-back day two property-local hours land in one OS hour.
-    if (target !== null) target.set(osHour, (target.get(osHour) ?? 0) + value);
-  }
-
-  // GA4 includes future clock hours as explicit zero rows in a `today` report.
-  // Stop at the newest hour with observed traffic so the chart never depicts
-  // the unelapsed rest of the day as a forecast of zero.
-  const observedTodayHours = [...today.entries()]
-    .filter(([, value]) => value > 0)
-    .map(([hour]) => hour);
-  const latestHour =
-    observedTodayHours.length === 0 ? -1 : Math.max(...observedTodayHours);
-  return {
-    hourlyActiveUsers: Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      today: hour <= latestHour ? (today.get(hour) ?? 0) : null,
-      sameDayLastWeek: sameDayLastWeek.get(hour) ?? 0,
-    })),
-    quota: parseGa4PropertyQuota(record),
-  };
 }
 
 function errorResult(

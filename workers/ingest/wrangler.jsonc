@@ -44,6 +44,6 @@
     // Each expression is matched by an exported constant in src/crons.ts
     // (test/crons.test.ts pins the two lists equal; an unmatched expression
     // falls through to the self-heal `default:` and would run every lane).
-    "crons": ["0 * * * *", "5 * * * *", "30 2 * * *", "0 3 * * *", "30 3 * * *", "0 4 * * *", "15 4 * * *", "30 4 * * *", "15 12 * * *", "30 12 * * *", "45 12 * * 1", "*/15 * * * *", "10,30,50 * * * *", "20 * * * *"]
+    "crons": ["* * * * *", "0 * * * *", "5 * * * *", "30 2 * * *", "0 3 * * *", "30 3 * * *", "0 4 * * *", "15 4 * * *", "30 4 * * *", "15 12 * * *", "30 12 * * *", "45 12 * * 1", "*/15 * * * *", "10,30,50 * * * *", "20 * * * *"]
   }
 }

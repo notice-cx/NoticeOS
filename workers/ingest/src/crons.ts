@@ -58,3 +58,5 @@ export const COUNTERS_CRON = dispatchKey('counters');
 // wake the standalone listener immediately; this independent sweep also runs
 // after the hourly freshness check and retains its own execution evidence.
 export const NOTIFY_CRON = dispatchKey('notifications');
+
+export const GA4_REALTIME_CRON = dispatchKey('ga4-realtime');

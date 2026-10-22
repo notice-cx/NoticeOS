@@ -268,6 +268,7 @@ export function TaskComposer({
   const catalog = useTaskProjects();
   const iconsOf = useSiteIcons();
   const hostedFields = capability.projectSelection === true && !onFile;
+  const projectRosterPending = projects === undefined && Boolean(hostedFields ? catalog.isPending : settings.isPending);
 
   const spokes = taskProjectsWithoutArchives(projects ?? (hostedFields ? (catalog.data ?? []).map(row => ({ asset: row.logicalKey, prefix: row.prefix, name: row.displayName })) : settings.data?.taskHub.spokes ?? []), work);
   const projectName = (spoke: Pick<TaskHubSpoke, "asset"> & { name?: string }) =>
@@ -375,7 +376,7 @@ export function TaskComposer({
   }
 
   async function file() {
-    if (unsupported) return;
+    if (unsupported || projectRosterPending) return;
     const next: Record<string, string> = {};
     const cleanTitle = title.trim();
     if (!spoke) {
@@ -992,7 +993,7 @@ export function TaskComposer({
               type="button"
               variant="default"
               onClick={() => void file()}
-              disabled={filing || unsupported}
+              disabled={filing || unsupported || projectRosterPending}
               data-composer-submit
             >
               {filing ? "Filing…" : "File task"}

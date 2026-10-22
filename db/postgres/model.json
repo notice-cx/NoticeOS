@@ -547,6 +547,14 @@
         "delete": true
       },
       "rule": "A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve; swept seven days after its last attempt (retention)."
+    },
+    "realtime_traffic_readings": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only realtime readings; overlapping minutes use the newest provider observation."
     }
   },
   "retention": {

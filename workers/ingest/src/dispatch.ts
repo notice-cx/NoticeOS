@@ -39,6 +39,7 @@ import {
 } from './dataforseo-dumps.js';
 import { resolveCredential } from './credentials.js';
 import { runAssetZeroPulse, runFreshnessCheck } from './db.js';
+import { runGa4Realtime } from './ga4-realtime.js';
 import { runGoogleSignals } from './google-signals.js';
 import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
 import { runCruxVitals } from './crux.js';
@@ -196,6 +197,12 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
     steps: { product: (env, cfg) => runPosthogDumps(env, { laneRegister: cfg.laneRegister, configSources: cfg.configSources }) },
   },
   dataforseo: { steps: { search: (env, cfg) => searchLane(env, cfg) } },
+  'ga4-realtime': { steps: { traffic: async (env, cfg) => {
+    if (schedulePaused(cfg.constants, 'ga4-realtime')) return { outcome: 'skipped', detail: 'Realtime traffic is paused' };
+    const result = await runGa4Realtime(env);
+    if (result.assets.some(asset => asset.status === 'error')) throw new Error('Realtime traffic collection failed');
+    return result;
+  } } },
   counters: {
     steps: {
       counters: (env, cfg) => runCountersScrape(env, { config: cfg.counters, configSources: cfg.configSources }),

@@ -252,6 +252,8 @@ export function isGa4RealtimePayload(value: unknown): value is Ga4RealtimePayloa
       nullableNonNegativeInteger(asset.activeUsers5m) &&
       nullableNonNegativeInteger(asset.activeUsers30m) &&
       validMinuteBuckets(asset.activeUsersByMinute) &&
+      validRealtimeDay(asset.realtimeDay) &&
+      (asset.status === "success" || asset.realtimeDay === undefined) &&
       (asset.status === "success" || asset.activeUsersByMinute == null) &&
       validHourlyActiveUsers(asset.hourlyActiveUsers) &&
       isIso(asset.observedAt) &&
@@ -272,6 +274,16 @@ export function isGa4RealtimePayload(value: unknown): value is Ga4RealtimePayloa
           asset.hourlyActiveUsers === null &&
           typeof asset.errorCode === "string"),
   );
+}
+
+function validRealtimeDay(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isRecord(value) || typeof value.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.date) ||
+    typeof value.timeZone !== "string" || !isIso(value.startAt) || !isIso(value.endAt)) return false;
+  const length = (Date.parse(value.endAt) - Date.parse(value.startAt)) / 60_000;
+  const counts = (items: unknown) => Array.isArray(items) && items.length === length && items.every(nullableNonNegativeInteger);
+  return length >= 1_320 && length <= 1_560 && counts(value.minutes) &&
+    (value.sameDayLastWeek === null || counts(value.sameDayLastWeek));
 }
 
 /** The minute pulse: thirty buckets, each a count or `null` for a minute the
