@@ -1,3 +1,4 @@
+import { useTaskReviewDraft } from '@/lib/task-review-drafts';
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import { type CSSProperties, type ReactNode, createContext, useContext, useCallback, useEffect, useId, useMemo, useState } from "react";
@@ -99,6 +100,7 @@ import { ChoiceButtons } from "@/components/ChoiceButtons";
  * shipped, not proven, so nothing here is green.
  */
 const TaskWritePermission = createContext(true);
+const TaskDraftProject = createContext<string | null>(null);
 /** The read-only banner a deployed build draws under the header, which the
  * header's disabled actions name as their reason. */
 const READ_ONLY_REASON_ID = "task-read-only-reason";
@@ -130,6 +132,9 @@ export function TaskRoute() {
 
   const task = detail.data?.task ?? null;
   const project = detail.data?.project ?? null;
+  const draftProject = capability.projectSelection
+    ? catalog.data?.find((row) => row.logicalKey === selectedProject)?.projectId ?? null
+    : project;
 
   // The board read is only worth spawning `bd` for once the detail read has
   // said which spoke the task belongs to.
@@ -243,6 +248,7 @@ export function TaskRoute() {
   return (
     <TaskWritePermission.Provider value={writable}>
     <TaskActors.Provider value={actors}>
+    <TaskDraftProject.Provider value={draftProject}>
     {/* Every button on the page gives under a press, as the board's rows and
         the fact chips do; under reduced motion it holds still. */}
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6 motion-safe:[&_button:not(:disabled):active]:translate-y-px" data-task-page="">
@@ -254,7 +260,7 @@ export function TaskRoute() {
           {returnTo.startsWith("/assets/") ? "Back to site" : "Back to Home"}
         </Link>
       )}
-      <TaskHeader id={id} head={head} crumbs={crumbs} writable={writable} readAt={detail.data?.readAt ?? null} nowMs={now}>
+      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={writable} readAt={detail.data?.readAt ?? null} nowMs={now}>
         {closedSummary}
       </TaskHeader>
       {capability.projectSelection ? <select aria-label="Task project" value={selectedProject ?? ''}
@@ -312,6 +318,7 @@ export function TaskRoute() {
         </div>
       )}
     </div>
+    </TaskDraftProject.Provider>
     </TaskActors.Provider>
     </TaskWritePermission.Provider>
   );
@@ -502,7 +509,8 @@ function CloseForm({
   const toast = useOwnerToast();
   const [resolution, setResolution] = useState<TaskResolution>("done");
   const [byKey, setByKey] = useState(false);
-  const [reason, setReason] = useState("");
+  const draft = useTaskReviewDraft(useContext(TaskDraftProject), id, 'done-evidence');
+  const reason = draft.text;
   const close = useCloseTask();
   const answer = useInboxAnswer();
   const ready = reason.trim().length > 0;
@@ -534,28 +542,32 @@ function CloseForm({
         rows={2}
         value={reason}
         placeholder="Landed in 1a2b3c4 — the page renders the fields and the comments."
-        onChange={(event) => setReason(event.target.value)}
+        disabled={!draft.available}
+        onChange={(event) => draft.change(event.target.value)}
         className={cn(fieldClass, "w-full py-1.5")}
       />
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           size="sm"
-          disabled={!ready || close.isPending}
+          disabled={!draft.available || !ready || draft.pending || close.isPending}
           onClick={() => {
-            close.mutate(
-              { id, reason: reason.trim() },
-              {
-                onSuccess: () => {
-                  toast.success(`Closed — ${id}`);
-                  onDone();
-                },
-                onError: (err) => toast.error(refusalMessage(err)),
-              },
-            );
+            const submitted = draft.begin();
+            if (!submitted) return;
+            void close.mutateAsync({ id, reason: submitted.text }).then(() => {
+              if (submitted.settle(true) !== true) return;
+              toast.success(`Closed — ${id}`);
+              onDone();
+            }, (err: unknown) => {
+              if (submitted.settle(false) !== true) return;
+              toast.error(refusalMessage(err));
+            });
           }}
         >
-          {close.isPending ? "Closing…" : "Close task"}
+          {draft.pending || close.isPending ? "Closing…" : "Close task"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" disabled={!reason} onClick={draft.discard}>
+          Discard evidence
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Cancel
@@ -957,41 +969,43 @@ function CommentBox({ id }: { id: string }) {
   const toast = useOwnerToast();
   const permitted = useContext(TaskWritePermission);
   const writable = taskOperationAvailable(useTasksLive(), 'comment') && permitted;
-  const [draft, setDraft] = useState("");
+  const draft = useTaskReviewDraft(useContext(TaskDraftProject), id, 'comment');
   const comment = useCommentOnTask();
-  const ready = draft.trim().length > 0;
+  const ready = draft.text.trim().length > 0;
 
   return (
     <div className="flex flex-col gap-2">
       <textarea
         aria-label="Add a comment"
-        disabled={!writable}
+        disabled={!writable || !draft.available}
         rows={2}
-        value={draft}
+        value={draft.text}
         placeholder="Comment · Markdown: tables, images and checklists work; task ids and paths become links"
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => draft.change(event.target.value)}
         className={cn(fieldClass, "w-full py-1.5")}
       />
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" disabled={!writable || !draft.text} onClick={draft.discard}>
+          Discard comment
+        </Button>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          disabled={!writable || !ready || comment.isPending}
+          disabled={!writable || !draft.available || !ready || draft.pending || comment.isPending}
           onClick={() => {
-            comment.mutate(
-              { id, text: draft.trim() },
-              {
-                onSuccess: () => {
-                  toast.success("Comment added");
-                  setDraft("");
-                },
-                onError: (err) => toast.error(refusalMessage(err)),
-              },
-            );
+            const submitted = draft.begin();
+            if (!submitted) return;
+            void comment.mutateAsync({ id, text: submitted.text }).then(() => {
+              if (submitted.settle(true) !== true) return;
+              toast.success("Comment added");
+            }, (err: unknown) => {
+              if (submitted.settle(false) !== true) return;
+              toast.error(refusalMessage(err));
+            });
           }}
         >
-          {comment.isPending ? "Sending…" : "Comment"}
+          {draft.pending || comment.isPending ? "Sending…" : "Comment"}
         </Button>
       </div>
     </div>
