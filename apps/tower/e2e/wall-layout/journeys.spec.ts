@@ -219,7 +219,7 @@ test("Wall gallery specimens use TV tokens in light and dark themes", async ({ p
     expect(drawn.every(root => root.theme === "dark")).toBe(true);
     expect(new Set(drawn.map(root => root.color)).size).toBe(1);
     readings.push(drawn);
-    const sample = page.locator(".wall-root:has(> [data-wall-strip])").first();
+    const sample = page.locator(".wall-root > [data-wall-strip]").first();
     await sample.scrollIntoViewIfNeeded();
     await sample.screenshot({ path: testInfo.outputPath(`wall-specimen-${theme}-${testInfo.project.name}.png`) });
   }
