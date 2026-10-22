@@ -43,7 +43,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
       # The builder builds main from a clean checkout at main.
       - run: git checkout -B main
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       # Image preparation keeps 8 GiB free beside its build.
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       - id: repository
@@ -124,7 +124,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       - id: repository
@@ -153,7 +153,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       - id: repository
