@@ -1,0 +1,11 @@
+
+Running 2 tests using 1 worker
+
+(node:8210) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › apps/tower/e2e/health-recovery/journeys.spec.ts:61:1 › same-release Wall recovery resumes reads in place after a headerless outage (4.5s)
+(node:8339) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [mobile] › apps/tower/e2e/health-recovery/journeys.spec.ts:61:1 › same-release Wall recovery resumes reads in place after a headerless outage (4.2s)
+
+  2 passed (17.8s)

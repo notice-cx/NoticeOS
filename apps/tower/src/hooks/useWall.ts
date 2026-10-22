@@ -19,7 +19,7 @@ export function useWall() {
   return useQuery<WallPayload>({
     queryKey: ["wall"],
     queryFn: ({ signal }) => fetchWall(signal),
-    refetchInterval: pushed ? false : 60_000,
+    refetchInterval: query => pushed && !query.state.error ? false : 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     placeholderData: keepPreviousData,

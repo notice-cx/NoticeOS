@@ -93,7 +93,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     }
   };
   const api = createApi(owner.mode === 'standalone' ? fetch : createHostedTaskTransport(fetch), () => {
-    assertActive(); appRelease.assertCurrent();
+    assertActive(); return appRelease.captureReadable();
   }, origin.origin);
   const preferences = createOwnerStorage(owner, options.storage, assertActive, assertReadable);
   let answers: AnswerQueue<Answer> | undefined;

@@ -111,9 +111,9 @@ describe('an old browser document', () => {
     });
     const release = createAppRelease(fetch, A);
     await expect(release.fetch('/api/session')).rejects.toBeInstanceOf(AppReleaseError);
-    expect(await release.displayReadyToReload()).toBe(false);
+    expect(await release.displayRecovery()).toBe(null);
     worker = C;
-    expect(await release.displayReadyToReload()).toBe(true);
+    expect(await release.displayRecovery()).toBe('reload');
     await expect(release.fetch('/api/settings', { method: 'PUT' })).rejects.toBeInstanceOf(AppReleaseError);
     expect(fetch.mock.calls.every(([, init]) => init?.method !== 'PUT')).toBe(true);
   });
@@ -191,8 +191,11 @@ describe('an old browser document', () => {
       expect(reload).not.toHaveBeenCalled();
       server = A;
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(reload).toHaveBeenCalledOnce();
+      expect(reload).not.toHaveBeenCalled();
+      expect(release.snapshot()).toBe('read-only');
+      expect((await release.fetch('/api/wall')).ok).toBe(true);
       server = B;
+      await act(async () => { await expect(release.fetch('/api/wall')).rejects.toBeInstanceOf(AppReleaseError); });
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
       expect(reload).toHaveBeenCalledOnce();
       await expect(release.fetch('/api/settings', { method: 'PUT' })).rejects.toBeInstanceOf(AppReleaseError);
@@ -200,6 +203,106 @@ describe('an old browser document', () => {
       await vi.advanceTimersByTimeAsync(60_000);
       expect(reload).toHaveBeenCalledOnce();
     } finally { vi.useRealTimers(); window.history.replaceState(null, '', prior); }
+  });
+  it.each(['/wall', '/wall/edit', '/health'])('resumes verified same-release reads only on the display: %s', async pathname => {
+    const prior = window.location.href;
+    window.history.replaceState(null, '', pathname);
+    vi.useFakeTimers();
+    try {
+      let server: string | null = A;
+      const fetch = vi.fn(async () => response(server, { mode: 'standalone' }));
+      const release = createAppRelease(fetch, A);
+      const entry = createBrowserEntry({ origin, fetch, page: window, landing: { kind: 'none' }, appRelease: release });
+      owned.push(entry.dispose);
+      await entry.refresh();
+      const runtime = entry.snapshot().runtime!;
+      runtime.queries.setQueryData(['wall'], { retained: true });
+      const reload = vi.fn(), resumed = vi.fn();
+      const view = render(<><input aria-label="Kept draft" defaultValue="synthetic" /><AppUpdateNotice release={release} reload={reload} onReadRecovery={resumed} /></>);
+      const draft = screen.getByLabelText('Kept draft');
+      server = null;
+      await act(async () => { await expect(release.fetch('/api/wall')).rejects.toBeInstanceOf(AppReleaseError); });
+      server = A;
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).not.toHaveBeenCalled();
+      expect(release.snapshot()).toBe(pathname === '/wall' ? 'read-only' : 'unavailable');
+      expect(resumed).toHaveBeenCalledTimes(pathname === '/wall' ? 1 : 0);
+      expect(entry.snapshot().runtime).toBe(runtime);
+      expect(runtime.queries.getQueryData(['wall'])).toEqual({ retained: true });
+      expect(screen.getByLabelText('Kept draft')).toBe(draft);
+      expect(draft).toHaveValue('synthetic');
+      const calls = fetch.mock.calls.length;
+      await expect(release.fetch('/api/settings', { method: 'PUT' })).rejects.toBeInstanceOf(AppReleaseError);
+      expect(fetch).toHaveBeenCalledTimes(calls);
+      view.unmount();
+    } finally { vi.useRealTimers(); window.history.replaceState(null, '', prior); }
+  });
+  it('requires successful agreeing session metadata and rejects aborted recovery', async () => {
+    let server: string | null = null, session: string | null = null, status = 200;
+    const release = createAppRelease(async input => String(input) === '/api/session'
+      ? new Response('{}', { status, headers: session ? { [APP_RELEASE_HEADER]: session } : {} }) : response(server), A);
+    await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError);
+    server = A;
+    expect(await release.displayRecovery()).toBeNull();
+    session = A; status = 401;
+    expect(await release.displayRecovery()).toBeNull();
+    status = 200;
+    expect(await release.displayRecovery(AbortSignal.abort())).toBeNull();
+    expect(release.snapshot()).toBe('unavailable');
+    expect(await release.displayRecovery()).toBe('resume');
+    expect(() => release.assertCurrent()).toThrow(AppReleaseError);
+  });
+  it('never resumes the old release once either recovery lane has observed a different one', async () => {
+    let metadata: string | null = null, session = B;
+    const release = createAppRelease(async input => response(String(input) === '/api/session' ? session : metadata), A);
+    await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError);
+    metadata = A;
+    expect(await release.displayRecovery()).toBeNull();
+    session = A;
+    expect(await release.displayRecovery()).toBeNull();
+    expect(release.snapshot()).toBe('unavailable');
+    metadata = B; session = B;
+    expect(await release.displayRecovery()).toBe('reload');
+  });
+  it('rejects a pre-outage read even after same-release reads resume', async () => {
+    let finish!: (response: Response) => void;
+    let server: string | null = null;
+    const release = createAppRelease(async input => String(input) === '/api/slow'
+      ? new Promise<Response>(resolve => { finish = resolve; }) : response(server), A);
+    const slow = release.fetch('/api/slow');
+    await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError);
+    server = A;
+    expect(await release.displayRecovery()).toBe('resume');
+    finish(response(A));
+    await expect(slow).rejects.toBeInstanceOf(AppReleaseError);
+    expect((await release.fetch('/api/wall')).ok).toBe(true);
+  });
+  it('resumes typed reads while rejecting delayed pre-outage completions and every new write', async () => {
+    let server: string | null = A;
+    let finish!: (value: unknown) => void;
+    let hold = true;
+    const fetch = vi.fn<typeof globalThis.fetch>(async input => {
+      const reply = response(server, { workflows: [] });
+      if (hold && String(input).endsWith('/api/workflows')) vi.spyOn(reply, 'json').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+      return reply;
+    });
+    const release = createAppRelease(fetch, A);
+    const runtime = createBrowserRuntime({ mode: 'standalone', clientGeneration: 1 }, { origin, fetch, appRelease: release, sendAnswer: async () => {} });
+    owned.push(runtime.retire);
+    const earlier = runtime.api.fetchWorkflows();
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    server = null;
+    await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError);
+    server = A;
+    expect(await release.displayRecovery()).toBe('resume');
+    finish({ workflows: [] });
+    await expect(earlier).rejects.toBeInstanceOf(AppReleaseError);
+    hold = false;
+    await expect(runtime.api.fetchWorkflows()).resolves.toEqual({ workflows: [] });
+    const calls = fetch.mock.calls.length;
+    await expect(runtime.api.runLocalJob('backup')).rejects.toBeInstanceOf(AppReleaseError);
+    expect(fetch).toHaveBeenCalledTimes(calls);
+    expect(fetch.mock.calls.every(([, init]) => !init?.method || init.method === 'GET')).toBe(true);
   });
   it('completes a same-release metadata check even when body cleanup stalls', async () => {
     let finish!: () => void;

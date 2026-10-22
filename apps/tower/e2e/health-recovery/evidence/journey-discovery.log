@@ -1,0 +1,12 @@
+Listing tests:
+  [desktop] › health-recovery/journeys.spec.ts:42:1 › System health shows an hourly job failure five days ago at 1440px
+  [desktop] › health-recovery/journeys.spec.ts:57:1 › same-release Wall recovery resumes reads in place after a headerless outage
+  [desktop] › health-recovery/journeys.spec.ts:88:3 › same-release recovery leaves the update prompt on /health
+  [desktop] › health-recovery/journeys.spec.ts:88:3 › same-release recovery leaves the update prompt on /wall/edit
+  [desktop] › health-recovery/journeys.spec.ts:101:1 › a different-release Wall recovery reloads once
+  [mobile] › health-recovery/journeys.spec.ts:42:1 › System health shows an hourly job failure five days ago at 1440px
+  [mobile] › health-recovery/journeys.spec.ts:57:1 › same-release Wall recovery resumes reads in place after a headerless outage
+  [mobile] › health-recovery/journeys.spec.ts:88:3 › same-release recovery leaves the update prompt on /health
+  [mobile] › health-recovery/journeys.spec.ts:88:3 › same-release recovery leaves the update prompt on /wall/edit
+  [mobile] › health-recovery/journeys.spec.ts:101:1 › a different-release Wall recovery reloads once
+Total: 10 tests in 1 file
