@@ -3,13 +3,14 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
 import { jobRunWeek, localDate, runWeekTally } from "@/lib/health-job-runs";
+import { summarizeWorkflowHistory } from "../../../scripts/workflow-history-view.mjs";
 import { JobRunGrid } from "@/routes/health/JobRunGrid";
 
 // A week of System jobs, one cell per day on the reader's own clock. Every
 // time here is local, so the days are the same in any test timezone.
 
-const NOW = new Date(2026, 8, 22, 12, 30).getTime();
-const at = (day: number, hour: number, minute = 0) => new Date(2026, 8, day, hour, minute).toISOString();
+const NOW = Date.UTC(2026, 8, 22, 12, 30);
+const at = (day: number, hour: number, minute = 0) => new Date(Date.UTC(2026, 8, day, hour, minute)).toISOString();
 
 function run(job: string, startedAt: string, state: WorkflowRun["state"] = "succeeded"): WorkflowRun {
   return { id: `${job}@${startedAt}`, workflowId: job, definitionVersion: 1, startedAt, finishedAt: startedAt, state, steps: null };
@@ -95,8 +96,8 @@ describe("a week of scheduled runs", () => {
   });
 
   it("reads days on the reader's clock", () => {
-    expect(localDate(new Date(2026, 8, 22, 0, 5).getTime())).toBe("2026-09-22");
-    expect(localDate(new Date(2026, 8, 21, 23, 55).getTime())).toBe("2026-09-21");
+    expect(localDate(Date.UTC(2026, 8, 22, 0, 5))).toBe("2026-09-22");
+    expect(localDate(Date.UTC(2026, 8, 21, 23, 55))).toBe("2026-09-21");
   });
 });
 
@@ -138,14 +139,49 @@ describe("the run grid", () => {
     expect(screen.getByRole("link", { name: /Live traffic and counters · today · 30 ran · earlier runs that day not kept/ })).toBeInTheDocument();
   });
 
-  it("says plainly when nothing failed or was missed", () => {
+  it("keeps incomplete history visible above the counts", () => {
     const { container } = mount(payload({ counters: counters() }));
-    expect(container.querySelector("[data-job-runs-headline]")).toHaveTextContent("Nothing failed or missed");
+    expect(container.querySelector("[data-job-runs-headline]")).toHaveTextContent("Some run history is unknown");
   });
 
   it("names a run history it could not read, never an empty week", () => {
     const { container } = mount(null, "unavailable");
     expect(container.querySelector("[data-job-runs-empty]")).toHaveTextContent("Run history could not be read");
     expect(container.querySelector("[data-job-row]")).toBeNull();
+  });
+});
+
+
+describe("complete UTC calendar aggregates", () => {
+  const frequent = Array.from({ length: 7 * 24 }, (_, index) => run("counters", new Date(NOW - index * 3_600_000).toISOString(), index === 5 * 24 ? "failed" : "succeeded"));
+  function complete() {
+    return { ...payload({}, [{ id: "counters", cron: "0 * * * *" }]), ...summarizeWorkflowHistory(frequent, [], NOW) };
+  }
+  it("counts every run beyond thirty and links a failure five days ago", () => {
+    const data = complete();
+    expect(data.workflows.find(workflow => workflow.id === "counters")?.runs).toHaveLength(30);
+    const week = jobRunWeek(data, NOW);
+    const own = row(week, "counters");
+    expect(own.truncated).toBe(false);
+    expect(own.days[1]).toMatchObject({ state: "failed", ran: 23, failed: 1, partial: false, runId: frequent[120]!.id });
+    expect(own.days.every(day => !day.partial)).toBe(true);
+    const { container } = render(<MemoryRouter><JobRunGrid week={week} nowMs={NOW} state="ready" /></MemoryRouter>);
+    expect(container).toHaveTextContent("last 7 days · UTC");
+    expect(container.querySelector('[data-job-day="counters:2026-09-17"] a')).toHaveAttribute("href", `/health/operations/counters?run=${encodeURIComponent(frequent[120]!.id)}`);
+  });
+  it("preserves unavailable counts and unknown outcomes without inferring an empty or missed day", () => {
+    const data = complete();
+    data.historyAvailable = false;
+    expect(row(jobRunWeek(data, NOW), "counters").days[6]?.state).toBe("unknown");
+    data.historyAvailable = true;
+    data.workflows.find(workflow => workflow.id === "counters")!.dailyHistory!.buckets.at(-1)!.unknown = 1;
+    expect(row(jobRunWeek(data, NOW), "counters").days[6]?.state).toBe("unknown");
+  });
+  it.each(["2026-03-08T10:30:00Z", "2026-11-01T09:30:00Z"])("keeps UTC days complete across DST at %s", instant => {
+    const now = Date.parse(instant);
+    const records = [run("counters", new Date(now - 2 * 3_600_000).toISOString()), run("counters", instant, "failed")];
+    const data = { ...payload({}), generatedAt: instant, ...summarizeWorkflowHistory(records, [], now) };
+    const own = row(jobRunWeek(data, now), "counters");
+    expect(own.days.at(-1)).toMatchObject({ date: instant.slice(0, 10), ran: 1, failed: 1, state: "failed", partial: false });
   });
 });

@@ -1,3 +1,5 @@
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { WORKFLOW_ACTIVE_FILE, WORKFLOW_HISTORY_FILE, readJsonLines } from '../../../scripts/workflow-history.mjs';
@@ -24,6 +26,24 @@ export function backupForRun(run: WorkflowRun | null, report?: unknown, candidat
   return evidence && belongs(evidence) && !ambiguous ? { runId: run.id, evidence, source: 'report' } : null;
 }
 
+/** Scan the coarse ledger without the rich trace tail's byte cap. Only the
+ * retained thirty-day window enters the projection; the browser still receives
+ * fixed aggregates and thirty details. A busy week cannot fall off a tail. */
+async function readJobRecords(file: string, now: number): Promise<unknown[]> {
+  const stream = createReadStream(file, { encoding: 'utf8' });
+  const lines = createInterface({ input: stream, crlfDelay: Infinity });
+  const records: unknown[] = [];
+  try {
+    for await (const line of lines) {
+      try {
+        const value: unknown = JSON.parse(line);
+        if (isObject(value) && typeof value.at === 'string' && Date.parse(value.at) >= now - 30 * 86_400_000) records.push(value);
+      } catch { /* A torn ledger line is not an observed run. */ }
+    }
+  } finally { lines.close(); stream.destroy(); }
+  return records;
+}
+
 export function createWorkflowHistoryReader(repoRoot: string, readManual: ManualRunsReader = async () => []) {
   let cache: { key: string; records: unknown[]; traces: unknown[] } | undefined;
   return async (now: number, selectedId?: string, sessionId?: string) => {
@@ -33,7 +53,7 @@ export function createWorkflowHistoryReader(repoRoot: string, readManual: Manual
     try {
       const [jobsStat, traceStat, activeText] = await Promise.all([stat(jobsFile), stat(traceFile).catch(() => null), readFile(path.join(repoRoot, WORKFLOW_ACTIVE_FILE), 'utf8').catch(() => '{}')]);
       const key = `${jobsStat.mtimeMs}:${traceStat?.mtimeMs}`;
-      if (cache?.key !== key) cache = { key, records: await readJsonLines(jobsFile), traces: traceStat ? await readJsonLines(traceFile) : [] };
+      if (cache?.key !== key) cache = { key, records: await readJobRecords(jobsFile, now), traces: traceStat ? await readJsonLines(traceFile) : [] };
       let active: unknown[] = [];
       let observationsFresh = !sessionId;
       try {

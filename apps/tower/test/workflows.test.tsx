@@ -294,6 +294,25 @@ describe('workflow operating surface', () => {
 });
 
 describe('workflow history evidence', () => {
+  it('counts a busy local week beyond the rich trace tail byte limit', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'workflow-busy-'));
+    try {
+      await mkdir(path.join(dir, '.local/logs'), { recursive: true });
+      const failedAt = new Date(now - 5 * 86_400_000).toISOString();
+      const old = { ...records[0], at: failedAt, outcome: 'failed' };
+      const busy = Array.from({ length: 40_000 }, (_, i) => JSON.stringify({ ...records[0],
+        at: new Date(now - i * 1000).toISOString(), outcome: 'ran', padding: 'x'.repeat(240) }));
+      const text = [JSON.stringify(old), ...busy].join('\n') + '\n';
+      expect(Buffer.byteLength(text)).toBeGreaterThan(12 * 1024 * 1024);
+      await writeFile(path.join(dir, '.local/logs/job-runs.jsonl'), text);
+      const view = await createWorkflowHistoryReader(dir)(now);
+      const own = view.workflows.find(workflow => workflow.id === 'counters')!;
+      expect(view.historyAvailable).toBe(true);
+      expect(own.runs).toHaveLength(30);
+      expect(own.dailyHistory!.buckets.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed, 0)).toBe(40_001);
+      expect(own.dailyHistory!.buckets.find(bucket => bucket.at.startsWith(failedAt.slice(0, 10)))).toMatchObject({ failed: 1, runId: `counters@${failedAt}` });
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
   it('joins step failures to the correct original dispatch identity, preserving legacy absence', () => {
     const result = buildWorkflowHistory(records, [trace], [], now, trace.id);
     expect(result.workflows.find((w) => w.id === 'counters')?.latest?.state).toBe('failed');

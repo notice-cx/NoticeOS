@@ -9,12 +9,22 @@ export interface WorkflowBucket {
     skipped: number;
     runId: string | null;
 }
+export interface WorkflowDailyHistory {
+    timeZone: 'UTC';
+    from: string;
+    through: string;
+    firstRunAt: string | null;
+    buckets: (WorkflowBucket & {
+        unknown: number;
+    })[];
+}
 export interface WorkflowSummary {
     id: string;
     latest: WorkflowRun | null;
     active: WorkflowRun | null;
     history: WorkflowBucket[];
     runs: WorkflowRun[];
+    dailyHistory?: WorkflowDailyHistory;
 }
 export declare const WORKFLOW_RECENT_RUN_LIMIT = 30;
 /**
@@ -28,6 +38,10 @@ export declare function buildWorkflowHistory(records: unknown[], traces: unknown
     workflows: WorkflowSummary[];
     selectedRun: WorkflowRun | null;
 };
+/** UTC calendar counts stay complete independently of the rich-detail cap.
+ * The first bucket may be partial; explicit coverage prevents treating it as
+ * a complete day. Unknown outcomes never turn into successful empty days. */
+export declare function workflowDailyHistory(records: readonly WorkflowRun[], now: number): WorkflowDailyHistory;
 /** Callers validate their source and can replace bucket counts with complete
  * database aggregates when the retained detail page is deliberately bounded. */
 export declare function summarizeWorkflowHistory(records: readonly WorkflowRun[], active: readonly WorkflowRun[], now: number, selectedId?: string, definitions?: readonly WorkflowDefinition[]): {

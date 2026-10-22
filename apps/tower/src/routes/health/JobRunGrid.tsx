@@ -15,6 +15,7 @@ const TILE: Record<RunDayState, string> = {
   skipped: "border border-border text-muted-foreground",
   missed: "border border-warn/45 bg-warn-soft text-warn",
   none: "text-muted-foreground",
+  unknown: "viz-hatch border border-border/60 text-muted-foreground/60",
   "not-kept": "viz-hatch border border-border/60 text-muted-foreground/60",
 };
 
@@ -25,15 +26,16 @@ const WORD: Record<RunDayState, string> = {
   missed: "missed",
   none: "nothing due",
   "not-kept": "older runs not kept",
+  unknown: "history unknown",
 };
 
 /** The legend: the five marks a reader has to tell apart. */
-const LEGEND: readonly RunDayState[] = ["ran", "failed", "skipped", "missed", "not-kept"];
+const LEGEND: readonly RunDayState[] = ["ran", "failed", "skipped", "missed", "not-kept", "unknown"];
 
 function dayHeading(date: string, today: string): string {
   if (date === today) return "Today";
   const [year, month, day] = date.split("-").map(Number) as [number, number, number];
-  return `${new Date(year, month - 1, day).toLocaleDateString("en-US", { weekday: "short" })} ${day}`;
+  return `${new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })} ${day}`;
 }
 
 function dayWords(date: string, today: string): string {
@@ -48,7 +50,7 @@ function daySentence(row: JobRunRow, day: RunDay, today: string): string {
     day.skipped ? `${formatInt(day.skipped)} skipped` : null,
   ].filter(Boolean);
   const what = counts.length > 0 ? counts.join(", ") : day.state === "missed" ? "no run, one was due" : WORD[day.state];
-  return [row.label, dayWords(day.date, today), what, day.partial ? "earlier runs that day not kept" : null].filter(Boolean).join(" · ");
+  return [row.label, dayWords(day.date, today), what, day.partial ? day.state === "unknown" ? "counts incomplete" : "earlier runs that day not kept" : null].filter(Boolean).join(" · ");
 }
 
 /**
@@ -67,7 +69,7 @@ export function JobRunGrid({ week, nowMs, state }: { week: JobRunWeek | null; no
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="grid min-w-0 gap-1.5">
           <h2 id={titleId} className={cn("m-0", eyebrowClass)}>
-            Scheduled jobs · last 7 days
+            Scheduled jobs · last 7 days · UTC
           </h2>
           {week && tally ? <Headline tally={tally} today={today} /> : null}
           {tally && tally.runs > 0 ? (
@@ -122,7 +124,7 @@ export function JobRunGrid({ week, nowMs, state }: { week: JobRunWeek | null; no
 
       {week && week.rows.length > 0 ? (
         <ul aria-hidden className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0 text-xs text-muted-foreground">
-          {LEGEND.filter((state) => state !== "not-kept" || truncated).map((state) => (
+          {LEGEND.filter((state) => state === "unknown" ? week.rows.some(row => row.days.some(day => day.state === "unknown")) : state !== "not-kept" || truncated).map((state) => (
             <li key={state} className="inline-flex items-center gap-1.5 whitespace-nowrap">
               <span className={cn("grid size-4 place-items-center rounded-[4px] [&_svg]:size-2.5", TILE[state])}>
                 <DayMark day={{ date: "", state, ran: 1, failed: 1, skipped: 1, runId: null, today: false, partial: false }} runs={1} />
@@ -160,6 +162,7 @@ function Headline({ tally, today }: { tally: ReturnType<typeof runWeekTally>; to
       </p>
     );
   }
+  if (tally.unknownDays > 0) return <p data-job-runs-headline="unknown" className="m-0 text-sm text-muted-foreground">Some run history is unknown</p>;
   if (tally.runs === 0) return null;
   return (
     <p data-job-runs-headline="clear" className="m-0 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -247,6 +250,7 @@ function DayMark({ day, runs }: { day: RunDay; runs: number }) {
       return <Clock3 className="size-3.5" strokeWidth={2.5} />;
     case "none":
       return <span className="size-1 rounded-full bg-muted-foreground/40" />;
+    case "unknown":
     case "not-kept":
       return null;
   }
