@@ -1,14 +1,24 @@
 import type { AnnotationKind, WatchWindowItem } from "@shared/asset-detail";
 import { lifecycleMoveSentence, parseLifecycleMoveRef } from "@shared/asset-detail";
 import type { AnnotationItem } from "@shared/annotations";
+import { isTaskId } from "@shared/tasks";
 import { watchSeriesLabel } from "@shared/watch-windows";
 import type { TimelineEvent, TimelineEventKind, TimelineLane } from "@/components/viz/EventTimeline";
+import { taskPath } from "@/lib/task-path";
 import { firstClause } from "@/routes/asset-detail/shared";
 
 // What happened to a site and what is being judged because of it, on one axis
 // that ends at now: every recorded change a mark on the Changes row, and every
 // bet a mark where it was registered and another where its verdict came in, so
-// a deploy and the verdict on it read left to right.
+// a deploy and the verdict on it read left to right. A mark whose record names
+// a task opens that task: a change its ref, a bet the task it watches, a
+// verdict its readback task.
+
+/** The mark's link, when the id it names is a task id. */
+function taskHref(...ids: (string | null | undefined)[]): { href: string } | Record<string, never> {
+  const id = ids.find(isTaskId);
+  return id ? { href: taskPath(id) } : {};
+}
 
 /** How far back the picture reaches. */
 export const ACTIVITY_WINDOW_DAYS = 90;
@@ -64,12 +74,15 @@ export function activityEvents(
       kind: CHANGE_MARK[change.kind],
       ...(change.kind === "incident" ? { severity: "error" as const } : {}),
       label: said ? firstClause(said) : change.kind === "deploy" ? "Deploy" : "Change recorded",
+      ...taskHref(change.ref),
     });
   }
   for (const watch of [...watches.open, ...watches.closed]) {
     const subject = watch.note ?? watchSeriesLabel(watch.metricIntegration, watch.metric);
+    // An annotation ref is the change's own id, never a task's.
+    const watched = watch.refKind === "annotation" ? null : watch.ref;
     if (inWindow(watch.registeredAt)) {
-      events.push({ id: `watch:${watch.id}:start`, lane: "bets", at: watch.registeredAt, kind: "note", label: `Watching ${subject}` });
+      events.push({ id: `watch:${watch.id}:start`, lane: "bets", at: watch.registeredAt, kind: "note", label: `Watching ${subject}`, ...taskHref(watched) });
     }
     if (watch.status === "closed" && inWindow(watch.closedAt)) {
       events.push({
@@ -78,6 +91,7 @@ export function activityEvents(
         at: watch.closedAt,
         ...verdictMark(watch),
         label: `${subject} · ${watch.outcome ? (VERDICT_WORDS[watch.outcome] ?? "verdict recorded") : "verdict recorded"}`,
+        ...taskHref(watch.readbackTaskId, watched),
       });
     }
   }

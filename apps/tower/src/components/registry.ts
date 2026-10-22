@@ -231,6 +231,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["open", "closed", "closed undated", "not filed (renders nothing)"],
   },
   {
+    name: "TaskIdLink",
+    file: "components/TaskIdLink.tsx",
+    purpose:
+      "A task named by its id, as the link to /tasks/<id>, in mono at the surrounding text's size: an asset's review task, a ref the snapshot does not hold, a bet's readback task. It carries no state; a task the snapshot holds is HandoffBeadBadge, with its open or closed glyph.",
+    variants: ["in a line of text", "in a small caption"],
+  },
+  {
     name: "PriorityBar",
     file: "components/PriorityBar.tsx",
     purpose:

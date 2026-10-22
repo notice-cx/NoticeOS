@@ -84,6 +84,7 @@ import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
 import { SourceHistory } from "@/components/viz/SourceHistory";
 import { sourceHistoryHeadline, sourceHistoryRowSummary } from "./source-history-presentation";
 import { useRange } from "@/routes/asset-detail/useRange";
+import { ReadbackLink, watchRef } from "@/routes/asset-detail/WatchComposer";
 import { askFace } from "@/routes/tasks/task-face";
 
 /**
@@ -234,7 +235,7 @@ export function OverviewTab({
       </div>
 
       <div className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
-        <Bets watches={data.watches} assetId={data.asset.id} nowMs={nowMs} />
+        <Bets watches={data.watches} beads={data.handoffBeads} assetId={data.asset.id} nowMs={nowMs} />
         <SearchMovers trends={data.executive?.searchQueries ?? null} assetId={data.asset.id} />
       </div>
 
@@ -493,10 +494,17 @@ function VerdictLine({
  * The bets on this site: every pre-registered outcome check, open first, as
  * one row with its verdict chip, "verdict in N days" while it is being watched
  * and the evaluator's word once it closed (`WATCH_OUTCOME`). No dollars are
- * drawn until the ledger books a change's realized value.
+ * drawn until the ledger books a change's realized value. An opened row names
+ * what it watches and, once closed, its readback task, as the Activity tab does.
  */
-function Bets({ watches, assetId, nowMs }: { watches: AssetDetailFor<"overview">["watches"]; assetId: string; nowMs: number }) {
+function Bets({ watches, beads, assetId, nowMs }: {
+  watches: AssetDetailFor<"overview">["watches"];
+  beads: AssetDetailFor<"overview">["handoffBeads"];
+  assetId: string;
+  nowMs: number;
+}) {
   const assetTabPath = useAssetTabPath();
+  const byId = new Map((beads ?? []).map((bead) => [bead.beadId, bead]));
   const rows = [
     ...watches.open.map((watch) => ({ watch, open: true })),
     ...watches.closed.map((watch) => ({ watch, open: false })),
@@ -526,7 +534,9 @@ function Bets({ watches, assetId, nowMs }: { watches: AssetDetailFor<"overview">
               : outcome?.label ?? "verdict recorded"}
             valueLabel={open ? (days === null ? "checks read" : "to a verdict") : watch.closedAt ? formatCalendarDate(watch.closedAt.slice(0, 10)) : undefined}
           >
+            <span className="flex flex-wrap items-center gap-2" data-watch-id={watch.id}>{watchRef(watch, byId)}</span>
             {watch.outcomeNote ? <span>{watchVerdictFigures(watch.outcomeNote, watch.metricIntegration, watch.metric)}</span> : null}
+            {open ? null : <ReadbackLink id={watch.readbackTaskId} />}
           </ListRow>
         );
       })}
