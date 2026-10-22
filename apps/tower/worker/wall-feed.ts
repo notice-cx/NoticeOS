@@ -349,6 +349,8 @@ interface FeedEvent {
   model?: string | null;
   evidence?: string | null;
   choice?: string;
+  /** A task line's task id (`WallFeedItem`). */
+  task?: string;
 }
 
 const ms = (iso: string): number => Date.parse(iso);
@@ -742,6 +744,7 @@ function fold(events: readonly FeedEvent[], sites: ReadonlyMap<string, Site>): W
       tone: top.tone,
       ...(top.who && group.length === 1 ? { who: top.who, model: top.model ?? null, evidence: top.evidence ?? null } : {}),
       ...(top.choice && group.length === 1 ? { choice: top.choice } : {}),
+      ...(top.task && group.length === 1 ? { task: top.task } : {}),
     };
   });
 }
@@ -1226,6 +1229,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
         who: row.who,
         model: null,
         choice: `(${row.option.trim()}) ${row.label.trim()}`,
+        task: row.id,
       });
     }
     if (row.kind === "claimed") {
@@ -1239,6 +1243,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
         foldKey: null,
         who: row.who,
         model: row.model,
+        task: row.id,
       });
     }
   }
@@ -1257,6 +1262,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       asset: known(row.asset),
       text: row.title?.trim() || row.id,
       foldKey: null,
+      task: row.id,
       ...(closer ? { who: closer.who!, model: closer.model, evidence: closer.evidence } : {}),
       ...(filer ? { who: filer, model: row.model?.trim() || null } : {}),
     });
@@ -1273,6 +1279,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       who: row.who!,
       model: row.model,
       evidence: row.evidence,
+      task: row.id!,
     });
   }
 
