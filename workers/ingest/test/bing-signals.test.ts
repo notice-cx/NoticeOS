@@ -55,7 +55,7 @@ function bingFetch({
     if (url.pathname.endsWith('/GetRankAndTrafficStats')) {
       const host = new URL(url.searchParams.get('siteUrl')!).hostname;
       if (host === failingHost) {
-        return Response.json({ Message: 'Site access denied' }, { status: 403 });
+        return Response.json({ Message: 'Asset access denied' }, { status: 403 });
       }
       return Response.json({
         d: [
@@ -197,7 +197,7 @@ describe('Bing Webmaster signal collector', () => {
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_observations`)).toBe(36);
   });
 
-  it('isolates one site failure and records it for header-state evidence', async () => {
+  it('isolates one asset failure and records it for header-state evidence', async () => {
     const { fetchImpl } = bingFetch({ failingHost: 'northwind.example' });
     const result = await runBingSignals(env, { nowMs: NOW, fetchImpl });
 
@@ -218,7 +218,7 @@ describe('Bing Webmaster signal collector', () => {
       asset: 'northwind.example',
       status: 'error',
       errorCode: 'bwt_http_403',
-      errorMessage: 'Site access denied',
+      errorMessage: 'Asset access denied',
     });
   });
 

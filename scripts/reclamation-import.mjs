@@ -80,7 +80,7 @@ function usage() {
   pnpm reclamation:import -- --asset example.com --csv <path> [options]
 
 Options:
-  --asset <id>    required property id; every row is scoped to it
+  --asset <id>    required asset id; every row is scoped to it
   --csv <path>    required target list (tier,segment,domain,referring_page,
                   links_to_dead,replace_with,contact,notes)
   --dry-run       show what would be stored, and store nothing
@@ -119,7 +119,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!asset || !/^[a-z0-9.-]+$/.test(asset)) {
-    throw new Error('--asset is required and must be a property id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   if (!csv) throw new Error('--csv is required and must point at the target list.');
   return { asset, csv, door, overlay, dryRun };

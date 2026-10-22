@@ -86,7 +86,7 @@ export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational
           {model.previousMonth ? (
             <span data-revenue-previous-month>
               {formatPeriodMonthYear(model.previousMonth.period)} {formatUsd(model.previousMonth.revenue)} est.{model.previousMonth.reported < model.previousMonth.sites ? (
-                <> · {model.previousMonth.reported} of {model.previousMonth.sites} sites</>
+                <> · {model.previousMonth.reported} of {model.previousMonth.sites} assets</>
               ) : null}
             </span>
           ) : null}
@@ -179,7 +179,7 @@ function Yesterday({ total, business }: { total: YesterdayTotal; business: boole
   if (total.mixedBasis) {
     return (
       <span data-revenue-yesterday="mixed">
-        Mixed report days · {total.reported} of {total.sites} sites · no total
+        Mixed report days · {total.reported} of {total.sites} assets · no total
       </span>
     );
   }
@@ -207,7 +207,7 @@ function Yesterday({ total, business }: { total: YesterdayTotal; business: boole
         <>
           {" · "}
           <span className="whitespace-nowrap">
-            {total.reported} of {total.sites} sites
+            {total.reported} of {total.sites} assets
           </span>
         </>
       ) : null}

@@ -11,7 +11,7 @@ This page covers how NoticeOS measures whether a change had any effect, and what
 
 Suppose you rewrite the titles on 200 recipe pages on `example.com` on the 3rd. On the 20th, clicks from Google are up 8%. Did the titles do that?
 
-Maybe. Or Google shipped an update on the 10th. Or it is the week before a holiday. An 8% move on a site this size is within normal day-to-day variation, and the chart does not show which cause it was.
+Maybe. Or Google shipped an update on the 10th. Or it is the week before a holiday. An 8% move on an asset this size is within normal day-to-day variation, and the chart does not show which cause it was.
 
 NoticeOS does not record "the titles earned 8%" based on a chart. A change is credited with an effect only when the comparison was set before the numbers existed, and the numbers then passed it. Everything else is recorded as shipped, with the result unmeasured.
 
@@ -19,13 +19,13 @@ This is stricter than most tools, on purpose. A system that credits every change
 
 ## The outcome check
 
-The tool NoticeOS gives you today is the **outcome check**, registered from a site's **Activity** tab. You set it up before, or right after, a change ships, and NoticeOS reads it on fixed days afterwards.
+The tool NoticeOS gives you today is the **outcome check**, registered from an asset's **Activity** tab. You set it up before, or right after, a change ships, and NoticeOS reads it on fixed days afterwards.
 
 An outcome check records:
 
 - **The change** it belongs to: a change you logged on the Activity tab, or a short name for something else.
 - **The metric**: a series from Google Analytics, Search Console or Bing, such as Search Console clicks.
-- **The scope**: the whole site, one search query, or one page. An average such as search position must be scoped, because a site-wide average moves whenever the mix of queries moves.
+- **The scope**: the whole asset, one search query, or one page. An average such as search position must be scoped, because an asset-wide average moves whenever the mix of queries moves.
 - **The baseline**: how many days before the change to compare against.
 - **The check days**: when to read it, for example 7, 14 and 28 days after.
 - **The thresholds**: what counts as an improvement and what counts as a decline, as a percent change in a stated direction.
@@ -50,7 +50,7 @@ The baseline days plus the check days are the measurement window. While a window
 
 ## Choosing a threshold
 
-A threshold is a prediction you set in advance. If it is too low, normal variation is recorded as an improvement. When you register a check, the composer shows the site's typical day-to-day movement for that metric over the recent past, excluding days that cross a change you logged, so you can set the threshold above that variation. If there is not enough history to calibrate, the composer shows that, and a starting value of 10% is marked as uncalibrated.
+A threshold is a prediction you set in advance. If it is too low, normal variation is recorded as an improvement. When you register a check, the composer shows the asset's typical day-to-day movement for that metric over the recent past, excluding days that cross a change you logged, so you can set the threshold above that variation. If there is not enough history to calibrate, the composer shows that, and a starting value of 10% is marked as uncalibrated.
 
 ## Holdouts
 
@@ -60,13 +60,13 @@ NoticeOS does not pick a holdout for you today, and no automated process may cha
 
 ## Cohorts
 
-A cohort is a group of comparable pages treated as one unit, so that a change applied to the whole group can be measured against another group like it. On `example.com`, the 200 recipe pages might be split into two groups of 100 with similar traffic, one changed and one not. This is the strongest evidence a site can produce for a template-level change, and it needs hundreds of similar pages and a fair amount of traffic.
+A cohort is a group of comparable pages treated as one unit, so that a change applied to the whole group can be measured against another group like it. On `example.com`, the 200 recipe pages might be split into two groups of 100 with similar traffic, one changed and one not. This is the strongest evidence an asset can produce for a template-level change, and it needs hundreds of similar pages and a fair amount of traffic.
 
 NoticeOS does not assign cohorts today. If you split pages yourself, register one outcome check per group and read them side by side.
 
 ## Why some things stay unmeasured
 
-Most single changes on a site under 100,000 visits a month are too small to measure on their own. A new paragraph, a fixed link, a nicer button: each may help, and none will move a chart beyond its normal variation. NoticeOS records these as shipped and unmeasured, with no value claimed.
+Most single changes on an asset under 100,000 visits a month are too small to measure on their own. A new paragraph, a fixed link, a nicer button: each may help, and none will move a chart beyond its normal variation. NoticeOS records these as shipped and unmeasured, with no value claimed.
 
 The effect of each such change is smaller than the normal variation in the numbers. Small changes can be credited as a group, over a quarter, when their combined effect is measurable. A precise figure for each change would be invented.
 
@@ -74,13 +74,13 @@ A verdict of "could not be measured" means the data was not enough to reach a re
 
 ## Your part in it
 
-Four things on your side make a measurement possible: the change is logged on the site's Activity tab the day it ships, with a reference such as the commit or the task id; an outcome check is registered against it, with its metric, scope, baseline, check days, thresholds and the task that receives the result; the surfaces stay untouched until the final check day; and the verdict is read on the task, or on the Alerts page if it was a decline.
+Four things on your side make a measurement possible: the change is logged on the asset's Activity tab the day it ships, with a reference such as the commit or the task id; an outcome check is registered against it, with its metric, scope, baseline, check days, thresholds and the task that receives the result; the surfaces stay untouched until the final check day; and the verdict is read on the task, or on the Alerts page if it was a decline.
 
 Without the logged change there is nothing to attribute to; NoticeOS does not add a cause after the fact.
 
 ## Related
 
-- [Sites](/tower/sites), where the Activity tab is
+- [Portfolio](/tower/sites), where the Activity tab is
 - [Tasks and agents](/concepts/tasks-and-agents)
 - [How NoticeOS works](/concepts/how-noticeos-thinks)
 - [Alerts](/concepts/alerts)

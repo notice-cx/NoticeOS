@@ -476,7 +476,7 @@ export async function startTestCluster({ tools = findPostgres(), parent = os.tmp
     const clusterMs = performance.now() - started;
     try {
         applyMigrations(cluster);
-        const { workspaceId } = bootstrapWorkspace(cluster, { slug: TEST_WORKSPACE_SLUG, displayName: 'Test sites' });
+        const { workspaceId } = bootstrapWorkspace(cluster, { slug: TEST_WORKSPACE_SLUG, displayName: 'Test assets' });
         const appUrl = applicationLogin().url(TEMPLATE_DATABASE);
         const contents = readTemplateContents(cluster);
         // Nothing connects to the template again, so nothing can stop a copy.

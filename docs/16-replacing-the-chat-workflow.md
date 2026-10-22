@@ -1,6 +1,6 @@
 # 16 — Replacing the chat workflow
 
-An operator's working week on a site includes questions, triage,
+An operator's working week on an asset includes questions, triage,
 commissioned fixes and review. The recurring loop (docs 00–07) does not cover
 that work. This doc records which parts of it the Tower supports today and which
 are not built.
@@ -13,7 +13,7 @@ strategy. The Tower is for the recurring work; it is not a general chatbot.
 **File task.** Every handoff surface (findings, query decisions, page
 decisions and alert rows) has a **File task** button beside its Markdown copy.
 It opens a composer prefilled with the title, labels and `noticeos_*` metadata,
-and files the task in the site's own task project through the `bd` commands the
+and files the task in the asset's own task project through the `bd` commands the
 local Tower runs for the operator. The copied Markdown contains the same task as
 a `bd create` command that the receiving agent runs in that repository
 ([§Handoff metadata](../config/beads.README.md#handoff-metadata)). Work handed
@@ -26,7 +26,7 @@ task records that something shipped, not that it worked.
 nothing on screen.
 
 **The command palette.** ⌘K (Ctrl-K elsewhere) opens a palette that jumps to
-a page, a site or a task id. It only navigates; it does not accept questions or
+a page, an asset or a task id. It only navigates; it does not accept questions or
 run commands ([doc 10](10-control-tower.md)).
 
 ## What is not built
@@ -37,4 +37,4 @@ run commands ([doc 10](10-control-tower.md)).
 - **O. Idea capture** (a one-sentence intake enriched into a scored card): not built.
 - **P. Visual evidence** (before/after screenshots as required claim artifacts): not built.
 - **Q. Directed research** (an operator-initiated, cited, dated research brief): not built.
-- **R. Propagation** (a positive result on one site creating draft cards for the portfolio's other sites): not built.
+- **R. Propagation** (a positive result on one asset creating draft cards for the portfolio's other assets): not built.

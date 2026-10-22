@@ -75,7 +75,7 @@ it('ordinary financials and Wall read the same integer-cents ledger without coun
   expect(correction[0]!.minor).not.toBe(correction[0]!.older);
 });
 
-it('ordinary chart readers preserve provisional values and missing traffic while the young site has only its own history', async () => {
+it('ordinary chart readers preserve provisional values and missing traffic while the young asset has only its own history', async () => {
   const signals = await loadSignalTrends(fixture.call, 28, { asset: 'freshrows.example', includeSessions: true, includeSecondarySeries: true, includeWebSearch: true, nowMs: NOW.getTime() });
   const young = signals.get('freshrows.example')!;
   // GA4 keeps only yesterday provisional, so a projection has its complete days.
@@ -103,7 +103,7 @@ it('ordinary chart readers preserve provisional values and missing traffic while
   expect(heldRevenue).toEqual([]);
 });
 
-it('pulse validation and the unchanged seasonal evaluator explain the current failure and quiet young site', async () => {
+it('pulse validation and the unchanged seasonal evaluator explain the current failure and quiet young asset', async () => {
   for (const pulse of scenario.pulses) expect(PulseEnvelope.safeParse(pulse).success).toBe(true);
   const { problem } = scenario.manifest.stories;
   const broken = scenario.pulses.find(p => p.asset === problem.asset && p.date === problem.date)!;

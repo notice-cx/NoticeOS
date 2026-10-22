@@ -363,7 +363,7 @@ function Findings({ slice, report, assetId, site }: { slice: CodebaseSlice; repo
             <ListRow
               glyph="△"
               title={`${formatInt(measures.vulnerable_dependencies)} ${measures.vulnerable_dependencies === 1 ? "package has" : "packages have"} a known vulnerability`}
-              caption="Counted by the package audit in this site's workflow"
+              caption="Counted by the package audit in this asset's workflow"
               rowActions={task(vulnerableTaskTitle(measures.vulnerable_dependencies, site), "vulnerable packages")}
               marks={{ "data-codebase-vulnerable": "" }}
             />
@@ -399,7 +399,7 @@ function CodebaseSetup({ assetId }: { assetId: string }) {
         <div className="grid gap-3" data-codebase-way="action">
           <Steps steps={[
             <>
-              Add repository secrets <code className="font-mono text-xs">{TOKEN_SECRET}</code>, the site's token, and{" "}
+              Add repository secrets <code className="font-mono text-xs">{TOKEN_SECRET}</code>, the asset's token, and{" "}
               <code className="font-mono text-xs">{INGEST_SECRET}</code>, the ingest address.
             </>,
             <>

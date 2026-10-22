@@ -1,22 +1,22 @@
 # 27 — Codebase health
 
-*This doc describes why NoticeOS measures each site's code, which measures it
+*This doc describes why NoticeOS measures each asset's code, which measures it
 keeps, how the alert rules read them and how a measurement reaches the store.
 The operator's guide is [Measure your codebase](guides/measure-your-codebase.md);
 the envelope is in [doc 02](02-signal-contract.md#codebase-report).*
 
 ## Why measure the code
 
-Many sites in a portfolio are built quickly, often with AI coding tools, by
+Many assets in a portfolio are built quickly, often with AI coding tools, by
 people who then have to keep them running. The cost of that upkeep is in the
 code: every copy of a component is fixed separately, every unused file is still
 read, built and updated, and a function with many branches breaks in one place
 when it is changed in another. None of this shows in traffic or revenue until a
 change takes a week instead of an hour.
 
-The site's **Codebase** tab records the code's size and four of its costs over
-time, beside the site's visitors, so a change in the code can be read next to a
-change in use. Under them it shows three checks the site's own workflow runs:
+The asset's **Codebase** tab records the code's size and four of its costs over
+time, beside the asset's visitors, so a change in the code can be read next to a
+change in use. Under them it shows three checks the asset's own workflow runs:
 whether the build passed, whether the tests passed and how many packages have a
 known vulnerability. It records counts and passes. It gives no score and no
 grade.
@@ -50,8 +50,8 @@ These were chosen because each one:
 - **matches a cost an operator recognises** in plain words: more to read,
   copies to fix separately, files kept for nothing, functions that break when
   touched, tests that catch mistakes.
-- **reads the same on any site** where its tool applies. Lint warnings depend
-  on each repository's own configuration and cannot be compared across sites;
+- **reads the same on any asset** where its tool applies. Lint warnings depend
+  on each repository's own configuration and cannot be compared across assets;
   a combined maintainability score hides which of its parts moved.
 
 Tests are measured apart from the code: `code_lines` excludes test files, so a
@@ -78,7 +78,7 @@ passed, such as "4 of 5 reports passed in 30 days".
 ## Beside the visitors
 
 The sentence at the top of the tab sets the code's change over 30 days next to
-the site's visitors over the same days, from the visitor series the site's
+the asset's visitors over the same days, from the visitor series the asset's
 **Overview** reads: "The code grew 12% in 30 days while visitors grew 3%." The
 chart's **Visitors** button draws the visitors under the lines of code, with the
 same deploy marks on both.
@@ -129,7 +129,7 @@ the same code differently, so:
 
 ## The comparison and the rules
 
-A change "in 30 days" compares the latest report with the site's report
+A change "in 30 days" compares the latest report with the asset's report
 nearest 30 days earlier, between 28 and 45 days earlier, the older of two at the
 same distance. Outside that span there is no comparison, and the tab shows "No
 report from a month before yet". `pickComparisonReport` makes that choice for
@@ -152,7 +152,7 @@ Five rules run on every accepted report, in the same transaction that stores it
   large percent, and on a large one a routine month is many lines.
 - Repetition, unused code and vulnerable packages are levels, read from the
   latest report alone; growth and complexity are changes and need a comparison
-  report, so a newly measured site raises neither for its first four weeks.
+  report, so a newly measured asset raises neither for its first four weeks.
 - Unused shared pieces (`unused_exports`) are on the **Unused code** figure and
   in its findings, and are not counted by the rule.
 - A vulnerable-packages threshold below 1 reads as 1, so a report with no
@@ -161,8 +161,8 @@ Five rules run on every accepted report, in the same transaction that stores it
   The other four are of kind opportunity: each names work that would lower
   the cost of later changes or remove a known flaw.
 
-Each rule first resolves its own open alert for the site, then raises a new one
-if it fires, so a site holds at most one open alert per rule and the next report
+Each rule first resolves its own open alert for the asset, then raises a new one
+if it fires, so an asset holds at most one open alert per rule and the next report
 closes an alert that no longer holds. Each alert stores the numbers it used,
 both reports and the thresholds in `rule_inputs`, so a false alarm can be traced
 and a threshold changed on evidence. The thresholds are measurement rules: an
@@ -186,12 +186,12 @@ bounded however large the repository is.
 
 The same image produces the same envelope in each case; only the way it
 reaches the store differs. Each sends it to `POST /api/codebase-report` with the
-site's token from `ASSET_TOKENS`, the same token and route checks as the nightly
+asset's token from `ASSET_TOKENS`, the same token and route checks as the nightly
 report ([doc 11](11-integrations.md#credential-naming--the-asset_token-convention)).
 
 | Way | Runs where | How it reaches the store |
 |---|---|---|
-| GitHub Action (`.github/actions/codebase-report`) | the site's repository, on push to `main`, weekly and on demand | posts to the installation's ingest address when both the address and the token are set as repository secrets; otherwise keeps the report as a workflow artifact |
+| GitHub Action (`.github/actions/codebase-report`) | the asset's repository, on push to `main`, weekly and on demand | posts to the installation's ingest address when both the address and the token are set as repository secrets; otherwise keeps the report as a workflow artifact |
 | `pnpm os:codebase-report` (`scripts/codebase-report.mjs`) | the computer that runs the installation | runs the image through the installation's Docker in the app container's network and posts to the ingest on that container's loopback |
 | Central pull | the installation, on a schedule | not built |
 

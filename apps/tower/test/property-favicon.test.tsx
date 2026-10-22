@@ -21,15 +21,15 @@ function initial(container: HTMLElement): string | null {
 
 afterEach(() => document.documentElement.classList.remove("light"));
 
-describe("PropertyFavicon draws the icon a site declares for the surface", () => {
-  it("draws the dark icon on a dark surface when the site declares both", () => {
+describe("PropertyFavicon draws the icon an asset declares for the surface", () => {
+  it("draws the dark icon on a dark surface when the asset declares both", () => {
     const { container } = render(
       <PropertyFavicon domain="example.com" displayName="Example" icons={icons(LIGHT, DARK)} scheme="dark" />,
     );
     expect(drawn(container)).toHaveAttribute("src", DARK);
   });
 
-  it("draws the light icon on a dark surface when the site declares no dark one", () => {
+  it("draws the light icon on a dark surface when the asset declares no dark one", () => {
     const { container } = render(
       <PropertyFavicon domain="example.com" displayName="Example" icons={icons(LIGHT, null)} scheme="dark" />,
     );

@@ -19,7 +19,7 @@ const dailyRows = async (store: WorkspaceStore) =>
   (await store.read((tx) => tx.query<{ n: number }>('SELECT count(*)::int AS n FROM noticeos.revenue_observations')))[0]?.n;
 
 describe('saved daily earnings', () => {
-  it('tracks same-named sites independently while excluding unfinished and future dates', async () => {
+  it('tracks same-named assets independently while excluding unfinished and future dates', async () => {
     const ctx = await createTestStore();
     const raw = ctx;
     const at = '2026-09-10T15:00:00Z';
@@ -143,7 +143,7 @@ describe('saved daily earnings', () => {
     } finally { await raw.close(); }
   });
 
-  it('sums a site\'s sources per day, marks a day a source it owes missed as partial, and never adds two currencies', async () => {
+  it('sums an asset\'s sources per day, marks a day a source it owes missed as partial, and never adds two currencies', async () => {
     const ctx = await createTestStore();
     const raw = ctx;
     const at = '2026-09-10T15:00:00Z';

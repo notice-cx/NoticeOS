@@ -245,7 +245,7 @@ const consumers = {
   "config/pull.json": ["wall", "asset-detail", "settings", "integrations"],
   "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers"],
   "config/counters.json": ["wall", "asset-detail"],
-  "config/tower.json": ["wall", "settings"],
+  "config/tower.json": ["wall", "settings", "asset-detail"],
   "config/serp-panel.json": ["wall", "asset-detail", "integrations"],
   "config/signal-panels.json": ["asset-detail", "settings"],
   "config/value-events.json": ["asset-detail"],
@@ -268,7 +268,7 @@ describe("document consumers", () => {
     expect(new Set(affectedConfigBackedQueries([
       costOp, { ...costOp, file: "config/domain-costs.json" },
       { ...costOp, file: "config/tower.json" },
-    ]))).toEqual(new Set(["financials", "wall", "settings"]));
+    ]))).toEqual(new Set(["financials", "wall", "settings", "asset-detail"]));
   });
 
   it.each([
@@ -338,7 +338,7 @@ for (const source of ["store", "file"] as const) {
       await waitFor(() => expect(client.getQueryData(["config-writable"])).toBeDefined());
       let undo!: () => Promise<void>;
       await act(async () => { undo = await savePath(result.current, path); });
-      const expected = path === "landmark" ? ["wall", "settings"] : ["financials"];
+      const expected = path === "landmark" ? ["wall", "settings", "asset-detail"] : ["financials"];
       if (source === "file") {
         expect(invalidated).not.toHaveBeenCalled();
         act(() => vi.advanceTimersByTime(WORKER_RESTART_MS - 1));
@@ -364,7 +364,7 @@ it("refreshes the union for structural saves and derives Undo from its own opera
   const { result } = renderHook(() => useStructuralSave(), { wrapper });
   await waitFor(() => expect(client.getQueryData(["config-writable"])).toBeDefined());
   await result.current({ ops: [costOp, { ...costOp, file: "config/tower.json" }], undo: [{ ...costOp, file: "config/entities.json" }], label: "Change", slug: "change" });
-  expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(new Set(["financials", "wall", "settings"]));
+  expect(new Set(await invalidatedKeys(invalidated.mock.calls))).toEqual(new Set(["financials", "wall", "settings", "asset-detail"]));
   invalidated.mockClear();
   await toastUndo()();
   expect(await invalidatedKeys(invalidated.mock.calls)).toEqual(["settings"]);

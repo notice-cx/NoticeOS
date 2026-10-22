@@ -35,7 +35,7 @@ test('one scenario names six real task projects and all cross-store story identi
   assert.ok(scenario.tasks.find(task => task.id === repair.readbackTaskId).events[0].at < repair.annotationAt);
 });
 
-test('each site groups its planned work under two or three themed epics; work that fits none stays outside them', () => {
+test('each asset groups its planned work under two or three themed epics; work that fits none stays outside them', () => {
   const scenario = generateDemoScenario(input);
   const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
   const epics = scenario.tasks.filter(task => task.issueType === 'epic');
@@ -79,7 +79,7 @@ test('every task, epic and gate records the kind of change it makes', () => {
   assert.deepEqual(new Set(classes), new Set(TASK_CHANGE_CLASSES));
 });
 
-test('cards price about fifteen open tasks in their site’s revenue family, as recorded before the reference time', () => {
+test('cards price about fifteen open tasks in their asset’s revenue family, as recorded before the reference time', () => {
   const scenario = generateDemoScenario(input);
   const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
   const byId = new Map(issues.map(issue => [issue.id, issue]));
@@ -137,7 +137,7 @@ test('two questions offer lettered options with one recommended; the other asks 
   });
 });
 
-test('every site board is moving on the reference day: done this week, in progress, blocked and asks aged hours to weeks', () => {
+test('every asset board is moving on the reference day: done this week, in progress, blocked and asks aged hours to weeks', () => {
   const scenario = generateDemoScenario(input);
   const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
   const weekAgo = new Date(Date.parse(input.cutoff) - 7 * 86_400_000).toISOString();
@@ -318,7 +318,7 @@ test('a task is filed only after what it depends on, so no dated import loses an
   }
 });
 
-test('the codebase findings the Codebase tab leads with already have tasks on the sites they name', () => {
+test('the codebase findings the Codebase tab leads with already have tasks on the assets they name', () => {
   const scenario = generateDemoScenario(input);
   const latest = asset => demoCodebaseReports(scenario).filter(report => report.asset === asset).at(-1).envelope;
   const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);

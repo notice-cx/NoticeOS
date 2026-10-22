@@ -128,7 +128,7 @@ export interface SidebarProps {
   /** Opens the command palette. Optional because the gallery renders the
    * sidebar on its own; the button is always drawn. */
   onOpenPalette?: () => void;
-  /** Gallery only: the assets to list under Assets. Passing them keeps the
+  /** Gallery only: the assets to list under Portfolio. Passing them keeps the
    * gallery off `useWall` and off `localStorage`. */
   assets?: AssetCard[];
   /** Whether the asset list starts open when the operator has never said:
@@ -341,7 +341,7 @@ function LiveAssetNav(props: AssetNavProps) {
 }
 
 /**
- * One row per asset under Assets, lighting on any tab of the asset it points
+ * One row per asset under Portfolio, lighting on any tab of the asset it points
  * at. A severity dot appears only for an open warning or error. The chevron is its own control, so
  * expanding the list is never mistaken for navigating.
  */
@@ -402,7 +402,7 @@ function AssetNav({
           type="button"
           aria-expanded={open}
           aria-controls={listId}
-          aria-label={open ? "Collapse the site list" : "Expand the site list"}
+          aria-label={open ? "Collapse the asset list" : "Expand the asset list"}
           onClick={toggle}
           className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted-foreground outline-none max-md:size-11 hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -469,7 +469,7 @@ function AssetNav({
                 onClick={onNavigate}
                 className={cn(ASSET_ROW_BASE, ITEM_IDLE, "pl-2")}
               >
-                All sites…
+                All assets…
               </Link>
             </li>
           ) : null}
@@ -484,7 +484,7 @@ function AssetNav({
               }
             >
               <Plus aria-hidden className="size-4 shrink-0" />
-              Add a site
+              Add an asset
             </NavLink>
           </li>
         </ul>

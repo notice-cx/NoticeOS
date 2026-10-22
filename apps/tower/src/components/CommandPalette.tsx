@@ -117,14 +117,14 @@ export function CommandPalette({
 
   if (inline) {
     return (
-      <Command label="Search pages and sites" className="border border-border">
+      <Command label="Search pages and assets" className="border border-border">
         {body}
       </Command>
     );
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} label="Search pages and sites">
+    <CommandDialog open={open} onOpenChange={onOpenChange} label="Search pages and assets">
       {body}
     </CommandDialog>
   );
@@ -200,12 +200,12 @@ function PaletteBody({
         autoFocus
         value={query}
         onValueChange={onQueryChange}
-        placeholder="Search pages and sites…"
+        placeholder="Search pages and assets…"
       />
       <CommandList>
         {/* Every typed query has a task destination, force-mounted below,
             so an empty state would be untrue. */}
-        {trimmed ? null : <CommandEmpty>No page or site matches.</CommandEmpty>}
+        {trimmed ? null : <CommandEmpty>No page or asset matches.</CommandEmpty>}
 
         {recentItems.length > 0 ? (
           <CommandGroup heading="Recent">
@@ -247,7 +247,7 @@ function PaletteBody({
         </CommandGroup>
 
         {assets.length > 0 ? (
-          <CommandGroup heading="Sites">
+          <CommandGroup heading="Assets">
             {assets
               .filter((asset) => !recentSet.has(assetValue(asset.id)))
               .map((asset) => (

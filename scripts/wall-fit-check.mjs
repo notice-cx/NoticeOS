@@ -75,7 +75,7 @@ Options:
   --settle-ms MS    pause between samples (default 700)
   --ready-ms MS     how long to wait for wall data (default 30000)
   --strict          also fail on unclipped overflow that stays inside the
-                    viewport — a leak one site away from the edge — and on
+                    viewport — a leak one asset away from the edge — and on
                     text a region cuts off sideways
   --screenshot PATH write a PNG of what was measured
   --json            print the raw measurement instead of the summary
@@ -301,9 +301,9 @@ async function checkAt(page, { width, height }) {
     }
     const { density, rows, spare } = report.sites;
     if (density === "focus") {
-      console.log(`  site rows   one site, in depth (tiles, no rows)`);
+      console.log(`  asset rows   one asset, in depth (tiles, no rows)`);
     } else if (rows.length > 0) {
-      console.log(`  site rows   ${rows.length} × ${[...new Set(rows.map((row) => row.height))].join("/")} px (${density}), ${spare} px spare under them`);
+      console.log(`  asset rows   ${rows.length} × ${[...new Set(rows.map((row) => row.height))].join("/")} px (${density}), ${spare} px spare under them`);
     }
     if (report.feed.lastRowWhole !== null) {
       console.log(`  feed        ${report.feed.shown} rows, ${report.feed.lastRowWhole ? "the lowest whole" : "the lowest CUT OFF"}`);

@@ -675,7 +675,7 @@ describe("buildAssetDetailPayload", () => {
     expect(p.wiring.pull?.url).toBe("https://meadow.example/api/internal/metrics");
     expect(p.wiring.pull?.enabled).toBe(true);
     expect(p.wiring.pull?.metricMap).toContainEqual({ metric: "signups", counter: "profiles" });
-    expect(p.wiring.pull?.auth).toBe("Site token");
+    expect(p.wiring.pull?.auth).toBe("Asset token");
     expect(p.wiring.modeOwner).toBe("config/pull.json");
     // the pull entry's array index anchors the changeset edit pointers.
     expect(p.wiring.pull?.index).toBe(0);
@@ -695,12 +695,12 @@ describe("buildAssetDetailPayload", () => {
     expect(q.wiring.schedule).toMatchObject({ job: "pull", enabled: false });
   });
 
-  it("resolves PUSH mode for assets absent from pull.json, auth named as the site's token", async () => {
+  it("resolves PUSH mode for assets absent from pull.json, auth named as the asset's token", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "ferns.example", DEPS))!;
     expect(p.wiring.mode).toBe("push");
     expect(p.wiring.pull).toBeNull();
     expect(p.wiring.push?.endpoint).toBe("POST /api/pulse");
-    expect(p.wiring.push?.auth).toBe("Site token");
+    expect(p.wiring.push?.auth).toBe("Asset token");
     expect(JSON.stringify(p)).not.toContain("ASSET_TOKENS");
     expect(p.wiring.push?.authOwner).toBe("workers/ingest/.dev.vars");
     // A pushing asset sends on its own clock, so there is no OS-side time.
@@ -719,17 +719,17 @@ describe("buildAssetDetailPayload", () => {
   });
 
   // The Settings tab's Card totals shows this entry and guards its removal on it.
-  it("carries the site's card totals entry as config/counters.json holds it", async () => {
+  it("carries the asset's card totals entry as config/counters.json holds it", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.countersConfig).toEqual(COUNTERS.assets["meadow.example"]);
   });
 
-  it("says a site declares no totals rather than guessing an entry", async () => {
+  it("says an asset declares no totals rather than guessing an entry", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
     expect(p.countersConfig).toBeNull();
   });
 
-  it("names the OS's own row System whatever its stored name, and every site by its own", async () => {
+  it("names the OS's own row System whatever its stored name, and every asset by its own", async () => {
     const os = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
     expect(os.asset).toMatchObject({ isOs: true, displayName: "System" });
     expect(JSON.stringify(os)).not.toContain("ReindexOS");
@@ -2041,13 +2041,13 @@ describe("buildAssetDetailPayload", () => {
     await insertHygieneReading(ctx.call, { asset, check, day, status, value, detail });
   }
 
-  it("has no site-health section before the guard's first night", async () => {
+  it("has no asset-health section before the guard's first night", async () => {
     // null, not three empty series: the Tower cannot run a check.
     const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.hygiene).toBeNull();
   });
 
-  it("reads back the nightly site-health history the guard has been writing", async () => {
+  it("reads back the nightly asset-health history the guard has been writing", async () => {
     await insertHygiene("meadow.example", "html-depth", "2026-07-03", "ok", 880);
     await insertHygiene("meadow.example", "html-depth", "2026-07-04", "ok", 640);
     await insertHygiene("meadow.example", "html-depth", "2026-07-05", "warn", 88);
@@ -2652,7 +2652,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
     expect(panel!.queries).toHaveLength(3);
   });
 
-  it("carries the market the site saved, and none for an absent or unreadable one", async () => {
+  it("carries the market the asset saved, and none for an absent or unreadable one", async () => {
     const uk = { locationCode: 2826, languageCode: "en" };
     const carried = await panelOf({ ...executiveSnapshot(), serpPanel: { ...panelBlock(), market: uk } });
     expect(carried!.market).toEqual(uk);
@@ -3543,7 +3543,7 @@ describe("buildAssetDetailView — one read per tab", () => {
 });
 
 // The site's all-time totals: freshest lane wins, over this site's rows only.
-describe("buildAssetDetailView — the site's all-time totals", () => {
+describe("buildAssetDetailView — the asset's all-time totals", () => {
   let ctx: TestStore;
   beforeEach(async () => {
     ctx = await createTestStore();
@@ -3583,7 +3583,7 @@ describe("buildAssetDetailView — the site's all-time totals", () => {
     expect(overview.counters?.cadenceHours).toBe(1);
   });
 
-  it("is null for a site without configured totals and skips the dedicated totals read", async () => {
+  it("is null for an asset without configured totals and skips the dedicated totals read", async () => {
     const sql: string[] = [];
     const overview = (await buildAssetDetailView(recordingStore(ctx.call, sql), "northwind.example", DEPS, "overview"))!;
     expect(overview.counters).toBeNull();

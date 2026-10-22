@@ -67,7 +67,7 @@ test('only linked projects are served, each in its own folder under its database
   assert.equal(reads, 2);
 });
 
-test('the site list is read read-only in the store\'s workspace, kept a few seconds, and a failed read is not kept', async () => {
+test('the asset list is read read-only in the store\'s workspace, kept a few seconds, and a failed read is not kept', async () => {
   const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', reads = [];
   let time = 0, fail = false;
   const rows = [{ id: 'example.com', displayName: 'Example', isOs: false }];
@@ -119,7 +119,7 @@ test('the endpoint serves the store\'s one workspace as the named agent, and the
     headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }))
     .then(response => response.json());
   assert.deepEqual((await call('list_projects', { workspace: WORKSPACE })).result.structuredContent.projects,
-    [{ projectId: standaloneProjectId('example'), key: 'example', name: 'Example', prefix: 'ex' }], 'a project is named from the store\'s site list');
+    [{ projectId: standaloneProjectId('example'), key: 'example', name: 'Example', prefix: 'ex' }], 'a project is named from the store\'s asset list');
   const created = await call('create_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), title: 'Probe', idempotency_key: 'local-create-0001' },
     { 'x-noticeos-actor': 'claude' });
   assert.equal(created.result.structuredContent.id, 'ex-1');
@@ -134,7 +134,7 @@ test('the endpoint serves the store\'s one workspace as the named agent, and the
   assert.equal(closed, 'again', 'a store that names no workspace is closed');
 });
 
-test('on the store, each project is named from the site list: the System for the installation\'s own row, else its stored name', async (t) => {
+test('on the store, each project is named from the asset list: the System for the installation\'s own row, else its stored name', async (t) => {
   let cluster;
   try { cluster = await startTestCluster(); } catch (error) {
     const reason = unavailableReason(error);

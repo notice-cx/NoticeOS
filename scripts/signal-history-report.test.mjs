@@ -1604,7 +1604,7 @@ test('a property whose Bing lane collected nothing gets no coverage file at all'
 
 // The market a site's DataForSEO numbers were asked in is the one its saved
 // settings name, read by the rule the collector asks by.
-test('reads each site’s saved search market from the stored settings, by the collector’s rule', () => {
+test('reads each asset’s saved search market from the stored settings, by the collector’s rule', () => {
   const snapshot = (assets) => new Map([['config/integrations.json', { file: 'config/integrations.json', version: 2, body: { assets } }]]);
   const assets = {
     'meadow.example': { dataforseo: { locationCode: 2826, languageCode: 'en' } },
@@ -1621,7 +1621,7 @@ test('reads each site’s saved search market from the stored settings, by the c
   assert.equal(storedSearchMarket(new Map(), 'meadow.example'), null, 'no stored integrations document');
 });
 
-test('the analysis summary names the site’s own panel market, never an assumed one', async () => {
+test('the analysis summary names the asset’s own panel market, never an assumed one', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-signal-market-'));
   try {
     const input = path.join(root, 'input');
@@ -1635,7 +1635,7 @@ test('the analysis summary names the site’s own panel market, never an assumed
     assert.ok(german.caveats.some((line) => line.startsWith('The tracked SERP panel is a top-20 read in the Germany · German market')));
     assert.ok(german.executiveSnapshot.methodology.some((line) => line.includes('in the Germany · German market')));
     const unset = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output: path.join(root, 'none') });
-    assert.ok(unset.caveats.some((line) => line.includes('top-20 read in the site’s default market')));
+    assert.ok(unset.caveats.some((line) => line.includes('top-20 read in the asset’s default market')));
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -1650,9 +1650,9 @@ test('an archive it cannot read stops the analysis before any output is replaced
     reportDate: '2026-09-20', collectedAt: '2026-09-21T12:15:00.000Z', pages: [],
   };
   const cases = [
-    ['wrong-site', { ...good, asset: 'northwind.example' }, 'Unsupported or wrong-property signal archive'],
-    ['new-version', { ...good, schemaVersion: 2 }, 'Unsupported or wrong-property signal archive'],
-    ['not-an-object', [good], 'Unsupported or wrong-property signal archive'],
+    ['wrong-site', { ...good, asset: 'northwind.example' }, 'Unsupported or wrong-asset signal archive'],
+    ['new-version', { ...good, schemaVersion: 2 }, 'Unsupported or wrong-asset signal archive'],
+    ['not-an-object', [good], 'Unsupported or wrong-asset signal archive'],
     ['unknown-provider', { ...good, integration: 'matomo' }, 'Malformed signal archive'],
     ['unnamed-report', { ...good, report: 7 }, 'Malformed signal archive'],
   ];

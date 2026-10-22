@@ -180,7 +180,7 @@ describe("a saved config/tower.json, read one part at a time", () => {
   });
 
   it("keeps the versions saved with a refused layout that still read, under the default", () => {
-    const good = { savedAt: "2026-09-04T12:00:00.000Z", reason: "Sites only", layout: SITES_ONLY };
+    const good = { savedAt: "2026-09-04T12:00:00.000Z", reason: "Assets only", layout: SITES_ONLY };
     const bad = { savedAt: "2026-09-03T12:00:00.000Z", reason: "Empty", layout: { version: 1, rows: [] } };
     const config = readDashboardConfig({ wall: { layout: "not a layout", history: [good, bad] } });
     expect(config.wall).toEqual({ layout: DEFAULT_WALL_LAYOUT, history: [good] });

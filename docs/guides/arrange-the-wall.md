@@ -7,7 +7,7 @@ description: "Drag, stack, split and resize the TV view's widgets on a scaled co
 
 This page shows how to lay out the TV view the way you want it and save it as a version you can go back to.
 
-The **Wall** is the Tower's TV view, at `/wall`: one screen of tiles, called widgets here, that shows how every site is doing to anyone across the room. See [The Wall](/tower/wall) for what each widget shows.
+The **Wall** is the Tower's TV view, at `/wall`: one screen of tiles, called widgets here, that shows how every asset is doing to anyone across the room. See [The Wall](/tower/wall) for what each widget shows.
 
 ## Open the editor
 
@@ -23,9 +23,9 @@ The editor also opens from **Settings** > **TV dashboard** > **Edit layout**, or
 - **The bar above the TV**: **Add a widget**, **Undo**, **Redo**, **Versions**, then the layout's state (**On the TV** or **Unsaved changes**), **Version note**, **Save** and **Discard**.
 - **The TV**, the whole 1920×1080 screen, scaled to fit your window. Point at a widget to see its toolbar: a grip, its name, **Move** and **Remove**. Select it to keep the toolbar and open its settings.
 - **The side panel**: the selected widget's settings. With nothing selected, it lists the widgets on the TV to pick from. **Add a widget** and **Versions** open in the same place.
-- **Site order**, under the side panel: **Move example.com up** or **down** sets the order the site rows are drawn in, everywhere. The link above the list, **Drag them, and choose where each shows, in Arrange**, opens **Arrange** on the Sites page, where the same order is set by dragging and each site has its switches for Home, the TV and Work this week ([Where each site shows](/tower/sites#where-each-site-shows)).
+- **Asset order**, under the side panel: **Move example.com up** or **down** sets the order the asset rows are drawn in, everywhere. The link above the list, **Drag them, and choose where each shows, in Arrange**, opens **Arrange** on the Portfolio page, where the same order is set by dragging and each asset has its switches for Home, the TV and Work this week ([Where each asset shows](/tower/sites#where-each-asset-shows)).
 
-The widgets are a fixed library: **Top strip**, **The loop**, **Last 24 hours**, **Sites**, **Revenue**, **Work**, **Needs attention**, **Live feed**, **Agents**, **Site health**, **The agents**, **Visitors by channel** and **Next up**. The default layout places the first six. **Agents** ranks each agent and the model it named by tasks closed in the last 7 days, and shows how many tasks the agents hold now. **Site health** shows five dots per site for up, speed, errors, search and code; **The agents** shows what the agents are building, shipped this week and proved; **Visitors by channel** shows every site's visits by channel and the largest funnel drop; **Next up** shows how many decisions wait on you, the first of them and what the agents hold now ([TV dashboard](/tower/wall#what-you-see)). **Site health** and **Visitors by channel** can be narrowed to some sites. You cannot create a new widget, and a widget's settings are the only way to change what it shows. **Sites**, **Last 24 hours**, **Work** and **Needs attention** can each be narrowed to some sites. The **Live feed** shows tasks and other stored activity from all assets that have not been archived, including assets whose **TV** switch is off. **Revenue** counts every site's money. The **TV** switch filters site rows and counts in the other widgets; a site whose switch is off has an empty box in a widget's site list, which cannot be ticked and reads **Off on the TV by its own setting**. On **Work**, a site whose **Work this week** switch is off reads **Off in Work this week by its own setting**. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**, or in the **Top strip**'s settings.
+The widgets are a fixed library: **Top strip**, **The loop**, **Last 24 hours**, **Portfolio**, **Revenue**, **Work**, **Needs attention**, **Live feed**, **Agents**, **Asset health**, **The agents**, **Visitors by channel** and **Next up**. The default layout places the first six. **Agents** ranks each agent and the model it named by tasks closed in the last 7 days, and shows how many tasks the agents hold now. **Asset health** shows five dots per asset for up, speed, errors, search and code; **The agents** shows what the agents are building, shipped this week and proved; **Visitors by channel** shows every asset's visits by channel and the largest funnel drop; **Next up** shows how many decisions wait on you, the first of them and what the agents hold now ([TV dashboard](/tower/wall#what-you-see)). **Asset health** and **Visitors by channel** can be narrowed to some assets. You cannot create a new widget, and a widget's settings are the only way to change what it shows. **Portfolio**, **Last 24 hours**, **Work** and **Needs attention** can each be narrowed to some assets. The **Live feed** shows tasks and other stored activity from all assets that have not been archived, including assets whose **TV** switch is off. **Revenue** counts every asset's money. The **TV** switch filters asset rows and counts in the other widgets; an asset whose switch is off has an empty box in a widget's asset list, which cannot be ticked and reads **Off on the TV by its own setting**. On **Work**, an asset whose **Work this week** switch is off reads **Off in Work this week by its own setting**. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**, or in the **Top strip**'s settings.
 
 ## Start from a view's preset
 
@@ -33,15 +33,15 @@ Each of the three views has a ready-made layout:
 
 | Start from | Layout |
 |---|---|
-| **I run the business** | **Top strip**, then **Next up** across the TV, then **Site health** over **Revenue** on the left, beside **Needs attention** over **The agents** on the right |
-| **I build the product** | **Top strip**, then **Revenue** over **Visitors by channel** on the left, beside **Sites** over **Work** on the right |
+| **I run the business** | **Top strip**, then **Next up** across the TV, then **Asset health** over **Revenue** on the left, beside **Needs attention** over **The agents** on the right |
+| **I build the product** | **Top strip**, then **Revenue** over **Visitors by channel** on the left, beside **Portfolio** over **Work** on the right |
 | **Everything** | the default layout |
 
 1. Select **Add a widget**.
 2. Select **Start from**, beside the drawer's title.
 3. Select a view. The one already on the TV is ticked and cannot be selected.
 
-![The TV layout page in a test installation with one site: Add a widget open beside the copy of the TV, with the Start from menu listing I run the business, I build the product and Everything, Everything ticked.](../images/wall-start-from.webp)
+![The TV layout page in a test installation with one asset: Add a widget open beside the copy of the TV, with the Start from menu listing I run the business, I build the product and Everything, Everything ticked.](../images/wall-start-from.webp)
 
 The whole arrangement on the TV copy is replaced by the preset. It is not on the TV until you select **Save**, and **Undo** puts back the arrangement you had. A version saved this way with no note is named **Started from I run the business**, or the view you chose.
 
@@ -49,7 +49,7 @@ Until any layout is saved, the TV shows the preset of the workspace's default vi
 
 ## Move a widget
 
-Drag it by any part of it. As you drag, a line on the TV and a label beside it, such as **Above Sites**, show where it will go. They appear only where the widget can go:
+Drag it by any part of it. As you drag, a line on the TV and a label beside it, such as **Above Portfolio**, show where it will go. They appear only where the widget can go:
 
 | Drop it on another widget's | Label | What happens |
 |---|---|---|
@@ -78,11 +78,11 @@ A direction that would not move it is greyed out. With a widget focused, **Alt**
 - **By dragging**: point at the gap between two columns, between two widgets stacked in a column, or between two full-width rows, and drag the handle. The size of each shows as you drag, and the handle snaps to a quarter, a third, a half, two thirds and three quarters. The handle stops at conservative minimum sizes; fit warnings also depend on the current content. With the handle focused, the arrow keys move it a step and **Page Up** or **Page Down** jump to the next of those sizes.
 - **In one press**: in the widget's settings, set **Width** (or **Column width** for a stacked widget) to **¼**, **⅓**, **½**, **⅔** or **¾** of its row. Set **Height** to **Fit content** or **Fill the rest**, or for a stacked widget to a third, a half or two thirds of its column.
 
-With **Fit content** a widget is as tall as what it shows, and widgets side by side in one row are as tall as the tallest of them. **Revenue** draws its month chart behind its figures, so at **Fit content** it is as tall as its lines of text, and beside **Needs attention** it is as tall as Needs attention. **Work** at **Fit content** is as tall as its figures and one line per project. Given less height than that, Work shows the projects that fit and counts the rest, such as **+2 more projects**. To give the site rows the most room, set **Revenue** and **Work** to **Fit content** and **Sites** to **Fill the rest**.
+With **Fit content** a widget is as tall as what it shows, and widgets side by side in one row are as tall as the tallest of them. **Revenue** draws its month chart behind its figures, so at **Fit content** it is as tall as its lines of text, and beside **Needs attention** it is as tall as Needs attention. **Work** at **Fit content** is as tall as its figures and one line per project. Given less height than that, Work shows the projects that fit and counts the rest, such as **+2 more projects**. To give the asset rows the most room, set **Revenue** and **Work** to **Fit content** and **Portfolio** to **Fill the rest**.
 
-The default places **Last 24 hours** over **Sites** on the left and **Revenue** over **Work** on the right. **Sites** and **Revenue** use the remaining height in their columns; **Work** fits its project rows, leaving more room for Revenue's month chart.
+The default places **Last 24 hours** over **Portfolio** on the left and **Revenue** over **Work** on the right. **Portfolio** and **Revenue** use the remaining height in their columns; **Work** fits its project rows, leaving more room for Revenue's month chart.
 
-When rendered content clips, the widget shows **Too narrow for Sites** (or **Too short**) over its content. The editor measures the current text and site rows after layout and content changes, so the same size can fit one site and clip eight. Make it bigger, narrow its site selection or move it, and the warning clears when its content fits.
+When rendered content clips, the widget shows **Too narrow for Portfolio** (or **Too short**) over its content. The editor measures the current text and asset rows after layout and content changes, so the same size can fit one asset and clip eight. Make it bigger, narrow its asset selection or move it, and the warning clears when its content fits.
 
 ## Undo and save
 
@@ -101,7 +101,7 @@ If you leave the page with unsaved changes, you are asked to confirm first.
 The Wall has a fixed height and nobody at the TV can scroll, so check that the layout does not grow taller than the screen. The editor checks the TV as you work and shows a caution chip when a layout would not fit, such as **This layout runs 40 px past the TV.**
 
 1. When the chip appears, make a widget's height **Fill the rest**, give a stacked widget a share of its column, narrow a widget, or remove one.
-2. If you run NoticeOS from source, run `pnpm audit:wall-fit` after adding sites or widgets. It measures the live Wall at the TV's size and reports anything that does not fit, including text that overflows its box.
+2. If you run NoticeOS from source, run `pnpm audit:wall-fit` after adding assets or widgets. It measures the live Wall at the TV's size and reports anything that does not fit, including text that overflows its box.
 
 ::: tip
 On a landscape laptop the Wall shows the TV's layout scaled down; on a portrait tablet or a phone the widgets are stacked in one column. The editor sets the layout for the TV, and the other screens are derived from it. On a phone the copy of the TV screen is too small to drag on: select a widget and use its **Move** menu and sizes in the side panel.

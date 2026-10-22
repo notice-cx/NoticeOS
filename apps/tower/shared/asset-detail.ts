@@ -194,12 +194,14 @@ export const OWNER = {
 
 /** How a site's nightly report is authenticated, as its Settings shows it: the
  * site's own bearer token, never shown. */
-export const SITE_TOKEN = "Site token";
+export const SITE_TOKEN = "Asset token";
 
 // ---------------------------------------------------------------------------
 // Header / identity
 // ---------------------------------------------------------------------------
 export interface AssetInfo {
+  /** Absent on older payloads; defaults to website. */
+  assetType?: import("@noticeos/contract/configuration").AssetType;
   id: string;
   displayName: string;
   domain: string | null;

@@ -17,7 +17,7 @@ test('a command is collected once its output has ended, not merely once it exite
   assert.deepEqual(result, { code: 0, stdout: 'early\nlate\n', stderr: '', timedOut: false, error: null });
 });
 
-test('the stand-in the call-site tests use writes after it exits, and is read in full', async () => {
+test('the stand-in the call-asset tests use writes after it exits, and is read in full', async () => {
   const late = lateWritingCommand('late', { early: 'early\n', late: 'late\n', code: 3 });
   try {
     assert.deepEqual(await runCommand(late.bin, []), { code: 3, stdout: 'early\nlate\n', stderr: '', timedOut: false, error: null });

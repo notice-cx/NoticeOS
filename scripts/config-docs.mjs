@@ -114,7 +114,7 @@ export function renderDocsPage(all = blocks()) {
     '',
     '# Configuration',
     '',
-    'Settings live in the store once an installation is seeded; the `config/*.json` files in the repository are the generic defaults a new installation starts from, and each has a README beside it that explains why the file exists. What the Tower may edit in each file is declared once, in `scripts/config-registers.mts`, and this page is generated from that declaration. Each editable entry is either a list of rows (a site\'s data sources, a recurring cost) or a single value.',
+    'Settings live in the store once an installation is seeded; the `config/*.json` files in the repository are the generic defaults a new installation starts from, and each has a README beside it that explains why the file exists. What the Tower may edit in each file is declared once, in `scripts/config-registers.mts`, and this page is generated from that declaration. Each editable entry is either a list of rows (an asset\'s data sources, a recurring cost) or a single value.',
     '',
   ];
   for (const [owner, block] of all) {

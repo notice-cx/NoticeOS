@@ -42,7 +42,7 @@ import { READ_MODEL_TOOLS } from "../../../scripts/read-model-tools.mjs";
  * product's name, never an asset's id. */
 const SERVER_INFO = { name: "noticeos-tower", version: "1.0.0" };
 const INSTRUCTIONS =
-  "Read models for the properties under management. Start with list_properties.";
+  "Read models for the assets under management. Start with list_properties.";
 /** The stored-read classifier's own bound (scripts/workspace-operations.mts). */
 const BODY_BYTES = 256 * 1024;
 
@@ -135,7 +135,7 @@ const summaryOf = (history: Parameters<typeof summarizePropertyHistory>[0] | und
 function requireAsset(args: Record<string, unknown>): string {
   const asset = args.asset;
   if (typeof asset !== "string" || asset.length === 0) {
-    throw new McpToolError("`asset` is required and must be a property id");
+    throw new McpToolError("`asset` is required and must be an asset id");
   }
   return asset;
 }
@@ -152,6 +152,7 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
       ledgerRecordedAt: wall.ledgerRecordedAt,
       properties: wall.assets.map((card) => ({
         asset: card.id,
+        assetType: card.assetType,
         displayName: card.displayName,
         status: card.status,
         senseOnly: card.senseOnly,
@@ -187,11 +188,12 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
       ga4EventParams: deps.ga4EventParams,
       osTimeZone: deps.osTimeZone,
       noNightlyReport: deps.noNightlyReport,
+      dashboard: deps.dashboard,
       schedules: deps.schedules,
     });
     if (payload === null) {
       throw new McpToolError(
-        `no property with id ${asset} — call list_properties for the ids in use`,
+        `no asset with id ${asset} — call list_properties for the ids in use`,
       );
     }
     return payload;
@@ -202,7 +204,7 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
     const months = wholeNumber(args, "months", 0, PROPERTY_HISTORY_MAX_MONTHS, 12);
     const histories = await loadPropertyHistories(store, { now: deps.now, days, months, osTimeZone: deps.osTimeZone, ...(asset ? { asset } : {}) });
     if (asset !== undefined && !histories.has(asset)) {
-      throw new McpToolError(`no property with id ${asset} — call list_properties for the ids in use`);
+      throw new McpToolError(`no asset with id ${asset} — call list_properties for the ids in use`);
     }
     return { generatedAt: deps.now.toISOString(), days, months, properties: [...histories.values()] };
   },

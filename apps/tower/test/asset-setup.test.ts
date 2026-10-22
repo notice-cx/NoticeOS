@@ -47,7 +47,7 @@ function item(list: SetupChecklist, id: SetupChecklistItem["id"]): SetupChecklis
 }
 
 describe("assetSetupChecklist — when it exists at all", () => {
-  it("shows incomplete checks even after collection has made the site live", () => {
+  it("shows incomplete checks even after collection has made the asset live", () => {
     expect(assetSetupChecklist(facts({ status: "live" }))?.remaining).toEqual(["Data sources", "28 days of reports"]);
   });
 
@@ -158,7 +158,7 @@ describe("item 2 — data sources (read from each source's one status)", () => {
     }))).toBeNull();
   });
 
-  it("does not require a connection for a site declared as sending no report", () => {
+  it("does not require a connection for an asset declared as sending no report", () => {
     expect(assetSetupChecklist(facts({
       noNightlyReport: true,
       latestReportAt: null,
@@ -198,7 +198,7 @@ describe("item 3 — the first nightly report", () => {
 
   // A site that has never sent a report expects none, so the report is
   // offered, never owed.
-  it("is an optional offer when none has, linking to the site's Data collection card", () => {
+  it("is an optional offer when none has, linking to the asset's Data collection card", () => {
     const report = item(
       checklist({ id: "new.example.com", latestReportAt: null, firstReportAt: null }),
       "first-report",
@@ -271,7 +271,7 @@ describe("item 4 — measured 28-day report coverage", () => {
     },
   );
 
-  it("is not listed for a site that has never reported, however long ago it was added", () => {
+  it("is not listed for an asset that has never reported, however long ago it was added", () => {
     const list = checklist({ firstReportAt: null, latestReportAt: null, reportDays: 0 });
     expect(list.items.map((entry) => entry.id)).not.toContain("baseline");
   });
@@ -303,7 +303,7 @@ describe("the fraction and the sentence the ring carries", () => {
     ]);
   });
 
-  it("completes a new site's setup without any nightly report", () => {
+  it("completes a new asset's setup without any nightly report", () => {
     const list = assetSetupChecklist(facts({
       id: "new.example.com",
       displayName: "New Example",
@@ -386,7 +386,7 @@ describe("an asset declared as sending no nightly report", () => {
     expect(list.total).toBe(4);
   });
 
-  it("offers no report step to a declared site that never sent one", () => {
+  it("offers no report step to a declared asset that never sent one", () => {
     const list = checklist({ noNightlyReport: true, firstReportAt: null, reportDays: 0, latestReportAt: null });
     expect(list.items.map((entry) => entry.state)).not.toContain("optional");
   });

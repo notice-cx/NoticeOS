@@ -199,7 +199,7 @@ export async function runBingSignals(
     if (!siteUrl) {
       const error = new SignalError(
         'bwt_site_unverified',
-        `Bing Webmaster does not list a verified site for ${candidate.domain}.`,
+        `Bing Webmaster does not list a verified asset for ${candidate.domain}.`,
       );
       await recordSignalFailure(
         env,

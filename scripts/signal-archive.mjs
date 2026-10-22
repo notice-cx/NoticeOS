@@ -96,7 +96,7 @@ export const PROVENANCE_COLUMNS = ['asset', 'report_date', 'collected_at', 'data
 export function parseArchive(text, { asset, source }) {
   const archive = record(JSON.parse(text));
   if (!archive || archive.schemaVersion !== 1 || archive.asset !== asset) {
-    throw new Error(`Unsupported or wrong-property signal archive: ${source}`);
+    throw new Error(`Unsupported or wrong-asset signal archive: ${source}`);
   }
   if (
     !FLATTENED_INTEGRATIONS.includes(archive.integration) ||

@@ -64,7 +64,7 @@ On a development stack, `pnpm os:dev` runs the app from this checkout's live sou
 
 ## In the Tower
 
-- [System health](/tower/health) (`/health`) shows the service's own report: data freshness per site, connection states and, under **Background operations**, every scheduled job with its latest run. See [Scheduled jobs](/operate/scheduled-jobs).
+- [System health](/tower/health) (`/health`) shows the service's own report: data freshness per asset, connection states and, under **Background operations**, every scheduled job with its latest run. See [Scheduled jobs](/operate/scheduled-jobs).
 - **Workflows** (`/workflows`) lists the operator automations and their history.
 - **Integrations** (`/integrations`) shows each provider connection and its last test.
 - **Settings** > **Installation** (`/settings/installation`) shows the folder, the ports, the version, whether a newer one is published, the last backup and the status command to copy. It is read-only; the commands change the installation.

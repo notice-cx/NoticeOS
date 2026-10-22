@@ -71,7 +71,7 @@ Whether evidence about collection could be recorded. Collection can succeed whil
 A kind of provider evidence with a defined subject, reporting period and expected coverage. Two families from one provider can have different cadences and freshness.
 
 **Signal panel**:
-A site's assembled observations and analysis for a review. Its completeness depends on the evidence required for that review, not on every provider reporting the same date.
+An asset's assembled observations and analysis for a review. Its completeness depends on the evidence required for that review, not on every provider reporting the same date.
 
 **Panel version**:
 An immutable published edition of a signal panel, identifying the evidence and analysis that produced it. A review keeps its version even after a newer edition is published.

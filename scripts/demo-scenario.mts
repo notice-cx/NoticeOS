@@ -125,7 +125,7 @@ export const DEMO_BING_SHARE = 0.09;
  * Bing site. Signal runs and the saved register use the same references. */
 export function demoProperties(asset: Pick<DemoAsset, 'id' | 'prefix'>): { ga4: string; gsc: string; bing: string | null } {
   const index = DEMO_ASSETS.findIndex(entry => entry.prefix === asset.prefix);
-  if (index < 0) throw new Error('Demo properties need a declared site.');
+  if (index < 0) throw new Error('Demo assets need a declared asset.');
   return { ga4: String(381204401 + index), gsc: `sc-domain:${asset.id}`, bing: BING_SITES.includes(asset.prefix) ? `https://${asset.id}/` : null };
 }
 
@@ -136,7 +136,7 @@ const AD_SEASON = [0.78, 0.84, 0.9, 0.94, 0.97, 0.98, 0.95, 0.97, 1.02, 1.12, 1.
 /** One day's synthetic ad estimate in cents. Ad income follows visits; the
  * subscription and licensing income above never does. */
 export function demoAdRevenueMinor(seed: string, asset: Pick<DemoAsset, 'id' | 'adRpm'>, date: string, sessions: number): number {
-  if (!asset.adRpm || !Number.isSafeInteger(sessions) || sessions < 0) throw new Error('Ad revenue needs an ad-supported site and its sessions.');
+  if (!asset.adRpm || !Number.isSafeInteger(sessions) || sessions < 0) throw new Error('Ad revenue needs an ad-supported asset and its sessions.');
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const noise = 0.94 + draw(seed, `${asset.id}/${date}/rpm`) * 0.12;
   return Math.round(sessions * asset.adRpm * AD_SEASON[Number(date.slice(5, 7)) - 1]! * (weekday === 0 || weekday === 6 ? 0.93 : 1.02) * noise / 1000);
@@ -157,7 +157,7 @@ export function demoSubscriptionAccount(asset: Pick<DemoAsset, 'prefix'>): strin
 /** One day's synthetic subscription income in cents: the month's income spread
  * over its days with a little daily noise, independent of traffic. */
 export function demoSubscriptionMinor(seed: string, asset: Pick<DemoAsset, 'id' | 'revenue'>, date: string): number {
-  if (asset.revenue === null) throw new Error('Subscription income needs a site that earns it.');
+  if (asset.revenue === null) throw new Error('Subscription income needs an asset that earns it.');
   const monthDays = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).getUTCDate();
   return Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2));
 }
@@ -463,7 +463,7 @@ export function demoCodebaseTimes(seed: string, asset: Pick<DemoAsset, 'id'>, da
  * seed stores it or the simulator posts it later. */
 export function demoCodebaseEnvelope(seed: string, asset: Pick<DemoAsset, 'id' | 'prefix'> & { domain?: string | null }, referenceDate: string, date: string): DemoCodebaseEnvelope {
   const profile = CODEBASE_PROFILES[asset.prefix];
-  if (!profile) throw new Error('Only a reporting demo site sends a codebase report.');
+  if (!profile) throw new Error('Only a reporting demo asset sends a codebase report.');
   const age = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${referenceDate}T00:00:00Z`)) / DAY_MS);
   const noise = (key: string) => draw(seed, `${asset.id}/codebase/${date}/${key}`);
   const stable = (key: string) => draw(seed, `${asset.id}/codebase/${key}`);

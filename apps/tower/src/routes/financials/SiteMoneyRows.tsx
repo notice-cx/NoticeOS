@@ -68,10 +68,10 @@ export function SiteMoneyRows({
 
   return (
     <section aria-labelledby={id} data-money-sites="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
-      <SectionLabel id={id} title="By site" caption={formatPeriodMonthYear(period)} className="px-5 pt-4 pb-2" />
+      <SectionLabel id={id} title="By asset" caption={formatPeriodMonthYear(period)} className="px-5 pt-4 pb-2" />
       <div role="table" aria-labelledby={id} className="flex flex-col pb-1">
         <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", COLUMNS)}>
-          <span role="columnheader">Site</span>
+          <span role="columnheader">Asset</span>
           <span role="columnheader" className="hidden @3xl:block">Net by month</span>
           <span role="columnheader" className="text-end">
             Revenue<span className="@lg:hidden"> · net</span>
@@ -83,11 +83,11 @@ export function SiteMoneyRows({
         {rows.map((row, index) => (
           <SiteRow key={row.property.asset} row={row} index={index} period={period} openPeriod={openPeriod} />
         ))}
-        {subtotal ? <SummaryRow label="Sites, direct" figure={direct} mark="direct" strong /> : null}
+        {subtotal ? <SummaryRow label="Assets, direct" figure={direct} mark="direct" strong /> : null}
         {overheadExists ? (
           <SummaryRow
             label="Overhead"
-            caption="shared, allocated to no site"
+            caption="shared, allocated to no asset"
             figure={overhead}
             mark="overhead"
             cost

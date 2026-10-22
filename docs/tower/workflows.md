@@ -1,11 +1,11 @@
 ---
 title: "Workflows"
-description: "What NoticeOS runs on its own for your sites and your work, when each one runs next, and how its runs went."
+description: "What NoticeOS runs on its own for your assets and your work, when each one runs next, and how its runs went."
 ---
 
 # Workflows
 
-A **workflow** is something NoticeOS does on its own, on a schedule or when an event occurs, for your sites and your work: reading outcome checks, updating the tasks that track them, filing review tasks, sending notifications. Each has a purpose, a trigger and a history of runs. The **Workflows** page lists them; the jobs that keep NoticeOS itself running, such as collection and backups, are on **System health** > **Background operations** instead.
+A **workflow** is something NoticeOS does on its own, on a schedule or when an event occurs, for your assets and your work: reading outcome checks, updating the tasks that track them, filing review tasks, sending notifications. Each has a purpose, a trigger and a history of runs. The **Workflows** page lists them; the jobs that keep NoticeOS itself running, such as collection and backups, are on **System health** > **Background operations** instead.
 
 The Workflows page shows whether anything NoticeOS runs on its own is failing, and when each one runs next.
 

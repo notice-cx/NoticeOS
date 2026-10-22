@@ -176,7 +176,7 @@ describe("what a project's cards say it is worth", () => {
 });
 
 describe("the work in no project", () => {
-  it("counts a site's open tasks with no parent, or a parent that is no project", () => {
+  it("counts an asset's open tasks with no parent, or a parent that is no project", () => {
     const [site] = projectModel({
       projects: [board([
         task({ id: "md-1" }),
@@ -220,7 +220,7 @@ describe("the three orders", () => {
     expect(order(sortProjects(sites[0]!.projects, "az"))).toEqual(["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Zebra"]);
   });
 
-  it("orders sites by their first project, their open work or their name", () => {
+  it("orders assets by their first project, their open work or their name", () => {
     const quiet = projectModel({ projects: [board([task({ id: "q-1", parent: "q", ready: true })], { asset: "acorn.example", name: "Acorn", epicNames: new Map([["q", "Quiet"]]) })], snapshots: [], now: NOW });
     const both = [...quiet, ...sites];
     expect(sortSites(both, "attention").map((site) => site.site.name)).toEqual(["Meadow", "Acorn"]);

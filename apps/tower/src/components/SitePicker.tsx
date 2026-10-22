@@ -229,7 +229,7 @@ function SitePickerSession({
         ) : (
           <p className="flex items-center gap-2 text-sm text-muted-foreground" data-sites-state="loading">
             <Loader2 className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
-            Finding sites
+            Finding assets
           </p>
         )}
         <Button type="button" variant="outline" className="mt-auto w-full" onClick={onClose}>
@@ -294,9 +294,9 @@ function SitePickerSession({
   return (
     <div className="flex flex-1 flex-col gap-4" data-site-picker={provider.id} data-sites-phase="choosing">
       {plan.rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-sites-state="empty">No sites yet</p>
+        <p className="text-sm text-muted-foreground" data-sites-state="empty">No assets yet</p>
       ) : (
-        <ul aria-label="Sites" className="overflow-hidden rounded-xl border border-border">
+        <ul aria-label="Assets" className="overflow-hidden rounded-xl border border-border">
           {plan.rows.map((row) => (
             <ChoiceRow
               key={row.asset.id}
@@ -332,7 +332,7 @@ function SitePickerSession({
       {others.length > 0 ? (
         <section aria-labelledby={`${provider.id}-other-sites`} className="flex flex-col gap-2" data-other-sites>
           <h3 id={`${provider.id}-other-sites`} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            No matching site · <span className="tabular-nums">{others.length}</span>
+            No matching asset · <span className="tabular-nums">{others.length}</span>
           </h3>
           <ul className="overflow-hidden rounded-xl border border-border">
             {others.map((site) => (
@@ -461,13 +461,13 @@ function ChoiceRow({
       {choosable.map((lane) => (
         <select
           key={lane.lane}
-          aria-label={`${LANE_PICK[lane.lane]?.pick ?? "Site"} for ${row.asset.label}`}
+          aria-label={`${LANE_PICK[lane.lane]?.pick ?? "Asset"} for ${row.asset.label}`}
           value={selection.picks[row.asset.id]?.[lane.lane] ?? ""}
           onChange={(event) => onPick(lane, event.target.value)}
           className={cn(fieldClass, "h-11 max-w-full basis-full px-2 text-sm sm:h-9 sm:basis-auto")}
           data-site-pick={lane.lane}
         >
-          <option value="">{LANE_PICK[lane.lane]?.pick ?? "Choose site"}</option>
+          <option value="">{LANE_PICK[lane.lane]?.pick ?? "Choose asset"}</option>
           {lane.choices.map((site) => (
             <option key={site.ref} value={site.ref}>
               {site.label}

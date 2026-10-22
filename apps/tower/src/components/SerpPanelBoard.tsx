@@ -308,7 +308,7 @@ export function PanelOverviews({ panel, className }: { panel: SerpPanelSnapshot;
     <FunnelBars
       ariaLabel={board.aioKnown === 0
         ? "AI Overviews: not checked"
-        : `AI Overviews: shown on ${formatInt(board.aioPresent)} of ${formatInt(board.aioKnown)} checked terms, citing this site on ${formatInt(board.aioCitesUs)}`}
+        : `AI Overviews: shown on ${formatInt(board.aioPresent)} of ${formatInt(board.aioKnown)} checked terms, citing this asset on ${formatInt(board.aioCitesUs)}`}
       className={className}
       max={board.aioKnown}
       steps={[

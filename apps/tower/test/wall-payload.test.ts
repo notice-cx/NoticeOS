@@ -892,7 +892,7 @@ describe("buildWallPayload — populated store", () => {
 
   // A site expects a nightly report once it has sent one. One that never has
   // is outside the fraction.
-  it("SYSTEM: a site that never sent a report is outside the fraction, so every sender current is all fresh", async () => {
+  it("SYSTEM: an asset that never sent a report is outside the fraction, so every sender current is all fresh", async () => {
     await seedReportsAndAlerts(ctx);
     await insertPulse(ctx, "northwind.example", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString(), {
       items: { last24h: 520, avg7d: 45, total: 13000 },
@@ -977,7 +977,7 @@ describe("buildWallPayload — populated store", () => {
 
   // Every sender keeps its place in the fraction (a stopped one is stale), and
   // a site declared as sending none stays No report.
-  it("SYSTEM + ASSETS: declaring the silent sites keeps every sender in the fraction", async () => {
+  it("SYSTEM + ASSETS: declaring the silent assets keeps every sender in the fraction", async () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, { ...OPTIONS, noNightlyReport: ["pebble.example"] });
     expect(p.system.ingest).toEqual({ fresh: 2, stale: 1, notExpected: 1, expected: 3 });
@@ -1682,7 +1682,7 @@ describe("buildWallPayload — populated store", () => {
     }]);
   });
 
-  it("COUNTERS: an entry neither lane has stays null — the site skips it, never zero", async () => {
+  it("COUNTERS: an entry neither lane has stays null — the asset skips it, never zero", async () => {
 
     await seedReportsAndAlerts(ctx);
     await insertMealsReadings(ctx);
@@ -1703,7 +1703,7 @@ describe("buildWallPayload — populated store", () => {
     ]);
   });
 
-  it("COUNTERS: none for an asset that declares none (the site grows no row)", async () => {
+  it("COUNTERS: none for an asset that declares none (the asset grows no row)", async () => {
     expect((await buildAssetDetailPayload(ctx.call, "pebble.example", DETAIL_DEPS))!.counters).toBeNull();
     const stubbed = await buildAssetDetailPayload(ctx.call, "northwind.example", {
       ...DETAIL_DEPS,
@@ -2015,7 +2015,7 @@ describe("buildWallPayload — populated store", () => {
     expect(nom.correlatedChanges).toEqual([]);
   });
 
-  it("ATTENTION: reads each site's changes in the window through its (site, time) index", async () => {
+  it("ATTENTION: reads each asset's changes in the window through its (asset, time) index", async () => {
     const plan = await (ctx.call).read(async (tx) => {
       // An empty table is cheapest to scan; forbidding that shows the plan the
       // index offers once changes pile up.
@@ -2357,7 +2357,7 @@ describe("buildWallPayload — the card's work slice", () => {
     expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffBeads).toBeUndefined();
   });
 
-  it("carries each site's work from the newest snapshot, and none for the OS", async () => {
+  it("carries each asset's work from the newest snapshot, and none for the OS", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject(),
       workProject({
@@ -2383,7 +2383,7 @@ describe("buildWallPayload — the card's work slice", () => {
     });
   });
 
-  it("carries each site's week on the installation's clock, done from the snapshot's closes and the states from the history, and none where it holds neither", async () => {
+  it("carries each asset's week on the installation's clock, done from the snapshot's closes and the states from the history, and none where it holds neither", async () => {
     const closes = { since: "2026-06-20", items: [
       { at: "2026-06-23T10:00:00.000Z" },
       // Sunday last week, after this moment of it.
@@ -2580,7 +2580,7 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 });
 
-describe("buildWallPayload — the card's site icons", () => {
+describe("buildWallPayload — the card's asset icons", () => {
   let ctx: TestStore;
   beforeEach(async () => {
     ctx = await createTestStore();
@@ -2597,7 +2597,7 @@ describe("buildWallPayload — the card's site icons", () => {
     );
   }
 
-  it("carries each site's newest read that reached its page, and null for a site never read", async () => {
+  it("carries each asset's newest read that reached its page, and null for an asset never read", async () => {
     await storeIconRead("meadow.example", "2026-07-03T04:00:00.000Z", "read", "https://meadow.example/old.png", null);
     await storeIconRead("meadow.example", "2026-07-04T04:00:00.000Z", "read",
       "https://meadow.example/brand/icon-32.png", "https://meadow.example/brand/icon-32-dark.png");
@@ -2629,7 +2629,7 @@ describe("buildWallPayload — the card's site icons", () => {
     expect(cards.get("pebble.example")!.icons).toBeNull();
   });
 
-  it("names a site no read has reached by the time of its unreachable read", async () => {
+  it("names an asset no read has reached by the time of its unreachable read", async () => {
     await storeIconRead("pebble.example", "2026-07-05T04:00:00.000Z", "unreachable", null, null);
 
     const cards = new Map((await buildWallPayload(ctx.call, OPTIONS)).assets.map((card) => [card.id, card]));
@@ -2644,7 +2644,7 @@ describe("buildWallPayload — the card's site icons", () => {
     });
   });
 
-  it("draws an address set on the site's Settings tab in place of the one read, on every card", async () => {
+  it("draws an address set on the asset's Settings tab in place of the one read, on every card", async () => {
     await storeIconRead("meadow.example", "2026-07-04T04:00:00.000Z", "read",
       "https://meadow.example/brand/icon-32.png", "https://meadow.example/brand/icon-32-dark.png");
     const SET_DARK = "https://cdn.example.com/meadow-white.svg";
@@ -3257,7 +3257,7 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
 });
 
 describe("the OS's own row is called System on the Wall, whatever it stores", () => {
-  it("names the OS's alerts and parked alerts System, and every site by its own name", async () => {
+  it("names the OS's alerts and parked alerts System, and every asset by its own name", async () => {
     const ctx = await createTestStore();
     await insertAsset(ctx, "os-row", "ReindexOS", "live", 0, 1);
     await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
@@ -3754,7 +3754,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
     ],
   };
 
-  it("carries each site's newest reading as speed, errors, the largest funnel drop, channels and findings", async () => {
+  it("carries each asset's newest reading as speed, errors, the largest funnel drop, channels and findings", async () => {
     await writeInsightSnapshots(ctx.call, [
       insight("meadow-old", "meadow.example", "2026-06-28T04:00:00.000Z", {
         product: { ...PRODUCT, observedAt: "2026-06-27" },
@@ -3867,7 +3867,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
     expect("findings" in meadow).toBe(false);
   });
 
-  it("compares each site's newest code report with the one about 30 days before it", async () => {
+  it("compares each asset's newest code report with the one about 30 days before it", async () => {
     await storeCodebaseReports(ctx.call, [
       ...weeklyStoredReports("meadow.example", "2026-07-04"),
       // One report, months old, its line count unreadable.
@@ -3898,7 +3898,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
     expect(cards.get("pebble.example")!.codebase).toBeNull();
   });
 
-  it("counts each site's open watches and names its newest verdict", async () => {
+  it("counts each asset's open watches and names its newest verdict", async () => {
     const window = (id: string, asset: string, registeredAt: string, closed?: { outcome: string; at: string }) =>
       storeWatchWindow(ctx.call, {
         id, asset, ref: `deploy-${id}`, registeredAt, baselineStart: "2026-05-01",
@@ -3927,7 +3927,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
     expect(cards.get("pebble.example")!.watches).toBeNull();
   });
 
-  it("reads each source once for every site", async () => {
+  it("reads each source once for every asset", async () => {
     await writeInsightSnapshots(ctx.call, [
       insight("meadow-1", "meadow.example", "2026-07-05T04:00:00.000Z", { product: PRODUCT }),
       insight("northwind-1", "northwind.example", "2026-07-05T04:00:00.000Z", { product: PRODUCT }),

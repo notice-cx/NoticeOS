@@ -110,7 +110,7 @@ test('export uses the immutable commit, includes required tests and excludes pri
     fs.readFileSync(path.join(result.directory, 'public-source.json')));
 });
 
-test('a listed folder ships every file under it, the site config included, and nothing private', t => {
+test('a listed folder ships every file under it, the asset config included, and nothing private', t => {
   const f = fixture(t);
   for (const file of ['docs/guides/first.md', 'docs/.vitepress/config.mts', 'docs/.vitepress/theme/index.ts']) f.write(file);
   f.write('docs/.vitepress/.env', 'private fixture\n');

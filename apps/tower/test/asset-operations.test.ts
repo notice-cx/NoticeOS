@@ -29,7 +29,7 @@ describe('asset operation confirmation and recovery', () => {
 
   // One site per domain: the store names the site that holds it, whose id can
   // differ from the one just typed (an imported site).
-  it('offers the site the store names as holding the domain, not the id just typed', async () => {
+  it('offers the asset the store names as holding the domain, not the id just typed', async () => {
     const writes = ports();
     writes.createAsset.mockRejectedValueOnce(new AssetExistsError(409, 'archived-site', 'retired'))
       .mockRejectedValueOnce(new ApiError('exists', 409, 'asset_exists'));

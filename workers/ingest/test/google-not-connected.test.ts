@@ -74,7 +74,7 @@ describe('Google not connected at all', () => {
     expect(asked.some((url) => url.includes('googleapis.com'))).toBe(false);
   });
 
-  it('asks Google nothing and records nothing for a site added before Google is connected', async () => {
+  it('asks Google nothing and records nothing for an asset added before Google is connected', async () => {
     refuseOutbound();
 
     const live = await runGoogleSignals(noGoogle(), { nowMs: NOW });

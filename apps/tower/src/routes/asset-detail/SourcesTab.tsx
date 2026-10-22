@@ -262,7 +262,7 @@ function IntegrationsSection({
       <ListPanel
         title="Data sources"
         limit={7}
-        empty="No data source applies to this site yet."
+        empty="No data source applies to this asset yet."
         // Every row carries its own Connect; this is the way to all of them.
         action={{ label: "All integrations", to: "/integrations" }}
       >
@@ -509,7 +509,7 @@ function PulseMetricsSection({
     >
       {metrics.length === 0 ? (
         <span className="text-xs text-muted-foreground">
-          Nothing yet — metrics appear with this site's first nightly report.
+          Nothing yet — metrics appear with this asset's first nightly report.
         </span>
       ) : (
         // `stacked`: a metric row without its 30-day trend is a number with no
@@ -808,7 +808,7 @@ function SiteHealthSection({
     ? HYGIENE_STATE[hygiene.robots.latest.status]
     : null;
   return (
-    <Panel title="Site health" count={`last ${hygiene.windowDays} days`}>
+    <Panel title="Asset health" count={`last ${hygiene.windowDays} days`}>
       <div className="grid gap-3.5 sm:grid-cols-3">
         <HygieneSeries
           history={hygiene.htmlDepth}

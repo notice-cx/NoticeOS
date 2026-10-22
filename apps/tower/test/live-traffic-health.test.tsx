@@ -8,7 +8,7 @@ const NOW = Date.parse(AT);
 const good = (asset = 'plume.example'): Extract<Ga4RealtimeAsset, { status: 'success' }> => ({ asset, status: 'success', activeUsers5m: 0, activeUsers30m: 0, hourlyActiveUsers: [], observedAt: AT, timeZone: 'America/Los_Angeles', errorCode: null });
 const failed = (asset = 'plume.example', errorCode = 'ga4_realtime_http_429'): Extract<Ga4RealtimeAsset, { status: 'error' }> => ({ asset, status: 'error', activeUsers5m: null, activeUsers30m: null, hourlyActiveUsers: null, observedAt: AT, errorCode });
 
-describe("a site row's live-traffic issue", () => {
+describe("an asset row's live-traffic issue", () => {
   it('names a fresh reading as no issue at all, a fresh observed zero included', () => {
     expect(liveTrafficCardIssue(good(), false, NOW)).toBeNull();
   });

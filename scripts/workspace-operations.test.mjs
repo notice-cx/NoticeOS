@@ -186,7 +186,7 @@ test('mutations and execution use fixed receiver-specific catalog edges', async 
   assert.equal((await towerOperation(request('/api/assets/example.com/decisions', 'DELETE', { kind: 'query', key: 'fixture' }))).action, 'findings.write');
 });
 
-test('Read again names its one site by its path, with an empty body and nothing else', async () => {
+test('Read again names its one asset by its path, with an empty body and nothing else', async () => {
   const path = '/api/assets/example.com/icons';
   assert.deepEqual(siteIconsReadRequest(request(path, 'POST', {})), { asset: 'example.com' });
   assert.deepEqual(await siteIconsReadInput(request(path, 'POST', {})), { asset: 'example.com' });

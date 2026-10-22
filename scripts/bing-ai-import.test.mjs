@@ -13,7 +13,7 @@ const OVERVIEW = 'meadow.example_AIPerformanceOverviewStats_8_4_2026.csv';
 const QUERIES = 'meadow.example_AISearchQueriesReport_8_4_2026.csv';
 const PAGES = 'meadow.example_AIPageStatsReport_8_4_2026.csv';
 
-test('reads the property, the export and the date off Bing’s filename', () => {
+test('reads the asset, the export and the date off Bing’s filename', () => {
   assert.deepEqual(describeExportFile(OVERVIEW), {
     asset: 'meadow.example',
     exportName: 'AIPerformanceOverviewStats',
@@ -77,7 +77,7 @@ test('an unreadable filename is refused with the flags that fix it', () => {
   assert.throws(
     () => resolveImport('/tmp/export (1).csv', { asset: null, exportDate: null }),
     (error) => {
-      assert.match(error.message, /--asset <property id> and --export-date <YYYY-MM-DD>/);
+      assert.match(error.message, /--asset <asset id> and --export-date <YYYY-MM-DD>/);
       assert.match(error.message, /export \(1\)\.csv/);
       return true;
     },

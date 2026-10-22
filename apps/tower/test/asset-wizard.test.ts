@@ -105,7 +105,7 @@ describe("the name is read off the domain, never typed", () => {
   });
 });
 
-describe("a site's draft is the wizard's defaults plus the screen's answers", () => {
+describe("an asset's draft is the wizard's defaults plus the screen's answers", () => {
   it("changes nothing but the domain, the name and, when asked, the starting stage", () => {
     const draft = siteDraft({ domain: "journey.example", displayName: "Journey Example", prelaunch: false });
     expect(draft).toEqual({ ...emptyDraft(), domain: "journey.example", displayName: "Journey Example" });
@@ -335,7 +335,7 @@ describe("the writes Create will make", () => {
 
   // A site added in one screen is composed by the same `planWrites` from the
   // wizard's own defaults.
-  it("writes for a one-screen site exactly what the wizard wrote from its defaults", () => {
+  it("writes for a one-screen asset exactly what the wizard wrote from its defaults", () => {
     const oneScreen = planWrites(
       siteDraft({ domain: "journey.example", displayName: "Journey Example", prelaunch: false }),
       CATALOG,
@@ -360,7 +360,7 @@ describe("the writes Create will make", () => {
     expect(() => validateSchemaAndSafety(buildChangeset(oneScreen.ops, { slug: oneScreen.slug, createdAt: AT.toISOString() }))).not.toThrow();
   });
 
-  it("starts a site that has not launched in pre-launch, and changes nothing else", () => {
+  it("starts an asset that has not launched in pre-launch, and changes nothing else", () => {
     const launched = planWrites(siteDraft({ domain: "journey.example", displayName: "J", prelaunch: false }), CATALOG, ENTITIES, AT);
     const waiting = planWrites(siteDraft({ domain: "journey.example", displayName: "J", prelaunch: true }), CATALOG, ENTITIES, AT);
     expect(waiting.row.status).toBe("pre-launch");
@@ -377,5 +377,36 @@ describe("the writes Create will make", () => {
     expect(plan.ops).toContainEqual(countersEntryOp("meadow.example", [{ metric: "signups", label: "Accounts" }]));
     expect(plan.ops).toContainEqual(pullEntryOp("meadow.example", "https://northwind.example/api/admin/overview", "envelope"));
     expect(countersEntryOp("meadow.example", [{ metric: " ", label: "" }])).toBeNull();
+  });
+});
+
+
+describe("asset type setup", () => {
+  it("uses website by default and keeps all existing source setup available", () => {
+    const draft = siteDraft({ domain: "app.example", displayName: "Example", prelaunch: false });
+    expect(draft.assetType).toBe("website");
+    const website = planWrites(draft, CATALOG, ENTITIES, AT);
+    for (const assetType of ["web-app", "mobile-app"] as const) {
+      const plan = planWrites({ ...draft, assetType }, CATALOG, ENTITIES, AT);
+      expect(plan.ops.filter((op) => op.file !== "config/tower.json")).toEqual(website.ops);
+      expect(plan.ops.find((op) => op.file === "config/tower.json")).toEqual({
+        kind: "file-json-insert", file: "config/tower.json", pointer: "/sites",
+        value: { "app.example": { assetType } },
+      });
+      expect(() => validateSchemaAndSafety(buildChangeset(plan.ops, { slug: plan.slug, createdAt: AT.toISOString() }))).not.toThrow();
+    }
+  });
+
+  it("preserves existing metadata and guards changing the saved type", () => {
+    const draft = siteDraft({ domain: "app.example", displayName: "Example", prelaunch: false, assetType: "mobile-app" });
+    const display = { "app.example": { assetType: "web-app" as const, tv: false, lightIcon: "https://example.com/icon.svg" } };
+    const plan = planWrites(draft, CATALOG, ENTITIES, AT, display);
+    expect(plan.ops.find((op) => op.file === "config/tower.json")).toEqual({
+      kind: "file-json-set", file: "config/tower.json", pointer: "/sites/app.example/assetType",
+      expect: "web-app", value: "mobile-app",
+    });
+    const website = planWrites({ ...draft, assetType: "website" }, CATALOG, ENTITIES, AT, display);
+    expect(website.ops.find((op) => op.file === "config/tower.json")).toMatchObject({ expect: "web-app", value: "website" });
+    expect(display["app.example"].tv).toBe(false);
   });
 });

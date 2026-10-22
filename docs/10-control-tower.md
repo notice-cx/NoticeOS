@@ -64,9 +64,9 @@ left sidebar and one page header.
 
   | View | Sidebar entries |
   |---|---|
-  | "I run the business" | Home, Sites, Tasks, Money, Settings |
-  | "I build the product" | Home, Sites, Alerts, Tasks, Money, System health, Integrations, Settings |
-  | "Everything" | Home, Workflows, Sites, Alerts, Tasks, Agents, Money, System health, Integrations, Settings |
+  | "I run the business" | Home, Portfolio, Tasks, Money, Settings |
+  | "I build the product" | Home, Portfolio, Alerts, Tasks, Money, System health, Integrations, Settings |
+  | "Everything" | Home, Workflows, Portfolio, Alerts, Tasks, Agents, Money, System health, Integrations, Settings |
 
   "Everything" is what a person sees before choosing a view, unless the
   workspace default (`config/tower.json` `/view`) names another. A page left
@@ -77,25 +77,25 @@ left sidebar and one page header.
   and `/dev/asset-states` stay dev-only routes reached by URL and are not in the
   nav: they are for reviewers, and the nav lists only the pages an operator
   uses. The current item has `aria-current="page"`; on a
-  site's page, Sites is highlighted. Below `md` the column becomes a top bar with a menu
+  asset's page, Portfolio is highlighted. Below `md` the column becomes a top bar with a menu
   button that
   opens the same content as a drawer.
-- **The Sites entry lists every site**. Under the
-  Sites entry, one row per site: its favicon, its display name, a severity dot
+- **The Portfolio entry lists every asset**. Under the
+  Portfolio entry, one row per asset: its favicon, its display name, a severity dot
   **only** when it has an open warning or error, and a muted slash **only**
-  when it is retired. A row is highlighted on **any tab** of its site and the Sites
-  entry is highlighted with it: the row shows which site, the entry shows where in the
+  when it is retired. A row is highlighted on **any tab** of its asset and the Portfolio
+  entry is highlighted with it: the row shows which asset, the entry shows where in the
   product you are. The order is
-  the index's default (the payload's own seed order) with **retired sites moved to the
-  bottom** behind the slash; an **Add a site** row with a plus icon ends the
-  list; and above twelve sites the nav shows the first twelve plus **All
-  sites…**, because a sidebar that scrolls is no longer a fixed list you can
-  scan. The chevron beside the Sites link collapses it and the choice is
+  the index's default (the payload's own seed order) with **retired assets moved to the
+  bottom** behind the slash; an **Add an asset** row with a plus icon ends the
+  list; and above twelve assets the nav shows the first twelve plus **All
+  assets…**, because a sidebar that scrolls is no longer a fixed list you can
+  scan. The chevron beside the Portfolio link collapses it and the choice is
   stored per browser — expanded by default in a desktop browser, collapsed by default
   in the small-screen drawer, which is opened to go to one specific place. Before
   the first read finishes the list draws as many nameless muted rows as it drew
   last time, so nothing below it moves and no placeholder can be mistaken for a
-  site. A workspace with no sites yet shows only Add a site. ⌘K is still the
+  asset. A workspace with no assets yet shows only Add an asset. ⌘K is still the
   keyboard path to the same place; this is the pointer path.
 - **The page header** shows what a page is: title, description, breadcrumb,
   right-aligned actions, and an inline meta slot for an age badge or a period.
@@ -103,13 +103,13 @@ left sidebar and one page header.
   it was opened from. On the asset page the
   identity row (favicon, name, severity, domain, status badges) IS the heading.
 - **`/assets` is canonical; `/properties` is an alias.** The sidebar shows
-  **Sites** while the URL keeps the code's noun:
+  **Portfolio**:
   `/assets` is the index and `/assets/:id` the page, and
-  [doc 14](14-design.md) maps *asset* to *site* on screen. `/properties` and
+  [doc 14](14-design.md) defines **Asset** as the item and **Portfolio** as the collection. `/properties` and
   `/properties/:id` redirect to them with the hash intact.
   Every deep link the Tower has ever produced — an alert's change chip to
   `#timeline`, a matrix cell to `#integrations` — still opens the section it pointed to.
-  The index is a table, and with two or more sites it **filters and sorts,
+  The index is a table, and with two or more assets it **filters and sorts,
   with the state in the URL** (`?status=&automation=&attention=&sort=&range=`,
   the `useSearchParams` mechanism first used on `/alerts`, so a narrowed table is
   a link): lifecycle status is a native `<select>` with a count per option,
@@ -117,7 +117,7 @@ left sidebar and one page header.
   count so every number is on screen at once (a doc 14 rule),
   the ordering is a `<select>` and the table's header cells, every ordering except
   Name puts the highest value first with seed order as the default and as the
-  tie-break, and a line above the table shows what is listed — "3 of 6 sites ·
+  tie-break, and a line above the table shows what is listed — "3 of 6 assets ·
   status: live · sorted by open alerts" — with a Clear link beside it.
 - **`/wall` stays outside the shell.** The TV has no navigation, and its tokens
   are written for the dark palette, so the theme class is applied by the shell
@@ -129,7 +129,7 @@ left sidebar and one page header.
   found only by people who already know it, and a touch screen has no modifier
   key. The palette lists every
   page in every view (the sidebar's pages of "Everything", plus the TV, its
-  layout editor and Arrange the sites) and every asset by display name, with its
+  layout editor and Arrange the assets) and every asset by display name, with its
   favicon, its domain and a severity dot when it has an open warning or error.
   Typing filters, Enter navigates, Escape closes, and focus returns to the
   element that had it. The items the operator opened last are stored and listed first while
@@ -149,50 +149,50 @@ left sidebar and one page header.
 `/` (`apps/tower/src/routes/HomeRoute.tsx`) shows how the business is
 doing, what is broken and what needs the operator, from the data: the
 month's money as the largest figure with yesterday's revenue and visitors beside it,
-every site's data sources as one grid beside the ranked problems the grid does
-not show and the decisions waiting, the sites compared, and the last 24 hours
+every asset's data sources as one grid beside the ranked problems the grid does
+not show and the decisions waiting, the assets compared, and the last 24 hours
 on a time axis. The layout is specified in [doc 14 § Surfaces](14-design.md); the
 wording rules are in [doc 14 § Lexicon](14-design.md). Every money figure uses the same
 rule as every other surface (`monthRevenue`, `portfolioHeadline`), so Home
-can never show a different month total than the Sites page or the Wall; the
+can never show a different month total than the Portfolio page or the Wall; the
 decision rows exist only with a task source connected.
 
 - **Home is a list of modules, and the person's view picks them**
   (`HOME_MODULES` and `VIEW_LIBRARY` in `packages/contract/src/views.mts`,
   drawn by `routes/home/modules.tsx`). The paragraph above is the
-  "Everything" view. "I run the business" draws Site health, the month's
+  "Everything" view. "I run the business" draws Asset health, the month's
   money, "The agents · this week" and the decisions; "I build the product"
   draws the month's money, "Where visitors come from · 4 weeks", "Worth a
-  look", the problems, the decisions and the sites. A "What matters most?"
+  look", the problems, the decisions and the assets. A "What matters most?"
   pick moves its module to the front when the view draws it.
-  - **Site health** (`HealthModule`) is one row per listed site with five
+  - **Asset health** (`HealthModule`) is one row per listed asset with five
     dots, Up, Speed, Errors, Search and Code, from `techHealth`
-    (`src/lib/tech-health.ts`), the calculation the site's Health tab and the
-    TV's Site health widget also use.
+    (`src/lib/tech-health.ts`), the calculation the asset's Health tab and the
+    TV's Asset health widget also use.
   - **The agents · this week** (`FactoryModule`, `agentsWeek`) shows Building
     › Finished › Proven to work and the three newest lines.
   - **Where visitors come from · 4 weeks** (`ChannelsModule`) sums the listed
-    sites' visits by channel, beside the funnel step that loses the most
+    assets' visits by channel, beside the funnel step that loses the most
     people.
-  - **Worth a look** (`GapsModule`, `businessGaps`) ranks what the sites lack
+  - **Worth a look** (`GapsModule`, `businessGaps`) ranks what the assets lack
     as a business (no income source, no data feeds, no task project, no code
     report, then the newest readings' opportunities), each row with "Make a
     task".
-  - In the business view the summary sentence starts with the sites' health
-    (`healthWords`: "2 of 3 sites are fine." and the site most in need of a
+  - In the business view the summary sentence starts with the assets' health
+    (`healthWords`: "2 of 3 assets are fine." and the asset most in need of a
     look with its first problem) and states the count of broken things only
     when there is one.
   The card fields these modules read (`product`, `codebase`, `watches`,
   `channels`, `findings`) are filled by `apps/tower/worker/card-readings.ts`.
-- **With one site**, Home starts with that site's own numbers and chart
+- **With one asset**, Home starts with that asset's own numbers and chart
   (`OneSiteLead`, the top section of the Overview) and draws no one-row table.
 - **Home has none of the TV-only panels**: no clock, no countdown, no meetings
   panel. `/wall` renders those, and the countdown editor is on `/settings`,
   because the countdown is a control for a screen in another room.
-- **Until a site has its first number, Home is a first-run guide instead of all
+- **Until an asset has its first number, Home is a first-run guide instead of all
   of the above** (`firstRunSite`, `apps/tower/shared/first-run.ts`): one card —
-  a sentence describing what NoticeOS does, then three steps for the newest site
-  (add a site, connect its first source, see the first number) — and no tile,
+  a sentence describing what NoticeOS does, then three steps for the newest asset
+  (add an asset, connect its first source, see the first number) — and no tile,
   list or table around it, because a zero would imply that something was measured.
   Above the steps, until the person has a view of their own, the card shows
   "Which describes you?" and then, unless they chose "Everything", "What
@@ -207,7 +207,7 @@ decision rows exist only with a task source connected.
 `/settings` is **one place to
 change anything that applies to the whole portfolio.**
 
-It is divided by the same tab bar a site's page uses, General first, and each
+It is divided by the same tab bar an asset's page uses, General first, and each
 tab has its own URL: `/settings` is General and `/settings/<tab>` each of the rest.
 There is no second navigation inside the page. **Installation** shows on a
 standalone installation and **Members** to a hosted workspace's owner. Each
@@ -222,11 +222,11 @@ describe each tab:
 | **General → Your view** (`/settings#view`) | the person's view ("I run the business", "I build the product", "Everything") as three radio cards, saved in the browser on change with Undo beside them; "At the top of Home", the "What matters most?" picks, toggled with Change; and "Workspace default · new people and the TV start from" (`config/tower.json` `/view`), changed with Change while settings can be saved and shown with a lock while they cannot | the three views with their one-line descriptions, the chosen one filled |
 | **General → Clock** (`/settings#clock`) | the operator's timezone — the IANA zone every intraday chart is drawn in (`config/constants.json` `os_time_zone`) | the current time in that zone, because two neighbouring zone names look equally plausible until you see the time each one gives |
 | **General → Budget** (`/settings#budget`) | monthly data cap, the value of your time; what happens at the cap is a **Stops at the budget** chip beside the meter | a meter of month-to-date data spend against the cap. **Every cap here has a meter**: NoticeOS makes no model calls of its own, so there is no inference cap to show |
-| **Alert rules** (`/settings/alert-rules`) | a replay of the rules against a site's last 30 days, how often the operator responded to each rule by tuning it, then the thresholds: anomaly sensitivity, longest window | sensitivity against the conventional 0.05 ceiling; the longest window as its share of four weeks, with the quietest daily average it still tests |
+| **Alert rules** (`/settings/alert-rules`) | a replay of the rules against an asset's last 30 days, how often the operator responded to each rule by tuning it, then the thresholds: anomaly sensitivity, longest window | sensitivity against the conventional 0.05 ceiling; the longest window as its share of four weeks, with the quietest daily average it still tests |
 | **Data collection** (`/settings/data-collection`) | the schedules of the collections that no connection supplies (nightly reports, live counters, local research — a connection-supplied collection's schedule is on that connection's Manage panel on Integrations), the two declared cadence settings — the panel history window and the panel freshness bar — and every pull endpoint | the window in weeks and its cost per pass; the freshness bar as a meter **inside** the window, which shows how the two values relate, something the bar's number alone does not show. An enabled/paused chip per pull endpoint |
 | **TV dashboard** (`/settings/tv-dashboard`) | the link to the layout editor (`/wall/edit`), and the countdown the wall display shows — emoji, label, target | the **Edit layout** button, then the countdown widget itself. With none configured the panel offers **Set a countdown** — the countdown is optional — and the tab always renders, because every install has a TV layout whether or not it has a countdown |
-| **Ownership** (`/settings/ownership`) | the legal entities that own sites (`config/entities.json`) — slug, name, form, jurisdiction | *Sites by owner*: each entity's sites as favicons, and the sites nobody owns under a **No owner** chip, each linking to its Identity card |
-| **Task projects** (`/settings/task-projects`) | the read-only connection, then the project map — site, task prefix, database — **editable**; a deployed build shows the map as a read-only list | the site's favicon beside its row; after an Add, the remaining steps that saving the file does not do |
+| **Ownership** (`/settings/ownership`) | the legal entities that own assets (`config/entities.json`) — slug, name, form, jurisdiction | *Assets by owner*: each entity's assets as favicons, and the assets nobody owns under a **No owner** chip, each linking to its Identity card |
+| **Task projects** (`/settings/task-projects`) | the read-only connection, then the project map — asset, task prefix, database — **editable**; a deployed build shows the map as a read-only list | the asset's favicon beside its row; after an Add, the remaining steps that saving the file does not do |
 
 **Saves go through the config write path, and a field is editable exactly when
 that path permits writing it; it is not a design choice.** The timezone, the countdown, the caps and
@@ -283,7 +283,7 @@ show the same name for `alpha` and the same file it is stored in.
 ## The Wall (TV mode)
 
 **What the Wall shows is specified in [doc 14](14-design.md)**: by default a slim strip and the loop
-across the top, then the last 24 hours of problems above one row per site,
+across the top, then the last 24 hours of problems above one row per asset,
 beside the month's revenue above the work. The sections below
 cover the route, refresh, layout document and editor mechanics; doc 14 specifies what
 is on the screen.
@@ -313,7 +313,7 @@ never a task's own text and never a link.
 
 **The setup checklist ring appears only on the Tower's other pages**:
 its meaning is in a hover, and a TV has no pointer; nobody sets up an
-integration from across the room; and a site with no report yet is one row of
+integration from across the room; and an asset with no report yet is one row of
 muted text on the Wall ("No data yet") — see [doc 14](14-design.md).
 
 ### The Wall draws a layout document
@@ -342,10 +342,10 @@ full height beside several ([doc 14](14-design.md) § Regions).
   read, so a Wall on another device shows the new layout within 60 seconds. The document
   is kept in the store; its shape is the same.
 - **The default** is `DEFAULT_WALL_LAYOUT`: the strip, then the loop, then
-  two columns — the last 24 hours above the site rows, beside revenue above the
-  work. Revenue sits beside the sites rather than above them because that is
+  two columns — the last 24 hours above the asset rows, beside revenue above the
+  work. Revenue sits beside the assets rather than above them because that is
   the only arrangement in which the TV's 1080 pixel rows fit the loop, the revenue band and seven
-  sites' rows without clipping (`pnpm audit:wall-fit`). **A fresh install's `/wall` is `null`, or absent** — both
+  assets' rows without clipping (`pnpm audit:wall-fit`). **A fresh install's `/wall` is `null`, or absent** — both
   mean "nothing saved" — and the TV then draws the preset of the workspace
   default view (`WALL_PRESETS`, chosen by `config/tower.json` `/view`), which
   is `DEFAULT_WALL_LAYOUT` for "Everything" and when no view is saved. The
@@ -357,9 +357,9 @@ full height beside several ([doc 14](14-design.md) § Regions).
   `apps/tower/test/wall-canvas.test.tsx` checks the default's
   rows, weights and regions.
 - **The library is thirteen widgets** — strip, the loop, the last 24 hours,
-  sites, revenue, work, Needs attention, the feed, Agents, Site health, The
+  assets, revenue, work, Needs attention, the feed, Agents, Asset health, The
   agents, Visitors by channel and Next up; the default places the first six, the
-  business and product presets place Site health, The agents and Visitors by
+  business and product presets place Asset health, The agents and Visitors by
   channel, the business preset places Next up across the TV under the strip,
   and the rest are available for a layout that adds them.
   Seven older types (alerts, portfolio net, System, clock, meetings,
@@ -420,7 +420,7 @@ tabs use — so a view can be bookmarked, pasted into a task, and reached
 with Back. An unknown path segment opens Open *and replaces the URL with Open's*,
 because the tab bar matches on the path, and Open rendered under a bar
 with nothing selected would show the operator the wrong location. A tab link
-keeps the site and severity filters the other view supports
+keeps the asset and severity filters the other view supports
 (`carriedFilters`), so those filters stay set after the switch; `kind` and History's
 page are dropped.
 
@@ -428,8 +428,8 @@ page are dropped.
 
 `/alerts` lists every open error and warning in one `ListPanel`, one row per
 condition that opens in place to its Evidence and its actions (`FlagActions`,
-File task, the link to its site), plus three filters: site (with two or more
-sites), severity and kind. **The filter state is stored in the URL**
+File task, the link to its asset), plus three filters: asset (with two or more
+assets), severity and kind. **The filter state is stored in the URL**
 (`useSearchParams`), so a filtered view is a link that can be bookmarked, pasted
 into a task, or reached from an asset page. They are native `<select>`s in the
 Tower's existing input styling — three enum pickers do not justify a component
@@ -464,7 +464,7 @@ would have to be invented.
 
 The settings in that panel are the same portfolio-wide ones shown on `/settings/alert-rules`,
 written through the same config write path, and **the panel shows this first**, with
-one *Applies to every site* chip above the fields. This is deliberate and does not
+one *Applies to every asset* chip above the fields. This is deliberate and does not
 bring back the per-asset editor removed below: the editor stays on the page where
 its portfolio-wide scope is obvious, and the alert row adds the one thing that page
 cannot have — a specific asset to replay the rule against.
@@ -490,7 +490,7 @@ a response, but **Snooze is offered on every open row of the asset page's
 Alerts tab** — info and milestone included — so this section lists **every snoozed
 row**: an info row snoozed there can be found in a portfolio list, not only in
 that one asset's alert history. The portfolio's
-**counts** do not widen with it: `attention`, each site's open error/warn tallies
+**counts** do not widen with it: `attention`, each asset's open error/warn tallies
 and their worst severity all keep the error/warn scope
 `worker/wall-payload.ts` applies. This is a record, not a work queue, and it stays short
 because it holds only what somebody chose to snooze.
@@ -561,7 +561,7 @@ settled alerts yet"* — the same rule Open follows, for the same reason.
 
 ## Money page
 
-**A site's Money tab.**
+**An asset's Money tab.**
 `/assets/:id/financials` is the place for that asset's saved daily ad revenue and monthly
 accounting. Its 7/28/90-day selector applies to daily earnings; monthly booked
 net, separate forecasts and the entry audit remain independent of that range.
@@ -584,9 +584,9 @@ is a link somebody can send.
 
 | Surface | Operator question | Financial content |
 |---|---|---|
-| Wall revenue and site rows | What happened yesterday? | The month's revenue with its projection and yesterday's saved ad revenue estimate or its missing-report state (`RevenueHero`); each site's month so far → pace when supported |
+| Wall revenue and asset rows | What happened yesterday? | The month's revenue with its projection and yesterday's saved ad revenue estimate or its missing-report state (`RevenueHero`); each asset's month so far → pace when supported |
 | Asset Overview | How is this asset doing? | A brief monthly financial snapshot linked to its Money tab |
-| A site's Money tab | What is this asset earning and costing? | Daily ad revenue, reported-day average, monthly booked net, separate estimates and entry audit |
+| An asset's Money tab | What is this asset earning and costing? | Daily ad revenue, reported-day average, monthly booked net, separate estimates and entry audit |
 | The Money page | Where is the startup making and spending money? | Selected-month revenue/cost/net and reconciliation, daily revenue across reporting sources, asset contributions, shared overhead, monthly history and cost configuration |
 
 Portfolio daily bars follow the selected month and stop at the last completed
@@ -628,7 +628,7 @@ that card listed the same five stored fields the editable table now holds, and d
 allows one representation per fact. The one thing the card showed that the table does not — the
 amortization — is shown once for the whole list in the domain table's own
 subtitle (orders, cash paid, how many are still spreading into the shown month)
-and once per site in the **Declared, by site** strip: each site's favicon,
+and once per asset in the **Declared, by asset** strip: each asset's favicon,
 the amount the two files assign to it for this month, and a share bar. That
 strip is deliberately different from the *Direct cost* column above it — the column is what the
 ledger booked, the strip is what the files specify should be booked, and they differ whenever
@@ -663,8 +663,8 @@ A provider's own page (`?provider=<id>`) shows:
   A `Test connection` runs one real authenticated call and shows the outcome as a glyph,
   a sentence and a time ([doc 14](14-design.md): validation comes from a
   collector attempt, never from a manual health toggle).
-- **Which sites use it** (*Used by N sites*), as their own favicons, each
-  linking to that site's Data sources tab.
+- **Which assets use it** (*Used by N assets*), as their own favicons, each
+  linking to that asset's Data sources tab.
 - **A Connect form built from the provider's field schema**
   (`packages/contract`, re-exported by the Tower rather than copied), so a
   provider or a field added there gets its input with no Tower change: a
@@ -674,7 +674,7 @@ A provider's own page (`?provider=<id>`) shows:
   inputs, because a pre-filled password field would mean the browser holds
   the password.
 - **Disconnect behind one inline confirmation** (`ConnectionActions`) that
-  lists what stops — the sites, then what is deleted — and whose button names
+  lists what stops — the assets, then what is deleted — and whose button names
   the provider. It is the only confirmation
   on a page whose other writes use undo instead of confirmation: a deleted
   credential cannot be restored by an undo, and deleting it stops every data source
@@ -764,7 +764,7 @@ closes with `bd`, in the repo where the work is, because that is where the agent
 the context to report its work accurately. The operator should not need a second tool
 for the most frequent action in the product, so the local Tower runs the
 operator's `bd` commands: a short allowlist of verbs, every write
-signed with the operator's name, nothing reachable from another site. The
+signed with the operator's name, nothing reachable from another asset. The
 verbs, the guards and the rejections are written once, in
 [the Tower's task commands](../config/beads.README.md#the-towers-task-lane--the-operators-hands-not-an-agents).
 **A deployed build keeps the snapshot board, and shows why**: it cannot run `bd`,
@@ -829,8 +829,8 @@ on each inbox row, and the section's own name heading (the task PREFIX stays,
 because the header does not show it and it is the part of an id the operator types).
 The fixed project never enters the query string: it is set by the page, not by a control,
 so a link copied from the tab includes only the filters the operator actually set.
-A site with no
-task project gets a designed empty state, *No task project for this site*, with
+An asset with no
+task project gets a designed empty state, *No task project for this asset*, with
 **Add a task project** — "nothing to do" and "this asset was never mapped
 to a repo" are different facts, and only the first is good news.
 The tab LABEL shows the asset's open-task count, with the inbox glyph beside it
@@ -862,7 +862,7 @@ the anchor (`#insights`, `#query-visibility`, `#page-decisions`) on
 followed in both directions. Markdown is rendered by a small parser in the route
 that produces React elements and never a string of HTML, so a `<script>` in a
 task's description is always rendered as text, and only `http(s)`, `mailto:` and
-site-relative links are created; the Tower has no Markdown dependency. A **deployed** build cannot run `bd`: the page renders the row
+asset-relative links are created; the Tower has no Markdown dependency. A **deployed** build cannot run `bd`: the page renders the row
 the once-a-minute snapshot holds with a note that the rest requires the local Tower, and shows Claim
 and Close disabled with that reason.
 **File a task with a button.** Every handoff the
@@ -916,12 +916,12 @@ and a task's existence is never evidence about an asset.
 **Task screens appear only with a connected task source.** A new installation has no task source, and then no screen
 shows a task surface: no Tasks in the sidebar or the palette, no Needs attention tile
 or Your decisions on Home, no task count on the Wall (its work chart shows Tasks unknown), no Tasks tab,
-Needs attention or File task on a site, no Tasks column or Open tasks on Assets. Opening Tasks
-by its address (or a site's Tasks tab, or a task page by link) shows one
+Needs attention or File task on an asset, no Tasks column or Open tasks on Assets. Opening Tasks
+by its address (or an asset's Tasks tab, or a task page by link) shows one
 link, **Connect a task source**, to the **Tasks** group on Integrations, where
 each source is a row with one status and one action like every provider.
 Beads is the first source. Its Connect opens the connect panel over
-Integrations: the site, its task prefix and database, and
+Integrations: the asset, its task prefix and database, and
 Connect, which saves the project through the `task-hub-spokes` declared list — the
 same audited write Settings → Task projects makes — and then shows the host
 steps with Copy while the panel shows Collecting, and Working once the runner
@@ -937,7 +937,7 @@ shows the row as Collecting and still no task screen.
 
 *The adapter boundary* is `apps/tower/worker/task-source.ts`: each source provides the same
 data — whether it is connected, the board (`GET /api/work`), the Needs attention counts
-(the Wall payload's `operator`, `null` without a source), a site's inbox — from
+(the Wall payload's `operator`, `null` without a source), an asset's inbox — from
 one read per request, and `GET /api/task-source` returns which source every task
 screen shows. The actions a source allows are the `/api/tasks/*` contract
 (`shared/tasks.ts`), served by the local Beads commands or read-only elsewhere. A
@@ -977,9 +977,10 @@ operator sees exactly what they're authorizing before they authorize it.
 
 ## Adding an asset
 
-**Add a site** — the Sites header, step 1 of Home's first-run card and the
-sidebar — opens a dialog over the page with one field: the domain (`/assets/new` is the
-Sites page with the dialog open). The name and icon are inferred, one optional button marks the site as not yet
+**Add an asset** — the Portfolio header, step 1 of Home's first-run card and the
+sidebar — opens a dialog with a domain field and an **Asset type** selector,
+defaulting to **Website (marketing/landing)** (`/assets/new` is the Portfolio page
+with the dialog open). The name and icon are inferred, one optional button marks the asset as not yet
 launched, and Add writes the asset row and then commits its config entries as a
 single changeset, then opens the asset's Data sources.
 
@@ -1006,12 +1007,12 @@ sections are mounted**, each tab reading its own view.
 | **Growth** | Audience and search charts over the range, what else is collected, and product use |
 | **Money** | This asset's ledger and P&L |
 | **Search** | The tracked-panel board, query decisions, page decisions and the search context |
-| **Codebase** | One sentence on how the code changed in 30 days beside the site's visitors, five figures (lines of code, repeated code, unused code, hard-to-change functions, test coverage by size), a row of three checks the site's own workflow sends (**Build**, **Tests**, **Vulnerable packages**), lines of code over time with deploys marked, the languages, and the latest report's findings (repeated blocks, hard-to-change functions, unused, vulnerable packages), each with **Make a task**; before the first report, the ways to send one ([doc 27](27-codebase-health.md)) |
-| **Health** | The five facts of Home's Site health (Up, Speed, Errors, Search, Code) as five word buttons, each opening the readings behind it in place; a fact with no reading shows "Not measured yet" with the link that connects it (`HealthTab.tsx`) |
+| **Codebase** | One sentence on how the code changed in 30 days beside the asset's visitors, five figures (lines of code, repeated code, unused code, hard-to-change functions, test coverage by size), a row of three checks the asset's own workflow sends (**Build**, **Tests**, **Vulnerable packages**), lines of code over time with deploys marked, the languages, and the latest report's findings (repeated blocks, hard-to-change functions, unused, vulnerable packages), each with **Make a task**; before the first report, the ways to send one ([doc 27](27-codebase-health.md)) |
+| **Health** | The five facts of Home's Asset health (Up, Speed, Errors, Search, Code) as five word buttons, each opening the readings behind it in place; a fact with no reading shows "Not measured yet" with the link that connects it (`HealthTab.tsx`) |
 | **Alerts** | Open alerts, those no longer current, and history |
 | **Tasks** | The Tasks board pinned to this asset's project |
 | **Activity** | The timeline with its event composer and outcome-check composer, the Watches strip, link outreach — what happened on this asset |
-| **Sources** | Data sources, the setup checklist, the scheduled jobs (on NoticeOS's own page only), daily metrics, site health |
+| **Sources** | Data sources, the setup checklist, the scheduled jobs (on NoticeOS's own page only), daily metrics, asset health |
 | **Settings** | Asset management — see below, including **Tracked search terms** |
 
 **Why tabs**: grouping sections by question (*"Where is growth moving?"*, *"What
@@ -1039,12 +1040,12 @@ that shows the panel's results:
 - **Panel refresh** — this asset's row on the standing refresh roster
   ([`config/signal-panels.json`](../config/signal-panels.README.md)): on or off,
   the reason, the note, the date.
-- **Collect now** — collects this site's tracked terms immediately, outside
+- **Collect now** — collects this asset's tracked terms immediately, outside
   the Monday run, for example after a missed week. Pressing it opens the
-  price first: the panel's cost on its last run for this site (**Last run**,
+  price first: the panel's cost on its last run for this asset (**Last run**,
   or **At most** with what the budget gate reserves for one report family
   when there is no recorded price) and **This month**, the month's data spend against the cap,
-  read from the stored run records. **Collect** runs only this site's SERP
+  read from the stored run records. **Collect** runs only this asset's SERP
   panel, through the same collector and budget gate as the Monday run. When
   the reserve would cross the monthly data cap, the card shows **Over the
   monthly data cap** and **Collect** is disabled; a press sent to the ingest
@@ -1065,14 +1066,14 @@ Three things about it are deliberate design decisions:
   the whole panel fail on the following Monday. The refresh roster has no meter at
   all, because a refresh pass makes zero provider calls at any cadence.
 - **An asset with no panel is a valid state, and the card leaves it so until a term is added.** Adding
-  a site deliberately writes nothing to
+  an asset deliberately writes nothing to
   `config/serp-panel.json` at creation; here, the first term added creates the
   asset's whole entry, and removing the last term removes the entry rather
   than leaving an empty list — which the collector rejects and which a person
   cannot read as either "buys a panel" or "does not".
 - **The roster row may be changed but not removed.** Membership there is an
   invariant — every asset has a row, including the ones that are off — so the row
-  is never removed: a site is archived, never deleted (see **No Delete** below),
+  is never removed: an asset is archived, never deleted (see **No Delete** below),
   and the only Add this section offers is the one that restores a missing row.
 
 ### The setup checklist
@@ -1080,7 +1081,7 @@ Three things about it are deliberate design decisions:
 An asset in `onboarding` or `baselining` shows **what is left
 before it goes live** on its Data sources tab: identity, its data sources (each with its own state
 and, for a skipped one, its reason), the first nightly report, and the 28-day
-baseline — or, for a site that has never sent a nightly report, the report as
+baseline — or, for an asset that has never sent a nightly report, the report as
 one optional, uncounted step. Each row is a glyph, the current state in
 one sentence, and a link to
 where the work is done — the Settings tab, the Data sources tab, `/health` for the
@@ -1123,12 +1124,12 @@ config write path with an Undo, and a stale write rejected with a visible messag
   the sidebar, Home's assets table and this page's header update without a
   reload). Domain and asset id are read-only and each shows the ONE reason it
   cannot change: every stored observation was collected against that host, and the
-  id is the key the store keeps this asset's whole history under. For a site
+  id is the key the store keeps this asset's whole history under. For an asset
   with a domain that is not retired, **Icons** shows the light and dark icon every screen draws,
   each on a white and a black square, the outcome and time of the newest read
   of the home page, and **Read again**, which runs the 04:00 job's icon read
-  for this site now through the ingest (`POST /api/assets/<id>/icons`).
-  **Light icon** and **Dark icon** save an address to the site's row of
+  for this asset now through the ingest (`POST /api/assets/<id>/icons`).
+  **Light icon** and **Dark icon** save an address to the asset's row of
   `config/tower.json` `/sites`; the Tower builds every card's icons with that
   address in place of the read one.
 - **Lifecycle** — the stepper is the one display of the current stage; a
@@ -1158,7 +1159,7 @@ config write path with an Undo, and a stale write rejected with a visible messag
   *before* it sets `assets.status` to `retired`. A retired asset shows
   **Restore** in its place, resuming monitoring. An explicit pre-launch hold is preserved.
 - **Lifecycle is derived from collected data.** Before collection has recorded
-  data the site is **Onboarding**; afterwards it is **Live**. The calculation
+  data the asset is **Onboarding**; afterwards it is **Live**. The calculation
   reads stored collection history rather than a recent chart window. A source
   failure affects health without erasing the start of collection. Settings
   shows the computed stage and no progress-stage picker. **Begin monitoring**
@@ -1167,18 +1168,18 @@ config write path with an Undo, and a stale write rejected with a visible messag
   Restore reads the most recent archive to preserve a pre-launch hold;
   otherwise the active stage is computed again from collection history.
   Historical stage annotations remain on Activity.
-- **No Delete** — a site is never deleted, a mistaken add included: the store
-  is history, and the Postgres model gives the application no DELETE on a site
+- **No Delete** — an asset is never deleted, a mistaken add included: the store
+  is history, and the Postgres model gives the application no DELETE on an asset
   ([`db/postgres/README.md`](../db/postgres/README.md)). Archive is the only
-  way to take a site out of use. Adding the domain again shows *Already added* and opens the site
-  that has that domain — by the id stored for it, which for an imported site can
+  way to take an asset out of use. Adding the domain again shows *Already added* and opens the asset
+  that has that domain — by the id stored for it, which for an imported asset can
   be a different id — at its Restore card (`#restore`) when it is archived.
 
 The tabs give an executive view of the asset, ordered by the
 operator's questions rather than by how the system is built:
 
 1. identity/health, with the same working/error/unconfigured source icons in
-   the header row as the Sites table's State cell;
+   the header row as the Portfolio table's State cell;
 2. a stacked performance view over the page-wide range (7, 28 or 90 days, 28
    by default): GA4 daily active-user bars, then
    separate date-aligned Google/Bing web-search clicks and impressions.
@@ -1195,7 +1196,7 @@ operator's questions rather than by how the system is built:
    the suggested action, source names, and limitations. Google and Bing retain
    observed impressions,
    equal-window change, and average position; DataForSEO adds modelled
-   monthly demand in the site's saved market (United States · English by
+   monthly demand in the asset's saved market (United States · English by
    default), current organic position, difficulty, and AI
    Overview citation evidence. A first DataForSEO snapshot is useful
    immediately; locally observed rank movement appears only after the same
@@ -1225,7 +1226,7 @@ operator's questions rather than by how the system is built:
    recommends copy changes that searchers will not see. Two rules are added to the nine
    positional ones, and both deliberately recommend doing *less*: a decision that
    would have recommended "sharpen the title" on a query whose AI Overview does not
-   cite the site moves from **act** to **investigate** — the searcher's click goes
+   cite the asset moves from **act** to **investigate** — the searcher's click goes
    to the AI Overview above the results, so a rewrite causes churn and gains no visits — and a query the overview
    *does* cite becomes **protect** whichever way its rank is moving, because the
    most reliable way to lose a citation is to rewrite the cited passage.
@@ -1300,7 +1301,7 @@ doc-14 disclosure order puts configuration below the status — each card has a
   fields**, and each card shows which of two statements
   is true of THIS asset: a mapped data source shows that the collector requests this value, an
   unmapped one names the source it still falls back to (the Google credential's
-  own property map, the asset's own domain, the US/English DataForSEO baseline).
+  own asset map, the asset's own domain, the US/English DataForSEO baseline).
   Both show when a save takes effect — the next collection run where the Workers
   read the stored document, the next restart while they read the copy compiled
   into them. A description that overstates a field's effect is worse than
@@ -1319,7 +1320,7 @@ doc-14 disclosure order puts configuration below the status — each card has a
 no setup checklist and no docs path, and its section is named for its content
 (*Mapping*, or *Market* for DataForSEO). A row shows a status or exactly one
 action: **Connect**, which for a provider that connects in the panel opens that
-panel over the site's own page with the site first
+panel over the asset's own page with the asset first
 (`apps/tower/src/routes/integrations/ProviderConnectPanel.tsx`, the same panel
 `/integrations` opens), or **Fix** on a failing source. DataForSEO's location
 and language codes are one **Market** select, by name
@@ -1331,11 +1332,11 @@ sentence instructing the operator to type.
 **The two Google fields have a picker.** The connected
 account's own list —
 `GET /api/integrations/google/properties`, one read shared by both cards — fills
-them, showing each property's name, its account or permission level, and the
+them, showing each asset's name, its account or permission level, and the
 `ref` that actually gets stored, because a collector error message names the
 ref. Picking writes the same `file-json-set` at the same pointer as typing in the box,
 with the same validation and the same Undo. **The text box always remains**: a
-service-account install has no sign-in to query, a property the account cannot see
+service-account install has no sign-in to query, an asset the account cannot see
 is in no list, and a failed lookup must not block the operator — so a
 data source whose list is missing shows why in one line and stays typable, and a picker
 that has a list keeps a *Not in the list? Type it instead* disclosure under it. A
@@ -1344,7 +1345,7 @@ not in the connected account, so opening the picker never suggests
 replacing it.
 
 **The GA4 card also shows what this asset has DECLARED about its GA4
-property, editable in place**: the events it
+asset, editable in place**: the events it
 calls **value events** ([`config/value-events.json`](../config/value-events.README.md))
 and the event parameters already registered as **custom dimensions**
 ([`config/ga4-custom-dimensions.json`](../config/ga4-custom-dimensions.README.md)).
@@ -1514,7 +1515,7 @@ with no body, and the page uses the copy it holds in memory with the new times
 browser's own cache holds none of them.
 
 On a standalone installation, while any page is open, the Tower reads the task
-snapshot, the sites' payload, the live feed and source health every 15 seconds
+snapshot, the assets' payload, the live feed and source health every 15 seconds
 and sends every open page the names of the ones that changed, over one event
 stream (`GET /api/changes`, `apps/tower/shared/change-topics.ts`). A page reads
 again only what changed and stops polling those four while the stream is open;

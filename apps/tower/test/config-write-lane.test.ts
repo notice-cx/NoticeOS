@@ -1623,7 +1623,7 @@ describe("a layout the Wall could not draw", () => {
 // `/sites`, a register a store seeded before it existed does not hold. Each
 // write `shownOnChange` mints goes through the lane and its Undo puts the
 // document back exactly.
-describe("where each site shows", () => {
+describe("where each asset shows", () => {
   const towerOf = async (root: string) => (await readJson(root, "config/tower.json")) as Record<string, unknown>;
   async function save(root: string, ops: readonly unknown[]) {
     return handleConfigRequest(put({ slug: "site-display", ops }), { repoRoot: root });
@@ -1678,7 +1678,7 @@ describe("where each site shows", () => {
     expect((await towerOf(root)).sites).toEqual({ "meadow.example": { tv: false } });
   });
 
-  it("sets, replaces and clears a site's icon addresses beside its switches, and undoes each", async () => {
+  it("sets, replaces and clears an asset's icon addresses beside its switches, and undoes each", async () => {
     const root = await tempRepoWithTower();
     const before = await towerOf(root);
     const LIGHT = "https://cdn.example.com/meadow-light.svg";

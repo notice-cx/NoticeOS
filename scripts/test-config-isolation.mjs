@@ -83,7 +83,7 @@ export const SEED_VALIDATION_TESTS = Object.freeze({
     }),
     "scripts/fresh-install.test.mjs": Object.freeze({
         files: Object.freeze(["config/*.json"]),
-        why: "It proves a clone with no installation folder seeds exactly the product defaults: no sites, no task projects, no host links, UTC.",
+        why: "It proves a clone with no installation folder seeds exactly the product defaults: no assets, no task projects, no host links, UTC.",
     }),
     "scripts/config-defaults.test.mjs": Object.freeze({
         files: Object.freeze(["config/*.json"]),

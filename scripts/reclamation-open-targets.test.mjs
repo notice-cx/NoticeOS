@@ -44,7 +44,7 @@ async function run(argv, fetchImpl) {
   return { code, out: out.text(), err: err.text() };
 }
 
-test('asks the door for the site’s open targets with the operator bearer, and writes them as the reclamation-match rule reads them', async (t) => {
+test('asks the door for the asset’s open targets with the operator bearer, and writes them as the reclamation-match rule reads them', async (t) => {
   const file = path.join(scratch(t), 'nested', 'asset.example-open.json');
   const ingest = door(ANSWER);
   const result = await run(['--', '--asset', 'asset.example', '--out', file, '--door', DOOR], ingest.fetchImpl);
@@ -86,7 +86,7 @@ test('the written file is the rule’s input: an open target sending referral vi
   assert.equal(card.evidence.find((row) => row.label === 'Open targets checked').value, '5');
 });
 
-test('a site with no open target writes an empty list and says so', async (t) => {
+test('an asset with no open target writes an empty list and says so', async (t) => {
   const file = path.join(scratch(t), 'open.json');
   const result = await run(['--asset', 'asset.example', '--out', file, '--door', DOOR], door({ ok: true, asset: 'asset.example', targets: [] }).fetchImpl);
   assert.equal(result.code, 0);

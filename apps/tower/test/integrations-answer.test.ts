@@ -12,7 +12,7 @@ describe("the Integrations page's one answer", () => {
       .toEqual({ answer: "Google needs attention", detail: "Google failing", mark: "problem" });
   });
 
-  it("counts a working connection that fails on a site as needing you", () => {
+  it("counts a working connection that fails on an asset as needing you", () => {
     expect(integrationsAnswer([
       { name: "Google", shown: shown("working", 1) },
       { name: "Bing", shown: shown("overdue") },

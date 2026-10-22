@@ -56,7 +56,7 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
   return (
     <div className="flex flex-col gap-5" data-health-tab={health.key}>
       <Hero>
-        <section aria-label="Site health" className="flex flex-col gap-3">
+        <section aria-label="Asset health" className="flex flex-col gap-3">
           {health.report ? (
             <p className="m-0 text-sm text-warn" data-health-report="">
               {health.report.note} · the readings below may be older

@@ -303,7 +303,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     expect(clarity.expiry.known).toBe('never');
   });
 
-  it('connects PostHog with one account key in the panel, and keeps the older per-site map collecting', () => {
+  it('connects PostHog with one account key in the panel, and keeps the older per-asset map collecting', () => {
     // One personal API key for the account, typed once in the connect panel;
     // region and projects are discovered, and region and project id are not
     // in the credential — Start saves them on each site's Data sources entry.
@@ -330,7 +330,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     expect(posthog.docRef).toBe('docs/11-integrations.md#posthog');
   });
 
-  it('connects the Chrome UX Report with one API key for every site', () => {
+  it('connects the Chrome UX Report with one API key for every asset', () => {
     // Page speed is public data by origin: the key names the Google Cloud
     // project the free quota counts against, so no site list follows it.
     const crux = integrationProvider('crux')!;
@@ -619,7 +619,7 @@ describe('the older single-asset binding', () => {
     expect(declared).toHaveLength(1);
   });
 
-  it('serves the first site in the installation’s own register that has the lane', () => {
+  it('serves the first asset in the installation’s own register that has the lane', () => {
     // One rule, read over the installation's register — never a site written
     // into the catalog.
     expect(legacyBindingAsset('clarity', REGISTER)).toBe('first.example');
@@ -649,7 +649,7 @@ describe('the older single-asset binding', () => {
     expect(credentialAuthState(clarity, Object.keys(read.fields)).complete).toBe(true);
   });
 
-  it('folds nothing when the installation’s register names no site for it', () => {
+  it('folds nothing when the installation’s register names no asset for it', () => {
     const read = readEnvCredential(clarity, { CLARITY_PROJECT_API_TOKEN: 'single-project-token' });
     expect(read.fields).toEqual({});
     expect(read.legacySlots).toEqual({});

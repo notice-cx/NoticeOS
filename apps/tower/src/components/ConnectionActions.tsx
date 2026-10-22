@@ -115,7 +115,7 @@ export function ConnectionActions({
             <Unplug className="size-3.5 shrink-0" aria-hidden />
             Stops
           </span>
-          <ul aria-label="Sites that stop" className="flex flex-wrap gap-x-3 gap-y-1">
+          <ul aria-label="Assets that stop" className="flex flex-wrap gap-x-3 gap-y-1">
             {stops.map((site) => (
               <li key={site.id} className="inline-flex min-w-0 items-center gap-1.5 text-sm" data-disconnect-stop={site.id}>
                 <PropertyFavicon domain={site.domain ?? site.id} icons={iconsOf(site.id)} displayName={site.label} className="size-4" />

@@ -18,11 +18,11 @@ estimate from the code alone is wrong in both directions:
 - **Normalized metrics are stored as changes, not copies.**
   `signal_observations` appends a value only when a `(date, metric)` is new or
   revised (`workers/ingest/src/signal-store.ts`), so its growth is far below
-  "sites × metrics × days × runs".
+  "assets × metrics × days × runs".
 - **Insight snapshots are the opposite.** Their content hash covers
   `generatedAt`, so every newly generated report is a new row of up to 1 MB
   (`workers/ingest/src/insight-snapshots.ts`), and only the two newest rows per
-  site are ever read: the site page reads the newest, and the Wall's feed
+  asset are ever read: the asset page reads the newest, and the Wall's feed
   compares it with the one before (`apps/tower/worker/wall-feed.ts`).
 
 The inventory measures the Postgres operational store. The inventory does not
@@ -57,7 +57,7 @@ workspaces' activity. Raw bucket objects are never downloaded.
 | Arrival stamp | The column named in [`db/postgres/tables.json`](../db/postgres/tables.json); `signal_observations` joins its run by `(workspace_id, run_seq)` and uses that run's `finished_at` |
 | Table kind | `history` keeps every row; `state` holds one row per thing; `cache` deletes old rows as it adds new ones. Store growth adds `history` tables only |
 | Missing tables | Catalogued tables the store does not have: migrations not applied |
-| Insight snapshots | Per site: rows, uncompressed payload bytes, largest payload, rows and publish days in 30 days; the two newest rows per site (read) against every older row still present (kept, unread) |
+| Insight snapshots | Per asset: rows, uncompressed payload bytes, largest payload, rows and publish days in 30 days; the two newest rows per asset (read) against every older row still present (kept, unread) |
 | Raw archive | From the manifests: runs by outcome, and distinct objects and bytes per integration (an unchanged run reuses an object, which is counted once). From listing the bucket: objects and bytes per producer prefix, stopping after 100,000 objects |
 | Job durations (`lanes`) | p50, p95 and max of each scheduled job's runs over 30 days (`job_runs`) — one scheduled operation end to end |
 | Full-scan time | Elapsed time of each table's read transaction, including its connection and query, and their sum |
@@ -67,7 +67,7 @@ A table added by a migration without a `db/postgres/tables.json` row is still
 measured as *undeclared*, with no growth rate; `scripts/postgres-model.test.mjs`
 fails until the row is added.
 
-The catalog treats retained insight snapshots as `cache`: each site's two
+The catalog treats retained insight snapshots as `cache`: each asset's two
 newest stay and exported older rows may be removed from Postgres under the
 approved retention rule. Export acknowledgements, numbering counters, measurement-series keys,
 capability targets and item dispositions are `state`.
@@ -82,7 +82,7 @@ bytes added per day:
    - `history`: `b + Δb × h`.
    - `cache`: steady state, `Δb × retention days` (the oldest row's age shows
      the retention actually applied).
-   - `state`: `b`, scaled by the number of sites if it is per site.
+   - `state`: `b`, scaled by the number of assets if it is per asset.
 2. **Postgres physical storage**: compare each table's measured
    `relationBytes` with its scoped `valueBytes`. Physical bytes already
    include indexes, page overhead and TOAST; column bytes already reflect
@@ -97,16 +97,16 @@ bytes added per day:
    fraction of their stored bytes; the ratio is measured, not assumed, by
    writing one month of each dataset from an isolated backup copy with DuckDB
    and dividing.
-5. **Per site and per workspace**: divide each table's `Δr` by the number of
-   sites that produce it. A self-hosted install is one workspace; a hosted
-   database is the sum over workspaces, each sized by its sites.
+5. **Per asset and per workspace**: divide each table's `Δr` by the number of
+   assets that produce it. A self-hosted install is one workspace; a hosted
+   database is the sum over workspaces, each sized by its assets.
 6. **Change detection**: `signal_observations` rows per day over
    `signal_runs` rows per day is the observations a run adds. Compared with the
    full-series figure, it is the storage that change detection saves, and that
    saving must continue after the move.
 7. **Snapshot retention**: *kept but unread* bytes are what a snapshot
    retention rule would reclaim. Measured only — changing retention is an
-   operator decision. The Postgres rule is that each site's two newest stay
+   operator decision. The Postgres rule is that each asset's two newest stay
    and older ones move to the analytical store
    ([`db/postgres/`](../db/postgres/README.md#what-stays-in-postgres)).
 

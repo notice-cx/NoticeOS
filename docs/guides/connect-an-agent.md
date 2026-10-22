@@ -1,13 +1,13 @@
 ---
 title: "Connect an agent"
-description: "Give a coding agent on this machine your tasks, site reports and each site's data panel through MCP, with no task tool or credential of its own."
+description: "Give a coding agent on this machine your tasks, asset reports and each asset's data panel through MCP, with no task tool or credential of its own."
 ---
 
 # Connect an agent
 
-This page shows how to connect an AI coding agent, such as Claude Code, to your installation through MCP (the Model Context Protocol). The agent reads and updates the tasks you see on **Tasks**, reads site reports, and queries each site's search, traffic and product data. It needs no task tool and no credential of its own.
+This page shows how to connect an AI coding agent, such as Claude Code, to your installation through MCP (the Model Context Protocol). The agent reads and updates the tasks you see on **Tasks**, reads asset reports, and queries each asset's search, traffic and product data. It needs no task tool and no credential of its own.
 
-MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can list, file, claim and close tasks and read how your sites are doing, the way you would in the Tower. Only you can approve work.
+MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can list, file, claim and close tasks and read how your assets are doing, the way you would in the Tower. Only you can approve work.
 
 ## Before you begin
 
@@ -25,7 +25,7 @@ The Tower serves MCP at `/api/mcp` on its own address, the one you open the Towe
 claude mcp add --scope user --transport http noticeos http://127.0.0.1:5173/api/mcp --header 'X-NoticeOS-Actor: claude'
 ```
 
-You do not need to look up the port: at a terminal, `pnpm os:mcp` (or `~/noticeos/noticeos mcp` without a checkout) prints this line with your installation's port. When it prints a different command, it also prints the reason. `--scope user` registers it once for every repository on this machine, so an agent in a site's own checkout sees its tasks too.
+You do not need to look up the port: at a terminal, `pnpm os:mcp` (or `~/noticeos/noticeos mcp` without a checkout) prints this line with your installation's port. When it prints a different command, it also prints the reason. `--scope user` registers it once for every repository on this machine, so an agent in an asset's own checkout sees its tasks too.
 
 Any other MCP client that supports HTTP uses the same address and header, for example in a project's `.mcp.json`:
 
@@ -56,15 +56,15 @@ The task records the model beside the agent's name, the Wall's **Live feed** sho
 
 | Tools | What they do |
 | --- | --- |
-| `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects. Each project's `name` is its site's name, and its `projectId` stays the same when the project moves to another site. `list_workspaces` also returns `guideVersion`, the version `get_task_guide` returns now |
-| `get_task_guide` | Return the rules for task work as Markdown with a version: what changed lately, the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read site data. It takes no arguments |
+| `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects. Each project's `name` is its asset's name, and its `projectId` stays the same when the project moves to another asset. `list_workspaces` also returns `guideVersion`, the version `get_task_guide` returns now |
+| `get_task_guide` | Return the rules for task work as Markdown with a version: what changed lately, the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read asset data. It takes no arguments |
 | `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` returns summaries, most urgent first, 50 at a time (`limit`, and `offset` from the response's `nextOffset`). With a `project` it lists that project; without one it lists every project in the workspace in one order, each task with its `project`, `projectId` and `projectName`, and `unavailable` lists any project whose tasks could not be read. It searches the current tasks: `query` for words, `assignee` for the tasks one name holds (`me` for the agent's own), `parent`, `labels`, `type`, `status`, `ready: true` for tasks with no open blockers, and `created_after`, `created_before`, `updated_after`, `updated_before`. `get_task` reads one in full |
 | `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. A task that needs you to pick one option carries `choices`: a question and two to six options keyed `a` to `f`, each with a label and an optional detail, one marked recommended. `update_task` replaces them whole or removes them with `null`, until you have chosen. `get_task` and `list_tasks` return `choices` and, once you have picked, `choice`. A task meant to change money carries a `card`, what the work is worth: `valuePerMonth` (USD a month), `likelihood` (0.01 to 0.99), `reviewMinutes`, `daysToSignal` and `measurability` (`cohort`, `holdout` or `unmeasured`), with optional `buildMinutes`, `revenueFamily`, `durability`, `kill` (`state` and `date`; the date is also the task's due date) and `note`. The server records who wrote the card and when. The Tower ranks tasks by their cards; a task without one is listed, not ranked. `change_class` records the kind of change: `content-data`, `copy`, `template`, `feature` or `infra`. `update_task` replaces a card whole, and `null` removes either, until the task closes as done. `get_task` and `list_tasks` return them as `card` and `changeClass`. `create_task` and `create_tasks` take `model`, and the task records the agent and the model that filed it. Each response lists what a task still lacks, such as acceptance criteria, and advises `choices` for a task labelled `human` whose description lists lettered options; a task is not rejected for either |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence. Claim and close take `model`, the name of the model doing the work, which the agent passes every time: the task page shows it beside the agent's name, and the **Agents** page ranks models by it. When nothing shipped, `close_task` takes a `resolution`: `wont-do`, `duplicate` with `duplicate_of` (the other task's id in the same project, which the close links as related), `cant-reproduce` or `already-handled`; without one the close is `done`. The reason still cites the evidence, and the **Agents** page counts every close reason. `get_task` and `list_tasks` return `resolution`, and `duplicateOf` for a duplicate, on a closed task. A `done` close of a task with a card keeps the card as it stood, with the close time and the commit hash the reason names; `get_task` returns it as `cardShipped`, and from then on `update_task` stops any change to that task's card, also after the task is reopened |
 | `add_dependency`, `remove_dependency` | Record what blocks what. A `blocks` dependency keeps a task out of the ready list until the other closes; it does not stop the task from being closed. An open approval does: `close_task` refuses a task while an approval it waits on is open |
 | `request_human_approval` | Request your approval before work on a task continues. The request is listed under **Your decisions**, and the task stays out of the ready list until you approve it; the response reports this. Calling it again with the same reason returns the same request |
-| `list_properties`, `property_report`, `property_history`, `research_lookup` | Read site reports and stored research. `list_properties` gives each site's last 28 days in totals: daily revenue per source, each source named with its provider and family, and traffic per provider and metric. `property_history` gives the days behind them for one site or every site (`days`, up to 365), and revenue per accounting month by source and booking state (`months`, up to 120) |
-| `list_panels`, `get_panel`, `query_panel`, `read_panel_document` | Read each site's data panel: its Search Console, Analytics, Bing, DataForSEO, PostHog and Clarity reports as tables, rebuilt daily. `get_panel` shows how current each report is and what needs attention; `query_panel` runs one read-only SQL `SELECT` over a panel's tables. Each panel version stays readable for 14 days. See [Signal panels](../20-signal-panels.md#how-an-agent-reads-a-panel) |
+| `list_properties`, `property_report`, `property_history`, `research_lookup` | Read asset reports and stored research. `list_properties` gives each asset's last 28 days in totals: daily revenue per source, each source named with its provider and family, and traffic per provider and metric. `property_history` gives the days behind them for one asset or every asset (`days`, up to 365), and revenue per accounting month by source and booking state (`months`, up to 120) |
+| `list_panels`, `get_panel`, `query_panel`, `read_panel_document` | Read each asset's data panel: its Search Console, Analytics, Bing, DataForSEO, PostHog and Clarity reports as tables, rebuilt daily. `get_panel` shows how current each report is and what needs attention; `query_panel` runs one read-only SQL `SELECT` over a panel's tables. Each panel version stays readable for 14 days. See [Signal panels](../20-signal-panels.md#how-an-agent-reads-a-panel) |
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
 
@@ -121,13 +121,13 @@ A hosted workspace serves the same tools at its own `/api/mcp` address. The agen
 - `list_projects` lists your linked task projects.
 - `list_tasks` with `ready: true` lists the tasks with no open blockers; on **Tasks**, **Agents, next up** shows the ones an agent can take next as **Ready**.
 - `list_tasks` with `assignee: "me"` and no `project` lists the tasks the agent has claimed, in every project.
-- `list_panels` lists each site on the panel refresh roster with a version built in the last day.
+- `list_panels` lists each asset on the panel refresh roster with a version built in the last day.
 
 ## If it didn't work
 
 - **The app is not running**: start it with `pnpm os:start` or `~/noticeos/noticeos start`.
 - **No projects**: link a checkout; see [Connect a task project](/guides/connect-a-task-project#where-the-checkout-link-goes).
-- **The agent lists only the site report tools**: the Tower is running a version older than the one that serves every tool. Update it, or restart a development stack with `pnpm os:restart`.
+- **The agent lists only the asset report tools**: the Tower is running a version older than the one that serves every tool. Update it, or restart a development stack with `pnpm os:restart`.
 - **The agent lists no tools**: send one message yourself. `curl -s http://127.0.0.1:5173/api/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'` returns `{"jsonrpc":"2.0","id":1,"result":{}}`; any other response contains the error.
 
 ## Next steps

@@ -162,7 +162,7 @@ test('no unregistered file imports a desk-restricted component', () => {
 });
 
 // The other half of the ratchet: a list nobody prunes stops being a decision.
-test('every recorded call site still is one', () => {
+test('every recorded call asset still is one', () => {
   const stale = [];
 
   for (const [name, entry] of Object.entries(DEPRECATED)) {
@@ -178,7 +178,7 @@ test('every recorded call site still is one', () => {
   assert.deepEqual(
     stale,
     [],
-    `these recorded call sites are no longer true — delete them:\n  ${stale.join('\n  ')}\n` +
+    `these recorded call assets are no longer true — delete them:\n  ${stale.join('\n  ')}\n` +
       'Unused entries become permission slips. When a component\'s list empties, delete the ' +
       'component, its registry entry and its entry here.',
   );

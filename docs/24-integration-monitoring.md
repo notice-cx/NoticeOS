@@ -10,7 +10,7 @@ not show that every report, live feed, calendar, or notification is working.
 shared state projection. Its tests require every connected provider and every
 catalog entry in `config/integrations.json` to have a monitor or an explicit
 coverage gap. A new provider cannot be shown as green without a monitor. Family-based adapters
-expand the collector's actual report plan by property and date; they do not
+expand the collector's actual report plan by asset and date; they do not
 copy a list of report names into monitoring.
 
 Archive adapters encode `family` as a canonical JSON tuple of report name,
@@ -19,7 +19,7 @@ with the query/device slots empty: DataForSEO combines its tracked queries and
 devices into one report outcome and fails that report when a required member
 call is incomplete. Independent query/device incidents are not exposed.
 Yesterday’s successful report cannot clear today’s failed report. `target` identifies
-the property. Delivery targets identify the destination; real notifications
+the asset. Delivery targets identify the destination; real notifications
 and test sends have separate capability IDs. A later successful notification
 can demonstrate destination recovery, but never changes the failed receipt
 or automatically resends that earlier notification. Saved query-history reads
@@ -28,7 +28,7 @@ use stored R2/Postgres evidence and are not new Google operations.
 Each record is scoped to workspace, connection revision, capability, asset,
 target, and report family. Realtime active users, hourly traffic, daily
 Analytics, Search Console, and each archive family have independent outcomes.
-Connection tests and site discovery are separate capabilities. They cannot
+Connection tests and asset discovery are separate capabilities. They cannot
 clear failed production reads. A credential replacement starts a new revision;
 old evidence remains in history and cannot confirm the replacement's access.
 
@@ -88,7 +88,7 @@ health is not derived from it.
 The approved schema is implemented in the
 [Postgres baseline](../db/postgres/migrations/0001_baseline.sql).
 What is monitored — provider, connection
-revision, capability, site, target and family — is one `capability_targets`
+revision, capability, asset, target and family — is one `capability_targets`
 row that state and events refer to
 ([`0001_baseline.sql`](../db/postgres/migrations/0001_baseline.sql)).
 
@@ -184,7 +184,7 @@ Archive histories remain scoped by report and date. Incomplete or truncated
 responses cannot clear a failure. A SERP panel stopped at its own tracked depth
 is complete, not truncated in this sense. A DataForSEO report reads stale a day
 after it fell due, because a missed snapshot is never collected later; other
-archive reports read stale after two missed cadences. Each property archive read returns at most
+archive reports read stale after two missed cadences. Each asset archive read returns at most
 256 latest report/date outcomes, prioritizing unresolved failures, and shows
 an explicit count and unknown coverage item when additional dates exist.
 Last success is selected by attempt start, independently of the current failure.

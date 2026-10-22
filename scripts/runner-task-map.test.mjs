@@ -141,7 +141,7 @@ test('a project that agrees again has its open bead closed', async () => {
   assert.deepEqual((await runTaskMapCheck(deps)).closed, [{ asset: 'shop.example', beadId: 'os-3' }]);
 });
 
-test('a hub that will not answer, or no OS site to file into, decides nothing', async () => {
+test('a hub that will not answer, or no OS asset to file into, decides nothing', async () => {
   const refused = lane({ hubCode: 1 });
   assert.equal(await runTaskMapCheck(refused.deps), null);
   assert.equal(refused.ran.filter((argv) => argv.includes('list')).length, 0, 'not even the bead list is asked for');

@@ -167,7 +167,7 @@ describe("Home's combined revenue card", () => {
     const second = healthy("second.example.com", { revenueProjection });
     state.payload = wall([first, second]);
     const { container, rerender } = renderHome();
-    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 sites");
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 assets");
     state.payload = wall([first, { ...second, dailyRevenue: { ...dailyRevenue, timeZone: "Europe/London" } }]);
     rerender(tree(<HomeRoute />));
     expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday · mixed report days · no total");
@@ -235,7 +235,7 @@ function expectContentHeight(container: HTMLElement) {
 }
 
 describe("the views draw their modules", () => {
-  it("draws the four overview cards as a responsive two-by-two group with Sites immediately below", () => {
+  it("draws the four overview cards as a responsive two-by-two group with Assets immediately below", () => {
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
 
@@ -276,7 +276,7 @@ describe("the views draw their modules", () => {
     expect(modulesDrawn(container)).toEqual(["factory", "health", "money", "decide"]);
   });
 
-  it("draws money, channels, gaps, problems, decide and the sites for the product view", () => {
+  it("draws money, channels, gaps, problems, decide and the assets for the product view", () => {
     storeView("product");
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
@@ -302,30 +302,30 @@ describe("the views draw their modules", () => {
     ]);
   });
 
-  it("leads the business view's answer with the sites' health", () => {
+  it("leads the business view's answer with the assets' health", () => {
     storeView("business");
     state.payload = wall([
-      healthy("first.example.com", { displayName: "First Site" }),
+      healthy("first.example.com", { displayName: "First Asset" }),
       healthy("second.example.com", { displayName: "Second Site", product: product({ speed: "fired" }) }),
       card("third.example.com", { status: "pre-launch" }),
     ]);
     const { container } = renderHome();
 
     const answer = container.querySelector("[data-home-answer-health]")!;
-    expect(answer.textContent).toBe("1 of 2 sites are fine. Second Site: slow for 1 in 4 visitors. October so far $45.");
+    expect(answer.textContent).toBe("1 of 2 assets are fine. Second Site: slow for 1 in 4 visitors. October so far $45.");
     expect(answer.firstElementChild).toHaveClass("text-warn");
   });
 
-  it("names a site whose nightly report is late, and never calls it fine", () => {
+  it("names an asset whose nightly report is late, and never calls it fine", () => {
     storeView("business");
     // 49 hours before the clock (12:05): past twice the nightly cadence.
     state.payload = wall([
-      healthy("brief.example.com", { displayName: "Brief Site", pulseReceivedAt: "2026-10-17T11:05:00.000Z" }),
+      healthy("brief.example.com", { displayName: "Brief Asset", pulseReceivedAt: "2026-10-17T11:05:00.000Z" }),
       healthy("second.example.com", { displayName: "Second Site" }),
     ]);
     const { container } = renderHome();
 
-    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^1 of 2 sites are fine\. Brief Site: no report for 2 days\./);
+    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^1 of 2 assets are fine\. Brief Asset: no report for 2 days\./);
     const row = container.querySelector<HTMLElement>('[data-site-health-row="brief.example.com"]')!;
     expect(row).toHaveAttribute("data-tech-health", "watch");
     expect(row.querySelector("[data-site-health-note]")!.textContent).toBe("No report for 2 days");
@@ -354,25 +354,25 @@ describe("the views draw their modules", () => {
     expect(everything.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
   });
 
-  it("says every measured site is fine when none needs a look", () => {
+  it("says every measured asset is fine when none needs a look", () => {
     storeView("business");
     state.payload = wall([healthy("first.example.com"), healthy("second.example.com")]);
     const { container } = renderHome();
 
-    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^All 2 sites are fine\./);
+    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^All 2 assets are fine\./);
   });
 });
 
-describe("the site-health module", () => {
+describe("the asset-health module", () => {
   const cards = [
-    healthy("fine.example.com", { displayName: "Fine Site" }),
-    healthy("slow.example.com", { displayName: "Slow Site", product: product({ speed: "fired", errors: "fired", errorPeople: 3 }) }),
-    card("new.example.com", { displayName: "New Site", status: "pre-launch" }),
+    healthy("fine.example.com", { displayName: "Fine Asset" }),
+    healthy("slow.example.com", { displayName: "Slow Asset", product: product({ speed: "fired", errors: "fired", errorPeople: 3 }) }),
+    card("new.example.com", { displayName: "New Asset", status: "pre-launch" }),
   ];
 
   const row = (container: HTMLElement, id: string) => container.querySelector<HTMLElement>(`[data-site-health-row="${id}"]`)!;
 
-  it("draws one row per site under one header of five facts", () => {
+  it("draws one row per asset under one header of five facts", () => {
     const { container } = render(tree(<HealthModule cards={cards} issues={[]} />));
 
     expect([...container.querySelectorAll("[data-fact-header]")].map((el) => el.textContent)).toEqual(["Up", "Speed", "Errors", "Search", "Code"]);
@@ -388,7 +388,7 @@ describe("the site-health module", () => {
       expect(site.querySelector("a")).toHaveClass("col-span-full", "@md:col-span-1");
     }
     expect(header.firstElementChild).toHaveClass("hidden", "@md:block");
-    expect(within(row(container, "fine.example.com")).getByRole("link", { name: /Fine Site/ })).toHaveAttribute("href", "/assets/fine.example.com");
+    expect(within(row(container, "fine.example.com")).getByRole("link", { name: /Fine Asset/ })).toHaveAttribute("href", "/assets/fine.example.com");
   });
 
   it("colours only the problem dots, keeps a hidden word on each and an empty ring for unknown", () => {
@@ -399,7 +399,7 @@ describe("the site-health module", () => {
     expect(speed).toHaveAttribute("data-fact-dot", "warn");
     expect(speed).toHaveClass("bg-warn");
     expect(slow.querySelector('[data-fact="speed"] .sr-only')).toHaveTextContent("Slow");
-    expect(within(slow).getByRole("button", { name: "Slow Site, Speed: Slow" })).toBeInTheDocument();
+    expect(within(slow).getByRole("button", { name: "Slow Asset, Speed: Slow" })).toBeInTheDocument();
 
     const fine = row(container, "fine.example.com");
     for (const dot of fine.querySelectorAll("[data-fact-dot]")) {
@@ -446,14 +446,14 @@ describe("the agents' week", () => {
 
   it("counts the bets that worked and lists the newest lines", () => {
     const watched = card("first.example.com", {
-      displayName: "First Site",
+      displayName: "First Asset",
       watches: { open: 2, latest: { id: "w-1", ref: "abc", outcome: "ship_confirmed", nextCheckDate: null, closedAt: "2026-10-17T00:00:00.000Z" } },
     });
     const { container } = render(tree(<FactoryModule cards={[watched]} work={null} nowMs={Date.parse("2026-10-19T12:00:00.000Z")} />));
 
     expect(container.querySelector('[data-factory-figure="proven"]')).toHaveTextContent("1");
     expect(screen.getByText("2 being watched")).toBeInTheDocument();
-    expect(container.querySelector("[data-factory-latest]")).toHaveTextContent("Latest betFirst Site · Worked");
+    expect(container.querySelector("[data-factory-latest]")).toHaveTextContent("Latest betFirst Asset · Worked");
   });
 });
 
@@ -463,7 +463,7 @@ describe("where visitors come from", () => {
     return { windowStart: "2026-09-21", windowEnd: "2026-10-18", rows: rows.map(([channel, sessions]) => ({ channel, sessions, share: sessions / total })) };
   };
 
-  it("sums every site's visits by channel and shares them of the total", () => {
+  it("sums every asset's visits by channel and shares them of the total", () => {
     const shares = channelShares([
       card("a.example.com", { channels: split([["Organic Search", 300], ["Direct", 100]]) }),
       card("b.example.com", { channels: split([["Direct", 500], ["Referral", 100]]) }),
@@ -488,15 +488,15 @@ describe("where visitors come from", () => {
     expect(rows.at(-1)).toHaveAttribute("data-channel-share", (30 / 280).toFixed(4));
   });
 
-  it("draws the funnel with the largest drop across sites, the drop step coloured", () => {
+  it("draws the funnel with the largest drop across assets, the drop step coloured", () => {
     const cards = [
-      card("a.example.com", { displayName: "A Site", product: product({ funnel: { name: "Signup", largestDrop: { fromStep: "Viewed /", toStep: "Signed up", lostPeople: 40, stepConversion: 0.2 } } }) }),
-      card("b.example.com", { displayName: "B Site", product: product({ funnel: { name: "Checkout", largestDrop: { fromStep: "Cart", toStep: "Paid", lostPeople: 90, stepConversion: 0.1 } } }) }),
+      card("a.example.com", { displayName: "A Asset", product: product({ funnel: { name: "Signup", largestDrop: { fromStep: "Viewed /", toStep: "Signed up", lostPeople: 40, stepConversion: 0.2 } } }) }),
+      card("b.example.com", { displayName: "B Asset", product: product({ funnel: { name: "Checkout", largestDrop: { fromStep: "Cart", toStep: "Paid", lostPeople: 90, stepConversion: 0.1 } } }) }),
     ];
     const { container } = render(tree(<ChannelsModule cards={cards} />));
 
     const funnel = container.querySelector('[data-channels-funnel="Checkout"]')!;
-    expect(funnel).toHaveTextContent("B Site · Checkout");
+    expect(funnel).toHaveTextContent("B Asset · Checkout");
     expect(funnel).toHaveTextContent("90 people left between these two steps.");
     expect(funnel.querySelector('[data-funnel-step="to"] .bg-warn')).not.toBeNull();
     expect(funnel.querySelector('[data-funnel-step="from"] .bg-warn')).toBeNull();
@@ -513,7 +513,7 @@ describe("where visitors come from", () => {
     ];
     const cards = [
       card("a.example.com", {
-        displayName: "Recipe Site",
+        displayName: "Recipe Asset",
         product: product({ funnel: { name: "Recipe to sign-up", largestDrop: { fromStep: "Opened a recipe", toStep: "Saved it", lostPeople: 525, stepConversion: 55 / 580 }, steps } }),
       }),
     ];
@@ -543,7 +543,7 @@ describe("where visitors come from", () => {
 
 describe("worth a look", () => {
   it("lists the gaps, each with a way to make a task, capped", () => {
-    const cards = Array.from({ length: 5 }, (_, index) => card(`site-${index}.example.com`, { displayName: `Site ${index}`, codebase: null }));
+    const cards = Array.from({ length: 5 }, (_, index) => card(`site-${index}.example.com`, { displayName: `Asset ${index}`, codebase: null }));
     const { container } = render(tree(<GapsModule cards={cards} />));
 
     // Five sites each earn nothing, have no task project and send no code
@@ -552,7 +552,7 @@ describe("worth a look", () => {
     expect(within(container).getByRole("region", { name: "Worth a look" })).toHaveTextContent("Worth a look8");
     expect(container.querySelectorAll("[data-business-gap]")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Show 5 more" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Make a task for Site 0 earns nothing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make a task for Asset 0 earns nothing" })).toBeInTheDocument();
   });
 
   it("says nothing is missing on a complete portfolio", () => {

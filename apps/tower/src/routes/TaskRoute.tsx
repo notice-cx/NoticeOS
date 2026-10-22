@@ -257,7 +257,7 @@ export function TaskRoute() {
       {returnTo.startsWith("/tasks") ? null : (
         <Link to={returnTo} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <ArrowLeft className="size-4" aria-hidden />
-          {returnTo.startsWith("/assets/") ? "Back to site" : "Back to Home"}
+          {returnTo.startsWith("/assets/") ? "Back to asset" : "Back to Home"}
         </Link>
       )}
       <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={writable} readAt={detail.data?.readAt ?? null} nowMs={now}>
@@ -1850,7 +1850,7 @@ function handoffOrigin(metadata: Record<string, unknown> | null): HandoffOrigin 
   const section = ORIGIN_SECTIONS[kind];
   return {
     asset,
-    what: section?.what ?? "the site page",
+    what: section?.what ?? "the asset page",
     key: text("key"),
     rule: text("rule"),
     to: `/assets/${encodeURIComponent(asset)}${section?.hash ?? ""}`,

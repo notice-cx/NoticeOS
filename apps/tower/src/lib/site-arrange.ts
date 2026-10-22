@@ -38,7 +38,7 @@ export function movedOrder(order: readonly string[], asset: string, to: string):
 }
 
 const WHERE: Readonly<Record<ShownOnSurface, string>> = {
-  list: "on Home and the Sites list",
+  list: "on Home and Portfolio",
   tv: "on the TV",
   work: "in Work this week",
 };

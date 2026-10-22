@@ -5,8 +5,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { coveredByPhrase, sourceFiles, stringValues, withoutComments } from './test/shipped-copy.mjs';
 
-// A site is never a *property*, and one word means one thing. The word a
-// person reads is *site*; *property* collides with the GA4/Search Console
+// An asset is never a *property*, and one word means one thing. The word a
+// person reads is *asset*; *property* collides with the GA4/Search Console
 // **property** object the Sources tab has to name.
 //
 // A copy sweep is only true on the day it runs. The old word survives in every
@@ -79,6 +79,7 @@ const ALLOWED_PHRASES = [
   // It names the provider's object and never reaches a person: it is a cache
   // key, and the two cards that share it share it BY this string.
   '"google-properties"',
+  '"sites", "properties"', // Search aliases, never rendered.
 ];
 
 /** The spans of a file that end up in front of a person: string and template
@@ -145,7 +146,7 @@ test('no shipped Tower string calls an asset a property', () => {
     offenders,
     [],
     `these shipped strings still call an asset a property:\n  ${offenders.join('\n  ')}\n` +
-      'The UI noun is Site — nav labels, headings, copy, hover text, and the sentences the ' +
+      'The UI noun is Asset — nav labels, headings, copy, hover text, and the sentences the ' +
       'payload builders write. If a string genuinely names the GA4/Search Console property ' +
       'object, a stored config value, a DOM hook, or the /properties alias URL, add that exact ' +
       'phrase to ALLOWED_PHRASES in this file with its reason — never widen the pattern.',

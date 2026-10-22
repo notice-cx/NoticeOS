@@ -179,7 +179,7 @@ export function parseArgs(argv) {
     }
     values[flag] = value;
   }
-  if (!values['--asset'] || !ASSET.test(values['--asset'])) throw new Error(`--asset needs the site's id, such as example.com.\n${HELP}`);
+  if (!values['--asset'] || !ASSET.test(values['--asset'])) throw new Error(`--asset needs the asset's id, such as example.com.\n${HELP}`);
   let paths = null;
   if (values['--paths'] !== undefined) {
     const raw = values['--paths'].split(',').map((part) => part.trim()).filter(Boolean);
@@ -1057,7 +1057,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, ou
     const answer = await postEnvelope(options.post, envelope, token, fetchImpl);
     if (answer.ok) { err.write(`The ingest stored the report: ${answer.body}\n`); return 0; }
     err.write(`The ingest refused the report (${answer.status}): ${answer.body}\n`);
-    if (answer.status === 401) err.write('The token does not match the site id; both come from the site in the Tower.\n');
+    if (answer.status === 401) err.write('The token does not match the asset id; both come from the asset in the Tower.\n');
     return 1;
   } catch (error) {
     err.write(`The report could not be sent: ${error.message}\n`);

@@ -3,7 +3,7 @@
 //
 // The one-off jobs run inside the app container with the runner's own
 // environment (deploy/compose/entrypoint.mjs): one backup, one schedule, one
-// site's collection, the capacity report, the MCP server and the task client.
+// asset's collection, the capacity report, the MCP server and the task client.
 //
 //   pnpm os:status      Where the installation is, what runs, its health, the database's migrations, and whether main is ahead.
 //   pnpm os:logs        Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them.
@@ -13,7 +13,7 @@
 //   pnpm os:backup      Run one backup now, inside the app container.
 //   pnpm os:run-job -- "<cron>"  Run one allowed local job with `--id <job-id>`, or fire one cron expression now.
 //   pnpm os:run-job -- --id <job-id>  Run one allowed local job now through the live scheduler.
-//   pnpm os:collect -- --asset <id> [--families <a,b>]  Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed.
+//   pnpm os:collect -- --asset <id> [--families <a,b>]  Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed.
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
 //   pnpm os:refresh-anomalies -- --asset <id> [--apply <preview-token>]  Re-evaluate current count alerts from stored reports, with no provider calls.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.

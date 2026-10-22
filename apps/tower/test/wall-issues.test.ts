@@ -88,7 +88,7 @@ describe("the Wall's issue list", () => {
     expect(issues[0]).toMatchObject({ line: expect.stringContaining("Home page"), mark: "Home page down" });
   });
 
-  it("keeps a multi-site alert as one row about every site it names", () => {
+  it("keeps a multi-asset alert as one row about every asset it names", () => {
     const issues = wallIssues({
       assets: SITES,
       attention: [neverReported([["northwind.example", "Northwind"], ["acorn.example", "Acorn Atlas"]])],
@@ -97,7 +97,7 @@ describe("the Wall's issue list", () => {
     });
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({
-      site: "2 sites",
+      site: "2 assets",
       assets: ["northwind.example", "acorn.example"],
       mark: "Report alert",
       conditions: ["open-flags"],
@@ -143,7 +143,7 @@ describe("the Wall's issue list", () => {
     expect(flagged[0]?.key.startsWith("alert-")).toBe(true);
   });
 
-  it("never marks a site that declared it sends no nightly report for a missing one", () => {
+  it("never marks an asset that declared it sends no nightly report for a missing one", () => {
     const declared = asset("acorn.example", "Acorn Atlas", { noNightlyReport: true, pulseReceivedAt: ago(9 * 24 * HOUR) });
     const issues = wallIssues({
       assets: [asset("northwind.example", "Northwind"), declared],
@@ -160,7 +160,7 @@ describe("the Wall's issue list", () => {
     expect(issues[0]).toMatchObject({ site: "Northwind", assets: ["northwind.example"] });
   });
 
-  it("counts nothing about a retired site: its own alerts, its share of a group, its late report", () => {
+  it("counts nothing about a retired asset: its own alerts, its share of a group, its late report", () => {
     const retired = asset("acorn.example", "Acorn Atlas", { status: "retired", pulseReceivedAt: ago(9 * 24 * HOUR) });
     const issues = wallIssues({
       assets: [asset("meadow.example", "Meadow Board"), asset("northwind.example", "Northwind"), retired],
@@ -178,7 +178,7 @@ describe("the Wall's issue list", () => {
     expect(siteMark(issues, "acorn.example")).toBeNull();
   });
 
-  it("marks a failing source by its short name, once for every site it fails on", () => {
+  it("marks a failing source by its short name, once for every asset it fails on", () => {
     const credential: CredentialSummary = {
       provider: "google", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
       keyVersion: 1, createdAt: ago(40 * 24 * HOUR), updatedAt: ago(40 * 24 * HOUR), lastUsedAt: ago(HOUR), lastOkAt: ago(HOUR), lastError: null,
@@ -194,13 +194,13 @@ describe("the Wall's issue list", () => {
     };
     const issues = wallIssues({ assets: SITES, attention: [], connections, nowMs: NOW });
     expect(issues).toEqual([
-      expect.objectContaining({ severity: "error", site: "2 sites", line: "GA4 collection failing", mark: "GA4 failing", since: null }),
+      expect.objectContaining({ severity: "error", site: "2 assets", line: "GA4 collection failing", mark: "GA4 failing", since: null }),
     ]);
     expect(siteMark(issues, "northwind.example")).toEqual({ severity: "error", label: "GA4 failing", more: 0 });
     expect(siteMark(issues, "meadow.example")).toBeNull();
   });
 
-  it("gives a site one mark for its worst, newest problem and counts the rest", () => {
+  it("gives an asset one mark for its worst, newest problem and counts the rest", () => {
     const issues = wallIssues({
       assets: SITES,
       attention: [alert({ asset: "acorn.example", assetDisplayName: "Acorn Atlas" }), homeDown("acorn.example", "Acorn Atlas", 25)],

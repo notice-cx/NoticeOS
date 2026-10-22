@@ -7,7 +7,7 @@ import { addSites } from "./sites";
 import { seedAssets } from "./invented-sites";
 import INVENTED from "../../../db/fixtures/invented-sites.json";
 
-describe.skipIf(postgresUnavailable() !== null)("direct Postgres site fixtures", () => {
+describe.skipIf(postgresUnavailable() !== null)("direct Postgres asset fixtures", () => {
   it("keeps rows added after a reader's first call in the same copy", async () => {
     const fixture = await createTestStore();
     const store = fixture.call;

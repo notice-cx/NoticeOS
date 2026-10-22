@@ -798,7 +798,7 @@ test('parseArgs: the eleven desk routes at the local Tower by default', () => {
 
 // The site pages are measured on a site this Tower lists, or the one `--asset`
 // names, never a site written into the script.
-test('the site pages are filled with --asset, or with the first site the Sites page lists', () => {
+test('the asset pages are filled with --asset, or with the first asset the Assets page lists', () => {
   assert.equal(parseArgs(['--asset', 'shop.example']).asset, 'shop.example');
   assert.deepEqual(siteRoutes(DEFAULT_ROUTES, 'shop.example').slice(0, 5), [
     '/',

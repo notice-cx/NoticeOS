@@ -398,7 +398,7 @@ function collector(integration: string): string {
     case "mediavine":
       return "Mediavine";
     case "hygiene":
-      return "Site checks";
+      return "Asset checks";
     default:
       return integration;
   }

@@ -1029,7 +1029,7 @@ describe("ListPanel", () => {
           { key: "a", title: "/calculator", count: "3 found", rows: [row("Chrome OS"), row("age input"), row("TypeError")] },
           { key: "b", title: "/", count: "1 found", rows: [row("Script error")] },
           { key: "c", title: "/my", count: "1 found", rows: [row("m.default")] },
-          { key: "d", title: "Whole site", count: "1 found", rows: [row("fires twice")] },
+          { key: "d", title: "Whole asset", count: "1 found", rows: [row("fires twice")] },
         ]}
       />,
     );

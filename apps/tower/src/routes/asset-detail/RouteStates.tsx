@@ -14,11 +14,11 @@ export function NotFound({ id }: { id: string }) {
   return (
     <div className="grid flex-1 place-items-center">
       <div className="flex flex-col items-start gap-3" data-route-state="not-found">
-        <EmptyState title="No such site" hint={<span className="font-mono">{id}</span>} />
+        <EmptyState title="No such asset" hint={<span className="font-mono">{id}</span>} />
         <Button asChild variant="outline" size="sm">
           <Link to="/assets">
             <ArrowLeft className="size-4" />
-            All sites
+            All assets
           </Link>
         </Button>
       </div>

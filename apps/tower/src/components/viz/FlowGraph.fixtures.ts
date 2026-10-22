@@ -59,7 +59,7 @@ export const FLOW_SYSTEM: FlowFixture = {
     { id: "mediavine", label: "Mediavine", icon: CircleDollarSign, caption: "read 3h ago", state: "ok" },
     { id: "collectors", label: "Collectors", icon: ArrowDownToLine, value: "3 of 5", caption: "sources reading", state: "warn", since: ago(6 * 60) },
     { id: "store", label: "Store", icon: Database, caption: "last write 2m ago", state: "ok" },
-    { id: "tower", label: "Tower", icon: LayoutDashboard, caption: "4 sites up to date", state: "ok" },
+    { id: "tower", label: "Tower", icon: LayoutDashboard, caption: "4 assets up to date", state: "ok" },
     { id: "runner", label: "Job runner", icon: Cog, caption: "last job 4m ago", state: "active" },
     { id: "backups", label: "Backups", icon: Archive, caption: "last good copy 1d ago", state: "error", stateLabel: "Failed", since: ago(6 * 60) },
   ],

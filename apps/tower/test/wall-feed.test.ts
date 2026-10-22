@@ -397,7 +397,7 @@ needsPostgres("buildWallFeed", () => {
     expect(feed.items.some(row => row.asset === "recipes.example.com" || row.site === "Recipes")).toBe(false);
     expect(feed.items.some(row => row.text.includes("Recipe cards") || row.text.includes("recipe card layout"))).toBe(false);
     expect(feed.items.find(row => row.kind === "revenue" && /reported/i.test(row.text))?.text).toBe("Reported $14.15 for Sep 21");
-    expect(feed.items.some(row => row.text === "Google · 2 sites, none failed")).toBe(true);
+    expect(feed.items.some(row => row.text === "Google · 2 assets, none failed")).toBe(true);
     expect(feed.items.some(row => row.kind === "task-filed" && row.site === "Medley")).toBe(true);
   });
 
@@ -407,21 +407,21 @@ needsPostgres("buildWallFeed", () => {
     expect(lines(feed.items)).toEqual([
       "19:24 task-done Recipes · Recipe cards load faster",
       "19:11 task-filed Medley · Catalog import skips closed stores",
-      "18:59 collected - · Google · 3 sites, none failed",
+      "18:59 collected - · Google · 3 assets, none failed",
       "18:40 source-failed Codes · Analytics daily reports: access denied",
       "18:38 task-done Codes · Lookup page shows the local time",
       "18:15 insights Recipes · Recipe pages gained 40 clicks",
-      "18:15 insights - · Insights refreshed for 2 sites",
-      "18:00 collected Medley · Bing · 1 site, none failed",
+      "18:15 insights - · Insights refreshed for 2 assets",
+      "18:00 collected Medley · Bing · 1 asset, none failed",
       "18:00 source-back Medley · Bing daily reports working again",
       "17:40 task-chosen Recipes · Pick the recipe card layout",
       "17:30 alert Recipes · Plans saved well below normal",
       "17:05 task-claimed Recipes · Recipe cards load faster",
-      "16:15 revenue - · 2 sites reported $55.25 for Sep 21",
-      "16:14 collected - · Mediavine · 2 sites, none failed",
+      "16:15 revenue - · 2 assets reported $55.25 for Sep 21",
+      "16:14 collected - · Mediavine · 2 assets, none failed",
       "16:00 resolved Medley · Catalog imports stalled",
       "15:30 cost Recipes · DataForSEO · $0.12 for 1 lookup",
-      "15:02 collected - · DataForSEO · 2 sites, none failed",
+      "15:02 collected - · DataForSEO · 2 assets, none failed",
       "15:02 cost - · DataForSEO · $0.41 for 2 reports",
       "14:25 task-done System · Feed reads the store",
       "14:20 task-done System · Feed folds runs",
@@ -431,8 +431,8 @@ needsPostgres("buildWallFeed", () => {
       "13:00 cost System · Booked $12.00 infra cost for September",
       "12:00 setting-saved - · Moved the feed to the right",
       "11:05 job-failed - · Backups failed",
-      "11:00 collected Recipes · Site checks · 1 site, none failed",
-      "10:00 report - · Nightly reports from 4 sites",
+      "11:00 collected Recipes · Asset checks · 1 asset, none failed",
+      "10:00 report - · Nightly reports from 4 assets",
       "03:00 change Medley · Checkout outage",
       "02:40 deployed System · New version abc1234def is live",
     ]);
@@ -443,7 +443,7 @@ needsPostgres("buildWallFeed", () => {
     expect(new Set(feed.items.map((item) => item.id)).size).toBe(feed.items.length);
   });
 
-  it("states a task filed inside the window once, as New task, named for its project's site", async () => {
+  it("states a task filed inside the window once, as New task, named for its project's asset", async () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     const filed = items.filter((item) => item.kind === "task-filed");
     expect(filed).toEqual([
@@ -577,7 +577,7 @@ needsPostgres("buildWallFeed", () => {
     expect(JSON.stringify(items)).not.toContain("ReindexOS");
   });
 
-  it("states all the OS's deploys since last night as one line at the newest, and keeps a site's own", async () => {
+  it("states all the OS's deploys since last night as one line at the newest, and keeps an asset's own", async () => {
     // Four more OS deploys, each between other events, beside the seed's
     // 02:40 one; one before the window; two deploys of sites of their own.
     await storeChanges(pg.call, [
@@ -604,8 +604,8 @@ needsPostgres("buildWallFeed", () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     const byText = (text: string) => items.find((item) => item.text === text)!;
     expect(byText("Feed reads the store")).toMatchObject({ count: 1, asset: "os.example.com", tone: "healthy", label: "Task done" });
-    expect(byText("2 sites reported $55.25 for Sep 21")).toMatchObject({ count: 2, tone: "revenue" });
-    expect(byText("Nightly reports from 4 sites")).toMatchObject({ count: 4, tone: "neutral" });
+    expect(byText("2 assets reported $55.25 for Sep 21")).toMatchObject({ count: 2, tone: "revenue" });
+    expect(byText("Nightly reports from 4 assets")).toMatchObject({ count: 4, tone: "neutral" });
     // The failed Google run is its own line beside the Google collection, once
     // (its health transition and its run are one event).
     const failed = items.filter((item) => item.kind === "source-failed");
@@ -617,7 +617,7 @@ needsPostgres("buildWallFeed", () => {
   });
 
   // Every site count goes through siteCount (shared/site-noun.ts).
-  it("counts sites with the shared helper: one site, one of two, two of three", async () => {
+  it("counts assets with the shared helper: one asset, one of two, two of three", async () => {
     const collected = async (runs: [string, string, boolean][]) => {
       const store = await createTestStore();
       for (const [id] of runs) await asset(store, id, id);
@@ -625,13 +625,13 @@ needsPostgres("buildWallFeed", () => {
       for (const [index, [id, time, ok]] of runs.entries()) await signalRun(pgStore, `g-${index}`, id, "ga4", at(time), ok);
       return (await buildWallFeed(pgStore, DEPS)).items.filter((item) => item.kind === "collected").map((item) => item.text);
     };
-    expect(await collected([["a.example.com", "18:59", true]])).toEqual(["Google · 1 site, none failed"]);
-    expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:55", false]])).toEqual(["Google · 1 of 2 sites"]);
+    expect(await collected([["a.example.com", "18:59", true]])).toEqual(["Google · 1 asset, none failed"]);
+    expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:55", false]])).toEqual(["Google · 1 of 2 assets"]);
     expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:58", true], ["c.example.com", "18:55", false]]))
-      .toEqual(["Google · 2 of 3 sites"]);
+      .toEqual(["Google · 2 of 3 assets"]);
   });
 
-  it("keeps every line to twelve words and names the site whenever the line is about one", async () => {
+  it("keeps every line to twelve words and names the asset whenever the line is about one", async () => {
     await storeChanges(pg.call, [{
       asset: "medley.example.com", at: at("19:00"), kind: "external",
       note: "A very long note that goes on and on well past the twelve word budget for a line",
@@ -756,7 +756,7 @@ describe("the feed's reads are bounded", () => {
     }
   });
 
-  it.skipIf(unavailable !== null)("seeks each site's Mediavine attempts, its revenue figures and the ledger's newest numbers on Postgres", async () => {
+  it.skipIf(unavailable !== null)("seeks each asset's Mediavine attempts, its revenue figures and the ledger's newest numbers on Postgres", async () => {
     const pg = await createTestStore();
     try {
       const explain = (sql: string, params: SqlValue[]) => pg.store.inWorkspace(pg.workspaceId, async (tx) => {
@@ -775,7 +775,7 @@ describe("the feed's reads are bounded", () => {
     }
   });
 
-  it.skipIf(unavailable !== null)("reads each site's checks since the window's first day through its (site, check, day) index on Postgres", async () => {
+  it.skipIf(unavailable !== null)("reads each asset's checks since the window's first day through its (asset, check, day) index on Postgres", async () => {
     const pg = await createTestStore();
     try {
       const plan = await pg.store.inWorkspace(pg.workspaceId, async (tx) => {
@@ -862,7 +862,7 @@ describe("the feed's reads are bounded", () => {
     }
   });
 
-  it.skipIf(unavailable !== null)("reads each site's collection runs through its (site, lane, finish) index on Postgres", async () => {
+  it.skipIf(unavailable !== null)("reads each asset's collection runs through its (asset, lane, finish) index on Postgres", async () => {
     // Use this fixture's real statistics; disabling table scans checks the
     // indexed path without manufacturing years of unrelated collection runs.
     const ctx = await createTestStore();
@@ -887,7 +887,7 @@ describe("the feed's reads are bounded", () => {
 
 // Each site's alerts and reports are read through its own (site, time) index.
 needsPostgres("the alerts and reports reads on Postgres", () => {
-  it("each seeks its site's own (site, time) range", async () => {
+  it("each seeks its asset's own (asset, time) range", async () => {
     const pg = await createTestStore();
     try {
       const plan = (sql: string) =>

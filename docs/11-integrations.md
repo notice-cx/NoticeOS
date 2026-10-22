@@ -17,19 +17,19 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 |---|---|---|---|---|---|---|
 | **GSC API** | live collector: daily Google-search clicks, impressions, CTR, average position; daily archive: ten report families ([doc 02](02-signal-contract.md#central-signals)) | Sense (S2), Attribute | service account; Full-user grant per property; read-only API scope | Free | live total query runs 96/day/site; the archive adds 40 base requests/day/property (ten report families × four dates), search-appearance expansion, and pagination. Search Analytics exposes at most 50k rows/day/search type and does not guarantee every row, so an archive is analysis-grade evidence, not a complete log | retain last good snapshot/archive, record the failed report manifest, suppress dependent flags |
 | **GA4 Data API** | live collector: daily active users, sessions, page views, events; on-demand display read: exact distinct users in trailing 30- and 5-minute windows, users per minute over the last 30, plus today-by-hour against the same weekday last week; daily archive: eight report families plus an exact rolling 28-day event-user aggregate ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account; Viewer grant per property; read-only API scope | Free tier (separate token quotas per property and request category) | daily-series query runs 96/day/property; open Tower displays share two Realtime requests/property per minute (both minute ranges, and the per-minute rows of the Wall's per-minute visitor chart), and one bounded Core hourly request/property per 15 minutes for today plus seven days ago; a display whose cache was emptied (a deploy, eviction, a new day or clock) reads at once instead of waiting out that cadence, at most one extra read per window; hidden tabs stop polling, and rejected requests enter a shared cooldown; archive adds 33 base requests/day/property (eight daily families × four revision dates plus one rolling aggregate), plus pagination, and caps each report at 250k rows. Data API is aggregate/modelled reporting, not raw event/session export. **Event parameters** (`customEvent:*`) return data only after an operator registers them as custom dimensions, and are never backfilled. Every GA4 collection sends `returnPropertyQuota`, so token spend is measured rather than inferred from request counts | retain last good daily/display snapshot and archive; record a failed durable report manifest; never turn a provider failure or a future hour into zero; today remains visibly incomplete; an unregistered custom dimension is its own manifest state (`ga4_custom_dimension_unregistered`), never an empty success; scheduled collection records an exhausted token budget as `ga4_quota_exhausted`; display reads return a safe quota category and next permitted attempt, and a bucket under 20% remaining raises `ga4-quota-pressure` before the failures start |
-| **Bing Webmaster Tools API** | live: site-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per property (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can lag behind the current date | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
+| **Bing Webmaster Tools API** | live: asset-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per asset (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can lag behind the current date | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
 | **MS Clarity data-export API** | session behavior aggregates (rage/dead clicks, quickbacks, script errors, scroll) | Sense (UX signals), hypothesis grounding | API token per project | Free, but **10 calls/project/DAY hard cap**; trailing 72h only; ≤3 dims; 1,000 rows, no pagination | one call returns ALL metric blocks per dimension split, so URL + Device = full read in 2 calls; ALWAYS snapshot to store and analyze from disk; counts only — element detail needs dashboard replays; `clarity.ms` is adblock-DNS-listed (undercounts ~15–25%, rankings stay valid; can also block NoticeOS's own probes) | optional data source — degrade without an error, flag staleness |
 | **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; seven bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, record the rejected or skipped family; a 429 stops the run and stores a project retry delay; missing rows are not zeros |
-| **Chrome UX Report API** ([below](#chrome-ux-report)) | page speed by origin: the 75th percentile of LCP, INP and CLS that real Chrome users saw over the trailing 28 days, for phones and desktops | Sense (S5 site checks) | one Google Cloud API key with the Chrome UX Report API enabled, connected on `/integrations` | Free | 150 queries/minute per Google Cloud project; two queries per site per day, four when the bare domain has no data and its `www.` host is asked | keep the last reading; a site with too little Chrome traffic is recorded as no data, never as zero; a refused key stops the run |
-| **DataForSEO** | top ranked keywords with demand/difficulty/CPC/SERP features, backlink stock + 90-day new/lost movement, Google/ChatGPT mention metrics, and live result pages for an operator-chosen head-term panel | Sense (S1/S1b/S3/S4), Decide (opportunity sizing, the AI-Overview gate) | one shared API login/password; launched domains are discovered from Postgres; tracked terms from `config/serp-panel.json` | Metered: roughly $0.26–$0.29 per property per weekly run, plus ~$0.004 per tracked panel term per device; each report records exact provider cost | five bounded calls/week/launched property plus one per tracked query **per device**; the site's saved market (United States · English by default), phone and desktop; 200-row ranked-keyword cap, a 31-term panel ceiling and a 20-result panel depth. A $0.25/report reserve makes the $25/month portfolio data cap fail closed before a call, and the provider card shows how much of that cap is left this month, counted from the costs the reports themselves recorded, plus the prepaid account credit with the date it was read — refreshed by ONE free `appendix/user_data` read at the end of every successful sweep, which is metered spend of zero and is never retried | retain the latest stored snapshot, mark the data source degraded, and never interpolate missing rankings, links, AI mentions, or AI-Overview state |
-| **Ahrefs** | DR (free tier), site metrics (plan-gated) | Decide (sizing), Attribute (links) | MCP (existing) | Plan-dependent; many endpoints return 403 on the current plan | treat as best-effort enrichment only | fall back to DataForSEO backlinks |
+| **Chrome UX Report API** ([below](#chrome-ux-report)) | page speed by origin: the 75th percentile of LCP, INP and CLS that real Chrome users saw over the trailing 28 days, for phones and desktops | Sense (S5 asset checks) | one Google Cloud API key with the Chrome UX Report API enabled, connected on `/integrations` | Free | 150 queries/minute per Google Cloud project; two queries per asset per day, four when the bare domain has no data and its `www.` host is asked | keep the last reading; an asset with too little Chrome traffic is recorded as no data, never as zero; a refused key stops the run |
+| **DataForSEO** | top ranked keywords with demand/difficulty/CPC/SERP features, backlink stock + 90-day new/lost movement, Google/ChatGPT mention metrics, and live result pages for an operator-chosen head-term panel | Sense (S1/S1b/S3/S4), Decide (opportunity sizing, the AI-Overview gate) | one shared API login/password; launched domains are discovered from Postgres; tracked terms from `config/serp-panel.json` | Metered: roughly $0.26–$0.29 per asset per weekly run, plus ~$0.004 per tracked panel term per device; each report records exact provider cost | five bounded calls/week/launched asset plus one per tracked query **per device**; the asset's saved market (United States · English by default), phone and desktop; 200-row ranked-keyword cap, a 31-term panel ceiling and a 20-result panel depth. A $0.25/report reserve makes the $25/month portfolio data cap fail closed before a call, and the provider card shows how much of that cap is left this month, counted from the costs the reports themselves recorded, plus the prepaid account credit with the date it was read — refreshed by ONE free `appendix/user_data` read at the end of every successful sweep, which is metered spend of zero and is never retried | retain the latest stored snapshot, mark the data source degraded, and never interpolate missing rankings, links, AI mentions, or AI-Overview state |
+| **Ahrefs** | DR (free tier), asset metrics (plan-gated) | Decide (sizing), Attribute (links) | MCP (existing) | Plan-dependent; many endpoints return 403 on the current plan | treat as best-effort enrichment only | fall back to DataForSEO backlinks |
 | **Cloudflare** | R2 (raw archives), Analytics Engine (the default report counter for assets without a database), D1 asset-database backups ([below](#cloudflare-d1-backups)); GraphQL analytics (edge traffic, crawler hits); **AI Gateway** (budget enforcement, fallbacks); health checks | everything; Act (deploys); doc 06 (caps) | API tokens, scoped per account | Infra ≈ free tier today; AI Gateway free (and its budget enforcement prevents overspend) | AE free tier covers the report counters' volume; GraphQL analytics rate-limited but generous | infra failure = incident, not degradation |
 | **GitHub App** | PR create/read, checks, deploy webhooks, file contents | Act, Sense (deploy annotations) | App private key (the most sensitive credential — doc 06 rotation) | Free | 5k req/hr/installation — ample | Act pauses; Sense keeps running |
 | **Model providers (via AI Gateway)** | builder/verifier/judge inference | Act, Decide sweeps | keys behind the gateway only | Metered per token; **the dominant OS cost** | per-run/day/month caps, velocity breaker (doc 06) | fallback chain → pause Act |
 | **Ad networks** | revenue reporting → shared financial reads | Sense (revenue collection) | Mediavine daily collector; CSV for other providers | Free reporting | provider estimates stay estimated until payment reconciliation | keep saved history; missing reports are not zero |
-| **Stripe** ([below](#stripe)) | subscription and product revenue: each completed UTC day's net charges and payments less refunds, per site → shared financial reads | Sense (revenue collection) | one restricted key with Balance and Charges read, connected on `/integrations`; the site that earns it names the Stripe account on its Data sources tab | Free | one balance read and one page of up to 100 balance transactions per request; a day is asked once, after 01:00 UTC; a first run reads the last 35 days, and a run that would need more than 100 pages saves nothing | keep saved days; a refused key stops the run; a day with no sale is recorded as 0, a day not yet asked is absent |
+| **Stripe** ([below](#stripe)) | subscription and product revenue: each completed UTC day's net charges and payments less refunds, per asset → shared financial reads | Sense (revenue collection) | one restricted key with Balance and Charges read, connected on `/integrations`; the asset that earns it names the Stripe account on its Data sources tab | Free | one balance read and one page of up to 100 balance transactions per request; a day is asked once, after 01:00 UTC; a first run reads the last 35 days, and a run that would need more than 100 pages saves nothing | keep saved days; a refused key stops the run; a day with no sale is recorded as 0, a day not yet asked is absent |
 | **Affiliate networks** (CJ, Amazon) | commissions, EPC → ledger; **CJ product feed** (GraphQL `ads.api.cj.com`: live prices/sale prices/images/tracked deep links) + link-search promos → placement data | Sense (revenue collection), Act (placement refresh) | CJ: PAT + CID (developer portal); transaction reports filter by SID = per-placement conversion attribution | Free | a CJ feed is best read through a deterministic tool (doc 05): feed → committed catalog with accuracy checks (14-day price staleness ⇒ the card is marked degraded automatically; no promo without a real end date); Amazon reporting is degraded with a 60-day lag | wide intervals; book on payment |
-| **Uptime** | up/down per site, with when it was last checked | Sense, incident detection | none — no account and no connect step: the ingest GETs each site's home page itself (`runUptimeChecks`, `workers/ingest/src/hygiene.ts`) on the hourly tick, reusing the nightly served-layer check and its `hygiene_checks` reading | Free | one request per site per hour; a site read in the last 30 minutes is skipped | a home page that does not respond twice in a row, 45 seconds apart, raises `hygiene-home-unreachable` at error (one failed try raises nothing and the row shows Up · 1 failed try); when NoticeOS itself cannot reach the network, no site is marked down (the egress gate) and the row shows Not checked |
+| **Uptime** | up/down per asset, with when it was last checked | Sense, incident detection | none — no account and no connect step: the ingest GETs each asset's home page itself (`runUptimeChecks`, `workers/ingest/src/hygiene.ts`) on the hourly tick, reusing the nightly served-layer check and its `hygiene_checks` reading | Free | one request per asset per hour; an asset read in the last 30 minutes is skipped | a home page that does not respond twice in a row, 45 seconds apart, raises `hygiene-home-unreachable` at error (one failed try raises nothing and the row shows Up · 1 failed try); when NoticeOS itself cannot reach the network, no asset is marked down (the egress gate) and the row shows Not checked |
 | **Discord webhooks** | operator notifications — a **new open error alert** and a **data source that stops working**, and nothing else; the list is declared once in `packages/contract` (`NOTIFIED_CONDITIONS`) so the card and the sender always use the same list | ingest → operator | one webhook url, connected on `/integrations` ([below](#how-to-connect-one)) | Free | keep channels few — alert fatigue is a documented failure mode, which is why the list is two lines rather than a digest | fall back to email |
 | **Web search API** | grounded scouting (categories 1–4, [doc 13](13-opportunity-scouting.md)) | Scout sweeps | API key | Metered, cheap per query | budgeted per category; results cached in the store | the category skips that cycle |
 | **Deep-research runs** | bounded multi-source investigations for high-stakes scout finds | Scout (categories 1/3/5) | via model gateway | **The most expensive item** — per-run cap mandatory | few runs/month; each run must name the find it investigates | skip; never substitute a shallow guess |
@@ -51,21 +51,21 @@ reads. This is the pattern for bundled integrations: a provider client with a sm
 interface, plus an adapter to the existing NoticeOS services. A general plugin
 loader is unnecessary for this integration.
 
-1. On **Integrations**, Mediavine's **Connect** (or the site's **Ad revenue**
+1. On **Integrations**, Mediavine's **Connect** (or the asset's **Ad revenue**
    row's Connect) opens the connect panel: your publisher email and password,
-   then **Connect**. NoticeOS signs in and lists the account's sites before it
+   then **Connect**. NoticeOS signs in and lists the account's assets before it
    saves the login; a rejected login is never stored.
    Credentials and access/refresh tokens use the existing encrypted credential
-   store and key rotation, and the session and site list the sign-in produced
+   store and key rotation, and the session and asset list the sign-in produced
    are kept with them, so showing the list that follows makes no further
    request to Mediavine.
-2. Each site is matched to the Mediavine site on its own domain and ticked; a
-   Mediavine site in the account that matches no NoticeOS site is listed
+2. Each asset is matched to the Mediavine site on its own domain and ticked; a
+   Mediavine site in the account that matches no NoticeOS asset is listed
    below them.
-   **Start collecting** saves the site id on the site's ad revenue entry — the
+   **Start collecting** saves the asset id on the asset's ad revenue entry — the
    only field it writes — and runs the first sync at once: the current month
    so far (before 06:10 Pacific, through the day before yesterday).
-3. A site with a saved Mediavine site id syncs daily until its Data sources row
+3. An asset with a saved Mediavine site id syncs daily until its Data sources row
    is set to **Not using**; `mediavineSyncOn` in `packages/contract/src/mediavine.ts`
    is that one rule, read by the sync, the row and the monitoring. Financials,
    Home, the TV dashboard, and asset revenue all read the same saved figures.
@@ -81,18 +81,18 @@ up missing days in one bounded request (at most 366 days).
 There are at most three automatic report attempts per day. Failures back off
 20 then 40 minutes, with provider `Retry-After` taking precedence. Authentication
 failure stops automatic attempts until reconnection. Manual attempts are at
-least 15 minutes apart. Site discovery caches successful results for 15 minutes
+least 15 minutes apart. Asset discovery caches successful results for 15 minutes
 and also delays repeated failed probes. One durable, renewed lease serializes
 discovery, authentication, collection, and credential/settings changes.
 
 Access tokens are reused and refreshed only when due or rejected; password login
 is reserved for a missing/rejected refresh session. The provider supplies access
 expiry; refresh-token lifetime is not assumed. Page views and status reads never
-contact Mediavine. Not using stops a site's collection; Disconnect deletes the
-encrypted credentials and session and leaves each site's saved Mediavine site
+contact Mediavine. Not using stops an asset's collection; Disconnect deletes the
+encrypted credentials and session and leaves each asset's saved Mediavine site
 id as it was. Both retain financial history. Connecting again lists those
-sites as already mapped, and Start resumes them. A site with stored revenue remains assigned to its
-original asset, preventing the same site's history from appearing twice.
+assets as already mapped, and Start resumes them. An asset with stored revenue remains assigned to its
+original asset, preventing the same asset's history from appearing twice.
 
 Each changed day is filed in the revenue ledger (`revenue_observations`, the
 one table every revenue collector writes) under the source `mediavine-journey`,
@@ -140,7 +140,7 @@ matched traffic/revenue days and two observations of every weekday are needed.
 Each weekday uses its latest four traffic observations, weighted toward recent
 weeks. Earnings use the median revenue per session from up to seven days with
 similar traffic in the last eight weeks. Weekend behavior is estimated from the
-asset's observations, with no site-specific coefficients.
+asset's observations, with no asset-specific coefficients.
 
 Under **Ad revenue → Forecast holiday calendar**, choose US, Canada, both, or
 weekday patterns only. Public holiday dates come from
@@ -172,13 +172,13 @@ no call.
 
 | Provider (id) | Fields | Probe the *Test connection* button makes |
 |---|---|---|
-| Mediavine (`mediavine`) | publisher email and password | permitted-site discovery; session reuse and a 15-minute cache/cooldown are shared with collection |
+| Mediavine (`mediavine`) | publisher email and password | permitted-asset discovery; session reuse and a 15-minute cache/cooldown are shared with collection |
 | Google (`google`) | **either** a sign-in (`GOOGLE_OAUTH_REFRESH_TOKEN`, written by the flow — see [Connecting Google](#connecting-google)) **or** `GOOGLE_SIGNAL_ACCOUNTS`, the account-label → `{service_account_b64, properties}` map | gets a read-only token, then Search Console `sites.list` and one GA4 `properties/{id}/metadata` read. Identical for both ways to connect; only the error message differs, because "add the robot as a Full user" and "check which account you signed in with" are different instructions. No day of data is requested and no reporting token is spent |
 | Google OAuth app (`google-oauth-app`) | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | a format check only, on purpose: no free Google call can verify a client id and secret without sending a person through a consent screen, so the accurate result is *looks right, now sign in*. **Not a card of its own** — the Google card has fields for it |
 | Bing Webmaster (`bing-webmaster`) | `BING_WEBMASTER_API_KEY` | `GetUserSites` — the same call the collector makes first |
 | DataForSEO (`dataforseo`) | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD` | `appendix/user_data`; free, and it returns the credit left before the metered collection stops — recorded with the time it was read so the card shows it with its date without any button press; the budget line beside it shows the monthly cap |
 | Calendar feeds (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a test result |
-| Chrome UX Report (`crux`) | `CRUX_API_KEY` | one `records:queryRecord` call on the first site the daily job reads (a reserved origin before any site exists, and in the connect panel). Both a record and "no data for this origin" accept the key |
+| Chrome UX Report (`crux`) | `CRUX_API_KEY` | one `records:queryRecord` call on the first asset the daily job reads (a reserved origin before any asset exists, and in the connect panel). Both a record and "no data for this origin" accept the key |
 | Stripe (`stripe`) | `STRIPE_API_KEY`, a restricted key | one `GET /v1/balance`: no money moves and nothing is written. A key without the Balance read grant is refused like a wrong key |
 | Discord (`discord`) | `DISCORD_WEBHOOK_URL` — the whole `https://discord.com/api/webhooks/…` address | **posts one labelled message to the channel, and the card shows this before the button is pressed.** Discord does offer a read of the webhook object, but it would test the wrong thing: the catalog row above defines this data source as live when NoticeOS *can deliver a notification* — "not merely that a webhook URL exists" — and a webhook whose channel the operator lost still responds to a read. The url is the credential and never appears in a test result, and Discord's own error body is never shown back |
 
@@ -264,7 +264,7 @@ property listing are free read calls, and no reporting token is spent until a
 collector runs (the [catalog](#the-catalog) rows list those quotas). NoticeOS
 requests exactly two read-only scopes plus the operator's address:
 `analytics.readonly`, `webmasters.readonly` (deliberately **not**
-`webmasters`, which can also verify and delete sites) and `openid` + `email`,
+`webmasters`, which can also verify and delete assets) and `openid` + `email`,
 so the card can show *Connected as ops@example.com*, which is the only way
 to notice a sign-in with the wrong Google account.
 
@@ -290,7 +290,7 @@ to notice a sign-in with the wrong Google account.
   instead of reporting a network error, and the fix is to sign in again.
 - **Signed in, nothing mapped.** A sign-in returns the GA4 properties and
   Search Console sites the account can access; **the operator chooses which
-  site each belongs to**, on the site's Data sources tab. Until one is mapped
+  asset each belongs to**, on the asset's Data sources tab. Until one is mapped
   the collector collects nothing and logs this once per pull instead of
   failing.
 - **Disconnect** revokes the grant at Google first, best effort, then deletes
@@ -323,7 +323,7 @@ to notice a sign-in with the wrong Google account.
   **Clarity's two secret shapes.** `CLARITY_TOKENS` (asset → project token) is
   the shape `.dev.secrets.example.json` shows and the only one that can hold
   tokens for the whole portfolio. `CLARITY_PROJECT_API_TOKEN`, a flat string bound to
-  one site, is a documented fallback. The collector and `scripts/creds-check.mjs`
+  one asset, is a documented fallback. The collector and `scripts/creds-check.mjs`
   apply the **same** precedence: the map takes precedence wherever both name an
   asset, so `pnpm creds:check --lane clarity` recognizes either shape (the
   probe runs only when requested explicitly because it uses 1 of the project's
@@ -331,14 +331,14 @@ to notice a sign-in with the wrong Google account.
   the secret to the map is a rename, not a rewrite.
 
   **Connecting it.** Clarity connects in the
-  Integrations connect panel with one row per site: a token pasted on a site's
+  Integrations connect panel with one row per asset: a token pasted on an asset's
   row is saved at once (`PUT /api/integrations/clarity/site-token`, merged into
   `CLARITY_TOKENS` inside the ingest by `workers/ingest/src/site-tokens.ts`, so
-  one paste never replaces another site's token), and the row shows the site's
+  one paste never replaces another asset's token), and the row shows the asset's
   status. There is still no free call to verify a token, so the first export is
   an explicit **Run now · 1 of 10** — the 04:30 job's own step (`collectNow` on
-  the `clarity` job), for the sites that have a token and calls left, each
-  spending one of that site's ten daily calls.
+  the `clarity` job), for the assets that have a token and calls left, each
+  spending one of that asset's ten daily calls.
 
 ## Credential naming — the `ASSET_TOKEN` convention
 
@@ -353,13 +353,13 @@ token authenticates both. **No other
 credential names exist between an asset and NoticeOS.** A third-party provider
 credential (GA4, Bing, Clarity, DataForSEO) is a different thing entirely and
 keeps its own slot; this section covers only the tokens NoticeOS and its own
-properties use with each other.
+assets use with each other.
 
 **One token per asset covering *both* directions is deliberate**, not an
 oversight. The accepted tradeoff: a leaked `ASSET_TOKEN` lets the holder forge
 that asset's nightly and codebase reports as well as read its counts-grade metrics. That
-risk is accepted — the possible damage is limited to one property's counts and
-one property's ledger of daily numbers, both re-derivable from the property
+risk is accepted — the possible damage is limited to one asset's counts and
+one asset's ledger of daily numbers, both re-derivable from the asset
 itself, and the flags a forged report could raise are visible to the operator
 on the Wall. Splitting the directions again to limit that damage would bring
 back exactly the second map this scheme deleted, with two secrets per asset
@@ -392,7 +392,7 @@ mentions one, should lead here, not to a live credential:
 **Rotation is the same three steps with new values**, in that order: the asset's
 secret first, the map second, the probe third. Between steps 1 and 2 that
 asset's pull fails closed with `asset-pull-failed`, and the alert resolves
-automatically on the next successful pull — no other property is affected.
+automatically on the next successful pull — no other asset is affected.
 
 **Worked example — a pull-only asset.** The asset has no push cron of its
 own; the OS reads its envelope from `GET /api/admin/overview` on the nightly
@@ -463,7 +463,7 @@ and what each may be used to conclude, is the
 (revision window, probe mode, weekly families, content-hash dedupe) is
 [the ingest README](../workers/ingest/README.md#analysis-grade-provider-signal-dumps);
 the commands that collect and read it back are in
-[`scripts/README.md`](../scripts/README.md); what a property repo may conclude
+[`scripts/README.md`](../scripts/README.md); what an asset repo may conclude
 from the panel files is [doc 20](20-signal-panels.md).
 
 **What it costs.** Every call is free; the limits are request and row counts:
@@ -479,7 +479,7 @@ from the panel files is [doc 20](20-signal-panels.md).
   inside the hashed bytes, and a bucket under 20% raises `ga4-quota-pressure`
   before the failures start.
 - **Bing Webmaster:** one shared site-list request, then four requests per
-  verified property a day, six on the property's own seventh day, because the
+  verified asset a day, six on the asset's own seventh day, because the
   top-query and top-page reports are weekly snapshots.
 - **Ceilings:** 8 MiB per provider response, 32 MiB per archive, 50k rows per
   GSC report/day and 250k per GA4 report/day. A capped report is stored as
@@ -509,19 +509,19 @@ portfolio's hardest-capped provider — **10 calls per project per DAY**, traili
 72 hours only, ≤3 dimensions, 1,000 rows and no pagination — and every design
 choice follows from that cap:
 
-- **One call per property per day**, one dimension (`URL`), archived verbatim to
+- **One call per asset per day**, one dimension (`URL`), archived verbatim to
   R2 under one `archive_runs` row (`integration = 'clarity'`, `report =
   'url-3d'`). Analysis re-reads the stored object; re-reading
   must never cost one of the ten. A second dimension split is a second call and
   therefore a separate budget decision, not a free addition.
-- **A property with no token is skipped** — no call, no manifest row, no error.
+- **An asset with no token is skipped** — no call, no manifest row, no error.
   The run log counts them as `skippedNoToken` so an all-skipped run cannot be
-  mistaken for a clean run. This is the same rule the SERP panel applies to a property
+  mistaken for a clean run. This is the same rule the SERP panel applies to an asset
   with no configured queries: absence of config is not a failed collection.
 - **Failures split by the operator action they need**:
   `clarity_token_rejected` (401/403), `clarity_daily_cap_reached` (402/429 — the
   ten are spent), `clarity_invalid_response` (the call was spent and the response
-  held nothing recognizable — a failed observation, never a property with no
+  held nothing recognizable — a failed observation, never an asset with no
   behavior), `clarity_http_<status>` otherwise.
 - **A block on the 1,000-row cap is `provider_truncated`.** There is no
   pagination past it, so the number is a floor.
@@ -555,42 +555,42 @@ that from dates.
 The Chrome UX Report (CrUX) API returns, for one origin, how fast pages
 loaded and responded for real Chrome users over the trailing 28 days. The key
 names the Google Cloud project whose free quota the calls count against; the
-data is public, so one key serves every site and connecting it lists no sites.
+data is public, so one key serves every asset and connecting it lists no assets.
 Create the key on the Google Cloud console's **Credentials** page, enable the
 Chrome UX Report API on the same project, and paste the key into the **Chrome
 UX Report (page speed)** card on `/integrations`.
 
 **What runs, and when.** The **Page speed** job runs daily at **04:15 UTC**
-(`15 4 * * *`). For each site the hygiene checks read (a domain, not retired,
+(`15 4 * * *`). For each asset the hygiene checks read (a domain, not retired,
 not the System) and whose Data sources row does not say **Not using**, it asks
-CrUX for the site's origin twice, phones then desktops, and keeps the 75th
+CrUX for the asset's origin twice, phones then desktops, and keeps the 75th
 percentile of Largest Contentful Paint (ms), Interaction to Next Paint (ms) and
 Cumulative Layout Shift. When CrUX has no data for the bare domain, the `www.`
-host is asked once. The run stores one reading per site per day in
+host is asked once. The run stores one reading per asset per day in
 `hygiene_checks` (check `crux-vitals`): `value_num` is the phone LCP, or the
 desktop LCP where CrUX has no phone data, and `detail` holds both form factors
-and the dates CrUX aggregated. **Page speed** on the site's **Data sources**
+and the dates CrUX aggregated. **Page speed** on the asset's **Data sources**
 tab shows the newest reading.
 
 **What it does not do.** No alert rule reads the readings yet. With no key
 connected the job records `crux_not_connected` and asks nothing. A key CrUX
 refuses (HTTP 400, 401 or 403) stops the run, stores nothing and marks the
-credential failed; a throttle or a server error fails only that site. When this
-machine cannot reach the network, the sites are named on the one
+credential failed; a throttle or a server error fails only that asset. When this
+machine cannot reach the network, the assets are named on the one
 `os-egress-down` alert, as for every other collector.
 
 ## Stripe
 
 *Daily subscription revenue. Collector: `workers/ingest/src/stripe.ts`.*
 
-Stripe holds a site's subscription and product sales. NoticeOS reads them
+Stripe holds an asset's subscription and product sales. NoticeOS reads them
 with one restricted key that can only read: create it on Stripe's **API keys**
 page with **Read** on **Balance** and on **Charges**, and paste it into the
 **Stripe (subscription revenue)** card on `/integrations`. Connecting checks the
-key with one balance read and lists no sites. Then, on the site's **Data
+key with one balance read and lists no assets. Then, on the asset's **Data
 sources** tab, the **Subscription revenue** row's mapping takes the account id
 (`acct_…`, on Stripe's account settings page). One key reads one account, so
-one site names it; while two sites name a Stripe account, neither is collected
+one asset names it; while two assets name a Stripe account, neither is collected
 and both rows show the mapping failure.
 
 **What runs, and when.** The **Subscription revenue** job runs at 20 minutes
@@ -605,13 +605,13 @@ and transfers are not revenue. Each day is one row in the revenue ledger
 (`revenue_observations`, source `stripe`, the account id as `account_ref`), a
 day with no sale included as 0; a day whose figure equals the saved one writes
 nothing. The month's days stand in for the month on the Money page and in each
-site's daily revenue, as Mediavine's do.
+asset's daily revenue, as Mediavine's do.
 
 **What it does not do.** With no key connected the job records
 `stripe_not_connected` and asks nothing. A key Stripe refuses (HTTP 401 or 403)
 stops the run, saves nothing and marks the credential failed. An account whose
 balance holds more than one currency is not collected. The run's log line
-counts sites and names failures by code; it carries no amount and no key.
+counts assets and names failures by code; it carries no amount and no key.
 
 ## PostHog
 
@@ -748,19 +748,19 @@ the stopped run, so no other record is written.
 
 | Setting | Where | Notes |
 |---|---|---|
-| Key (`POSTHOG_API_KEY`: one personal API key for the account) | `/integrations`, the connect panel | Create the key under PostHog → account settings → Personal API keys, with read access to Project, Insight and Query. Connect sends it to the US and EU clouds at once and saves it only where it is accepted; that cloud is the region. An install that connected a key per site before (`POSTHOG_KEYS`: asset → key) keeps collecting with it — a site with its own key uses it, every other site the account key; the Tower no longer has a field for a per-site key. The env bindings of the same names are the legacy fallback. |
-| `host` (`us` or `eu`) and `projectId` (digits) | Discovered: the connect panel lists the region's projects, matched to sites by the domain each project records (its app URLs, then its recording domains, then a name that is a domain), and Start saves them on the site's Data sources entry | Standard mapping fields, still editable on the Data sources row. No fallback: a guessed region or project would read another site's data. |
-| `funnels` (list of `{ id, name, steps: [{ event, path? }] }`, 2–10 steps each, at most 10 funnels) | Imported: the project's saved funnel insights, written by Start only where the site's entry holds none | Only funnels whose every step is a named event, optionally on one exact `$pathname`, are imported — the archive cannot count any other filter as PostHog does. Checked by `posthogFunnelsRefusal`, the same rule the store save runs. |
+| Key (`POSTHOG_API_KEY`: one personal API key for the account) | `/integrations`, the connect panel | Create the key under PostHog → account settings → Personal API keys, with read access to Project, Insight and Query. Connect sends it to the US and EU clouds at once and saves it only where it is accepted; that cloud is the region. An install that connected a key per asset before (`POSTHOG_KEYS`: asset → key) keeps collecting with it — an asset with its own key uses it, every other asset the account key; the Tower no longer has a field for a per-asset key. The env bindings of the same names are the legacy fallback. |
+| `host` (`us` or `eu`) and `projectId` (digits) | Discovered: the connect panel lists the region's projects, matched to assets by the domain each project records (its app URLs, then its recording domains, then a name that is a domain), and Start saves them on the asset's Data sources entry | Standard mapping fields, still editable on the Data sources row. No fallback: a guessed region or project would read another asset's data. |
+| `funnels` (list of `{ id, name, steps: [{ event, path? }] }`, 2–10 steps each, at most 10 funnels) | Imported: the project's saved funnel insights, written by Start only where the asset's entry holds none | Only funnels whose every step is a named event, optionally on one exact `$pathname`, are imported — the archive cannot count any other filter as PostHog does. Checked by `posthogFunnelsRefusal`, the same rule the store save runs. |
 
 **When the panel calls PostHog.** Only after Connect is pressed (two
 `GET /api/projects/` reads, one per region, at once) and when the panel lists
-the account's sites (the project list, then each project's details and saved
+the account's assets (the project list, then each project's details and saved
 insights, at most 20 projects). Every read is bounded at 10 seconds; a rejection
 in both regions shows "PostHog rejected this key", anything else "No response
 from PostHog", with Try again (`workers/ingest/src/posthog-account.ts`).
 
-**Connection test.** The Test button reads each mapped site's project settings
-once (the account key's project list when no site is mapped yet). No query
+**Connection test.** The Test button reads each mapped asset's project settings
+once (the account key's project list when no asset is mapped yet). No query
 runs, so none of the hourly budget is spent.
 
 **Running it on demand.**
@@ -786,7 +786,7 @@ counts the ones left for the next run in `retryNotAsked`.
 - First-party events reach PostHog by name only. A missing property is a
   privacy choice, not missing data.
 - Events behind consent arrive only after consent, so they are a floor.
-- Events whose `$lib` is the site's own worker (e.g. `example-worker`) are server-side and use different ids.
+- Events whose `$lib` is the asset's own worker (e.g. `example-worker`) are server-side and use different ids.
 - `people` is `uniq(person_id)`, PostHog's own unique-person count. A manual
   reading that counts `distinct_id` instead differs slightly wherever PostHog
   has merged a person across ids.
@@ -803,7 +803,7 @@ counts the ones left for the next run in `retryNotAsked`.
 - Purpose: product behaviour.
 - Consuming stages: Sense and Decide.
 - Auth: one read-only personal API key for the account in the credential
-  store (doc 06); an older per-site key map still collects.
+  store (doc 06); an older per-asset key map still collects.
 - Cost: none per query. The only limit is PostHog's hourly budget.
 - Quota and distortions: above, plus adblock undercount and consent floors.
 - Degradation: keep the last archive, mark the source degraded, record the
@@ -815,11 +815,11 @@ counts the ones left for the next run in `retryNotAsked`.
 
 `workers/ingest/src/dataforseo-dumps.ts` runs Mondays at 12:45 UTC for each
 non-OS asset whose lifecycle is neither `pre-launch` nor `retired`. The
-canonical domain comes from Postgres. Each property gets five independently durable
+canonical domain comes from Postgres. Each asset gets five independently durable
 domain-driven report families, plus a sixth where an operator has chosen head
 terms to track:
 
-- `ranked-keywords`: the top 200 current Google results in the site's saved market
+- `ranked-keywords`: the top 200 current Google results in the asset's saved market
   (United States · English by default), ordered by
   estimated search volume, with rank, URL, demand, CPC, difficulty, intent,
   SERP features, estimated visits/cost, rank-change fields, and AIO references;
@@ -827,12 +827,12 @@ terms to track:
   plus DataForSEO's weekly-grouped 90-day movement series;
 - `llm-mentions-google` and `llm-mentions-chatgpt`: platform totals and the
   leading source domains from the current target-metrics endpoint;
-- `serp-panel` ([doc 08 §S1b](08-seo-geo-signals.md)): one live result page in the site's saved market
+- `serp-panel` ([doc 08 §S1b](08-seo-geo-signals.md)): one live result page in the asset's saved market
   (United States · English by default) per tracked head term **per device**, with the asynchronous AI Overview
   requested, read to depth 20. The panel comes from
   [`config/serp-panel.json`](../config/serp-panel.json) — the one place a
-  tracked-query list is written down, capped at 31 per property (what the $0.25
-  per-report reserve buys at two devices). A property with **no panel is
+  tracked-query list is written down, capped at 31 per asset (what the $0.25
+  per-report reserve buys at two devices). An asset with **no panel is
   skipped without an error**: no call,
   no manifest row, no attempt, because absence of config is not a failed
   collection. The live/advanced endpoint takes one task per request and the
@@ -853,22 +853,22 @@ exact cost. The manifest also indexes that compact cost so
 the scheduler can stop before a call could cross the existing $25/month data
 cap; a conservative $0.25 reserve is required before every call. Missing
 credentials, budget exhaustion, provider errors, and partial runs are shown
-explicitly as red/degraded in the same property integration icon. A tracked panel
+explicitly as red/degraded in the same asset integration icon. A tracked panel
 costs ~$0.004 per term (~$0.08/week for a 20-term panel) and needs the same $0.25
 reserve as every other family — the gate has no exception for panels, and a
-malformed panel fails that one property with `config_invalid` while every other
-property still collects.
+malformed panel fails that one asset with `config_invalid` while every other
+asset still collects.
 
 The cron only starts a check; it does not mean the same snapshot is bought
 again. Every family declares a seven-day `cadenceDays` in the collector's
 machine-readable report registry, exported as
 `DATAFORSEO_REPORT_CADENCE_DAYS`. An automated cron or startup catch-up checks
-the newest `success`/`unchanged` manifest for each property and family, skips it
+the newest `success`/`unchanged` manifest for each asset and family, skips it
 until that cadence is due, logs the skipped family with its next due date, and
 writes no placeholder attempt. Thus a later successful sweep satisfies a missed
 Monday job even when the runner's job record shows that original invocation
 failed. A failed family remains due. The explicitly scoped operator command is
-the deliberate exception: it may force only the named property/families for a
+the deliberate exception: it may force only the named asset/families for a
 new baseline or repair, while the collection lock still prevents concurrent
 rebuying.
 
@@ -883,23 +883,23 @@ Provider search volume, difficulty, estimated traffic/cost, and AI search
 volume remain modelled prioritization inputs—not causal ROI, sessions, or
 unique people.
 
-The compact property read model publishes up to 16 useful query rows from the
+The compact asset read model publishes up to 16 useful query rows from the
 latest ranked-keyword archive, including current organic position, demand,
 difficulty, page, AI Overview presence, and provider-returned AI-reference
 position. It is available on the first snapshot. A stored previous organic
 position and movement appear only for an exact normalized-query/page match in
 the preceding snapshot. Where the tracked panel covers one of those queries, the
 row also includes the live result page's AI Overview presence and whether it
-cited this property — three-state, matching by normalized query. The panel is
+cited this asset — three-state, matching by normalized query. The panel is
 **additive**: it contributes no rows of its own, and a query it does not cover
 (or one whose overview failed to load) stays **unknown**, which every rule
 downstream treats exactly as it treated an untracked query before the panel
 existed. The Tower merges this with Google/Bing rows by query
 for display while keeping the units separate: webmaster
-`impressions` are observed property exposure; DataForSEO `search_volume` is
-modelled demand in the site's saved market (United States · English by default).
+`impressions` are observed asset exposure; DataForSEO `search_volume` is
+modelled demand in the asset's saved market (United States · English by default).
 
-A property that reaches the explicit 200-row keyword cap has that family
+An asset that reaches the explicit 200-row keyword cap has that family
 marked truncated in the manifest rather than implying complete keyword
 coverage.
 
@@ -924,8 +924,8 @@ has no corresponding report type. Do not label ordinary Web Search rows as
 AIO-specific. Until Google adds API access, known assistant referrals come
 from GA4, broad AI visibility comes from the weekly DataForSEO Google/ChatGPT
 mention snapshots, and exact query-level citation detail comes from the tracked
-`serp-panel` above — for the terms on a property's panel, and no others.
-Property-wide AIO/AI-Mode impression totals still require an operator-downloaded
+`serp-panel` above — for the terms on an asset's panel, and no others.
+Asset-wide AIO/AI-Mode impression totals still require an operator-downloaded
 Search Console generative export.
 
 ### Bing AI Performance boundary
@@ -960,10 +960,10 @@ The operator runs one command:
 pnpm bing-ai:import ~/Downloads/example.com_AISearchQueriesReport_8_4_2026.csv
 ```
 
-`scripts/bing-ai-import.mjs` reads the property and the export date from Bing's
+`scripts/bing-ai-import.mjs` reads the asset and the export date from Bing's
 own filename (`<site>_<Report>_<M_D_YYYY>.csv` — the only place two of the three
 exports include a date at all), POSTs the bytes to the ingest's loopback endpoint
-(`POST /api/bing-ai-export`, operator-authed) and refreshes the property's panel
+(`POST /api/bing-ai-export`, operator-authed) and refreshes the asset's panel
 dir. The archive uses the standard format — gzip JSON in private R2 with an append-only
 `archive_runs` row, integration `bing-webmaster`, reports `ai-overview` /
 `ai-queries` / `ai-pages`, `data_state='provider-snapshot'`, `report_date` = the
@@ -978,7 +978,7 @@ Dashboard scraping remains outside scope.
 
 `workers/ingest/src/bing-signals.ts` runs once on the existing 02:30 UTC
 nightly pull tick because Microsoft updates `GetRankAndTrafficStats` daily.
-`BING_WEBMASTER_API_KEY` is a user-level credential: one key lists every site
+`BING_WEBMASTER_API_KEY` is a user-level credential: one key lists every asset
 verified under the operator's account. The Worker intersects that list with
 launched, non-OS portfolio assets, then calls the traffic endpoint once for
 each match.
@@ -993,9 +993,9 @@ unknown, not zero. The Tower reads Google and Bing separately, aligns them by
 calendar date on one zero-based Web Search Clicks scale, colors Bing with the
 provider-identity blue token, and lets either line end on its own latest date.
 Both retain same-weekday-last-week references. Bing's retention reaches back
-well past four weeks; a shorter series means a new property, not a provider
-limit. A property moved to `live` with `sense_only=1` participates in the
-launched-property collectors without enabling an Act loop.
+well past four weeks; a shorter series means a new asset, not a provider
+limit. An asset moved to `live` with `sense_only=1` participates in the
+launched-asset collectors without enabling an Act loop.
 
 ## Cloudflare D1 backups
 
@@ -1063,8 +1063,8 @@ auto-resolves without erasing history.
 
 | Provider | What is actually available | Practical NoticeOS approach |
 |---|---|---|
-| Bing Webmaster | [`GetCrawlIssues`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getcrawlissues?view=bing-webmaster-dotnet) returns crawl-issue records for a site | Implemented in the daily archive. The latest snapshot can produce an executive warning with affected URLs and crawl evidence; promoting it into mutable Needs Attention lifecycle records still requires first-seen/last-seen deduplication |
-| Google Search Console | No site-wide Recommendations/Issues feed appears in the [API surface](https://developers.google.com/webmaster-tools/v1/api_reference_index). [URL Inspection](https://developers.google.com/webmaster-tools/v1/urlInspection.index/UrlInspectionResult) returns indexing/fetch/robots/canonical/mobile/rich-result state for a requested URL | Inspect a bounded, evidence-selected priority URL set; never present it as a whole-site health scan |
+| Bing Webmaster | [`GetCrawlIssues`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getcrawlissues?view=bing-webmaster-dotnet) returns crawl-issue records for an asset | Implemented in the daily archive. The latest snapshot can produce an executive warning with affected URLs and crawl evidence; promoting it into mutable Needs Attention lifecycle records still requires first-seen/last-seen deduplication |
+| Google Search Console | No asset-wide Recommendations/Issues feed appears in the [API surface](https://developers.google.com/webmaster-tools/v1/api_reference_index). [URL Inspection](https://developers.google.com/webmaster-tools/v1/urlInspection.index/UrlInspectionResult) returns indexing/fetch/robots/canonical/mobile/rich-result state for a requested URL | Inspect a bounded, evidence-selected priority URL set; never present it as a whole-asset health scan |
 | Google Analytics 4 | The [Data API](https://developers.google.com/analytics/devguides/reporting/data/v1/basics) reports metrics and the [Admin API](https://developers.google.com/analytics/devguides/config/admin/v1) manages configuration/change history; neither documents a Recommendations/Insights feed | Continue deriving anomalies centrally from finalized reporting data; do not claim GA UI recommendations through the API |
 
 GSC URL Inspection should not be added until NoticeOS has an explicit

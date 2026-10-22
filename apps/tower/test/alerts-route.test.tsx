@@ -292,7 +292,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     // The strip stays portfolio-wide; the panel says what a filter left on screen.
     expect(answer(container)).toBe("2 open alerts, 1 error");
     expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
-    expect(screen.getByLabelText("Site")).toHaveValue("acorn.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("acorn.example");
   });
 
   it("narrows by severity and kind from the same query string", () => {
@@ -339,7 +339,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       alert({ id: 2, asset: "acorn.example", assetDisplayName: "Areas", message: "Clicks fell off a cliff" }),
     ]);
 
-    fireEvent.change(screen.getByLabelText("Site"), {
+    fireEvent.change(screen.getByLabelText("Asset"), {
       target: { value: "acorn.example" },
     });
 
@@ -366,17 +366,17 @@ describe("/alerts — the portfolio's open exceptions", () => {
       }),
     ]);
 
-    fireEvent.change(screen.getByLabelText("Site"), {
+    fireEvent.change(screen.getByLabelText("Asset"), {
       target: { value: "acorn.example" },
     });
 
-    expect(within(board()).getByText("Two sites have no nightly reports")).toBeInTheDocument();
+    expect(within(board()).getByText("Two assets have no nightly reports")).toBeInTheDocument();
     expect(screen.queryByText("No open alerts match these filters")).toBeNull();
   });
 
   /** The sidebar and the command palette open a site with no number yet on
    * its Data sources; these links must agree. */
-  it("opens a site where the nav does, and builds every site link with the id encoded", () => {
+  it("opens an asset where the nav does, and builds every asset link with the id encoded", () => {
     const firstNumberYet = { ...assetCard("meadow.example", "Meadow Board"), pulseReceivedAt: null };
     state.data = {
       ...payload([
@@ -415,7 +415,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       .toHaveAttribute("href", "/assets/meadow.example#timeline");
 
     // Areas has reported, so its Overview; Meadow Board has not, so its Data sources.
-    const grouped = openRow(/Two sites have no nightly reports/);
+    const grouped = openRow(/Two assets have no nightly reports/);
     expect(within(grouped).getByRole("link", { name: "Areas" }))
       .toHaveAttribute("href", "/assets/acorn.example");
     expect(within(grouped).getByRole("link", { name: "Meadow Board" }))
@@ -514,7 +514,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
         { id: 8, asset: "acorn.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
       ],
     })]);
-    const row = within(board()).getByText("Two sites have no nightly reports").closest("li")!;
+    const row = within(board()).getByText("Two assets have no nightly reports").closest("li")!;
     expect(row).toHaveTextContent("Last known");
     fireEvent.click(within(row).getByRole("button", { expanded: false }));
     expect(row.querySelector('[data-attention-group-member="ferns.example"]')).toHaveTextContent("Confirmed 3h ago");
@@ -607,23 +607,23 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(row.textContent).toMatch(/^Error: /);
   });
 
-  it.each(["/alerts", "/alerts?view=history"])("excludes archived sites from the selector at %s", url => {
+  it.each(["/alerts", "/alerts?view=history"])("excludes archived assets from the selector at %s", url => {
     const data = payload([]);
     state.data = { ...data, assets: data.assets.map((row, index) => index === 0 ? { ...row, status: "retired" } : row) };
     render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[url]}><AlertsRoute /></MemoryRouter></QueryClientProvider>);
-    expect(within(screen.getByLabelText("Site")).queryByRole("option", { name: "Meadow Board" })).toBeNull();
-    expect(within(screen.getByLabelText("Site")).getByRole("option", { name: "Areas" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Asset")).queryByRole("option", { name: "Meadow Board" })).toBeNull();
+    expect(within(screen.getByLabelText("Asset")).getByRole("option", { name: "Areas" })).toBeInTheDocument();
   });
 
   it("offers every asset in the store as a filter, not only the ones alerting", () => {
     renderAlerts([alert()]);
 
-    const select = screen.getByLabelText("Site");
+    const select = screen.getByLabelText("Asset");
     const options = within(select).getAllByRole("option").map((o) => o.textContent);
-    expect(options).toEqual(["Every site", "Meadow Board", "Areas"]);
+    expect(options).toEqual(["Every asset", "Meadow Board", "Areas"]);
   });
 
-  it("offers no site filter with one site to pick, unless a link already narrows", () => {
+  it("offers no asset filter with one asset to pick, unless a link already narrows", () => {
     const oneSite = (url: string) => {
       const data = payload([alert()], []);
       state.data = { ...data, assets: data.assets.slice(0, 1) };
@@ -637,18 +637,18 @@ describe("/alerts — the portfolio's open exceptions", () => {
     };
 
     const plain = oneSite("/alerts");
-    expect(screen.queryByLabelText("Site")).toBeNull();
-    expect(screen.queryByText("Every site")).toBeNull();
+    expect(screen.queryByLabelText("Asset")).toBeNull();
+    expect(screen.queryByText("Every asset")).toBeNull();
     plain.unmount();
 
     oneSite("/alerts?asset=meadow.example");
-    expect(screen.getByLabelText("Site")).toHaveValue("meadow.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("meadow.example");
   });
 
   /** The list is one board: a section per site, worst first, the week's
    * timeline above it, each reading drawn against its rule's normal. */
   describe("the board and the week drawn above it", () => {
-    it("groups the open alerts by site, the site of the worst alert first", () => {
+    it("groups the open alerts by asset, the asset of the worst alert first", () => {
       renderAlerts([
         alert({ id: 1, message: "Signups well below normal" }),
         alert({ id: 2, asset: "acorn.example", assetDisplayName: "Areas", severity: "error", message: "Clicks fell off a cliff" }),

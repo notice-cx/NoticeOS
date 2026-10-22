@@ -78,7 +78,7 @@ One installation folder, `~/noticeos` unless you name another, holds everything 
 
 The app runs the same image setup ran from, pinned by its ID in `installation.env` (`NOTICEOS_APP_IMAGE`). The databases' data is stored in two Docker volumes named after the project (`noticeos_postgres-data`, `noticeos_dolt-data`).
 
-Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the database schema, creates one workspace and one internal NoticeOS task project, and loads the default settings. The installation starts with no sites and no provider accounts.
+Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the database schema, creates one workspace and one internal NoticeOS task project, and loads the default settings. The installation starts with no assets and no provider accounts.
 
 ### How the launcher runs
 
@@ -91,9 +91,9 @@ Each command runs in a short-lived container from the NoticeOS image. That conta
 
 ## Get your first useful view
 
-1. On **Home**, select **Add your first site**.
-2. On the new site's **Data sources** tab, select **Connect** on a source.
-3. Open the site's **Overview** to see its first readings.
+1. On **Home**, select **Add your first asset**.
+2. On the new asset's **Data sources** tab, select **Connect** on a source.
+3. Open the asset's **Overview** to see its first readings.
 
 Provider credentials go in on the **Integrations** page, where they are encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
 
@@ -117,7 +117,7 @@ Each matches a `pnpm os:*` command in a checkout, with the same options and no `
 | `noticeos backup` | `pnpm os:backup` | One backup now |
 | `noticeos capacity` | `pnpm os:capacity` | The store's size and growth per table |
 | `noticeos run-job "<cron>"` | `pnpm os:run-job -- "<cron>"` | Run the jobs scheduled on one cron expression now |
-| `noticeos collect --asset <id> --families <a,b>` | `pnpm os:collect -- --asset <id> --families <a,b>` | Collect one site's report families now; DataForSEO calls are billed |
+| `noticeos collect --asset <id> --families <a,b>` | `pnpm os:collect -- --asset <id> --families <a,b>` | Collect one asset's report families now; DataForSEO calls are billed |
 | `noticeos update`, `rollback` | `pnpm os:update`, `os:rollback` | Move to the newest published version, or back |
 | `noticeos migrate` | `pnpm os:migrate` | List pending database changes; `--apply` applies them |
 | `noticeos mcp` | `pnpm os:mcp` | Start the MCP server for an agent on this machine; see [Connect an agent](/guides/connect-an-agent) |
@@ -176,7 +176,7 @@ It returns to the version before the last update the same way, after you type `r
 
 - `~/noticeos/noticeos status` prints the folder first, then `postgres`, `dolt`, `backup` and `noticeos` running and healthy, `database: has every migration this code carries` and `update: current`.
 - **Settings** > **Installation** shows the folder, the Tower's port and **Current** under **Updates**.
-- **Home** shows three steps: **Add your first site**, **Connect a source** and **See your first number**.
+- **Home** shows three steps: **Add your first asset**, **Connect a source** and **See your first number**.
 
 ## If it didn't work
 
@@ -189,6 +189,6 @@ It returns to the version before the last update the same way, after you type `r
 
 ## Next steps
 
-- [Add your first site](/guides/add-your-first-site)
+- [Add your first asset](/guides/add-your-first-site)
 - [Daily operations](/operate/daily-operations)
 - [Run with Docker](/start/run-with-docker)

@@ -318,14 +318,14 @@ describe("a hosted catalog joined to the snapshot by prefix", () => {
     expect(roster[0]?.counts.open).toBe(3);
   });
 
-  it("resolves a site id to the catalog key and leaves other scopes alone", () => {
+  it("resolves an asset id to the catalog key and leaves other scopes alone", () => {
     expect(catalogScope(catalog, snapshot, "lightbrief.example")).toBe("lb");
     expect(catalogScope(catalog, snapshot, "lb")).toBe("lb");
     expect(catalogScope(catalog, snapshot, null)).toBeNull();
     expect(catalogScope(catalog, undefined, "lightbrief.example")).toBe("lightbrief.example");
   });
 
-  it("a site-scoped board shows the project rather than an empty state", () => {
+  it("an asset-scoped board shows the project rather than an empty state", () => {
     const roster = taskCatalogProjects(catalog, snapshot);
     const scope = catalogScope(catalog, snapshot, "lightbrief.example");
     const board = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot, scope, reads: new Map(), roster, filters });
@@ -367,7 +367,7 @@ describe("the board's week against the week before", () => {
     expect(live.weeks).toEqual(sampled.weeks);
   });
 
-  it("gives a site's Tasks tab its own project's week", () => {
+  it("gives an asset's Tasks tab its own project's week", () => {
     const scoped = readTaskBoard({ capabilities: { live: false, reason: "read_only_deployment" }, snapshot, scope: "northwind.example", reads: new Map(), filters });
     expect(scoped.weeks).toEqual(snapshot.projects[1]!.weeks);
   });

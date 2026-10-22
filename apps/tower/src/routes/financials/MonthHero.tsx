@@ -104,7 +104,7 @@ export function MonthHero({ equation, days, lastMonth, pace, bySite, className }
         <div className="flex flex-col gap-2 border-t border-border/60 pt-4" data-money-by-site="">
           <span className="text-xs font-medium text-muted-foreground">Where {month} came from</span>
           <SegmentBar
-            ariaLabel={`${month} revenue by site: ${bySite.map((site) => `${site.name} ${whole(site.amount)}`).join(", ")}`}
+            ariaLabel={`${month} revenue by asset: ${bySite.map((site) => `${site.name} ${whole(site.amount)}`).join(", ")}`}
             className="h-2"
             segments={bySite.map((site, index) => ({ name: site.id, value: site.amount, fill: shareFill(index) }))}
           />

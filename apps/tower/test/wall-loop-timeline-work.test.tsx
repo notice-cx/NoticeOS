@@ -93,7 +93,7 @@ describe("the loop", () => {
     expect(unknown.decide?.value).toBeUndefined();
   });
 
-  it("counts a retired site in none of its stages, even on a TV that shows it", () => {
+  it("counts a retired asset in none of its stages, even on a TV that shows it", () => {
     const retired = { ...asset("c.example", WORK), status: "retired" };
     const outcome = (id: number, site: string) => ({ id, asset: site, ruleId: "watch-window-closed" }) as unknown as Parameters<typeof loopNodes>[0]["attention"][number];
     const nodes = byId(loopNodes({

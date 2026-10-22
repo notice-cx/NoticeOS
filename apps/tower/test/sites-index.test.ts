@@ -84,7 +84,7 @@ const issue = (asset: string, severity: "error" | "warn"): WallIssue => ({
   key: `alert-${asset}`, severity, assets: [asset], site: asset, line: "", mark: "", since: null, conditions: [],
 });
 
-describe("the Sites rows", () => {
+describe("the Assets rows", () => {
   it("reads yesterday's money, its week-ago change and the share of the whole month", () => {
     const [big, small, none] = siteLines(
       [card({ id: "big.example", ...earning(3000) }), card({ id: "small.example", ...earning(1000) }), card({ id: "none.example", pulseReceivedAt: null })],
@@ -142,7 +142,7 @@ describe("the Sites rows", () => {
   });
 });
 
-describe("the Sites orderings", () => {
+describe("the Assets orderings", () => {
   const lines = siteLines(
     [
       card({ id: "calm.example", displayName: "Calm", activeUsers: people(5, 10) }),
@@ -158,15 +158,15 @@ describe("the Sites orderings", () => {
     expect(ids("seed")).toEqual(["calm.example", "rich.example", "broken.example", "busy.example"]);
   });
 
-  it("puts the site that needs attention first, worst first", () => {
+  it("puts the asset that needs attention first, worst first", () => {
     expect(ids("health")).toEqual(["broken.example", "rich.example", "calm.example", "busy.example"]);
   });
 
-  it("orders by the month's money, a site that earned nothing reported last", () => {
+  it("orders by the month's money, an asset that earned nothing reported last", () => {
     expect(ids("money")).toEqual(["broken.example", "rich.example", "calm.example", "busy.example"]);
   });
 
-  it("orders by people, a site with no finished day last", () => {
+  it("orders by people, an asset with no finished day last", () => {
     expect(ids("users")).toEqual(["busy.example", "rich.example", "calm.example", "broken.example"]);
   });
 
@@ -174,7 +174,7 @@ describe("the Sites orderings", () => {
     expect(ids("name")).toEqual(["broken.example", "busy.example", "calm.example", "rich.example"]);
   });
 
-  it("keeps a retired site at the foot of every ordering, as the sidebar does", () => {
+  it("keeps a retired asset at the foot of every ordering, as the sidebar does", () => {
     const withRetired = siteLines(
       [card({ id: "old.example", displayName: "Aardvark", status: "retired", openError: 1, ...earning(9000) }), ...lines.map((line) => line.card)],
       PORTFOLIO, [], NO_READS, NOW,
@@ -195,7 +195,7 @@ describe("the Sites orderings", () => {
 
 // A retired site is watched by nobody: it reads Retired whatever else is
 // true of it, and is in no part of the split and no count of who needs you.
-describe("a retired site among the rows", () => {
+describe("a retired asset among the rows", () => {
   const three = siteLines(
     [card({ id: "off.example", openError: 1 }), card({ id: "old.example", status: "retired", openError: 1, worstSeverity: "error" }), card({ id: "calm.example" })],
     PORTFOLIO, [issue("old.example", "error")], NO_READS, NOW,
@@ -208,7 +208,7 @@ describe("a retired site among the rows", () => {
     expect(siteHealth(card({ id: "x.example", status: "retired", openError: 2, openWarn: 3 }))).toMatchObject({ key: "retired", word: "Retired" });
   });
 
-  it("is in no part of the split and in none of the watched sites", () => {
+  it("is in no part of the split and in none of the watched assets", () => {
     expect(healthSplit(three)).toEqual([
       { key: "off-track", word: "Off track", count: 1 },
       { key: "on-track", word: "On track", count: 1 },
@@ -217,7 +217,7 @@ describe("a retired site among the rows", () => {
   });
 });
 
-describe("the Sites answer's visitors", () => {
+describe("the Assets answer's visitors", () => {
   it("carries the change on the same weekday a week before, and none it cannot compare", () => {
     const week = (v: (index: number) => number): AssetCard["activeUsers"] => ({
       series: Array.from({ length: 8 }, (_, index) => ({ t: `2026-08-0${index + 1}`, v: v(index) })),

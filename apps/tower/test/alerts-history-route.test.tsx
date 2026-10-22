@@ -246,13 +246,13 @@ describe("/alerts — the Open | History switch", () => {
   it("keeps the filters while it corrects a mistyped tab", () => {
     renderAlerts("/alerts/nonsence?asset=northwind.example");
 
-    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("northwind.example");
   });
 
   it("keeps the Open view's filters working under the tabs", () => {
     renderAlerts("/alerts?asset=northwind.example&severity=error");
 
-    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
     // Nothing matches, and the page says so as an empty state; the strip
     // above owns the portfolio's counts.
@@ -278,7 +278,7 @@ describe("/alerts — the Open | History switch", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
   });
 
@@ -297,7 +297,7 @@ describe("/alerts — the Open | History switch", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
   });
 
@@ -443,7 +443,7 @@ describe("/alerts/history — what already closed", () => {
     state.history = history([row()]);
     renderAlerts("/alerts/history?asset=northwind.example&severity=error");
 
-    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
+    expect(screen.getByLabelText("Asset")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
     expect(state.lastQuery).toMatchObject({ asset: "northwind.example", severity: "error" });
   });
@@ -462,7 +462,7 @@ describe("/alerts/history — what already closed", () => {
     state.history = history([row()], { offset: 50, total: 60, hasMore: true });
     renderAlerts("/alerts/history?offset=50");
 
-    fireEvent.change(screen.getByLabelText("Site"), {
+    fireEvent.change(screen.getByLabelText("Asset"), {
       target: { value: "northwind.example" },
     });
 

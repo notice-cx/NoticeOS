@@ -313,7 +313,7 @@ function GroupedAlertRow({ item, nowMs, focused, quiet = false }: { item: Attent
       caption={
         <>
           <AlertVerification verification={item.verification} firstDetectedAt={item.firstFiredAt} nowMs={nowMs} interactive={false} />
-          {` · ${alert.hint ?? memberNames(item) ?? "Grouped sites"}`}
+          {` · ${alert.hint ?? memberNames(item) ?? "Grouped assets"}`}
         </>
       }
       evidence={<Reading item={item} />}

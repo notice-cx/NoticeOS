@@ -130,7 +130,7 @@ describe('workflow operating surface', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Group operations' }), { target: { value: 'flat' } });
     expect(screen.queryByRole('heading', { name: /Business signals/ })).toBeNull();
     expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('latest');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Operation category' }), { target: { value: 'Site health' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Operation category' }), { target: { value: 'Asset health' } });
     expect(screen.getByRole('link', { name: 'Search accessibility checks' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Backups' })).toBeNull();
   });

@@ -362,13 +362,13 @@ describe("/settings", () => {
       }
     }
     pickSection("general");
-    expect(screen.getByText("USD per month · all sites")).toBeVisible();
+    expect(screen.getByText("USD per month · all assets")).toBeVisible();
     expect(screen.getByText("USD per minute · prices review time in ROI")).toBeVisible();
     expect(within(container.querySelector("[data-budget-meter='data']") as HTMLElement).getByText("Stops at the budget")).toBeVisible();
     expect(screen.queryByText(/Collection that would exceed the cap/)).toBeNull();
     expect(screen.queryByRole("button", { name: "About monthly data cap" })).toBeNull();
     pickSection("alert-rules");
-    expect(within(container.querySelector("#alert-rules") as HTMLElement).getByText("All sites")).toBeVisible();
+    expect(within(container.querySelector("#alert-rules") as HTMLElement).getByText("All assets")).toBeVisible();
     pickSection("data-collection");
     // A collection no connection feeds has its schedule as a row here; one a
     // connection feeds is changed on that connection's Manage panel.
@@ -746,7 +746,7 @@ describe("/settings", () => {
     expect(container.querySelector("#clock")).toBeNull();
   });
 
-  it("draws the Sites card: every site in your order with its switches, as Arrange does", () => {
+  it("draws the Assets card: every asset in your order with its switches, as Arrange does", () => {
     state.settings = payload({ dashboard: {} });
     state.wall = {
       ...wall([
@@ -758,12 +758,12 @@ describe("/settings", () => {
     stubFetch();
     const { container } = renderPage("tv-dashboard");
     const card = container.querySelector<HTMLElement>("[data-settings-sites]")!;
-    expect(within(card).getByRole("heading", { name: "Sites" })).toBeInTheDocument();
+    expect(within(card).getByRole("heading", { name: "Assets" })).toBeInTheDocument();
     expect([...card.querySelectorAll("[data-site-arrange-row]")].map((row) => row.getAttribute("data-site-arrange-row")))
       .toEqual(["meadow.example", "northwind.example"]);
     expect(within(card).getByRole("switch", { name: "TV for Meadow Board" })).toHaveAttribute("aria-checked", "false");
-    expect(within(card).getByRole("switch", { name: "Home and Sites list for Meadow Board" })).toHaveAttribute("aria-checked", "true");
-    expect(within(card).getByRole("switch", { name: "Home and Sites list for Northwind" })).toHaveAttribute("aria-checked", "false");
+    expect(within(card).getByRole("switch", { name: "Home and Portfolio for Meadow Board" })).toHaveAttribute("aria-checked", "true");
+    expect(within(card).getByRole("switch", { name: "Home and Portfolio for Northwind" })).toHaveAttribute("aria-checked", "false");
     // The page says once that saves are paused; the card does not repeat it.
     expect(card.querySelector("[data-site-arrange-locked]")).toBeNull();
   });
@@ -991,7 +991,7 @@ describe("/settings", () => {
     stubFetch();
     renderPage("data-collection");
 
-    expect(document.querySelector("[data-pull-none]")).toHaveTextContent("None · sites send their own");
+    expect(document.querySelector("[data-pull-none]")).toHaveTextContent("None · assets send their own");
     pickSection("task-projects");
     expect(screen.getByText("No task projects configured.")).toBeTruthy();
     expect(within(taskHub()).getByText("Read-only here")).toBeTruthy();
@@ -1083,7 +1083,7 @@ function workBoard(...waiting: WorkItem[]): WorkPayload {
 /** Fill the Add form with a whole project. `database` is left alone: it follows
  * the prefix by declaration until somebody types into it. */
 function fillProject(fields: { asset: string; prefix: string }) {
-  fireEvent.change(within(addForm()).getByLabelText("Site"), { target: { value: fields.asset } });
+  fireEvent.change(within(addForm()).getByLabelText("Asset"), { target: { value: fields.asset } });
   fireEvent.change(within(addForm()).getByLabelText("Task prefix"), {
     target: { value: fields.prefix },
   });
@@ -1091,17 +1091,17 @@ function fillProject(fields: { asset: string; prefix: string }) {
 
 describe("/settings — the task-hub project map", () => {
   beforeEach(() => { initialSection = "task-projects"; });
-  it("names each project's site by its on-screen name, with the site's id kept in the Site cell", () => {
+  it("names each project's asset by its on-screen name, with the asset's id kept in the Asset cell", () => {
     state.integrations = matrix(11.4, "2026-09", [{ id: "root-os", displayName: "System", isOs: true },
       { id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
     stubFetch();
     renderPage();
     expect(projectRow("root-os").querySelector("[data-task-project-site]")).toHaveTextContent("System");
-    expect(within(projectRow("root-os")).getByLabelText("Site")).toHaveValue("root-os");
+    expect(within(projectRow("root-os")).getByLabelText("Asset")).toHaveValue("root-os");
     expect(projectRow("meadow.example").querySelector("[data-task-project-site]")).toHaveTextContent("Meadow Board");
   });
 
-  it("draws each project's site icon for the theme, from the card in the Wall read the desk holds", () => {
+  it("draws each project's asset icon for the theme, from the card in the Wall read the desk holds", () => {
     state.integrations = matrix(11.4, "2026-09", [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
     const calls = stubFetch();
     const light = "https://www.meadow.example/brand/icon-32.png";
@@ -1125,15 +1125,15 @@ describe("/settings — the task-hub project map", () => {
     }
   });
 
-  it("keeps a site the store does not list under its id alone", () => {
+  it("keeps an asset the store does not list under its id alone", () => {
     state.integrations = matrix(11.4, "2026-09", []);
     stubFetch();
     renderPage();
     expect(projectRow("meadow.example").querySelector("[data-task-project-site]")?.textContent).toBe("");
-    expect(within(projectRow("meadow.example")).getByLabelText("Site")).toHaveValue("meadow.example");
+    expect(within(projectRow("meadow.example")).getByLabelText("Asset")).toHaveValue("meadow.example");
   });
 
-  it("names each project's site in the read-only list too, the id beside its database", () => {
+  it("names each project's asset in the read-only list too, the id beside its database", () => {
     state.integrations = matrix(11.4, "2026-09", [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
     state.settings = payload({ taskHub: { owner: "config/beads.json", hub: null,
       spokes: [{ asset: "meadow.example", prefix: "md", database: "md", repo: "" }, { asset: "unlisted.example", prefix: "un", database: "un", repo: "" }] } });
@@ -2223,7 +2223,7 @@ describe("/settings — who owns what", () => {
     for (const column of ["Id", "Name", "Legal form", "Registered in"]) {
       expect(within(table).getAllByText(column).length).toBeGreaterThan(0);
     }
-    expect(within(table).queryByText("Sites")).toBeNull();
+    expect(within(table).queryByText("Assets")).toBeNull();
   });
 
   it("draws the ownership map, and says which assets nobody has claimed", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assetLifecycleStatus, canSetLifecycleControl, lifecycleControlValue } from "../src/asset-lifecycle";
 
-describe("observed site lifecycle", () => {
+describe("observed asset lifecycle", () => {
   it.each(["onboarding", "baselining", "live", "unknown"])("ignores the old %s assignment", (stored) => {
     expect(assetLifecycleStatus(stored, false)).toBe("onboarding");
     expect(assetLifecycleStatus(stored, true)).toBe("live");

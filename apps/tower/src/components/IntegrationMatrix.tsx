@@ -75,8 +75,8 @@ export function IntegrationMatrix({ matrix, nowMs, statusOf, className }: Integr
   if (assets.length === 0) {
     return (
       <EmptyState
-        title="No sites yet"
-        hint="Add a site to see its sources."
+        title="No assets yet"
+        hint="Add an asset to see its sources."
       />
     );
   }
@@ -152,7 +152,7 @@ interface MatrixLane {
 const LAYER_HEADINGS: Record<IntegrationLayer, string> = {
   os: "The OS itself",
   provider: "Provider accounts",
-  property: "The site's own wiring",
+  property: "The asset's own wiring",
 };
 
 function LayerHeadingRow({ layer, span }: { layer: IntegrationLayer; span: number }) {
@@ -405,7 +405,7 @@ function LaneExplainer({ lane }: { lane: IntegrationCatalogRow }) {
         {lane.layer === "provider" ? (
           <div className="flex items-baseline gap-1.5" data-lane-fact="credential">
             <dt className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">Credential</dt>
-            <dd className="font-medium text-foreground">{lane.credential === "shared" ? "Shared" : "Per site"}</dd>
+            <dd className="font-medium text-foreground">{lane.credential === "shared" ? "Shared" : "Per asset"}</dd>
           </div>
         ) : null}
       </dl>

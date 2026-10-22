@@ -159,7 +159,7 @@ onboarding note — never an assumption the design depends on.
 
 ## What passing CI does not catch
 
-The failures that reduce ROI — a page the crawler cannot read, a site's most
+The failures that reduce ROI — a page the crawler cannot read, an asset's most
 important page at a fraction of a percent CTR for a quarter, a save flow that loses work —
 can all ship with CI passing. CI checks that the code builds and its tests
 pass; the failures that reduce ROI are *outcome* failures. So the Act stage

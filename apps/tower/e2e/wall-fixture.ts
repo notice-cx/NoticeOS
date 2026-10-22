@@ -220,8 +220,8 @@ function scaledTrend(trend: AssetCard["activeUsers"], factor: number): AssetCard
 function extraSites(variant: WallFixtureVariant): AssetCard[] {
   if (variant !== "seven" && variant !== "eight") return [];
   const template = ASSETS[2]!;
-  const seventh: AssetCard = { ...template, id: "seventh.example", displayName: "Seventh Site", activeUsers: scaledTrend(template.activeUsers, 0.62) };
-  const eighth: AssetCard = { ...seventh, id: "eighth.example", displayName: "Eighth Site", activeUsers: scaledTrend(template.activeUsers, 0.4) };
+  const seventh: AssetCard = { ...template, id: "seventh.example", displayName: "Seventh Asset", activeUsers: scaledTrend(template.activeUsers, 0.62) };
+  const eighth: AssetCard = { ...seventh, id: "eighth.example", displayName: "Eighth Asset", activeUsers: scaledTrend(template.activeUsers, 0.4) };
   return variant === "eight" ? [seventh, eighth] : [seventh];
 }
 

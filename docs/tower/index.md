@@ -9,7 +9,7 @@ This page introduces the Tower: what it is, how to open it, and where to find ea
 
 ## What the Tower is
 
-The **Tower** is NoticeOS's web app: the screens you open in a browser to see how your sites are doing and to act on them. Once an installation is running, it is at the address setup printed, `http://127.0.0.1:5173/` by default. It works on a laptop, a phone and a TV.
+The **Tower** is NoticeOS's web app: the screens you open in a browser to see how your assets are doing and to act on them. Once an installation is running, it is at the address setup printed, `http://127.0.0.1:5173/` by default. It works on a laptop, a phone and a TV.
 
 It has two parts:
 
@@ -22,8 +22,8 @@ Both show the same data from the same installation.
 
 The sidebar lists the pages in the order you are likely to need them. Which pages it lists follows your view, chosen on Home's first run or in [Settings → General → **Your view**](/tower/settings#general):
 
-- **I run the business**: Home, Sites, Tasks, Money and Settings.
-- **I build the product**: Home, Sites, Alerts, Tasks, Money, System health, Integrations and Settings.
+- **I run the business**: Home, Portfolio, Tasks, Money and Settings.
+- **I build the product**: Home, Portfolio, Alerts, Tasks, Money, System health, Integrations and Settings.
 - **Everything**: every page in the table below.
 
 A page the sidebar leaves out still opens from Search (**⌘K**), which lists every page in every view, and from any link to it.
@@ -32,7 +32,7 @@ A page the sidebar leaves out still opens from Search (**⌘K**), which lists ev
 |---|---|
 | [Home](/tower/home) | How the business is doing, what is broken and what needs your attention. The Tower opens here. |
 | [Workflows](/tower/workflows) | What NoticeOS runs on its own, on what schedule, and how each run went. |
-| [Sites](/tower/sites) | Which sites need your attention. Each site also has its own page. |
+| [Portfolio](/tower/sites) | Which assets need your attention. Each asset also has its own page. |
 | [Alerts](/tower/alerts) | What needs attention right now, and how serious it is. |
 | [Tasks](/tower/tasks) | How big the work queue is, and which tasks in it are waiting for you. |
 | [Agents](/tower/agents) | What your agents did and how fast they closed tasks. |
@@ -41,11 +41,11 @@ A page the sidebar leaves out still opens from Search (**⌘K**), which lists ev
 | [Integrations](/tower/integrations) | Which provider accounts are connected, and how to connect another. |
 | [Settings](/tower/settings) | The settings that apply to the whole installation. |
 
-At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, site or task by name. Its **Views** group lists **Switch to · \<view>** for the two views you are not in.
+At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, asset or task by name. Its **Views** group lists **Switch to · \<view>** for the two views you are not in.
 
-## A site's own page
+## An asset's own page
 
-A **site** is one website or product you added. Its name on Home or Sites opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**; your view decides which of them are shown. Most of what concerns one site happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Sites](/tower/sites).
+An **asset** is one website or product you added. Its name on Home or Portfolio opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**; your view decides which of them are shown. Most of what concerns one asset happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Portfolio](/tower/sites).
 
 ## How to read a page
 

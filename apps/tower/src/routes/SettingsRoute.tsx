@@ -375,7 +375,7 @@ function TvDashboardSection({
       />
       {/* The same list as Arrange on the Sites page: the order Home, Sites
           and the TV use, and where each site shows. */}
-      <SettingsPanel id="sites" title="Sites" aside={writable ? undefined : <PanelLock data-sites-locked />} data-settings-sites>
+      <SettingsPanel id="sites" title="Assets" aside={writable ? undefined : <PanelLock data-sites-locked />} data-settings-sites>
         <LiveSiteArrange statesReadOnly={false} />
       </SettingsPanel>
       <SettingsPanel title="Countdown">
@@ -455,7 +455,7 @@ function BudgetFields({ settings }: { settings: SettingsPayload }) {
             statesReadOnly={false}
             className="border-0 py-0"
             label={knob.label}
-            explain={knob.unit === "usd_per_min" ? "USD per minute · prices review time in ROI" : "USD per month · all sites"}
+            explain={knob.unit === "usd_per_min" ? "USD per minute · prices review time in ROI" : "USD per month · all assets"}
             current={knob.value}
             format={(v) => formatKnobValue(v, knob.unit)}
             makeOp={fileOp("config/constants.json", knob.pointer, knob.value)}
@@ -581,7 +581,7 @@ function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
         <SettingsPanel
           title="Thresholds"
           // The one fact the fields cannot show: they judge every site.
-          aside={<StateChip tone="neutral" label="All sites" glyph={<Globe className="size-3" />} subject="alert-rules:portfolio" />}
+          aside={<StateChip tone="neutral" label="All assets" glyph={<Globe className="size-3" />} subject="alert-rules:portfolio" />}
         >
           {alertRules.knobs.map((knob) => (
             <FieldWithVisual key={knob.key} visual={alertRuleVisual(knob)}>
@@ -924,7 +924,7 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
         {collection.pullAssets.length === 0 ? (
           // A state, not a sentence: nothing is fetched, so every asset sends its own.
           <p data-pull-none>
-            <StateChip tone="na" label="None · sites send their own" subject="collection:portfolio" />
+            <StateChip tone="na" label="None · assets send their own" subject="collection:portfolio" />
           </p>
         ) : (
           collection.pullAssets.map((entry) => (
@@ -1079,7 +1079,7 @@ function EntitiesSection({ settings }: { settings: SettingsPayload }) {
           addFields={["slug", "name", "form", "jurisdiction"]}
           headed={false}
           slug="declare-an-entity"
-          emptyHint="Sites have no owner"
+          emptyHint="Assets have no owner"
           commit="auto"
         />
       </SettingsPanel>
@@ -1104,7 +1104,7 @@ function EntityOwnership({
 }) {
   if (rows.length === 0 && unowned.length === 0) return null;
   return (
-    <SettingsPanel title="Sites by owner" data-entity-ownership={rows.length}>
+    <SettingsPanel title="Assets by owner" data-entity-ownership={rows.length}>
       <div className="flex flex-col gap-2">
         {rows.map((row) => {
           const owned = entityAssets(row);
@@ -1112,7 +1112,7 @@ function EntityOwnership({
             <div key={row.slug} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <span className="font-medium text-foreground">{row.name}</span>
               {owned.length === 0 ? (
-                <span className="text-muted-foreground">owns no site yet</span>
+                <span className="text-muted-foreground">owns no asset yet</span>
               ) : (
                 <AssetLinks ids={owned} />
               )}

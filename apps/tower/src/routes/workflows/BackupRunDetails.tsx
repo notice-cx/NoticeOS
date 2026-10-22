@@ -10,7 +10,7 @@ const PART: Record<BackupPart, { name: string; unit: string; folder: string }> =
   postgres: { name: 'Operational database', unit: 'databases', folder: 'postgres/' },
   r2: { name: 'Reports and stored files', unit: 'files', folder: 'r2/' },
   taskHub: { name: 'Task databases', unit: 'databases', folder: 'beads/' },
-  assets: { name: 'Site databases', unit: 'databases', folder: 'cloudflare-d1/ · assets/' },
+  assets: { name: 'Asset databases', unit: 'databases', folder: 'cloudflare-d1/ · assets/' },
   history: { name: 'Historical reports', unit: 'sets', folder: 'history/' },
   recovery: { name: 'Recovery keys and settings', unit: 'files', folder: 'recovery/' },
 };
@@ -35,14 +35,14 @@ export function BackupRunDetails({ run, captured, pending }: { run: WorkflowRun 
   const recorded = run && captured?.runId === run.id ? captured : null;
   if (!recorded) return <section aria-label="Backup contents" className="space-y-3 rounded-lg border border-border p-5">
     <h2 className="text-lg font-semibold">{pending ? 'Loading backup contents' : run?.state === 'running' ? 'Backup in progress' : !run ? 'No backup run available' : 'Backup contents unavailable'}</h2>
-    <p className="text-sm text-muted-foreground">{pending ? 'Loading this run’s backup evidence.' : run?.state === 'running' ? 'Captured contents and destinations appear when this run finishes.' : !run ? 'Select a recorded run to inspect its contents and destinations.' : 'This run has no matching contents or destination record. Its success status alone does not establish which sites or offsite copies it contains.'}</p>
+    <p className="text-sm text-muted-foreground">{pending ? 'Loading this run’s backup evidence.' : run?.state === 'running' ? 'Captured contents and destinations appear when this run finishes.' : !run ? 'Select a recorded run to inspect its contents and destinations.' : 'This run has no matching contents or destination record. Its success status alone does not establish which assets or offsite copies it contains.'}</p>
   </section>;
   const { evidence } = recorded;
   const sites = evidence.parts.find(part => part.id === 'assets')!;
   return <section aria-label="Backup contents" className="space-y-5">
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
       <div><h2 className="text-2xl font-semibold">{evidence.complete ? 'Local backup complete' : 'Backup incomplete'}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{sites.status === 'not_configured' ? 'No site databases were selected for this run.' : 'Contents captured by this execution.'}</p></div>
+        <p className="mt-1 text-sm text-muted-foreground">{sites.status === 'not_configured' ? 'No asset databases were selected for this run.' : 'Contents captured by this execution.'}</p></div>
       <time dateTime={evidence.finishedAt} title={utcRunReference(evidence.finishedAt)} className="text-sm text-muted-foreground tabular-nums">{formatNextRun(evidence.finishedAt)}</time>
     </div>
     <div className="grid items-stretch overflow-hidden rounded-lg border border-border md:grid-cols-[1fr_auto_1fr]">

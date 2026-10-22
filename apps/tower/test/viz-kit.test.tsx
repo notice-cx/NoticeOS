@@ -43,7 +43,7 @@ describe("BarStrip", () => {
         { t: "2026-10-10", v: 0, contributions: { a: 0 } },
         { t: "2026-10-11", v: 6, contributions: { b: 6 } },
       ]}
-      contributors={[{ id: "a", name: "Site A", tone: "text-asset-1" }, { id: "b", name: "Site B", tone: "text-asset-2" }]}
+      contributors={[{ id: "a", name: "Asset A", tone: "text-asset-1" }, { id: "b", name: "Asset B", tone: "text-asset-2" }]}
       tone="text-traffic" partial={["2026-10-10"]} ariaLabel="Visitors a day"
     />);
     const first = container.querySelector('[data-bar="2026-10-08"]')!;
@@ -54,9 +54,9 @@ describe("BarStrip", () => {
     expect(container.querySelector('[data-bar="2026-10-09"]')).toHaveAttribute("data-state", "unreported");
     expect(container.querySelector('[data-bar="2026-10-10"]')).toHaveAttribute("data-state", "partial");
     expect(container.querySelector('[data-bar="2026-10-11"] [data-contributor="a"]')).toBeNull();
-    expect(getByRole("img")).toHaveAccessibleName(/Site B 6/);
+    expect(getByRole("img")).toHaveAccessibleName(/Asset B 6/);
     fireEvent.pointerEnter(first);
-    expect(container).toHaveTextContent("Site A 5 · Site B 15");
+    expect(container).toHaveTextContent("Asset A 5 · Asset B 15");
   });
 
   it("says its span, its highlighted day, its usual level and its gaps in words", () => {
@@ -203,7 +203,7 @@ describe("IncidentList", () => {
 });
 
 describe("PortfolioRows", () => {
-  it("counts live sources out of the ones a site owes", () => {
+  it("counts live sources out of the ones an asset owes", () => {
     expect(sourcesLive([
       { label: "Bing", state: "failing" },
       { label: "GA4", state: "working" },

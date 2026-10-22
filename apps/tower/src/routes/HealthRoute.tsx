@@ -363,7 +363,7 @@ function Layers({
               caption={item.unlocks.join(" · ")}
               value={item.cells}
               valueLabel={item.cells === 1 ? "source" : "sources"}
-              actions={<Link className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4" to={onSite ? `/assets/${encodeURIComponent(item.key)}/sources` : '/integrations'}>{onSite ? 'Open site sources' : 'Open integrations'}</Link>}
+              actions={<Link className="inline-flex min-h-11 items-center text-xs font-medium underline underline-offset-4" to={onSite ? `/assets/${encodeURIComponent(item.key)}/sources` : '/integrations'}>{onSite ? 'Open asset sources' : 'Open integrations'}</Link>}
             />
           );
         })}
@@ -392,7 +392,7 @@ function Layers({
       ) : null}
 
       <Panel
-        title={matrix.assets.length > 1 ? "Every source, site by site" : "Every source"}
+        title={matrix.assets.length > 1 ? "Every source, asset by asset" : "Every source"}
         count={`${applicable} ${applicable === 1 ? "source" : "sources"} · ${siteCount(matrix.assets.length)}`}
         mark="audit"
       >
@@ -554,7 +554,7 @@ function DataSpend({
               data-spend-unattributed
             >
               <span className="min-w-0 break-words text-muted-foreground">
-                Research, not tied to a site
+                Research, not tied to an asset
               </span>
               <span className="shrink-0 tabular-nums text-foreground">
                 {formatUsd(spend.unattributedUsd, { cents: true })}

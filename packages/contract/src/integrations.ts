@@ -846,7 +846,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     connect: { kind: 'key', credential: 'api-key' },
     authPaths: [
       { kind: 'account-key', label: 'Personal API key', fields: ['POSTHOG_API_KEY'] },
-      { kind: 'site-keys', label: 'A key per site', fields: ['POSTHOG_KEYS'] },
+      { kind: 'site-keys', label: 'A key per asset', fields: ['POSTHOG_KEYS'] },
     ],
     fields: [
       {
@@ -863,7 +863,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
       {
         // The older map of site → key, kept for the installs that hold one.
         name: 'POSTHOG_KEYS',
-        label: 'Keys per site',
+        label: 'Keys per asset',
         secret: true,
         kind: 'asset-map',
         required: false,

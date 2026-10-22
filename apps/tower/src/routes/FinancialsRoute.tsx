@@ -419,7 +419,7 @@ function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; 
   const sourceNames = new Map(history.sources.map(source => [source.asset, source.displayName]));
   // A day owes only the sources already reporting by then.
   const notesByDate = Object.fromEntries(history.coverage.map(day => [day.date,
-    `${day.reported} of ${day.reported + day.missingAssets.length} daily sources reported${day.missingAssets.length ? ` · Missing: ${day.missingAssets.map(asset => sourceNames.get(asset) ?? 'Unknown site').join(', ')}` : ''}`,
+    `${day.reported} of ${day.reported + day.missingAssets.length} daily sources reported${day.missingAssets.length ? ` · Missing: ${day.missingAssets.map(asset => sourceNames.get(asset) ?? 'Unknown asset').join(', ')}` : ''}`,
   ]));
   const partialDates = history.coverage.filter(day => day.reported > 0 && day.missingAssets.length > 0).map(day => day.date);
   return <DailyRevenuePanel history={history} range={revenueWindowDays(history.from, history.to)}
@@ -890,7 +890,7 @@ function DeclaredRunRate({ lines, total }: { lines: DeclaredLine[]; total: numbe
   return (
     <div className="flex flex-col gap-2" data-declared-run-rate>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <SectionLabel title="Declared, by site" />
+        <SectionLabel title="Declared, by asset" />
         <span className="text-sm font-semibold tabular-nums">
           {formatUsd(total, CENTS)}/mo
         </span>

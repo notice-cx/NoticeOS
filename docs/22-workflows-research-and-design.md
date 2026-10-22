@@ -33,7 +33,7 @@ of execution records read at portfolio and workflow scope.
 
 ## Information architecture
 
-**Home → Workflows → Sites → Alerts → Tasks** gives execution its own place
+**Home → Workflows → Portfolio → Alerts → Tasks** gives execution its own place
 without replacing the portfolio overview. Workflows holds the operator
 automations; Tasks remains the list of human and agent work. System health
 covers collection, refreshes, backups, service checks and connection evidence.
@@ -65,7 +65,7 @@ The inventory sorts by **Latest run** by default, newest first, including runs
 in progress; workflows without a recorded run come last. **Needs attention**,
 **Next run** and **Name** are the other orders. Search matches purpose as well
 as name: searching "robots" finds the job that checks search accessibility.
-Purpose groups are Business signals, Site health, Notifications, Outcomes,
+Purpose groups are Business signals, Asset health, Notifications, Outcomes,
 Tasks and System maintenance, each with its own state counts. The sort applies
 within each group; **Group → None** restores the flat order. Sort, filters,
 grouping and the selected run are URL state.
@@ -88,10 +88,10 @@ page has no decorative "AI" nodes, invented substeps or universal canvas. Where
 only whole-job evidence exists, the page shows the definition and a note that
 the run has no step details. Observations come from real execution boundaries.
 
-The inspector shows a short outcome before any raw payload: "Two properties
+The inspector shows a short outcome before any raw payload: "Two assets
 could not be collected" comes before any JSON. Raw inputs, credentials and provider
 response bodies stay out of the trace. The inspector shows allowlisted counts,
-metadata and per-site or per-project results as metric cards and tables, with
+metadata and per-asset or per-project results as metric cards and tables, with
 a collapsed captured-data view. Missing output is shown as unavailable; zero
 is a real recorded value.
 
@@ -225,7 +225,7 @@ shows an uptime or success-rate trend that the records do not support.
 
 Integrations is the page for provider accounts, keys, webhooks and their
 settings. Provider discovery stays separate from configured connections, in
-operator language: guided connection, site assignment and verification, never
+operator language: guided connection, asset assignment and verification, never
 a resource schema.
 
 ## Integration discovery and connection lifecycle
@@ -241,11 +241,11 @@ the Tower's `POST /api/integrations/:provider/connect` first tests the key with
 the provider and stores it only if the provider accepts it; the panel shows a
 checking state, then either that the key was accepted or the provider's
 rejection. There is no asset-selection step and no
-detour through a site.
+detour through an asset.
 
 A provider's own page remains for managing a connected provider and for every
 provider not yet in the panel. It reuses the credential forms, Google sign-in,
-per-site configuration links, connection probes, expiry editor and a deliberate
-disconnect confirmation. Saving access, assigning a site and observing a
+per-asset configuration links, connection probes, expiry editor and a deliberate
+disconnect confirmation. Saving access, assigning an asset and observing a
 successful collection are separate facts. Failures stay visible across steps.
 Opening the page or moving between steps makes no provider call.

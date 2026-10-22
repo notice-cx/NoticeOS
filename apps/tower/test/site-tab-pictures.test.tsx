@@ -201,7 +201,7 @@ describe("Data sources' graph", () => {
     { id: "nightly-report", label: "Nightly report", short: "Report" },
   ];
 
-  it("draws each connected source into the site, lights the failing one and names the rest", () => {
+  it("draws each connected source into the asset, lights the failing one and names the rest", () => {
     const graph = siteSourceGraph(
       {
         id: "meadow.example",

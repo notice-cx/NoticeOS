@@ -106,7 +106,7 @@ describe("GET /api/integrations/google/oauth/start", () => {
     expect(stub.starts).toEqual([{ origin: "http://127.0.0.1:5173" }]);
   });
 
-  it("refuses a sign-in started by another site, before ingest is called", async () => {
+  it("refuses a sign-in started by another asset, before ingest is called", async () => {
     for (const site of ["cross-site", "same-site"]) {
       const stub = stubIngest();
       const response = await handleGoogleOAuthStartRequest(
@@ -217,7 +217,7 @@ describe("GET /api/integrations/google/oauth/callback", () => {
     expect(response.headers.get("location")).not.toContain(CODE);
   });
 
-  it("works when the browser says the navigation is cross-site — it IS", async () => {
+  it("works when the browser says the navigation is cross-asset — it IS", async () => {
     // The signed, expiring, redirect-bound state stands in for the origin
     // check here; an origin guard on this route would break every real sign-in.
     const stub = stubIngest();

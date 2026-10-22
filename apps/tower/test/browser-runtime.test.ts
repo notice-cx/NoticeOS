@@ -201,7 +201,7 @@ describe('an explicit browser lifetime', () => {
     await decoding.promise;
     expect(json).toHaveBeenCalledOnce();
     a.retire();
-    if (kind === 'resolve') body.resolve({ name: 'Predecessor site' });
+    if (kind === 'resolve') body.resolve({ name: 'Predecessor asset' });
     else body.reject(new Error('Predecessor body details'));
     await rejected;
   });

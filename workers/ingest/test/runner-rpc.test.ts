@@ -68,7 +68,7 @@ describe('the runner cron RPC', () => {
     expect(viaRpc).toBeGreaterThan(0);
   });
 
-  it('checks each site is up on the same hourly tick', async () => {
+  it('checks each asset is up on the same hourly tick', async () => {
     await worker().runScheduled(FRESHNESS_CRON);
     // The site checks' readings are on Postgres.
     const [row] = await env.STORE.read((tx) =>

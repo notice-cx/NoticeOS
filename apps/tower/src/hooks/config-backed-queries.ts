@@ -30,7 +30,7 @@ const DOCUMENT_QUERIES: Partial<Record<FileOp["file"], readonly ConfigQueryFamil
   "config/pull.json": ["wall", "asset-detail", "settings", "integrations"],
   "config/integrations.json": ["wall", "asset-detail", "settings", "integrations", "integration-providers"],
   "config/counters.json": ["wall", "asset-detail"],
-  "config/tower.json": ["wall", "settings"],
+  "config/tower.json": ["wall", "settings", "asset-detail"],
   "config/serp-panel.json": ["wall", "asset-detail", "integrations"],
   "config/signal-panels.json": ["asset-detail", "settings"],
   "config/value-events.json": ["asset-detail"],

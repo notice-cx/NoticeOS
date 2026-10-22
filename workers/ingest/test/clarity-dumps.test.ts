@@ -154,7 +154,7 @@ describe('Microsoft Clarity export lane', () => {
     expect(stamped?.lastError).toBeNull();
   });
 
-  it('tells the card what failed and for which site, in the site row’s words', async () => {
+  it('tells the card what failed and for which asset, in the asset row’s words', async () => {
     await putCredential(env, {
       provider: 'clarity',
       fields: { CLARITY_TOKENS: JSON.stringify({ 'meadow.example': TOKEN }) },
@@ -173,7 +173,7 @@ describe('Microsoft Clarity export lane', () => {
     expect(stamped?.lastError).not.toContain(TOKEN);
   });
 
-  it('words each failure kind once, and counts the sites past three', () => {
+  it('words each failure kind once, and counts the assets past three', () => {
     expect(clarityVerdict([{ asset: 'a.example', errorCode: 'clarity_daily_cap_reached' }])).toBe(
       'The daily request allowance is exhausted · a.example',
     );
@@ -188,7 +188,7 @@ describe('Microsoft Clarity export lane', () => {
       clarityVerdict(
         ['a', 'b', 'c', 'd'].map((name) => ({ asset: `${name}.example`, errorCode: 'clarity_token_rejected' })),
       ),
-    ).toBe('Access was refused · 4 sites');
+    ).toBe('Access was refused · 4 assets');
   });
 
   it('skips a property with no token silently — no call, no manifest row', async () => {

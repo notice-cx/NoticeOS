@@ -172,7 +172,7 @@ describe("the asset page reads one view per tab", () => {
     await waitFor(() => expect(showing()).toBe("asset-tab-overview"));
 
     fireEvent.click(tab("Money"));
-    expect(await within(panel()).findByText("Couldn't load this site")).toBeInTheDocument();
+    expect(await within(panel()).findByText("Couldn't load this asset")).toBeInTheDocument();
     expect(within(panel()).getByRole("button", { name: /try again/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meadow Board");
   });

@@ -127,7 +127,7 @@ async function seedHygiene(ctx: TestStore): Promise<WorkspaceStore> {
   return store;
 }
 
-describe("site-health history reads only its ninety days", () => {
+describe("asset-health history reads only its ninety days", () => {
   it("returns the old read's rows, and the page states the same history", async () => {
     const ctx = await createTestStore();
     const store = await seedHygiene(ctx);
@@ -160,7 +160,7 @@ describe("site-health history reads only its ninety days", () => {
     expect([...HYGIENE_CHECK_IDS]).toEqual(kinds.map((row) => row.check_id));
   });
 
-  it("reads the site through the unique index, the window's first day inside the index condition", async () => {
+  it("reads the asset through the unique index, the window's first day inside the index condition", async () => {
     // Postgres applies the date inside the index scan, so a night before the
     // window is passed over in the index and never read from the table; the
     // check list filters what that returns.

@@ -1,17 +1,17 @@
 ---
 title: "Connect a task project"
-description: "Connect a site's task database to MCP and the shared Tasks board without a code checkout."
+description: "Connect an asset's task database to MCP and the shared Tasks board without a code checkout."
 ---
 
 # Connect a task project
 
-A task project connects a site to its tasks in the installation's shared Dolt server. MCP, the native **Tasks** board, saved task snapshots and automatic review filing use the same connection. A project does not need a local code repository or a `.beads/` folder in its checkout.
+A task project connects an asset to its tasks in the installation's shared Dolt server. MCP, the native **Tasks** board, saved task snapshots and automatic review filing use the same connection. A project does not need a local code repository or a `.beads/` folder in its checkout.
 
-The connection has three names: the site's asset id, the task prefix and the database name. For example, `example.com`, `ex` and `ex_tasks` are distinct names. Moving the site's code or assigning the project to another site does not copy its tasks. The MCP project id is derived from the database and stays the same when its site changes.
+The connection has three names: the asset's asset id, the task prefix and the database name. For example, `example.com`, `ex` and `ex_tasks` are distinct names. Moving the asset's code or assigning the project to another asset does not copy its tasks. The MCP project id is derived from the database and stays the same when its asset changes.
 
 ## Before you begin
 
-- Add the site in NoticeOS. See [Add your first site](/guides/add-your-first-site).
+- Add the asset in NoticeOS. See [Add your first asset](/guides/add-your-first-site).
 - Have the installation administrator identify the existing task database and its prefix. Initializing a new database remains a separate, explicitly authorized setup operation; saving a project never initializes or migrates it.
 - Keep the installation's declared task service and credential file configured. The connection uses that service; workspace settings cannot select a server or credential file.
 
@@ -19,7 +19,7 @@ A fresh installation includes the System's task project. An existing project's d
 
 ## Save the project
 
-In **Settings** > **Task projects**, add the site's asset id, prefix and database. Prefixes contain two to eight lowercase letters. Database names start with a lowercase letter and contain lowercase letters, digits or underscores. Prefixes and databases must be unique.
+In **Settings** > **Task projects**, add the asset's asset id, prefix and database. Prefixes contain two to eight lowercase letters. Database names start with a lowercase letter and contain lowercase letters, digits or underscores. Prefixes and databases must be unique.
 
 Settings saves the canonical project register in the configuration store. Exports are copies for backup and review; editing an exported file does not change the running connection.
 
@@ -62,7 +62,7 @@ Review the proposed instructions, then use `--write` to apply them. The command 
 
 Preparation contacts no provider or database. It creates no `.beads/` directory, gate lock or task-related ignore entries. Existing task connection files and ignore rules remain unchanged. The pointer uses the MCP guide and contains no dependency on the NoticeOS source checkout's location.
 
-Add the project's goal, architecture, verification commands, protected operations and dated state following the [site context mapping](../09-onboarding-a-site.md#agentsmd-mapping-before-a-builder-touches-the-site). Commit instructions under that repository's own Git policy.
+Add the project's goal, architecture, verification commands, protected operations and dated state following the [asset context mapping](../09-onboarding-a-site.md#agentsmd-mapping-before-a-builder-touches-the-asset). Commit instructions under that repository's own Git policy.
 
 ## Verify the connection
 

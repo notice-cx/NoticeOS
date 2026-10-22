@@ -76,7 +76,7 @@ const LIST_WORKSPACES: McpTool = Object.freeze({ name: 'list_workspaces',
  * instructions point at instead of copying them. */
 const GET_TASK_GUIDE: McpTool = Object.freeze({ name: TASK_GUIDE_TOOL,
   description: 'The rules for working with NoticeOS tasks, as Markdown with a version: the workflow from list_workspaces to close_task, '
-    + 'how to write and close a task, when a person decides, and how to read site data. Read it before task work.',
+    + 'how to write and close a task, when a person decides, and how to read asset data. Read it before task work.',
   inputSchema: Object.freeze({ type: 'object', properties: {}, required: [], additionalProperties: false }),
   annotations: Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false }) });
 const TASK_TOOLS = TASK_MCP_TOOLS.map(inWorkspace);

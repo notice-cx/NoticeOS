@@ -461,8 +461,8 @@ export function connectionFacts(status: ConnectionStatus | SiteStatus): Connecti
   const facts: ConnectionFact[] = [];
   if ("sites" in status) {
     const partial = status.sitesFailing > 0 && !(status.kind === "failing" && status.sitesFailing === status.sitesMeasured);
-    if (partial) facts.push({ key: "sites-failing", count: status.sitesFailing, label: plural(status.sitesFailing, "site failing", "sites failing"), tone: "critical" });
-    if (status.sitesOverdue > 0 && status.kind !== "overdue") facts.push({ key: "sites-overdue", count: status.sitesOverdue, label: plural(status.sitesOverdue, "site overdue", "sites overdue"), tone: "caution" });
+    if (partial) facts.push({ key: "sites-failing", count: status.sitesFailing, label: plural(status.sitesFailing, "asset failing", "assets failing"), tone: "critical" });
+    if (status.sitesOverdue > 0 && status.kind !== "overdue") facts.push({ key: "sites-overdue", count: status.sitesOverdue, label: plural(status.sitesOverdue, "asset overdue", "assets overdue"), tone: "caution" });
   } else if (status.overdue > 0) {
     facts.push({ key: "overdue", count: status.overdue, label: plural(status.overdue, "report overdue", "reports overdue"), tone: "caution" });
   }

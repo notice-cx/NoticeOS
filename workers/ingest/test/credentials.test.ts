@@ -285,7 +285,7 @@ describe('store first, env second', () => {
     expect(summary.assetsHeld).toEqual(['meadow.example']);
   });
 
-  it('serves the first Clarity site in the STORE’s register, whatever it is called', async () => {
+  it('serves the first Clarity asset in the STORE’s register, whatever it is called', async () => {
     // Which asset the older binding serves is the installation's answer —
     // `legacyBindingAsset` over its own register, store first — never a site
     // written into the catalog. A store whose first Clarity site is another

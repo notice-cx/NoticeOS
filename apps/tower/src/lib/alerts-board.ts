@@ -261,7 +261,7 @@ export function alertBoard(items: readonly AttentionItem[], nowMs: number): Aler
     let site = bySite.get(key);
     if (!site) {
       site = isGrouped(item)
-        ? { key, asset: null, name: "Several sites", items: [] }
+        ? { key, asset: null, name: "Several assets", items: [] }
         : { key, asset: item.asset, name: item.assetDisplayName, items: [] };
       bySite.set(key, site);
     }

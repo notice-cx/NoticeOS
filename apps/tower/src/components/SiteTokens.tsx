@@ -95,7 +95,7 @@ export function SiteTokens({ provider, sites, statusOf, remaining, cap, onSave, 
         ) : null}
       </div>
       {sites.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-site-tokens-empty>No sites yet</p>
+        <p className="text-sm text-muted-foreground" data-site-tokens-empty>No assets yet</p>
       ) : (
         <ul aria-labelledby={headingId} className="overflow-hidden rounded-xl border border-border">
           {sites.map((site) => {

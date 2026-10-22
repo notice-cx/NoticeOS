@@ -26,7 +26,7 @@ export function SourceGraph({
   const graph = siteSourceGraph(siteHealthRow(card, connections, nowMs), sourceColumns([card]), { id: asset.id, name: asset.displayName });
   if (graph.nodes.length < 2) return null;
   return (
-    <section aria-label="How this site's data arrives" data-source-graph="" className="rounded-xl bg-card px-5 pb-4 pt-4 ring-1 ring-border/70">
+    <section aria-label="How this asset's data arrives" data-source-graph="" className="rounded-xl bg-card px-5 pb-4 pt-4 ring-1 ring-border/70">
       <h2 className={cn("m-0 pb-3", eyebrowClass)}>How the data arrives</h2>
       {/* Dense: each node's state is its glyph and ink, so the word stays on
           the source's own row below, its one status on this screen. */}
@@ -35,7 +35,7 @@ export function SourceGraph({
         edges={graph.edges}
         nowMs={nowMs}
         dense
-        ariaLabel={`${asset.displayName}'s data sources, each feeding the site`}
+        ariaLabel={`${asset.displayName}'s data sources, each feeding the asset`}
       />
       {graph.notConnected.length > 0 ? (
         <p className="m-0 mt-3 text-xs text-muted-foreground" data-source-graph-not-connected="">

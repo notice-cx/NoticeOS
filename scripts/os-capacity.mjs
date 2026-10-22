@@ -84,7 +84,7 @@ export function capacityLines(inventory) {
   if (snapshots) {
     lines.push(
       `  snapshots   ${formatCount(snapshots.rows)} rows · ${formatBytes(snapshots.payloadBytes)} · largest ${formatBytes(snapshots.maxPayloadBytes)} · +${formatCount(snapshots.rowsPerDay)} rows/day · +${formatBytes(snapshots.bytesPerDay)}/day`,
-      `              read: the two newest per site, ${formatCount(snapshots.readRows)} rows (${formatBytes(snapshots.readBytes)}) · kept but unread: ${formatCount(snapshots.supersededRows)} rows (${formatBytes(snapshots.supersededBytes)})`,
+      `              read: the two newest per asset, ${formatCount(snapshots.readRows)} rows (${formatBytes(snapshots.readBytes)}) · kept but unread: ${formatCount(snapshots.supersededRows)} rows (${formatBytes(snapshots.supersededBytes)})`,
     );
     for (const site of snapshots.byAsset) {
       lines.push(

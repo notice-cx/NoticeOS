@@ -19,12 +19,12 @@
 | `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
 | `os:run-job` | Run one allowed local job with `--id <job-id>`, or fire one cron expression now. | `scripts/stack-control.mjs run-job` |
-| `os:collect` | Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
+| `os:collect` | Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
-| `os:codebase-report` | Measure one site's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
+| `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
 
 ### Change the database
 
@@ -51,25 +51,25 @@
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
-| `signals:collect` | Collect one property's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
+| `signals:collect` | Collect one asset's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
 | `signals:download` | Download the latest immutable raw-signal object for each selected report day. | `scripts/signal-dumps-download.mjs` |
 | `signals:history` | The provider history as analytical files. | `scripts/signal-history.mjs` |
 | `signals:analyze-history` | The analysis, read from the history files. | `scripts/signal-history-analyze.mjs` |
-| `signals:refresh` | Keep every rostered property's panel dir current. | `scripts/signal-panels-refresh.mjs` |
+| `signals:refresh` | Keep every rostered asset's panel dir current. | `scripts/signal-panels-refresh.mjs` |
 | `signals:publish-insights` | Publish one compact executive snapshot into the store's presentation boundary. | `scripts/signal-insights-publish.mjs` |
 | `signals:event-params` | GA4 event-parameter report for one asset: the manual companion to the daily GA4 archive lane, for event params the archive does not export. | `scripts/ga4-event-params.mjs` |
 | `bing-ai:import` | Drop a Bing AI Performance export anywhere, run one command, and it becomes evidence. | `scripts/bing-ai-import.mjs` |
 | `reclamation:import` | Load a campaign's static target CSV into the store's link-outreach targets, carrying whatever send state the campaign recorded elsewhere. | `scripts/reclamation-import.mjs` |
-| `reclamation:open-targets` | A site's OPEN link-outreach targets, written to the file the reclamation-match rule reads (`pnpm signals:analyze-history -- --reclamation-targets <file>`, scripts/signal-insights.mjs). | `scripts/reclamation-open-targets.mjs` |
+| `reclamation:open-targets` | An asset's OPEN link-outreach targets, written to the file the reclamation-match rule reads (`pnpm signals:analyze-history -- --reclamation-targets <file>`, scripts/signal-insights.mjs). | `scripts/reclamation-open-targets.mjs` |
 | `mediavine` | The Mediavine publisher-portal client in the terminal: status, sites and a revenue sync for one site. | `scripts/mediavine.mjs` |
 | `cost:import-inference` | Book a model provider's usage export into the ledger as inference costs. | `scripts/inference-cost-import.mjs` |
-| `pulse:relay` | Relay a pull-mode site's live pulse into the LOCAL ingest worker. | `scripts/pulse-relay.mjs` |
+| `pulse:relay` | Relay a pull-mode asset's live pulse into the LOCAL ingest worker. | `scripts/pulse-relay.mjs` |
 
 ### Check the code and the screens
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
-| `check:neutral` | Product code names no installation's own sites, accounts or clock. | `scripts/neutral-code-gate.mjs` |
+| `check:neutral` | Product code names no installation's own assets, accounts or clock. | `scripts/neutral-code-gate.mjs` |
 | `audit:copy` | The UX text report: how much reading each Tower screen asks for. | `scripts/ux-gate.mjs` |
 | `audit:flows` | The flow walker: walk every declared operator flow in a real browser and report what each one costs (actions, screens, page changes, explanatory words, empty steps, repeated checks, duplicate statuses, ungrouped lists). | `apps/tower/e2e/flow-gate.mjs` |
 | `audit:viewport` | Capture the running Tower at each viewport through a local Firefox Marionette session, for a visual review. | `scripts/tower-viewport-audit.mjs` |
@@ -197,7 +197,7 @@ pnpm os:capacity              # store size and growth per table, read-only
 pnpm os:backup                # one full backup now (Postgres + R2 + hub, then offsite)
 pnpm os:run-job -- "0 * * * *"   # fire the jobs scheduled on one cron expression now
 pnpm os:run-job -- --id panel-refresh   # rebuild local research summaries now
-pnpm os:collect -- --asset example.com --families posthog-events   # one site's report families now
+pnpm os:collect -- --asset example.com --families posthog-events   # one asset's report families now
 ```
 
 `os:backup`, `os:run-job`, `os:collect` and `os:capacity` run inside the app container with
@@ -483,10 +483,10 @@ lanes against it, each a module under `scripts/runner/` with its cadence in
 ### The panel-review filer
 
 Hourly (`panelFilerCron`), the runner asks the ingest what landed
-(`GET /api/serp-panel-landings`) and, once the property's published panel
+(`GET /api/serp-panel-landings`) and, once the asset's published panel
 `freshness.json` holds that collection day, files one `panel-review` bead in
-the property's repo, due seven days later, with `noticeos_panel_asset` /
-`noticeos_panel_date` metadata. Identity is (property, collection day),
+the asset's repo, due seven days later, with `noticeos_panel_asset` /
+`noticeos_panel_date` metadata. Identity is (asset, collection day),
 re-derived every pass from the spoke itself, so there is no state file and no
 duplicate; every failure path writes nothing. Closing the bead means the panel
 review and an inventory pass over that week's collection
@@ -781,7 +781,7 @@ per-file hashes, refuses a development database, asks for the database's
 name, runs as `noticeos_owner` only, and applies only migrations
 `db/postgres/frozen-migrations.sha256` lists; nothing at runtime, restart or
 update can load it (`scripts/postgres-migrate.test.mjs`).
-`pnpm os:migrate -- --bootstrap --slug main --name "My sites"` creates the
+`pnpm os:migrate -- --bootstrap --slug main --name "My portfolio"` creates the
 installation's one workspace, once. The rest is in
 [db/postgres/README.md](../db/postgres/README.md#applying-it-to-an-installations-own-database).
 
@@ -814,7 +814,7 @@ writing nothing: a folder `pnpm db:try-tower` did not make; a database not
 marked `noticeos.profile = 'development'` (`pnpm os:migrate` refuses a marked
 one: a database is seedable or real, never both); and a store that already
 holds data in `pulses`, `flags`, `ledger_entries`, `counter_readings` or
-`annotations`, or a site on one of the fixture's ids or domains, because a
+`annotations`, or an asset on one of the fixture's ids or domains, because a
 seeded row is indistinguishable from a real one.
 
 ---
@@ -869,7 +869,7 @@ any Legacy env card moves the file across.
 | Slot (env var) | Lane | Where to get it |
 |---|---|---|
 | `CREDENTIALS_KEY` | all provider credentials | `openssl rand -base64 32`; the bootstrap secret every store-held credential is encrypted under |
-| `ASSET_TOKENS` | self-report pull and pulse push | JSON map property → that property's `ASSET_TOKEN` ([doc 11](../docs/11-integrations.md#credential-naming--the-asset_token-convention)) |
+| `ASSET_TOKENS` | self-report pull and pulse push | JSON map asset → that asset's `ASSET_TOKEN` ([doc 11](../docs/11-integrations.md#credential-naming--the-asset_token-convention)) |
 | `BING_WEBMASTER_API_KEY` | Bing Webmaster | Bing Webmaster Tools → Settings → API access |
 | `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO | `app.dataforseo.com` → API Access: the API login/password, not the account email |
 | `GOOGLE_SIGNAL_ACCOUNTS` | GA4 + Search Console | nested object service-account label → `service_account_b64` + `properties` (each with `ga4_property_id`, `gsc_site_url`, optional `time_zone`); grant the service-account email GA4 Viewer and GSC Full-user access. The runner extracts each key to a generated `GOOGLE_SERVICE_ACCOUNT_<ALIAS>` binding at start; do not add those names yourself. |
@@ -878,15 +878,15 @@ any Legacy env card moves the file across.
 | `DISCORD_WEBHOOK_URL` | Discord | Server Settings → Integrations → Webhooks; the URL is the credential |
 | `CALENDAR_FEEDS` | Calendar (Wall meetings) | JSON map feed name → secret ICS URL, or `{url, color?, email?}`; the URL is the credential and the probe never prints it |
 
-`time_zone` under a Google property is the IANA zone that defines GA4's
+`time_zone` under a Google asset is the IANA zone that defines GA4's
 reporting day; omitted, the collector uses the saved `os_time_zone` and says
 so once per pull. GSC dates are always Pacific by provider contract.
 
 After probing, `creds:check` may print an exact `pnpm config:apply --stdin`
 heredoc recording enrollment proof for `config/integrations.json`; it never
-applies anything, only proved properties appear, and a store-proved lane
+applies anything, only proved assets appear, and a store-proved lane
 suggests no cell because a provider-level test proves nothing about which
-properties it reaches.
+assets it reaches.
 
 ## Rotating `CREDENTIALS_KEY` (`creds:rotate-key`)
 
@@ -936,7 +936,7 @@ connection or a second Worker, and `--remote` is refused. For a prepared
 container, use the
 [container operator commands](../deploy/compose/README.md#download-and-publish-stored-signal-reports).
 
-Collect and read back one property's local archive:
+Collect and read back one asset's local archive:
 
 ```bash
 pnpm os:run-job -- "15 12 * * *"                               # or "45 12 * * 1" for the weekly lane
@@ -980,10 +980,10 @@ publishing is content-addressed (`insight:<asset>:<first 24 hex of the
 SHA-256>`), so an identical rerun inserts nothing twice. The raw archive and
 CSVs stay local.
 
-## Collect one property now (`signals:collect`)
+## Collect one asset now (`signals:collect`)
 
 `pnpm os:run-job -- "45 12 * * 1"` fires the whole weekly lane for every
-property; a baseline for one property on its launch day is collected at its
+asset; a baseline for one asset on its launch day is collected at its
 own price:
 
 ```bash
@@ -996,8 +996,8 @@ pnpm signals:collect -- --asset example.com --families posthog --start 2026-09-0
 It spends money and says how much; a run with any failed family exits
 non-zero. It collects nothing itself: the request goes to
 `POST /api/signal-collect` and the ingest runs the same collector the cron
-runs, scoped to one property, so there is no second collector to drift. A
-property the lane does not collect, or a family it is not due, comes back as
+runs, scoped to one asset, so there is no second collector to drift. A
+asset the lane does not collect, or a family it is not due, comes back as
 a `422`, never as a $0.00 success; re-firing the same day stores identical
 content as `unchanged`. `--start`/`--end` pin one window of at most 28 days
 for PostHog families; one run is one provider.
@@ -1018,18 +1018,18 @@ completed analysis to the Tower. Publication is advisory: it never creates
 tasks, dismisses findings or executes changes.
 
 ```bash
-pnpm signals:refresh                        # every property in the roster
-pnpm signals:refresh -- --asset example.com # one property, roster flag ignored
+pnpm signals:refresh                        # every asset in the roster
+pnpm signals:refresh -- --asset example.com # one asset, roster flag ignored
 pnpm signals:refresh -- --all               # including the deliberately disabled
 pnpm signals:refresh -- --no-publish        # local preview; Tower advice unchanged
 ```
 
 Each pass reads its roster, history window and freshness setting from the
 stored `config/signal-panels.json` document through the running ingest, never
-a checkout export. Each enabled property downloads only missing archives,
+a checkout export. Each enabled asset downloads only missing archives,
 publishes its Parquet history, then analyzes that generation in the bounded
 child. The reports publish together with `signal-trend-daily.csv` — the
-normalized daily site-level series, the only file in the panel dir that can be
+normalized daily asset-level series, the only file in the panel dir that can be
 summed — and `freshness.json`, which grades each integration's newest report
 day against `refresh.freshnessMaxAgeDays` (no source grades as not fresh;
 families no cron produces, `UNCOLLECTED_FAMILIES`, are graded separately in
@@ -1040,7 +1040,7 @@ that is never rewritten, so interruption leaves the previous report visible;
 one asset's failure does not stop the others. Versions stay for 14 days, the
 older ones gzipped (`scripts/panel-versions.mts`), and the MCP panel tools
 read them (`scripts/panel-mcp.mts`). It costs nothing: zero provider calls.
-What a property repo may conclude from a panel is
+What an asset repo may conclude from a panel is
 [doc 20](../docs/20-signal-panels.md).
 
 ## The executive rules
@@ -1053,7 +1053,7 @@ discarded. Every card names its rule in a `rule: <id>` evidence row; a rule
 whose family is absent emits nothing. Each rule's condition, thresholds and
 what to do about it are stated beside its definition in that file
 ([doc 13](../docs/13-opportunity-scouting.md)). One rule,
-`reclamation-match`, has an input outside the archives: the property's open
+`reclamation-match`, has an input outside the archives: the asset's open
 outreach targets, exported with
 `pnpm reclamation:open-targets -- --asset example.com` to
 `.local/reclamation/<asset>-open.json` and passed to
@@ -1087,7 +1087,7 @@ pnpm bing-ai:import ~/Downloads/example.com_AISearchQueriesReport_8_4_2026.csv
 ```
 
 The format is decided by the header row against three pinned shapes
-(`workers/ingest/src/bing-ai-exports.ts`); the property and export date are
+(`workers/ingest/src/bing-ai-exports.ts`); the asset and export date are
 read off Bing's own filename, and a renamed file is refused with the two flags
 that fix it. The bytes go through `POST /api/bing-ai-export` into the house
 archive (integration `bing-webmaster`, report `ai-overview` / `ai-queries` /
@@ -1107,7 +1107,7 @@ pnpm reclamation:import -- --asset example.com --csv <targets.csv>
 The header must be exactly
 `tier,segment,domain,referring_page,links_to_dead,replace_with,contact,notes`.
 The list goes to `POST /api/reclamation-targets` in one transaction. It is
-idempotent: a page is stored once, keyed on site, domain and page, and a
+idempotent: a page is stored once, keyed on asset, domain and page, and a
 status only moves forward in the funnel, never touching a terminal `won` /
 `skip` / `dead` a person set. A trailing `SKIP` line imports as one `skip` row
 per slash-separated domain. Campaign state that predates the table lives in
@@ -1219,12 +1219,12 @@ checkout that is not a git work tree, or when `core.hooksPath` already points
 somewhere else (it says so and leaves that alone). A pre-existing
 `.git/hooks/pre-commit` is chained, not lost.
 
-# Neutral-code gate — product code names no installation's own sites
+# Neutral-code gate — product code names no installation's own assets
 
-A stranger's installation must not carry somebody else's sites or behave
+A stranger's installation must not carry somebody else's assets or behave
 differently because of them. `scripts/neutral-code-gate.mjs` fails when
 product source, a product default in `config/`, or a document that ships with
-the product names one of this installation's own asset ids, domains, site
+the product names one of this installation's own asset ids, domains, asset
 display names or Google accounts, or any time zone.
 
 **The list comes from the installation, never from the gate.** It is read

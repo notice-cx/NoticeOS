@@ -130,7 +130,7 @@ function stubIngest(replies: {
         probes.push(provider);
         return answer(replies.probe, {
           ok: true,
-          message: "Answered · 5 sites",
+          message: "Answered · 5 assets",
           result: { outcome: "answered", facts: { sites: 5 } },
           checkedAt: NOW.toISOString(),
         });
@@ -542,7 +542,7 @@ describe("POST /api/integrations/:provider/test", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ok: true,
-      message: "Answered · 5 sites",
+      message: "Answered · 5 assets",
       result: { outcome: "answered", facts: { sites: 5 } },
       checkedAt: NOW.toISOString(),
     });
@@ -700,7 +700,7 @@ describe("PUT /api/integrations/:provider/site-token", () => {
   const put = (body: unknown, headers: Record<string, string> = {}, provider = "clarity"): Request =>
     new Request(url(provider), { method: "PUT", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
 
-  it("passes one site's token to the ingest to merge, and answers 204 with nothing to echo", async () => {
+  it("passes one asset's token to the ingest to merge, and answers 204 with nothing to echo", async () => {
     const { ingest, siteTokens } = stubIngest();
     const response = await handleIntegrationSiteTokenRequest(put({ asset: "example.com", token: SECRET }), url(), ingest, "clarity");
     expect(response.status).toBe(204);
@@ -708,7 +708,7 @@ describe("PUT /api/integrations/:provider/site-token", () => {
     expect(siteTokens).toEqual([{ provider: "clarity", asset: "example.com", token: SECRET }]);
   });
 
-  it("takes tokens only for a provider that issues them per site, and guards verb, origin and body first", async () => {
+  it("takes tokens only for a provider that issues them per asset, and guards verb, origin and body first", async () => {
     const { ingest, siteTokens } = stubIngest();
     expect((await handleIntegrationSiteTokenRequest(new Request(url(), { method: "POST" }), url(), ingest, "clarity")).status).toBe(405);
     expect((await handleIntegrationSiteTokenRequest(put({ asset: "example.com", token: SECRET }, { origin: "https://evil.test" }), url(), ingest, "clarity")).status).toBe(403);
@@ -720,7 +720,7 @@ describe("PUT /api/integrations/:provider/site-token", () => {
   });
 
   it("names the refused field, and carries a store that cannot hold it as a 503", async () => {
-    const refused = stubIngest({ siteToken: { ok: false, error: "validation", issues: [{ path: "asset", code: "unknown_asset", message: "That site is not one of this installation’s." }] } });
+    const refused = stubIngest({ siteToken: { ok: false, error: "validation", issues: [{ path: "asset", code: "unknown_asset", message: "That asset is not one of this installation’s." }] } });
     const response = await handleIntegrationSiteTokenRequest(put({ asset: "nope.example", token: SECRET }), url(), refused.ingest, "clarity");
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ field: "asset" });
@@ -728,7 +728,7 @@ describe("PUT /api/integrations/:provider/site-token", () => {
     expect((await handleIntegrationSiteTokenRequest(put({ asset: "example.com", token: SECRET }), url(), keyless.ingest, "clarity")).status).toBe(503);
   });
 
-  it("refuses the one-key connect for a provider whose tokens are pasted per site", async () => {
+  it("refuses the one-key connect for a provider whose tokens are pasted per asset", async () => {
     const { ingest, connects } = stubIngest();
     const request = new Request(new URL("https://tower.local/api/integrations/clarity/connect"), {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fields: { CLARITY_TOKENS: "{}" } }),

@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe("the feed column", () => {
-  it("draws the rows newest first, one line each: kind, site, sentence, clock time", () => {
+  it("draws the rows newest first, one line each: kind, asset, sentence, clock time", () => {
     render(<WallFeed feed={payload([item("a", 6), item("b", 20, { kind: "alert", label: "Alert", tone: "warn" })])} nowMs={NOW} />);
     expect(rows()).toEqual(["Line a", "Line b"]);
     const first = screen.getAllByRole("listitem")[0]!;
@@ -253,7 +253,7 @@ describe("a line's marks", () => {
     expect(person).toHaveTextContent("dana claimed Line c");
   });
 
-  it("draws the site's favicon beside its name, and none on a portfolio-wide line", () => {
+  it("draws the asset's favicon beside its name, and none on a portfolio-wide line", () => {
     render(<WallFeed feed={payload([item("a", 5), item("b", 9, { asset: null, site: null })])} nowMs={NOW} />);
     const [site, portfolio] = screen.getAllByRole("listitem");
     const label = site!.querySelector("[data-feed-label]") as HTMLElement;
@@ -262,7 +262,7 @@ describe("a line's marks", () => {
     expect(portfolio!.querySelector("[data-property-favicon]")).toBeNull();
   });
 
-  it("draws a site's dark icon from its card, because the Wall is dark on a light desk too", () => {
+  it("draws an asset's dark icon from its card, because the Wall is dark on a light desk too", () => {
     // The TV layout editor's preview draws the Wall inside a light desk.
     document.documentElement.classList.add("light");
     try {

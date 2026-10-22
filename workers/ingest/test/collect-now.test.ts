@@ -81,7 +81,7 @@ async function seed({ paused = null as string | null } = {}) {
   expect(seeded.ok, JSON.stringify(seeded)).toBe(true);
 }
 
-describe('collect now runs the job step for the confirmed sites', () => {
+describe('collect now runs the job step for the confirmed assets', () => {
   beforeEach(async () => {
     await reset();
     await emptyTables(['config_documents']);
@@ -91,7 +91,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('collects Bing for the named asset only, asking for the site its stored mapping names', async () => {
+  it('collects Bing for the named asset only, asking for the asset its stored mapping names', async () => {
     await seed();
     const provider = bing();
     const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meadow.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
@@ -113,7 +113,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs`)).toBe(0);
   });
 
-  it('refuses a provider no job step collects, and a press that names no site', async () => {
+  it('refuses a provider no job step collects, and a press that names no asset', async () => {
     expect(await runCollectNow(env, { provider: 'calendar', assets: ['meadow.example'] })).toEqual({ ok: false, provider: 'calendar', error: 'not-supported' });
     expect(await runCollectNow(env, { provider: 'bing-webmaster', assets: [] })).toEqual({ ok: false, provider: 'bing-webmaster', error: 'no-sites', job: 'pull' });
   });
@@ -134,7 +134,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
     expect(onlyPreLaunch).toEqual({ ok: false, provider: 'dataforseo', error: 'no-sites', job: 'dataforseo' });
   });
 
-  it('collects only the named family for the named site, even when it is not due', async () => {
+  it('collects only the named family for the named asset, even when it is not due', async () => {
     const provider = dataForSeo();
     const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['northwind.example'], families: ['serp-panel'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(result).toMatchObject({ ok: true, job: 'dataforseo', sites: [{ asset: 'northwind.example', outcome: 'collected', code: null, reports: 1 }] });
@@ -158,7 +158,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.job_runs`)).toBe(0);
   });
 
-  it('refuses families another provider does not have, a family DataForSEO does not collect, and a site without the family', async () => {
+  it('refuses families another provider does not have, a family DataForSEO does not collect, and an asset without the family', async () => {
     const provider = dataForSeo();
     const press = (input: { provider: string; assets: string[]; families?: string[] }) => runCollectNow(env, input, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(await press({ provider: 'bing-webmaster', assets: ['meadow.example'], families: ['serp-panel'] })).toEqual({ ok: false, provider: 'bing-webmaster', error: 'not-supported', job: 'pull' });
@@ -272,7 +272,7 @@ describe('discoverSites lists what the connected account holds', () => {
     expect(await discoverSites(env, 'calendar', { nowMs: NOW })).toMatchObject({ ok: false, reason: 'not-supported' });
   });
 
-  it('matches a www. Bing site and a Search Console domain property to the bare stored site', async () => {
+  it('matches a www. Bing site and a Search Console domain property to the bare stored asset', async () => {
     const stored = 'example.com';
     const listsWww = (async () => Response.json({ d: [{ Url: 'https://www.example.com/', IsVerified: true }] })) as typeof fetch;
 

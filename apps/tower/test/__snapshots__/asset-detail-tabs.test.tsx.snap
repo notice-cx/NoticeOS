@@ -4,7 +4,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -34,14 +34,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -171,7 +171,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -201,14 +201,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" title="1 open alert on this site" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" title="1 open alert on this asset" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -395,7 +395,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -425,14 +425,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -1135,7 +1135,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">2 packages have a known vulnerability</span>
-<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Counted by the package audit in this site's workflow</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Counted by the package audit in this asset's workflow</span>
 </span>
 </div>
 </div>
@@ -1169,7 +1169,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -1207,14 +1207,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -1289,7 +1289,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Monthly accounting</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">booked</span>
 <span class="flex items-center gap-2 ms-auto">
-<a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/financials" data-discover="true">All sites →</a>
+<a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/financials" data-discover="true">All assets →</a>
 </span>
 </div>
 <div class="px-4 pb-4">
@@ -1383,7 +1383,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -1421,14 +1421,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -2224,7 +2224,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </li>
 </ol>
 <div class="flex min-w-0 flex-col gap-4">
-<ol aria-label="AI Overviews: shown on 1 of 1 checked terms, citing this site on 0" data-funnel-bars="" class="@container m-0 grid list-none gap-2 p-0">
+<ol aria-label="AI Overviews: shown on 1 of 1 checked terms, citing this asset on 0" data-funnel-bars="" class="@container m-0 grid list-none gap-2 p-0">
 <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @md:grid-cols-[minmax(6rem,10rem)_minmax(0,1fr)_minmax(5.5rem,auto)]" data-funnel-step="aio-present" data-serp-panel-stat="aio-present">
 <span class="min-w-0 text-xs text-foreground">AI Overview</span>
 <span aria-hidden="true" class="col-span-2 row-start-2 h-2 overflow-hidden rounded-full @md:col-span-1 @md:row-start-auto bg-viz-track">
@@ -2329,7 +2329,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">PostHog</span>
 </div>
 <p class="m-0 flex items-center gap-2 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-product-empty="not-connected">
-<span aria-hidden="true" class="font-semibold">—</span>Product data is not connected for this site.</p>
+<span aria-hidden="true" class="font-semibold">—</span>Product data is not connected for this asset.</p>
 </section>
 </div>
 </div>
@@ -2340,7 +2340,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -2370,14 +2370,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -2407,7 +2407,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -2445,14 +2445,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -2504,7 +2504,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span aria-hidden="true" class="text-muted-foreground">·</span>
 <span class="tabular-nums">nothing being watched</span>
 </div>
-<section aria-label="The site's numbers · last 28 days" data-overview-numbers="" class="flex flex-col gap-3">
+<section aria-label="The asset's numbers · last 28 days" data-overview-numbers="" class="flex flex-col gap-3">
 <div class="grid gap-3 @md:grid-cols-2 @3xl:grid-cols-4">
 <div data-measure="money" class="min-w-0">
 <a data-stat="Net, June" data-stat-role="money" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-financial-revenue h-full outline-none hover:ring-foreground/30 focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-shadow" href="/assets/meadow.example/financials" data-discover="true">
@@ -3042,7 +3042,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -3072,14 +3072,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -3224,7 +3224,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </li>
 </ol>
-<ol aria-label="AI Overviews: shown on 1 of 1 checked terms, citing this site on 0" data-funnel-bars="" class="@container m-0 grid list-none gap-2 p-0">
+<ol aria-label="AI Overviews: shown on 1 of 1 checked terms, citing this asset on 0" data-funnel-bars="" class="@container m-0 grid list-none gap-2 p-0">
 <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @md:grid-cols-[minmax(6rem,10rem)_minmax(0,1fr)_minmax(5.5rem,auto)]" data-funnel-step="aio-present" data-serp-panel-stat="aio-present">
 <span class="min-w-0 text-xs text-foreground">AI Overview</span>
 <span aria-hidden="true" class="col-span-2 row-start-2 h-2 overflow-hidden rounded-full @md:col-span-1 @md:row-start-auto bg-viz-track">
@@ -3267,7 +3267,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </span>
 <span class="inline-flex shrink-0 items-center gap-1" data-aio-devices="2">
-<span role="img" aria-label="Phone: AI Overview shown; this site is not cited" title="Phone: AI Overview shown; this site is not cited" data-aio-state="uncited" data-aio-device="mobile" class="inline-flex shrink-0 items-center text-foreground">
+<span role="img" aria-label="Phone: AI Overview shown; this asset is not cited" title="Phone: AI Overview shown; this asset is not cited" data-aio-state="uncited" data-aio-device="mobile" class="inline-flex shrink-0 items-center text-foreground">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles lucide-stars size-3" aria-hidden="true">
 <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z">
 </path>
@@ -3279,7 +3279,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </circle>
 </svg>
 </span>
-<span role="img" aria-label="Desktop: AI Overview shown; this site is not cited" title="Desktop: AI Overview shown; this site is not cited" data-aio-state="uncited" data-aio-device="desktop" class="inline-flex shrink-0 items-center text-foreground">
+<span role="img" aria-label="Desktop: AI Overview shown; this asset is not cited" title="Desktop: AI Overview shown; this asset is not cited" data-aio-state="uncited" data-aio-device="desktop" class="inline-flex shrink-0 items-center text-foreground">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles lucide-stars size-3" aria-hidden="true">
 <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z">
 </path>
@@ -3871,7 +3871,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </details>
 <details class="rounded-md border border-border/60">
-<summary class="flex min-h-11 cursor-pointer list-none items-center px-2.5 text-xs text-muted-foreground hover:text-foreground">Keyword ideas · 1 terms this site does not rank for</summary>
+<summary class="flex min-h-11 cursor-pointer list-none items-center px-2.5 text-xs text-muted-foreground hover:text-foreground">Keyword ideas · 1 terms this asset does not rank for</summary>
 <div class="overflow-x-auto px-2.5 pb-2.5">
 <table class="w-full text-xs">
 <thead>
@@ -3934,7 +3934,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -3964,14 +3964,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -3997,6 +3997,20 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Identity</h2>
 </div>
 <div class="px-4 pb-4">
+<div class="flex flex-col gap-1 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+<div class="flex min-w-0 flex-col gap-0.5">
+<span class="text-sm font-medium text-foreground">Asset type</span>
+</div>
+<div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+<span class="text-sm font-medium tabular-nums text-foreground">
+<select aria-label="Asset type" class="rounded-md border border-input bg-background px-2 py-1 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-60 [&amp;:is(select)]:pe-9" disabled="">
+<option value="website">Website (marketing/landing)</option>
+<option value="web-app">Web app (SaaS)</option>
+<option value="mobile-app">Mobile app</option>
+</select>
+</span>
+</div>
+</div>
 <div class="flex flex-col gap-2 border-b border-border py-3 last:border-0" data-knob-editor="meadow.example">
 <div class="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
 <div class="flex min-w-0 flex-col gap-0.5">
@@ -4046,7 +4060,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="flex flex-col gap-1 border-b border-border py-2.5 last:border-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
 <div class="flex min-w-0 flex-col gap-0.5">
-<span class="text-sm font-medium text-foreground">Site id</span>
+<span class="text-sm font-medium text-foreground">Asset id</span>
 </div>
 <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 <span class="text-sm font-medium tabular-nums text-foreground">
@@ -4148,9 +4162,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 <span class="text-sm font-medium tabular-nums text-foreground">
-<span title="This site sends its own nightly report to the OS." data-status-for="collection:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium border-border text-foreground">
+<span title="This asset sends its own nightly report to the OS." data-status-for="collection:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium border-border text-foreground">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-muted-foreground">
-</span>The site sends it</span>
+</span>The asset sends it</span>
 </span>
 </div>
 </div>
@@ -4171,7 +4185,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
 <span class="text-sm font-medium tabular-nums text-foreground">
 <span class="inline-flex min-w-0 flex-wrap items-center justify-end gap-2" data-secret-pointer="true">
-<span class="wrap-anywhere">Site token</span>
+<span class="wrap-anywhere">Asset token</span>
 <span data-status-for="field:auth-source" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium border-border bg-muted text-muted-foreground">
 <span aria-hidden="true" class="inline-flex shrink-0 items-center">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lock size-3" aria-hidden="true">
@@ -4249,9 +4263,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <section aria-labelledby="_rID_" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3 pb-2">
 <h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert rules in force</h2>
-<span class="min-w-0 text-xs tabular-nums text-muted-foreground">no per-site override</span>
+<span class="min-w-0 text-xs tabular-nums text-muted-foreground">no per-asset override</span>
 <span class="flex items-center gap-2 ms-auto">
-<a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/settings#alert-rules" data-discover="true">All sites' rules →</a>
+<a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/settings#alert-rules" data-discover="true">All assets' rules →</a>
 </span>
 </div>
 <div class="px-4 pb-4">
@@ -4406,7 +4420,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </path>
 <path d="M10 12h4">
 </path>
-</svg>Archive site…</button>
+</svg>Archive asset…</button>
 </div>
 </section>
 </div>
@@ -4418,7 +4432,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -4448,14 +4462,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
@@ -4683,7 +4697,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 "<div class="asset-detail-root mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
 <header class="flex flex-col gap-2" data-page-header="true">
 <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Sites</a>
+<a class="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center" href="/assets" data-discover="true">Portfolio</a>
 </nav>
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
 <div class="flex min-w-0 flex-col gap-1">
@@ -4713,14 +4727,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </header>
 <div class="-mx-1 border-b border-border px-1" data-tab-strip="true">
-<div role="tablist" aria-label="Site sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
+<div role="tablist" aria-label="Asset sections" class="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain">
 <a id="asset-tab-overview" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example" data-discover="true">Overview</a>
 <a id="asset-tab-growth" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/growth" data-discover="true">Growth</a>
 <a id="asset-tab-financials" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/financials" data-discover="true">Money</a>
 <a id="asset-tab-search" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/search" data-discover="true">Search</a>
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
-<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
+<a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this asset" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>

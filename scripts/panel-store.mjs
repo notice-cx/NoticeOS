@@ -128,7 +128,7 @@ function familyAttention(family) {
         case 'imported': return { status: 'imported', detail: `Imported by hand; newest report ${family.newestReportDate}, ${family.ageDays} days old.` };
         case 'failing': return { status: 'failing', detail: `Collection failing: ${days(failing)}. Newest report held: ${family.newestReportDate}.` };
         case 'overdue': return { status: 'overdue', detail: `Collection overdue; newest report ${family.newestReportDate}.` };
-        case 'paused': return { status: 'paused', detail: `Collection is paused for this site; newest report ${family.newestReportDate}.` };
+        case 'paused': return { status: 'paused', detail: `Collection is paused for this asset; newest report ${family.newestReportDate}.` };
         default: return { status: 'unchecked', detail: `Collection is ${state}; newest report ${family.newestReportDate}.` };
     }
 }
@@ -192,10 +192,10 @@ export function createPanelStore(root) {
          * is no longer kept is refused by name; it never stands in for another. */
         async resolve(asset, version) {
             if (!ASSET.test(asset))
-                throw new PanelReadError('asset must be a site id such as example.com; list_panels lists the sites with a panel.');
+                throw new PanelReadError('asset must be an asset id such as example.com; list_panels lists the assets with a panel.');
             const latestVersion = await latestOf(asset);
             if (latestVersion === null)
-                throw new PanelReadError(`${asset} has no published panel. list_panels lists the sites that have one.`);
+                throw new PanelReadError(`${asset} has no published panel. list_panels lists the assets that have one.`);
             if (version === undefined || version === null)
                 return { asset, version: latestVersion, latestVersion, folder: path.join(reportsOf(asset), latestVersion) };
             if (!isPanelVersion(version))

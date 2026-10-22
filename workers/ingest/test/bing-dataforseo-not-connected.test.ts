@@ -59,7 +59,7 @@ async function failureRows(integration: string): Promise<{ runs: number; dumps: 
   return { runs, dumps: dumps?.n ?? 0 };
 }
 
-describe('Bing and DataForSEO not connected, after the first site is added', () => {
+describe('Bing and DataForSEO not connected, after the first asset is added', () => {
   beforeEach(async () => {
     await reset();
     // A new installation that has just added its first site, in both stores.

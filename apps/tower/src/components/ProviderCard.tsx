@@ -125,8 +125,8 @@ export interface ProviderCardProps {
 }
 
 const SCOPE_NOTE: Record<string, string> = {
-  shared: "One account covers every site.",
-  "per-asset": "Entered once per site.",
+  shared: "One account covers every asset.",
+  "per-asset": "Entered once per asset.",
 };
 
 /**
@@ -169,7 +169,7 @@ export function ProviderCard({
   >(connected && state !== "legacy-env" ? "verify" : "connect");
   const setupSteps = [
     { id: "connect", label: "Connect" },
-    { id: "assets", label: "Choose sites" },
+    { id: "assets", label: "Choose assets" },
     { id: "verify", label: "Verify" },
     { id: "settings", label: "Settings" },
   ] as const;
@@ -207,7 +207,7 @@ export function ProviderCard({
             {provider.scope === "shared"
               ? "Shared account"
               : provider.scope === "per-asset"
-                ? "Per-site credentials"
+                ? "Per-asset credentials"
                 : provider.scope}
             <InfoTooltip label={`About ${provider.label} account scope`}>
               {SCOPE_NOTE[provider.scope] ?? provider.scope}
@@ -323,9 +323,9 @@ export function ProviderCard({
               <StateChip tone="neutral" label="Whole workspace" subject={`sites:${provider.id}`} />
             ) : (
               <>
-                <StateChip tone="na" label="No sites yet" subject="portfolio:sites" />
+                <StateChip tone="na" label="No assets yet" subject="portfolio:sites" />
                 <Link to="/assets" className="inline-flex min-h-11 items-center underline underline-offset-4">
-                  View sites
+                  View assets
                 </Link>
               </>
             )}
@@ -478,7 +478,7 @@ export function ProviderCard({
             className="self-start"
             onClick={() => setStep("assets")}
           >
-            Continue to sites
+            Continue to assets
           </Button>
         )}
         {guided && step === "assets" && (
@@ -949,10 +949,10 @@ function ServedAssets({
     <div className={expanded ? "space-y-3" : "flex flex-wrap items-center gap-x-3 gap-y-1"} data-served-assets>
       <span className="text-xs text-muted-foreground">
         {perAsset
-          ? `${held} of ${rows.length} ${rows.length === 1 ? "site has" : "sites have"} a key`
+          ? `${held} of ${rows.length} ${rows.length === 1 ? "asset has" : "assets have"} a key`
           : rows.length === 1
             ? "Used by"
-            : `Used by ${rows.length} sites`}
+            : `Used by ${rows.length} assets`}
       </span>
       <ul className={expanded ? "grid gap-2 sm:grid-cols-2" : "flex flex-wrap items-center gap-x-3 gap-y-1"}>
         {rows.map((row) => {
@@ -1186,7 +1186,7 @@ function PropertyMapNote({ map }: { map: CredentialPropertyMapUse }) {
         data-property-map="retired"
       >
         <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        <span className="min-w-0">All Google data sources are mapped on their sites.</span>
+        <span className="min-w-0">All Google data sources are mapped on their assets.</span>
       </div>
     );
   }

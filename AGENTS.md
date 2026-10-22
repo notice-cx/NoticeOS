@@ -33,7 +33,7 @@ report it requires from every asset.
 | `workers/ingest/` | the ingest Worker: the report endpoint, the collectors, the scheduled lanes, the store's write routes |
 | `apps/tower/` | the Control Tower (Vite + React + TS + Tailwind v4 + shadcn): the operator pages, the TV Wall and its Worker |
 | `docs/` | the documentation site (VitePress): the guides, screens and operations pages for the operator, and the numbered design library beside them |
-| `config/` | the product's defaults: every config document a fresh clone seeds, generic (no sites, no task projects, UTC), each with a README beside it. Runtime settings live in the store after seeding. |
+| `config/` | the product's defaults: every config document a fresh clone seeds, generic (no assets, no task projects, UTC), each with a README beside it. Runtime settings live in the store after seeding. |
 | `installation/` | this installation's own files, found through `scripts/installation.mts` (`NOTICEOS_INSTALLATION_DIR`, default `./installation`): exported config documents, the applied-changeset archive, host-only settings. The public release leaves it out. |
 
 Workspaces glob from `apps/*`, `workers/*`, `packages/*`, plus `docs`. The recursive
@@ -96,9 +96,9 @@ present.
   costs. The jargon ban is enforced: `scripts/ui-lexicon.test.mjs` and
   `scripts/ui-noun.test.mjs` fail on a system word on a screen.
 - **Every change works for any installation, not only this one.**
-  Product code names no installation's own sites, accounts, paths or time
+  Product code names no installation's own assets, accounts, paths or time
   zone; those come from the store, with generic defaults (fixtures use
-  `example.com`). The neutral-code gate (`pnpm check:neutral`) stops a site id,
+  `example.com`). The neutral-code gate (`pnpm check:neutral`) stops an asset id,
   domain or time zone in product code at commit (`.githooks/pre-commit`,
   installed by `pnpm install`) and in CI. Anything an operator sets is set in
   the Tower, not in a file. Host-only mechanisms (files on the installation's
@@ -174,8 +174,8 @@ report; it fails only when a flow cannot be walked); and `pnpm test:task-store`
 against a real Dolt server in Docker. The `build` job is the required verdict.
 A PR that changes only documentation no runtime suite reads (`docs/` and root
 Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
-`docs` workflow builds the site whenever `docs/` changes; a push to `main` runs
-everything and publishes the site. Once CI passes on a `main` commit, the
+`docs` workflow builds the asset whenever `docs/` changes; a push to `main` runs
+everything and publishes the asset. Once CI passes on a `main` commit, the
 `Release image` workflow publishes it as the app image `os:setup` and
 `os:update` fetch (`RELEASE_REPOSITORY` in `scripts/published-image.mjs`).
 

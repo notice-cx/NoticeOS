@@ -692,7 +692,7 @@ export function unblockers(input: UnblockerInput): Unblocker[] {
         laneId === EGRESS_LANE_ID
           ? "Check this machine's internet connection"
           : laneId === UPTIME_LANE_ID
-            ? names.length === 1 ? "Site down" : "Sites down"
+            ? names.length === 1 ? "Asset down" : "Assets down"
             : `${integrationLabel(lane.id, lane.label)} ${degradedKind(lane.id)}`,
       unlocks: names,
       cells: names.length,

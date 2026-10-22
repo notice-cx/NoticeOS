@@ -9,11 +9,11 @@ This page covers what an alert on the **Alerts** page means, when one fires, and
 
 ## What an alert is
 
-An alert is a record that a number on a site is unlikely to be normal, with the evidence attached. Every alert shows the site, the metric, what happened, and the rule and inputs that produced it. The evidence on any alert opens to the actual numbers.
+An alert is a record that a number on an asset is unlikely to be normal, with the evidence attached. Every alert shows the asset, the metric, what happened, and the rule and inputs that produced it. The evidence on any alert opens to the actual numbers.
 
 On `example.com`, an alert might read: "Recipes saved: 0 in the last 24 hours (average 6.2 a day)". The evidence shows the week it was compared against and how unlikely a zero day was.
 
-Alerts come from the nightly reports a site sends about itself, from the data sources NoticeOS collects centrally, and from NoticeOS's checks on its own collection. A nightly report that stops arriving raises an alert too.
+Alerts come from the nightly reports an asset sends about itself, from the data sources NoticeOS collects centrally, and from NoticeOS's checks on its own collection. A nightly report that stops arriving raises an alert too.
 
 ## Severity and kind
 
@@ -35,7 +35,7 @@ The two labels are kept separate so you can filter by each one on its own. The *
 
 ## When an alert fires
 
-NoticeOS does not use fixed thresholds like "warn when sign-ups drop 50%". On a small site a 50% drop happens on an ordinary low-traffic Tuesday. After a stream of false alarms, people stop reading the page, which is worse than having no page.
+NoticeOS does not use fixed thresholds like "warn when sign-ups drop 50%". On a small asset a 50% drop happens on an ordinary low-traffic Tuesday. After a stream of false alarms, people stop reading the page, which is worse than having no page.
 
 Instead, a count-type metric is tested over a window of whole days, and fires when the count in that window is unlikely:
 
@@ -59,7 +59,7 @@ Each open alert has four actions. None of them deletes anything; the evidence st
 - **Resolve**: "the underlying issue is fixed". The alert is finished.
 - **Tune**: "this rule raises too many alerts". Tune opens the two settings behind the rule, shows what each value would have fired on real past days, and saves your change. A tuned alert stays open, because tuning changed the rule, not the condition.
 
-Beside the actions there is **File task**, which creates a task on the site's project with the alert attached, so the work and the alert stay linked. See [Tasks and agents](/concepts/tasks-and-agents).
+Beside the actions there is **File task**, which creates a task on the asset's project with the alert attached, so the work and the alert stay linked. See [Tasks and agents](/concepts/tasks-and-agents).
 
 Some conditions recur every day while they last, for example a nightly report that keeps failing. These show as one row, and acting on the row acts on the whole condition rather than one night of it.
 
@@ -73,7 +73,7 @@ Settled alerts are listed in **History** with the decision you made and when.
 
 ## Recovery
 
-When a number returns to normal on its own, the alert for it closes and the site stops showing the old warning. NoticeOS never reopens a decision you made. If the condition returns, that is a new alert.
+When a number returns to normal on its own, the alert for it closes and the asset stops showing the old warning. NoticeOS never reopens a decision you made. If the condition returns, that is a new alert.
 
 ## Two settings, on purpose
 

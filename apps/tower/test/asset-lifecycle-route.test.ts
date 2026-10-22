@@ -136,7 +136,7 @@ describe("POST /api/assets — an asset is created", () => {
     const { ingest } = stubIngest({
       ok: false,
       error: "validation",
-      issues: [{ path: "id", code: "invalid_value", message: "Site must be a site id" }],
+      issues: [{ path: "id", code: "invalid_value", message: "Asset must be an asset id" }],
     });
     const res = await handleCreateAssetRequest(
       post({ id: "NOT VALID", displayName: "Bad" }),
@@ -148,7 +148,7 @@ describe("POST /api/assets — an asset is created", () => {
     await expect(res.json()).resolves.toEqual({
       error: "invalid_asset",
       field: "id",
-      detail: "Site must be a site id",
+      detail: "Asset must be an asset id",
     });
   });
 

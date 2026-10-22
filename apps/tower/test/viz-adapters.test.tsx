@@ -72,7 +72,7 @@ describe("work as flow", () => {
   const work = (open: number, blocked: number) =>
     ({ id: "a.example", displayName: "Acorn Atlas", work: { open, blocked, inProgress: 2, closedRecent: 5, highPriority: 1, priorities: null, capturedAt: "2026-10-11T16:00:00.000Z" } }) as unknown as AssetCard;
 
-  it("splits open work into ready and blocked, and leaves out a site with no snapshot", () => {
+  it("splits open work into ready and blocked, and leaves out an asset with no snapshot", () => {
     const rows = workFlowRows([work(10, 3), { id: "b.example", displayName: "Summit", work: null } as unknown as AssetCard]);
     expect(rows).toEqual([{ id: "a.example", name: "Acorn Atlas", to: undefined, done: 5, doneLastWeek: null, inProgress: 2, ready: 7, blocked: 3, urgent: 1 }]);
     expect(workQueue(rows[0]!)).toBe(12);

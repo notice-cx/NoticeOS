@@ -92,7 +92,7 @@ export function googleListingGrant(
   if (listing?.auth !== "service-account") return null;
   const grant = kind === "ga4"
     ? "In Google Analytics, add this account as Viewer on that GA4 property or its account"
-    : "In Search Console, add this account as a Full user on that site";
+    : "In Search Console, add this account as a Full user on that Search Console site";
   return `Listed for the service account ${account}. Missing ${missing}? ${grant}, then ${then}.`;
 }
 

@@ -592,7 +592,7 @@ export interface HealthGridProps {
  * named. Hovering or focusing a cell lights its row and column and shows its
  * story; the grid is one tab stop, walked with the arrow keys.
  */
-export function HealthGrid({ rows, columns, nowMs, title = "Data sources", action, empty = "No sites yet", calm = false, className }: HealthGridProps) {
+export function HealthGrid({ rows, columns, nowMs, title = "Data sources", action, empty = "No assets yet", calm = false, className }: HealthGridProps) {
   const titleId = useId();
   const resolved = useMemo(() => resolveRows(rows, columns), [rows, columns]);
   const tally = useMemo(() => healthTally(resolved), [resolved]);
@@ -703,7 +703,7 @@ export function HealthGrid({ rows, columns, nowMs, title = "Data sources", actio
                 style={{ gridRow: band.line }}
               >
                 <span role="columnheader" className="min-w-0">
-                  <span className="sr-only">{band.kind === "system" ? "System" : "Site"}</span>
+                  <span className="sr-only">{band.kind === "system" ? "System" : "Asset"}</span>
                 </span>
                 {band.columns.map((column, c) => {
                   const lit = activeBand === band && active?.c === c;

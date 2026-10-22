@@ -68,9 +68,9 @@ const GOOGLE_CLIENT_ID = "journey-client.apps.googleusercontent.com";
  * "Journey Example"), as the screen reads it. */
 async function seedAsset(page, { domain = ASSET } = {}) {
   await page.goto("/assets/new");
-  const sheet = page.getByRole("dialog", { name: "Add a site" });
+  const sheet = page.getByRole("dialog", { name: "Add an asset" });
   await sheet.getByLabel("Domain", { exact: true }).fill(domain);
-  await sheet.getByRole("button", { name: "Add site", exact: true }).click();
+  await sheet.getByRole("button", { name: "Add asset", exact: true }).click();
   await page.waitForURL(new RegExp(`/assets/${domain.replace(".", "\\.")}`));
   await settle(page);
 }
@@ -95,7 +95,7 @@ async function seedPopulated(page, fixture) {
   await page.goto(`/assets/${ASSET}/sources`);
   await settle(page);
   await page.locator("#integrations").getByRole("button", { name: /^Bing Webmaster/ }).first().click();
-  const site = page.locator('[data-lane-config="bing-webmaster"]').getByLabel("Site", { exact: true });
+  const site = page.locator('[data-lane-config="bing-webmaster"]').getByLabel("Provider site", { exact: true });
   await site.fill(SITE);
   await site.locator('xpath=following::button[normalize-space(.)="Save"][1]').click();
   await page.locator(SAVED).first().waitFor({ state: "visible", timeout: 15_000 });
@@ -136,7 +136,7 @@ export const FLOWS = {};
  * Connect → paste → Connect (saves and tests) → the account's sites matched
  * to assets → Start collecting (saves the matches, collects now) → Working. */
 FLOWS["connect-bing"] = {
-  title: "Connect Bing Webmaster Tools (shared API key, saved and tested, sites matched and collected in one panel)",
+  title: "Connect Bing Webmaster Tools (shared API key, saved and tested, assets matched and collected in one panel)",
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("A Bing Webmaster API key (the panel links to Bing's API access page)");
@@ -178,10 +178,10 @@ FLOWS["connect-posthog"] = {
  * the proof is the export itself, run by Run now, which says it spends one of
  * the site's ten calls a day; the site then reads Working. */
 FLOWS["connect-clarity"] = {
-  title: "Connect Microsoft Clarity (a token pasted on each site's row, saved on paste; Run now spends one of the day's ten calls)",
+  title: "Connect Microsoft Clarity (a token pasted on each asset's row, saved on paste; Run now spends one of the day's ten calls)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
-    w.know("A Clarity data-export token per site (project → Settings → Data export → generate)");
+    w.know("A Clarity data-export token per asset (project → Settings → Data export → generate)");
     await nav(w, "Integrations");
     await w.click(w.page.locator('[data-integration-tile="clarity"]').getByRole("button", { name: /^Connect / }), "row Connect", { role: "reveal" });
     const panel = w.page.locator('[data-connect-panel="clarity"]');
@@ -220,10 +220,10 @@ async function seedPosthogWithOneFunnel(page) {
  * sources → PostHog → Mapping → Add funnel picks one of the project's saved
  * funnels, saved at once with Undo beside it; no event name typed, no Save. */
 FLOWS["change-posthog-funnel"] = {
-  title: "Change a site's PostHog funnels (pick one of the project's saved funnels on the site's row, saved on the pick)",
+  title: "Change an asset's PostHog funnels (pick one of the project's saved funnels on the asset's row, saved on the pick)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await seedPosthogWithOneFunnel(page); },
   async run(w) {
-    w.know("Which of the project's saved PostHog funnels the site should report");
+    w.know("Which of the project's saved PostHog funnels the asset should report");
     await assetTab(w, "Data sources");
     await openSourceRow(w, "PostHog");
     const config = w.page.locator('[data-lane-config="posthog"]');
@@ -241,7 +241,7 @@ FLOWS["change-posthog-funnel"] = {
  * signs in and lists the account's sites before the login is kept → the site
  * matched by its domain → Start saves it and syncs now → Working. */
 FLOWS["connect-mediavine"] = {
-  title: "Connect Mediavine (sign-in tested before it is kept, sites found and matched, synced in one panel)",
+  title: "Connect Mediavine (sign-in tested before it is kept, assets found and matched, synced in one panel)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("The Mediavine Publishers Portal email and password");
@@ -269,7 +269,7 @@ function googleClientFile(origin) {
 async function googleSignInToWorking(w, panel) {
   await w.click(panel.locator("[data-google-continue]"), "Continue with Google", { role: "commit" });
   const start = w.page.locator('[data-connect-panel="google"] [data-sites-start]');
-  await w.waitFor("Google's consent → the account's sites", () => start.waitFor({ timeout: 30_000 }));
+  await w.waitFor("Google's consent → the account's assets", () => start.waitFor({ timeout: 30_000 }));
   await w.click(start, "Start collecting", { role: "commit" });
   await w.waitFor("Start → Working", () => w.page.locator('[data-connect-panel="google"] [data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 }));
 }
@@ -279,10 +279,10 @@ async function googleSignInToWorking(w, panel) {
  * client_secret.json Google hands back dropped on the panel), then Continue
  * with Google, the sites matched, Start → Working. */
 FLOWS["connect-google"] = {
-  title: "Connect Google, self-hosted (console steps deep-linked, the client file dropped, signed in, sites matched and collected in one panel)",
+  title: "Connect Google, self-hosted (console steps deep-linked, the client file dropped, signed in, assets matched and collected in one panel)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
-    w.know("A Google account that can read the site's GA4 property and Search Console site");
+    w.know("A Google account that can read the asset's GA4 property and Search Console site");
     w.outside("Google Cloud console: turn on the three APIs", { clicks: 2, source: "GoogleSignInSetup · Turn on the 3 APIs" });
     w.outside("Google Cloud console: create a web client with the redirect address, download its JSON", { clicks: 10, fields: 2, source: "GoogleSignInSetup · Create a web client" });
     await nav(w, "Integrations");
@@ -300,7 +300,7 @@ FLOWS["connect-google"] = {
  * the panel is one button, Continue with Google, and the account's sites
  * follow the consent back: Start → Working. */
 FLOWS["connect-google-hosted"] = {
-  title: "Connect Google, hosted (Continue with Google, sites matched and collected in one panel)",
+  title: "Connect Google, hosted (Continue with Google, assets matched and collected in one panel)",
   async setup(page, fixture) {
     await fixture("/__journey/every-source");
     await fixture("/__journey/google-hosted");
@@ -308,7 +308,7 @@ FLOWS["connect-google-hosted"] = {
     await page.goto("/");
   },
   async run(w) {
-    w.know("A Google account that can read the site's GA4 property and Search Console site");
+    w.know("A Google account that can read the asset's GA4 property and Search Console site");
     await nav(w, "Integrations");
     await w.click(w.page.locator('[data-integration-tile="google"]').getByRole("button", { name: /^Connect / }), "row Connect", { role: "reveal" });
     await googleSignInToWorking(w, w.page.locator('[data-connect-panel="google"]'));
@@ -354,7 +354,7 @@ FLOWS["connect-calendar"] = {
 
 /** Core Tasks opens without any connection. */
 FLOWS["connect-beads"] = {
-  title: "Open the core Tasks board before adding a site",
+  title: "Open the core Tasks board before adding an asset",
   async setup(page, fixture) { await fixture("/__journey/core-tasks"); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
@@ -367,16 +367,16 @@ FLOWS["connect-beads"] = {
  * question over Home, the domain, whose name is read off it; Add lands on the
  * new asset's Data sources. */
 async function addAsset(w) {
-  w.know("The site's domain");
-  await w.click(w.page.getByRole("button", { name: "Add your first site", exact: true }), "Add your first site", { role: "reveal" });
-  const sheet = w.page.getByRole("dialog", { name: "Add a site" });
+  w.know("The asset's domain");
+  await w.click(w.page.getByRole("button", { name: "Add your first asset", exact: true }), "Add your first asset", { role: "reveal" });
+  const sheet = w.page.getByRole("dialog", { name: "Add an asset" });
   await w.fill(sheet.getByLabel("Domain", { exact: true }), ASSET, "Domain");
-  await w.click(sheet.getByRole("button", { name: "Add site", exact: true }), "Add site", { role: "commit" });
+  await w.click(sheet.getByRole("button", { name: "Add asset", exact: true }), "Add asset", { role: "commit" });
   await w.waitFor("Add → the asset's Data sources", () => w.page.waitForURL(new RegExp(`/assets/${ASSET.replace(".", "\\.")}/sources$`), { timeout: 15_000 }));
 }
 
 FLOWS["add-asset"] = {
-  title: "Add a site (one screen: the domain, name inferred, lands on its Data sources)",
+  title: "Add an asset (one screen: the domain, name inferred, lands on its Data sources)",
   countStart: true,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await page.goto("/"); },
   async run(w) {
@@ -390,7 +390,7 @@ FLOWS["add-asset"] = {
  * and tested, the site matched and collected: Working inside the flow, with
  * no wait for a schedule. */
 FLOWS["first-data"] = {
-  title: "New site to first data (one-screen add, then its Bing row's Connect: key, site matched and collected in one panel)",
+  title: "New asset to first data (one-screen add, then its Bing row's Connect: key, asset matched and collected in one panel)",
   countStart: true,
   async setup(page) { await page.goto("/"); },
   async run(w) {
@@ -406,14 +406,14 @@ FLOWS["first-data"] = {
  * Overview has drawn the collected search clicks, so the whole way from
  * nothing to a number is measured. */
 FLOWS["fresh-install"] = {
-  title: "Fresh install to the first number (add a site, connect Bing from its row, open the site: its clicks on screen)",
+  title: "Fresh install to the first number (add an asset, connect Bing from its row, open the asset: its clicks on screen)",
   countStart: true,
   async setup(page) { await page.goto("/"); },
   async run(w) {
     await addAsset(w);
     await connectFromSource(w, "bing-webmaster", [["API key", KEY]]);
     const panel = w.page.locator('[data-connect-panel="bing-webmaster"]');
-    await w.click(panel.getByRole("link", { name: /^Open / }), "Open the site", { role: "nav" });
+    await w.click(panel.getByRole("link", { name: /^Open / }), "Open the asset", { role: "nav" });
     // The fixture's Bing days sum to 602 clicks over 28 days (harness.ts).
     await w.waitFor("Open → the first number", () => w.page.locator('[data-overview-numbers] [data-measure="search"]').filter({ hasText: "602" }).first().waitFor({ timeout: 15_000 }));
     // …and the chart under the numbers draws that number, not an empty
@@ -435,7 +435,7 @@ FLOWS["configure-sources"] = {
     await openAsset(w);
     await openSourceRow(w, "Microsoft Clarity");
     await w.click(w.page.locator('[data-lane-decline="clarity"]'), "Not using", { role: "reveal" });
-    await w.click(w.page.locator('[data-decline-reasons] [data-decline-reason="not-relevant"]'), "Not relevant for this site", { role: "commit" });
+    await w.click(w.page.locator('[data-decline-reasons] [data-decline-reason="not-relevant"]'), "Not relevant for this asset", { role: "commit" });
     await w.waitFor("Not using → saved", () => w.page.locator(SAVED).first().waitFor({ state: "visible", timeout: 15_000 }));
     // The market is picked by name and saved on the pick, never DataForSEO's
     // numeric location code typed and saved.
@@ -637,7 +637,7 @@ async function chooseViewInSettings(w, view, label, sidebarEntries) {
  * row opens the site, and its Health tab shows the five words with every
  * fact's readings below them, without a press. */
 FLOWS["read-site-health"] = {
-  title: "Read a site's health, in the business view",
+  title: "Read an asset's health, in the business view",
   kind: "flow",
   countStart: false,
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
@@ -645,7 +645,7 @@ FLOWS["read-site-health"] = {
     await chooseViewInSettings(w, "business", "I run the business", 5);
     await nav(w, "Home");
     const row = w.page.locator(`[data-site-health-row="${ASSET}"]`);
-    await w.click(row.getByRole("link").first(), "Site health · Journey Example", { role: "nav" });
+    await w.click(row.getByRole("link").first(), "Asset health · Journey Example", { role: "nav" });
     await settle(w.page);
     await assetTab(w, "Health");
     await w.waitFor("Health → every fact's readings", () => w.page.locator('[data-health-evidence="code"]').waitFor({ timeout: 10_000 }));
@@ -803,7 +803,7 @@ FLOWS["arrange-wall"] = {
     const tile = (id) => w.page.locator(`[data-wall-preview] [data-wall-edit-widget="${id}"]`);
     if (!w.mobile) {
       // The drag path: Work onto the top edge of Sites stacks it above them.
-      await w.drag(tile("work"), tile("sites"), "drag Work onto the top of Sites", { at: { x: 0.5, y: 0.06 } });
+      await w.drag(tile("work"), tile("sites"), "drag Work onto the top of Assets", { at: { x: 0.5, y: 0.06 } });
       await tile("work").locator("xpath=ancestor::*[@data-wall-column='business']").waitFor({ timeout: 10_000 });
     }
     // The Move menu path, the one a keyboard or a phone takes: the strip,
@@ -846,7 +846,7 @@ FLOWS["start-from-preset"] = {
     await w.click(w.page.locator("[data-wall-start-from]"), "Start from", { role: "reveal" });
     await w.click(w.page.locator('[data-wall-preset="business"]'), "I run the business", { role: "choose" });
     const health = w.page.locator('[data-wall-preview] [data-wall-edit-widget="health"]');
-    await w.waitFor("I run the business → Site health in the preview", () => health.waitFor({ timeout: 10_000 }));
+    await w.waitFor("I run the business → Asset health in the preview", () => health.waitFor({ timeout: 10_000 }));
     await w.click(toolbar.getByRole("button", { name: "Undo", exact: true }), "Undo", { role: "commit" });
     await w.waitFor("Undo → the arrangement as it was", () => health.waitFor({ state: "detached", timeout: 10_000 }));
     await w.end("undone");
@@ -857,7 +857,7 @@ FLOWS["start-from-preset"] = {
  * desk, drag the last site to the top by its grip; on a phone, its Move up;
  * then one switch takes a site off the TV, saved with Undo; Done. */
 FLOWS["arrange-sites"] = {
-  title: "Arrange the sites (Sites → Arrange, drag to the top or Move up, one site off the TV, Done)",
+  title: "Arrange the assets (Assets → Arrange, drag to the top or Move up, one asset off the TV, Done)",
   async setup(page) {
     await seedAsset(page);
     await seedAsset(page, { domain: "second.example" });
@@ -875,7 +875,7 @@ FLOWS["arrange-sites"] = {
     } else {
       await w.click(w.page.getByRole("button", { name: "Move Second Example up", exact: true }), "Move Second Example up", { role: "choose" });
     }
-    await awaitSaved(w, "Site order saved");
+    await awaitSaved(w, "Asset order saved");
     await w.page.waitForFunction(
       () => document.querySelector("[data-site-arrange-row]")?.getAttribute("data-site-arrange-row") === "second.example",
       undefined,

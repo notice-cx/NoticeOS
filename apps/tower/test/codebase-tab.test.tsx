@@ -106,7 +106,7 @@ describe("Codebase tab with reports", () => {
   });
 });
 
-describe("Codebase tab checks from the site's workflow", () => {
+describe("Codebase tab checks from the asset's workflow", () => {
   it("shows the build and tests as passed or failed and the vulnerable packages as a count, with Make a task", async () => {
     const payload = everyTabPayload();
     const report = codebaseReport("meadow.example", "2026-07-05", { code_lines: 900, build_passed: 1, tests_passed: 0, vulnerable_dependencies: 3 });
@@ -148,7 +148,7 @@ describe("Codebase tab checks from the site's workflow", () => {
 });
 
 describe("Codebase tab before the first report", () => {
-  it("names the ways to send one, filled in for this site", async () => {
+  it("names the ways to send one, filled in for this asset", async () => {
     const payload = everyTabPayload();
     payload.codebase = NO_CODEBASE;
     const { container } = renderCodebase(payload);

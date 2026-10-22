@@ -22,7 +22,7 @@ describe('provider session and request budget', () => {
     expect(run.saveSession).not.toHaveBeenCalled();
   });
   it('does not refresh or sign in again after permission denial', async () => {
-    for (const response of [new Response('', { status: 403 }), Response.json({ errors: [{ message: 'Unauthorized site', extensions: { code: 'FORBIDDEN' } }] })]) {
+    for (const response of [new Response('', { status: 403 }), Response.json({ errors: [{ message: 'Unauthorized asset', extensions: { code: 'FORBIDDEN' } }] })]) {
       const run = client([response]);
       await expect(run.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'permission' });
       expect(run.fetchImpl).toHaveBeenCalledTimes(1);

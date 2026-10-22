@@ -597,6 +597,8 @@ export function panelDayOf(
 
 /** One assets-band card. Order is fixed (seed order), never sorted. */
 export interface AssetCard {
+  /** Absent on older payloads; defaults to website. */
+  assetType?: import("@noticeos/contract/configuration").AssetType;
   hasCollectedData?: boolean;
   id: string;
   displayName: string;

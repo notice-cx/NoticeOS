@@ -51,18 +51,18 @@ describe('backup run evidence', () => {
       output: { version: 1, fields: [], metrics: [], items: [], totalItems: 0, truncated: false, backup } }] };
     expect(backupForRun(captured, { ...report(), startedAt: '2026-09-10T04:00:00.000Z' })?.source).toBe('execution');
   });
-  it('shows contents, the actual recorded folders, omitted sites and separate cloud/restore evidence', () => {
+  it('shows contents, the actual recorded folders, omitted assets and separate cloud/restore evidence', () => {
     render(<BackupRunDetails run={run} captured={backupForRun(run, report())} pending={false} />);
     expect(screen.getByRole('heading', { name: 'Local backup complete' })).toBeVisible();
     expect(screen.getByText('/example/state/.local/backups/2026-09-09')).toBeVisible();
     expect(screen.getByText('/example/Drive/backups/2026-09-09')).toBeVisible();
     const table = screen.getByRole('table', { name: 'Captured backup contents' });
-    expect(within(table).getByRole('row', { name: /Site databases/ })).toHaveTextContent('None selected');
+    expect(within(table).getByRole('row', { name: /Asset databases/ })).toHaveTextContent('None selected');
     expect(within(table).getByRole('row', { name: /Recovery keys and settings/ })).toHaveTextContent('Excluded');
     expect(screen.getByText('Cloud upload: unverified')).toBeVisible();
     expect(screen.getByText('Restore test: unverified')).toBeVisible();
   });
-  it('names included sites and shows failed handoff separately from the complete local set', () => {
+  it('names included assets and shows failed handoff separately from the complete local set', () => {
     const r = report(); r.stages.assets = { status: 'completed', copied: 1, expected: 1, targets: ['example.com'] } as NonNullable<typeof r.stages.assets>;
     r.stages.offsite!.status = 'failed';
     render(<BackupRunDetails run={run} captured={backupForRun(run, r)} pending={false} />);

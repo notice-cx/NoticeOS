@@ -121,7 +121,7 @@ describe("the Wall's work tile, week against week", () => {
     expect(container.querySelector('[data-work-row="a.example"]')).toHaveAttribute("aria-label", expect.stringContaining("6 done this week, 15 last week"));
   });
 
-  it("keeps the trailing week's done for a site with no week reading", () => {
+  it("keeps the trailing week's done for an asset with no week reading", () => {
     const { container } = render(<WallWork assets={[asset("a.example", work(undefined, 9))]} operator={{ ...operator, projectCount: 1, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
     expect(figure(container, "Done this week")).toHaveTextContent(/^Done this week9/);
     expect(container.querySelector("[data-work-days-in]")).toBeNull();

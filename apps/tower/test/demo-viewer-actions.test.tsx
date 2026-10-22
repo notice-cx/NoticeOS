@@ -61,7 +61,7 @@ describe('demo operations stay separate from stored reads', () => {
     expect(test).toBeDisabled(); fireEvent.click(test);
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Replace/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Choose sites' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Choose assets' }));
     expect(screen.getByRole('link', { name: 'Example' })).toHaveAttribute('href', '/assets/example.com/sources');
     fireEvent.click(screen.getByRole('button', { name: /Settings$/ }));
     expect(screen.getByText('No expiry date')).toBeInTheDocument();
@@ -75,14 +75,14 @@ describe('demo operations stay separate from stored reads', () => {
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Record an expiry…' })).toBeEnabled();
   });
-  it('does not open site creation, endpoint setup or archive/restore actions', async () => {
+  it('does not open asset creation, endpoint setup or archive/restore actions', async () => {
     enableDemo();
     const fetch = vi.fn(async () => Response.json({ writable: true, reason: null, sources: {} }));
     vi.stubGlobal('fetch', fetch);
     const data = everyTabPayload();
     const close = withQueries(<><AddSiteButton /><FetchEndpointEditor asset={data.asset.id} />
       <ArchiveCard asset={data.asset} timeline={data.annotations} /></>);
-    for (const name of ['Add a site', 'Fetch from an endpoint', 'Archive site…']) {
+    for (const name of ['Add an asset', 'Fetch from an endpoint', 'Archive asset…']) {
       const button = screen.getByRole('button', { name }); expect(button).toBeDisabled(); fireEvent.click(button);
     }
     await waitFor(() => expect(fetch).toHaveBeenCalled());

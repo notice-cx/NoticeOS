@@ -296,9 +296,9 @@ function AssetKeyFields({
       ) : null}
       {rows.length === 0 ? (
         <p className="flex flex-wrap items-center gap-2 text-xs" data-asset-map-empty>
-          <StateChip tone="na" label="No sites yet" subject="portfolio:sites" />
+          <StateChip tone="na" label="No assets yet" subject="portfolio:sites" />
           <Link to="/assets" className="inline-flex min-h-11 items-center underline underline-offset-4">
-            View sites
+            View assets
           </Link>
         </p>
       ) : (

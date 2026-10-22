@@ -15,13 +15,13 @@ export function SiteOrder({ assets, disabled }: { assets: Pick<AssetCard, 'id' |
     void move(asset, to);
   };
   return <section aria-labelledby="site-order-heading" className="flex flex-col gap-2">
-    <h2 id="site-order-heading" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Site order</h2>
+    <h2 id="site-order-heading" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Asset order</h2>
     <Link to={SITES_ARRANGE_ITEM.to} data-site-order-arrange
       className="inline-flex min-h-11 items-center gap-1 self-start text-xs font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0">
       Drag them, and choose where each shows, in Arrange
       <ArrowRight aria-hidden className="size-3 text-muted-foreground" />
     </Link>
-    <ol aria-label="Site order" className="flex flex-col gap-1.5">
+    <ol aria-label="Asset order" className="flex flex-col gap-1.5">
       {assets.map((asset, index) => <li key={asset.id} data-site-order={asset.id}
         className="flex items-center gap-2 border border-border bg-card p-2">
         <span className="min-w-0 flex-1 break-words text-sm font-medium">{asset.displayName}</span>

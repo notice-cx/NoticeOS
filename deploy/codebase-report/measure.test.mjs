@@ -20,7 +20,7 @@ test('a path that could leave the repository is refused; a messy one is normaliz
   }
 });
 
-test('arguments: the site id is required, folders stay inside the repository, the token is never an argument', () => {
+test('arguments: the asset id is required, folders stay inside the repository, the token is never an argument', () => {
   const parsed = parseArgs(['--asset', 'example.com', '--repo', '/repo', '--paths', 'apps/site, packages/ui/', '--ref', 'main']);
   assert.deepEqual(parsed, {
     asset: 'example.com', repo: '/repo', paths: ['apps/site', 'packages/ui'], ref: 'main', out: null, post: null,

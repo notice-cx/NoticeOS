@@ -342,9 +342,9 @@ test('an archive the rules cannot read is refused by name', () => {
   const good = gscQuery('2026-09-20', []);
   const refusal = (value, source = 'raw/gsc/query/2026-09-20.json') => () =>
     parseArchive(typeof value === 'string' ? value : JSON.stringify(value), { asset: 'meadow.example', source });
-  assert.throws(refusal({ ...good, asset: 'northwind.example' }), { message: 'Unsupported or wrong-property signal archive: raw/gsc/query/2026-09-20.json' });
-  assert.throws(refusal({ ...good, schemaVersion: 2 }), /Unsupported or wrong-property/);
-  assert.throws(refusal([good]), /Unsupported or wrong-property/);
+  assert.throws(refusal({ ...good, asset: 'northwind.example' }), { message: 'Unsupported or wrong-asset signal archive: raw/gsc/query/2026-09-20.json' });
+  assert.throws(refusal({ ...good, schemaVersion: 2 }), /Unsupported or wrong-asset/);
+  assert.throws(refusal([good]), /Unsupported or wrong-asset/);
   assert.throws(refusal({ ...good, integration: 'matomo' }), { message: 'Malformed signal archive: raw/gsc/query/2026-09-20.json' });
   assert.throws(refusal({ ...good, report: 7 }), /Malformed signal archive/);
   assert.throws(refusal(JSON.stringify(good).slice(0, 40)), SyntaxError);

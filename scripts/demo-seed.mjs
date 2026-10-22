@@ -203,11 +203,11 @@ const PAGE_SPEED_SEED_DAYS = 6;
  * then the last week's daily page-speed readings as the page-speed job stores
  * them, one a site a night. The young site has no page speed yet. */
 export async function recordDemoSiteChecks(capability, scenario, runHygieneChecks, writeReading) {
-    if (typeof runHygieneChecks !== 'function' || typeof writeReading !== 'function') throw new Error('The released site checks are absent.');
+    if (typeof runHygieneChecks !== 'function' || typeof writeReading !== 'function') throw new Error('The released asset checks are absent.');
     const activity = createDemoActivity(scenario);
     const { cutoff, referenceDate } = scenario.manifest;
     const result = await runHygieneChecks(capability, { nowMs: Date.parse(cutoff), fetchImpl: activity.homeFetch(cutoff), confirmWaitMs: 0 });
-    if (result.failed.length > 0 || result.checks === 0) throw new Error('The site checks could not read a synthetic site.');
+    if (result.failed.length > 0 || result.checks === 0) throw new Error('The asset checks could not read a synthetic asset.');
     let pageSpeed = 0;
     for (let back = PAGE_SPEED_SEED_DAYS; back >= 0; back -= 1) {
         const date = shiftDemoDay(referenceDate, -back);
