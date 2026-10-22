@@ -271,9 +271,9 @@ export function WallWidgetPanel({
               <>
                 <Button
                   type="button"
-                  variant={topRow.height === "auto" ? "default" : "outline"}
+                  variant={topRow.size === undefined && topRow.height === "auto" ? "default" : "outline"}
                   size="sm"
-                  aria-pressed={topRow.height === "auto"}
+                  aria-pressed={topRow.size === undefined && topRow.height === "auto"}
                   disabled={disabled}
                   onClick={() => onHeight(topRow.id, "fit")}
                   data-wall-height="fit"
@@ -282,9 +282,9 @@ export function WallWidgetPanel({
                 </Button>
                 <Button
                   type="button"
-                  variant={topRow.height === "fill" ? "default" : "outline"}
+                  variant={topRow.size === undefined && topRow.height === "fill" ? "default" : "outline"}
                   size="sm"
-                  aria-pressed={topRow.height === "fill"}
+                  aria-pressed={topRow.size === undefined && topRow.height === "fill"}
                   disabled={disabled}
                   onClick={() => onHeight(topRow.id, "fill")}
                   data-wall-height="fill"

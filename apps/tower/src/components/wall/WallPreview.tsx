@@ -19,6 +19,7 @@ import {
 import type { CalendarUpcoming, Ga4RealtimePayload } from "@noticeos/contract";
 import type { ConnectionReads } from "@shared/connection-status";
 import type { WallPayload } from "@shared/wall";
+import { measureWallFit } from "../../../../../scripts/wall-fit-measure.mjs";
 import {
   WALL_TV_HEIGHT,
   WALL_TV_WIDTH,
@@ -38,8 +39,6 @@ import {
   wallDropPlan,
   wallPositionSentence,
   wallSlotName,
-  wallTooSmall,
-  wallWidgetHeightIsGiven,
   type WallDragSource,
   type WallDropLine,
   type WallDropTarget,
@@ -102,9 +101,10 @@ interface StageGeometry extends WallDividerGeometry {
   columns: Record<string, Box>;
   /** Each row's box (top-level and inside columns), by id. */
   rowsById: Record<string, Box>;
+  tooSmall: Record<string, "narrow" | "short">;
 }
 
-const NO_GEOMETRY: StageGeometry = { rows: [], widgets: {}, columns: {}, rowsById: {}, tracks: [] };
+const NO_GEOMETRY: StageGeometry = { rows: [], widgets: {}, columns: {}, rowsById: {}, tracks: [], tooSmall: {} };
 
 /** A box relative to the canvas, in the TV's pixels. */
 function canvasBox(element: Element, origin: DOMRect, scale: number): Box {
@@ -126,10 +126,18 @@ function measure(box: HTMLElement, scale: number): StageGeometry {
   // zero-sized boxes would read as every widget drawn too small.
   if (origin.width === 0 || origin.height === 0) return NO_GEOMETRY;
   const at = (el: Element) => canvasBox(el, origin, scale);
-  const geometry: StageGeometry = { rows: [], widgets: {}, columns: {}, rowsById: {}, tracks: [] };
+  const geometry: StageGeometry = { rows: [], widgets: {}, columns: {}, rowsById: {}, tracks: [], tooSmall: {} };
   for (const el of box.querySelectorAll("[data-wall-edit-widget]")) {
     const id = el.getAttribute("data-wall-edit-widget");
-    if (id) geometry.widgets[id] = at(el);
+    if (id) {
+      geometry.widgets[id] = at(el);
+      const content = el.querySelector("[data-wall-widget-content]");
+      if (!content) continue;
+      const fit = measureWallFit({ root: content, scale });
+      if ("error" in fit) continue;
+      if (fit.counts.overX || [...fit.ink, ...fit.clipped].some(leak => leak.axis === "x")) geometry.tooSmall[id] = "narrow";
+      else if (fit.counts.overY || [...fit.ink, ...fit.clipped].some(leak => leak.axis === "y")) geometry.tooSmall[id] = "short";
+    }
   }
   for (const el of box.querySelectorAll("[data-wall-column]")) {
     const id = el.getAttribute("data-wall-column");
@@ -154,6 +162,15 @@ function measure(box: HTMLElement, scale: number): StageGeometry {
     const id = row.getAttribute("data-wall-row") ?? "";
     geometry.tracks.push({ rowId: id, axis: "x", box: at(row), items: itemsOf(row) });
   }
+  geometry.tracks.push({
+    rowId: "canvas",
+    topLevel: true,
+    axis: "y",
+    box: at(canvas),
+    items: [...canvas.querySelectorAll(":scope > [data-wall-row]")].map(row => ({
+      id: row.getAttribute("data-wall-row") ?? "", box: at(row),
+    })),
+  });
   for (const column of canvas.querySelectorAll("[data-wall-column]")) {
     const id = column.getAttribute("data-wall-column") ?? "";
     const inner = [...column.children].filter((child) => child.hasAttribute("data-wall-row"));
@@ -322,23 +339,36 @@ export function WallPreview({
     };
   }, [fitHeight]);
 
-  // Measured at the canvas's own 1920×1080, before the transform; the box is
-  // a `wall` query container, so the height is the television's at every
-  // screen width.
-  useEffect(() => {
-    const box = boxRef.current;
-    if (!box || !onMeasure) return;
-    onMeasure(box.scrollHeight);
-  }, [layout, data, meetings, calendarState, nowMs, scale, onMeasure]);
-
-  // The drawn boxes, for the landing line, the row bands, the dividers and
-  // the too-small state; kept only when something moved.
+  // Observe content only: selection chrome and fit notes cannot trigger
+  // their own measurements. Widget reflows and font loads settle in one frame.
   useLayoutEffect(() => {
     const box = boxRef.current;
     if (!box) return;
-    const next = measure(box, scale);
-    setGeometry((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
-  }, [layout, data, nowMs, scale]);
+    let frame = 0;
+    let live = true;
+    const read = () => {
+      frame = 0;
+      const next = measure(box, scale);
+      setGeometry(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+      onMeasure?.(box.scrollHeight);
+    };
+    const schedule = () => {
+      if (live && !frame) frame = requestAnimationFrame(read);
+    };
+    read();
+    const observer = new MutationObserver(schedule);
+    for (const content of box.querySelectorAll("[data-wall-widget-content]")) {
+      observer.observe(content, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style", "class", "hidden"] });
+    }
+    void document.fonts?.ready.then(schedule);
+    document.fonts?.addEventListener("loadingdone", schedule);
+    return () => {
+      live = false;
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      document.fonts?.removeEventListener("loadingdone", schedule);
+    };
+  }, [layout, data, meetings, calendarState, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, onMeasure]);
 
   // One watcher for every drag on the page that belongs to this editor: it
   // asks the grammar what the drop under the pointer would do and draws the
@@ -386,7 +416,7 @@ export function WallPreview({
       >
         <div
           style={{ width: `${WALL_TV_WIDTH * scale}px`, height: `${WALL_TV_HEIGHT * scale}px` }}
-          className="mx-auto overflow-hidden border border-border bg-background"
+          className="mx-auto overflow-hidden border border-border bg-background text-foreground"
           // The TV never draws light, but this box sits inside the desk's
           // `.light`; `data-theme="dark"` re-declares the dark tokens here.
           data-theme="dark"
@@ -436,10 +466,7 @@ export function WallPreview({
                   chrome={scale >= CHROME_MIN_SCALE && (widget.id === selectedId || hovered === widget.id) && !dragging}
                   flash={widget.id === flashId}
                   lifted={dragging?.kind === "widget" && dragging.widgetId === widget.id}
-                  small={(() => {
-                    const box = geometry.widgets[widget.id];
-                    return box ? wallTooSmall(widget.type, box, wallWidgetHeightIsGiven(layout, widget.id)) : null;
-                  })()}
+                  small={geometry.tooSmall[widget.id] ?? null}
                   disabled={disabled}
                   onHover={(on) => setHovered((id) => (on ? widget.id : id === widget.id ? null : id))}
                   onSelect={() => onSelect(widget.id)}
@@ -645,7 +672,7 @@ function WallStageWidget({
         lifted && "opacity-40",
       )}
     >
-      <div className="pointer-events-none h-full" aria-hidden>
+      <div className="pointer-events-none h-full" data-wall-widget-content aria-hidden>
         {node}
       </div>
       {small ? (

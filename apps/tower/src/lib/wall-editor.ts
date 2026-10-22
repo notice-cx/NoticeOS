@@ -120,7 +120,7 @@ export type WallEditorAction =
   | { type: "move"; widgetId: string; move: WallMove }
   /** Widths by slot or widget id: a divider's drag or a size preset. */
   | { type: "widths"; widths: Record<string, number>; gesture?: string }
-  /** Height weights by column-row id; null takes one off. */
+  /** Height weights by row id; null takes one off. */
   | { type: "sizes"; sizes: Record<string, number | null>; gesture?: string }
   /** This row takes the height its siblings leave; every sibling fits its content. */
   | { type: "fill"; rowId: string }
@@ -290,7 +290,7 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
     for (const row of layout.rows) {
       const plain = row.widgets.filter((slot): slot is WallWidget => !isWallColumn(slot));
       for (const widget of plain) {
-        found.set(widget.id, { widget, rowId: row.id, columnId: null, order: row.widgets.map((s) => s.id), box: JSON.stringify([widget.width, null, null]) });
+        found.set(widget.id, { widget, rowId: row.id, columnId: null, order: row.widgets.map((s) => s.id), box: JSON.stringify([widget.width, null, null, row.size ?? null]) });
       }
       for (const column of row.widgets.filter(isWallColumn)) {
         const order = column.rows.flatMap((inner) => inner.widgets.map((w) => w.id));
@@ -302,7 +302,7 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
               rowId: row.id,
               columnId: column.id,
               order,
-              box: JSON.stringify([column.width, inner.size ?? null, own]),
+              box: JSON.stringify([column.width, inner.size ?? null, own, row.size ?? null]),
             });
           }
         }
@@ -438,13 +438,9 @@ export const WALL_SHARE_PRESETS: readonly { share: number; label: string }[] = [
 ];
 
 /**
- * The narrowest and shortest each widget stays legible at, in the TV's own
- * pixels, found by drawing each one at a range of widths on the synthetic
- * six-site Wall and noting where its text starts running out of its box. A
- * divider stops here, and a widget drawn smaller shows the editor's "too
- * small" state instead of a broken chart. Height counts only where the
- * widget's row is given a height (fill or a size): a row that fits its
- * content is never too short.
+ * Conservative divider floors in TV pixels, measured with the synthetic
+ * six-site Wall. They keep dragging usable; actual clipping depends on the
+ * current content and is measured separately by the preview.
  */
 export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number; height: number }>> = {
   strip: { width: 800, height: 48 },
@@ -572,20 +568,8 @@ export function wallDividerSplit({
  */
 export function wallWidgetHeightIsGiven(layout: WallLayout, widgetId: string): boolean {
   const spot = spotOf(layout, widgetId);
-  if (!spot || spot.row.height !== "fill") return false;
+  if (!spot || (spot.row.height !== "fill" && spot.row.size === undefined)) return false;
   return !spot.inner || spot.inner.height === "fill" || spot.inner.size !== undefined;
-}
-
-/** Is a widget drawn smaller than it stays legible at? */
-export function wallTooSmall(
-  type: WallWidgetType,
-  box: { width: number; height: number },
-  heightGiven: boolean,
-): "narrow" | "short" | null {
-  const min = WALL_WIDGET_MIN_PX[type];
-  if (box.width + 1 < min.width) return "narrow";
-  if (heightGiven && box.height + 1 < min.height) return "short";
-  return null;
 }
 
 /** The narrowest a slot (a widget, or a column of them) stays legible at. */
@@ -595,8 +579,10 @@ export function wallSlotMinWidth(slot: WallSlot): number {
 }
 
 /** The shortest a column's row stays legible at: its tallest widget's minimum. */
-export function wallRowMinHeight(row: WallColumnRow): number {
-  return Math.max(0, ...row.widgets.map((w) => WALL_WIDGET_MIN_PX[w.type].height));
+export function wallRowMinHeight(row: WallRow | WallColumnRow): number {
+  return Math.max(0, ...row.widgets.map((slot) => isWallColumn(slot)
+    ? slot.rows.reduce((sum, inner) => sum + wallRowMinHeight(inner), 0)
+    : WALL_WIDGET_MIN_PX[slot.type].height));
 }
 
 /**
@@ -621,7 +607,7 @@ export function wallShareWidth(slots: readonly WallSlot[], slotId: string, share
 
 /** The weight a column row has in its column's shared height: its size, 1 for
  * the fill row, none for a row that fits its content. */
-function rowWeight(row: WallColumnRow): number | null {
+function rowWeight(row: WallRow | WallColumnRow): number | null {
   if (row.size !== undefined) return row.size;
   return row.height === "fill" ? 1 : null;
 }
@@ -634,7 +620,7 @@ function rowWeight(row: WallColumnRow): number | null {
  * weights are scaled to theirs; a row that fits its content keeps doing so.
  */
 export function wallStackSizes(
-  column: WallColumn,
+  column: { rows: readonly (WallRow | WallColumnRow)[] },
   heightsPx: readonly number[],
   index: number,
   ratio: number,
@@ -1016,8 +1002,8 @@ export function wallSlotName(layout: WallLayout, id: string): string {
     const labels = widgets.map((w) => WALL_WIDGET_LIBRARY[w.type].label);
     return labels.length > 1 ? `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}` : labels[0] ?? "";
   };
-  for (const { row, column } of wallRowPlaces(layout)) {
-    if (column && row.id === id) return names(row.widgets as WallWidget[]);
+  for (const { row } of wallRowPlaces(layout)) {
+    if (row.id === id) return names(row.widgets.flatMap(slot => isWallColumn(slot) ? slot.rows.flatMap(inner => inner.widgets) : [slot]));
     for (const slot of row.widgets) {
       if (slot.id !== id) continue;
       return isWallColumn(slot) ? names(slot.rows.flatMap((inner) => inner.widgets)) : WALL_WIDGET_LIBRARY[slot.type].label;
@@ -1065,16 +1051,11 @@ function setWidths(layout: WallLayout, widths: Record<string, number>): WallLayo
 
 function setSizes(layout: WallLayout, sizes: Record<string, number | null>): WallLayout {
   const next = copy(layout);
-  for (const row of next.rows) {
-    for (const slot of row.widgets) {
-      if (!isWallColumn(slot)) continue;
-      slot.rows = slot.rows.map((inner) => {
-        if (!(inner.id in sizes)) return inner;
-        const size = sizes[inner.id];
-        const { size: _old, ...rest } = inner;
-        return size === null || size === undefined ? rest : { ...rest, size: roundWallWidth(size) };
-      });
-    }
+  for (const { row } of wallRowPlaces(next)) {
+    if (!(row.id in sizes)) continue;
+    const size = sizes[row.id];
+    if (size === null || size === undefined) delete row.size;
+    else row.size = roundWallWidth(size);
   }
   return next;
 }
@@ -1084,8 +1065,9 @@ function setHeight(layout: WallLayout, rowId: string, height: "fill" | "fit"): W
   const next = copy(layout);
   if (next.rows.some((row) => row.id === rowId)) {
     next.rows = next.rows.map((row) => {
-      if (height === "fill") return { ...row, height: row.id === rowId ? "fill" : "auto" };
-      return row.id === rowId ? { ...row, height: "auto" } : row;
+      const { size: _size, ...rest } = row;
+      if (height === "fill") return { ...rest, height: row.id === rowId ? "fill" : "auto" };
+      return row.id === rowId ? { ...rest, height: "auto" } : row;
     });
     return next;
   }

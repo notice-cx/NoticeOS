@@ -109,8 +109,8 @@ describe("the default layout", () => {
       ["sites", "fill", [["sites", 1]]],
     ]);
     expect(shape("side")).toEqual([
-      ["money", "auto", [["revenue", 1.55]]],
-      ["work", "fill", [["work", 1]]],
+      ["money", "fill", [["revenue", 1.55]]],
+      ["work", "auto", [["work", 1]]],
     ]);
   });
 
@@ -316,7 +316,6 @@ describe("warnings leave the decision with the operator", () => {
     expect(wallLayoutWarnings(noFill)).toEqual([
       "Bottom of the TV left empty",
       "Sites squeezed into a fixed-height row",
-      "Work squeezed into a fixed-height row",
     ]);
     const bare: WallLayout = {
       version: 1,
@@ -526,10 +525,10 @@ describe("a column slot", () => {
     const squeezed = layoutWith((l) => void (column(l).rows[1]!.height = "auto"));
     expect(wallLayoutWarnings(squeezed)).toEqual(["Sites squeezed into a fixed-height row"]);
     const work = layoutWith((l) => void (column(l, "side").rows[1]!.height = "auto"));
-    expect(wallLayoutWarnings(work)).toEqual(["Work squeezed into a fixed-height row"]);
+    expect(wallLayoutWarnings(work)).toEqual([]);
   });
 
-  it("takes a height weight on a column's row, on the width's grid, and nowhere else", () => {
+  it("takes height weights on top-level and column rows, on the width's grid", () => {
     const sized = layoutWith((l) => {
       column(l).rows[0]!.size = 1;
       column(l).rows[1]!.size = 2.5;
@@ -542,9 +541,14 @@ describe("a column slot", () => {
     expect(refusal((l) => void (column(l).rows[0]!.size = 0.1))).toBe(
       "Row 3, column 1, row 1 needs a size between 0.25 and 12 in steps of 0.05.",
     );
-    expect(refusal((l) => void ((row(l, 0) as WallRow & { size?: number }).size = 1))).toBe(
-      "Row 1 can take a size only inside a column.",
-    );
+    const top = layoutWith(l => { row(l, 0).size = 0.25 + 0.05 * 3; row(l, 2).size = 2; });
+    const checkedTop = validateWallLayout(top);
+    expect(checkedTop.ok ? checkedTop.layout.rows.map(r => r.size) : checkedTop.reason).toEqual([0.4, undefined, 2]);
+    for (const invalid of [0, 0.1, 1.03, 13, NaN, Infinity]) {
+      expect(refusal(l => { row(l, 0).size = invalid; })).toBe("Row 1 needs a size between 0.25 and 12 in steps of 0.05.");
+    }
+    expect(parseWallConfig({ layout: top, history: [] }).layout).toEqual(checkedTop.ok ? checkedTop.layout : null);
+    expect(wallOpRefusal({ kind: "file-json-set", file: "config/tower.json", pointer: "/wall/layout", value: top }, "op 1")).toBeNull();
   });
 
   it("keeps a layout saved without sizes byte for byte, columns included", () => {

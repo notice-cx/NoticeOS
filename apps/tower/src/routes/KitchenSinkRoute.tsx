@@ -3471,7 +3471,7 @@ export function KitchenSinkRoute() {
               <div className="overflow-hidden rounded-md border border-border">
                 <ReadFailed title="Couldn't load Home" subject="read:home" error={new ApiError("GET /api/wall failed", 500)} retrying onRetry={() => {}} />
               </div>
-              <div className="h-48 overflow-hidden rounded-md border border-border">
+              <div data-theme="dark" className="h-48 overflow-hidden rounded-md border border-border text-foreground">
                 <ReadFailed surface="wall" title="Couldn't load the Wall" subject="read:wall" error={new ApiError("GET /api/wall failed", 503)} retrying={false} onRetry={() => {}} />
               </div>
             </div>
@@ -3484,13 +3484,13 @@ export function KitchenSinkRoute() {
               <div className="h-48 overflow-hidden rounded-md border border-border">
                 <RouteLoading />
               </div>
-              <div className="h-48 overflow-hidden rounded-md border border-border">
+              <div data-theme="dark" className="h-48 overflow-hidden rounded-md border border-border text-foreground">
                 <RouteLoading surface="wall" />
               </div>
               <div className="h-48 overflow-hidden rounded-md border border-border">
                 <RouteLoadFailure openUpdated={GALLERY_NO_OPEN} />
               </div>
-              <div className="h-48 overflow-hidden rounded-md border border-border">
+              <div data-theme="dark" className="h-48 overflow-hidden rounded-md border border-border text-foreground">
                 <RouteLoadFailure
                   surface="wall"
                   openUpdated={GALLERY_NO_OPEN}
@@ -3512,7 +3512,7 @@ export function KitchenSinkRoute() {
               <div className="h-48 overflow-hidden rounded-md border border-border">
                 <RouteErrorFrame error={GALLERY_SCREEN_ERROR} reload={GALLERY_NO_OPEN} />
               </div>
-              <div className="h-48 overflow-hidden rounded-md border border-border">
+              <div data-theme="dark" className="h-48 overflow-hidden rounded-md border border-border text-foreground">
                 <RouteErrorFrame surface="wall" error={GALLERY_SCREEN_ERROR} reload={GALLERY_NO_OPEN} reloadsIn={60_000} />
               </div>
             </div>
@@ -4218,7 +4218,7 @@ export function KitchenSinkRoute() {
           {/* The Wall's one top line: the same OS report in four states, the
               meeting and countdown from the gallery's own fixed clock. */}
           <Section title="WallStrip (healthy / a source failing / OS report missing / clear day, no countdown)">
-            <div className="wall-root flex w-full flex-col gap-2 bg-background p-2">
+            <div data-theme="dark" className="wall-root text-foreground flex w-full flex-col gap-2 bg-background p-2">
               <WallStrip
                 system={systemNormal}
                 assets={[cardLive, cardWarn]}
@@ -4999,7 +4999,7 @@ export function KitchenSinkRoute() {
               With nothing saved in <code>config/tower.json</code> at{" "}
               <code>/wall</code>, this is what the television draws.
             </p>
-            <div className="wall-root h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
+            <div data-theme="dark" className="wall-root text-foreground h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
               <WallCanvas
                 layout={wallDefaultLayout}
                 data={wallFixture}
@@ -5023,7 +5023,7 @@ export function KitchenSinkRoute() {
               per-site widgets narrowed to two sites — in the layout's order,
               so Monarch leads.
             </p>
-            <div className="wall-root h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
+            <div data-theme="dark" className="wall-root text-foreground h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
               <WallCanvas
                 layout={wallArrangedLayout}
                 data={wallFixture}
@@ -5047,7 +5047,7 @@ export function KitchenSinkRoute() {
               arrival's slide and tint are proven by
               test/wall-feed-column.test.tsx and the Wall feed journey. */}
           <Section title="WallFeed (live rows · reconnecting · empty window)">
-            <div data-theme="dark" className="wall-root grid h-[40rem] w-full grid-cols-1 gap-3 rounded-lg border border-border bg-background p-2 md:grid-cols-3">
+            <div data-theme="dark" className="wall-root text-foreground grid h-[40rem] w-full grid-cols-1 gap-3 rounded-lg border border-border bg-background p-2 md:grid-cols-3">
               <WallFeed feed={feedDemo(FEED_DEMO_ITEMS)} nowMs={NOW} icons={FEED_DEMO_ICONS} />
               <WallFeed feed={feedDemo(FEED_DEMO_ITEMS.slice(0, 4))} failed nowMs={NOW} icons={FEED_DEMO_ICONS} />
               <WallFeed feed={feedDemo([])} nowMs={NOW} />
@@ -5754,32 +5754,32 @@ export function KitchenSinkRoute() {
           </Section>
 
           <Section title="RevenueHero (on pace to pass last month / passed it / learning / no revenue source)">
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <RevenueHero portfolio={portfolioNormal} assets={revenueOnPace} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <RevenueHero portfolio={portfolioNormal} assets={revenuePassed} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <RevenueHero portfolio={portfolioNormal} assets={revenueLearning} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <RevenueHero portfolio={{ ...portfolioNormal, booked: NO_RESIDUE.booked, forecast: NO_RESIDUE.forecast, netTrend: [], firstRun: true }} assets={[]} />
             </div>
           </Section>
 
           <Section title="NeedsYou (top three with urgent tasks / nothing broken but urgent tasks / nothing needs attention)">
-            <div className="wall-root w-full max-w-3xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-3xl rounded-lg bg-background p-4">
               <NeedsYou
                 issues={wallIssues({ assets: wallFixture.assets, attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
                 operator={wallFixture.operator}
                 nowMs={NOW}
               />
             </div>
-            <div className="wall-root w-full max-w-3xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-3xl rounded-lg bg-background p-4">
               <NeedsYou issues={[]} operator={wallFixture.operator} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full max-w-3xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-3xl rounded-lg bg-background p-4">
               <NeedsYou
                 issues={[]}
                 operator={{ waiting: 0, urgent: 0, measuredProjects: 6, urgentMeasuredProjects: 6, projectCount: 6, capturedAt: iso(0) }}
@@ -5789,45 +5789,45 @@ export function KitchenSinkRoute() {
           </Section>
 
           <Section title="WallAgents (agents and models ranked by closes / no agent yet)">
-            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-xl rounded-lg bg-background p-4">
               <WallAgents agents={{ closed: 31, inProgress: 7, capturedAt: iso(0), standings: [
                 { id: "claude", model: "Sonnet 5.5", closed: 11, inProgress: 2 },
                 { id: "claude", model: "Opus 5.5", closed: 10, inProgress: 3 },
                 { id: "codex", model: "GPT-5-Codex", closed: 5, inProgress: 2 },
               ] }} />
             </div>
-            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-xl rounded-lg bg-background p-4">
               <WallAgents agents={null} />
             </div>
           </Section>
 
           <Section title="WallHealth (problems and fine sites / no sites yet)">
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallHealth assets={healthDemoCards} issues={[]} />
             </div>
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallHealth assets={[]} issues={[]} />
             </div>
           </Section>
 
           <Section title="WallFactory (counted with lines / unknown counts, nothing finished)">
-            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-xl rounded-lg bg-background p-4">
               <WallFactory week={{ building: 4, shipped: 11, proven: 2, watching: 3, latest: [
                 { title: "Recipe cards load faster", site: cardLive.displayName, line: "Images resized on upload" },
                 { title: "Latest bet", site: cardWarn.displayName, line: "Worked" },
                 { title: "Latest bet", site: cardThin.displayName, line: "We'll know in 5 days" },
               ] }} />
             </div>
-            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-xl rounded-lg bg-background p-4">
               <WallFactory week={{ building: null, shipped: null, proven: 0, watching: 0, latest: [] }} />
             </div>
           </Section>
 
           <Section title="NextUp (decisions with the agents now / nothing waits, nothing in progress / tasks unknown)">
-            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-5xl rounded-lg bg-background p-4">
               <NextUp next={nextUpDemo(wallFixture.assets, iso(0))} operator={nextUpOperator(iso(0))} assets={wallFixture.assets} workAssets={wallFixture.assets} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-5xl rounded-lg bg-background p-4">
               <NextUp
                 next={{ decisions: [], oldestAgeDays: null, working: [], capturedAt: iso(0) }}
                 operator={{ ...nextUpOperator(iso(0)), waiting: 0, urgent: 0 }}
@@ -5836,32 +5836,32 @@ export function KitchenSinkRoute() {
                 nowMs={NOW}
               />
             </div>
-            <div className="wall-root w-full max-w-5xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-5xl rounded-lg bg-background p-4">
               <NextUp next={null} operator={null} assets={[]} workAssets={[]} nowMs={NOW} />
             </div>
           </Section>
 
           <Section title="WallChannels (channels and the largest drop / no channel split yet)">
-            <div className="wall-root w-full max-w-2xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-2xl rounded-lg bg-background p-4">
               <WallChannels assets={healthDemoCards} />
             </div>
-            <div className="wall-root w-full max-w-2xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-2xl rounded-lg bg-background p-4">
               <WallChannels assets={[cardSetup]} />
             </div>
           </Section>
 
           {/* The default Wall's three visual-kit widgets, on the TV's ground. */}
           <Section title="WallLoop (the demo sites / nothing read yet)">
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <WallLoop data={wallFixture} connections={DEMO_CONNECTIONS} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <WallLoop data={{ assets: [], attention: [], operator: null }} connections={DEMO_CONNECTIONS} nowMs={NOW} />
             </div>
           </Section>
 
           <Section title="WallTimeline (problems over the feed's marks / calm / feed reconnecting)">
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallTimeline
                 assets={wallFixture.assets}
                 issues={wallIssues({ assets: wallFixture.assets, attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
@@ -5871,32 +5871,32 @@ export function KitchenSinkRoute() {
                 nowMs={NOW}
               />
             </div>
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallTimeline assets={wallFixture.assets} issues={[]} feed={[]} since={feedDemo([]).since} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallTimeline assets={wallFixture.assets} issues={[]} feed={FEED_DEMO_ITEMS.slice(0, 4)} since={feedDemo([]).since} failed nowMs={NOW} />
             </div>
           </Section>
 
           <Section title="WallWork (counted / partial inbox / nothing read)">
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallWork assets={wallFixture.assets} operator={wallFixture.operator} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallWork
                 assets={wallFixture.assets}
                 operator={{ waiting: 0, urgent: 0, measuredProjects: 3, urgentMeasuredProjects: 3, projectCount: 6, capturedAt: iso(0) }}
                 nowMs={NOW}
               />
             </div>
-            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallWork assets={[]} operator={null} nowMs={NOW} />
             </div>
           </Section>
 
           <Section title="SiteRows (the demo sites with their marks / three sites, roomier / one site in depth / a failed live read)">
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows
                 assets={wallFixture.assets}
                 issues={wallIssues({ assets: wallFixture.assets, attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
@@ -5904,7 +5904,7 @@ export function KitchenSinkRoute() {
                 nowMs={NOW}
               />
             </div>
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows
                 assets={wallFixture.assets.slice(0, 3)}
                 issues={wallIssues({ assets: wallFixture.assets.slice(0, 3), attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
@@ -5912,10 +5912,10 @@ export function KitchenSinkRoute() {
                 nowMs={NOW}
               />
             </div>
-            <div className="wall-root h-160 w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground h-160 w-full rounded-lg bg-background p-4">
               <SiteRows assets={[cardLive]} issues={[]} ga4Realtime={realtimeDemo} nowMs={NOW} />
             </div>
-            <div className="wall-root w-full rounded-lg bg-background p-4">
+            <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows assets={[cardLive]} issues={[]} ga4Realtime={realtimeDemo} ga4RealtimeError nowMs={NOW} />
             </div>
           </Section>
@@ -7490,7 +7490,7 @@ function MinutePulseDemo() {
   const quiet = Array.from({ length: 30 }, (_, minute) => (minute % 7 === 3 ? 1 : 0));
   const unread = [...climbing.slice(4), null, null, null, null];
   return (
-    <div className="wall-root flex flex-wrap items-end gap-8 rounded-lg bg-background p-4">
+    <div data-theme="dark" className="wall-root text-foreground flex flex-wrap items-end gap-8 rounded-lg bg-background p-4">
       <Labeled name="row · live">
         <MinutePulse minutes={climbing} />
       </Labeled>
@@ -7527,7 +7527,7 @@ function LiveUsersDemo() {
   const refused: Ga4RealtimeAsset | undefined = realtimeLive.status === "success" ? { ...realtimeLive, activeUsersByMinute: null } : undefined;
   const noGa4 = { ...cardLive, dataSources: cardLive.dataSources.filter((source) => source.id !== "ga4") };
   return (
-    <div className="wall-root flex flex-wrap items-start gap-10 rounded-lg bg-background p-4">
+    <div data-theme="dark" className="wall-root text-foreground flex flex-wrap items-start gap-10 rounded-lg bg-background p-4">
       <Labeled name="fresh">
         <LiveUsers asset={cardLive} snapshot={realtimeLive} reconnecting={false} nowMs={NOW} cell={false} />
       </Labeled>
