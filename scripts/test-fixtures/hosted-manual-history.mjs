@@ -43,13 +43,15 @@ export async function proveHostedManualHistory({ admin, towerFetch, demoFetch, o
     assert.equal(new Set(history.runs.map(row => row.id)).size, 30);
     assert.equal(history.history.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed + bucket.skipped, 0), 37);
     assert.equal(history.history.reduce((sum, bucket) => sum + bucket[outcome], 0), 36);
-    assert.equal((await get(workspace, ownIds[0])).selectedRun, null, 'old detail is outside the retained page');
-    for (const id of ownIds.slice(-2)) {
-      const selected = (await get(workspace, id)).selectedRun;
+    for (const id of [ownIds[0], ...ownIds.slice(-2)]) {
+      const page = await get(workspace, id);
+      assert.equal(page.workflows.find(row => row.id === 'pull').runs.length, 30);
+      const selected = page.selectedRun;
       assert.equal(selected.id, id); assert.equal(selected.state, outcome); assert.equal(selected.steps, null);
       assert.equal(new Date(selected.startedAt).toISOString(), base);
     }
   }
+  assert.equal((await get(workspaces[1], ids[0][0])).selectedRun, null);
   assert.equal((await get(workspaces[1], ids[0].at(-1))).selectedRun, null);
   // A status row for a different lane must not hide manual-only collection.
   await admin.query(`INSERT INTO noticeos.hosted_scheduler_status(workspace_id,service_id,session_id,running,payload)
