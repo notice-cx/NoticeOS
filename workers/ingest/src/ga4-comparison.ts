@@ -101,12 +101,16 @@ export async function collectComparison(property: string, accessToken: string, f
       clocks.set(reportZone, formatter);
     }
     const key = `${stamp.slice(8, 10)}:${stamp.slice(10)}`;
-    const ambiguous = [-HOUR, -HOUR / 2, HOUR / 2, HOUR].some(offset => formatter.format(at + offset) === key);
+    const repeated = [-HOUR, -HOUR / 2, HOUR / 2, HOUR].map(offset => at + offset).filter(candidate => formatter.format(candidate) === key);
+    const ambiguous = repeated.length > 0;
     if (formatter.format(at) !== key) throw invalid();
     const index = (at - start) / MINUTE, previous = (at - priorStart) / MINUTE;
     if (index >= 0 && index < day.minutes.length) {
       today.set(index, ambiguous ? null : Number(count));
-      if (ambiguous && index + 60 < day.minutes.length) today.set(index + 60, null);
+      for (const repeatedAt of repeated) {
+        const other = (repeatedAt - start) / MINUTE;
+        if (other >= 0 && other < day.minutes.length) today.set(other, null);
+      }
     }
     if (previous >= 0 && previous < prior.length) prior[previous] = ambiguous ? null : Number(count);
   }

@@ -78,6 +78,14 @@ describe('GA4 activity comparison backfill', () => {
     expect(result?.nextAttemptAt).toBe(new Date(NOW + 4 * 3_600_000).toISOString());
   });
 
+  it('leaves both folds unknown when the provider hour resolves to the later fold', async () => {
+    const body = report([['today', '202610250200', 8], ['today', '202610250400', 1], ['last_week', '202610180200', 4]], { timeZone: 'Europe/Berlin' });
+    const result = await collectComparison('123456', 'synthetic', fetchReport(body), Date.parse('2026-10-25T12:00:00Z'), 'UTC');
+    expect(result.day.minutes[0]).toBeNull();
+    expect(result.day.minutes[60]).toBeNull();
+    expect(result.day.minutes[120]).toBe(0);
+  });
+
   it('aligns clock minutes across DST while excluding the repeated hour', () => {
     const values = Array<number | null>(1440).fill(7);
     const aligned = alignComparisonMinutes(values, Date.parse('2026-10-25T07:00:00Z'), Date.parse('2026-11-01T07:00:00Z'), 1500, 'America/Los_Angeles');
