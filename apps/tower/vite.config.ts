@@ -38,7 +38,6 @@ import { reconnectPage } from "./vite/reconnect-page";
 import { taskLane } from "./vite/task-lane";
 import { changeLane } from "./vite/change-lane";
 import { compressReplies } from "./vite/compress-replies";
-import { dependenciesReady } from "./vite/dependencies-ready";
 import { ownPort } from "./vite/own-port";
 import { builtClient } from "./vite/built-client";
 import { mcpLane } from "./vite/mcp-lane";
@@ -178,8 +177,6 @@ export default defineConfig(({ command }) => {
     ws: process.env.NOTICEOS_IMMUTABLE_APP === '1' ? false : undefined,
   },
   plugins: [
-    // Before any request is answered (vite/dependencies-ready.ts).
-    dependenciesReady(),
     // Every start and restart binds the port it was given, or stops (vite/own-port.ts).
     ownPort(),
     // Before every middleware that writes a reply (vite/compress-replies.ts).

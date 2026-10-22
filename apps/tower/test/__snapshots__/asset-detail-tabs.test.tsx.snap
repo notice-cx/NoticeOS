@@ -42,7 +42,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -135,7 +135,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <li class="m-0">
 <button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-commit-horizontal size-2.5" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-commit-horizontal lucide-git-commit size-2.5" aria-hidden="true">
 <circle cx="12" cy="12" r="3">
 </circle>
 <line x1="3" x2="9" y1="12" y2="12">
@@ -209,7 +209,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" title="1 open alert on this site" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -248,7 +248,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="divide-y divide-viz-grid">
 <div data-lane="poisson-low:signups" data-state="error" class="flex flex-col gap-1.5 py-2 @min-[30rem]:flex-row @min-[30rem]:gap-3">
 <div data-lane-label="true" title="Signups" class="flex min-h-7 min-w-0 items-center gap-1.5 @min-[30rem]:w-[var(--timeline-name,8rem)] @min-[30rem]:shrink-0">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5 shrink-0 text-error" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3.5 shrink-0 text-error" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -293,10 +293,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span aria-hidden="true" class="viz-arrive relative flex h-full min-w-0 flex-1 items-center gap-1 px-2 text-xs font-medium text-muted-foreground" style="--viz-i: 1;">
 <span class="flex-1">
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check size-3.5 shrink-0 text-healthy" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check lucide-check-circle-2 size-3.5 shrink-0 text-healthy" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
-<path d="m9 12 2 2 4-4">
+<path d="m16 9-5.5 5.5L8 12">
 </path>
 </svg>
 </span>
@@ -433,7 +433,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -1215,7 +1215,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -1429,7 +1429,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -2378,7 +2378,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -2453,7 +2453,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -2886,7 +2886,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a aria-label="Meadow Board · Signups — 22 in last24h (avg7d 39.3) · since 11h ago" class="relative grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 px-5 py-2.5 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" href="/assets/meadow.example/alerts" data-discover="true">
 <span aria-hidden="true" class="absolute inset-y-2 start-0 w-0.5 rounded-full bg-current text-error">
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-4 shrink-0 text-error" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-4 shrink-0 text-error" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -3080,7 +3080,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -3268,7 +3268,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 <span class="inline-flex shrink-0 items-center gap-1" data-aio-devices="2">
 <span role="img" aria-label="Phone: AI Overview shown; this site is not cited" title="Phone: AI Overview shown; this site is not cited" data-aio-state="uncited" data-aio-device="mobile" class="inline-flex shrink-0 items-center text-foreground">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles lucide-stars size-3" aria-hidden="true">
 <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z">
 </path>
 <path d="M20 2v4">
@@ -3280,7 +3280,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </svg>
 </span>
 <span role="img" aria-label="Desktop: AI Overview shown; this site is not cited" title="Desktop: AI Overview shown; this site is not cited" data-aio-state="uncited" data-aio-device="desktop" class="inline-flex shrink-0 items-center text-foreground">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles lucide-stars size-3" aria-hidden="true">
 <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z">
 </path>
 <path d="M20 2v4">
@@ -3972,7 +3972,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -4456,7 +4456,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">
@@ -4502,7 +4502,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="inline-flex" data-status-for="source:meadow.example:gsc" data-connection="unknown">
 <span data-status-for="source:meadow.example:gsc" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium border-border bg-muted text-muted-foreground">
 <span aria-hidden="true" class="inline-flex shrink-0 items-center">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-question-mark size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-question-mark lucide-help-circle lucide-circle-help size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3">
@@ -4721,7 +4721,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-codebase" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/codebase" data-discover="true">Codebase</a>
 <a id="asset-tab-health" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/health" data-discover="true">Health</a>
 <a id="asset-tab-alerts" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" title="1 open alert on this site" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/alerts" data-discover="true">Alerts<span role="img" aria-label="Error" title="Error" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle size-3" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
 <line x1="12" x2="12" y1="8" y2="12">

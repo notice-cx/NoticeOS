@@ -9,9 +9,20 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "build(deps)"
+    ignore:
+      # Source-analysis and transpilation use the compiler's JavaScript API.
+      - dependency-name: "typescript"
+        versions: ["7.x"]
+      # The Workers test adapter requires Vitest 4 internals.
+      - dependency-name: "vitest"
+        versions: ["5.x"]
     groups:
+      cloudflare-toolchain:
+        patterns: ["wrangler", "@cloudflare/vite-plugin", "@cloudflare/vitest-pool-workers"]
+        update-types: ["minor", "patch"]
       npm-minor-and-patch:
         patterns: ["*"]
+        exclude-patterns: ["wrangler", "@cloudflare/vite-plugin", "@cloudflare/vitest-pool-workers"]
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "github-actions"
