@@ -1,7 +1,0 @@
-{
-  "name": "generated",
-  "command": "pnpm generate -- --check",
-  "exit_code": 0,
-  "elapsed_seconds": 15.918,
-  "candidate": "e8bf6b98e4e5b986255603b2d5cee79afe63c810"
-}

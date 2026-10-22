@@ -86,19 +86,17 @@ work than a full pass, while retaining the checks needed to assess the change.
 - Shared types/configuration: typecheck the changed package and its affected
   consumers. Build only when bundling or generated output is part of the change.
 
-An independent verifier owns completion evidence. Builders can run small probes
-while debugging; avoid running the same complete verification plan in both
-roles. Reuse independently passing evidence when its code, tests, shared
-dependencies/configuration, runtime and fixture inputs are unchanged. A prose
-edit does not invalidate a runtime check. After a relevant edit or failure,
-rerun only the affected checks; add checks for a specific unresolved risk.
+Test commands report their results through their exit status and generated
+reports. CI combines the required jobs into the `build` check and uploads
+browser reports and failure traces. Keep generated logs, screenshots, hashes
+and verification writeups out of version control; passing tests need no
+documentation update or separate receipt.
 
-Record selected commands and why they cover the change, relevant input hashes,
-runtime/fixture versions, results, skip reasons, execution time and owned-resource
-cleanup in one compact receipt. Reuse one qualified source/dependency/browser
-bundle. Compare recorded execution time with the most recent full pass when
-available; distinguish measured command time from total elapsed work and CPU
-estimates. A change spanning most of the system can justify wider coverage.
+Reuse passing checks when their code, tests, dependencies/configuration,
+runtime and fixture inputs are unchanged. A prose edit does not invalidate a
+runtime check. After a relevant edit or failure, rerun only the affected checks;
+add checks for a specific unresolved risk. A change spanning most of the system
+can justify wider coverage.
 
 From the repository root, these examples run existing suites through their
 usual isolated harnesses:
@@ -132,7 +130,7 @@ For the PostgreSQL 17-to-18 restore proof, also set
 `NOTICEOS_TEST_POSTGRES17_BIN` to the installed PostgreSQL 17 binary directory,
 as CI does. Compose qualifications are explicit opt-ins with their own
 generated resources; an ordinary test pass does not prove those skipped paths.
-Record test counts and skip reasons. `pnpm test:journeys` includes journey
+The test runner reports counts and skips. `pnpm test:journeys` includes journey
 types, harness checks, browser journeys and the UX flow gate.
 
 UI copy, flow length and installation-neutral code are checked by the normal
@@ -178,10 +176,9 @@ commits or rewrite published history to make them conform.
 ## Submit a reviewable change
 
 Explain the concrete before/after behavior, the source paths changed and the
-checks you ran. Include the tested commit and relevant logs or synthetic
-screenshots; state any skipped qualification. Keep installation files, private
-archives, backups, credentials and actual task records out of patches and
-evidence.
+checks you ran. Link the CI run and its generated artifacts when available;
+state any skipped qualification. Keep installation files, private archives,
+backups, credentials and actual task records out of patches and test output.
 
 NoticeOS tracks its work in Beads and Dolt. You do not need access to the
 maintainers' private task database to contribute. Use the public repository's

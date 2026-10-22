@@ -1,7 +1,0 @@
-{
-  "name": "typecheck",
-  "command": "pnpm --filter @noticeos/tower run typecheck && pnpm --filter @noticeos/tower exec tsc -p e2e/wall-layout/tsconfig.json",
-  "exit_code": 0,
-  "elapsed_seconds": 71.348,
-  "candidate": "e8bf6b98e4e5b986255603b2d5cee79afe63c810"
-}

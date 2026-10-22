@@ -121,6 +121,9 @@ and failure traces even when a test fails. A local pass is not a remote CI run.
 The HTML report and selected screenshot attachments are written under
 `apps/tower/e2e/playwright-report/`; failure traces use
 `apps/tower/e2e/test-results/`. Both are ignored generated artifacts.
+Test exit status determines the journey result, and CI combines it with the
+other required jobs. Keep captures and measurements in these generated reports;
+do not commit verification writeups, result snapshots or copied artifacts.
 
 ## Against the built app
 

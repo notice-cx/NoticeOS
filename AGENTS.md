@@ -55,9 +55,10 @@ present.
   [doc 06](docs/06-operations.md#bootstrap-secrets-vs-integration-credentials).
   Secrets never appear in a log line, a response body or a test fixture.
 - **Tests: vitest in the workspaces, `node --test` for `scripts/*.test.mjs`.**
-  An independent verifier owns completion checks; a builder's own transcript is
-  not evidence. A scenario counts only when it is a test; describing it in a
-  comment does not count.
+  Executable tests and the required CI check determine test status. A scenario
+  counts only when it is a test; describing it in a comment does not count.
+  Generated reports, logs, screenshots, hashes and verification writeups are
+  not committed. Passing tests need no documentation update or separate receipt.
 - **Comments say what the code cannot.** A non-obvious why, an invariant, a
   trap, or the one place a fact lives, in a line or two. No decision numbers,
   task ids, dates of past changes, attributions, histories of what the code
@@ -181,8 +182,8 @@ everything and publishes the site. Once CI passes on a `main` commit, the
 
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
-relevant typecheck, build or browser check; carry passing evidence forward when
-its inputs are unchanged; record the actual command time. Do not skip the root
+relevant typecheck, build or browser check; reuse passing checks when their
+inputs are unchanged. Do not skip the root
 suite: recursive pnpm commands visit workspaces, not `scripts/*.test.mjs`,
 where the runner, migration, collector, backup and task-hub contracts are
 tested. Passing CI does not make a change safe: CI checks that the code builds

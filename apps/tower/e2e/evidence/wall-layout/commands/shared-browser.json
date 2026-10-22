@@ -1,7 +1,0 @@
-{
-  "name": "shared-browser",
-  "command": "node apps/tower/e2e/run-journeys.mjs -g \"the TV layout is arranged by dragging|preview draws the TV dark|the Wall fits the TV with\" --project desktop",
-  "exit_code": 0,
-  "elapsed_seconds": 57.256,
-  "candidate": "df0e2074ec4f3cd7f16c3f5178ad951908e8d177"
-}

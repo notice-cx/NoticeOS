@@ -1,7 +1,0 @@
-{
-  "name": "root-contracts",
-  "command": "node --import ./scripts/script-tests-setup.mjs --test scripts/config-documents.test.mjs scripts/wall-fit-check.test.mjs scripts/declaration-lockstep.test.mjs scripts/ui-lexicon.test.mjs scripts/ui-noun.test.mjs",
-  "exit_code": 0,
-  "elapsed_seconds": 2.325,
-  "candidate": "e8bf6b98e4e5b986255603b2d5cee79afe63c810"
-}
