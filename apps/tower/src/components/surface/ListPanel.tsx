@@ -157,9 +157,9 @@ export interface ListRowProps {
    * ring carries the colour, the mark carries the meaning. */
   glyph?: ReactNode;
   title: ReactNode;
-  /** One line under the title. Never a second sentence. */
+  /** Supporting text, readable in both closed and expanded rows. */
   caption?: ReactNode;
-  /** Essential dates/status may wrap instead of being shortened when closed. */
+  /** @deprecated Captions always wrap. Kept for existing callers. */
   captionWrap?: boolean;
   /** Right-aligned, and what it is. */
   value?: ReactNode;
@@ -207,7 +207,6 @@ export function ListRow({
   glyph,
   title,
   caption,
-  captionWrap = false,
   value,
   valueLabel,
   children,
@@ -238,9 +237,9 @@ export function ListRow({
         {glyph ?? TONE_GLYPH[tone]}
       </span>
       <span className="grid min-w-0 gap-0.5">
-        <span className={cn("text-sm text-foreground break-words", !open && "line-clamp-2 max-sm:line-clamp-none")}>{title}</span>
+        <span className="text-sm text-foreground whitespace-normal wrap-anywhere">{title}</span>
         {caption ? (
-          <span className={cn("text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere", !open && !captionWrap && "truncate", captionWrap && "whitespace-normal")}>
+          <span className="text-xs text-muted-foreground whitespace-normal wrap-anywhere">
             {caption}
           </span>
         ) : null}

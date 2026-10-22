@@ -72,7 +72,7 @@ export function AlertsTab({
               limit={5}
             >
               {flags.open.map((flag) => (
-                <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} wrapCaption evidence={alertNormal(flag) ? <Reading flag={flag} /> : undefined} />
+                <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} evidence={alertNormal(flag) ? <Reading flag={flag} /> : undefined} />
               ))}
             </ListPanel>
           ) : (
@@ -91,7 +91,7 @@ export function AlertsTab({
           limit={flags.snoozed.length}
         >
           {flags.snoozed.map((flag) => (
-            <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} wrapCaption snoozed />
+            <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} snoozed />
           ))}
         </ListPanel>
       ) : null}
@@ -102,7 +102,7 @@ export function AlertsTab({
           count={`${flags.notCurrent.length} of them`}
         >
           {flags.notCurrent.map((flag) => (
-            <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} wrapCaption />
+            <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} />
           ))}
         </ListPanel>
       ) : null}
@@ -117,7 +117,7 @@ export function AlertsTab({
             limit={0}
           >
             {flags.history.map((flag) => (
-              <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} wrapCaption history />
+              <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} history />
             ))}
           </ListPanel>
         ) : null}

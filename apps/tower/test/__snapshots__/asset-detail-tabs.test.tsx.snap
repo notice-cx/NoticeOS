@@ -145,8 +145,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </svg>
 </span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">July title batch</span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">Deploy</span>
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">July title batch</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Deploy</span>
 </span>
 <span class="grid justify-items-end gap-0.5 text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">1d</span>
@@ -328,8 +328,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-error">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">Signups — 22 in last24h (avg7d 39.3) </span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere whitespace-normal">
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">Signups — 22 in last24h (avg7d 39.3) </span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">
 <span class="tabular-nums text-muted-foreground" data-alert-verification="unverified">
 <span class="inline-flex items-center gap-1">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-dashed size-3 shrink-0" aria-hidden="true">
@@ -904,8 +904,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">src/a.ts and src/b.ts</span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">line 10 · line 88</span>
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">src/a.ts and src/b.ts</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">line 10 · line 88</span>
 </span>
 <span class="grid justify-items-end gap-0.5 text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">48</span>
@@ -940,8 +940,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">src/c.ts and 2 other files</span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">line 4 · line 61 · line 9</span>
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">src/c.ts and 2 other files</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">line 4 · line 61 · line 9</span>
 </span>
 <span class="grid justify-items-end gap-0.5 text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">22</span>
@@ -996,10 +996,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">render</span>
 </span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">src/x.ts:120 · 210 lines</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">src/x.ts:120 · 210 lines</span>
 </span>
 <span class="grid justify-items-end gap-0.5 text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">complexity 41</span>
@@ -1037,10 +1037,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">src/old.ts</span>
 </span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">File</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">File</span>
 </span>
 </div>
 </div>
@@ -1067,10 +1067,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">helper</span>
 </span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">Shared piece in src/u.ts</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Shared piece in src/u.ts</span>
 </span>
 </div>
 </div>
@@ -1097,10 +1097,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">left-pad</span>
 </span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">Package</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Package</span>
 </span>
 </div>
 </div>
@@ -1134,8 +1134,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">2 packages have a known vulnerability</span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">Counted by the package audit in this site's workflow</span>
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">2 packages have a known vulnerability</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Counted by the package audit in this site's workflow</span>
 </span>
 </div>
 </div>
@@ -2949,8 +2949,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </svg>
 </span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words">Move “weekly meal plan” into the top results</span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere whitespace-normal">
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">Move “weekly meal plan” into the top results</span>
+<span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">
 <span>Recommendation · Original analysis: high confidence</span>
 </span>
 </span>
@@ -4495,7 +4495,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">◦</span>
 <span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">Google Search Console</span>
+<span class="text-sm text-foreground whitespace-normal wrap-anywhere">Google Search Console</span>
 </span>
 <span class="grid justify-items-end gap-0.5 text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">

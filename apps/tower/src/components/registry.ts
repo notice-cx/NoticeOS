@@ -1276,7 +1276,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/surface/ListPanel.tsx",
     purpose:
       "The desk's one list of things that need something: a SectionLabel header with a quiet count and one 'All' link, three rows by default with the rest disclosed behind an expander, and a row that expands in place to its evidence and actions. A row's mark is a ring plus a glyph, `marks` forwards data attributes onto its <li>, and `rowActions` puts a row's one decision beside its value with `below` holding the answer box it opens.",
-    variants: ["three rows", "more behind the expander", "row expanded with evidence and actions (chevron)", "navigation via to with optional returnTo (the › disclosure chevron)", "static row (no affordance, no hover)", "two-line title", "captionWrap retains essential dates/status in a closed row", "error / warn / info / ok marks", "custom glyph", "value including zero with a micro label", "no value", "header link", "empty", "grouped by subject (first row of each of the first three groups; the expander opens every row in place)", "decision on the row (rowActions: Approve, Answer / Dismiss, File task, a source's Connect in place of its value, kept on the row's line on a phone with rowActionsInline)", "answer box under the row (below)"],
+    variants: ["three rows", "more behind the expander", "row expanded with evidence and actions (chevron)", "navigation via to with optional returnTo (the › disclosure chevron)", "static row (no affordance, no hover)", "complete wrapping titles and captions in closed and expanded rows", "error / warn / info / ok marks", "custom glyph", "value including zero with a micro label", "no value", "header link", "empty", "grouped by subject (first row of each of the first three groups; the expander opens every row in place)", "decision on the row (rowActions: Approve, Answer / Dismiss, File task, a source's Connect in place of its value, kept on the row's line on a phone with rowActionsInline)", "answer box under the row (below)"],
   },
   {
     name: "StatusBanner",
@@ -1346,7 +1346,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/viz/NormalBand.tsx",
     purpose:
       "A reading against its usual range: the range as a band, the reading as a marker, the verdict as a word. Only the side the caller names as bad is painted as a problem.",
-    variants: ["below normal (warn)", "within range", "compact inside a row"],
+    variants: ["below normal (warn)", "within range", "one-sided lower or upper limit", "compact inside a row"],
   },
   {
     name: "StatTile",

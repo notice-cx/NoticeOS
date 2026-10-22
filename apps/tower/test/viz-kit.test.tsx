@@ -86,6 +86,20 @@ describe("PaceBar", () => {
 });
 
 describe("NormalBand", () => {
+  it.each([
+    { value: 3, low: 10, high: undefined, bad: "below" as const, words: "below", state: "warn" },
+    { value: 20, low: 10, high: undefined, bad: "below" as const, words: "within", state: "normal" },
+    { value: 20, low: undefined, high: 10, bad: "above" as const, words: "above", state: "warn" },
+    { value: 0, low: undefined, high: 10, bad: "above" as const, words: "within", state: "normal" },
+  ])("draws one genuine limit for $value, $words it", ({ value, low, high, bad, words, state }) => {
+    const { container } = render(<NormalBand value={value} low={low} high={high} bad={bad} label="Reading" />);
+    expect(screen.getByRole("img")).toHaveAccessibleName(`Reading: ${value}, ${words} limit; limit 10; problematic ${bad} the limit`);
+    expect(container.querySelector("[data-normal-band]")).toHaveAttribute("data-state", state);
+    expect(container.querySelector("[data-normal-limit]")).toBeTruthy();
+    expect(container.querySelector("[data-normal-range]")).toBeNull();
+    for (const node of container.querySelectorAll<HTMLElement>("[style]")) expect(node.style.cssText).not.toMatch(/NaN|Infinity/);
+  });
+
   it("judges a reading against its range", () => {
     expect(normalVerdict(1, 9, 17)).toBe("below");
     expect(normalVerdict(9, 9, 17)).toBe("within");

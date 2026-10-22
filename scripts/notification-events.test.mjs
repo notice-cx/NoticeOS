@@ -57,13 +57,13 @@ test('event consumer batches committed wake-ups, follows durable retries and clo
     assert.ok(calls[2].at - calls[1].at >= 1400, 'retry deadline is honored');
     await until(async () => (await store.read(tx => tx.query(`SELECT 1 FROM noticeos.notification_outbox WHERE state = 'pending'`))).length === 0);
 
-    const beforeReconnect = started;
+    const beforeReconnect = calls.length;
     await cluster.asOwner(database, `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
       WHERE application_name = 'noticeos-notification-events' AND datname = current_database()`);
     await store.write(tx => tx.execute(`INSERT INTO noticeos.flags
       (workspace_id,asset_id,fired_at,severity,kind,message,rule_id)
       VALUES($1::uuid,'event.example',clock_timestamp(),'error','anomaly','Queued during disconnect','reconnect')`, [workspace]));
-    await until(() => started > beforeReconnect);
+    await until(() => calls.length > beforeReconnect);
     assert.deepEqual(calls.at(-1) && [calls.at(-1).kind, calls.at(-1).count], ['recovery', 1],
       'reconnection recovers durable work whose wake-up was missed');
     await listener.close(); listener = null;
