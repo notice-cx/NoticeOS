@@ -5,7 +5,7 @@ import path from 'node:path';
 import { WORKFLOW_ACTIVE_FILE, WORKFLOW_HISTORY_FILE, readJsonLines } from '../../../scripts/workflow-history.mjs';
 import { manualRecords, buildWorkflowHistory, WORKFLOW_RECENT_RUN_LIMIT } from '../../../scripts/workflow-history-view.mjs';
 import { backupEvidenceFromReport, isBackupRunEvidence, type BackupRunEvidence } from '../../../packages/contract/src/backup-evidence.mjs';
-import type { ManualJobRunHistory } from '@noticeos/contract';
+import { MANUAL_JOB_RUN_LIMIT, type ManualJobRunHistory } from '@noticeos/contract';
 import { jobRunName } from '../../../scripts/scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS } from '../../../scripts/workflow-definitions.mjs';
 import type { WorkflowRun } from '@noticeos/contract';
@@ -52,6 +52,7 @@ export function createWorkflowHistoryReader(repoRoot: string, readManual: Manual
   return async (now: number, selectedId?: string, sessionId?: string) => {
     let manualAvailable = true;
     const manualRead: unknown = await readManual(selectedId).catch(() => { manualAvailable = false; return []; });
+    if (Array.isArray(manualRead) && manualRead.length >= MANUAL_JOB_RUN_LIMIT) manualAvailable = false;
     const manual = manualRecords(isObject(manualRead) ? manualRead.runs : manualRead);
     const manualDaily = isObject(manualRead) ? manualRead.dailyHistory as ManualJobRunHistory | undefined : undefined;
     const jobsFile = path.join(repoRoot, '.local/logs/job-runs.jsonl');

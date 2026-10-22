@@ -14,6 +14,7 @@ import {
   CRON_RUN_SILENCE_MS,
   LATEST_JOB_RUNS_SQL,
   MANUAL_JOB_RUNS_SQL,
+  MANUAL_JOB_RUN_LIMIT,
   MANUAL_RUN_DETAIL,
   type ManualJobRun,
   type ManualJobRunHistory,
@@ -285,7 +286,7 @@ export async function readManualJobRunHistory(env: IngestEnv, selected?: { job: 
     if (buckets.length > 2048) throw new Error('Manual run aggregates unavailable');
     const rows = await tx.query(`SELECT job,started_at,finished_at,outcome FROM noticeos.job_runs
       WHERE workspace_id=$1::uuid AND detail=$2 AND started_at>=$3::timestamptz AND started_at<=$4::timestamptz AND finished_at>=started_at
-      ORDER BY started_at DESC,job_run_id DESC LIMIT 200`, [tx.workspaceId, MANUAL_RUN_DETAIL, from, through]);
+      ORDER BY started_at DESC,job_run_id DESC LIMIT ${MANUAL_JOB_RUN_LIMIT}`, [tx.workspaceId, MANUAL_RUN_DETAIL, from, through]);
     const opened = selected ? await tx.query(`SELECT job,started_at,finished_at,outcome FROM noticeos.job_runs
       WHERE workspace_id=$1::uuid AND detail=$2 AND job=$3 AND started_at=$4::timestamptz
         AND started_at>=$5::timestamptz AND started_at<=$6::timestamptz AND finished_at>=started_at LIMIT 1`,

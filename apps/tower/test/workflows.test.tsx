@@ -403,6 +403,8 @@ describe('workflow history evidence', () => {
       const day = own.dailyHistory!.buckets.find(bucket => bucket.at.startsWith(at.slice(0, 10)));
       expect(day).toMatchObject({ succeeded: 47, failed: 1, runId: `pull@manual/${at}` });
       expect(own.runs).toHaveLength(30);
+      const cappedLegacy = await createWorkflowHistoryReader(dir, async () => manual.runs)(now);
+      expect(cappedLegacy.workflows[0]!.dailyHistory!.from).toBe(cappedLegacy.workflows[0]!.dailyHistory!.through);
       const unavailable = await createWorkflowHistoryReader(dir, async () => { throw new Error('fixture unavailable'); })(now);
       expect(unavailable.workflows[0]!.dailyHistory!.from).toBe(unavailable.workflows[0]!.dailyHistory!.through);
     } finally { await rm(dir, { recursive: true, force: true }); }

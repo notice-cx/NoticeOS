@@ -5,6 +5,7 @@
  * detail.
  */
 export const MANUAL_RUN_DETAIL = "trigger:manual";
+export const MANUAL_JOB_RUN_LIMIT = 200;
 
 /**
  * The one latest-run read shared by asset #0's signal and every Tower
@@ -34,7 +35,7 @@ SELECT DISTINCT ON (r.job) r.job, r.outcome, r.started_at, g.last_ran_at,
  * instant, the later recorded first) — what the Workflows page adds to each
  * job's run history. Bounded like every read the page makes. */
 export const MANUAL_JOB_RUNS_SQL =
-  `SELECT job, started_at, finished_at, outcome FROM noticeos.job_runs WHERE detail = '${MANUAL_RUN_DETAIL}' ORDER BY started_at DESC, job_run_id DESC LIMIT 200`;
+  `SELECT job, started_at, finished_at, outcome FROM noticeos.job_runs WHERE detail = '${MANUAL_RUN_DETAIL}' ORDER BY started_at DESC, job_run_id DESC LIMIT ${MANUAL_JOB_RUN_LIMIT}`;
 
 /** One manual firing on the wire (`GET /api/job-runs?trigger=manual`). */
 export interface ManualJobRun {

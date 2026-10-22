@@ -119,6 +119,31 @@
       "seconds": 1.042,
       "exit_code": 0,
       "result": "10 standard tests discovered across desktop/mobile"
+    },
+    {
+      "name": "legacy-manual-coverage",
+      "command": "node apps/tower/node_modules/vitest/vitest.mjs run --root apps/tower test/workflows.test.tsx",
+      "seconds": 8.53,
+      "exit_code": 0,
+      "result": "46 passed, including unknown coverage when an older reader returns the full capped page without aggregates"
+    },
+    {
+      "name": "legacy-reader-database",
+      "command": "node --import ./scripts/script-tests-setup.mjs --test scripts/workflow-history-read.test.mjs",
+      "seconds": 2.438,
+      "exit_code": 0,
+      "result": "3 passed; real workspace-scoped stores, distinct PostgreSQL session timezones, old scheduled/manual failure links"
+    },
+    {
+      "name": "follow-up-types-and-pairs",
+      "commands": [
+        "node apps/tower/node_modules/typescript/bin/tsc -p apps/tower/tsconfig.app.json",
+        "node workers/ingest/node_modules/typescript/bin/tsc -p workers/ingest/tsconfig.json --noEmit",
+        "node scripts/generate.mjs --check"
+      ],
+      "seconds": null,
+      "exit_code": 0,
+      "result": "All passed after the compatibility fix. This follow-up duration was not separately instrumented; earlier measured commands are retained above."
     }
   ],
   "input_sha256": {
@@ -143,13 +168,13 @@
     "apps/tower/test/health-job-runs.test.tsx": "420c05ad27b618fc25045d91cdceb9a106d01fd979739197e37fb5e93381ea72",
     "apps/tower/test/viz-adapters.test.tsx": "2f5b04b585172770df8d00f9f4a4d7ba8e461d6ca01814616e0f2ab4cc28eb2f",
     "apps/tower/test/wall-issues.test.ts": "40bcc36785094bf06a70f5927c2c039d1ae7885702b05c98281598ea22a0aaf6",
-    "apps/tower/test/workflows.test.tsx": "0b4ab58bbdb4c7f7a06e35b78c6c99a33c01a9f9f2911b5f014da46a62121624",
+    "apps/tower/test/workflows.test.tsx": "e8e14d1dfe37c0f299a273b4fc06f1689790eefc8e35645622e60c23b6251a2d",
     "apps/tower/vite/scheduled-jobs-lane.ts": "0a9641caf42db836d50472f6ba90d668648343f4579cda3e66a418f0fd9360df",
-    "apps/tower/vite/workflow-history.ts": "b1525cfa006cf255c0b072a72ac3b19d5fbaf21efa634b1ad2b7ad7d32a28492",
+    "apps/tower/vite/workflow-history.ts": "03a3dae417243ee7ab10f307ec3f84f748a680fc983ad59ea5b989aa5b66f4fc",
     "apps/tower/worker/hosted-workflow-read.ts": "19f85e235232ab0a199444391a7748d3533c99742279f255ff05734977c8f7f6",
     "package.json": "f29d0671d90555f02643f244b4bf1f72dfcc75b8a956b326de8df195c888da43",
     "packages/contract/package.json": "d5345d936ba3658258ab571f71c9616a7a8fff1a0ec2017a457947565aa1013d",
-    "packages/contract/src/job-runs.ts": "80e83240270116509dbf6a0022a25d899341d37fc57a9ea0502c156c7fd76a77",
+    "packages/contract/src/job-runs.ts": "45848fcda400772115afae93fe05243edd9075b4a7ee8370e1beedaaea8ccb25",
     "pnpm-lock.yaml": "4ba97abdb1f6b93e06be7c54329a360697a00abce1ac90183dd96ac6aa4389d2",
     "pnpm-workspace.yaml": "70809d639acc734712989343360e7d3956d6c21934ebb36c6978338f4822c110",
     "scripts/workflow-history-read.test.mjs": "6f8d98ae25a02a99f2fb9ad1ad0f5eb4e17e7736e67ba7cced7f19f5a64733b9",
@@ -157,7 +182,7 @@
     "scripts/workflow-history-view.mjs": "f1a26108629e15d1e6998741b85f403d41e6a551db99230247a35991be9ce374",
     "scripts/workflow-history-view.mts": "032d19d28737246521cba73529a76a19b1c1c84c839cf5da12ac88d91a5b77f1",
     "workers/ingest/package.json": "dcfa763403211f1c7bbc451d8da9252c225b986d132f355e6744b7a5fd12dabd",
-    "workers/ingest/src/job-runs.ts": "52b047f7acad750dd04b68be27cfd55e27f982ab660338b3665e29f175ff0e64",
+    "workers/ingest/src/job-runs.ts": "042790d1a1ad5ff648043dfc61e47e53fb561c40b276d6e1d89933cbedb8c164",
     "workers/ingest/src/routes/job-runs.ts": "db0c6f434de00fa7ed0a8513b8053a8f2e8be31c35e95230a0ab49266222aff8",
     "workers/ingest/test/job-runs.test.ts": "684a31452faaf653b63a0191dd5c98af4289bd62069820e2bca3bddc9933df17"
   },
@@ -171,7 +196,8 @@
     "Only synthetic disposable stores and the guarded test browser were used. No production/provider qualification.",
     "The existing hosted real-clock browser opt-in was skipped; the new standard recovery journeys ran on desktop and mobile.",
     "No measured full-suite baseline was available for a local savings comparison. Full CI remains the independent release gate.",
-    "Manual daily aggregates refuse more than 2048 job/day rows; details stay at 200 plus one explicitly opened run."
+    "Manual daily aggregates refuse more than 2048 job/day rows; details stay at 200 plus one explicitly opened run.",
+    "Older capped manual-detail responses without complete aggregates retain unknown coverage."
   ],
   "cleanup": "Shared lock-matched dependencies and pinned browser reused. Fixture harnesses close their Postgres clusters, pools, servers, timers, browser contexts and owned temporary directories in finally. Scratch files remain only under work/. No owner service was accessed."
 }
