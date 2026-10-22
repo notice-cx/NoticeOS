@@ -1,0 +1,26 @@
+$ node e2e/run-journeys.mjs -- monthly-cost-changes
+
+Running 8 tests using 2 workers
+
+(node:3914) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:3915) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [desktop] › e2e/monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in dark mode (3.5s)
+  ✓  1 [desktop] › e2e/monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in dark mode (4.6s)
+  ✓  3 [desktop] › e2e/monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in light mode (2.7s)
+  ✓  4 [desktop] › e2e/monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in light mode (2.1s)
+(node:4254) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4262) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  6 [mobile] › e2e/monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in dark mode (3.7s)
+  ✓  5 [mobile] › e2e/monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in dark mode (4.6s)
+  ✓  8 [mobile] › e2e/monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in light mode (1.6s)
+  ✓  7 [mobile] › e2e/monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in light mode (2.4s)
+
+  8 passed (21.9s)
+
+real	0m22.528s
+user	0m41.643s
+sys	0m8.571s

@@ -1,0 +1,15 @@
+$ node e2e/run-journeys.mjs -- --list monthly-cost-changes
+Listing tests:
+  [desktop] › monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in dark mode
+  [desktop] › monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in dark mode
+  [desktop] › monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in light mode
+  [desktop] › monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in light mode
+  [mobile] › monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in dark mode
+  [mobile] › monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in dark mode
+  [mobile] › monthly-cost-changes/journeys.spec.ts:12:3 › monthly cost changes preserve recorded amounts and reuse history in light mode
+  [mobile] › monthly-cost-changes/journeys.spec.ts:74:3 › monthly cost changes keep unavailable history unknown in light mode
+Total: 8 tests in 1 file
+
+real	0m1.260s
+user	0m1.476s
+sys	0m0.101s

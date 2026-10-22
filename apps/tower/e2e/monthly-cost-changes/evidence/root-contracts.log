@@ -1,0 +1,58 @@
+✔ required CI runs every gate exactly once, each in its job, in gate order (3.487968ms)
+✔ a Postgres suite never runs before its job puts the server binaries on PATH (0.688696ms)
+✔ CI runs every step of pnpm test:journeys (0.844086ms)
+✔ documentation-only pull requests skip the unit, browser and flow-gate jobs; the script suite and every push run everything (12.39198ms)
+✔ job extraction cannot borrow a missing gate from a sibling job (1.359346ms)
+✔ CI runs the isolated user journeys and the flow walker and keeps their evidence (0.942791ms)
+✔ the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites on the whole runner (0.785109ms)
+✔ the Tower typecheck gate also type-checks the browser-journey harness (0.351308ms)
+✔ the CI root-suite command still targets every operator-script test (0.737759ms)
+✔ the registry check has a registry to check (0.940839ms)
+✔ every component file has a registry entry (doc 14 mechanic #1) (0.974578ms)
+✔ every registry entry names a component that exists (40.574466ms)
+✔ the kitchen sink renders every registry entry (13.202816ms)
+✔ the kitchen sink actually imports the registry (1.372396ms)
+✔ every registry exemption still applies (2.247867ms)
+✔ the guard sees a missing entry and a name that no longer resolves (0.701996ms)
+✔ every numbered doc is in the docs index (1.688542ms)
+✔ every numbered link in the docs index opens a doc that exists (0.31164ms)
+✔ the root README sends a reader to the docs index and says how to start (0.374442ms)
+✔ the journeys' browsers live in this checkout's node_modules/.cache/journey-playwright (2.813042ms)
+✔ the install puts every browser there whether pnpm was started at the checkout root, in the Tower or elsewhere, even with a stale relative path set (2689.959197ms)
+✔ the install, the browser suite and the UX flow gate take the folder from that one module (0.957844ms)
+✔ the journey isolation guard refuses secrets files, owner config and owner ports before touching them (128.598904ms)
+✔ the Tower's test:journeys runs the journeys through run-journeys.mjs (0.981639ms)
+✔ -- -g <title> runs only the journeys whose title matches, on both viewports (3826.804333ms)
+✔ -- --project desktop runs only the desktop viewport (1606.010274ms)
+✔ the lexicon sweep has files to sweep (1.343462ms)
+✔ every excluded file still exists (1.669835ms)
+✔ every business surface is in the scan, and exists (0.321795ms)
+✔ no business surface shows a more technical level's word (19.567731ms)
+✔ no shipped desk string uses an internal coinage (doc 14) (268.809616ms)
+✔ every allowed phrase still matches something (95.238756ms)
+✔ the guard catches a coinage and spares a labelled command (0.58288ms)
+✔ SQL table-name exemptions do not exempt nearby user-facing vocabulary (0.902913ms)
+✔ no shipped desk string calls a site an asset, and every site count uses the helper (2157.528628ms)
+✔ every site-noun identifier phrase still matches something (20.124262ms)
+✔ the site-noun guard tells copy from code (1.713449ms)
+✔ the config corpus has prose to scan (0.729827ms)
+✔ no operator-visible config string uses an internal coinage (doc 14) (3.418134ms)
+✔ every config exemption still matches something (0.548239ms)
+✔ the UI-noun sweep has files to sweep (3.073907ms)
+✔ no shipped Tower string calls an asset a property (128.777548ms)
+✔ every allowed phrase still matches something (32.025398ms)
+✔ the config scan has prose to scan (0.297269ms)
+✔ no operator-visible config string calls an asset a property (0.41368ms)
+✔ every config exemption still matches something (0.275837ms)
+ℹ tests 46
+ℹ suites 0
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5707.463189
+
+real	0m5.762s
+user	0m11.911s
+sys	0m1.252s
