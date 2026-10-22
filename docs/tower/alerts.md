@@ -17,11 +17,15 @@ The page starts with a one-line summary and a severity dot: **2 open alerts, bot
 
 Under the summary, **Last 7 days** draws the same alerts on a time axis that ends at **Now**: one row per site, every open alert a bar from when it was first detected to now, and what settled this week a pale closed bar with a green tick. A bar that started more than a week ago is cut at the left edge with its age on it (**since 37d**). The newest open error has a faint red glow. Press an open bar to jump to its row below, expanded; press a closed bar to see that site's settled alerts. Like the summary, the chart covers every site: the filters narrow the list, not the chart.
 
+**Daily open-alert snapshots** charts the stored portfolio totals by UTC date. These are unresolved counts at each daily observation, rather than newly fired alerts. Missing days remain gaps; an observed zero means no alerts were open. **View data** lists every date, its count and the recorded observation time. An empty history and a failed read have separate messages. The chart covers every site, independently of the list filters.
+
 Two tabs follow: **Open** and **History**. Open lists the alerts still open; History lists every settled alert.
 
 **Filters** are above the list: a site, a severity (**Any severity**, **Errors**, **Warnings**; History adds **Info**) and a kind (**Any kind**, **Anomalies**, **Opportunities**). When a filter narrows the list, the list shows how many of the open alerts it includes (**3 of 10 open**).
 
 The Open list is one board, grouped by site, the site with the worst and newest alert first; each site's heading names it and counts its errors and warnings. Each row describes what happened, and its verb shows which direction is good, with a shape for severity (a circle for an error, a triangle for a warning) and how long ago it was first detected. Where the rule that fired has a normal range, the row draws the reading against it: the usual range as a shaded band, the reading as a dot, **Below normal** or **Above normal** in words, and the figures under it (**19 in 24h**, **usual 41–77**). A metric's usual range is the counts its own rule would not have fired on; a late nightly report is shown against the hours the rule allows; a GA4 quota against the share below which the rule fires. A rule with no range (a failed fetch, a sitemap check) has none drawn. The statistics are under **Evidence** in the expanded row, and a condition checked on several nights is drawn as one bar per night against its usual level.
+
+Percentage-drop and home-page HTML-depth alerts show one lower limit derived from their stored inputs. The row shows the reading, **limit** and **problem below**, with a single dashed limit marker. It adds no upper bound. Closed and expanded row titles and captions wrap in full.
 
 Alerts open for over a week are collapsed under **Open for over a week**, one line naming each and its site, so an old fault is never shown as prominently as a new one. When they are all that is open, they are listed under that heading, not collapsed.
 

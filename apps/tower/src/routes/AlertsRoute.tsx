@@ -34,6 +34,7 @@ import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
 import { AlertHistoryPageError } from "@/lib/api";
 import { formatInt } from "@/lib/format";
+import { AlertDaily } from "@/routes/alerts/AlertDaily";
 import { AlertBoard } from "@/routes/alerts/AlertBoard";
 import { AlertWeek } from "@/routes/alerts/AlertWeek";
 import { SnoozedAlerts } from "@/routes/alerts/SnoozedAlerts";
@@ -199,6 +200,8 @@ export function AlertsRoute() {
               because they are true of both. */}
           <AlertsAnswer items={data.attention} settled={settled.data} settledFailed={settled.isError} nowMs={now} />
           <AlertWeek open={data.attention} settled={settled.data?.rows ?? []} assets={data.assets} nowMs={now} openHref={openHref} />
+
+          <AlertDaily />
 
           <Tabs
             label="Alert views"

@@ -1,3 +1,4 @@
+import type { AlertDailyPayload } from "@shared/alert-daily";
 import { demoFetch } from './demo-visit';
 import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
 import type { TaskChoiceKey } from '@noticeos/contract/task-choices';
@@ -547,6 +548,12 @@ async function fetchWorkRequest(fetch: ApiTransport, signal?: AbortSignal): Prom
     throw new ApiError(`GET /api/work failed: ${res.status}`, res.status);
   }
   return (await res.json()) as WorkPayload;
+}
+
+async function fetchAlertDailyRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<AlertDailyPayload> {
+  const res = await fetch("/api/alerts/daily", { signal, headers: { accept: "application/json" } });
+  if (!res.ok) throw new ApiError(`GET /api/alerts/daily failed: ${res.status}`, res.status);
+  return (await res.json()) as AlertDailyPayload;
 }
 
 /**
@@ -1709,6 +1716,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     fetchSettingsPreferences: bind(fetchSettingsPreferencesRequest),
     fetchTaskSource: bind(fetchTaskSourceRequest),
     fetchWork: bind(fetchWorkRequest),
+    fetchAlertDaily: bind(fetchAlertDailyRequest),
     fetchAlertHistory: bind(fetchAlertHistoryRequest),
     fetchAlertRuleStats: bind(fetchAlertRuleStatsRequest),
     fetchRuleBacktest: bind(fetchRuleBacktestRequest),
@@ -1786,6 +1794,7 @@ export const {
   fetchSettingsPreferences,
   fetchTaskSource,
   fetchWork,
+  fetchAlertDaily,
   fetchAlertHistory,
   fetchAlertRuleStats,
   fetchRuleBacktest,

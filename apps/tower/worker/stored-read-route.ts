@@ -5,6 +5,7 @@ import { isAssetDetailView } from "../shared/asset-detail-views";
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { timeZoneEverSaved, type TowerConfig } from './config-source';
 import { JSON_HEADERS, jsonError } from './http';
+import { handleAlertDailyRequest } from "./alert-daily";
 import { handleAlertHistoryRequest } from "./alert-history";
 import { handleAlertRuleStatsRequest } from "./alert-rules";
 import { timeZoneChosen } from "@noticeos/contract/time-zone-setting";
@@ -20,6 +21,10 @@ export async function handleStoredRead(request: Request, {
   store, config, compiledTimeZone,
 }: { store: WorkspaceStore; config: () => Promise<TowerConfig>; compiledTimeZone: string }): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === "/api/alerts/daily") {
+    return handleAlertDailyRequest(request, store, new Date());
+  }
+
   // What already closed, across the portfolio: a paged archive, kept out of
   // the Wall's 60-second poll.
   if (url.pathname === "/api/alerts/history") {
