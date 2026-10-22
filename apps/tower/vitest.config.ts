@@ -30,8 +30,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Node Web Storage is process-wide; browser tests need jsdom's per-window storage.
+    execArgv: ["--no-experimental-webstorage"],
     maxWorkers: unitTestWorkers(),
-    setupFiles: ["./test/setup.ts"],
+    setupFiles: ["./test/environment.ts", "./test/setup.ts"],
+    sequence: { setupFiles: "list" },
     globalSetup: ["./test/postgres-global-setup.mjs"],
     include: ["test/**/*.test.{ts,tsx}"],
   },
