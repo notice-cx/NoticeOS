@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { PROJECT_STATE_TONE, SiteMark, projectStateLine } from "./project-face";
 import { PROJECT_SORTS, allProjects, projectModel, sortSites, type ProjectRecord, type ProjectSort, type SiteProjects } from "./project-model";
 import { SiteProjectCards, SiteRow, countWord } from "./SiteRow";
+import { BlockerImpact } from "./BlockerImpact";
 
 /** Every task on the board, unfiltered: the tab draws the shape of the work. */
 const ALL = { project: "all", status: "all", priority: "all", label: "", assignee: "all" } as const;
@@ -92,6 +93,8 @@ export function ProjectsTab({ scope }: { scope: string | null }) {
         <PageAnswer answer={<ProjectSentence sites={sites} records={records} scoped={scoped} />} marks={{ "data-projects-answer": "" }} />
         <OpenWork projects={projects} snapshots={spokes} weeks={weeks} complete={countsComplete} tasks={scoped ? null : allTasks} />
       </div>
+
+      <BlockerImpact projects={read} />
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h2 className={cn("m-0", eyebrowClass)}>Where the work sits</h2>
