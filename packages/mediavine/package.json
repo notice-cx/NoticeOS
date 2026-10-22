@@ -7,5 +7,5 @@
   "description": "Mediavine publisher reports client shared by NoticeOS and its CLI.",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "tsc -p tsconfig.build.json" },
-  "devDependencies": { "typescript": "^6.0.3", "vitest": "^5.0.5" }
+  "devDependencies": { "typescript": "^7.0.2", "vitest": "^5.0.5" }
 }
