@@ -1,0 +1,3 @@
+78e2c9edc6b4aedaf76f434e60087013c92456c0f6af32ba13994ce394c33663  apps/tower/src/routes/financials/CostComparison.tsx
+5d733170f5dacb9de251bad2bb5cf6945958f114ee5a35f71a422f51586554bf  apps/tower/src/routes/financials/CostComposition.tsx
+960d212c043c239ea788be82b9677d2dae66e74eb0a08917e29955db16a08976  apps/tower/test/cost-comparison-panel.test.tsx

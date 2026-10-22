@@ -1,0 +1,15 @@
+{
+  "theme": "light",
+  "viewport": 1440,
+  "pageWidth": 1440,
+  "left": 1065.328125,
+  "right": 1395.984375,
+  "overflowing": [],
+  "reads": [
+    "2026-09",
+    "2026-08"
+  ],
+  "writes": [],
+  "implementationCommit": "5407f9f6ac77561848bfd4bdd7dec75e616c1cdb",
+  "project": "desktop"
+}
