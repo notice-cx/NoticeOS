@@ -6,7 +6,7 @@
 // plugin builds the Worker's `Request` from `req.rawHeaders`, not `req.headers`.
 //
 // Safety: the live runtime holds 5173 and 8791 and owns `.wrangler/state`. This
-// test binds kernel-assigned ports, points `OS_UP_PERSIST_STATE` and wrangler's
+// test acquires ephemeral ports with bounded collision recovery, points `OS_UP_PERSIST_STATE` and wrangler's
 // global dirs (dev registry included) at a fresh temp dir, and asserts it is off
 // the live ports before it starts anything. Both Worker configs are copied into
 // a folder with no `.dev.vars` (scripts/worker-config-folder.mts).
@@ -20,11 +20,9 @@ import net from "node:net";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createServer, type ViteDevServer } from "vite";
 import { PRODUCT_ENV } from "../../../scripts/product-env.mjs";
-import { createTestViteServer } from "../../../scripts/test-vite-server.mjs";
+import { startDoorFixture, type DoorFixture, type DoorAttempt } from "./helpers/runner-door-fixture";
 import { secretFreeWorkerConfigs, stopLocalSecretReads } from "../../../scripts/worker-config-folder.mjs";
 import { LOCAL_CONNECTION_VARIABLE, UNREACHABLE_STORE_URL, createTestStore, postgresUnavailable, type TestStore } from "./postgres-store";
 import type { IntegrationCredentialsPayload } from "../shared/integrations-page";
@@ -34,30 +32,9 @@ import {
   RUNNER_SCHEDULED_PATH,
 } from "../shared/runner-lane";
 
-const towerRoot = path.dirname(fileURLToPath(new URL("../vite.config.ts", import.meta.url)));
-
-/** The ports the operator's runtime owns. Never these. */
-const LIVE_PORTS = new Set([5173, 8791]);
-
-/** Ask the kernel for a free port, then hand it back. A tiny race against
- * another process is acceptable; binding a live port is not. */
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer();
-    probe.unref();
-    probe.on("error", reject);
-    probe.listen(0, "127.0.0.1", () => {
-      const address = probe.address();
-      if (typeof address === "string" || address === null) {
-        probe.close(() => reject(new Error("no ephemeral port")));
-        return;
-      }
-      probe.close(() => resolve(address.port));
-    });
-  });
-}
-
-let server: ViteDevServer;
+let server: DoorFixture;
+const attempts: DoorAttempt[] = [];
+const failureAttempts: DoorAttempt[] = [];
 let stateDir: string;
 let towerPort: number;
 let doorPort: number;
@@ -73,14 +50,8 @@ beforeAll(async () => {
   stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "reindex-door-e2e-"));
   vi.stubEnv(PRODUCT_ENV.home.name, stateDir);
   vi.stubEnv(PRODUCT_ENV.installationDir.name, path.join(stateDir, "installation"));
-  towerPort = await freePort();
-  doorPort = await freePort();
-  expect(LIVE_PORTS.has(towerPort), `refusing to bind the live port ${towerPort}`).toBe(false);
-  expect(LIVE_PORTS.has(doorPort), `refusing to bind the live port ${doorPort}`).toBe(false);
-
   process.env.OS_UP_PERSIST_STATE = path.join(stateDir, "state");
   process.env.OS_UP_INGEST_DOOR_HOST = "127.0.0.1";
-  process.env.OS_UP_INGEST_DOOR_PORT = String(doorPort);
   // Keep miniflare's dev registry and wrangler's global dir out of the
   // operator's: a live runtime registers its workers in the shared one.
   process.env.MINIFLARE_REGISTRY_PATH = path.join(stateDir, "registry");
@@ -97,36 +68,52 @@ beforeAll(async () => {
   postgres = postgresUnavailable() === null ? await createTestStore({ scope: "suite" }) : undefined;
   process.env[LOCAL_CONNECTION_VARIABLE] = postgres?.url ?? UNREACHABLE_STORE_URL;
 
-  // No page is loaded from it, so no client optimizer; see the header.
-  server = await createTestViteServer(createServer, {
-    root: towerRoot,
-    configFile: path.join(towerRoot, "vite.config.ts"),
-    server: { port: towerPort, strictPort: true, host: "127.0.0.1" },
-    logLevel: "silent",
-  }, { pages: false });
-  await server.listen();
-
-  // workerd takes a moment to accept the first request; poll rather than
-  // sleep a fixed amount.
-  const deadline = Date.now() + 60_000;
-  for (;;) {
-    try {
-      const res = await fetch(towerUrl("/api/health"));
-      if (res.ok) break;
-    } catch {
-      // not up yet
-    }
-    if (Date.now() > deadline) throw new Error("tower dev server never became ready");
-    await new Promise((r) => setTimeout(r, 250));
+  const stolen = net.createServer(socket => socket.destroy());
+  try {
+    server = await startDoorFixture({ env: process.env, root: stateDir, attempts, beforeAttempt: async (port, index) => {
+      if (index !== 0) return;
+      await new Promise<void>((resolve, reject) => {
+        stolen.once("error", reject);
+        stolen.listen(port, "127.0.0.1", resolve);
+      });
+    } });
+    towerPort = server.towerPort;
+    doorPort = server.doorPort;
+    expect(attempts).toHaveLength(2);
+    expect(attempts[0]).toMatchObject({ collision: true, closed: true });
+    expect(doorPort).not.toBe(attempts[0]!.port);
+    expect([5173, 8791]).not.toContain(towerPort);
+    expect([5173, 8791]).not.toContain(doorPort);
+  } finally {
+    await new Promise<void>((resolve, reject) => stolen.close(error => error ? reject(error) : resolve()));
+    expect(stolen.listening).toBe(false);
   }
 }, 120_000);
 
 afterAll(async () => {
   try {
-    await server?.close();
-    delete process.env[LOCAL_CONNECTION_VARIABLE];
-    await postgres?.close();
-    if (stateDir) await fs.rm(stateDir, { recursive: true, force: true });
+    try { await server?.close(); }
+    finally {
+      delete process.env[LOCAL_CONNECTION_VARIABLE];
+      await postgres?.close();
+    }
+    expect([...attempts, ...failureAttempts].every(attempt => attempt.closed && attempt.removed)).toBe(true);
+    for (const port of [towerPort, doorPort].filter(Boolean)) {
+      await expect(new Promise<void>((resolve, reject) => {
+        const socket = net.connect(port, "127.0.0.1");
+        socket.once("connect", () => { socket.destroy(); reject(new Error(`fixture port ${port} still accepts connections`)); });
+        socket.once("error", error => {
+          socket.destroy();
+          if ((error as NodeJS.ErrnoException).code === "ECONNREFUSED") resolve();
+          else reject(error);
+        });
+      })).resolves.toBeUndefined();
+    }
+    if (stateDir) {
+      await fs.rm(stateDir, { recursive: true, force: true });
+      await expect(fs.stat(stateDir)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+    console.info(JSON.stringify({ cleanup: { attempts, failureAttempts, stateDir, removed: true } }));
   } finally { vi.unstubAllEnvs(); }
 }, 60_000);
 
@@ -280,7 +267,7 @@ describe("the Workers' secrets, end to end", () => {
 describe("the dev server under test", () => {
   // A close during an optimizer run kills the Vitest worker.
   it("runs no dependency optimizer for its close to interrupt", () => {
-    expect(server.environments.client?.depsOptimizer).toBeUndefined();
+    expect(server.optimizerDisabled).toBe(true);
   });
 
   it("puts the Workers' debugger on a port the kernel assigned, not the first free one from 9229", async () => {
@@ -289,4 +276,43 @@ describe("the dev server under test", () => {
     // The kernel hands out ports from 32768 up on Linux and 49152 up on macOS.
     expect(port).toBeGreaterThanOrEqual(32_768);
   });
+});
+
+describe("fixture port acquisition failures", () => {
+  it("fails once on a non-port startup error", async () => {
+    const ownAttempts: DoorAttempt[] = [];
+    try {
+      await expect(startDoorFixture({ root: stateDir, attempts: ownAttempts,
+        env: { ...process.env, NOTICEOS_TEST_VITE_CONFIG: path.join(stateDir, "absent.config.ts") },
+      })).rejects.toThrow("door fixture exited (1)");
+      expect(ownAttempts).toHaveLength(1);
+      expect(ownAttempts[0]).toMatchObject({ collision: false, closed: true, removed: true });
+    } finally { failureAttempts.push(...ownAttempts); }
+  }, 30_000);
+
+  it("fails after bounded collisions and retires every attempt", async () => {
+    const ownAttempts: DoorAttempt[] = [];
+    const blockers: net.Server[] = [];
+    try {
+      await expect(startDoorFixture({ root: stateDir, env: process.env, attempts: ownAttempts, maxAttempts: 2,
+        beforeAttempt: async (port, index, proposedTower) => {
+          const stolen = net.createServer(socket => socket.destroy());
+          blockers.push(stolen);
+          // Exercise both strict Vite binding and the production ingest door.
+          await new Promise<void>((resolve, reject) => {
+            stolen.once("error", reject);
+            stolen.listen(index === 0 ? proposedTower : port, "127.0.0.1", resolve);
+          });
+        },
+      })).rejects.toThrow("door fixture exited (1)");
+      expect(ownAttempts).toHaveLength(2);
+      expect(ownAttempts.every(attempt => attempt.collision && attempt.closed && attempt.removed)).toBe(true);
+    } finally {
+      failureAttempts.push(...ownAttempts);
+      for (const blocker of blockers) {
+        await new Promise<void>((resolve, reject) => blocker.close(error => error ? reject(error) : resolve()));
+        expect(blocker.listening).toBe(false);
+      }
+    }
+  }, 60_000);
 });
