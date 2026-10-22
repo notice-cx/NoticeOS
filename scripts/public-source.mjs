@@ -15,7 +15,7 @@ const ROOT_FILES = new Set(['.gitignore', '.githooks/pre-commit', '.github/workf
   'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json',
   'tsconfig.config-contract.json', 'tsconfig.config-contract.node.json']);
 const TREES = ['apps/tower/', 'workers/ingest/', 'packages/contract/', 'packages/postgres/',
-  'packages/mediavine/', 'scripts/', 'config/', 'db/postgres/', 'db/dolt/', 'db/fixtures/', 'deploy/'];
+  'packages/mediavine/', 'scripts/', 'config/', 'db/postgres/', 'db/dolt/', 'db/fixtures/', 'deploy/', 'dev/cloud/'];
 const PRIVATE_SEGMENTS = /(?:^|\/)(?:\.[^/]+|installation|node_modules|secrets?|backups?|artifacts|test-results|playwright-report|dist|coverage)(?:\/|$)/iu;
 const PRIVATE_FILE = /(?:^|\/)(?:[^/]*\.(?:pem|key|sqlite(?:3)?|db|dump|tar|gz|zip)|credentials(?:\.(?:json|ya?ml|ini|txt))?)$/iu;
 // Public download referenced by the shipped brand page. Review its contents

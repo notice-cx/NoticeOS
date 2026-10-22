@@ -68,6 +68,10 @@ pnpm --filter @noticeos/tower run journey:install
 Linux CI adds `--with-deps`. This uses the checkout's test-browser cache and
 fresh browser profiles, not a personal Chrome profile.
 
+For a disposable Linux cloud host, [the cloud development setup](dev/cloud/README.md)
+provides explicit preparation and a toolchain-activating test launcher. Its
+optional Codex adapter keeps host permissions and runtime credentials separate.
+
 ## Local verification
 
 Choose checks from the diff and the critical paths it affects. Full repository

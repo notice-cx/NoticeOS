@@ -70,11 +70,13 @@ function fixture(t) {
     'tsconfig.config-contract.json', 'tsconfig.config-contract.node.json',
     'scripts/script-tests-setup.mjs', 'apps/tower/package.json', 'workers/ingest/package.json',
     'db/postgres/tables.json', 'db/dolt/host/compose.yaml', 'deploy/compose/Dockerfile',
-    'docs/README.md', 'docs/images/overview.svg', 'workers/ingest/src/credentials.ts',
+    'docs/README.md', 'docs/images/overview.svg', 'dev/cloud/README.md', 'dev/cloud/install.sh',
+    'dev/cloud/codex/setup.sh', 'workers/ingest/src/credentials.ts',
     'workers/ingest/test/credentials.test.ts', 'apps/tower/public/brand/notice-design-system.zip']) write(file);
   write('scripts/public-source.settings.json', JSON.stringify({ schema: 'noticeos-public-documents/1', files: ['docs/README.md', 'docs/images/overview.svg'] }));
   for (const file of ['installation/beads.json', '.beads/config.yaml', '.dev.vars',
-    'scripts/.env', 'apps/tower/node_modules/secret.txt', 'docs/artifacts/private.json',
+    'scripts/.env', 'dev/cloud/.env', 'dev/cloud/credentials.json', 'dev/cloud/artifacts/results.json',
+    'dev/unreviewed.sh', 'apps/tower/node_modules/secret.txt', 'docs/artifacts/private.json',
     'docs/reports/private.md', 'docs/unreviewed.md', 'apps/tower/credentials.json',
     'apps/tower/private.key', 'apps/tower/private.zip', 'apps/tower/dist/compiled.js']) write(file, 'private fixture\n');
   write('.githooks/pre-commit', '#!/bin/sh\nexit 0\n');
@@ -92,8 +94,10 @@ test('export uses the immutable commit, includes required tests and excludes pri
   const names = result.manifest.files.map(row => row.file);
   for (const wanted of ['.githooks/pre-commit', '.github/workflows/ci.yml', 'docs/images/overview.svg',
     'workers/ingest/src/credentials.ts', 'workers/ingest/test/credentials.test.ts',
+    'dev/cloud/README.md', 'dev/cloud/install.sh', 'dev/cloud/codex/setup.sh',
     'apps/tower/public/brand/notice-design-system.zip']) assert.ok(names.includes(wanted), wanted);
   for (const denied of ['.git', '.beads', 'installation', '.dev.vars', 'scripts/.env',
+    'dev/cloud/.env', 'dev/cloud/credentials.json', 'dev/cloud/artifacts', 'dev/unreviewed.sh',
     'apps/tower/node_modules', 'docs/artifacts', 'docs/reports', 'docs/unreviewed.md',
     'apps/tower/untracked.ts', 'apps/tower/credentials.json', 'apps/tower/private.key', 'apps/tower/private.zip', 'apps/tower/dist']) {
     assert.equal(fs.existsSync(path.join(result.directory, denied)), false, denied);
