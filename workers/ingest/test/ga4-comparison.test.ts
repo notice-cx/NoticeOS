@@ -33,6 +33,23 @@ describe('GA4 activity comparison backfill', () => {
     expect(result.day.sameDayLastWeek?.every(value => value === 0)).toBe(true);
   });
 
+  it('reads a busy site whose minutes Google sends as more than a megabyte', async () => {
+    // Every minute of both ranges, in a property and installation clock that is not UTC.
+    const rows: [string, string, number][] = [];
+    const minutesOf = (range: string, date: string, hours: number) => {
+      for (let hour = 0; hour < hours; hour++) for (let minute = 0; minute < 60; minute++)
+        rows.push([range, `${date}${String(hour).padStart(2, '0')}${String(minute).padStart(2, '0')}`, 1]);
+    };
+    minutesOf('today', '20260728', 24); minutesOf('today', '20260729', 5);
+    for (const date of ['20260721', '20260722', '20260723']) minutesOf('last_week', date, 24);
+    const text = JSON.stringify(report(rows, { timeZone: 'America/Los_Angeles' }), null, 2);
+    expect(text.length).toBeGreaterThan(1_000_000);
+    const result = await collectComparison('123456', 'synthetic', vi.fn<typeof fetch>(async () => new Response(text)), NOW, 'America/Los_Angeles');
+    expect(result.day.date).toBe('2026-07-29');
+    expect(result.day.minutes.slice(0, 299).every(value => value === 1)).toBe(true);
+    expect(result.day.sameDayLastWeek?.every(value => value === 1)).toBe(true);
+  });
+
   it.each([{ dataLossFromOtherRow: true }, { subjectToThresholding: true }, { samplingMetadatas: [{}] }, { timeZone: 'invalid' }])('rejects incomplete or unplaceable reports %j', async metadata => {
     await expect(collectComparison('123456', 'synthetic', fetchReport(report([], metadata)), NOW, 'UTC')).rejects.toThrow('incomplete activity comparison');
   });

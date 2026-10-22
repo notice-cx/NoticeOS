@@ -11,6 +11,10 @@ import { reportingTimeZoneOn, type TimeZoneChange } from './time-zone-change.js'
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+const ROW_LIMIT = 10_000;
+/** Google pretty-prints a report at about 230 bytes a row, so a busy site's
+ * five days of minutes pass the shared 1 MB bound well inside the row limit. */
+const MAX_REPORT_BYTES = ROW_LIMIT * 300;
 type Report = { day: Ga4RealtimeDay; quota: Ga4PropertyQuota | null };
 export type SharedComparisons = Map<string, Promise<{ value: Report; observedAt: string }>>;
 type Attempt = { observed_at: string; next_attempt_at: string; error_code: string | null; payload: string | null };
@@ -53,10 +57,10 @@ export async function collectComparison(property: string, accessToken: string, f
     method: 'POST', headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
     body: JSON.stringify({ dimensions: [{ name: 'dateHourMinute' }], metrics: [{ name: 'activeUsers' }],
       dateRanges: [day.date, priorDate].map((date, i) => ({ name: i ? 'last_week' : 'today', startDate: shiftCalendarDate(date, -1), endDate: i ? shiftCalendarDate(date, 1) : 'today' })),
-      orderBys: [{ dimension: { dimensionName: 'dateHourMinute' } }], limit: 10_000, returnPropertyQuota: true }),
+      orderBys: [{ dimension: { dimensionName: 'dateHourMinute' } }], limit: ROW_LIMIT, returnPropertyQuota: true }),
     signal: AbortSignal.timeout(10_000),
   });
-  const raw = await responseJson(response);
+  const raw = await responseJson(response, MAX_REPORT_BYTES);
   if (!response.ok) throw ga4ReadFailure('ga4_comparison', response, raw, nowMs, nowMs);
   const record = asRecord(raw), metadata = asRecord(record?.metadata);
   const dimensions = arrayField(record, 'dimensionHeaders').map(v => stringField(asRecord(v), 'name'));
@@ -68,7 +72,7 @@ export async function collectComparison(property: string, accessToken: string, f
     metadata?.dataLossFromOtherRow === true || metadata?.subjectToThresholding === true || arrayField(metadata, 'samplingMetadatas').length > 0) throw invalid();
   const rows = arrayField(record, 'rows');
   const rowCount = record?.rowCount ?? 0;
-  if (typeof rowCount !== 'number' || rowCount !== rows.length || rows.length > 10_000) throw invalid();
+  if (typeof rowCount !== 'number' || rowCount !== rows.length || rows.length > ROW_LIMIT) throw invalid();
   const start = Date.parse(day.startAt), priorStart = zonedHourStartMs(priorDate, 0, zone);
   const priorEnd = zonedHourStartMs(shiftCalendarDate(priorDate, 1), 0, zone);
   const prior = Array<number | null>((priorEnd - priorStart) / MINUTE).fill(0);
