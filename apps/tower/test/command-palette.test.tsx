@@ -165,7 +165,7 @@ describe("what it lists", () => {
     expect(rows().some(row => row.includes("Meadow Board"))).toBe(false);
     expect(rows().some(row => row.includes("Fern Index"))).toBe(true);
     fireEvent.change(paletteInput(), { target: { value: "Meadow Board" } });
-    expect(rows().some(row => row.includes("Meadow Board"))).toBe(false);
+    expect(document.querySelector('[cmdk-item][data-value="asset:meadow.example"]')).toBeNull();
   });
 
   it("offers every page and every asset", () => {
@@ -241,13 +241,14 @@ describe("what it lists", () => {
     expect(rows().some((row) => row.includes("Money"))).toBe(true);
   });
 
-  it("says so when nothing matches", () => {
+  it("offers task search when no page or site matches", () => {
     renderShell();
     openWithShortcut();
 
     fireEvent.change(paletteInput(), { target: { value: "zzzzzzzz" } });
 
-    expect(screen.getByText("No page or site matches.")).toBeInTheDocument();
+    expect(screen.queryByText("No page or site matches.")).toBeNull();
+    expect(screen.getByText("Search tasks for “zzzzzzzz”")).toBeInTheDocument();
   });
 });
 
@@ -364,4 +365,18 @@ describe("the television has no palette", () => {
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+});
+
+
+it("opens an encoded searched board for ordinary words without remembering the lookup", () => {
+  renderShell();
+  openWithShortcut();
+  const query = '  Retry API: (v2) & #  ';
+  fireEvent.change(paletteInput(), { target: { value: query } });
+  expect(screen.queryByText(/Open task/)).toBeNull();
+  fireEvent.keyDown(paletteInput(), { key: "Enter" });
+  expect(screen.getByTestId("path")).toHaveTextContent("/tasks/all");
+  expect(new URLSearchParams(screen.getByTestId("search").textContent ?? '').get('q')).toBe(query.trim());
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(window.localStorage.getItem(PALETTE_RECENT_KEY)).toBeNull();
 });

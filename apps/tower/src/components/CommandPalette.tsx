@@ -203,9 +203,9 @@ function PaletteBody({
         placeholder="Search pages and sites…"
       />
       <CommandList>
-        {/* A task id matches no page or asset, and its row is force-mounted
-            below, so the empty state would be untrue. */}
-        {beadId ? null : <CommandEmpty>No page or site matches.</CommandEmpty>}
+        {/* Every typed query has a task destination, force-mounted below,
+            so an empty state would be untrue. */}
+        {trimmed ? null : <CommandEmpty>No page or site matches.</CommandEmpty>}
 
         {recentItems.length > 0 ? (
           <CommandGroup heading="Recent">
@@ -302,6 +302,18 @@ function PaletteBody({
                 Open task <span className="font-mono">{beadId}</span>
               </span>
               <CommandShortcut>Enter</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
+        ) : null}
+        {trimmed && !beadId ? (
+          <CommandGroup heading="Find tasks" forceMount>
+            <CommandItem
+              forceMount
+              value="task-search"
+              onSelect={() => go("task-search", `/tasks/all?${new URLSearchParams({ q: trimmed })}`, false)}
+            >
+              <ListTodo className="size-4" />
+              <span className="text-foreground">Search tasks for “{trimmed}”</span>
             </CommandItem>
           </CommandGroup>
         ) : null}
