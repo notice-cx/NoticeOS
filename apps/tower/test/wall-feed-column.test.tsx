@@ -1,6 +1,7 @@
 // The Wall's live feed column.
 import { act, render, screen, within } from "./render";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { WallFeed, feedClock } from "@/components/wall/WallFeed";
 import { WALL_FEED_ARRIVAL_GAP_MS, WALL_FEED_TINT_MS, WALL_FEED_TV_ROWS, type WallFeedItem, type WallFeedPayload } from "@shared/wall-feed";
 
@@ -161,6 +162,19 @@ describe("feedClock", () => {
     expect(feedClock(new Date(2026, 8, 22, 9, 5).getTime(), NOW)).toBe("9:05");
     expect(feedClock(new Date(2026, 8, 21, 19, 40).getTime(), NOW)).toBe("7:40p");
     expect(feedClock(new Date(2026, 8, 21, 6, 40).getTime(), NOW)).toBe("6:40a");
+  });
+});
+
+describe("a task line", () => {
+  it("opens its task's page, and no other line is a link", () => {
+    render(<WallFeed feed={payload([
+      item("a", 5, { kind: "task-claimed", label: "Claimed", tone: "neutral", who: "codex", model: null, task: "mn-7" }),
+      item("b", 9, { kind: "source-failed", label: "Source failed", tone: "error" }),
+    ])} nowMs={NOW} />, { wrapper: MemoryRouter });
+    const [task, other] = screen.getAllByRole("listitem");
+    expect(within(task!).getByRole("link")).toHaveAttribute("href", "/tasks/mn-7");
+    expect(within(task!).getByRole("link")).toHaveTextContent("codex claimed Line a");
+    expect(within(other!).queryByRole("link")).toBeNull();
   });
 });
 
