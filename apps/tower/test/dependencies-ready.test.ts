@@ -3,10 +3,9 @@ import fs, { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, write
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createServer, type Connect, type Plugin, type ViteDevServer } from "vite";
+import { createServer, type Plugin, type ViteDevServer } from "vite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { closeAfterOptimizer, createTestViteServer } from "../../../scripts/test-vite-server.mjs";
-import { dependenciesReady, holdUntil } from "../vite/dependencies-ready";
 
 // A restarted dev server reads its dependency cache before it transforms or
 // answers anything, so the open tabs' reloads during a restart neither shrink
@@ -98,40 +97,11 @@ describe("a restarted Tower serves the libraries it already built", () => {
   it("keeps every cached library, and one version of each, through a transform during the restart", async () => {
     const dir = (owned.dir = fixture());
     const early = earlyTransform();
-    const server = await start(dir, [dependenciesReady(), early]);
+    const server = await start(dir, [early]);
     const [reloaded, settled] = await restart(server, early);
     expect(reloaded).toBeDefined();
     expect(reloaded).toBe(settled);
     expect(cachedLibraries(server)).toEqual(["clsx", "tailwind-merge"]);
   }, 60_000);
 
-  // Vite's own behaviour, which the plugin exists for: if this starts failing
-  // after a Vite upgrade, the upgrade may have closed the gap itself.
-  it("without it, that transform rebuilds the cache from its own imports alone", async () => {
-    const dir = (owned.dir = fixture());
-    const early = earlyTransform();
-    const server = await start(dir, [early]);
-    await restart(server, early);
-    expect(cachedLibraries(server)).toEqual(["clsx"]);
-  }, 60_000);
-});
-
-describe("holdUntil", () => {
-  it("passes a request on only once the cache has been read", async () => {
-    let read!: () => void;
-    const hold = holdUntil(new Promise<void>((resolve) => (read = resolve)));
-    const next = vi.fn();
-    hold({} as Connect.IncomingMessage, {} as never, next);
-    await Promise.resolve();
-    expect(next).not.toHaveBeenCalled();
-    read();
-    await vi.waitFor(() => expect(next).toHaveBeenCalledExactlyOnceWith());
-  });
-
-  it("passes requests on when the read fails, leaving the failure to Vite", async () => {
-    const hold = holdUntil(Promise.reject(new Error("unreadable cache")));
-    const next = vi.fn();
-    hold({} as Connect.IncomingMessage, {} as never, next);
-    await vi.waitFor(() => expect(next).toHaveBeenCalledExactlyOnceWith());
-  });
 });
