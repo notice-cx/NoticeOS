@@ -66,7 +66,7 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 654, projected: true });
   });
 
-  it("compares the whole portfolio's previous month, and a percent only when every site is paced", () => {
+  it("compares the whole portfolio's previous month, and a percent only when every asset is paced", () => {
     const covered = [{ revenueProjection: ready(1_500, 2_000, 40_000) }, { revenueProjection: ready(500, 600, 12_000) }];
     const whole = monthRevenue(portfolio(420), covered);
     expect(whole?.pace?.previousTotal).toBe(520);
@@ -95,7 +95,7 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.crossing).toBeNull();
   });
 
-  it("compares with no month when any covered site has no complete previous month", () => {
+  it("compares with no month when any covered asset has no complete previous month", () => {
     const model = monthRevenue(portfolio(420), [
       { revenueProjection: ready(1_000, 1_000, 30_000) },
       { revenueProjection: ready(1_000, 1_000, null) },
@@ -105,7 +105,7 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.crossing).toBeNull();
   });
 
-  it("states the figure and the projection's own reason when no site is ready yet", () => {
+  it("states the figure and the projection's own reason when no asset is ready yet", () => {
     const model = monthRevenue(portfolio(120), [{ revenueProjection: learning }]);
     expect(model).toMatchObject({ revenue: 120, pace: null, waiting: "Learning from traffic and revenue · 12/21 days." });
   });
@@ -154,13 +154,13 @@ describe("the month's revenue on the Wall", () => {
     expect(monthRevenue({ ...band, forecast: { currency: 'USD', revenue: 50, cost: 35, net: 15 }, revenueRecorded: { booked: true, forecast: true } }, [])).toMatchObject({ revenue: 50, state: 'forecast' });
   });
 
-  it("has nothing to state only when no site has a revenue source", () => {
+  it("has nothing to state only when no asset has a revenue source", () => {
     const noRevenue: RevenueProjection = { ...learning, status: "no-revenue", reason: "Connect a daily revenue source." };
     expect(monthRevenue(portfolio(0), [{ revenueProjection: noRevenue }, {}])).toBeNull();
     expect(monthRevenue(portfolio(0), [])).toBeNull();
   });
 
-  it("adds a learning site's reported days to the month so far and to the pace", () => {
+  it("adds a learning asset's reported days to the month so far and to the pace", () => {
     // Ready: $210 so far, $300 at the end. Learning: $61.50 so far, no pace
     // of its own, so it joins the pace whole.
     const model = monthRevenue(portfolio(0), [
@@ -202,11 +202,11 @@ describe("yesterday's revenue on the Wall", () => {
     dailyRevenue,
   });
 
-  it("adds up every site's report when all of them are in", () => {
+  it("adds up every asset's report when all of them are in", () => {
     expect(yesterdayTotal([site(day(4_318)), site(day(1_207))], NOW)).toEqual({ amount: 55.25, reported: 2, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
   });
 
-  it("leaves a site whose report is not in out of the sum, and counts it", () => {
+  it("leaves an asset whose report is not in out of the sum, and counts it", () => {
     expect(yesterdayTotal([site(day(4_318)), site(day(null))], NOW)).toEqual({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
     expect(yesterdayTotal([site(day(4_318)), site(undefined)], NOW)).toEqual({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
   });
@@ -237,7 +237,7 @@ describe("yesterday's revenue on the Wall", () => {
       .toEqual({ amount: 1, reported: 1, sites: 2, basis: { date: "2026-09-20", timeZone: TZ } });
   });
 
-  it("counts only the sites with a revenue source", () => {
+  it("counts only the assets with a revenue source", () => {
     const withoutSource = [site(day(null), noRevenue), site(undefined, null)];
     expect(hasRevenueSource(withoutSource[0]!)).toBe(false);
     expect(hasRevenueSource(withoutSource[1]!)).toBe(false);

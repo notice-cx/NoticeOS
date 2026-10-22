@@ -43,7 +43,7 @@ export function AssetLedger({
           to="/financials"
           className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
         >
-          All sites →
+          All assets →
         </Link>
       }
       // One word for the rows: the figures are booked, and a month's

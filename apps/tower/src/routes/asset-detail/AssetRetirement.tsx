@@ -63,7 +63,7 @@ function ArchiveConfirm({
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" disabled={saving} onClick={onArchive}>
           <Archive className="size-3.5" aria-hidden />
-          {saving ? "Archiving…" : "Archive site"}
+          {saving ? "Archiving…" : "Archive asset"}
         </Button>
         <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={onCancel}>
           Cancel
@@ -95,7 +95,7 @@ export function ArchiveCard({
     if (!writable) return;
     const from = asset.storedStatus ?? asset.status;
     setSaving(true);
-    void moveStage(from, target, target === "retired" ? "Archive site" : "Restore site")
+    void moveStage(from, target, target === "retired" ? "Archive asset" : "Restore asset")
       .then((ok) => {
         if (!ok) return;
         setConfirming(false);
@@ -154,7 +154,7 @@ export function ArchiveCard({
       ) : (
         <Button type="button" variant="outline" size="sm" disabled={!writable} onClick={() => { if (writable) setConfirming(true); }}>
           <Archive className="size-3.5" aria-hidden />
-          Archive site…
+          Archive asset…
         </Button>
       )}
     </Panel>

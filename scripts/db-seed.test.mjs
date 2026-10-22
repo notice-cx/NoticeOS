@@ -163,7 +163,7 @@ test('a folder whose secrets file names no database is refused in one sentence',
   assert.match(lines[0], /^\[seed\] refusing to seed: DATABASE_URL is not set in .*workers\/ingest\/\.dev\.secrets\.json/u);
 });
 
-test('the fixture names only tables and columns the seed writes, and only invented sites', () => {
+test('the fixture names only tables and columns the seed writes, and only invented assets', () => {
   assert.deepEqual(Object.keys(FIXTURE).filter((key) => key !== 'about').sort(), ['assets', ...HISTORY_TABLES].sort());
   for (const site of FIXTURE.assets) assert.match(site.asset_id, /\.example$/u);
   const bad = path.join(os.tmpdir(), `dev-seed-bad-${process.pid}.json`);
@@ -192,7 +192,7 @@ test('an empty store marked for development takes every invented row, in the Pos
   const home = startFolder(t, { DATABASE_URL: url });
   const { code, lines } = await printed(t, () => seedLocal({ dir: home }));
   assert.equal(code, 0, lines.join('\n'));
-  assert.deepEqual(lines, [`[seed] seeded the store of ${home}: 2 sites, 28 reports, 5 alerts, 9 ledger entries, 2 counter readings, 6 change notes.`]);
+  assert.deepEqual(lines, [`[seed] seeded the store of ${home}: 2 assets, 28 reports, 5 alerts, 9 ledger entries, 2 counter readings, 6 change notes.`]);
   assert.deepEqual(await counts(url), SEEDED);
 
   // Two invented sites, in the fixture's order: the store handed out their places.
@@ -261,8 +261,8 @@ test('a second run is refused, naming what the store holds, and writes nothing',
   assert.deepEqual(lines, [
     '[seed] refusing to seed: this store already holds data.',
     ...HISTORY_TABLES.map((table) => `[seed]   noticeos.${table}: ${FIXTURE[table].length} row(s)`),
-    '[seed]   noticeos.assets: the site meadow.example, on an id or domain the fixture uses',
-    '[seed]   noticeos.assets: the site northwind.example, on an id or domain the fixture uses',
+    '[seed]   noticeos.assets: the asset meadow.example, on an id or domain the fixture uses',
+    '[seed]   noticeos.assets: the asset northwind.example, on an id or domain the fixture uses',
     '[seed] These rows are invented; once mixed in with real ones, nothing in the store can tell them apart.',
     '[seed] Seed only a new development database: pnpm db:try-tower -- --dir <an empty folder>.',
     '[seed] Nothing was written.',
@@ -297,14 +297,14 @@ test('the empty-store refusal counts each Postgres table the fixture fills', asy
   }
 });
 
-test('a store that already holds a site on one of the fixture’s ids or domains is refused', async (t) => {
+test('a store that already holds an asset on one of the fixture’s ids or domains is refused', async (t) => {
   if (unavailable) return t.skip(`no Postgres here: ${unavailable}`);
   const { url } = await copy(t);
   await write(url, [["INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status) VALUES ($1::uuid, 'my-meadow', 'meadow.example', 'Mine', 'live')", ['$ws']]]);
   const home = startFolder(t, { DATABASE_URL: url });
   const { code, lines } = await printed(t, () => seedLocal({ dir: home }));
   assert.equal(code, 1);
-  assert.deepEqual(lines.slice(0, 2), ['[seed] refusing to seed: this store already holds data.', '[seed]   noticeos.assets: the site my-meadow, on an id or domain the fixture uses']);
+  assert.deepEqual(lines.slice(0, 2), ['[seed] refusing to seed: this store already holds data.', '[seed]   noticeos.assets: the asset my-meadow, on an id or domain the fixture uses']);
   assert.deepEqual(await counts(url), { ...EMPTY, assets: 1 });
 });
 
@@ -405,7 +405,7 @@ async function getJson(url) {
   return { status: response.status, body: await response.json() };
 }
 
-test('after the seed, a real Tower shows the invented rows: the sites and their alerts, a report, the money', { timeout: 600_000 }, async (t) => {
+test('after the seed, a real Tower shows the invented rows: the assets and their alerts, a report, the money', { timeout: 600_000 }, async (t) => {
   // The command starts its own Postgres in its own process, where its absence
   // is only an exit code: decide here.
   if (!findPostgres() && !postgresRequired()) return t.skip('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');

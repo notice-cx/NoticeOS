@@ -12,7 +12,7 @@ import { laneFieldOp, laneFieldUnsetOp } from "./lane-mapping-ops";
 export const DECLINE_REASONS = [
   { id: "product", label: "Don't use this product" },
   { id: "replaced", label: "Replaced by another tool" },
-  { id: "not-relevant", label: "Not relevant for this site" },
+  { id: "not-relevant", label: "Not relevant for this asset" },
 ] as const;
 
 export type DeclineReasonId = (typeof DECLINE_REASONS)[number]["id"];

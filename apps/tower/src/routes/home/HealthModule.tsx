@@ -74,8 +74,8 @@ const NAME_CELL = "col-span-full @md:col-span-1";
  */
 export function HealthModule({ cards, issues, nowMs = null }: { cards: readonly AssetCard[]; issues: readonly WallIssue[]; nowMs?: number | null }) {
   return (
-    <section aria-label="Site health" className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-site-health="">
-      <SectionLabel title="Site health" />
+    <section aria-label="Asset health" className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-site-health="">
+      <SectionLabel title="Asset health" />
       <div className="@container flex flex-col">
         <div aria-hidden className={cn(ROW, "pb-1 text-micro text-muted-foreground")} data-site-health-header="">
           <span className={cn(NAME_CELL, "hidden @md:block")} />
@@ -115,7 +115,7 @@ export function HealthModule({ cards, issues, nowMs = null }: { cards: readonly 
         </ul>
       </div>
       <p className="m-0 text-xs text-muted-foreground">
-        From the hourly home-page check, what visitors’ browsers recorded, four weeks of visits from search and each site’s code report.
+        From the hourly home-page check, what visitors’ browsers recorded, four weeks of visits from search and each asset’s code report.
       </p>
     </section>
   );

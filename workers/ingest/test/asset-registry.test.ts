@@ -12,8 +12,8 @@ import { posthogCandidates } from '../src/posthog-dumps.js';
 import { TEST_OS_ASSET } from './invented-sites';
 import { addSites, inSiteOrder, storeSites } from './sites';
 
-describe('the site list is read on Postgres', () => {
-  it('knows stored sites and every stored id', async () => {
+describe('the asset list is read on Postgres', () => {
+  it('knows stored assets and every stored id', async () => {
     expect(await assetKnown(env.STORE, 'northwind.example')).toBe(true);
     expect(await assetKnown(env.STORE, 'never-added.example')).toBe(false);
     expect([...(await knownAssetIds(env.STORE))].sort()).toEqual((await storeSites()).map((site) => site.id));
@@ -23,7 +23,7 @@ describe('the site list is read on Postgres', () => {
     expect(await readOsAssetId(env)).toBe(TEST_OS_ASSET);
   });
 
-  it('collects the active stored sites', async () => {
+  it('collects the active stored assets', async () => {
     for (const candidates of [
       await loadBingPortfolioCandidates(env.STORE),
       await clarityCandidates(env.STORE),
@@ -35,7 +35,7 @@ describe('the site list is read on Postgres', () => {
     expect(await dataForSeoCandidates(env.STORE, 'meadow.example')).toEqual([{ asset: 'meadow.example', domain: 'meadow.example' }]);
   });
 
-  it('lists sites by their stored place: the order they were added in, whatever their instants and ids', async () => {
+  it('lists assets by their stored place: the order they were added in, whatever their instants and ids', async () => {
     // Neither the instant a site was added nor its id orders the list: the
     // latest instant comes first here, and the ids are out of order.
     await addSites([

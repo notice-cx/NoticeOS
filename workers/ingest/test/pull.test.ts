@@ -506,7 +506,7 @@ describe('pull adapter — the OS is what is down', () => {
     expect(flag).toMatchObject({
       asset: 'root-os',
       severity: 'warn',
-      message: 'OS egress down — 2 properties unmeasured',
+      message: 'OS egress down — 2 assets unmeasured',
     });
   });
 

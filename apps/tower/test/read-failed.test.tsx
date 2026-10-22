@@ -65,7 +65,7 @@ const readsOf = (fetchMock: ReturnType<typeof storeDown>, path: string) =>
 describe("a page whose first read failed draws the shared failure", () => {
   it.each([
     ["Home", "/", <HomeRoute />, "Couldn't load Home", "/api/wall"],
-    ["Sites", "/assets", <AssetsRoute />, "Couldn't load your sites", "/api/wall"],
+    ["Portfolio", "/assets", <AssetsRoute />, "Couldn't load your assets", "/api/wall"],
     ["Alerts", "/alerts", <AlertsRoute />, "Couldn't load alerts", "/api/wall"],
     ["the Wall", "/wall", <WallRoute />, "Couldn't load the Wall", "/api/wall"],
     ["Integrations", "/integrations", <IntegrationsRoute />, "Couldn't load integrations", "/api/integrations/providers"],
@@ -126,14 +126,14 @@ describe("ReadFailed", () => {
   it("puts a detail ahead of the reason and holds Try again while the retry is out", () => {
     const onRetry = vi.fn();
     const { rerender } = render(
-      <ReadFailed title="Couldn't load this site" subject="read:site" detail="example.com" error={new TypeError("x")} retrying={false} onRetry={onRetry} />,
+      <ReadFailed title="Couldn't load this asset" subject="read:site" detail="example.com" error={new TypeError("x")} retrying={false} onRetry={onRetry} />,
     );
     expect(screen.getByRole("status")).toHaveTextContent("example.com · No answer");
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
 
     rerender(
-      <ReadFailed title="Couldn't load this site" subject="read:site" detail="example.com" error={new TypeError("x")} retrying onRetry={onRetry} />,
+      <ReadFailed title="Couldn't load this asset" subject="read:site" detail="example.com" error={new TypeError("x")} retrying onRetry={onRetry} />,
     );
     expect(screen.getByRole("button", { name: "Retrying…" })).toBeDisabled();
   });

@@ -105,11 +105,11 @@ test('already-recorded proof is not re-appended (idempotent re-runs)', () => {
   assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['meadow.example'] }], recorded, NOW), null);
 });
 
-test('proved property that is already live yields no op', () => {
+test('proved asset that is already live yields no op', () => {
   assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['northwind.example'] }], register, NOW), null);
 });
 
-test('proved property that is not-applicable yields no op', () => {
+test('proved asset that is not-applicable yields no op', () => {
   assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['acorn.example'] }], register, NOW), null);
 });
 
@@ -139,7 +139,7 @@ test('no proofs → null (nothing to stage)', () => {
   assert.equal(suggestChangeset([], register, NOW), null);
 });
 
-test('unknown property in proofs is ignored, not thrown', () => {
+test('unknown asset in proofs is ignored, not thrown', () => {
   assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['ghost.example'] }], register, NOW), null);
 });
 
@@ -222,7 +222,7 @@ async function withMockFetch(mock, run) {
   }
 }
 
-test('GA4 mints one scoped token per service account and reuses it across properties', async () => {
+test('GA4 mints one scoped token per service account and reuses it across assets', async () => {
   const calls = [];
   const result = await withMockFetch(
     async (url, init = {}) => {
@@ -285,7 +285,7 @@ test('GA4 probe resolves the compiled per-account credential binding', async () 
   assert.equal(result.rows[0].state, 'pass');
 });
 
-test('GSC mints one scoped token and proves every exact property assigned to the account', async () => {
+test('GSC mints one scoped token and proves every exact asset assigned to the account', async () => {
   const calls = [];
   const result = await withMockFetch(
     async (url, init = {}) => {
@@ -322,7 +322,7 @@ test('GSC mints one scoped token and proves every exact property assigned to the
   );
 });
 
-test('a property assigned to two service accounts fails closed before authentication', async () => {
+test('an asset assigned to two service accounts fails closed before authentication', async () => {
   const vars = {
     GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({
       first: {
@@ -364,7 +364,7 @@ const pullConfig = JSON.parse(await fs.readFile(PULL_FIXTURE, 'utf8'));
 const enabledPullEntries = pullConfig.filter((e) => e.enabled !== false);
 const probeFixturePull = (vars) => probePull(vars, { pullFile: PULL_FIXTURE });
 
-test('pull probe presents each property ASSET_TOKENS entry as its scrape bearer', async () => {
+test('pull probe presents each asset ASSET_TOKENS entry as its scrape bearer', async () => {
   const tokens = Object.fromEntries(enabledPullEntries.map((e) => [e.asset, `${e.asset}-asset-token`]));
   const calls = [];
   const result = await withMockFetch(
@@ -389,7 +389,7 @@ test('pull probe presents each property ASSET_TOKENS entry as its scrape bearer'
   );
 });
 
-test('a rejected token names ASSET_TOKENS in the fix, and untokened properties are not fetched', async () => {
+test('a rejected token names ASSET_TOKENS in the fix, and untokened assets are not fetched', async () => {
   const [first] = enabledPullEntries;
   const calls = [];
   const result = await withMockFetch(
@@ -425,7 +425,7 @@ test('a mapped counter the endpoint no longer serves warns by name, beside the s
   assert.deepEqual(unlabelled.rows.map((row) => [row.state, row.detail]), [['pass', '1 counters — process_uptime_seconds']]);
 });
 
-test('no pullable property yet → one quiet skip row, nothing fetched', async () => {
+test('no pullable asset yet → one quiet skip row, nothing fetched', async () => {
   let fetches = 0;
   const result = await withMockFetch(
     async () => {
@@ -886,7 +886,7 @@ test('the store lane is proved by the OS, not by decrypting anything here', asyn
     {
       'bing-webmaster': {
         ok: true,
-        message: 'Reached Bing Webmaster — 3 verified sites.',
+        message: 'Reached Bing Webmaster — 3 verified assets.',
         checkedAt: NOW,
       },
     },
@@ -896,7 +896,7 @@ test('the store lane is proved by the OS, not by decrypting anything here', asyn
 
   assert.deepEqual(
     result.rows.map((row) => [row.state, row.detail]),
-    [['pass', 'Reached Bing Webmaster — 3 verified sites.']],
+    [['pass', 'Reached Bing Webmaster — 3 verified assets.']],
   );
   // The proof came from the OS's own test route — the credential never left it.
   assert.deepEqual(
@@ -936,7 +936,7 @@ test('Google is tested ONCE for the two lanes it powers', async () => {
     {
       google: {
         ok: true,
-        message: 'Signed in — 3 verified sites, 2 GA4 properties.',
+        message: 'Signed in — 3 verified assets, 2 GA4 properties.',
         checkedAt: NOW,
       },
     },

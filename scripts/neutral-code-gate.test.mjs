@@ -115,16 +115,16 @@ describe('the list comes from this installation, never from the gate', () => {
     const root = scratchInstallation('export {};\n');
     const inventory = path.join(root, 'installation/neutral-names.json');
     const document = JSON.parse(readFileSync(inventory, 'utf8'));
-    document.assets.push({ id: 'retired-site', domain: 'old.example', displayName: "Old's Site", isOs: false });
+    document.assets.push({ id: 'retired-site', domain: 'old.example', displayName: "Old's Asset", isOs: false });
     writeFileSync(inventory, JSON.stringify(document));
     assert.equal(existsSync(path.join(root, 'db/migrations')), false);
     const run = runGate(['--root', root, '--names', '--json']);
     assert.equal(run.status, 0, run.stderr);
     const names = JSON.parse(run.stdout);
-    for (const name of ['home-os', 'os.home.example', 'Shop', 'retired-site', 'old.example', "Old's Site"]) {
+    for (const name of ['home-os', 'os.home.example', 'Shop', 'retired-site', 'old.example', "Old's Asset"]) {
       assert.ok(names.some(row => row.name === name && row.source.startsWith('installation/neutral-names.json')), name);
     }
-    const hits = findOffenders("const x = ['home-os', 'retired-site', 'old.example', \"Old's Site\"];", 'apps/tower/src/x.ts', installationNames(root));
+    const hits = findOffenders("const x = ['home-os', 'retired-site', 'old.example', \"Old's Asset\"];", 'apps/tower/src/x.ts', installationNames(root));
     assert.equal(hits.length, 4);
   });
 
@@ -155,7 +155,7 @@ describe('the list comes from this installation, never from the gate', () => {
 
   // A site's display name and the Google accounts its sources
   // route through name the installation as surely as its domain does.
-  test("a site's display name, its Google account and a name inside a path are caught", () => {
+  test("an asset's display name, its Google account and a name inside a path are caught", () => {
     const root = scratchInstallation('export {};\n');
     const names = installationNames(root);
     const hits = (text) => findOffenders(text, 'docs/x.md', names).map((offender) => offender.name);
@@ -260,7 +260,7 @@ describe('it fails on a planted name', () => {
 
   // A fresh clone seeds config/, so a name or a zone there
   // is in every stranger's installation.
-  test('a product default in config/ that names a site or a zone fails', () => {
+  test('a product default in config/ that names an asset or a zone fails', () => {
     const root = scratchInstallation('export {};\n');
     writeFileSync(path.join(root, 'config/integrations.json'), JSON.stringify({ assets: { 'shop.example': {} } }));
     writeFileSync(path.join(root, 'config/constants.json'), JSON.stringify({ os_time_zone: 'Europe/Warsaw' }));
@@ -277,7 +277,7 @@ describe('it fails on a planted name', () => {
   // A stranger learns the product from the READMEs beside the defaults, so
   // they name nobody's sites or clock; one installation's own history and
   // decisions live in its installation folder.
-  test('a README or the changeset format naming a site or a zone fails', () => {
+  test('a README or the changeset format naming an asset or a zone fails', () => {
     const root = scratchInstallation('export {};\n');
     mkdirSync(path.join(root, 'config/changesets'), { recursive: true });
     writeFileSync(path.join(root, 'config/serp-panel.README.md'), '# panel\n\n`shop.example` is at 28 of 31.\n');
@@ -313,7 +313,7 @@ describe('it fails on a planted name', () => {
 
   // The suites, the e2e walks, their frozen fixtures and the
   // dev seed name invented sites. A zone there is test data, not a clock.
-  test('test code names none of the installation’s sites, and may name a zone', () => {
+  test('test code names none of the installation’s assets, and may name a zone', () => {
     const names = installationNames(scratchInstallation('export {};\n'));
     for (const file of ['apps/tower/test/x.test.tsx', 'apps/tower/e2e/harness.ts', 'workers/ingest/test/fixture-config/pull.json',
       'packages/contract/test/x.test.ts', 'scripts/x.test.mjs', 'scripts/fixture-config/beads.json', 'db/fixtures/dev-seed.json',
@@ -420,13 +420,13 @@ describe('where it stops you', () => {
   });
 
   test('a newly staged historical name rescans unchanged product files', () => {
-    const root = scratchInstallation("export const site = 'retired.example';\n", { git: true });
+    const root = scratchInstallation("export const asset = 'retired.example';\n", { git: true });
     assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
     assert.equal(spawnSync('git', ['commit', '-qm', 'Synthetic neutral gate fixture'], { cwd: root }).status, 0);
     assert.equal(runGate(['--staged', '--root', root], root).status, 0);
     const inventory = path.join(root, 'installation/neutral-names.json');
     const document = JSON.parse(readFileSync(inventory, 'utf8'));
-    document.assets.push({ id: 'retired.example', domain: 'retired.example', displayName: 'Retired Site', isOs: false });
+    document.assets.push({ id: 'retired.example', domain: 'retired.example', displayName: 'Retired Asset', isOs: false });
     writeFileSync(inventory, JSON.stringify(document));
     assert.equal(spawnSync('git', ['add', 'installation/neutral-names.json'], { cwd: root }).status, 0);
     const blocked = runGate(['--staged', '--root', root], root);

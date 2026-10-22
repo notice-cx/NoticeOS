@@ -32,7 +32,7 @@ function clarity(known = [FIRST, SECOND]): { fetchImpl: typeof fetch; calls: str
   return { fetchImpl, calls };
 }
 
-describe('one site’s token, saved on its row', () => {
+describe('one asset’s token, saved on its row', () => {
   beforeEach(async () => {
     await reset();
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -42,7 +42,7 @@ describe('one site’s token, saved on its row', () => {
     await forgetCredentials();
   });
 
-  it('merges each paste into the per-site map, never replacing another site’s token', async () => {
+  it('merges each paste into the per-asset map, never replacing another asset’s token', async () => {
     const first = await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: `  ${FIRST}  ` });
     expect(first.ok).toBe(true);
     expect(await tokens()).toEqual({ 'meadow.example': FIRST });
@@ -56,7 +56,7 @@ describe('one site’s token, saved on its row', () => {
     expect(JSON.stringify(first)).not.toContain(FIRST);
   });
 
-  it('refuses a blank token, a site that is not the installation’s own, and a provider with one key', async () => {
+  it('refuses a blank token, an asset that is not the installation’s own, and a provider with one key', async () => {
     expect(await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: '   ' })).toMatchObject({ ok: false, error: 'validation', issues: [{ path: 'token' }] });
     expect(await putSiteToken(env, { provider: 'clarity', asset: 'nobody.example', token: FIRST })).toMatchObject({ ok: false, error: 'validation', issues: [{ path: 'asset' }] });
     expect(await putSiteToken(env, { provider: 'bing-webmaster', asset: 'meadow.example', token: FIRST })).toEqual({ ok: false, error: 'not_supported', provider: 'bing-webmaster' });
@@ -64,7 +64,7 @@ describe('one site’s token, saved on its row', () => {
     expect(await storedCredential('clarity')).toBeNull();
   });
 
-  it('runs the export now for the named site only, spending one call there and none elsewhere', async () => {
+  it('runs the export now for the named asset only, spending one call there and none elsewhere', async () => {
     await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: FIRST });
     await putSiteToken(env, { provider: 'clarity', asset: 'northwind.example', token: SECOND });
     const { fetchImpl, calls } = clarity();

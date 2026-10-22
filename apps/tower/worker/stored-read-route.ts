@@ -217,6 +217,7 @@ export async function handleStoredRead(request: Request, {
       const deps = {
         now: new Date(),
         flagDefaults: cfg.flagDefaults,
+        dashboard: cfg.dashboard,
         pullConfig: cfg.pullConfig,
         monthlyCaps: cfg.monthlyCaps,
         operatorRateUsdPerMin: cfg.operatorRateUsdPerMin,

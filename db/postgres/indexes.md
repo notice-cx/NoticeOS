@@ -62,8 +62,8 @@ query chooses that index or that its write cost has been measured.
 | `ledger_entries_ref` | Non-null originating change references in ledger reads; partial reference access in the `financial_ledger` view. |
 | `mediavine_runs_asset` | Asset attempt history (`workers/ingest/src/integration-health-read.ts`). |
 | `mediavine_daily_latest` | Latest revision per asset/provider site/report date in `mediavine_current_daily`. |
-| `revenue_observations_latest` | Latest figure per asset/source/account/day/item in `current_revenue`, and one site's revenue history (`apps/tower/worker/daily-revenue.ts`). |
-| `revenue_observations_recorded` | Each site's figures recorded since the feed's window opened (`apps/tower/worker/wall-feed.ts`). |
+| `revenue_observations_latest` | Latest figure per asset/source/account/day/item in `current_revenue`, and one asset's revenue history (`apps/tower/worker/daily-revenue.ts`). |
+| `revenue_observations_recorded` | Each asset's figures recorded since the feed's window opened (`apps/tower/worker/wall-feed.ts`). |
 | `integration_capability_state_attention` | Workspace outcome lookup for attention reads (`workers/ingest/src/integration-health-read.ts`). |
 | `integration_health_events_target` | Attempt history for a capability target; target foreign key. |
 | `integration_health_events_recorded` | Workspace event feed ordered by recording time (`apps/tower/worker/wall-feed.ts`). |

@@ -185,7 +185,7 @@ describe('connected with the account key', () => {
     expect(listed.ok && listed.sites.map((site) => [site.ref, site.host, site.funnels?.length ?? 0])).toEqual([['us:424242', 'meadow.example', 2], ['us:12', null, 0]]);
   });
 
-  it('archives a mapped site with the account key, recorded as that key', async () => {
+  it('archives a mapped asset with the account key, recorded as that key', async () => {
     await seedPosthogMapping();
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_API_KEY: KEY } });
     const { fetchImpl, calls } = posthog();
@@ -201,7 +201,7 @@ describe('connected with the account key', () => {
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog' AND credential_ref = 'store:POSTHOG_API_KEY'`)).toBe(6);
   });
 
-  it('collects now through the product analytics job for the confirmed site', async () => {
+  it('collects now through the product analytics job for the confirmed asset', async () => {
     await seedPosthogMapping();
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_API_KEY: KEY } });
     const result = await runCollectNow(env, { provider: 'posthog', assets: ['meadow.example'] }, { fetchImpl: posthog().fetchImpl, nowMs: NOW });

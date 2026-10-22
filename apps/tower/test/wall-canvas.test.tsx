@@ -246,7 +246,7 @@ const RETIRED_MARKS = [
 ].join(", ");
 
 describe("the Wall nobody rearranged is the default", () => {
-  it("draws the strip and the loop, then the last 24 hours over the sites beside revenue over the work", () => {
+  it("draws the strip and the loop, then the last 24 hours over the assets beside revenue over the work", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     const canvasEl = view.container.querySelector("[data-wall-canvas]")!;
     expect([...canvasEl.children].map((row) => [row.getAttribute("data-wall-row"), row.getAttribute("data-wall-row-height")])).toEqual([
@@ -286,7 +286,7 @@ describe("the Wall nobody rearranged is the default", () => {
   // On a portrait tablet or a phone the rows dissolve and the Wall is one
   // column read in the operator's order: the sites before the problems and the
   // work, because their numbers are the state of the business.
-  it("stacks below the TV in one order whatever the layout: strip, revenue, sites, problems, work, feed, loop", () => {
+  it("stacks below the TV in one order whatever the layout: strip, revenue, assets, problems, work, feed, loop", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     for (const row of view.container.querySelectorAll("[data-wall-row]")) expect(row).toHaveClass("contents", "tv:grid");
     expect(view.container.querySelector("[data-wall-column]")).toHaveClass("contents", "tv:flex");
@@ -322,7 +322,7 @@ describe("the Wall nobody rearranged is the default", () => {
     for (const id of ["money", "sites", "timeline", "work"]) expect(row(id), id).toHaveLength(1);
   });
 
-  it("gives the site rows what the timeline leaves and revenue what the work leaves", () => {
+  it("gives the asset rows what the timeline leaves and revenue what the work leaves", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     // At the TV's width (`tv:`), where the rows are boxes.
     for (const id of ["body", "sites", "money"]) {
@@ -449,7 +449,7 @@ describe("a rearranged layout", () => {
     expect(tracks(view.container.querySelector("[data-wall-row='money']")!)).toEqual(["0rem|1fr", "0rem|2.5fr"]);
   });
 
-  it("shows only the sites a widget's filter lists, in the filter's order", () => {
+  it("shows only the assets a widget's filter lists, in the filter's order", () => {
     const both = canvas(DEFAULT_WALL_LAYOUT);
     expect(both.container.querySelectorAll("[data-site-row]")).toHaveLength(2);
     both.unmount();
@@ -573,7 +573,7 @@ describe("every default widget draws its own empty state", () => {
 // A site's TV switch filters site rows and counts, whatever a widget's site
 // list names; its Work this week switch takes its row out of Work alone.
 // Revenue and the live feed keep every site's money and activity.
-describe("a site off the TV by its own setting", () => {
+describe("an asset off the TV by its own setting", () => {
   const everything: WallLayout = {
     version: 1,
     rows: [
@@ -595,7 +595,7 @@ describe("a site off the TV by its own setting", () => {
   };
   const siteRows = (root: Element) => [...root.querySelectorAll("[data-site-row]")].map((row) => row.getAttribute("data-site-row"));
 
-  it("leaves site rows and counts, while its activity stays in the live feed", () => {
+  it("leaves asset rows and counts, while its activity stays in the live feed", () => {
     const view = canvas(everything, { dashboard: { ...PAYLOAD.dashboard, sites: { "meadow.example": { tv: false } } } });
     expect(siteRows(view.container)).toEqual(["northwind.example"]);
     expect(view.container.querySelector('[data-wall-timeline] [data-lane="meadow.example"]')).toBeNull();
@@ -606,7 +606,7 @@ describe("a site off the TV by its own setting", () => {
     expect(view.container.querySelector('[data-flow-node="act"]')?.textContent).toContain("1");
   });
 
-  it("keeps tasks, alerts, system activity and site icons when every site is off the TV", () => {
+  it("keeps tasks, alerts, system activity and asset icons when every asset is off the TV", () => {
     const view = canvas(everything, {
       dashboard: { ...PAYLOAD.dashboard, sites: { "meadow.example": { tv: false }, "northwind.example": { tv: false } } },
       assets: PAYLOAD.assets.map((site) => ({
@@ -629,7 +629,7 @@ describe("a site off the TV by its own setting", () => {
     expect(view.container.querySelectorAll("[data-wall-work] [data-work-row]")).toHaveLength(1);
   });
 
-  it("keeps an archived site hidden even with its TV switch on", () => {
+  it("keeps an archived asset hidden even with its TV switch on", () => {
     const retired = [asset("meadow.example", "Meadow Board"), { ...asset("northwind.example", "Northwind"), status: "retired" }];
     const off = canvas(everything, { assets: retired });
     expect(siteRows(off.container)).toEqual(["meadow.example"]);

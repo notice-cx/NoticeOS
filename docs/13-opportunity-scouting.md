@@ -13,9 +13,9 @@ the world outside the portfolio.*
 ## Why this is a first-class function, not a nice-to-have
 
 The portfolio's first successes all came from opportunities people found by
-hand, outside the portfolio: a federal site's retirement (the case for an
+hand, outside the portfolio: a federal asset's retirement (the case for an
 entire asset from one policy event), the orphaned-demand opportunities (two
-sites — Wayback mining), the Raptive threshold drop (an eligibility change
+assets — Wayback mining), the Raptive threshold drop (an eligibility change
 worth a step increase in revenue), a vendor pricing change that made the
 reclamation program viable overnight. People found those. NoticeOS's
 objective is compounding ROI, so its highest-expected-value kind of discovery
@@ -57,7 +57,7 @@ cannot depend on the operator finding things by chance.
    asset automatically generates candidate cards for the others (the ledger
    already records what worked; transfer applies the portfolio's own evidence
    to other assets). The deterministic executive rules generalized from one
-   site's manual analysis are this category's first output —
+   asset's manual analysis are this category's first output —
    [doc 08](08-seo-geo-signals.md)'s rule inventory, thresholds in
    `scripts/signal-insights.mjs`.
 
@@ -96,7 +96,7 @@ feeds whose routed items never lead to a shipped card are removed.
 ## Current stored search-opportunity data
 
 The weekly DataForSEO archive is the first implemented scouting input that is
-both metered and historical. It stores, per launched property:
+both metered and historical. It stores, per launched asset:
 
 - ranked keyword + URL + position joined to estimated demand, CPC, difficulty,
   intent, SERP features, and estimated visits/cost;
@@ -165,7 +165,7 @@ deterministic script a cheap model operates.
 **There is no playbook library in this repo.** The methods that are
 portfolio-generic are kept as rules in [doc 08](08-seo-geo-signals.md) and in
 the instructions of the panel-review task (`scripts/runner/panel-review.mjs`);
-one site's own methods belong in that site's repository. A method is
+one asset's own methods belong in that asset's repository. A method is
 portfolio-generic only when its thresholds are re-established for each asset,
 its negative results are recorded as part of the method, and its final form is
 a tool.
@@ -173,7 +173,7 @@ a tool.
 **A playbook gets its own table when its log is needed to enforce its own
 decision rules.** `reclamation-pipeline`'s outreach log is
 `noticeos.reclamation_targets`, filled by `scripts/reclamation-import.mjs`,
-shown as the property page's Link outreach funnel, and checked by the
+shown as the asset page's Link outreach funnel, and checked by the
 `reclamation-match` rule — without a recorded conversion rate, a campaign
 cannot apply the abandonment rule it documents.
 

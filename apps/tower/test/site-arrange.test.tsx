@@ -116,25 +116,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Arrange on the Sites page", () => {
-  it("lists every site in your order, hidden ones included, each with its three switches", () => {
+describe("Arrange on the Assets page", () => {
+  it("lists every asset in your order, hidden ones included, each with its three switches", () => {
     stubFetch();
     const { container } = renderSites();
     expect(screen.getByRole("heading", { name: "Arrange" })).toBeInTheDocument();
     expect(rows(container)).toEqual(["meadow.example", "northwind.example", "ferns.example"]);
     const checked = (name: string) => screen.getByRole("switch", { name }).getAttribute("aria-checked");
-    expect(checked("Home and Sites list for Meadow Board")).toBe("true");
-    expect(checked("Home and Sites list for Northwind")).toBe("false");
+    expect(checked("Home and Portfolio for Meadow Board")).toBe("true");
+    expect(checked("Home and Portfolio for Northwind")).toBe("false");
     expect(checked("TV for Northwind")).toBe("true");
-    for (const label of ["Home and Sites list", "TV", "Work this week"]) expect(checked(`${label} for Fern Index`)).toBe("false");
+    for (const label of ["Home and Portfolio", "TV", "Work this week"]) expect(checked(`${label} for Fern Index`)).toBe("false");
     expect(screen.getByRole("link", { name: "Restore" })).toHaveAttribute("href", "/assets/ferns.example/settings#restore");
-    for (const label of ["Home and Sites list", "TV", "Work this week"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
+    for (const label of ["Home and Portfolio", "TV", "Work this week"]) expect(screen.getByRole("switch", { name: `${label} for Fern Index` })).toBeDisabled();
     // A retired site reads Retired beside its name; the others carry no stage.
     expect(container.querySelector('[data-site-arrange-row="ferns.example"]')).toHaveTextContent("Retired");
     expect(container.querySelector('[data-site-arrange-row="meadow.example"]')).not.toHaveTextContent("Retired");
   });
 
-  it("opens from the Sites page's Arrange and from its hidden count, and keeps the order and the stage", () => {
+  it("opens from the Assets page's Arrange and from its hidden count, and keeps the order and the stage", () => {
     stubFetch();
     // Two listed sites, so the page draws its controls.
     state.wall = payload([...SITES, card("acorn.example", "Acorn Atlas")]);
@@ -143,11 +143,11 @@ describe("Arrange on the Sites page", () => {
     expect(container.querySelector("[data-assets-hidden]")).toHaveAttribute("href", "/assets?sort=name&arrange=1");
   });
 
-  it("moves a site up through the one site-order write, with Undo sending the order it left", async () => {
+  it("moves an asset up through the one asset-order write, with Undo sending the order it left", async () => {
     const calls = stubFetch();
     renderSites();
     fireEvent.click(screen.getByRole("button", { name: "Move Northwind up" }));
-    await waitFor(() => expect(lastToast()?.[0]).toBe("Site order saved"));
+    await waitFor(() => expect(lastToast()?.[0]).toBe("Asset order saved"));
     expect(calls[0]).toMatchObject({ url: "/api/assets/northwind.example/order", method: "PATCH", body: { to: "meadow.example" } });
     // Drawn in its new place before the read that follows lands.
     expect(rows(document)).toEqual(["northwind.example", "meadow.example", "ferns.example"]);
@@ -156,7 +156,7 @@ describe("Arrange on the Sites page", () => {
     expect(calls[1]?.body).toEqual({ to: "meadow.example", expectRevision: "b".repeat(64) });
   });
 
-  it("switches a site off the TV through the one config write, with Undo writing the exact reverse", async () => {
+  it("switches an asset off the TV through the one config write, with Undo writing the exact reverse", async () => {
     const calls = stubFetch();
     renderSites();
     fireEvent.click(screen.getByRole("switch", { name: "TV for Meadow Board" }));
@@ -174,7 +174,7 @@ describe("Arrange on the Sites page", () => {
     await waitFor(() => expect(lastToast()?.[0]).toBe("Reverted — Meadow Board hidden on the TV"));
   });
 
-  it("returns on Done to the list in the chosen order, the hidden sites gone and counted", () => {
+  it("returns on Done to the list in the chosen order, the hidden assets gone and counted", () => {
     stubFetch();
     const { container } = renderSites("/assets?sort=name&arrange=1");
     fireEvent.click(screen.getByRole("link", { name: "Done" }));
@@ -194,8 +194,8 @@ describe("Arrange on the Sites page", () => {
   });
 });
 
-describe("Where it shows, on a site's Settings tab", () => {
-  it("shows the site's place and its switches as Arrange does, and moves it with the same write", async () => {
+describe("Where it shows, on an asset's Settings tab", () => {
+  it("shows the asset's place and its switches as Arrange does, and moves it with the same write", async () => {
     const calls = stubFetch();
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -205,9 +205,9 @@ describe("Where it shows, on a site's Settings tab", () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText("2nd of 3")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Home and Sites list for Northwind" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "Home and Portfolio for Northwind" })).toHaveAttribute("aria-checked", "false");
     expect(screen.getByRole("switch", { name: "TV for Northwind" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("link", { name: /Arrange the sites/u })).toHaveAttribute("href", "/assets?arrange=1");
+    expect(screen.getByRole("link", { name: /Arrange the assets/u })).toHaveAttribute("href", "/assets?arrange=1");
     fireEvent.click(screen.getByRole("button", { name: "Move Northwind down" }));
     await waitFor(() => expect(calls[0]).toMatchObject({ url: "/api/assets/northwind.example/order", body: { to: "ferns.example" } }));
     expect(document.querySelector("[data-where-it-shows-retired]")).toBeNull();
@@ -223,7 +223,7 @@ describe("Where it shows, on a site's Settings tab", () => {
       </QueryClientProvider>,
     );
     expect(screen.getByText("3rd of 3")).toBeInTheDocument();
-    expect(document.querySelector("[data-where-it-shows-retired]")).toHaveTextContent("Restore this site to show it again.");
+    expect(document.querySelector("[data-where-it-shows-retired]")).toHaveTextContent("Restore this asset to show it again.");
     for (const switchEl of screen.getAllByRole("switch")) {
       expect(switchEl).toHaveAttribute("aria-checked", "false");
       expect(switchEl).toBeDisabled();
@@ -239,7 +239,7 @@ describe("the arithmetic of a drag", () => {
     expect(rowDropEdge({ top: 100, height: 40 }, 130)).toBe("bottom");
   });
 
-  it("turns a drop above or below a row into the one site the move takes the place of", () => {
+  it("turns a drop above or below a row into the one asset the move takes the place of", () => {
     expect(siteDropTarget(order, "d", "a", "top")).toBe("a");
     expect(siteDropTarget(order, "d", "a", "bottom")).toBe("b");
     expect(siteDropTarget(order, "a", "d", "bottom")).toBe("d");
@@ -248,7 +248,7 @@ describe("the arithmetic of a drag", () => {
     expect(movedOrder(order, "a", siteDropTarget(order, "a", "c", "bottom")!)).toEqual(["b", "c", "a", "d"]);
   });
 
-  it("makes no move where the drop leaves the site where it is", () => {
+  it("makes no move where the drop leaves the asset where it is", () => {
     expect(siteDropTarget(order, "b", "b", "top")).toBeNull();
     expect(siteDropTarget(order, "b", "a", "bottom")).toBeNull();
     expect(siteDropTarget(order, "b", "c", "top")).toBeNull();
@@ -257,7 +257,7 @@ describe("the arithmetic of a drag", () => {
 
   it("names a change and a place in words", () => {
     expect(shownOnLabel("Meadow Board", "work", true)).toBe("Meadow Board shown in Work this week");
-    expect(shownOnLabel("Meadow Board", "list", false)).toBe("Meadow Board hidden on Home and the Sites list");
+    expect(shownOnLabel("Meadow Board", "list", false)).toBe("Meadow Board hidden on Home and Portfolio");
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 23].map(formatOrdinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd"]);
   });
 });

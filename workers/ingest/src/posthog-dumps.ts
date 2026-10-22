@@ -312,7 +312,7 @@ export async function runPosthogDumps(
     const key = held?.key;
     const read = posthogSettings(candidate.asset, options.laneRegister);
     if (key === undefined && !read.ok && read.reason === 'mapping_missing') {
-      skipped.push({ asset: candidate.asset, family: null, reason: 'not-configured', detail: 'No PostHog key or project for this site' });
+      skipped.push({ asset: candidate.asset, family: null, reason: 'not-configured', detail: 'No PostHog key or project for this asset' });
       continue;
     }
     if (key === undefined) {
@@ -348,7 +348,7 @@ export async function runPosthogDumps(
     };
     const families = (options.scope?.families ?? [...POSTHOG_FAMILIES]).filter((family) => {
       if (family === 'funnels' && settings.funnels.length === 0) {
-        skipped.push({ asset: candidate.asset, family, reason: 'no-funnels', detail: 'No funnels picked for this site' });
+        skipped.push({ asset: candidate.asset, family, reason: 'no-funnels', detail: 'No funnels picked for this asset' });
         return false;
       }
       return true;

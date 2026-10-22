@@ -140,6 +140,6 @@ export function decodeAssetMoney(value: unknown, requestedAsset: string, request
     }),
   }, { ledger, dailyRevenue: dailyRevenueHistory, view: nullable(item => string(item) && isAssetDetailView(item)) })
     || needsLedger && !Object.hasOwn(value, 'ledger')
-    || value.view != null && value.view !== requestedView) invalidResponse('Site financials');
+    || value.view != null && value.view !== requestedView) invalidResponse('Asset financials');
   return value as unknown as AssetDetailResponse;
 }

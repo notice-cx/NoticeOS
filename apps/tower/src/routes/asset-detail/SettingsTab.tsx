@@ -1,8 +1,15 @@
+import { ASSET_TYPES, ASSET_TYPE_LABEL, assetTypeOf, isAssetType, type AssetType } from "@noticeos/contract/configuration";
+import { siteDisplayChange, siteDisplayOf } from "@shared/site-display";
+import { useStructuralSave } from "@/hooks/useConfigSave";
+import { useConfigWritable } from "@/hooks/useConfigWritable";
+import { changesetSlug } from "@shared/changeset";
+import { fieldClass } from "@/components/ui/field";
+import { useWall } from "@/hooks/useWall";
 import { useDemoReadonly, useOwnerMutation, useTowerApi } from '@/lib/browser-context';
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CollectNowResult } from "@noticeos/contract";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ASSET_STATUS_LABEL as STATUS_LABEL } from "@shared/asset-detail";
 import { isRetired } from "@shared/asset-setup";
@@ -83,12 +90,12 @@ function modeChip(mode: "pull" | "push", assetId: string): ReactNode {
   return (
     <StateChip
       tone="neutral"
-      label={mode === "pull" ? "We fetch it" : "The site sends it"}
+      label={mode === "pull" ? "We fetch it" : "The asset sends it"}
       subject={`collection:${assetId}`}
       title={
         mode === "pull"
-          ? "The OS fetches this site's metrics endpoint on a schedule."
-          : "This site sends its own nightly report to the OS."
+          ? "The OS fetches this asset's metrics endpoint on a schedule."
+          : "This asset sends its own nightly report to the OS."
       }
     />
   );
@@ -183,8 +190,35 @@ function SecretPointer({ children }: { children: ReactNode }) {
  * The OS's own row has no name field and no icons.
  */
 function IdentityCard({ asset, nowMs }: { asset: AssetInfo; nowMs: number }) {
+  const wall = useWall();
+  const display = siteDisplayOf(wall.data);
+  const assetType = assetTypeOf(wall.data === undefined ? asset : display?.[asset.id]);
+  const saveType = useStructuralSave();
+  const writable = useConfigWritable();
+  const [savingType, setSavingType] = useState(false);
+  const [askedType, setAskedType] = useState<AssetType | null>(null);
+  useEffect(() => setAskedType(null), [asset.id, assetType, wall.dataUpdatedAt]);
+  async function changeType(value: string) {
+    if (!isAssetType(value) || value === assetType || savingType || !wall.data || !writable.writable) return;
+    setSavingType(true);
+    setAskedType(value);
+    try {
+      const saved = await saveType({ ...siteDisplayChange(display, asset.id, "assetType", value),
+        label: "Asset type", slug: changesetSlug(asset.id, "assetType") });
+      if (!saved) setAskedType(null);
+    } finally { setSavingType(false); }
+  }
   return (
     <Panel title="Identity">
+      {asset.isOs ? null : (
+        <KnobRow label="Asset type" value={
+          <select aria-label="Asset type" value={askedType ?? assetType} className={fieldClass}
+            disabled={savingType || !writable.writable || wall.data === undefined || wall.data.dashboard?.refused?.sites !== undefined}
+            onChange={(event) => void changeType(event.target.value)}>
+            {ASSET_TYPES.map((type) => <option key={type} value={type}>{ASSET_TYPE_LABEL[type]}</option>)}
+          </select>
+        } />
+      )}
       {asset.isOs ? null : (
         <KnobEditor
           statesReadOnly={false}
@@ -211,7 +245,7 @@ function IdentityCard({ asset, nowMs }: { asset: AssetInfo; nowMs: number }) {
           }
         />
         <KnobRow
-          label="Site id"
+          label="Asset id"
           value={
             <FixedValue field="asset-id">
               <span className="font-mono text-xs">{asset.id}</span>
@@ -534,14 +568,14 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
   return (
     <Panel
       title="Alert rules in force"
-      count={rules.hasOverride ? "per-site override" : "no per-site override"}
+      count={rules.hasOverride ? "per-asset override" : "no per-asset override"}
       // Where every site's rules change: the header's "All →" slot.
       action={
         <Link
           to="/settings#alert-rules"
           className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
         >
-          All sites' rules →
+          All assets' rules →
         </Link>
       }
     >

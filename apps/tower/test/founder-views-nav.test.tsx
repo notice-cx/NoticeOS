@@ -91,7 +91,7 @@ function renderShell(path = "/") {
 }
 
 describe("the view registry matches the screens it filters", () => {
-  it("names only sidebar paths and site tabs that exist", () => {
+  it("names only sidebar paths and asset tabs that exist", () => {
     const paths = NAV_ITEMS.map((item) => item.to);
     for (const view of VIEW_LIBRARY) {
       for (const path of view.nav) expect(paths).toContain(path);
@@ -125,7 +125,7 @@ describe("the sidebar follows the view", () => {
     );
     expect(navEntries(screen.getByRole("navigation", { name: "Main" }))).toEqual([
       "Home",
-      "Sites",
+      "Portfolio",
       "Tasks",
       "Money",
       "Settings",
@@ -140,7 +140,7 @@ describe("the sidebar follows the view", () => {
 describe("the palette lists every page and switches the view", () => {
   function openPalette() {
     fireEvent.keyDown(window, { key: "k", metaKey: true });
-    return screen.getByRole("dialog", { name: "Search pages and sites" });
+    return screen.getByRole("dialog", { name: "Search pages and assets" });
   }
 
   function rows(dialog: HTMLElement): string[] {
@@ -175,7 +175,7 @@ describe("the palette lists every page and switches the view", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByTestId("path")).toHaveTextContent("/financials");
     const [after] = screen.getAllByRole("navigation", { name: "Main" });
-    expect(navEntries(after!)).toEqual(["Home", "Sites", "Tasks", "Money", "Settings"]);
+    expect(navEntries(after!)).toEqual(["Home", "Portfolio", "Tasks", "Money", "Settings"]);
     expect(JSON.parse(window.localStorage.getItem(storageKey("view")) ?? "null")).toEqual({
       view: "business",
       focus: [],
@@ -185,7 +185,7 @@ describe("the palette lists every page and switches the view", () => {
   it("finds a view by the word view", () => {
     renderShell("/");
     const dialog = openPalette();
-    fireEvent.change(within(dialog).getByPlaceholderText("Search pages and sites…"), {
+    fireEvent.change(within(dialog).getByPlaceholderText("Search pages and assets…"), {
       target: { value: "view" },
     });
     expect(rows(dialog).filter((row) => row.startsWith("Switch to · "))).toHaveLength(2);
@@ -196,7 +196,7 @@ describe("the palette lists every page and switches the view", () => {
     renderShell("/");
     const dialog = openPalette();
     for (const typed of ["Switch to", "switch to ", "Switch"]) {
-      fireEvent.change(within(dialog).getByPlaceholderText("Search pages and sites…"), {
+      fireEvent.change(within(dialog).getByPlaceholderText("Search pages and assets…"), {
         target: { value: typed },
       });
       expect(rows(dialog).filter((row) => row.startsWith("Switch to · "))).toEqual([
@@ -207,7 +207,7 @@ describe("the palette lists every page and switches the view", () => {
   });
 });
 
-describe("a site's tabs follow the view", () => {
+describe("an asset's tabs follow the view", () => {
   function renderTabs(path: string) {
     return render(
       <MemoryRouter initialEntries={[path]}>

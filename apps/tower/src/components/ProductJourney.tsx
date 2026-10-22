@@ -81,8 +81,8 @@ function ProductEmpty({ connection }: { connection: ProductConnection }) {
     connection === "connected"
       ? "Connected · the first product read has not been collected yet."
       : connection === "off"
-        ? "Product data is not collected for this site."
-        : "Product data is not connected for this site.";
+        ? "Product data is not collected for this asset."
+        : "Product data is not connected for this asset.";
   return (
     <p className="m-0 flex items-center gap-2 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-product-empty={connection}>
       <span aria-hidden className="font-semibold">—</span>
@@ -386,7 +386,7 @@ function VitalReading({
 /** A group's heading: the page, or where a finding with no page belongs. */
 function groupTitle(group: ProductIssueGroup): string {
   if (group.place.kind === "page") return group.place.path;
-  return group.place.kind === "site" ? "Whole site" : "Probably third-party";
+  return group.place.kind === "site" ? "Whole asset" : "Probably third-party";
 }
 
 function IssueRow({ issue, product }: { issue: ProductIssue; product: ProductSnapshot }) {
@@ -475,7 +475,7 @@ function IssueRow({ issue, product }: { issue: ProductIssue; product: ProductSna
           marks={{ "data-product-issue": "once" }}
         >
           <Facts facts={[["Counts built on it", `${issue.event.perPerson.toFixed(1)}× too high`]]} />
-          <NextStep>Check where the site sends it</NextStep>
+          <NextStep>Check where the asset sends it</NextStep>
         </ListRow>
       );
   }
@@ -582,7 +582,7 @@ function ErrorOrigin({ hasSourceFile, subject }: { hasSourceFile: boolean | null
     hasSourceFile === null
       ? { label: "Source unknown", Icon: CircleHelp, tone: "na" as const }
       : hasSourceFile
-        ? { label: "Site code", Icon: FileCode2, tone: "neutral" as const }
+        ? { label: "Asset code", Icon: FileCode2, tone: "neutral" as const }
         : { label: "No source file", Icon: FileX2, tone: "na" as const };
   return (
     <span className="flex" data-error-origin={hasSourceFile === null ? "unknown" : hasSourceFile ? "site" : "none"}>

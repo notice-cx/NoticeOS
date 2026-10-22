@@ -56,13 +56,13 @@ function card(id: string, displayName: string, over: Partial<AssetCard> = {}): A
   };
 }
 
-const SLOW = card("slow.example.com", "Slow Site", {
+const SLOW = card("slow.example.com", "Slow Asset", {
   product: { ...PRODUCT, speed: "fired", worstSpeed: "poor", errors: "fired", errorPeople: 12 },
 });
-const FINE = card("fine.example.com", "Fine Site");
+const FINE = card("fine.example.com", "Fine Asset");
 
 describe("WallHealth", () => {
-  it("draws five dots a site, colouring only the problems, each with its word", () => {
+  it("draws five dots an asset, colouring only the problems, each with its word", () => {
     render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
     const slow = document.querySelector('[data-wall-health-row="slow.example.com"]')!;
     expect(slow.querySelectorAll("[data-wall-health-fact]")).toHaveLength(5);
@@ -90,13 +90,13 @@ describe("WallHealth", () => {
 
   it("puts each header over its own dots: every header cell is a grid cell in the rows' columns", () => {
     render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
-    const table = screen.getByRole("table", { name: "Site health" });
+    const table = screen.getByRole("table", { name: "Asset health" });
     const [header, ...rows] = within(table).getAllByRole("row");
     const headers = within(header!).getAllByRole("columnheader");
     // An `sr-only` cell is positioned out of the grid's flow and would shift
     // every visible header one column left.
     for (const cell of headers) expect(cell.className).not.toMatch(/\bsr-only\b/);
-    expect(headers.map((cell) => cell.textContent)).toEqual(["Site", "Up", "Speed", "Errors", "Search", "Code", "Problem"]);
+    expect(headers.map((cell) => cell.textContent)).toEqual(["Asset", "Up", "Speed", "Errors", "Search", "Code", "Problem"]);
     for (const row of rows) {
       const cells = [...row.children];
       expect(cells).toHaveLength(headers.length);
@@ -111,7 +111,7 @@ describe("WallHealth", () => {
 
   it("lets the rows share the widget's height on the TV, and keeps the +N note", () => {
     render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
-    const section = screen.getByRole("region", { name: "Site health" });
+    const section = screen.getByRole("region", { name: "Asset health" });
     expect(section.style.getPropertyValue("--health-rows")).toBe("2");
     const table = section.querySelector("[data-wall-health-table]")!;
     expect(table.className).toContain("tv:auto-rows-[minmax(min-content,1fr)]");
@@ -120,7 +120,7 @@ describe("WallHealth", () => {
     expect(section.querySelector('[data-wall-health-row="slow.example.com"] [data-wall-health-note]')).toHaveTextContent("· +1");
   });
 
-  it("says how many measured sites are fine", () => {
+  it("says how many measured assets are fine", () => {
     render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
     expect(screen.getByText("1 of 2 fine")).toBeInTheDocument();
   });
@@ -135,7 +135,7 @@ describe("WallFactory", () => {
           shipped: 9,
           proven: 1,
           watching: 2,
-          latest: [{ title: "Latest bet", site: "Fine Site", line: "Worked" }],
+          latest: [{ title: "Latest bet", site: "Fine Asset", line: "Worked" }],
         }}
       />,
     );
@@ -143,7 +143,7 @@ describe("WallFactory", () => {
     // "Finished", as Home's agents module calls it.
     expect(figures).toEqual(["Building4", "Finished9", "Proven1"]);
     expect(screen.getByText("2 being watched")).toBeInTheDocument();
-    expect(screen.getByRole("listitem")).toHaveTextContent("Latest bet · Fine SiteWorked");
+    expect(screen.getByRole("listitem")).toHaveTextContent("Latest bet · Fine AssetWorked");
   });
 
   it("starts the figures under the heading and the lines under them, each at its own height", () => {
@@ -155,8 +155,8 @@ describe("WallFactory", () => {
           proven: 1,
           watching: 1,
           latest: [
-            { title: "Latest bet", site: "Fine Site", line: "Worked" },
-            { title: "Latest bet", site: "Slow Site", line: "Did not help" },
+            { title: "Latest bet", site: "Fine Asset", line: "Worked" },
+            { title: "Latest bet", site: "Slow Asset", line: "Did not help" },
           ],
         }}
       />,
@@ -180,7 +180,7 @@ describe("WallFactory", () => {
   });
 
   it("draws every line the week has and hides the ones that do not fit whole", () => {
-    const latest = ["One Site", "Two Site", "Three Site", "Four Site"].map((site) => ({ title: "Latest bet", site, line: "Worked" }));
+    const latest = ["One Asset", "Two Asset", "Three Asset", "Four Asset"].map((site) => ({ title: "Latest bet", site, line: "Worked" }));
     // The list is 200 px tall and each line 60 px with an 8 px gap: three fit whole.
     const box = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 100, width: 100, height, x: 0, y: top, toJSON: () => ({}) });
     const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
@@ -218,7 +218,7 @@ describe("WallChannels", () => {
     product: { ...PRODUCT, funnel: { name: "Checkout", largestDrop: { fromStep: "Cart", toStep: "Pay", lostPeople: 90, stepConversion: 0.4 } } },
   });
 
-  it("sums each channel across the sites, largest first, with its share of the whole", () => {
+  it("sums each channel across the assets, largest first, with its share of the whole", () => {
     expect(portfolioChannels([a, b])).toEqual({
       total: 500,
       rows: [
@@ -262,7 +262,7 @@ describe("WallChannels", () => {
       { label: "Saved it", people: 55 },
       { label: "Signed up", people: 12 },
     ];
-    const recipes = card("r.example.com", "Recipe Site", {
+    const recipes = card("r.example.com", "Recipe Asset", {
       channels: { ...window, rows: [{ channel: "Organic Search", sessions: 900, share: 0.9 }, { channel: "Direct", sessions: 100, share: 0.1 }] },
       product: { ...PRODUCT, funnel: { name: "Recipe to sign-up", largestDrop: { fromStep: "Opened a recipe", toStep: "Saved it", lostPeople: 525, stepConversion: 55 / 580 }, steps } },
     });
@@ -271,7 +271,7 @@ describe("WallChannels", () => {
     const section = screen.getByRole("region", { name: "Visitors by channel" });
     expect(section).toHaveClass("h-full", "min-h-0");
     const funnel = section.querySelector('[data-wall-funnel="Recipe to sign-up"]')!;
-    expect(funnel).toHaveTextContent("Largest drop · Recipe Site · Recipe to sign-up");
+    expect(funnel).toHaveTextContent("Largest drop · Recipe Asset · Recipe to sign-up");
     const drawn = [...funnel.querySelectorAll("[data-wall-funnel-step]")];
     expect(drawn.map((step) => step.getAttribute("data-wall-funnel-step"))).toEqual(["step-1", "from", "to", "step-4"]);
     expect(drawn.map((step) => step.firstElementChild!.textContent)).toEqual(["Visited", "Opened a recipe", "Saved it", "Signed up"]);
@@ -292,7 +292,7 @@ describe("WallChannels", () => {
     for (const list of [channels, funnel.querySelector("ol")!]) expect(list.className).toContain("tv:auto-rows-[minmax(min-content,1fr)]");
   });
 
-  it("says so when no site carries a channel split", () => {
+  it("says so when no asset carries a channel split", () => {
     render(<WallChannels assets={[FINE]} />);
     expect(screen.getByText("No channel split yet")).toBeInTheDocument();
   });
@@ -326,7 +326,7 @@ describe("the presets on the canvas", () => {
     const drawn = [...document.querySelectorAll("[data-wall-slot]")].map((node) => node.getAttribute("data-wall-slot"));
     expect(drawn).toEqual(types);
     if (view === "business") {
-      expect(within(document.querySelector('[data-wall-slot="health"]') as HTMLElement).getByText("Slow Site")).toBeInTheDocument();
+      expect(within(document.querySelector('[data-wall-slot="health"]') as HTMLElement).getByText("Slow Asset")).toBeInTheDocument();
     }
   });
 

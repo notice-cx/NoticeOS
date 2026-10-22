@@ -715,7 +715,7 @@ test("a new installation's store names its one workspace: none before the bootst
     assert.equal(ran, false);
 
     // The bootstrap creates the one workspace, and the store names it: no id is copied anywhere.
-    const { workspaceId, created } = bootstrapWorkspace(dev, { slug: 'main', displayName: 'My sites' });
+    const { workspaceId, created } = bootstrapWorkspace(dev, { slug: 'main', displayName: 'My assets' });
     assert.equal(created, true);
     assert.equal(await store.onlyWorkspace(), workspaceId);
     assert.equal(await findOnlyWorkspace(held), workspaceId);

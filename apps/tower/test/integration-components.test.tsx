@@ -27,7 +27,7 @@ describe("IntegrationSummaryStrip — shared-credential insight line", () => {
     const { container } = render(
       <IntegrationSummaryStrip counts={COUNTS} sharedCredential={{ lanes: 8, cells: 31 }} />,
     );
-    expect(container.textContent).toContain("8 integrations connect once · 31 sites waiting");
+    expect(container.textContent).toContain("8 integrations connect once · 31 assets waiting");
     expect(container.textContent).not.toContain("8 shared credentials");
   });
 
@@ -42,7 +42,7 @@ describe("IntegrationSummaryStrip — shared-credential insight line", () => {
     const { container } = render(
       <IntegrationSummaryStrip counts={COUNTS} sharedCredential={{ lanes: 1, cells: 4 }} />,
     );
-    expect(container.textContent).toContain("1 integration connects once · 4 sites waiting");
+    expect(container.textContent).toContain("1 integration connects once · 4 assets waiting");
     expect(container.textContent).toContain("Not connected · 31");
     expect(container.textContent).toContain("Not using · 1");
     expect(container.textContent).not.toContain("1 integrations");
@@ -177,7 +177,7 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
       "Nightly report",
     ]);
     expect(groups[0]!.heading).toContain("Provider accounts");
-    expect(groups[1]!.heading).toContain("The site's own wiring");
+    expect(groups[1]!.heading).toContain("The asset's own wiring");
   });
 
   it("gives the derived cell no edit link — there is no declared value to change", () => {
@@ -399,7 +399,7 @@ describe("HealthRoute — month-to-date data spend", () => {
     await findByText("$6.50");
     expect(
       openSpend().querySelector("[data-spend-unattributed]")?.textContent,
-    ).toBe("Research, not tied to a site$0.30");
+    ).toBe("Research, not tied to an asset$0.30");
     expect(container.textContent).toContain("of $25 in Jul");
 
   });

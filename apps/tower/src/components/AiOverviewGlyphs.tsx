@@ -78,8 +78,8 @@ function AiOverviewGlyph({
   }
   const label = {
     absent: `${surface}${named ? "n" : "N"}o AI Overview on the tracked result page`,
-    cited: `${surface}AI Overview cites this site`,
-    uncited: `${surface}AI Overview shown; this site is not cited`,
+    cited: `${surface}AI Overview cites this asset`,
+    uncited: `${surface}AI Overview shown; this asset is not cited`,
   }[state];
   return (
     <span

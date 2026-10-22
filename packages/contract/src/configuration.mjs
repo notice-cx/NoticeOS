@@ -18,6 +18,21 @@ export const TOWER_CONFIG_FILES = Object.freeze({
     beads: 'config/beads.json',
 });
 export const ASSET_STATUSES = ['pre-launch', 'onboarding', 'baselining', 'live', 'retired'];
+/** Product categories; adding a category does not enable or disable features. */
+export const ASSET_TYPES = ['website', 'web-app', 'mobile-app'];
+export const DEFAULT_ASSET_TYPE = 'website';
+export const ASSET_TYPE_LABEL = {
+    website: 'Website (marketing/landing)',
+    'web-app': 'Web app (SaaS)',
+    'mobile-app': 'Mobile app',
+};
+export function isAssetType(value) {
+    return typeof value === 'string' && ASSET_TYPES.includes(value);
+}
+/** Older configurations and payloads have no category. */
+export function assetTypeOf(value) {
+    return value?.assetType ?? DEFAULT_ASSET_TYPE;
+}
 /**
  * A stage move is recorded as a timeline row because `assets.status` holds only
  * where an asset is; Restore reads the previous stage from the timeline. The

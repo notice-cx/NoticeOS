@@ -37,7 +37,7 @@ const NAMED_SITES_MAX = 3;
  */
 export function clarityVerdict(failures: readonly { asset: string; errorCode?: string | null }[]): string {
   const sites = [...new Set(failures.map(({ asset }) => asset))];
-  const named = sites.length <= NAMED_SITES_MAX ? sites.join(', ') : `${sites.length} sites`;
+  const named = sites.length <= NAMED_SITES_MAX ? sites.join(', ') : `${sites.length} assets`;
   return [...failureWords(failures.map(({ errorCode }) => errorCode)), named].join(' · ');
 }
 

@@ -18,7 +18,7 @@ describe('daily revenue bars', () => {
     fireEvent.click(screen.getByRole('button', { name: 'About the reporting day' }));
     expect(screen.getByRole('tooltip')).toHaveTextContent('Days end at midnight Pacific time');
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.getByText('Incomplete site coverage')).toBeInTheDocument();
+    expect(screen.getByText('Incomplete asset coverage')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('group', { name: 'Explore Estimated ad revenue values' }), { key: 'End' });
     expect(screen.getByRole('status')).toHaveTextContent('Missing: Northwind');
     expect(screen.getByRole('status')).toHaveTextContent('$0.00');

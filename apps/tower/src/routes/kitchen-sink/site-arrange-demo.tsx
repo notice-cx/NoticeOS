@@ -46,7 +46,7 @@ export function SiteArrangeDemo() {
   const one = SITES[0]!;
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Example label="Four sites, one retired: drag, arrows and switches">
+      <Example label="Four assets, one retired: drag, arrows and switches">
         <Live />
       </Example>
       <div className="flex flex-col gap-6">
@@ -60,7 +60,7 @@ export function SiteArrangeDemo() {
             onSwitch={() => {}}
           />
         </Example>
-        <Example label="One site's switches, as its Settings tab draws them">
+        <Example label="One asset's switches, as its Settings tab draws them">
           <ShownOnSwitches site={one} shown={siteShownOn(one, { [one.id]: { tv: false } })} disabled={false} busy={undefined} onSwitch={() => {}} />
         </Example>
         <Example label="DropLine: where a dragged row lands">

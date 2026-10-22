@@ -126,7 +126,7 @@ export const RULE_LABELS: Record<string, string> = {
   "flow-lowvol-window": "Drop at low volume",
   "flow-pct-drop": "Drop against baseline",
   "flow-seasonal-baseline": "Drop against the season",
-  "asset-declared": "The site's own threshold",
+  "asset-declared": "The asset's own threshold",
   "asset-pull-failed": "Pull failed",
   "ingest-freshness": "Nightly report overdue",
   "hygiene-home-unreachable": "Home page check",

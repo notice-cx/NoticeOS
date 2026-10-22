@@ -81,7 +81,7 @@ export function openDevelopmentStart(plan) {
     ownsClusterRoot = true;
     cluster = openThrowaway(clusterRoot, undefined, { loopbackPort: port });
     applyMigrations(cluster, { dir });
-    const workspace = bootstrapWorkspace(cluster, { slug: 'development', displayName: 'Development sites', dir });
+    const workspace = bootstrapWorkspace(cluster, { slug: 'development', displayName: 'Development assets', dir });
     return { address: cluster.applicationLogin().url(), workspaceId: workspace.workspaceId, close };
   } catch (error) {
     close();

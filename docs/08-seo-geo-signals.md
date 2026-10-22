@@ -6,7 +6,7 @@ contract defines shapes/flags/latency rules, [doc 03](03-attribution.md)
 defines how any of it becomes a causal claim, and the ledger ([doc 00](00-objective-and-roi.md))
 is where value is booked — positions and citations are inputs, never outcomes.*
 
-The asset's own report ([doc 02](02-signal-contract.md)) covers the *on-site*
+The asset's own report ([doc 02](02-signal-contract.md)) covers the *on-asset*
 half of each asset's health. This doc specifies the *demand-side* half: organic search and AI
 answer engines, asset-agnostic from day one, same as the signal contract.
 
@@ -31,7 +31,7 @@ code; the Tower joins the asset's report × search signals on the asset id. One 
 ### S1 — Domain-wide ranking intelligence
 
 The weekly central DataForSEO collection reads each launched domain from Postgres and
-archives its top 200 current Google rankings in the site's saved market
+archives its top 200 current Google rankings in the asset's saved market
 (United States · English by default). Each row keeps the
 query, ranking URL/type/position, estimated demand, CPC, difficulty, intent,
 SERP features, estimated visits/cost, rank-change fields, and any AIO-reference
@@ -46,7 +46,7 @@ result. This broad inventory is used for:
 The 200-row ceiling is explicit and means “highest-volume provider rows,” not
 complete keyword coverage.
 
-The property-detail read model exposes a bounded current query baseline from
+The asset-detail read model exposes a bounded current query baseline from
 this archive even before a second weekly snapshot exists: modelled monthly
 searches, organic position, keyword difficulty, landing page, SERP AI Overview
 presence, and query-level `ai_overview_reference` citation position. It joins
@@ -59,7 +59,7 @@ the same query/page pair exists in two retained snapshots.
 The weekly Monday DataForSEO collection's `serp-panel` family makes one
 `serp/google/organic/live/advanced` call per (tracked term, device) with
 `load_async_ai_overview` set, archived to the same immutable R2 + append-only
-manifest boundary as the other families (one manifest row per property per
+manifest boundary as the other families (one manifest row per asset per
 run, the per-query responses as its pages). The panel itself is
 [`config/serp-panel.json`](../config/serp-panel.json) (+ README sibling); the
 flattened family is `dataforseo-serp-panel.csv`. Full collector behavior:
@@ -69,11 +69,11 @@ The rules that differ from "one family, one call":
 - **Every tracked term is read on both devices.** Most food/health search is
   on a phone, and phone result pages show blocks that take clicks on different
   queries. One call per (query, device), still one family, one archive and
-  one manifest row per property per run. The device is stored in the archived
+  one manifest row per asset per run. The device is stored in the archived
   request body — a documented provider field — and appears in
   `dataforseo-serp-panel.csv` as a `device` column. The executive snapshot's
   AI Overview evidence stays desktop.
-- **Depth is 20**, not the whole result page: a property below it records **no
+- **Depth is 20**, not the whole result page: an asset below it records **no
   rank**, which the CSV and the Tower both show as "not inside the tracked
   depth" rather than "not ranking".
 - **A missing AI Overview and an unreadable one are different facts.** Where
@@ -83,7 +83,7 @@ The rules that differ from "one family, one call":
 - **`secondPos`, `features[]` and `sitelinksUs` are flattened** as
   `second_rank`/`second_url`, `serp_features` and `sitelinks_us` — no new
   provider spend, because the response was already paid for. `sitelinks_us` is
-  three-state like the `aio_*` pair: empty means the property had no result
+  three-state like the `aio_*` pair: empty means the asset had no result
   inside the tracked depth, so there was no result of ours that could show
   sitelinks — read as `false`, it would raise the sitelink-loss alert every
   week a ranking dropped below depth 20. What deliberately stays in the archive
@@ -112,15 +112,15 @@ The rules that differ from "one family, one call":
 
 **Every collection is reviewed by a person.** When a panel collection
 arrives, the runner job in `scripts/os-up.mjs` files a `panel-review` task into
-the property's own task project — due seven days later, one per property per
+the asset's own task project — due seven days later, one per asset per
 panel day, based on the `GET /api/serp-panel-landings` read. The panel data
 is of no use until someone triages it. The panel day sets the date and the
 review covers the week's whole collection — the broad inventory, the link and
-LLM families and the property's own GSC/GA4/Bing exports arrive on the same
+LLM families and the asset's own GSC/GA4/Bing exports arrive on the same
 schedule. What closing that task requires — reviewing the panel, then the
 inventory of the week's other families — is written into the task by
 `scripts/runner/panel-review.mjs`; the triage state is stored in the task
-snapshot as `panelReview` so the Tower can show a property whose review is
+snapshot as `panelReview` so the Tower can show an asset whose review is
 overdue.
 
 **Cost:** each tracked query is one metered call **per device** (~$0.004 each);
@@ -141,15 +141,15 @@ mobile/desktop monitoring of neighbouring results and exact citations:
   "features": ["people_also_ask"], "sitelinksUs": false }
 ```
 
-A site's panel seed is its row in `config/serp-panel.json`: its brand and
+An asset's panel seed is its row in `config/serp-panel.json`: its brand and
 navigational terms, the head terms it gets impressions for, and the bets its
 current plan is testing — for example `example` · `example login` ·
-`example calculator` · `best free calculators`. Its queries are that site's
+`example calculator` · `best free calculators`. Its queries are that asset's
 own; an installation keeps the history of each seed in its own notes.
 
 *Add a query when Search Console shows four-figure impressions at position 1–5
 with zero clicks and several URLs sharing byte-identical impression counts on
-every date — the pattern produced by one SERP block crediting the property,
+every date — the pattern produced by one SERP block crediting the asset,
 not by pages competing. Search Console data cannot show whether that block is
 an AI Overview; the panel records exactly that.* A provider error on a query
 leaves **every column unknown**, not `false`: the call is billed, returns no
@@ -158,7 +158,7 @@ data, and is recorded as such; the next scheduled run retries it.
 ### S1c — Discovery (net-new demand and the competitive set)
 
 Every other search family in this doc covers only **existing** terms: S1
-reads what a property already ranks for, S1b reads terms an operator already
+reads what an asset already ranks for, S1b reads terms an operator already
 chose, S2 reads queries that already received an impression. None of them can
 propose a term the portfolio has never targeted, so Decide could rank existing
 opportunities but never find a new one; that is the difference between
@@ -169,12 +169,12 @@ without these families.
 Two families, both on a **28-day cadence** rather than weekly:
 
 - **`keyword-ideas`** (`dataforseo_labs/google/keyword_ideas/live`) — net-new
-  demand, top 100 by search volume. **Seeds come from the property's own
+  demand, top 100 by search volume. **Seeds come from the asset's own
   `config/serp-panel.json` head terms**, not from a new config file and not from
   the stored `ranked-keywords` archive: the panel is the operator's own statement
   of which terms matter, it is already loaded by the collector, and reading the
   archive instead would put an R2 fetch and a gzip parse inside a paid
-  collection. A property with no panel has no declared head terms and therefore
+  collection. An asset with no panel has no declared head terms and therefore
   gets no ideas, rather than ideas generated from a guess.
 - **`serp-competitors`** (`dataforseo_labs/google/competitors_domain/live`) —
   top 20 ordered by `intersections`, i.e. how many of *our* keywords a domain
@@ -193,14 +193,14 @@ is what keeps total spend within a $25 cap.
 `report_date` is complete against `DATAFORSEO_BASE_REPORTS`. A 28-day family is
 expected to be absent from three `report_date`s in four, so listing it there
 would mark three weeks in four incomplete. "Was this week complete?" and
-"which families may be requested for this property?" are separate questions:
+"which families may be requested for this asset?" are separate questions:
 `dataForSeoReportsFor` handles the first, and the collector's
 `dataForSeoFamiliesFor` (reading the REPORTS registry and its `appliesTo`)
 handles the second.
 
 **Deliberately not built.** `domain_intersection` (the content gap — they rank,
 we don't) is the most directly actionable list of the three and is planned as
-later work rather than part of this: it needs a chosen competitor per property,
+later work rather than part of this: it needs a chosen competitor per asset,
 which `serp-competitors` has to establish first, and guessing that competitor
 would pay for the wrong gap. Local-pack and Google Business Profile families
 are not collected — no portfolio asset is a local business. Historical SERP
@@ -212,14 +212,14 @@ Search Analytics API nightly per asset: clicks/impressions/position by query and
 by page. The analysis archive also retains page×country, page×device,
 page-level search appearances, image-search page×query, and Discover pages.
 Discover is collected in **probe mode**: while every completed run for a
-property has returned nothing, only the newest revision date is requested, so a
-family the property does not participate in costs one request a day instead of
+asset has returned nothing, only the newest revision date is requested, so a
+family the asset does not participate in costs one request a day instead of
 four. The full revision window resumes as soon as a run returns a row.
 Store the raw data; derive the views that decisions are based on:
 - **Position-bucket distribution over time** — counts + impressions in pos 1–3 /
-  4–10 / 11–20 / 21+. A property with a few dozen queries in the top 3 and
+  4–10 / 11–20 / 21+. An asset with a few dozen queries in the top 3 and
   hundreds at 4–10 has most of its queries just below the top 3; for such a
-  property, this chart tracks the strategy directly.
+  asset, this chart tracks the strategy directly.
 - **Striking-distance list, auto-refreshed** — pos 4–12 × impressions ≥100,
   the standing to-do list for content work.
 - **Brand vs generic split** (per-asset regex over the brand's spellings)
@@ -243,11 +243,11 @@ Store the raw data; derive the views that decisions are based on:
   Treat it as a *lower bound* — not every assistant supplies a usable referrer.
 - **DataForSEO LLM-mentions** weekly target metrics for Google and ChatGPT:
   reported mentions, represented AI search volume, and leading source domains.
-  The endpoint accepts one task, so properties/platforms are separate calls
+  The endpoint accepts one task, so assets/platforms are separate calls
   rather than one combined portfolio batch. These are provider-dataset coverage
   metrics, not unique people or attributable sessions.
 - S1b's `aio.citesUs` is exact, per-query, live-SERP citation state for the
-  terms on a property's panel. It covers the panel and nothing else — a query
+  terms on an asset's panel. It covers the panel and nothing else — a query
   nobody tracks is unknown, not uncited.
 
 ### S4 — Authority & links
@@ -284,24 +284,24 @@ Store the raw data; derive the views that decisions are based on:
 The nightly half that only fetches pages — static-HTML depth, robots AI
 access, sitemap and page structure — runs at 04:00 UTC in
 `workers/ingest/src/hygiene.ts`, storing one row per (asset, check, day) in
-`hygiene_checks`. Six plain HTTPS requests per property, no provider and no
+`hygiene_checks`. Six plain HTTPS requests per asset, no provider and no
 quota. Full behavior, reporting rules, and the parser's documented limits:
 [workers/ingest/README §Hygiene guards](../workers/ingest/README.md#hygiene-guards-s5--the-served-layer).
 
 - **Page-level directives**: `<meta name="robots">` and `X-Robots-Tag` are
-  read on **three sampled real pages** per property per night, under rule
+  read on **three sampled real pages** per asset per night, under rule
   `hygiene-page-directives`. The sample is drawn from the sitemap the sweep
   already fetched — a separate list of key routes would be a second list to
-  keep up to date, and the property already publishes one. The sample is
+  keep up to date, and the asset already publishes one. The sample is
   stable (hash-ordered), so the same pages are checked night after night; it
   is three pages, and the recorded reading states that rather than presenting
-  the property as clean.
+  the asset as clean.
 - **An unreachable home page** is its own rule, `hygiene-home-unreachable`,
   on the same fetch as the depth check.
-- **That fetch is also each site's uptime check**: the home-page check alone
+- **That fetch is also each asset's uptime check**: the home-page check alone
   runs every hour as well (`runUptimeChecks`), and `hygiene-home-unreachable`
   files at `error` — `error` is reserved for failures that stop revenue, and
-  a site that does not respond is one.
+  an asset that does not respond is one.
   Robots, sitemap and the page sample stay nightly.
 - **A failure is confirmed before it raises an alert**: a home page that fails
   is requested once more 45 seconds later in the same run, in both the hourly
@@ -317,7 +317,7 @@ quota. Full behavior, reporting rules, and the parser's documented limits:
   a flag, so a page that has always shipped without a description is treated
   as a standing editorial decision rather than a new incident.
 
-  The taxonomy follows **badseo.dev** — a site where every page breaks exactly
+  The taxonomy follows **badseo.dev** — an asset where every page breaks exactly
   one rule — and so does its test approach: `STRUCTURAL_FIXTURES` has one
   page per fault and a coverage test that fails if the parser detects a fault
   that no fixture page demonstrates. The other twenty-odd checks of a full
@@ -340,9 +340,9 @@ quota. Full behavior, reporting rules, and the parser's documented limits:
   has not yet shown it is reliable enough for that level. **Promote to `error`
   after the first true positive** — that is the trigger, and it is a one-line
   change.
-- `robots.txt` is parsed at **site level only** — a blanket `Disallow: /`
+- `robots.txt` is parsed at **asset level only** — a blanket `Disallow: /`
   per user-agent group. A path-scoped `Disallow` is still treated as allowed, and
-  longest-match evaluation is only worth building once a property actually ships
+  longest-match evaluation is only worth building once an asset actually ships
   path-scoped AI rules.
 - **Security headers** are read from the same home-page response the depth
   check counts: `Strict-Transport-Security`, `Content-Security-Policy`,
@@ -350,11 +350,11 @@ quota. Full behavior, reporting rules, and the parser's documented limits:
   `Permissions-Policy`, each recorded as present with its value (cut to 300
   characters) or absent, in one `security-headers` reading a day. Only a 200
   is read. `hygiene-security-headers` (warn) fires when a header the previous
-  read had is missing, never because a site has not set one, and resolves when
+  read had is missing, never because an asset has not set one, and resolves when
   it is sent again. The check reads headers and changes none.
 - **CrUX** page speed is its own daily job at 04:15 UTC, keyed by the
   Chrome UX Report connection: the 75th percentile of LCP, INP and CLS for
-  phones and desktops, one `crux-vitals` reading per site per day
+  phones and desktops, one `crux-vitals` reading per asset per day
   ([doc 11](11-integrations.md#chrome-ux-report)). No alert rule reads it yet.
 - TLS certificate expiry is not checked: the Worker's `fetch` does not expose
   the peer certificate.
@@ -372,7 +372,7 @@ quota. Full behavior, reporting rules, and the parser's documented limits:
   level of `<sitemapindex>`; alert on unreachable, unparseable, or a -50%
   count collapse off a base of ≥50 URLs.
 - **CrUX API** daily: the INP/LCP/CLS 75th percentiles per asset, rated
-  good, needs improvement or poor on the site's Data sources tab
+  good, needs improvement or poor on the asset's Data sources tab
   (tiebreaker-level priority, but free to monitor).
 - Scope note: an asset may already prove link-graph/sitemap/canonical
   integrity in its own CI at build time. S5 checks the *served* layer (what a
@@ -392,7 +392,7 @@ signal family, not kept in a spreadsheet that someone has to remember to check:
   stored choice + GPC and sets consent signals) must precede analytics/ad
   loaders in served HTML, and a stored reject/GPC must skip the loaders;
   privacy-policy + "Do Not Sell" routes must return 200. The DEFAULT is a
-  per-asset setting, not the invariant — a site may run the US opt-out model
+  per-asset setting, not the invariant — an asset may run the US opt-out model
   (default granted, denied on reject/GPC), and default-deny halves GA4
   reporting without any visible error. A regression here is a compliance incident → **error**.
 - **Ad-platform state log**: AdSense/Ad-Manager application + policy-center
@@ -419,7 +419,7 @@ signal family, not kept in a spreadsheet that someone has to remember to check:
   (`second_rank`, `serp_features`, `sitelinks_us`); what is missing is
   history, not fields — and the sitelink rule depends on `sitelinks_us`'s
   empty state: it must compare only weeks that have an observation and skip
-  the weeks the property had no result inside the tracked depth.
+  the weeks the asset had no result inside the tracked depth.
 - The broad S1 weekly comparison emits executive warnings/discoveries, not
   lifecycle flags; repeated provider snapshots and real GSC impact are
   required before promoting those rules into Needs Attention.
@@ -456,7 +456,7 @@ Rules generalized from manual-analysis history
 finding each encodes:
 
 - **`measurement-integrity`** (warning) — ≥10% Unassigned/`(not set)` sessions,
-  or an event that ran ≥100/day dropping ≥90% WoW. A property with over 10%
+  or an event that ran ≥100/day dropping ≥90% WoW. An asset with over 10%
   Unassigned sessions must qualify every number in its largest analysis. This
   card **qualifies** every other card on the page rather than adding a
   finding, and sorts first for that reason. The OS reports the fault only — the measurement channel is
@@ -464,16 +464,16 @@ finding each encodes:
 - **`concentration-risk`** (warning) — organic search ≥85% of ≥100 sessions,
   the single-channel threshold [doc 00](00-objective-and-roi.md) lists as the
   #1 devaluation factor.
-- **`query-cannibalization`** (recommendation) — ≥2 of the property's own pages
+- **`query-cannibalization`** (recommendation) — ≥2 of the asset's own pages
   each holding ≥20% of one query's impressions, above the striking-distance
   volume minimum (25/reported date, never below 100). A homepage can outrank its
   own interior pages for months before anyone notices.
 - **`query-language-drift`** (recommendation) — a country holding ≥5% of
-  impressions (≥1,000) clicking at ≤half the CTR the property gets
+  impressions (≥1,000) clicking at ≤half the CTR the asset gets
   **excluding that country**. The problem it detects is meta copy written in
-  the site's language, not the searcher's; a one-character fix can be worth
+  the asset's language, not the searcher's; a one-character fix can be worth
   four figures of impressions a month. Both thresholds follow from that
-  pattern: a country large enough to matter also pulls the property-wide CTR
+  pattern: a country large enough to matter also pulls the asset-wide CTR
   toward its own CTR, so comparing against the overall number would hide a
   locale gap, because the country is part of the number it is compared with.
 - **`device-ctr-gap`** (recommendation) — one device's CTR ≤ half the other's,
@@ -484,7 +484,7 @@ finding each encodes:
   observed; it is attributed entirely to the weaker device as a worst case,
   which can only make the rule fire less often.
 - **`prune-candidates`** (discovery) — pages under 5 impressions across a window
-  of ≥14 reported dates, on properties with ≥100 reported pages. A full prune
+  of ≥14 reported dates, on assets with ≥100 reported pages. A full prune
   rule is "<5 impressions in 90d **AND** no internal links"; only the
   impressions half exists in this archive and the card shows that rather than
   implying the link half was checked. A page missing from the export entirely is
@@ -506,7 +506,7 @@ finding each encodes:
   look like homework questions stay in the series, so the number is a lower bound for the behavior
   rather than a full measure of it.
 - **`search-striking-distance`** withholds a term where the panel observed an
-  AI Overview that does not cite this property. Several of the property's URLs
+  AI Overview that does not cite this asset. Several of the asset's URLs
   at position 1.0–1.3 with byte-identical impression counts and no clicks is
   *one block* — an AI Overview or a sitelink group — crediting them at the
   block's own position, and the consolidation a cannibalization card would
@@ -526,21 +526,21 @@ finding each encodes:
   source); that is the current state.
 - **`distant-demand-cluster`** exists because the near-win range (position
   4–20) suits near-wins but is too narrow as the only range checked for a
-  property: it misses five-figure monthly searches at positions 37–49 that map
-  to a page the site already has. [Doc 13](13-opportunity-scouting.md)'s
+  asset: it misses five-figure monthly searches at positions 37–49 that map
+  to a page the asset already has. [Doc 13](13-opportunity-scouting.md)'s
   opportunity scouting exists so that a scope filter does not hide
   opportunities like this.
 - **`value-event-not-key-event`** — a value event carrying `keyEvents = 0`
   while a lesser event is marked key sets every conversion-based read the OS
   makes to zero without any error, including the `ai-referral-floor` card's own
-  "Key events" evidence row. Value events are declared per property in
+  "Key events" evidence row. Value events are declared per asset in
   [`config/value-events.json`](../config/value-events.json) (+ README
   sibling). Both sides of the comparison are operator-only — the measurement
   channel is `forbidden`-class — so the rule reports the mismatch and edits
   neither.
 
 Several rules fire only after enough history has accumulated — the
-week-over-week and prune rules need 14 reported dates — or once a property
+week-over-week and prune rules need 14 reported dates — or once an asset
 actually crosses a threshold.
 
 ## The "did it help?" join
@@ -553,13 +553,13 @@ panel + GSC series should show whether it moved within 2–6 weeks.
 
 ## Cost envelope
 
-A five-family weekly run costs roughly $0.26–$0.29 per property; weekly cadence
+A five-family weekly run costs roughly $0.26–$0.29 per asset; weekly cadence
 projects to a few dollars a month for a small portfolio, below the $25/month
 data cap. Exact cost is indexed per report; the scheduler reserves $0.25 before
 each call and fails closed rather than crossing the cap. S2/S5/GA4 remain free.
 
 The S1b panel adds ~$0.004 per (tracked query, **device**) and nothing at all
-for the properties without one. A panel at a 40-query ceiling would cost $0.32
+for the assets without one. A panel at a 40-query ceiling would cost $0.32
 at two devices — more than the $0.25 the gate reserves for one family, i.e. a
 family spending more than the reserve its own gate took, without any error. So
 the ceiling is *derived*: 31 terms, which is exactly what $0.25 pays for at two

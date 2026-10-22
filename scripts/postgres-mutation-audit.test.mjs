@@ -166,7 +166,7 @@ test('asset and finding audit is atomic, immutable and current-person scoped in 
     });
     await t.test('ordinary Worker writes every family to its selected owner and no free-form value enters audit', async () => {
       for (const person of people) {
-        assert.equal((await send(person, 'create', { id: 'new.test', displayName: 'Generated site' })).status, 200);
+        assert.equal((await send(person, 'create', { id: 'new.test', displayName: 'Generated asset' })).status, 200);
         assert.equal((await send(person, 'column', { asset: 'example.test', column: 'display_name', value: 'Generated private display', actor: randomUUID() })).status, 200);
         assert.equal((await send(person, 'move', { asset: 'example.test', to: 'target.test' })).status, 200);
         assert.equal((await send(person, 'annotation', { asset: 'example.test', kind: 'deploy', at: '2026-01-01T00:00:00Z', note: 'Generated private note', ref: 'generated-reference' })).status, 200);

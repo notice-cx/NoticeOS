@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { siteHost } from '../src/site-discovery.js';
 
-describe('siteHost: a provider site matches a stored site by host, www. dropped', () => {
+describe('siteHost: a provider asset matches a stored asset by host, www. dropped', () => {
   it.each([
     'www.example.com',
     'example.com',

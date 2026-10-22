@@ -716,7 +716,7 @@ export function nightlyReportState(
         {
           polarity: "supporting",
           source: "No nightly report",
-          detail: "Off in this site's Settings",
+          detail: "Off in this asset's Settings",
           at: null,
         },
       ],

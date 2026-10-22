@@ -20,7 +20,7 @@ describe('Mediavine UI boundary', () => {
     expect(ingest.mediavineStatus).toHaveBeenCalledWith('example.test');
     expect(ingest.syncMediavine).not.toHaveBeenCalled();
   });
-  it('leaves the account\'s site list to the connect panel\'s route', async () => {
+  it('leaves the account\'s asset list to the connect panel\'s route', async () => {
     const ingest = binding();
     expect((await request(ingest, 'sites', { method: 'POST' })).status).toBe(404);
     expect((await request(ingest, 'sites')).status).toBe(404);

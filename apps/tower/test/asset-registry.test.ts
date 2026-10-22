@@ -39,8 +39,8 @@ async function namedSite() {
   return ctx;
 }
 
-describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavailable === null ? "" : ` (skipped: no Postgres here, ${unavailable})`}`, () => {
-  it("lists sites by their stored place: the order they were added in, whatever their instants and ids", async () => {
+describe.skipIf(unavailable !== null)(`the asset list is read on Postgres${unavailable === null ? "" : ` (skipped: no Postgres here, ${unavailable})`}`, () => {
+  it("lists assets by their stored place: the order they were added in, whatever their instants and ids", async () => {
     const ctx = await createTestStore();
     await addSites(ctx, [
       { id: "zeta.example", displayName: "Zeta", status: "live", createdAt: "2026-08-03T00:00:00.000Z" },
@@ -56,7 +56,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
   // Sites that share one instant, placed in an order that is not their ids'
   // order. Home, the Sites page and the navigation list the Wall payload's
   // sites as it orders them (`useWall`); the Sites panel reads the list itself.
-  it("every reader lists sites that share one instant in the order they were placed", async () => {
+  it("every reader lists assets that share one instant in the order they were placed", async () => {
     const ctx = await createTestStore();
     const at = "2026-07-05T00:00:00.000Z";
     const placed = ["root.example", "meadow.example", "northwind.example", "pebble.example", "acorn.example", "ferns.example"];
@@ -70,7 +70,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
     expect((await readSites(store)).map((site) => site.id)).toEqual(placed);
   });
 
-  it("a moved site is listed at its new place by every reader", async () => {
+  it("a moved asset is listed at its new place by every reader", async () => {
     const ctx = await createTestStore();
     const inserted = ["first.example", "second.example", "third.example"];
     await addSites(ctx, inserted.map((id) => ({ id, displayName: id, status: "live" })));
@@ -116,7 +116,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
     expect((await buildAssetDetailPayload(ctx.call, ids[0]!, DETAIL))?.asset).toMatchObject({ status: "live", storedStatus: "onboarding" });
   });
 
-  it("the Wall's cards, the asset page and the integrations matrix name the site from Postgres", async () => {
+  it("the Wall's cards, the asset page and the integrations matrix name the asset from Postgres", async () => {
     const ctx = await namedSite();
     const store = ctx.call;
     expect((await buildWallPayload(store, WALL)).assets.map((card) => card.displayName)).toEqual(["Meadow Board"]);
@@ -127,7 +127,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
     expect(matrix.assets.map((asset) => asset.displayName)).toEqual(["Meadow Board"]);
   });
 
-  it("the task board, the alert history and the Wall feed name the site from Postgres", async () => {
+  it("the task board, the alert history and the Wall feed name the asset from Postgres", async () => {
     const ctx = await namedSite();
     const store = ctx.call;
     const board = await buildWorkPayload(store, { now: NOW, snapshot: { capturedAt: NOW.toISOString(), projects: [workProject()] } as never });
@@ -147,7 +147,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
     expect(new Set(named)).toEqual(new Set(["Meadow Board"]));
   });
 
-  it("an asset page, a decision and the connect panel know a site by Postgres alone", async () => {
+  it("an asset page, a decision and the connect panel know an asset by Postgres alone", async () => {
     const ctx = await createTestStore();
     await addSites(ctx, [{ id: "meadow.example", displayName: "Meadow Board", status: "live" }]);
 

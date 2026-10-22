@@ -10,7 +10,7 @@ import { AgentsLine } from "@/routes/HomeRoute";
 function work(projects: Partial<WorkProject>[]): WorkPayload {
   return {
     generatedAt: "2026-10-16T12:00:00.000Z", capturedAt: "2026-10-16T12:00:00.000Z", pollCadenceHours: 1 / 60, owner: "config/beads.json",
-    historyDays: 0, projects: projects.map((over, index) => ({ asset: `site-${index}.example.com`, prefix: "ex", name: `Site ${index}`, ok: true, error: null,
+    historyDays: 0, projects: projects.map((over, index) => ({ asset: `site-${index}.example.com`, prefix: "ex", name: `Asset ${index}`, ok: true, error: null,
       counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
       history: { days: [], open: [], inProgress: [], blocked: [], closed: [] }, priorities: null, epics: null,
       ready: [], inProgress: [], recentlyClosed: [], deferred: [], waiting: [], ...over })) as WorkProject[],

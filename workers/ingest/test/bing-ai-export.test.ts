@@ -117,7 +117,7 @@ describe('POST /api/bing-ai-export — the door', () => {
     expect(res.status).toBe(400);
   });
 
-  it('refuses a property the store does not know (422)', async () => {
+  it('refuses an asset the store does not know (422)', async () => {
     const { status, body } = await importExport({ asset: 'not-a-property.test' });
     expect(status).toBe(422);
     expect(body.error).toBe('unknown_asset');

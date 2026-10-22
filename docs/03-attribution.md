@@ -49,12 +49,12 @@ foods pages, calculator constellation, programmatic locale sets).
   measurement state. No separate file lists the open windows.
 - Booked: the realized Δ with a credible interval, after shrinkage (below).
 
-### Tier B — holdout-able (site-wide changes with a control somewhere)
-Site-wide changes that can be staged (half the corpus first), or where sibling
+### Tier B — holdout-able (asset-wide changes with a control somewhere)
+Asset-wide changes that can be staged (half the corpus first), or where sibling
 portfolio assets form a plausible control series.
 - Method: DiD / CausalImpact with the held-out slice or sibling asset as
   control. Weaker than Tier A; intervals widen accordingly.
-- A genuinely site-wide, no-control change is evaluated as an interrupted time
+- A genuinely asset-wide, no-control change is evaluated as an interrupted time
   series **with the update calendar overlaid** and is booked with an "ITS-only"
   caveat flag — or deliberately batched (below).
 
@@ -114,7 +114,7 @@ measured against the baseline that preceded it.
 `scope_json = {"query":"…"}`; the evaluator reads that query from the retained
 provider-final daily `gsc/query` R2 objects. A missing query row is treated
 as missing, not zero, and counts against the normal coverage rule. Unsupported
-or malformed scopes close `unmeasurable` rather than using site-wide numbers
+or malformed scopes close `unmeasurable` rather than using asset-wide numbers
 for a narrower question.
 
 The registration threshold uses the same grain. The Tower loads only that
@@ -123,7 +123,7 @@ baseline-length windows with the evaluator's same coverage and mean-per-observed
 day arithmetic. A usable floor is shown with the query, archive span, typical
 move, ninetieth percentile, and valid comparison count. With insufficient
 history, the threshold stays at a 10% starting point that is shown as
-uncalibrated; it never takes on the property's site-wide volatility. Both site
+uncalibrated; it never takes on the asset's asset-wide volatility. Both asset
 and query calibration read the annotation ledger independently over the full
 calibration horizon and exclude every
 comparison pair crossing a recorded change. If that calendar is absent or

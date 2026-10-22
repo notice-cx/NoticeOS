@@ -64,13 +64,13 @@ export function WallHealth({ assets, issues, nowMs = null }: { assets: readonly 
   const summary = techHealthSummary(assets, issues, nowMs);
   return (
     <section
-      aria-label="Site health"
+      aria-label="Asset health"
       className="flex h-full min-h-0 min-w-0 flex-col gap-3"
       style={{ "--health-rows": Math.max(rows.length, 1) } as CSSProperties}
       data-wall-health={rows.length > 0 ? "rows" : "calm"}
     >
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 className={eyebrow}>Site health</h2>
+        <h2 className={eyebrow}>Asset health</h2>
         {summary.measured > 0 ? (
           <span className="text-wall-micro tabular-nums text-muted-foreground" data-wall-health-meta="">
             {summary.fine} of {summary.measured} fine
@@ -80,12 +80,12 @@ export function WallHealth({ assets, issues, nowMs = null }: { assets: readonly 
       {rows.length === 0 ? (
         <div className="flex items-center gap-3 rounded-lg bg-muted/60 px-4 py-3 text-wall-body text-muted-foreground">
           <HeartPulse className="size-6 shrink-0" aria-hidden />
-          No sites yet
+          No assets yet
         </div>
       ) : (
         <div
           role="table"
-          aria-label="Site health"
+          aria-label="Asset health"
           className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(8rem,1fr)_repeat(5,3.75rem)_minmax(0,1.3fr)] content-start gap-x-2 tv:grid-rows-[auto] tv:auto-rows-[minmax(min-content,1fr)] tv:content-stretch tv:overflow-y-auto"
           data-wall-health-table=""
         >
@@ -94,7 +94,7 @@ export function WallHealth({ assets, issues, nowMs = null }: { assets: readonly 
               would pull every visible header one column left of its dots. */}
           <div role="row" className="col-span-full grid grid-cols-subgrid items-end px-3 pb-1">
             <span role="columnheader">
-              <span className="sr-only">Site</span>
+              <span className="sr-only">Asset</span>
             </span>
             {WALL_HEALTH_FACTS.map((fact) => (
               <span key={fact.key} role="columnheader" className="text-center text-[length:var(--wall-health-head)] leading-tight text-muted-foreground">

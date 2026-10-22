@@ -329,7 +329,7 @@ export function describePlan(plan, flags, { next = true } = {}) {
   } else {
     lines.push('Up to date.');
     if (next && plan.workspaces === 0) {
-      lines.push(`Next, its one workspace: ${nextCommand('--bootstrap', flags)} --slug main --name "My sites"`);
+      lines.push(`Next, its one workspace: ${nextCommand('--bootstrap', flags)} --slug main --name "My assets"`);
     }
   }
   return lines.join('\n');
@@ -416,7 +416,7 @@ export function main(argv = process.argv.slice(2), out = process.stdout, err = p
       say(out, result.applied.map((name) => `  applied      ${name}`).join('\n'));
       say(out, `Applied ${result.applied.length} ${plural(result.applied.length, 'migration')} to ${target.where}, in one transaction.`);
       if (plan.workspaces === null || plan.workspaces === 0) {
-        say(out, `Next, its one workspace: ${nextCommand('--bootstrap', flags)} --slug main --name "My sites"`);
+        say(out, `Next, its one workspace: ${nextCommand('--bootstrap', flags)} --slug main --name "My assets"`);
       }
       return 0;
     }

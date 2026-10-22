@@ -52,7 +52,7 @@ describe("shared/product — the section's arithmetic", () => {
     expect(speed).toHaveLength(3);
   });
 
-  it("groups findings by page, worst group first, an unplaced error under the whole site and noise last", () => {
+  it("groups findings by page, worst group first, an unplaced error under the whole asset and noise last", () => {
     const groups = productIssueGroups(PRODUCT);
     expect(groups.map((group) => group.key)).toEqual(["page:/calculator", "page:/", "site", "page:/my", "third-party"]);
     expect(groups[0]!.severity).toBe("error");
@@ -126,7 +126,7 @@ describe("ProductJourney", () => {
     expect(groupsOf()).toEqual([
       { place: "/calculator", heading: "/calculator 6 found", rows: ["speed"] },
       { place: "/", heading: "/ 2 found", rows: ["error"] },
-      { place: "site", heading: "Whole site 1 found", rows: ["once"] },
+      { place: "site", heading: "Whole asset 1 found", rows: ["once"] },
     ]);
     expect(list.textContent).toContain("Chrome OS Desktop");
     expect(list.textContent).not.toContain("/calculator · Chrome OS Desktop");
@@ -139,7 +139,7 @@ describe("ProductJourney", () => {
     expect(groupsOf()).toEqual([
       { place: "/calculator", heading: "/calculator 6 found", rows: ["speed", "rage", "speed", "rage", "error", "rage"] },
       { place: "/", heading: "/ 2 found", rows: ["error", "speed"] },
-      { place: "site", heading: "Whole site 1 found", rows: ["once"] },
+      { place: "site", heading: "Whole asset 1 found", rows: ["once"] },
       { place: "/my", heading: "/my 1 found", rows: ["error"] },
       { place: "third-party", heading: "Probably third-party 1 found", rows: ["noise"] },
     ]);
@@ -192,7 +192,7 @@ describe("ProductJourney", () => {
     fireEvent.click(within(list).getByRole("button", { name: /first_meal_logged/ }));
     const once = list.querySelector('[data-product-issue="once"]')!;
     expect(once.textContent).toContain("3.0× too high");
-    expect(once.querySelector("[data-product-next-step]")!.textContent).toBe("Check where the site sends it");
+    expect(once.querySelector("[data-product-next-step]")!.textContent).toBe("Check where the asset sends it");
 
     fireEvent.click(within(list).getByRole("button", { name: /Load failed/ }));
     const noise = list.querySelector('[data-product-issue="noise"]')!;
@@ -241,8 +241,8 @@ describe("ProductJourney", () => {
       return text;
     };
     expect(say("connected")).toContain("Connected · the first product read has not been collected yet.");
-    expect(say("not-connected")).toContain("Product data is not connected for this site.");
-    expect(say("off")).toContain("Product data is not collected for this site.");
+    expect(say("not-connected")).toContain("Product data is not connected for this asset.");
+    expect(say("off")).toContain("Product data is not collected for this asset.");
   });
 
   it("needs no explainer: no About and no header tooltip", () => {

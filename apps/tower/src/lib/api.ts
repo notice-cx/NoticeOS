@@ -383,7 +383,7 @@ async function fetchAssetDetailRequest(fetch: ApiTransport,
   if (!res.ok) {
     throw new ApiError(`GET ${path} failed: ${res.status}`, res.status);
   }
-  const payload = decodeAssetMoney(await responseJson(res, 'Site financials'), id, view);
+  const payload = decodeAssetMoney(await responseJson(res, 'Asset financials'), id, view);
   payload.integrations.lanes = payload.integrations.lanes.map((lane) => ({
     ...lane, catalog: { ...lane.catalog, label: integrationLabel(lane.catalog.id, lane.catalog.label) },
   }));
@@ -940,8 +940,8 @@ async function moveAssetRequest(fetch: ApiTransport, asset: string, to: string, 
   const path = `/api/assets/${encodeURIComponent(asset)}/order`;
   const response = await fetch(path, { method: 'PATCH', headers: JSON_WRITE_HEADERS,
     body: JSON.stringify({ to, ...(expectRevision === undefined ? {} : { expectRevision }) }) });
-  if (!response.ok) throw await refusal(response, 'Site order could not be saved.');
-  return decodeAssetOrder(await responseJson(response, 'Site order'), asset);
+  if (!response.ok) throw await refusal(response, 'Asset order could not be saved.');
+  return decodeAssetOrder(await responseJson(response, 'Asset order'), asset);
 }
 
 /**

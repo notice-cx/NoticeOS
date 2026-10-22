@@ -98,7 +98,7 @@ describe('Mediavine encrypted connection and controls', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(calls);
     expect(await retryState()).toEqual(before);
   });
-  it('discovers sites through the default native fetch and an isolated outbound service', async () => {
+  it('discovers assets through the default native fetch and an isolated outbound service', async () => {
     const response = await (env as typeof env & { NATIVE_MEDIAVINE: Fetcher }).NATIVE_MEDIAVINE.fetch('https://test.invalid/');
     expect(await response.json()).toEqual([SITE]);
     expect(response.status).toBe(200);
@@ -118,7 +118,7 @@ describe('Mediavine encrypted connection and controls', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(await count('revenue_observations')).toBe(8);
   });
-  it('files each day in the revenue ledger under Mediavine Journey, naming the site and the run, on the collector\'s clock', async () => {
+  it('files each day in the revenue ledger under Mediavine Journey, naming the asset and the run, on the collector\'s clock', async () => {
     const fetchImpl = await connect();
     expect((await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW })).ok).toBe(true);
     const filed = await env.STORE.read((tx) => tx.query<{ source: string; account_ref: string; run_ref: string; currency: string; item_ref: string | null }>(
@@ -189,7 +189,7 @@ describe('Mediavine encrypted connection and controls', () => {
     await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 });
     expect(fetchImpl).toHaveBeenCalledTimes(1); expect(await count('revenue_observations')).toBe(0);
   });
-  it('stores session encrypted, reuses it across fresh clients, and caches site discovery', async () => {
+  it('stores session encrypted, reuses it across fresh clients, and caches asset discovery', async () => {
     const fetchImpl = await connect();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     await discoverMediavineSites(env, { fetchImpl, nowMs: NOW + 1 });
@@ -253,7 +253,7 @@ describe('Mediavine encrypted connection and controls', () => {
     const result = await resolveCredential(legacy, 'mediavine');
     expect(result.source).toBe('none'); expect(result.fields).toEqual({});
   });
-  it('refuses a site outside the discovered account', async () => {
+  it('refuses an asset outside the discovered account', async () => {
     await connect();
     expect((await saveMediavineSettings(env, { asset: ASSET, siteId: 'not-authorized', enabled: true })).ok).toBe(false);
   });
@@ -426,7 +426,7 @@ describe('Mediavine in the connect panel', () => {
     expect((await resolveCredential(env, 'mediavine')).source).toBe('none');
   });
 
-  it('keeps an accepted login with its session and site list, so the panel lists the sites without signing in again', async () => {
+  it('keeps an accepted login with its session and asset list, so the panel lists the assets without signing in again', async () => {
     const fetchImpl = transport();
     const answer = await connectCredential(env, { provider: 'mediavine', fields: LOGIN }, { fetchImpl, nowMs: NOW });
     expect(answer).toMatchObject({ ok: true, verdict: 'accepted', facts: { sites: 1 } });
@@ -442,7 +442,7 @@ describe('Mediavine in the connect panel', () => {
     ] });
   });
 
-  it('lists the sites without stamping a verdict or an observation, and says a refused login is refused', async () => {
+  it('lists the assets without stamping a verdict or an observation, and says a refused login is refused', async () => {
     await putMediavineCredential(env, { provider: 'mediavine', fields: LOGIN });
     const before = await credentialVerdict('mediavine');
     const listed = await discoverSites(env, 'mediavine', { fetchImpl: transport(), nowMs: NOW });
@@ -454,7 +454,7 @@ describe('Mediavine in the connect panel', () => {
     expect(await discoverSites(env, 'mediavine', { fetchImpl: refusing, nowMs: NOW })).toMatchObject({ ok: false, reason: 'refused' });
   });
 
-  it("syncs a site once its id is saved — Start's one write — and stops at its Not using", async () => {
+  it("syncs an asset once its id is saved — Start's one write — and stops at its Not using", async () => {
     await connectCredential(env, { provider: 'mediavine', fields: LOGIN }, { fetchImpl: transport(), nowMs: NOW });
     await mapSite();
     const fetchImpl = transport();
@@ -496,7 +496,7 @@ describe('Mediavine in the connect panel', () => {
     }, { nowMs: NOW });
   });
 
-  it('forgets the login on Disconnect and leaves the site mapped, not Not using', async () => {
+  it('forgets the login on Disconnect and leaves the asset mapped, not Not using', async () => {
     await connectCredential(env, { provider: 'mediavine', fields: LOGIN }, { fetchImpl: transport(), nowMs: NOW });
     await mapSite();
     await disconnectMediavine(env);

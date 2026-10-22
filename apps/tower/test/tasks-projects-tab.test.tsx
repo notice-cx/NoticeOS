@@ -128,17 +128,17 @@ afterEach(() => {
 });
 
 describe("the Projects tab", () => {
-  it("counts the sites and projects, then what waits on you and what is urgent, each in its colour", () => {
+  it("counts the assets and projects, then what waits on you and what is urgent, each in its colour", () => {
     setUp();
     const { container } = renderTab();
     const sentence = container.querySelector("[data-projects-answer] h2")!;
-    expect(sentence).toHaveTextContent("2 sites, 3 projects. 1 waits on you, 1 urgent.");
+    expect(sentence).toHaveTextContent("2 assets, 3 projects. 1 waits on you, 1 urgent.");
     expect(sentence.querySelector('[data-clause="waits"]')).toHaveClass("text-warn");
     expect(sentence.querySelector('[data-clause="urgent"]')).toHaveClass("text-urgent");
     expect(sentence.querySelector('[data-clause="blocked"]')).toBeNull();
   });
 
-  it("says nothing waits on you when nothing does, and counts only projects on a site's own tab", () => {
+  it("says nothing waits on you when nothing does, and counts only projects on an asset's own tab", () => {
     setUp({ "northwind.example": northwind });
     const { container } = renderTab("northwind.example");
     expect(container.querySelector("[data-projects-answer] h2")).toHaveTextContent("1 project. Nothing waits on you.");
@@ -156,7 +156,7 @@ describe("the Projects tab", () => {
     expect(work.querySelector("[data-tasks-working]")).toHaveTextContent(/Working now\s*claude-code 1/);
   });
 
-  it("draws a site's cards with their state, progress and the question waiting on you", () => {
+  it("draws an asset's cards with their state, progress and the question waiting on you", () => {
     setUp();
     const { container } = renderTab();
     const meadowRow = container.querySelector<HTMLElement>('[data-site-row="meadow.example"]')!;

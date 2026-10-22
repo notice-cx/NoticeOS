@@ -44,8 +44,8 @@ describe("the head a build ships", () => {
 
 describe("the tab names the page", () => {
   it("is the page's heading, then the product, and says when it is the demo", () => {
-    expect(documentTitle("Sites", false)).toBe("Sites · NoticeOS");
-    expect(documentTitle("Sites", true)).toBe("Sites · NoticeOS demo");
+    expect(documentTitle("Portfolio", false)).toBe("Portfolio · NoticeOS");
+    expect(documentTitle("Portfolio", true)).toBe("Portfolio · NoticeOS demo");
   });
   it("follows a plain heading, an explicit name for a rich one, and nothing otherwise", () => {
     const view = render(<MemoryRouter><PageHeader title="Financials" /></MemoryRouter>);

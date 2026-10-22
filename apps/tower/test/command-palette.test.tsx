@@ -75,11 +75,11 @@ function renderShell(path = "/") {
 
 function openWithShortcut() {
   fireEvent.keyDown(window, { key: "k", metaKey: true });
-  return screen.getByRole("dialog", { name: "Search pages and sites" });
+  return screen.getByRole("dialog", { name: "Search pages and assets" });
 }
 
 function paletteInput() {
-  return screen.getByPlaceholderText("Search pages and sites…");
+  return screen.getByPlaceholderText("Search pages and assets…");
 }
 
 /** The rows cmdk is currently rendering, in DOM order. */
@@ -108,7 +108,7 @@ describe("opening and closing", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    expect(screen.getByRole("dialog", { name: "Search pages and sites" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Search pages and assets" })).toBeInTheDocument();
   });
 
   it("ignores a bare k, so it cannot eat what the operator is typing", () => {
@@ -124,7 +124,7 @@ describe("opening and closing", () => {
     // Two sidebars are in the DOM by design (the desktop column and the
     // small-screen drawer's source).
     fireEvent.click(screen.getAllByRole("button", { name: /Search/ })[0]!);
-    expect(screen.getByRole("dialog", { name: "Search pages and sites" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Search pages and assets" })).toBeInTheDocument();
   });
 
   it("closes on Escape and on the backdrop", () => {
@@ -135,7 +135,7 @@ describe("opening and closing", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
 
     openWithShortcut();
-    fireEvent.click(screen.getByRole("button", { name: "Close search pages and sites" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close search pages and assets" }));
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -157,7 +157,7 @@ describe("opening and closing", () => {
 });
 
 describe("what it lists", () => {
-  it("excludes archived sites from both recent and searchable destinations", () => {
+  it("excludes archived assets from both recent and searchable destinations", () => {
     window.localStorage.setItem(PALETTE_RECENT_KEY, JSON.stringify(["asset:meadow.example"]));
     state.assets = ASSETS.map(asset => asset.id === "meadow.example" ? { ...asset, status: "retired" } : asset);
     renderShell();
@@ -175,7 +175,7 @@ describe("what it lists", () => {
     const shown = rows();
     for (const page of [
       "Home",
-      "Sites",
+      "Portfolio",
       "Alerts",
       "Tasks",
       "Money",
@@ -216,8 +216,9 @@ describe("what it lists", () => {
     renderShell();
     const dialog = openWithShortcut();
 
-    expect(within(dialog).getAllByText("Sites")).toHaveLength(2);
-    expect(paletteInput()).toHaveAttribute("placeholder", "Search pages and sites…");
+    expect(within(dialog).getByText("Portfolio")).toBeInTheDocument();
+    expect(within(dialog).getByText("Assets")).toBeInTheDocument();
+    expect(paletteInput()).toHaveAttribute("placeholder", "Search pages and assets…");
   });
 
   it("filters as the operator types", () => {
@@ -241,13 +242,13 @@ describe("what it lists", () => {
     expect(rows().some((row) => row.includes("Money"))).toBe(true);
   });
 
-  it("offers task search when no page or site matches", () => {
+  it("offers task search when no page or asset matches", () => {
     renderShell();
     openWithShortcut();
 
     fireEvent.change(paletteInput(), { target: { value: "zzzzzzzz" } });
 
-    expect(screen.queryByText("No page or site matches.")).toBeNull();
+    expect(screen.queryByText("No page or asset matches.")).toBeNull();
     expect(screen.getByText("Search tasks for “zzzzzzzz”")).toBeInTheDocument();
   });
 });
@@ -273,12 +274,12 @@ describe("navigating", () => {
     expect(screen.getByTestId("path")).toHaveTextContent("/financials");
   });
 
-  it("opens Arrange on the Sites page from Arrange the sites, found by reorder too", () => {
+  it("opens Arrange on the Assets page from Arrange the assets, found by reorder too", () => {
     renderShell();
     const dialog = openWithShortcut();
 
     fireEvent.change(paletteInput(), { target: { value: "reorder" } });
-    fireEvent.click(within(dialog).getByText("Arrange the sites"));
+    fireEvent.click(within(dialog).getByText("Arrange the assets"));
 
     expect(screen.getByTestId("path")).toHaveTextContent("/assets");
     expect(screen.getByTestId("search")).toHaveTextContent("?arrange=1");
@@ -293,7 +294,7 @@ describe("navigating", () => {
     expect(rows()).toEqual(["Open task ro-d298Enter"]);
     // A force-mounted row is the only thing left on screen, so the empty
     // state must not be here.
-    expect(screen.queryByText("No page or site matches.")).toBeNull();
+    expect(screen.queryByText("No page or asset matches.")).toBeNull();
 
     fireEvent.keyDown(paletteInput(), { key: "Enter" });
     expect(screen.getByTestId("path")).toHaveTextContent("/tasks/ro-d298");

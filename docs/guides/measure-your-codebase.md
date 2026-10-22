@@ -1,19 +1,19 @@
 ---
 title: "Measure your codebase"
-description: "Send a weekly measurement of a site's code to NoticeOS and read the Codebase tab: size, repeated code, unused code, hard-to-change functions and tests, beside the site's visitors."
+description: "Send a weekly measurement of an asset's code to NoticeOS and read the Codebase tab: size, repeated code, unused code, hard-to-change functions and tests, beside the asset's visitors."
 ---
 
 # Measure your codebase
 
-This page shows how to have NoticeOS measure a site's code each week and what the site's **Codebase** tab shows once it does. It is written for the person who runs the site, not only for the person who writes its code.
+This page shows how to have NoticeOS measure an asset's code each week and what the asset's **Codebase** tab shows once it does. It is written for the person who runs the asset, not only for the person who writes its code.
 
-A product built quickly, often with AI coding tools, can grow faster than anyone reads it: the same component copied into several pages, old files nobody uses, functions that only get longer. The **Codebase** tab shows those trends over time, next to the site's visitors, so a change in the code can be compared with a change in use.
+A product built quickly, often with AI coding tools, can grow faster than anyone reads it: the same component copied into several pages, old files nobody uses, functions that only get longer. The **Codebase** tab shows those trends over time, next to the asset's visitors, so a change in the code can be compared with a change in use.
 
 ## What the Codebase tab shows
 
-Open a site from **Sites**, then select **Codebase**, between **Search** and **Alerts**.
+Open an asset from **Portfolio**, then select **Codebase**, between **Search** and **Alerts**.
 
-At the top is one sentence on how the code changed over the last 30 days, with the visitors over the same days when the site has a visitor count, for example "The code grew 12% in 30 days while visitors grew 3%." Under it are the line counts it compares, the date of the latest report and the commit it measured.
+At the top is one sentence on how the code changed over the last 30 days, with the visitors over the same days when the asset has a visitor count, for example "The code grew 12% in 30 days while visitors grew 3%." Under it are the line counts it compares, the date of the latest report and the commit it measured.
 
 Then five figures. Each shows its value in the latest report, its change against the report nearest 30 days earlier, and its last 90 days as a small line. Hover over or tap the information icon (ⓘ) on a figure for a one-line explanation and the two reports its change compares.
 
@@ -25,7 +25,7 @@ Then five figures. Each shows its value in the latest report, its change against
 | **Hard-to-change functions** | Functions with so many branches that one change can break another. |
 | **Test coverage by size** | Lines of tests for each line of code, shown as a multiple, such as **0.2×** the code. Tests catch mistakes before visitors do. |
 
-Under them are three checks, shown when the site's own workflow ([Send build, test and package-audit results](#send-build-test-and-package-audit-results)) or the [local command](#from-the-computer-that-runs-noticeos) sends them:
+Under them are three checks, shown when the asset's own workflow ([Send build, test and package-audit results](#send-build-test-and-package-audit-results)) or the [local command](#from-the-computer-that-runs-noticeos) sends them:
 
 | Figure | What it means |
 |---|---|
@@ -35,18 +35,18 @@ Under them are three checks, shown when the site's own workflow ([Send build, te
 
 Under the figures:
 
-- A chart of lines of code over the last **30** or **90** days. Each deploy on the site's timeline (its **Activity** tab) is a mark on it, and a ◆ mark, **Measuring tools updated**, shows a day the measuring tools changed version. **Visitors** draws the site's visitors a day under it. Between two reports the line holds the earlier report's count.
+- A chart of lines of code over the last **30** or **90** days. Each deploy on the asset's timeline (its **Activity** tab) is a mark on it, and a ◆ mark, **Measuring tools updated**, shows a day the measuring tools changed version. **Visitors** draws the asset's visitors a day under it. Between two reports the line holds the earlier report's count.
 - **Languages**: one bar split by each language's share of the code.
 - **Findings** from the latest report, in four lists: **Repeated blocks** (the files that share a block, and its length in lines), **Hard-to-change functions** (the function, its file and its complexity, where above 15 is hard to change), **Unused** (files, shared pieces and packages) and **Vulnerable packages** (how many, when there are any). Each row has **Make a task**, which opens the task form with a title such as "Merge the repeated code in …" or "Fix 3 vulnerable packages in …" filled in.
 
-The figures are counts of the code, not a grade. A site with 2% repeated code is not twice as healthy as one with 4%; what to watch is the direction over weeks, and a sudden step.
+The figures are counts of the code, not a grade. An asset with 2% repeated code is not twice as healthy as one with 4%; what to watch is the direction over weeks, and a sudden step.
 
 ## Before you begin
 
 You need three things. Whoever runs your NoticeOS installation has the last two.
 
-- **The site id.** On the site's **Settings** tab, under **Identity**, it is the **Site id**, such as `example.com`.
-- **The site's token.** Each site has one secret that the installation checks on every report the site sends; the nightly report and the codebase report use the same one. The installation keeps it in its bootstrap secrets as the site's entry in `ASSET_TOKENS` ([Secrets and credentials](/operate/secrets-and-credentials)). The Tower never shows its value.
+- **The asset id.** On the asset's **Settings** tab, under **Identity**, it is the **Asset id**, such as `example.com`.
+- **The asset's token.** Each asset has one secret that the installation checks on every report the asset sends; the nightly report and the codebase report use the same one. The installation keeps it in its bootstrap secrets as the asset's entry in `ASSET_TOKENS` ([Secrets and credentials](/operate/secrets-and-credentials)). The Tower never shows its value.
 - **For the GitHub Action only, the ingest address.** The address at which the installation receives reports, such as `https://ingest.example.com`. It is not the Tower's address. An installation that runs on one computer and is not reachable from the internet has no such address; use the local command instead.
 
 ## Send a report
@@ -56,9 +56,9 @@ The tab lists three ways under **GitHub Action**, **Local command** and **Centra
 ### From GitHub, on every push
 
 1. In the GitHub repository, open **Settings**, then **Secrets and variables**, then **Actions**.
-2. Select **New repository secret**. Name it `NOTICEOS_ASSET_TOKEN` and paste the site's token.
+2. Select **New repository secret**. Name it `NOTICEOS_ASSET_TOKEN` and paste the asset's token.
 3. Select **New repository secret** again. Name it `NOTICEOS_INGEST_URL` and paste the ingest address.
-4. On the site's **Codebase** tab, select **GitHub Action** and copy the workflow file. It has the site id filled in. Save it in the repository as `.github/workflows/codebase-report.yml`:
+4. On the asset's **Codebase** tab, select **GitHub Action** and copy the workflow file. It has the asset id filled in. Save it in the repository as `.github/workflows/codebase-report.yml`:
 
    ```yaml
    name: Codebase report
@@ -117,13 +117,13 @@ The measurement reads files and never builds the code, runs its tests or audits 
 ### From the computer that runs NoticeOS
 
 1. Check that the installation is running: `pnpm os:status`.
-2. In the NoticeOS folder, run, with the site id and the folder that holds the site's code:
+2. In the NoticeOS folder, run, with the asset id and the folder that holds the asset's code:
 
    ```sh
    pnpm os:codebase-report -- --asset example.com --repo /path/to/your/code
    ```
 
-The command reads the site's token from the installation's own secrets, so you do not type it. For a repository that holds more than one product, add `--paths apps/site` with the folders to measure, separated by commas. Run it again whenever you want a new report; a second report on the same day is kept as that day's newer version.
+The command reads the asset's token from the installation's own secrets, so you do not type it. For a repository that holds more than one product, add `--paths apps/site` with the folders to measure, separated by commas. Run it again whenever you want a new report; a second report on the same day is kept as that day's newer version.
 
 The command does not build the code, run its tests or audit its packages. To send those results, run the steps yourself first and add one `--measure` for each: `build_passed` and `tests_passed` take `success` or `failure`, and `vulnerable_dependencies` takes a count.
 
@@ -161,7 +161,7 @@ A figure that the report did not measure shows **Not measured** with the reason,
 
 ## Alerts
 
-Each report is checked against five rules. An alert appears on **Alerts** and on the site's **Alerts** tab, and the next report closes it when the rule no longer holds.
+Each report is checked against five rules. An alert appears on **Alerts** and on the asset's **Alerts** tab, and the next report closes it when the rule no longer holds.
 
 | Alert | When | What to do |
 |---|---|---|
@@ -171,16 +171,16 @@ Each report is checked against five rules. An alert appears on **Alerts** and on
 | "7 more functions became hard to change in 30 days." | 5 or more functions became hard to change since the report nearest 30 days earlier. | Use **Make a task** on the functions with the highest complexity, asking for them to be split into smaller ones, with tests first. |
 | "3 packages have a known vulnerability." | The workflow's audit counted 1 or more vulnerable packages. | Use **Make a task** under **Vulnerable packages**, asking for each to be updated to a release without the flaw (`npm audit fix` lists most of them). |
 
-The growth and hard-to-change alerts need a report from 28 to 45 days earlier, so a newly measured site has neither for its first four weeks. The thresholds are under `codebase_rules` in the installation's constants ([`config/constants.README.md`](https://github.com/notice-cx/NoticeOS/blob/main/config/constants.README.md)); the Tower does not edit them.
+The growth and hard-to-change alerts need a report from 28 to 45 days earlier, so a newly measured asset has neither for its first four weeks. The thresholds are under `codebase_rules` in the installation's constants ([`config/constants.README.md`](https://github.com/notice-cx/NoticeOS/blob/main/config/constants.README.md)); the Tower does not edit them.
 
 ## Verify
 
-- The workflow run, or the command, ends with the report stored, and the site's **Codebase** tab shows the five figures instead of **The code has not been measured yet.**
+- The workflow run, or the command, ends with the report stored, and the asset's **Codebase** tab shows the five figures instead of **The code has not been measured yet.**
 - After a second report at least 28 days later, each figure shows its change.
 
 ## If it didn't work
 
-- `The ingest refused the report (401)`: the token does not match the site id. Check the `asset` value against **Site id** on the site's **Settings** tab, and the token with whoever runs the installation.
+- `The ingest refused the report (401)`: the token does not match the asset id. Check the `asset` value against **Asset id** on the asset's **Settings** tab, and the token with whoever runs the installation.
 - `The ingest refused the report (422)`: the installation does not accept this report's shape, usually because it runs an older version. Whoever runs it updates it with `pnpm os:update`.
 - The workflow run succeeds but nothing arrives: one of the two secrets is missing, and the report was kept as the artifact `noticeos-codebase-report` on the run.
 - The local command stops with `The app is not running`: start the installation, then run the command again.
@@ -189,6 +189,6 @@ Why NoticeOS measures these figures, and the rules behind them: [doc 27, Codebas
 
 ## Next steps
 
-- [Sites](/tower/sites)
+- [Portfolio](/tower/sites)
 - [Alerts](/tower/alerts)
 - [Send your own report](/guides/send-your-own-report)

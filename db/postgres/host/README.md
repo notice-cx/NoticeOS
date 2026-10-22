@@ -108,7 +108,7 @@ pnpm os:migrate -- --secrets db/postgres/host/secrets
 # c. Apply, in one transaction; it shows the plan and asks for the database's name
 pnpm os:migrate -- --apply --secrets db/postgres/host/secrets
 # d. The one workspace, once
-pnpm os:migrate -- --bootstrap --secrets db/postgres/host/secrets --slug main --name "My sites"
+pnpm os:migrate -- --bootstrap --secrets db/postgres/host/secrets --slug main --name "My portfolio"
 ```
 
 **e. The application's address.** The one line of

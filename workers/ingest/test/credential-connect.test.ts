@@ -64,7 +64,7 @@ it('does not expose the retired credential migration door', async () => {
 });
 
 describe('save and test: the provider answers before anything is stored', () => {
-  it('stores an accepted Bing key with its verdict already stamped, and says how many sites it reads', async () => {
+  it('stores an accepted Bing key with its verdict already stamped, and says how many assets it reads', async () => {
     const calls: string[] = [];
     const result = await connectCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: BING_SECRET } },
       { fetchImpl: bing(calls), nowMs: NOW });

@@ -33,7 +33,7 @@ const DECLINED: LaneRegister = {
   assets: {
     'northwind.example': {
       'bing-webmaster': { status: 'skipped', note: 'REASON: Replaced by another tool' },
-      dataforseo: { status: 'skipped', note: 'REASON: Not relevant for this site' },
+      dataforseo: { status: 'skipped', note: 'REASON: Not relevant for this asset' },
     },
   },
 };
@@ -102,7 +102,7 @@ describe('laneDeclined', () => {
   });
 });
 
-describe("Bing's domain fallback skips a declined site", () => {
+describe("Bing's domain fallback skips a declined asset", () => {
   it('the 15-minute collector never asks Bing for it and records no attempt', async () => {
     const control = bing();
     await runBingSignals(env, { nowMs: NOW, fetchImpl: control.fetchImpl, apiKey: 'test-key', laneRegister: NOTHING_DECLINED });
@@ -137,7 +137,7 @@ describe("Bing's domain fallback skips a declined site", () => {
   });
 });
 
-describe('the DataForSEO weekly sweep neither requests nor bills a declined site', () => {
+describe('the DataForSEO weekly sweep neither requests nor bills a declined asset', () => {
   it('buys every family for the rest of the portfolio and nothing for the declined one', async () => {
     const control = dataForSeo();
     await runDataForSeoDumps(env, {
@@ -163,7 +163,7 @@ describe('the DataForSEO weekly sweep neither requests nor bills a declined site
     expect(result.costUsd).toBeGreaterThan(0);
   });
 
-  it('a named collection of the declined site asks for nothing', async () => {
+  it('a named collection of the declined asset asks for nothing', async () => {
     const provider = dataForSeo();
     const result = await runDataForSeoDumps(env, {
       nowMs: NOW, fetchImpl: provider.fetchImpl, login: 'operator-login', password: 'operator-password',
@@ -255,7 +255,7 @@ describe('the connect panel’s Start honours a decline saved in the same press'
     expect(seeded.ok, JSON.stringify(seeded)).toBe(true);
   }
 
-  it('collects nothing for a declined site, on either provider', async () => {
+  it('collects nothing for a declined asset, on either provider', async () => {
     await seedDeclined();
     const search = dataForSeo();
     expect(await runCollectNow(env, { provider: 'dataforseo', assets: ['northwind.example'] }, { fetchImpl: search.fetchImpl, nowMs: NOW }))

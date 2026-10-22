@@ -42,7 +42,7 @@ async function pauseHygiene(): Promise<void> {
   expect(seeded.ok, JSON.stringify(seeded)).toBe(true);
 }
 
-describe('Read again reads one site now, through the daily read', () => {
+describe('Read again reads one asset now, through the daily read', () => {
   beforeEach(async () => {
     await reset();
     await emptyTables(['config_documents']);
@@ -51,7 +51,7 @@ describe('Read again reads one site now, through the daily read', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('stores the read for that site alone and answers it, recorded as a manual run of its job', async () => {
+  it('stores the read for that asset alone and answers it, recorded as a manual run of its job', async () => {
     const { fetchImpl, asked } = meadowHome();
 
     const result = await runSiteIconsNow(env, { asset: 'meadow.example' }, { fetchImpl, nowMs: NOW });
@@ -85,7 +85,7 @@ describe('Read again reads one site now, through the daily read', () => {
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.job_runs`)).toBe(0);
   });
 
-  it('refuses a site the daily read does not cover: retired, the System or unknown', async () => {
+  it('refuses an asset the daily read does not cover: retired, the System or unknown', async () => {
     await changeSites(['puffin.example'], { status: 'retired' });
     try {
       const { fetchImpl, asked } = site({});

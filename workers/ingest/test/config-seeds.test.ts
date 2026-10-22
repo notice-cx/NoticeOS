@@ -26,7 +26,7 @@ describe('the committed config files', () => {
     expect(shippedSerpPanel.assets).toEqual({});
   });
 
-  it('fits synthetic site panels through the maximum tracked-query count', () => {
+  it('fits synthetic asset panels through the maximum tracked-query count', () => {
     const panel = { assets: {
       'small.example': { queries: ['meal planning', 'weekly recipes'] },
       'boundary.example': { queries: Array.from({ length: PANEL_CEILING }, (_, n) => `tracked term ${n}`) },

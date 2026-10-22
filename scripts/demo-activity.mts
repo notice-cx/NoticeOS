@@ -321,7 +321,7 @@ export const DEMO_OUTAGE_MINUTES = 25;
  * nightly site checks. */
 export const DEMO_NIGHTLY_HOUR: string = (() => {
   const hour = SCHEDULED_JOBS.find(job => job.id === 'hygiene')?.cron.split(' ')[1] ?? '';
-  if (!/^\d{1,2}$/u.test(hour)) throw new Error('The nightly site checks have no single hour.');
+  if (!/^\d{1,2}$/u.test(hour)) throw new Error('The nightly asset checks have no single hour.');
   return hour.padStart(2, '0');
 })();
 export interface DemoHomeOutage { asset: string; domain: string; from: string; to: string; checkAt: string; }
@@ -493,7 +493,7 @@ function opportunities(prefix: string, movers: readonly DemoSearchMover[], chann
   if (prefix === 'tn' && search && search.share >= 0.85) {
     return [opportunity('concentration-risk', 'warning', `Search brings ${percent(search.share)}% of all visits`,
       `${search.sessions} of the four weeks' visits came from search; one change in search results moves almost all of them.`,
-      'Visits from other channels make the site less dependent on one source.',
+      'Visits from other channels make the asset less dependent on one source.',
       { value: `${percent(search.share)}%`, label: 'of visits from search' }, channels.windowStart, channels.windowEnd)];
   }
   return [];

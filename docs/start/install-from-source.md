@@ -67,21 +67,21 @@ One installation folder, `~/noticeos` unless you name another, holds everything 
 
 The databases' data is stored in two Docker volumes named after the project (`noticeos_postgres-data`, `noticeos_dolt-data`). The stack itself is `deploy/compose/stack.yaml` in the checkout; you never write a Compose file. The checkout's `.local/stack.json` points the `os:*` commands at the folder.
 
-Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the committed database schema, creates one workspace and one internal NoticeOS task project so the Tasks page works before you add a site, and loads the default settings. The installation starts with no sites and no provider accounts.
+Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the committed database schema, creates one workspace and one internal NoticeOS task project so the Tasks page works before you add an asset, and loads the default settings. The installation starts with no assets and no provider accounts.
 
 ## Get your first useful view
 
-1. On **Home**, select **Add your first site**.
-2. On the new site's **Data sources** tab, select **Connect** on a source.
-3. Open the site's **Overview** to see its first readings.
+1. On **Home**, select **Add your first asset**.
+2. On the new asset's **Data sources** tab, select **Connect** on a source.
+3. Open the asset's **Overview** to see its first readings.
 
 Use **Tasks** for work and **Wall** for the TV view. Provider credentials go in on the **Integrations** page, where they are encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
 
 ## Verify
 
 - `pnpm os:status` shows `postgres`, `dolt`, `backup` and `noticeos` running and healthy, and the database with every migration.
-- **Home** shows three steps: **Add your first site**, **Connect a source** and **See your first number**.
-- **Tasks** opens before any site exists.
+- **Home** shows three steps: **Add your first asset**, **Connect a source** and **See your first number**.
+- **Tasks** opens before any asset exists.
 
 ## If it didn't work
 
@@ -94,6 +94,6 @@ Use **Tasks** for work and **Wall** for the TV view. Provider credentials go in 
 
 ## Next steps
 
-- [Add your first site](/guides/add-your-first-site)
+- [Add your first asset](/guides/add-your-first-site)
 - [Connect data sources](/guides/connect-data-sources)
 - [Daily operations](/operate/daily-operations)

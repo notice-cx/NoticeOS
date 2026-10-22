@@ -25,15 +25,15 @@ Two tabs: **Overview** (`/health`) and **Background operations** (`/health/opera
 
 **Scheduled jobs · last 7 days.** One row per background job and one cell per day, with a count of runs, failures and missed days. A failure is the one thing coloured red; a missed day is amber; a hatched day is one the history no longer holds; it does not mean the job did not run. When nothing is wrong it shows **Nothing failed or missed**.
 
-**Connections.** One status per provider connection, and under each the sites it serves with the time of their last success.
+**Connections.** One status per provider connection, and under each the assets it serves with the time of their last success.
 
-**Other sources.** What to do about the sources no provider account collects, such as a site's own nightly report, uptime or deploy history: one row per action, with the sources it would restore and **Open site sources** or **Open integrations**.
+**Other sources.** What to do about the sources no provider account collects, such as an asset's own nightly report, uptime or deploy history: one row per action, with the sources it would restore and **Open asset sources** or **Open integrations**.
 
 **Oldest source evidence.** Once three days are recorded, a daily line of how old the stalest source's newest evidence was, failed attempts included, with the days no snapshot was kept counted above it.
 
 **Latest evidence.** The five sources whose latest data arrived longest ago, each with how long ago.
 
-**Every source, site by site.** The full grid: every data source against every site, each cell its status, with a strip counting the statuses.
+**Every source, asset by asset.** The full grid: every data source against every asset, each cell its status, with a strip counting the statuses.
 
 **Credential expiry and data costs.** **Expiring**: how many credentials expire within 14 days. **Data spend**: the month's metered spend against the monthly data cap, with **Cap reached** when it is all spent.
 
@@ -45,7 +45,7 @@ The jobs that keep NoticeOS running: collection, freshness checks, the NoticeOS 
 
 - Select a failed operation, a red cell in **Scheduled jobs**, or a job's name to open its run and see which stage failed.
 - **Edit schedule** on a job's page changes when it runs. A collection's schedule is edited with the collection instead: the job's page offers **Edit in Integrations** for one a connection feeds, or **Edit in Settings** for one no connection feeds.
-- **Open site sources** or **Open integrations** on an **Other sources** row to fix what it names.
+- **Open asset sources** or **Open integrations** on an **Other sources** row to fix what it names.
 - **Manage integrations** to reconnect a failing provider.
 - **Retry** on the **Last recorded snapshot** banner to fetch the data again.
 

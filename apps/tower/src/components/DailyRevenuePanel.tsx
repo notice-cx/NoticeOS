@@ -44,7 +44,7 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
     {count > 0 ? <>
       {totals ? <KpiStrip columns={3} className="border-0 bg-transparent">
         <Kpi label={partialDates.length ? 'Reported subtotal' : 'Reported earnings'} value={currency(total / 100)} caption={`${count} of ${range} days reported`} improvement="none" seriesChartId={chartId} />
-        <Kpi label="Average / reported day" value={partialDates.length ? '—' : currency(total / count / 100)} caption={partialDates.length ? 'Incomplete site coverage' : 'Excludes missing days'} improvement="none" seriesChartId={chartId} />
+        <Kpi label="Average / reported day" value={partialDates.length ? '—' : currency(total / count / 100)} caption={partialDates.length ? 'Incomplete asset coverage' : 'Excludes missing days'} improvement="none" seriesChartId={chartId} />
         <Kpi label={partialDates.includes(latest!.date) ? 'Latest day · partial' : 'Latest reported day'} value={currency(latest!.amountMinor / 100)} caption={formatCalendarDate(latest!.date)} improvement="none" seriesChartId={chartId} />
       </KpiStrip> : null}
       <div id={chartId} className="px-4 pb-4">

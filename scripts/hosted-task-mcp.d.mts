@@ -12,9 +12,9 @@ export declare const TASK_QUALITY: readonly string[];
  * (a new entry drops the first). */
 export declare const WHATS_CHANGED: readonly string[];
 /** How a session starts, said in every session's instructions. */
-export declare const TASK_START = "NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page groups work by model; missing or unrecognized models share Other. Use get_agent_stats for activity statistics without individual task details.";
+export declare const TASK_START = "NoticeOS tasks and asset reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page groups work by model; missing or unrecognized models share Other. Use get_agent_stats for activity statistics without individual task details.";
 /** Said only where the panel tools are offered. */
-export declare const PANEL_RULE = "For a site's search, traffic and product data, use get_panel then query_panel, never a provider's API, and cite the panel version you read.";
+export declare const PANEL_RULE = "For an asset's search, traffic and product data, use get_panel then query_panel, never a provider's API, and cite the panel version you read.";
 /** The order of task work, in the tools' own names. */
 export declare const TASK_WORKFLOW: readonly string[];
 /** What get_task_guide names in its description and the instructions point at. */

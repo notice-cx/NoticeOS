@@ -13,7 +13,7 @@ function setup(result: MoveAssetResult = { ...success, order: [...success.order]
     return handleAssetOrderRequest(request, url, { moveAsset }, 'first.test');
   } };
 }
-describe('the site-order write boundary', () => {
+describe('the asset-order write boundary', () => {
   it('forwards only the named move and optional Undo guard, returning the stored order', async () => {
     const f = setup();
     const response = await f.run({ to: 'second.test', expectRevision: 'b'.repeat(64) });

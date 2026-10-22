@@ -33,7 +33,7 @@ function report(options: { date?: string; flags?: unknown; metrics?: Record<stri
 const declared: AlertEvidenceInput = { ...base, ruleId: "asset-declared", metric: "requests", pulseId: 1, ruleInputs: null };
 
 describe("alert evidence is separate from lifecycle", () => {
-  it("recent site evidence confirms a month-old unresolved alert without changing onset", () => {
+  it("recent asset evidence confirms a month-old unresolved alert without changing onset", () => {
     const result = deriveAlertEvidence(base, NOW_MS);
     expect(result.liveness.state).toBe("live");
     expect(result.verification).toMatchObject({ state: "confirmed", lastConfirmedAt: FRESH, lastEvaluatedAt: FRESH });

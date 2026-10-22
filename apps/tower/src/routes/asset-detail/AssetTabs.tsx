@@ -177,7 +177,7 @@ export function AssetTabs({
         ...base,
         count: openAlerts,
         glyph: <SeverityDot severity={worst} size="sm" />,
-        title: `${openAlerts} open alert${openAlerts === 1 ? "" : "s"} on this site`,
+        title: `${openAlerts} open alert${openAlerts === 1 ? "" : "s"} on this asset`,
       };
     }
     if (key === "tasks" && openTasks !== null && (openTasks > 0 || waitingOnYou > 0)) {
@@ -195,7 +195,7 @@ export function AssetTabs({
         title:
           waitingOnYou > 0
             ? `${openTasks} open task${openTasks === 1 ? "" : "s"} — ${waitingOnYou} for you to decide`
-            : `${openTasks} open task${openTasks === 1 ? "" : "s"} in this site's project`,
+            : `${openTasks} open task${openTasks === 1 ? "" : "s"} in this asset's project`,
       };
     }
     if (key === "activity" && openWatches > 0) {
@@ -220,7 +220,7 @@ export function AssetTabs({
 
   return (
     <Tabs
-      label="Site sections"
+      label="Asset sections"
       tabs={tabs}
       idBase={TAB_IDS}
       panelId={TAB_PANEL_ID}

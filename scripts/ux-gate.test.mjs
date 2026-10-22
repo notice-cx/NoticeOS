@@ -345,7 +345,7 @@ test('the reader follows the Tower\'s service binding into the ingest it calls',
   for (const file of ['workers/ingest/src/index.ts', 'workers/ingest/src/probes.ts', 'workers/ingest/src/hint.ts']) {
     assert.ok(scope.traced.includes(file), `${file} must be read: ${scope.traced.join(', ')}`);
   }
-  assert.ok(!scope.files.includes('workers/ingest/src/pulse.ts'), 'a route only sites call is not Tower text');
+  assert.ok(!scope.files.includes('workers/ingest/src/pulse.ts'), 'a route only assets call is not Tower text');
 });
 
 test('the reader reads what the Tower renders from scripts/, packages/contract and every config document', async () => {

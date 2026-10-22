@@ -116,7 +116,7 @@ export function egressState(
         polarity: "against",
         // The same words this fact has in the attention band
         // (shared/alert-language.ts `egressDown`); only the polarity differs.
-        source: "Reference sites that could not be reached",
+        source: "Reference websites that could not be reached",
         // Verbatim: the argument for not blaming the assets is that unrelated
         // sites failed the same way.
         detail: beacons.join(" · "),
@@ -128,7 +128,7 @@ export function egressState(
       // was concluded either way.
       evidence.push({
         polarity: "against",
-        source: "Sites not measured",
+        source: "Assets not measured",
         detail: unmeasured.join(" · "),
         at: flag.firedAt,
       });

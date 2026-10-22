@@ -688,8 +688,8 @@ export async function openAsset(w) {
   if (w.mobile) {
     await w.click(w.page.getByRole("button", { name: "Open navigation" }), "open menu", { role: "reveal" });
     const drawer = w.page.locator('[aria-label="Navigation"]');
-    const expand = drawer.getByRole("button", { name: "Expand the site list" });
-    if (await expand.isVisible().catch(() => false)) await w.click(expand, "expand site list", { role: "reveal" });
+    const expand = drawer.getByRole("button", { name: "Expand the asset list" });
+    if (await expand.isVisible().catch(() => false)) await w.click(expand, "expand asset list", { role: "reveal" });
     await w.click(drawer.getByRole("link", { name: /Journey Example|journey\.example/ }).first(), "menu asset", { role: "nav" });
   } else {
     await w.click(w.page.locator("[data-app-sidebar]").getByRole("link", { name: /Journey Example|journey\.example/ }).first(), "sidebar asset", { role: "nav" });
@@ -735,7 +735,7 @@ async function connectAndStart(w, id, fields) {
   await w.click(panel.getByRole("button", { name: "Connect", exact: true }), "Connect", { role: "commit" });
   await w.waitFor("Connect → Key accepted", () => panel.locator('[data-connect-state="accepted"]').waitFor({ timeout: 15_000 }));
   const start = panel.locator("[data-sites-start]");
-  await w.waitFor("Key accepted → sites matched", () => start.waitFor({ timeout: 15_000 }));
+  await w.waitFor("Key accepted → assets matched", () => start.waitFor({ timeout: 15_000 }));
   await w.click(start, "Start collecting", { role: "commit" });
   await w.waitFor("Start → Working", () => panel.locator('[data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 }));
 }

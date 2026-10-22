@@ -36,7 +36,7 @@ function textArg(args: Args, name: string, required: boolean): string | null {
 function schema(properties: Record<string, unknown>, required: readonly string[] = []): Record<string, unknown> {
   return { type: 'object', properties, required, additionalProperties: false };
 }
-const ASSET = Object.freeze({ type: 'string', description: 'The site id, as list_panels names it, e.g. example.com.' });
+const ASSET = Object.freeze({ type: 'string', description: 'The asset id, as list_panels names it, e.g. example.com.' });
 const VERSION = Object.freeze({ type: 'string',
   description: `A panel version, as get_panel names it. Omit for the latest. Versions stay readable for ${PANEL_VERSION_KEEP_DAYS} days.` });
 
@@ -116,8 +116,8 @@ async function versionsOf(store: ReturnType<typeof createPanelStore>, ref: Panel
 
 export const PANEL_MCP_TOOLS: readonly PanelTool[] = Object.freeze([
   { name: 'list_panels',
-    description: 'Every site with a published data panel: its latest version, when it was built and which report families need attention. '
-      + 'A panel is one site\'s Search Console, Analytics, Bing, DataForSEO, PostHog and Clarity reports, rebuilt daily as tables you can query. '
+    description: 'Every asset with a published data panel: its latest version, when it was built and which report families need attention. '
+      + 'A panel is one asset\'s Search Console, Analytics, Bing, DataForSEO, PostHog and Clarity reports, rebuilt daily as tables you can query. '
       + 'Start here, then get_panel.',
     inputSchema: schema({}), annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
@@ -133,7 +133,7 @@ export const PANEL_MCP_TOOLS: readonly PanelTool[] = Object.freeze([
       });
     } },
   { name: 'get_panel',
-    description: 'One version of a site\'s panel: when it was built, each report family with its newest report day, its age today and how its '
+    description: 'One version of an asset\'s panel: when it was built, each report family with its newest report day, its age today and how its '
       + 'collection stood, every table with its columns and row count, the versions kept, and the rules for reading the data. '
       + 'Read this before query_panel, and cite the version in any finding.',
     inputSchema: schema({ asset: ASSET, version: VERSION }, ['asset']), annotations: READ,

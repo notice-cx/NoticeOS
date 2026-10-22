@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Product code names no installation's own sites, accounts or clock.
+// Product code names no installation's own assets, accounts or clock.
 //
 // Wired as `pnpm check:neutral`, the pre-commit hook and `pnpm test:scripts`
 // in CI.
 //
-// Nothing here names a site. The forbidden names are read from this
+// Nothing here names an asset. The forbidden names are read from this
 // installation's own asset list, so the gate protects whoever runs it: every
 // asset id and domain its config documents key rows by (the registers in
 // `scripts/config-registers.mjs`, read from the installation folder), the
@@ -436,20 +436,20 @@ const KIND_LABEL = {
   'os-asset': "the OS asset's id",
   asset: 'an asset id',
   domain: 'a domain',
-  'display-name': "a site's display name",
+  'display-name': "an asset's display name",
   account: 'a Google account of this installation',
   zone: 'a time zone',
 };
 
 export const FIXED_INSTRUCTIONS = [
-  "Product code names no installation's own sites, accounts or time zone (AGENTS.md).",
-  '  - Behaviour keyed on a site: make it a property of the asset read from the store, with a generic default.',
+  "Product code names no installation's own assets, accounts or time zone (AGENTS.md).",
+  '  - Behaviour keyed on an asset: make it a property of the asset read from the store, with a generic default.',
   "  - The OS's own asset: find it by assets.is_os, never by its id.",
   '  - A Google account: an example alias such as example-signals.',
   '  - A time zone: the saved os_time_zone, or UTC.',
   '  - Demo, gallery and example data: example.com-style names.',
   "  - A product default in config/: generic (no rows, UTC); this installation's own rows live in its installation folder.",
-  '  - Comments: name the concept, not the site.',
+  '  - Comments: name the concept, not the asset.',
   "There is no baseline and no allowance: the names come from this installation's own asset list.",
 ].join('\n');
 
@@ -475,10 +475,10 @@ export function check({ root = REPO_ROOT, files = gatedFiles(root), read, names 
 
 export function formatReport(result) {
   if (result.offenders.length === 0) {
-    return `neutral-code gate: ${result.files} product and test files name none of this installation's ${result.names} sites, ids or domains, and product code no time zone.`;
+    return `neutral-code gate: ${result.files} product and test files name none of this installation's ${result.names} assets, ids or domains, and product code no time zone.`;
   }
   const lines = [
-    `neutral-code gate: ${result.offenders.length} place(s) in product or test code name this installation's own sites or clock`,
+    `neutral-code gate: ${result.offenders.length} place(s) in product or test code name this installation's own assets or clock`,
     '',
   ];
   for (const offender of result.offenders) {
@@ -490,7 +490,7 @@ export function formatReport(result) {
   return lines.join('\n');
 }
 
-const USAGE = `neutral-code-gate — product code names no installation's own sites or clock
+const USAGE = `neutral-code-gate — product code names no installation's own assets or clock
 
   pnpm check:neutral                          every product and test file (what CI runs)
   pnpm check:neutral -- --files <paths...>    just these files

@@ -44,7 +44,7 @@ export const LANE_FAILURE_LABELS: Record<LaneFailureMode, string> = {
   "pauses-deploy-marks": "Pauses deploy marks",
   "pauses-changes": "Pauses changes",
   "falls-back-to-email": "Falls back to email",
-  "pauses-asset-checks": "Pauses site checks",
+  "pauses-asset-checks": "Pauses asset checks",
 };
 
 /** "Every 15 min", "Daily", "Weekly", "Every 6h". */

@@ -187,7 +187,7 @@ export function cameFrom(task: BoardTask): { label: string; to: string } | null 
     text("kind") as "finding" | "query" | "page"
   ] ?? null;
   return {
-    label: `${section?.[1] ?? "the site page"} on ${site}`,
+    label: `${section?.[1] ?? "the asset page"} on ${site}`,
     to: `/assets/${encodeURIComponent(site)}${section?.[0] ?? ""}`,
   };
 }

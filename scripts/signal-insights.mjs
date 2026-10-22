@@ -12,7 +12,7 @@ import { marketLabel } from '../packages/contract/src/search-market.mjs';
  * it saved none (`savedSearchMarket`, the rule the collector asks by).
  */
 export function marketPhrase(market) {
-  return market ? `the ${marketLabel(market)} market` : 'the site’s default market';
+  return market ? `the ${marketLabel(market)} market` : 'the asset’s default market';
 }
 
 const GENERIC_EVENTS = new Set([
@@ -616,7 +616,7 @@ function dataForSeoQueryVisibility(families, market) {
     queries: selected,
     source: source('dataforseo', 'ranked-keywords'),
     caveat:
-      `Monthly searches, difficulty, and estimated visits are DataForSEO estimates for ${marketPhrase(market)}—not property impressions. Organic and AI-reference positions are ranks among equivalent result types.` +
+      `Monthly searches, difficulty, and estimated visits are DataForSEO estimates for ${marketPhrase(market)}—not asset impressions. Organic and AI-reference positions are ranks among equivalent result types.` +
       (panel
         ? ` Live AI Overview presence and citation come from the tracked ${source('dataforseo', 'serp-panel')} panel observed ${panel.observedAt}, read on each device separately — a term can be walled on the phone and clear on the desktop, and neither reading stands for the other. A query outside that panel, or one whose overview failed to load, is unknown rather than clear.`
         : ''),
@@ -1120,16 +1120,16 @@ const AI_OVERVIEW_STATED = {
   ],
   absent: ['None observed', 'No AI Overview on the live result page'],
   cited: [
-    'Cites this property',
-    'An AI Overview holds this result page and cites this property',
+    'Cites this asset',
+    'An AI Overview holds this result page and cites this asset',
   ],
   uncited: [
-    'Shown · does not cite this property',
-    'An AI Overview holds this result page and does not cite this property',
+    'Shown · does not cite this asset',
+    'An AI Overview holds this result page and does not cite this asset',
   ],
   present: [
     'Present · citation unknown',
-    'An AI Overview holds this result page; whether it cites this property did not parse',
+    'An AI Overview holds this result page; whether it cites this asset did not parse',
   ],
 };
 
@@ -1268,7 +1268,7 @@ function strikingDistanceInsight(families) {
                 `holds that result page on ${withheld[0].aiOverview
                   .filter(({ state }) => state === 'uncited')
                   .map(({ device }) => deviceNoun(device).toLowerCase())
-                  .join(' and ')} and does not cite this property, so the click is consumed inside the block`,
+                  .join(' and ')} and does not cite this asset, so the click is consumed inside the block`,
             ),
           ]
         : []),
@@ -1280,7 +1280,7 @@ function strikingDistanceInsight(families) {
     caveat:
       'GSC page/query exports contain top rows and can omit anonymized or low-volume demand. ' +
       'Quoted-literal grounding queries are excluded before ranking candidates — they carry impressions no title rewrite can convert. ' +
-      'A term whose tracked panel row reports an AI Overview that does not cite this property on EITHER device is withheld rather than ' +
+      'A term whose tracked panel row reports an AI Overview that does not cite this asset on EITHER device is withheld rather than ' +
       'recommended: the click is consumed inside that block, so moving the page cannot recover it, and a clear result page on the other ' +
       'surface does not give it back. A term outside the panel, or one whose overview did not load, is unknown rather than clear — it is ' +
       'still offered, and the card says which it is.',
@@ -1493,7 +1493,7 @@ function bingFeedIssueInsight(families) {
       `${pagePath(top.url)} currently reports “${text(top.status)}”. ` +
       'Restore a successful crawl before treating missing Bing visibility as a content-demand signal.',
     whyItMatters:
-      'A rejected or unreadable sitemap slows reliable URL discovery and makes the search dataset less representative of the actual site.',
+      'A rejected or unreadable sitemap slows reliable URL discovery and makes the search dataset less representative of the actual asset.',
     primary: {
       value: formatInt(failures.length),
       label: 'unhealthy feeds',
@@ -1639,7 +1639,7 @@ function bingSearchOpportunityInsight(families) {
           `${formatInt(recentMean)} impressions against ${formatInt(periodMean)} across the window, so the total above is history rather than current demand. `
         : '') +
       (intentMismatch
-        ? `${formatInt(best.clicks)} click${best.clicks === 1 ? '' : 's'} across ${formatInt(series.length)} reported periods at a visible position points at intent mismatch — the query may mean something this property does not answer — before it points at a title or indexability problem. `
+        ? `${formatInt(best.clicks)} click${best.clicks === 1 ? '' : 's'} across ${formatInt(series.length)} reported periods at a visible position points at intent mismatch — the query may mean something this asset does not answer — before it points at a title or indexability problem. `
         : '') +
       (googlePage
         ? `${pagePath(googlePage[0])} is the matching Google-visible page, giving the review a concrete starting point.`
@@ -1699,7 +1699,7 @@ function bingSearchOpportunityInsight(families) {
     caveat:
       'Bing top-query data updates weekly and is not a complete export; GSC and Bing windows differ, so the join identifies a page but does not compare raw volume. ' +
       'Pages under a locale subtree are never joined: Bing reports no locale for a query, so a localized page matching by string is a coincidence, not evidence. ' +
-      `A page is named only when the property's own Google series carries this query on it at least ${formatInt(BING_JOIN_MIN_GSC_IMPRESSIONS)} times — GSC exports are top rows, so a page caught once is a coincidence too, and the card names the candidate it declined rather than dropping it silently.`,
+      `A page is named only when the asset's own Google series carries this query on it at least ${formatInt(BING_JOIN_MIN_GSC_IMPRESSIONS)} times — GSC exports are top rows, so a page caught once is a coincidence too, and the card names the candidate it declined rather than dropping it silently.`,
   });
 }
 
@@ -2507,7 +2507,7 @@ function cannibalizationInsight(families) {
   return card({
     key: 'query-cannibalization',
     kind: 'recommendation',
-    title: `${formatInt(best.competing.length)} of the property’s own pages compete for “${best.query}”`,
+    title: `${formatInt(best.competing.length)} of the asset’s own pages compete for “${best.query}”`,
     summary:
       `“${best.query}” drew ${formatInt(best.impressions)} impressions across ${formatInt(window.days)} reported ` +
       `date${window.days === 1 ? '' : 's'}, and ${formatInt(best.competing.length)} pages each captured at least ` +
@@ -2556,7 +2556,7 @@ function cannibalizationInsight(families) {
     sources: [source('gsc', 'page-query')],
     caveat:
       'GSC page/query exports are top rows, so a page below the export cut-off is unknown rather than absent from the query. Confirm intent overlap before consolidating two pages that serve different jobs. ' +
-      'Queries whose pages report near-identical impressions at near-identical positions, or no clicks at all, are set aside rather than recommended: that signature is one SERP block (an AI Overview or a sitelink group) crediting several of the property’s URLs at the block’s position, and consolidating those pages would remove reach without recovering a click.',
+      'Queries whose pages report near-identical impressions at near-identical positions, or no clicks at all, are set aside rather than recommended: that signature is one SERP block (an AI Overview or a sitelink group) crediting several of the asset’s URLs at the block’s position, and consolidating those pages would remove reach without recovering a click.',
   });
 }
 
@@ -2639,7 +2639,7 @@ function pageMoversInsight(families) {
         : 'no page lost above the floor') +
       `. Net movement across every page above the floor is ${net >= 0 ? '+' : '−'}${formatInt(Math.abs(net))} clicks.`,
     whyItMatters:
-      'Property totals hide offsetting page movement. Knowing which page moved is what makes a deploy annotation answerable.',
+      'Asset totals hide offsetting page movement. Knowing which page moved is what makes a deploy annotation answerable.',
     primary: {
       value: `${net >= 0 ? '+' : '−'}${formatInt(Math.abs(net))}`,
       label: 'net clicks on moved pages',
@@ -2793,7 +2793,7 @@ function measurementIntegrityInsight(families) {
       unassigned
         ? `${formatInt(unassigned.matched)} of ${formatInt(unassigned.total)} sessions (${formatPercent(unassigned.share)}) ` +
           `carry no usable acquisition attribution — GA4 reported them as ${unassigned.label}. ` +
-          `Past ${formatPercent(UNASSIGNED_WARN_SHARE, 0)} every channel, landing-page, and campaign split on this property inherits that uncertainty.`
+          `Past ${formatPercent(UNASSIGNED_WARN_SHARE, 0)} every channel, landing-page, and campaign split on this asset inherits that uncertainty.`
         : null,
       broken
         ? `${broken.name} fired ${formatInt(broken.currentEvents)} times in ${broken.weeks.currentStart}–${broken.weeks.currentEnd} against ` +
@@ -2939,8 +2939,8 @@ function queryLanguageDriftInsight(families) {
     summary:
       `${code} accounts for ${formatInt(worst.impressions)} of ${formatInt(impressions)} impressions ` +
       `(${formatPercent(worst.share)}) but clicks at ${formatPercent(worst.ctr)} against the ` +
-      `${formatPercent(worst.restCtr)} the rest of the property earns. Check that the titles and meta descriptions ` +
-      'these searchers see are written in their language rather than the site’s, and that the served page matches ' +
+      `${formatPercent(worst.restCtr)} the rest of the asset earns. Check that the titles and meta descriptions ` +
+      'these searchers see are written in their language rather than the asset’s, and that the served page matches ' +
       'the locale they searched from.',
     whyItMatters:
       'A result that ranks but is described in the wrong language loses the click before the page is ever judged. It is one of the few search fixes that costs no new content.',
@@ -2952,7 +2952,7 @@ function queryLanguageDriftInsight(families) {
       evidence(
         `${code} impressions`,
         formatInt(worst.impressions),
-        `${formatPercent(worst.share)} of the property`,
+        `${formatPercent(worst.share)} of the asset`,
       ),
       evidence(`${code} CTR`, formatPercent(worst.ctr), `${formatInt(worst.clicks)} clicks`),
       evidence(
@@ -3045,7 +3045,7 @@ function deviceCtrGapInsight(families) {
     title: `${worse.label} results click at ${formatPercent(worse.ctr)} against ${better.noun}’s ${formatPercent(better.ctr)}`,
     summary:
       `${formatInt(worse.impressions)} ${worse.noun} impressions returned ${formatInt(worse.clicks)} clicks ` +
-      `(${formatPercent(worse.ctr)}), at or below half the ${formatPercent(better.ctr)} the same property earns on ` +
+      `(${formatPercent(worse.ctr)}), at or below half the ${formatPercent(better.ctr)} the same asset earns on ` +
       `${formatInt(better.impressions)} ${better.noun} impressions. ` +
       (excluded.impressions > 0
         ? `Charging every one of the ${formatInt(excluded.impressions)} excluded grounding impressions to ${worse.noun} still leaves ` +
@@ -3053,7 +3053,7 @@ function deviceCtrGapInsight(families) {
         : '') +
       DEVICE_ADVICE[worse.key],
     whyItMatters:
-      'A presentation gap this wide costs clicks the property has already earned the ranking for, on a surface it is already winning impressions on.',
+      'A presentation gap this wide costs clicks the asset has already earned the ranking for, on a surface it is already winning impressions on.',
     primary: { value: formatPercent(worse.ctr), label: `${worse.noun} CTR` },
     confidence:
       worse.impressions >= DEVICE_MIN_IMPRESSIONS * 5 ? 'high' : 'medium',
@@ -3134,7 +3134,7 @@ function pruneCandidatesInsight(families) {
       `across ${formatInt(window.days)} reported dates. The rule this came from also required the page to have no ` +
       'internal links; that half is not in this archive, so treat this as a review list rather than a prune list.',
     whyItMatters:
-      'Pages that never earn an impression still consume crawl budget and blur what the property is about. Naming them is the cheap half of the decision.',
+      'Pages that never earn an impression still consume crawl budget and blur what the asset is about. Naming them is the cheap half of the decision.',
     primary: {
       value: formatInt(candidates.length),
       label: 'pages under the impression floor',
@@ -3672,11 +3672,11 @@ function llmVisibilityInsight(families, asset, market) {
     summary:
       `${leader[0]} currently contributes the larger reported share. ` +
       (standing.length > 0
-        ? `The property ranks ${standing.join(' and ')} among the cited domains this snapshot returned. `
+        ? `The asset ranks ${standing.join(' and ')} among the cited domains this snapshot returned. `
         : '') +
-      'Use the cited-source detail to find pages and third-party domains already shaping the property’s AI visibility.',
+      'Use the cited-source detail to find pages and third-party domains already shaping the asset’s AI visibility.',
     whyItMatters:
-      'AI mentions show where the property or its sources appear in model-mediated discovery, complementing GA4’s smaller identifiable-referral floor.',
+      'AI mentions show where the asset or its sources appear in model-mediated discovery, complementing GA4’s smaller identifiable-referral floor.',
     primary: {
       value: formatInt(mentions),
       label: 'reported AI mentions',
@@ -3752,7 +3752,7 @@ function llmGroundingTrafficInsight(families) {
         ? `${pagePath(topPage.page)} is the most-grounded page. `
         : '') +
       'These are retrieval-verification searches — a model checking a claim it is about to state — so the pages they land on are the pages already inside AI answers. ' +
-      'Treat that as a citation surface to protect, and read every CTR number on this property as excluding them.',
+      'Treat that as a citation surface to protect, and read every CTR number on this asset as excluding them.',
     whyItMatters:
       'This is GEO distribution visible in ordinary search data, on the free lane, with page-level detail the paid mention lane does not carry. It is also the reason a CTR rule left alone here would recommend rewriting titles for an audience that has no hands.',
     primary: {
@@ -3796,7 +3796,7 @@ function llmGroundingTrafficInsight(families) {
               : evidence(
                   'Corroborating AI mentions',
                   formatInt(number(google.mentions)),
-                  `${source('dataforseo', 'llm-mentions-google')} reports the property mentioned on Google AI surfaces in the same period`,
+                  `${source('dataforseo', 'llm-mentions-google')} reports the asset mentioned on Google AI surfaces in the same period`,
                 ),
           ]
         : []),
@@ -3875,11 +3875,11 @@ function valueEventInsight(families, asset, valueEvents) {
     summary:
       `${leading.name} fired ${formatInt(leading.events)} times across ${formatInt(window.days)} reported ` +
       `date${window.days === 1 ? '' : 's'} and GA4 recorded ${formatInt(leading.keyEvents)} key events for it. ` +
-      `config/value-events.json declares ${formatInt(declared.length)} value event${declared.length === 1 ? '' : 's'} for this property; ` +
+      `config/value-events.json declares ${formatInt(declared.length)} value event${declared.length === 1 ? '' : 's'} for this asset; ` +
       `${formatInt(unmeasured.length)} of them ${unmeasured.length === 1 ? 'is' : 'are'} carrying real volume that no conversion figure can see. ` +
       (counted.length > 0
         ? `${counted[0].name} is configured correctly, which is what makes this a settings gap rather than a collection failure.`
-        : 'No declared value event is configured as a key event, so every conversion figure on this property currently reads zero by construction.'),
+        : 'No declared value event is configured as a key event, so every conversion figure on this asset currently reads zero by construction.'),
     whyItMatters:
       'Key events are what GA4 counts as conversions, so an unconfigured value event does not read as a small number — it reads as zero, everywhere, including in cards that then explain the zero as user behavior. This is a measurement fault: it bounds the other numbers rather than adding to them.',
     primary: {
@@ -4001,7 +4001,7 @@ function distantDemandClusterInsights(families, market) {
         `The striking-distance and near-win rules cannot see any of it: both stop at position 20. ` +
         'This is the cheapest kind of demand to test — the page is built, the competition is modelled as low, and nothing about it is a new content bet.',
       whyItMatters:
-        'A scope filter that is right for near-wins turns the largest demand on a property invisible. One page here carries more modelled monthly demand than every near-win card combined, and the only reason it never appeared is that nobody looks past page two.',
+        'A scope filter that is right for near-wins turns the largest demand on an asset invisible. One page here carries more modelled monthly demand than every near-win card combined, and the only reason it never appeared is that nobody looks past page two.',
       primary: {
         value: formatInt(cluster.volume),
         label: 'estimated searches / month',
@@ -4569,7 +4569,7 @@ function posthogExceptions(snapshot) {
             : ' Nothing else was captured.') +
           totalNote,
         whyItMatters:
-          'An exception total dominated by one unattributable message hides the errors that belong to the site. The ranking of what is left, by people affected, is the list a fix can start from.',
+          'An exception total dominated by one unattributable message hides the errors that belong to the asset. The ranking of what is left, by people affected, is the list a fix can start from.',
         primary: { value: formatPercent(share, 0), label: 'Probable noise' },
         confidence: 'medium',
         window: snapshot.window,
@@ -4586,7 +4586,7 @@ function posthogExceptions(snapshot) {
         ],
         sources: [source('posthog', 'exceptions')],
         caveat:
-          'No source file is a strong hint, not proof: browser extensions, aborted network requests and cross-origin scripts throw without a frame the site owns, but an inline script can too. Counts cover the top 100 messages by volume, and people never add across messages — one person can hit several.',
+          'No source file is a strong hint, not proof: browser extensions, aborted network requests and cross-origin scripts throw without a frame the asset owns, but an inline script can too. Counts cover the top 100 messages by volume, and people never add across messages — one person can hit several.',
       })
     : card({
         key,
@@ -4595,7 +4595,7 @@ function posthogExceptions(snapshot) {
         summary:
           `“${exceptionName(dominant)}” accounts for ${formatInt(dominant.count)} of ${formatInt(total)} exceptions over ${posthogWindowLabel(snapshot)}, from ${formatInt(dominant.people)} people` +
           (dominant.hasSourceFile === true
-            ? '. It carries a source file, so it is thrown by code the site serves.'
+            ? '. It carries a source file, so it is thrown by code the asset serves.'
             : '. PostHog could not say whether it carries a source file.') +
           totalNote,
         whyItMatters:
@@ -4957,7 +4957,7 @@ function posthogVitals(snapshot) {
       (sibling ? ` ${segmentName(sibling)} visitors on the same page are inside both (${vitalsReading(sibling)}).` : '') +
       (failing.length > 1 ? ` ${formatInt(failing.length - 1)} other measured segment(s) on the top pages cross a line too.` : ''),
     whyItMatters:
-      'Slow paint and slow response on a segment this size is a real audience waiting, and Google reads the same field data for page experience. A fix aimed at the segment that fails beats a site-wide average that hides it.',
+      'Slow paint and slow response on a segment this size is a real audience waiting, and Google reads the same field data for page experience. A fix aimed at the segment that fails beats an asset-wide average that hides it.',
     primary: headline,
     confidence: worst.measurements >= VITALS_MIN_MEASUREMENTS * 10 ? 'high' : 'medium',
     window: snapshot.window,
@@ -5476,10 +5476,10 @@ export function buildExecutiveSnapshot({
       'Bing snapshot reports are revision history: rules read only the latest snapshot and never add repeated weekly rows together.',
       'DataForSEO rankings, backlinks, and LLM mentions are stored weekly snapshots; current facts use the latest snapshot and movement rules compare locally retained history without repulling it.',
       'DataForSEO demand, difficulty, traffic, and AI-volume values are provider estimates used for prioritization—not causal ROI or user counts. Exact report cost is retained.',
-      `Tracked-panel AI Overview evidence is one live result page in ${marketPhrase(market)} per hand-picked head term PER DEVICE—phone and desktop are two different pages and are never folded into one verdict. It enriches queries the ranking inventory already carries and gates the striking-distance recommendation, withholding a term whose overview was read on either device and does not cite this property there. An untracked query or a failed overview load stays unknown—never recorded as no overview—and an unknown term is offered exactly as it was before the panel existed.`,
+      `Tracked-panel AI Overview evidence is one live result page in ${marketPhrase(market)} per hand-picked head term PER DEVICE—phone and desktop are two different pages and are never folded into one verdict. It enriches queries the ranking inventory already carries and gates the striking-distance recommendation, withholding a term whose overview was read on either device and does not cite this asset there. An untracked query or a failed overview load stays unknown—never recorded as no overview—and an unknown term is offered exactly as it was before the panel existed.`,
       'Quoted-literal queries are classified as machine grounding and excluded from the CTR and position rules, never silently: each affected card states the excluded impressions and their share, and the excluded traffic gets its own card. The classifier covers the quoted signature only, so it is a floor for that behavior rather than its measure.',
       'No archived family carries query by device, so the device rule charges the whole grounding exclusion to whichever surface is clicking worse — a worst case that can only make that rule quieter, never louder.',
-      'Cards recommending page consolidation set aside queries whose pages report near-identical impressions at near-identical positions, or no clicks at all: that is one SERP block crediting several of the property’s URLs, not pages competing.',
+      'Cards recommending page consolidation set aside queries whose pages report near-identical impressions at near-identical positions, or no clicks at all: that is one SERP block crediting several of the asset’s URLs, not pages competing.',
       'Value events are an operator declaration in config/value-events.json compared against GA4’s own key-event counts. The OS reports the disagreement and never edits either side; the measurement channel is operator-only by invariant.',
       'Page-grain and country-grain rules read GSC top-row exports: a page or country below the export cut-off is unknown, never zero, so week-over-week page movement compares only pages reported in both weeks.',
       'Page decisions compare the same two seven-date windows the query movers do, at page grain. A page row carries no query, so the grounding-query exclusion cannot be applied to its clicks and impressions — it is applied only to the leading query joined onto each page, and the lane says so rather than letting one row imply the other was corrected.',
@@ -5487,7 +5487,7 @@ export function buildExecutiveSnapshot({
       'Measurement-integrity findings bound the rest of the page rather than adding to it, and the OS only reports them — the measurement channel is operator-only by invariant.',
       'Rules over GA4’s channel and source/medium reports read settled days only. A day GA4 was still attributing when it was collected (provisional=1, until a collection two days after it) reads high on Unassigned and low on the real channels, so it is set aside rather than labelled, and each card built beside such days names them. A report holding only unsettled days raises no finding until it settles.',
     'Where two observers rank the same problem — Clarity’s sampled trailing 72-hour script errors and GA4’s js_error events over completed dates — a disagreement about the worst page is reported as its own finding, with each observer’s page, unit, and window stated separately. The units are not convertible, so the OS never merges, averages, or ranks the two observers against each other.',
-      'JavaScript error messages are ranked as masked buckets rather than raw text, which carries each occurrence’s URL, build hash, and line number. GA4 answers for that parameter only after an operator registered it and backfills nothing, so events reported earlier carry no message, are counted in their own row rather than ranked, and can never be triaged. A property whose message dimension is unregistered has no such rows at all, and its error card claims exactly what it claimed before the triage family existed.',
+      'JavaScript error messages are ranked as masked buckets rather than raw text, which carries each occurrence’s URL, build hash, and line number. GA4 answers for that parameter only after an operator registered it and backfills nothing, so events reported earlier carry no message, are counted in their own row rather than ranked, and can never be triaged. An asset whose message dimension is unregistered has no such rows at all, and its error card claims exactly what it claimed before the triage family existed.',
       'PostHog product findings read each family’s newest archive over its own window: rage clicks against the page’s visitors (over 5% of at least 200), exceptions with one message holding half the volume and no source file set aside as probable third-party noise, events named first_* or *_created that fire over 10% more often than people, 75th-percentile LCP and INP against Google’s 2,500 ms and 200 ms lines on top-page segments with at least 500 measurements, and each funnel’s largest step-to-step loss against the read ending seven days earlier. A rule below its floor reports not enough data rather than firing.',
       'The page keeps the eight most severe cards. Every card the cut drops is listed in suppressedItems with its rule id and title — a finding the system decides not to show is still a finding it may not decide not to mention.',
       'Missing provider rows remain unknown and never justify a deprecation recommendation.',

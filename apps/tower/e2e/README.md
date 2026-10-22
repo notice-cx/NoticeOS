@@ -51,7 +51,7 @@ address, a socket or the run's database password.
 
 No page leaves its server, not even by a redirect. Playwright
 routes only the first request of a redirect chain, so a route answering 302 to
-another site would take the browser to the real internet unseen.
+another asset would take the browser to the real internet unseen.
 `offline-guard.mjs`, installed on every journey's context (`journey-test.ts`)
 and every flow-gate walk, aborts requests to other origins, refuses a
 navigation whose answer redirects to one, records any other redirect hop that
@@ -137,13 +137,13 @@ boundaries. Only `journey-only-not-a-real-key` is accepted; its value is never
 returned or journaled. The connect panel's save-and-test is the ingest's own
 `connectCredential`, run unchanged; only
 the providers' side of the network is the fixture's (`journeyProviderNetwork`
-in `harness.ts`): Bing's GetUserSites lists the journey site for the synthetic
+in `harness.ts`): Bing's GetUserSites lists the journey asset for the synthetic
 key and refuses any other, and DataForSEO's account endpoint answers the
 synthetic login `journey-login` with that key. The data-arrival control refuses to run before the actual
-asset, fake connection test and saved site mapping exist. Where a real probe,
+asset, fake connection test and saved asset mapping exist. Where a real probe,
 collector or Mediavine sync records its outcome for integration health, the
 fixture's stand-in records the same outcome through the production recorders
-(integration health, and the verdict a test, site discovery or sync stamps on
+(integration health, and the verdict a test, asset discovery or sync stamps on
 the stored credential), so health states and a card's "This credential worked"
 come from saved evidence, never from the browser or a fixture flag. It does not exercise
 provider OAuth, collector scheduling, or real task-hub reconciliation. Those are
@@ -207,9 +207,9 @@ Fixture-only HTTP controls are available on **that isolated port**:
   revenue for the created asset, complete through the last day a report is due
   on the fixture's clock, and answer with that clock, the day, and each day's
   amount for last month and this one.
-- `POST /__journey/every-source`: add the remaining property data sources
+- `POST /__journey/every-source`: add the remaining asset data sources
   (Google, Clarity, PostHog, DataForSEO, uptime) to the synthetic catalog. Call
-  it before creating the asset, so Add a site writes a row for each.
+  it before creating the asset, so Add an asset writes a row for each.
 - `POST /__journey/finding`: save one analysis finding (`journey-sitemap-drop`)
   on the created asset, so its Overview's What matters has a finding to file a
   task from.

@@ -72,8 +72,8 @@ export const VERIFICATION_REASON_LABEL: Record<VerificationReason, string> = {
   "no-check-after-onset": "No valid check since first detected",
   "source-confirms": "Source confirmed it recently",
   "confirmation-stale": "Last check is past its freshness window",
-  "mixed-states": "Sites differ; open each one",
-  "oldest-across-assets": "Oldest check across these sites",
+  "mixed-states": "Assets differ; open each one",
+  "oldest-across-assets": "Oldest check across these assets",
 };
 
 /**

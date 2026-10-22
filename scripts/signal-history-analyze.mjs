@@ -237,7 +237,7 @@ function summaryCaveats(market) {
     'GSC page/query datasets are top-row exports and can omit anonymized or low-volume data.',
     'GA4 Data API rows are aggregate/modelled reports, not raw event or session sequences.',
     'GA4 attribution families (traffic-acquisition, traffic-sources, landing-page-acquisition) carry provisional=1 on a report day not yet confirmed by a collection at least two days after it: GA4 is still attributing that day, so its channel and source/medium split reads high on Unassigned / (not set) / (data not available) and low on the real channels. Leave provisional=1 days out of any change; an empty provisional cell means the collection date could not be read.',
-    'The GA4 js-errors family reads event parameters, which GA4 answers only once an operator registers them as custom dimensions and never backfills; an absent family is unknown, not an error-free property.',
+    'The GA4 js-errors family reads event parameters, which GA4 answers only once an operator registers them as custom dimensions and never backfills; an absent family is unknown, not an error-free asset.',
     'Clarity rows are a trailing 72-hour, sampled read capped at 1,000 rows per metric block with no pagination, and clarity.ms is adblock-DNS-listed (undercounts ~15-25%): treat them as behavior rankings, never as population counts.',
     'Bing top-query/page snapshots update weekly; crawl statistics update daily, and repeated snapshots are revisions rather than additive rows.',
     'index-coverage.csv is DERIVED from the already-archived Bing crawl-stats and feeds families and states BING\'s index, not Google\'s: site-level per measured day (row_grain=site-day) plus the submitted sitemap counts (row_grain=sitemap), with no ratio between them because they carry different dates. It says nothing about any individual URL, and an absent file means the Bing lane did not collect — never that nothing is indexed.',
@@ -246,7 +246,7 @@ function summaryCaveats(market) {
     'DataForSEO API cost is preserved on each report family so the metered lane remains auditable.',
     `The tracked SERP panel is a top-20 read in ${marketPhrase(market)} of hand-picked head terms on BOTH devices: one row per query per \`device\`, so nothing may be summed across devices without filtering first. An empty rank means no result inside that depth, and an empty AI Overview column means unknown, never absent.`,
     'PostHog families (posthog-*.csv) are server-side aggregates over each archive\'s own trailing window (window_start–window_end, inclusive, in the PostHog project\'s timezone): read one report_date at a time, and never add `people` across rows, days or report dates — it is a unique-person count over that row\'s window. posthog-web-daily is resolved newest-archive-wins per date. provider_truncated=true means the family hit its row limit and is a top-N read. An empty file is PostHog answering with no rows; a missing file is a family nobody collected.',
-    'PostHog undercounts in known directions: browsers that block it are invisible, so its totals run below GA4; its browser library drops known bots that GA4 keeps, so a GA4-only spike can be a crawler; signed-in events arrive only after consent, so they are a floor; server-side events (any `$lib` other than the browser library) use account ids that do not join browser ids; and a site that sends its first-party events by name only has events with no properties by design, not by defect.',
+    'PostHog undercounts in known directions: browsers that block it are invisible, so its totals run below GA4; its browser library drops known bots that GA4 keeps, so a GA4-only spike can be a crawler; signed-in events arrive only after consent, so they are a floor; server-side events (any `$lib` other than the browser library) use account ids that do not join browser ids; and an asset that sends its first-party events by name only has events with no properties by design, not by defect.',
   ];
 }
 
@@ -561,7 +561,7 @@ async function pinnedGeneration(history, asset, generation) {
       throw error;
     });
   if (!manifest) throw new JobFailure('refused', `${shown(history)} holds no published generation. Run pnpm signals:history first.`);
-  if (manifest.asset === null) throw new JobFailure('refused', `${shown(history)} holds no site's provider archive yet. Run pnpm signals:history first.`);
+  if (manifest.asset === null) throw new JobFailure('refused', `${shown(history)} holds no asset's provider archive yet. Run pnpm signals:history first.`);
   if (manifest.asset !== asset) throw new JobFailure('refused', `${shown(history)} holds ${manifest.asset}'s history, not ${asset}'s.`);
   const derivation = await derivationOf();
   if (manifest.derivation.id !== derivation.id) {
@@ -758,7 +758,7 @@ export async function analyzeSignalHistory({
   reportFiles = {},
 }, deps = {}) {
   if (typeof asset !== 'string' || !/^[a-z0-9.-]+$/.test(asset)) {
-    throw new Error('asset must be a site id such as example.com.');
+    throw new Error('asset must be an asset id such as example.com.');
   }
   if (generation !== null && (!Number.isInteger(generation) || generation < 1)) {
     throw new Error('--generation must be a generation number: 1 or more.');
@@ -882,14 +882,14 @@ function usage() {
   console.log(`Usage:
   pnpm signals:analyze-history -- --asset example.com --history <history folder> --out <report link>
 
-Writes the site's report — one CSV per report family, index-coverage.csv,
+Writes the asset's report — one CSV per report family, index-coverage.csv,
 executive.json and summary.json — from one
 generation of the history files signals:history publishes, and publishes it
 whole at --out. Reads the installation's stored settings.
 
 Options:
-  --asset <id>                 required site id
-  --history <folder>           required: the site's history folder
+  --asset <id>                 required asset id
+  --history <folder>           required: the asset's history folder
   --out <path>                 required: the link to the newest report; the
                                reports themselves are kept in <out>.reports/
   --generation <n>             read generation n (default: the newest)
@@ -920,7 +920,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!options.asset || !/^[a-z0-9.-]+$/.test(options.asset)) {
-    throw new Error('--asset is required and must be a site id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   if (!options.history || !options.output) throw new Error('--history and --out are both required.');
   if (options.generation !== null && (!Number.isInteger(options.generation) || options.generation < 1)) {

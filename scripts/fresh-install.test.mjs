@@ -51,7 +51,7 @@ async function seededDocuments() {
   return sent.documents;
 }
 
-test('a fresh clone seeds every document from the product defaults, and none names a site', async (t) => {
+test('a fresh clone seeds every document from the product defaults, and none names an asset', async (t) => {
   await freshClone(t);
   const docs = await seededDocuments();
   assert.deepEqual(Object.keys(docs).sort(), [...CONFIG_DOCUMENT_FILES].sort());
@@ -84,7 +84,7 @@ test('a fresh clone\'s clock is UTC until the operator sets one', async (t) => {
   assert.ok(isTimeZoneName(constants.os_time_zone));
 });
 
-test('a fresh clone links no task checkout and owns no site name', async (t) => {
+test('a fresh clone links no task checkout and owns no asset name', async (t) => {
   await freshClone(t);
   assert.deepEqual(await readTaskHost({ repoRoot: REPO_ROOT }), { repositories: [] });
   // Neither product defaults nor the frozen Postgres schema seed a site's

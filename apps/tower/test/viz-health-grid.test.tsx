@@ -278,7 +278,7 @@ describe("HealthGrid", () => {
 
   it("names an empty grid instead of drawing nothing", () => {
     const { grid } = draw([]);
-    expect(grid.querySelector("[data-health-empty]")!.textContent).toBe("No sites yet");
+    expect(grid.querySelector("[data-health-empty]")!.textContent).toBe("No assets yet");
     expect(grid.querySelector('[role="grid"]')).toBeNull();
   });
 });

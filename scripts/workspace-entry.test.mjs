@@ -354,7 +354,7 @@ test('collection original fields and fixed methods bind one current workflow act
   assert.deepEqual(f.calls.stores, Array(8).fill(a));
 });
 
-test('Read again binds its one site to the original path and a current workflow actor', async () => {
+test('Read again binds its one asset to the original path and a current workflow actor', async () => {
   const f = fixture();
   const path = '/api/assets/example.test/icons';
   const make = (body = {}, workspace = a) => new Request(origin + path, { method: 'POST',

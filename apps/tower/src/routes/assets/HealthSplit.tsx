@@ -41,7 +41,7 @@ export function HealthSplit({
   return (
     <div className="flex min-w-0 flex-col gap-2.5" data-health-split="">
       <SegmentBar
-        ariaLabel={`Site health: ${parts.map((part) => `${part.count} ${part.word.toLowerCase()}`).join(", ")}`}
+        ariaLabel={`Asset health: ${parts.map((part) => `${part.count} ${part.word.toLowerCase()}`).join(", ")}`}
         className="h-2 gap-0.5 rounded-sm bg-transparent"
         minWidth="6px"
         segments={parts.map((part) => ({

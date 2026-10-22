@@ -99,7 +99,7 @@ export default defineConfig({
       {
         text: 'Guides',
         items: [
-          { text: 'Add your first site', link: '/guides/add-your-first-site' },
+          { text: 'Add your first asset', link: '/guides/add-your-first-site' },
           { text: 'Connect data sources', link: '/guides/connect-data-sources' },
           { text: 'Connect Google', link: '/guides/connect-google' },
           { text: 'Connect a task project', link: '/guides/connect-a-task-project' },
@@ -117,7 +117,7 @@ export default defineConfig({
           { text: 'What the Tower is', link: '/tower/' },
           { text: 'Home', link: '/tower/home' },
           { text: 'Workflows', link: '/tower/workflows' },
-          { text: 'Sites', link: '/tower/sites' },
+          { text: 'Portfolio', link: '/tower/sites' },
           { text: 'Alerts', link: '/tower/alerts' },
           { text: 'Tasks', link: '/tower/tasks' },
           { text: 'Agents', link: '/tower/agents' },

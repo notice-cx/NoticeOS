@@ -66,7 +66,7 @@ export function ownerDatabaseEmpty(ownerUrl) {
 }
 
 export function freshWorkspace(value) {
-  if (value === undefined) return Object.freeze({ slug: 'main', displayName: 'My sites' });
+  if (value === undefined) return Object.freeze({ slug: 'main', displayName: 'My assets' });
   if (!value || Object.getPrototypeOf(value) !== Object.prototype ||
       Object.keys(value).sort().join(',') !== 'displayName,slug,workspaceId' ||
       typeof value.slug !== 'string' || !/^[a-z0-9][a-z0-9-]{0,62}$/u.test(value.slug) ||

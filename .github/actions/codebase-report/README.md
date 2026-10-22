@@ -1,7 +1,7 @@
 # Codebase report GitHub Action
 
 This action measures a repository's code and sends the result to a NoticeOS
-installation, where the site's **Codebase** tab shows it: lines of code,
+installation, where the asset's **Codebase** tab shows it: lines of code,
 repeated code, unused code, hard-to-change functions, the size of the tests and
 how much changed in the last 30 days. It reads the files and the git history
 only; it does not install, build or run the repository's code.
@@ -11,17 +11,17 @@ lists what each number counts and which files are left out.
 
 ## What you need
 
-- **The site's id.** In the Tower, open the site's page, then **Settings**. The
+- **The asset's id.** In the Tower, open the asset's page, then **Settings**. The
   id is under **Identity**, for example `example.com`.
-- **The site's token.** Each site has one secret that the installation checks
-  on every report it receives. The Tower lists it as "Site token" and never
-  shows its value; the person who runs the installation holds it, as the site's
+- **The asset's token.** Each asset has one secret that the installation checks
+  on every report it receives. The Tower lists it as "Asset token" and never
+  shows its value; the person who runs the installation holds it, as the asset's
   entry in `ASSET_TOKENS`, and gives it to you.
 - **The ingest address.** The address at which the installation receives
   reports, for example `https://ingest.example.com`. The person who runs the
   installation gives it to you. It is not the Tower's address: the Tower does
-  not receive reports. Before the first report, the site's **Codebase** tab
-  shows the workflow below with the site id filled in. An installation that runs on one computer and is not reachable
+  not receive reports. Before the first report, the asset's **Codebase** tab
+  shows the workflow below with the asset id filled in. An installation that runs on one computer and is not reachable
   from the internet cannot receive reports from GitHub; leave the address and
   token out, and the report is kept as a file on the workflow run instead
   (see [Without an installation to send to](#without-an-installation-to-send-to)).
@@ -31,11 +31,11 @@ lists what each number counts and which files are left out.
 1. In the GitHub repository, open **Settings**, then **Secrets and variables**,
    then **Actions**.
 2. Select **New repository secret**. Name it `NOTICEOS_ASSET_TOKEN` and paste
-   the site's token. Save it.
+   the asset's token. Save it.
 3. Select **New repository secret** again. Name it `NOTICEOS_INGEST_URL` and
    paste the ingest address. Save it.
 4. Add a file named `.github/workflows/codebase-report.yml` to the repository
-   with this content, with `example.com` replaced by the site's id:
+   with this content, with `example.com` replaced by the asset's id:
 
    ```yaml
    name: Codebase report
@@ -62,7 +62,7 @@ lists what each number counts and which files are left out.
    ```
 
 5. Commit the file to `main`. The repository's **Actions** tab lists the run.
-   When it finishes, the site's **Codebase** tab shows the report.
+   When it finishes, the asset's **Codebase** tab shows the report.
 
 The workflow runs on every push to `main`, every Monday at 04:17 UTC, and when
 you select **Run workflow** on the **Actions** tab.
@@ -75,9 +75,9 @@ measured".
 
 | Input | Required | What it sets |
 |---|---|---|
-| `asset` | yes | The site's id, as the Tower's site page shows it. |
+| `asset` | yes | The asset's id, as the Tower's asset page shows it. |
 | `ingest-url` | no | The installation's ingest address. |
-| `token` | no | The site's token. Pass it from a secret, never as plain text in the file. |
+| `token` | no | The asset's token. Pass it from a secret, never as plain text in the file. |
 | `paths` | no | Folders to measure, separated by commas, for a repository that holds more than one product, such as `apps/site`. Empty measures the whole repository. |
 | `build-passed` | no | The outcome of the job's own build step, such as `${{ steps.build.outcome }}`: `success` or `failure`. Empty: the build is not measured. |
 | `tests-passed` | no | The outcome of the job's own test step, such as `${{ steps.test.outcome }}`. Empty: the tests are not measured. |
@@ -108,8 +108,8 @@ folders and files to leave out, and marks more files as tests:
 
 ## When it fails
 
-- `The ingest refused the report (401)`: the token does not match the site id.
-  Check the `asset` input against the id on the site's page, and the secret
+- `The ingest refused the report (401)`: the token does not match the asset id.
+  Check the `asset` input against the id on the asset's page, and the secret
   against the token the person who runs the installation gave you.
 - `The ingest refused the report (422)`: the installation runs a version that
   does not accept this report. The person who runs the installation updates it

@@ -1,7 +1,7 @@
-// Adding a site: the pure half. The draft the add screen fills in, what it
+// Adding an asset: the pure half. The draft the add screen fills in, what it
 // refuses, and the exact writes Add performs; the screen
 // (src/components/AddSite.tsx) renders it. The screen asks for the domain
-// alone; every other answer is the default (`emptyDraft`), changeable on the
+// and optional asset type; every other value is the default (`emptyDraft`), changeable on the
 // asset's Settings tab.
 //
 // One asset is two writes: the store row (POST /api/assets, the join key
@@ -19,9 +19,10 @@ import type {
 } from "./changeset";
 import { changesetSlug } from "./changeset";
 import { entityMoveOps, type EntityRow } from "./entities";
+import { siteDisplayChange, type SiteDisplay } from "./site-display";
 import type { LaneScope } from "./integrations";
 
-import { ASSET_ID_MAX, DISPLAY_NAME_MAX, ASSET_ID_RE, DOMAIN_RE } from '@noticeos/contract/configuration';
+import { ASSET_ID_MAX, DISPLAY_NAME_MAX, ASSET_ID_RE, DOMAIN_RE, DEFAULT_ASSET_TYPE, isAssetType, type AssetType } from '@noticeos/contract/configuration';
 export { ASSET_ID_MAX, DISPLAY_NAME_MAX, ASSET_ID_RE, DOMAIN_RE } from '@noticeos/contract/configuration';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,7 @@ export interface CounterCardDraft {
 }
 
 export interface AssetDraft {
+  assetType: AssetType;
   displayName: string;
   domain: string;
   /** Which legal entity owns the asset — the `slug` of a row in
@@ -63,6 +65,7 @@ export interface AssetDraft {
  * `onboarding`, and `senseOnly: 1` (the store's own column default). */
 export function emptyDraft(): AssetDraft {
   return {
+    assetType: DEFAULT_ASSET_TYPE,
     displayName: "",
     domain: "",
     entity: "",
@@ -142,6 +145,7 @@ export function siteNameFromDomain(domain: string): string {
 /** What the add screen knows about a site before Add: the domain, the name it
  * will be saved under, and whether the site has launched yet. */
 export interface SiteAnswers {
+  assetType?: AssetType;
   domain: string;
   /** The inferred name — the site's own when it answered, else the domain's. */
   displayName: string;
@@ -158,6 +162,7 @@ export interface SiteAnswers {
 export function siteDraft(answers: SiteAnswers): AssetDraft {
   return {
     ...emptyDraft(),
+    assetType: answers.assetType ?? DEFAULT_ASSET_TYPE,
     domain: answers.domain,
     displayName: answers.displayName,
     status: answers.prelaunch ? "pre-launch" : "onboarding",
@@ -217,7 +222,7 @@ export function domainIssue(domain: string, context: ValidationContext): FieldIs
   if (id.length === 0 || !DOMAIN_RE.test(id) || !ASSET_ID_RE.test(id)) {
     return { field: "domain", message: "Not a domain — like example.com" };
   }
-  if (id.length > ASSET_ID_MAX) return { field: "domain", message: "Too long for a site id" };
+  if (id.length > ASSET_ID_MAX) return { field: "domain", message: "Too long for an asset id" };
   if (context.existingIds.includes(id)) {
     return { field: "domain", message: "Already added", existing: id };
   }
@@ -248,6 +253,7 @@ export function validateDraft(
   context: ValidationContext,
 ): FieldIssue[] {
   const issues: FieldIssue[] = [];
+  if (!isAssetType(draft.assetType)) issues.push({ field: "assetType", message: "Choose an asset type" });
   const name = trimmed(draft.displayName);
   if (name.length === 0) issues.push({ field: "displayName", message: "Name needed" });
   else if (name.length > DISPLAY_NAME_MAX) {
@@ -349,6 +355,7 @@ export function planWrites(
   catalog: { id: string; label: string; scope: LaneScope }[],
   entities: readonly EntityRow[],
   at: Date = new Date(),
+  display?: SiteDisplay,
 ): PlannedWrites {
   const id = assetIdFromDomain(draft.domain);
   const since = isoDate(at);
@@ -373,6 +380,9 @@ export function planWrites(
     cells[lane.id] = { status: "needs-setup", since };
   }
 
+  const typeOps = draft.assetType === DEFAULT_ASSET_TYPE && display?.[id]?.assetType === undefined ? []
+    : siteDisplayChange(display, id, "assetType", draft.assetType).ops
+      .filter((op): op is FileJsonInsertOp | FileJsonSetOp => op.kind !== "file-json-delete");
   const ops: (FileJsonInsertOp | FileJsonSetOp)[] = [
     {
       kind: "file-json-insert",
@@ -399,6 +409,7 @@ export function planWrites(
       } as JsonValue,
     },
   ];
+  ops.push(...typeOps);
 
   const counters = countersEntryOp(id, draft.counters);
   if (counters !== null) ops.push(counters);

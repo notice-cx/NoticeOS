@@ -99,6 +99,7 @@ import type {
   WiringFlag,
 } from "../shared/asset-detail";
 import { OWNER, SITE_TOKEN } from "../shared/asset-detail";
+import { assetTypeOf } from "@noticeos/contract/configuration";
 import type { JsonValue } from "../shared/changeset";
 import type { WatchSeriesHistory } from "../shared/watch-windows";
 import { WATCH_CALIBRATION_DAYS } from "../shared/watch-windows";
@@ -117,6 +118,7 @@ import { emptySignalTrendSet, loadSignalTrends } from "./signal-trends";
 const PROPERTY_SIGNAL_CHART_DAYS = 90;
 
 export interface AssetDetailDeps {
+  dashboard?: import("../shared/dashboard").DashboardConfig;
   now: Date;
   /** config/constants.json `flag_defaults`, verbatim (snake_case keys). */
   flagDefaults: Record<string, number | string>;
@@ -1596,6 +1598,7 @@ async function assembleAssetDetail(
   id: string,
   {
     now,
+    dashboard,
     flagDefaults,
     pullConfig,
     monthlyCaps,
@@ -1790,6 +1793,7 @@ async function assembleAssetDetail(
 
   const info: AssetInfo = {
     id: asset.id,
+    assetType: assetTypeOf(dashboard?.sites?.[asset.id]),
     displayName: assetDisplayName(asset.isOs, asset.displayName),
     domain: asset.domain,
     status: asset.status as AssetStatus,

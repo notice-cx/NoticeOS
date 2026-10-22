@@ -128,7 +128,7 @@ describe.skipIf(postgresUnavailable() !== null)("readCodebaseSlice on Postgres",
     expect(slice.latest!.report.findings.duplicates).toHaveLength(2);
   });
 
-  it("keeps the newest report when it is older than the window, and is empty for a site that never sent one", async () => {
+  it("keeps the newest report when it is older than the window, and is empty for an asset that never sent one", async () => {
     const ctx = await seeded();
     await storeCodebaseReports(ctx.call, [{ asset: ASSET, date: dayBefore(TODAY, 100), report: codebaseReport(ASSET, dayBefore(TODAY, 100)) }]);
     const stale = await readCodebaseSlice(ctx.call, ASSET, NOW);

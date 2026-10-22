@@ -135,7 +135,7 @@ describe('saved demo display readers', () => {
   });
 });
 
-describe('seeded search and site-check readers', () => {
+describe('seeded search and asset-check readers', () => {
   let reports: Awaited<ReturnType<typeof recordDemoSearchReports>>;
   let checks: Awaited<ReturnType<typeof recordDemoSiteChecks>>;
   beforeAll(async () => {
@@ -144,7 +144,7 @@ describe('seeded search and site-check readers', () => {
     checks = await recordDemoSiteChecks(capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
   }, 30_000);
 
-  it('records weekly reports and first site-check readings', () => {
+  it('records weekly reports and first asset-check readings', () => {
     expect(reports.reports).toBe(5);
     // First readings: nothing to compare with, so no alert.
     expect(checks.fired).toBe(0);
@@ -152,7 +152,7 @@ describe('seeded search and site-check readers', () => {
     expect(checks.pageSpeed).toBe(28);
   });
 
-  it('shows weekly reports and site checks on the Wall', async () => {
+  it('shows weekly reports and asset checks on the Wall', async () => {
     if (!fixture) throw new Error('The disposable demo fixture is absent.');
     const wall = await buildWallPayload(fixture.call, {
       now: new Date(scenario.manifest.cutoff), osTimeZone: 'UTC', constants: { dataUsd: 25 },
@@ -175,7 +175,7 @@ describe('seeded search and site-check readers', () => {
     expect(keys('trailnotes.example')).toContain('concentration-risk');
   });
 
-  it.each(scenario.assets.filter(asset => !asset.isOs))('shows $id site-check readings in its Health tab', async (site) => {
+  it.each(scenario.assets.filter(asset => !asset.isOs))('shows $id asset-check readings in its Health tab', async (site) => {
     if (!fixture) throw new Error('The disposable demo fixture is absent.');
     // The site's Health tab: security headers, sitemap, crawlers and page speed.
     const deps = { now: new Date(scenario.manifest.cutoff), osTimeZone: 'UTC', flagDefaults: {}, monthlyCaps: { dataUsd: 25 }, operatorRateUsdPerMin: 2,

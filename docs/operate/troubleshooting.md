@@ -244,7 +244,7 @@ Neither version started. Read `~/noticeos/noticeos status` and `~/noticeos/notic
 ## Data and credentials
 
 **A card shows a gap or "No report" instead of a number.**
-That is unknown data, not zero. Open **System health** > **Background operations**; the job that supplies the card's data shows what went wrong in its latest run. A site set to send no nightly report shows "No report" on purpose.
+That is unknown data, not zero. Open **System health** > **Background operations**; the job that supplies the card's data shows what went wrong in its latest run. An asset set to send no nightly report shows "No report" on purpose.
 
 **A connection shows "Legacy env" or System health counts legacy credentials.**
 The credential is still stored in the environment file. On the card, choose **Import from this machine**. See [Secrets and credentials](/operate/secrets-and-credentials).

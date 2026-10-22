@@ -541,18 +541,18 @@ describe("the command palette", () => {
     expect(document.querySelector("[data-route-loading]")).toBeNull();
     expect(document.body.innerHTML).toBe(before);
 
-    const mounted = whenMounted(() => screen.queryByRole("dialog", { name: "Search pages and sites" }));
+    const mounted = whenMounted(() => screen.queryByRole("dialog", { name: "Search pages and assets" }));
     await act(async () => {
       code.release("palette");
       expect(await preloadCommandPalette()).toBe(true);
     });
     const dialog = await mounted;
-    expect(document.activeElement).toBe(within(dialog).getByPlaceholderText("Search pages and sites…"));
+    expect(document.activeElement).toBe(within(dialog).getByPlaceholderText("Search pages and assets…"));
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    expect(screen.getByRole("dialog", { name: "Search pages and sites" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Search pages and assets" })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -577,8 +577,8 @@ describe("the command palette", () => {
     expect(document.activeElement).toBe(link);
 
     fireEvent.keyDown(window, { key: "k", metaKey: true });
-    const dialog = await screen.findByRole("dialog", { name: "Search pages and sites" });
-    const field = within(dialog).getByPlaceholderText("Search pages and sites…");
+    const dialog = await screen.findByRole("dialog", { name: "Search pages and assets" });
+    const field = within(dialog).getByPlaceholderText("Search pages and assets…");
     await waitFor(() => expect(document.activeElement).toBe(field));
 
     fireEvent.keyDown(window, { key: "Escape" });

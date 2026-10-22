@@ -115,7 +115,7 @@ export function AssetDetailRoute() {
         <NotFound id={id} />
       ) : !data ? (
         error ? (
-          <ReadFailed title="Couldn't load this site" subject="read:site" detail={<span className="font-mono">{id}</span>} error={error} retrying={isFetching} onRetry={() => void refetch()} />
+          <ReadFailed title="Couldn't load this asset" subject="read:site" detail={<span className="font-mono">{id}</span>} error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
           <PageSkeleton subject="read:site" shape="board" />
         )
@@ -158,7 +158,7 @@ export function AssetDetailRoute() {
                 // this one's sections: the header and tab bar keep their facts
                 // while this tab's own read arrives, or say it failed.
                 (error ? (
-                  <ReadFailed title="Couldn't load this site" subject="read:site" detail={<span className="font-mono">{id}</span>} error={error} retrying={isFetching} onRetry={() => void refetch()} />
+                  <ReadFailed title="Couldn't load this asset" subject="read:site" detail={<span className="font-mono">{id}</span>} error={error} retrying={isFetching} onRetry={() => void refetch()} />
                 ) : (
                   <RouteLoading surface="panel" />
                 ))

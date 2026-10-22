@@ -244,8 +244,8 @@ describe("the Next tab", () => {
   });
 });
 
-describe("a site's Tasks tab", () => {
-  it("opens on that site's next decision and its other decisions, above the scoped board", () => {
+describe("an asset's Tasks tab", () => {
+  it("opens on that asset's next decision and its other decisions, above the scoped board", () => {
     const work = payload([
       project({ epics: null }),
       project({ asset: "northwind.example", prefix: "nw", name: "Northwind" }),

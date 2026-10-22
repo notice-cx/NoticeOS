@@ -217,7 +217,7 @@ function ProviderSites({
 
   async function start(plan: StartPlan): Promise<CollectNowResult | "saved" | null> {
     if (plan.ops.length > 0) {
-      const saved = await save({ ops: plan.ops, label: `${providerName(provider)} sites`, slug: changesetSlug("connect", provider.id, "sites") });
+      const saved = await save({ ops: plan.ops, label: `${providerName(provider)} assets`, slug: changesetSlug("connect", provider.id, "sites") });
       if (saved === null) return null;
       // A deployment still on its config FILE restarts the local Worker to
       // read the save; the collection waits for it, as every save's refresh does.

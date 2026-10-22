@@ -66,13 +66,13 @@ describe("chart event inspection", () => {
 
   it("shows the original note once when the marker label is its shortened opening", () => {
     render(<ChartEventMarkers events={[
-      { date: "2026-09-02", position: 50, label: "Wrote off two site-wide average-position bets a…", detail: "Wrote off two site-wide average-position bets after reviewing their evidence. No measured improvement was claimed." },
+      { date: "2026-09-02", position: 50, label: "Wrote off two asset-wide average-position bets a…", detail: "Wrote off two asset-wide average-position bets after reviewing their evidence. No measured improvement was claimed." },
       { date: "2026-09-02", position: 50, label: "Release published", detail: "Version abc123 added search navigation." },
       { date: "2026-09-02", position: 50, label: "Enabled search", detail: "Enabled search. The underlying counts remain unchanged." },
     ]} />);
     fireEvent.click(screen.getByRole("button", { name: "3 events on Sep 2, 2026" }));
     const detail = screen.getByRole("tooltip");
-    expect(within(detail).queryByText("Wrote off two site-wide average-position bets a…")).toBeNull();
+    expect(within(detail).queryByText("Wrote off two asset-wide average-position bets a…")).toBeNull();
     expect(within(detail).queryByText("Enabled search", { exact: true })).toBeNull();
     expect(detail).toHaveTextContent("No measured improvement was claimed.");
     expect(detail).toHaveTextContent("Enabled search. The underlying counts remain unchanged.");

@@ -119,7 +119,7 @@ describe("the beads adapter wraps today's snapshot unchanged", () => {
     expect(empty.needsYou()).toMatchObject({ waiting: 0, urgent: 0, projectCount: 0 });
   });
 
-  it("answers the board, Needs attention and a site's inbox from one reading", async () => {
+  it("answers the board, Needs attention and an asset's inbox from one reading", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
     const reading = await beadsTaskSource.read({ store: ctx.call });
     expect(reading.status.connected).toBe(true);

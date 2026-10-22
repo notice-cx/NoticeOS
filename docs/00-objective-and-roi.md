@@ -101,7 +101,7 @@ change entry has no amount and the P&L never includes it: the revenue a change
 brings in is already booked as revenue, and the entry only attributes it.
 
 **State:** the Postgres model ([`db/postgres/`](../db/postgres/README.md))
-stores a change entry's site, the month it shipped, its class, its id and the
+stores a change entry's asset, the month it shipped, its class, its id and the
 prediction it shipped with, and no amount. No code books a change entry
 yet, and nothing records the realized value until doc 03's attribution is
 built.
@@ -168,7 +168,7 @@ These facts give the first backlogs real numbers to rank against:
   merges**. That makes small improvements (EV $1–5/mo), which are not worth a
   person's time to build, profitable. The hard constraint: this holds only
   under the quality gates of [doc 04](04-decision-policy.md). Publishing
-  low-quality content at scale is the documented pattern that gets a site
+  low-quality content at scale is the documented pattern that gets an asset
   deindexed and takes the whole asset's value to zero, and "information/tools"
   category pages are already among the pages most exposed to AI Overviews
   (AIO).

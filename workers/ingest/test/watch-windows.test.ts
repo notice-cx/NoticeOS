@@ -1059,7 +1059,7 @@ describe('watch-window evaluation — outcomes', () => {
     expect(aggregate).toMatchObject({ days: 2, span_days: 5, per_day: 11.5 });
   });
 
-  it('closes an unsupported stored scope unmeasurable without a site fallback', async () => {
+  it('closes an unsupported stored scope unmeasurable without an asset fallback', async () => {
     await observeClicks(10, 13);
     const id = await register({ scope: { query: 'high protein meal plan' } });
     // Simulate a legacy/hand-edited row the stricter registration boundary
@@ -1068,7 +1068,7 @@ describe('watch-window evaluation — outcomes', () => {
 
     const result = await runWatchWindows(env, INTERIM_RUN_MS);
     expect(result.closed[0]).toMatchObject({ outcome: 'unmeasurable' });
-    expect(result.closed[0]?.note).toBe('stored scope unsupported · no site-wide fallback');
+    expect(result.closed[0]?.note).toBe('stored scope unsupported · no asset-wide fallback');
     expect(readings(await storedWindow(id))).toHaveLength(0);
   });
 

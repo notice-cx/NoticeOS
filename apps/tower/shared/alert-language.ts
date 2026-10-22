@@ -439,7 +439,7 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
   if (group) {
     evidence.push({
       polarity: "supporting",
-      source: "Sites with no nightly reports",
+      source: "Assets with no nightly reports",
       detail: group.map((member) => member.assetDisplayName).join(", "),
       at: null,
     });
@@ -465,7 +465,7 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
     // recurrence chip beside it.
     if (group) {
       return {
-        headline: `${spellCount(group.length)} sites have no nightly reports`,
+        headline: `${spellCount(group.length)} assets have no nightly reports`,
         hint: "their nightly reporting may never have been wired up",
         evidence,
       };
@@ -492,8 +492,8 @@ function pullFailureHint(status: number | null): string | undefined {
   if (status === null) return "the endpoint may be unreachable";
   if (status === 401 || status === 403) return "the fetch credentials may have expired";
   if (status === 404) return "the fetch URL may have moved";
-  if (status === 429) return "the site is rate-limiting the fetch";
-  if (status >= 500) return "the site's endpoint is erroring";
+  if (status === 429) return "the asset is rate-limiting the fetch";
+  if (status >= 500) return "the asset's endpoint is erroring";
   return undefined;
 }
 
@@ -606,13 +606,13 @@ function assetDeclared(facts: AlertFacts): AlertLanguage {
           },
           {
             polarity: "supporting",
-            source: "Normal · site's 7-day average",
+            source: "Normal · asset's 7-day average",
             detail: `${baseline.toFixed(1)}/day`,
             at: null,
           },
           {
             polarity: "supporting",
-            source: "Site's own rule · poisson-24h",
+            source: "Asset's own rule · poisson-24h",
             detail: `P≤${probability} (${declaredProbability(probability)})`,
             at: null,
           },
@@ -628,7 +628,7 @@ function assetDeclared(facts: AlertFacts): AlertLanguage {
       {
         polarity: "supporting",
         source: "Raised by",
-        detail: "the site's own nightly report · no statistics attached",
+        detail: "the asset's own nightly report · no statistics attached",
         at: null,
       },
     ],
@@ -701,7 +701,7 @@ function hygieneFailure(
           : subject === "Sitemap" && status === 404
             ? "the sitemap may be missing or moved"
             : subject === "Home page" && (status === 401 || status === 403)
-              ? "the site may be blocking the checker"
+              ? "the asset may be blocking the checker"
               : subject === "Home page" && status === 404
                 ? "the configured home URL may be wrong"
                 : undefined;
@@ -787,7 +787,7 @@ function egressDown(facts: AlertFacts): AlertLanguage {
   if (beacons.length > 0) {
     evidence.push({
       polarity: "supporting",
-      source: "Reference sites that could not be reached",
+      source: "Reference websites that could not be reached",
       // Verbatim: the argument for suppressing the asset alerts is that
       // unrelated sites failed the same way.
       detail: beacons

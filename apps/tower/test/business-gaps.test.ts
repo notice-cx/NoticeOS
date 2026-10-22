@@ -43,7 +43,7 @@ describe("businessGaps", () => {
     expect(businessGaps([card("a.example.com"), card("b.example.com")])).toEqual([]);
   });
 
-  it("names each site that earns nothing, with its own row", () => {
+  it("names each asset that earns nothing, with its own row", () => {
     const gaps = businessGaps([
       card("a.example.com", { displayName: "Acorn", revenueProjection: undefined }),
       card("b.example.com", { displayName: "Birch", revenueProjection: projection("no-revenue") }),
@@ -58,7 +58,7 @@ describe("businessGaps", () => {
     ]);
   });
 
-  it("names a site with no data feeds, no task project or no code report", () => {
+  it("names an asset with no data feeds, no task project or no code report", () => {
     const unfed = [source("nightly-report", "live"), source("ga4", "needs-setup"), source("gsc", "needs-setup"), source("uptime", "live")];
     const { codebase: _absent, ...older } = card("e.example.com");
     const gaps = businessGaps([
@@ -114,7 +114,7 @@ describe("businessGaps", () => {
     expect(new Set(gaps.map((gap) => gap.key)).size).toBe(gaps.length);
   });
 
-  it("leaves retired sites out", () => {
+  it("leaves retired assets out", () => {
     expect(businessGaps([card("a.example.com", { status: "retired", revenueProjection: undefined, work: null, codebase: null })])).toEqual([]);
   });
 });

@@ -7,7 +7,7 @@ description: "The month's net, where revenue and cost come from, and the costs y
 
 The Money page shows this month's net, and where the money comes from and goes. The sidebar calls it **Money**; its address is `/financials`.
 
-![The Money page in the synthetic demo: October's revenue minus cost as the net, the month's days as bars, where the cost goes, and each site's revenue, share and net.](../images/tower-money.webp)
+![The Money page in the synthetic demo: October's revenue minus cost as the net, the month's days as bars, where the cost goes, and each asset's revenue, share and net.](../images/tower-money.webp)
 
 ## What you see
 
@@ -17,27 +17,27 @@ Beside the equation:
 
 - **The month's days** as bars, the newest in the revenue colour, with the usual day as a dashed line. A day no source reported is hatched, never a zero. A source that missed days is named under the bars with its count, such as **Northwind 20/21 days**.
 - **The month against last month**: the month's revenue as a filled bar on a track that ends at last month's whole total, with an open month's projected total as a dashed line past the fill.
-- **Where the month came from**: one bar split by the sites with revenue, each with its amount and share.
+- **Where the month came from**: one bar split by the assets with revenue, each with its amount and share.
 
 Then:
 
 - **Where the cost goes** — each cost line, largest first: what it is, its amount, its share of the month's cost, its family in words (**Hosting and infrastructure**, **Running NoticeOS**, **Search data**, **People's time** or **Model usage**), and where the figure comes from (**Subscription**, **Usage**, **Prepaid yearly**, **No source**). **Compare with previous month** opens recorded costs for the immediately preceding calendar month, loaded only when opened and retained in the normal month cache. Each exact source, family and currency identity shows **Previous**, **Current** and **Difference**, largest absolute supported difference first, with cents retained. Totals stay separate by currency. An added or absent source shows **No record** and an **Unavailable** difference; missing history or a failed read also leaves differences unavailable. A recorded zero remains zero. An open month compares month-to-date costs with the complete previous calendar month; a lower amount does not establish savings or improved performance.
 - **By source** — the month's revenue by source, largest first: the source's name (such as **Mediavine Journey ad revenue** or **Stripe subscriptions**), its amount, its share of the month's revenue, and its family: **Ads**, **Subscriptions**, **Affiliate** or **Licensing**. A row booked with no source is named by its family. The panel is not drawn for a month with no revenue.
-- **By site** — every site ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the site's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead**, the shared cost booked to the **System**, is its own row, and **Total net** is the sites' nets less that overhead. On a narrow screen each row shows the site, its revenue and its net; the other columns are hidden before a name is cut short.
+- **By asset** — every asset ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the asset's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead**, the shared cost booked to the **System**, is its own row, and **Total net** is the assets' nets less that overhead. On a narrow screen each row shows the asset, its revenue and its net; the other columns are hidden before a name is cut short.
 - **Month by month** — revenue, cost and net for every month to the shown one, the open month marked.
 
 Three panels open one at a time underneath:
 
 - **Day by day** — the month's daily revenue to inspect, with partial days outlined and each source's reported days.
 - **Every month** — **Revenue**, **Cost**, **Net**, **Reconciled** and **Net to date** for every month.
-- **Declared costs** — **Recurring costs** and **Domain orders**, the two tables you edit. Over them, **Declared, by site** shows each site's declared run rate per month.
+- **Declared costs** — **Recurring costs** and **Domain orders**, the two tables you edit. Over them, **Declared, by asset** shows each asset's declared run rate per month.
 
 Revenue is collected (Mediavine ad revenue and Stripe subscriptions, daily) and stays an estimate until reconciled. Costs are the rows you declare plus metered spend the product records itself, such as DataForSEO reports. A booked month is never rewritten; a correction is a new row.
 
 ## What you can do
 
 - **Accounting period** changes the month shown.
-- A site's name opens that site's own money.
+- An asset's name opens that asset's own money.
 - **Add** and **Remove** act on whole rows in **Recurring costs** and **Domain orders**; every cell is saved on its own, with **Undo** beside it.
 - **Connect a revenue source →**, before any money is recorded, opens Integrations.
 
@@ -48,11 +48,11 @@ Revenue is collected (Mediavine ad revenue and Stripe subscriptions, daily) and 
 - **No money recorded yet** before any money is recorded.
 - **Cost — none recorded** means no cost line exists for the month; it is not a zero cost, and the net then shows **revenue only**.
 - **none confirmed yet** means nothing in the month has been matched to a receipt.
-- **none reported** on a site row means no revenue arrived for that site this month; it is not $0.
+- **none reported** on an asset row means no revenue arrived for that asset this month; it is not $0.
 - **Reconciled —** in **Every month** means nothing in that month has been matched to a receipt yet.
-- A **No trend** dash on a site row shows why the month-by-month line cannot be drawn, usually because the site has fewer than three months.
+- A **No trend** dash on an asset row shows why the month-by-month line cannot be drawn, usually because the asset has fewer than three months.
 - **Unavailable** means the month mixes currencies, so no single total exists.
-- A declared cost that has not been booked into the month yet shows in **Declared, by site** but not in **Direct cost**; the two differ until the month's cost import runs.
+- A declared cost that has not been booked into the month yet shows in **Declared, by asset** but not in **Direct cost**; the two differ until the month's cost import runs.
 
 ## Related guides
 

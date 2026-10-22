@@ -46,8 +46,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "IntegrationHealthPanel",
     file: "components/IntegrationHealthPanel.tsx",
     purpose:
-      "Connections grouped by provider, then site, under a strip of four counts (sites failing, overdue, reports missing, sites working). Each provider is one row with its connection status and compact facts; the sites that need the operator sit under it with their status, the reason on the row, and what to do when opened. Without a current read nothing reads fine.",
-    variants: ["needs attention", "all connections", "provider sites", "failing site opened", "monitoring not confirmed", "counts with history"],
+      "Connections grouped by provider, then asset, under a strip of four counts (assets failing, overdue, reports missing, assets working). Each provider is one row with its connection status and compact facts; the assets that need the operator sit under it with their status, the reason on the row, and what to do when opened. Without a current read nothing reads fine.",
+    variants: ["needs attention", "all connections", "provider assets", "failing asset opened", "monitoring not confirmed", "counts with history"],
   },
   {
     name: "IntegrationLogo",
@@ -92,13 +92,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/WallCanvas.tsx",
     purpose:
       "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. A column's rows fit their content, take the height left over, or share it by their size weights. It owns no widget of its own; the nine widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
-    variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column", "column rows sized by weight"],
+    variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "asset filter", "fill row", "editing slot", "column", "column rows sized by weight"],
   },
   {
     name: "WallFeed / WallFeedWidget",
     file: "components/wall/WallFeed.tsx",
     purpose:
-      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, or a known agent's mark with the kind's glyph as a badge; the kind and the site with its favicon; one sentence; a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
+      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, or a known agent's mark with the kind's glyph as a badge; the kind and the asset with its favicon; one sentence; a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
     variants: ["live rows (every tone)", "aged rows muted", "reconnecting (last rows kept)", "empty window", "arrival and whole-row fit (component test and journey)"],
   },
   {
@@ -126,7 +126,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PropertyFavicon",
     file: "components/PropertyFavicon.tsx",
     purpose:
-      "Neutral asset identity glyph for card and detail headers: the icon the site's pages declare for the surface (the dark one on the Wall and the dark desk, else the light one; the light one on the light desk), then the site's /favicon.ico, then a monogram. It is decoration and aria-hidden: every call site draws it beside a visible name.",
+      "Neutral asset identity glyph for card and detail headers: the icon the asset's pages declare for the surface (the dark one on the Wall and the dark desk, else the light one; the light one on the light desk), then the asset's /favicon.ico, then a monogram. It is decoration and aria-hidden: every call asset draws it beside a visible name.",
     variants: ["dark surface · dark icon", "dark surface · light icon only", "light surface · light icon", "no icons · /favicon.ico", "failed-image fallback", "decorative (no accessible name)"],
   },
   {
@@ -241,7 +241,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ReportFreshness",
     file: "components/ReportFreshness.tsx",
     purpose:
-      "How old a site's nightly report is, one age amber past twice its cadence, or the neutral No report mark when none is expected. Home's assets table reads it in its Reported column.",
+      "How old an asset's nightly report is, one age amber past twice its cadence, or the neutral No report mark when none is expected. Home's assets table reads it in its Reported column.",
     variants: ["fresh", "stale (amber)", "no report expected", "declared none", "without the Updated word"],
   },
   {
@@ -492,15 +492,15 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteArrange / ShownOnSwitches / LiveSiteArrange / RetiredChip",
     file: "components/SiteArrange.tsx",
     purpose:
-      "The sites in the order Home, Sites and the TV use, to drag into a new one by each row's grip (the drop line shows where it lands) or move with Move up and Move down, with each site's three switches for where it shows: Home and Sites list, TV, Work this week. LiveSiteArrange is it on the wall read with the one move write and the one switch write, each with Undo; ShownOnSwitches is one site's three switches, which its Settings tab draws on its own; RetiredChip is a retired site's stage beside its name, with the sidebar's switched-off mark. The TV editor's widget lists narrow one widget; these are the site's own.",
-    variants: ["four sites, one retired", "saves paused (the reason above the list)", "one site's switches"],
-    demo: "Mid-drag is pinned by the journey that drags a site to the top; the gallery shows the line on its own (DropLine).",
+      "The assets in the order Home, Portfolio and the TV use, to drag into a new one by each row's grip (the drop line shows where it lands) or move with Move up and Move down, with each asset's three switches for where it shows: Home and Portfolio, TV, Work this week. LiveSiteArrange is it on the wall read with the one move write and the one switch write, each with Undo; ShownOnSwitches is one asset's three switches, which its Settings tab draws on its own; RetiredChip is a retired asset's stage beside its name, with the sidebar's switched-off mark. The TV editor's widget lists narrow one widget; these are the asset's own.",
+    variants: ["four assets, one retired", "saves paused (the reason above the list)", "one asset's switches"],
+    demo: "Mid-drag is pinned by the journey that drags an asset to the top; the gallery shows the line on its own (DropLine).",
   },
   {
     name: "DropLine",
     file: "components/DropLine.tsx",
     purpose:
-      "Where a drag will land, before the drop: a line in the accent colour with a short label on it (Above Sites). Drawn only where the drop moves something, so no refusal is needed. The TV editor's preview and Arrange place it.",
+      "Where a drag will land, before the drop: a line in the accent colour with a short label on it (Above Assets). Drawn only where the drop moves something, so no refusal is needed. The TV editor's preview and Arrange place it.",
     variants: ["on a row's top edge"],
   },
   {
@@ -563,14 +563,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ConnectPanel",
     file: "components/ConnectPanel.tsx",
     purpose:
-      "One panel, one press: connect a provider on /integrations or from a site's Data sources. Paste what the provider issued and press Connect; the ingest asks the provider first and stores the credential only if it accepts, so the panel goes Checking → accepted (with what the answer proved) or shows the refusal in plain words under the field. Nothing is ever shown back.",
-    variants: ["editing (empty, Get a key link)", "checking", "accepted: sites", "accepted: credit", "refused", "no answer", "field refused by the server", "cannot store yet (why at its top where the page has no banner)", "connected: status, Replace, Disconnect", "replaced: answer and Done", "accepted: region and projects (PostHog)", "sign-in (Google, GoogleSignInSetup)", "sheet", "inline (gallery)"],
+      "One panel, one press: connect a provider on /integrations or from an asset's Data sources. Paste what the provider issued and press Connect; the ingest asks the provider first and stores the credential only if it accepts, so the panel goes Checking → accepted (with what the answer proved) or shows the refusal in plain words under the field. Nothing is ever shown back.",
+    variants: ["editing (empty, Get a key link)", "checking", "accepted: assets", "accepted: credit", "refused", "no answer", "field refused by the server", "cannot store yet (why at its top where the page has no banner)", "connected: status, Replace, Disconnect", "replaced: answer and Done", "accepted: region and projects (PostHog)", "sign-in (Google, GoogleSignInSetup)", "sheet", "inline (gallery)"],
   },
   {
     name: "ConnectionActions",
     file: "components/ConnectionActions.tsx",
     purpose:
-      "The connection's own actions, Replace (named for the secret) and Disconnect, drawn on the connection itself: ConnectPanel's connected view and the top of a provider's card. Replace opens the key form; Disconnect keeps one confirmation naming the sites that stop and what is deleted.",
+      "The connection's own actions, Replace (named for the secret) and Disconnect, drawn on the connection itself: ConnectPanel's connected view and the top of a provider's card. Replace opens the key form; Disconnect keeps one confirmation naming the assets that stop and what is deleted.",
     variants: ["idle", "replacing (pressed)", "failing (Replace leads)", "no Replace (sign-in)", "confirming", "disconnecting", "refused"],
   },
   {
@@ -605,15 +605,15 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteTokens",
     file: "components/SiteTokens.tsx",
     purpose:
-      "A token per site, pasted on the site's row: ConnectPanel's body for a provider that issues one token per project with no free call to prove it (Clarity). A pasted token saves at once through PUT /api/integrations/:provider/site-token; Run now runs the export for the held sites and says what it spends.",
+      "A token per asset, pasted on the asset's row: ConnectPanel's body for a provider that issues one token per project with no free call to prove it (Clarity). A pasted token saves at once through PUT /api/integrations/:provider/site-token; Run now runs the export for the held assets and says what it spends.",
     variants: ["held (status) and waiting for a paste", "saving", "refused on its row", "run: 1 of 10", "run: calls left", "run disabled"],
   },
   {
     name: "SitePicker",
     file: "components/SitePicker.tsx",
     purpose:
-      "The account's sites, matched to portfolio assets, and one press: ConnectPanel's second screen. Every asset is a row ticked where the account holds its domain, with the site it would be collected from or a chip saying why not; Start writes the Data sources tab's own mapping ops and runs the job now. Unticking a row the job collects anyway asks for a DeclineReasons pick and saves it as Not using in the same press.",
-    variants: ["account: matched, picked, not in account, not verified, declined, unmatched sites", "unticked: still collected (reasons offered)", "unticked: not using (reason picked)", "portfolio: markets and spend preview", "PostHog: projects by name and number, funnels picked up", "Google: GA4 property and Search Console site on one row", "starting", "started: statuses", "started: saved as not using", "refused: paused", "loading", "no answer"],
+      "The account's assets, matched to portfolio assets, and one press: ConnectPanel's second screen. Every asset is a row ticked where the account holds its domain, with the asset it would be collected from or a chip saying why not; Start writes the Data sources tab's own mapping ops and runs the job now. Unticking a row the job collects anyway asks for a DeclineReasons pick and saves it as Not using in the same press.",
+    variants: ["account: matched, picked, not in account, not verified, declined, unmatched assets", "unticked: still collected (reasons offered)", "unticked: not using (reason picked)", "portfolio: markets and spend preview", "PostHog: projects by name and number, funnels picked up", "Google: GA4 property and Search Console site on one row", "starting", "started: statuses", "started: saved as not using", "refused: paused", "loading", "no answer"],
   },
   {
     name: "DeclineReasons",
@@ -626,8 +626,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "AddSitePanel / AddSiteButton / NoSitesYet",
     file: "components/AddSite.tsx",
     purpose:
-      "Add a site in one screen: a centred Sheet with one Domain field, the name read off the domain and replaced by the site's own when GET /api/site-name answers, an optional Not launched yet press, and refusals as short states beside the field. Add writes through the wizard's own path and lands on the new asset's Data sources. AddSiteButton opens it in place; NoSitesYet is an empty site list's door.",
-    variants: ["empty (Add unavailable)", "domain typed: name from the domain", "name from the site", "already added (with Open)", "not a domain (after Add)", "not launched yet pressed", "adding", "cannot save here", "row added, setup not saved (Retry setup)", "the button that opens it", "no sites yet (the door)"],
+      "Add an asset in one screen: a centred Sheet with one Domain field, the name read off the domain and replaced by the asset's own when GET /api/site-name answers, an optional Not launched yet press, and refusals as short states beside the field. Add writes through the wizard's own path and lands on the new asset's Data sources. AddSiteButton opens it in place; NoSitesYet is an empty asset list's door.",
+    variants: ["empty (Add unavailable)", "domain typed: name from the domain", "name from the asset", "already added (with Open)", "not a domain (after Add)", "not launched yet pressed", "adding", "cannot save here", "row added, setup not saved (Retry setup)", "the button that opens it", "no assets yet (the door)"],
   },
   {
     name: "ProviderCredentialForm / ProviderLink",
@@ -645,7 +645,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ProviderCard",
     file: "components/ProviderCard.tsx",
     purpose:
-      "One provider's credential and its connection evidence: the header in the shared ConnectionStatus and IntegrationStateChip vocabulary, credential source kept separate from connection status, and guided mode (Connect, Choose sites, Verify, Settings) sharing the reference card's forms and evidence. Replace opens empty inputs, secrets are never echoed, and Disconnect goes through ConnectionActions.",
+      "One provider's credential and its connection evidence: the header in the shared ConnectionStatus and IntegrationStateChip vocabulary, credential source kept separate from connection status, and guided mode (Connect, Choose assets, Verify, Settings) sharing the reference card's forms and evidence. Replace opens empty inputs, secrets are never echoed, and Disconnect goes through ConnectionActions.",
     variants: [
       "guided setup: connect, assets, verify, settings",
       "shared connection status (accepted, working, overdue, failing or unknown)",
@@ -659,7 +659,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "testing (spinner)",
       "probe ok / probe failed",
       "freshly stored: Not checked status, Not tested yet verdict",
-      "disconnect: one confirmation naming sites and deletion",
+      "disconnect: one confirmation naming assets and deletion",
       "cannot store yet (Connect disabled, Disconnect live)",
       "expiry: quiet countdown (far off)",
       "expiry: warn inside T-14d",
@@ -913,7 +913,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallWidgetPanel",
     file: "components/wall/WallWidgetPanel.tsx",
     purpose:
-      "The selected widget's settings in the Wall editor: where it is, Remove, its Move menu, its size (a preset share of its row for its width, or its column's; Fit content, a share of its column or Fill the rest for its height), the settings its renderer applies (the site filter and the site rows' totals), and for the strip the embedded CountdownEditor, the countdown's own form, under this panel's heading.",
+      "The selected widget's settings in the Wall editor: where it is, Remove, its Move menu, its size (a preset share of its row for its width, or its column's; Fit content, a share of its column or Fill the rest for its height), the settings its renderer applies (the asset filter and the asset rows' totals), and for the strip the embedded CountdownEditor, the countdown's own form, under this panel's heading.",
     variants: [
       "nothing selected (the widgets on the Wall, one press each)",
       "a plain widget (width presets, fit or fill)",
@@ -960,14 +960,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RevenueHero",
     file: "components/wall/RevenueHero.tsx",
     purpose:
-      "The Wall's revenue widget: the month's revenue so far as the largest type on the screen, 'on pace for $X' from the sites' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. On the TV the chart is a lower-contrast layer behind the figures filling the tile, so the tile is as tall as its text and its labels are placed clear of the figures; on a phone it is drawn under them. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
+      "The Wall's revenue widget: the month's revenue so far as the largest type on the screen, 'on pace for $X' from the assets' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. On the TV the chart is a lower-contrast layer behind the figures filling the tile, so the tile is as tall as its text and its labels are placed clear of the figures; on a phone it is drawn under them. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
     variants: [
       "on pace to pass last month",
       "passed last month",
       "learning (no pace yet)",
       "no revenue source",
       "yesterday all in",
-      "yesterday 1 of 2 sites",
+      "yesterday 1 of 2 assets",
       "yesterday not reported yet",
     ],
   },
@@ -975,15 +975,15 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteRows",
     file: "components/wall/SiteRows.tsx",
     purpose:
-      "The Wall's asset region: site name and favicon with four-bar health, LiveUsers over the minute pulse, today's comparable-hours chart and pace, the four-week trend, and selected pulse totals on a second line. The rows fill the region: four or more assets keep figures beside charts, two or three put larger figures above them, one asset uses up to three focus tiles.",
-    variants: ["default pulse totals", "per-asset selection", "explicit none", "missing/zero/stale totals", "healthy/warn/error/unknown health bars", "fresh/stale live reading", "no data", "four or more filling rows", "two or three larger rows", "one site focus tiles"],
+      "The Wall's asset region: asset name and favicon with four-bar health, LiveUsers over the minute pulse, today's comparable-hours chart and pace, the four-week trend, and selected pulse totals on a second line. The rows fill the region: four or more assets keep figures beside charts, two or three put larger figures above them, one asset uses up to three focus tiles.",
+    variants: ["default pulse totals", "per-asset selection", "explicit none", "missing/zero/stale totals", "healthy/warn/error/unknown health bars", "fresh/stale live reading", "no data", "four or more filling rows", "two or three larger rows", "one asset focus tiles"],
   },
   {
     name: "LiveUsers",
     file: "components/wall/LiveUsers.tsx",
     purpose:
-      "A site's live users on the Wall: GA4 users in the last 30 minutes in neutral ink, counting to each new reading, over a MinutePulse with the bright five-minute end's own count. Stale and failed readings drop to muted ink with their age; no reading is a dash, never a zero. One cell for every row tier and the one-site Today tile.",
-    variants: ["fresh", "stale with its age", "failed, last pulse kept", "pulse refused (figures only)", "no GA4", "compact row", "roomier row", "phone row", "one-site tile"],
+      "An asset's live users on the Wall: GA4 users in the last 30 minutes in neutral ink, counting to each new reading, over a MinutePulse with the bright five-minute end's own count. Stale and failed readings drop to muted ink with their age; no reading is a dash, never a zero. One cell for every row tier and the one-asset Today tile.",
+    variants: ["fresh", "stale with its age", "failed, last pulse kept", "pulse refused (figures only)", "no GA4", "compact row", "roomier row", "phone row", "one-asset tile"],
   },
   {
     name: "WallAgents",
@@ -996,7 +996,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "NeedsYou / IssueGlyph",
     file: "components/wall/NeedsYou.tsx",
     purpose:
-      "The Wall's top three actionable problems, errors first then newest, with site, concise line and age (docs/14-design.md § The Wall). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs, backups failing two scheduled runs since the last good copy, and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each site's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Sites that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
+      "The Wall's top three actionable problems, errors first then newest, with asset, concise line and age (docs/14-design.md § The Wall). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs, backups failing two scheduled runs since the last good copy, and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each asset's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Assets that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
     variants: ["top three with the rest counted", "urgent tasks beside the heading", "nothing broken but urgent tasks", "nothing needs attention"],
   },
   {
@@ -1010,7 +1010,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallTimeline / WallTimelineWidget",
     file: "components/wall/WallTimeline.tsx",
     purpose:
-      "The Wall's account of what is broken: every open problem (wallIssues plus the System's own) as a bar from its onset to now and the feed's stored events as marks, one row per site and the System, on a read-only EventTimeline of the last 24 hours. It draws three lines (fitTimeline: errors, then warnings, then rows of marks) and counts the problems left out as +N more; its line says Nothing broken when the evaluated conditions are calm. The widget reads the feed itself.",
+      "The Wall's account of what is broken: every open problem (wallIssues plus the System's own) as a bar from its onset to now and the feed's stored events as marks, one row per asset and the System, on a read-only EventTimeline of the last 24 hours. It draws three lines (fitTimeline: errors, then warnings, then rows of marks) and counts the problems left out as +N more; its line says Nothing broken when the evaluated conditions are calm. The widget reads the feed itself.",
     variants: ["calm", "errors and warnings", "problems left out, counted", "feed reconnecting"],
   },
   {
@@ -1024,11 +1024,11 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "AppShell / Sidebar",
     file: "components/AppShell.tsx",
     purpose:
-      "The desk's one chrome: a persistent left sidebar with the eight desk nouns as NavLinks (aria-current, an asset page lighting Assets), one row per asset beneath Assets (favicon, a severity dot for open attention, a stage glyph where not live; collapsible and remembered in localStorage), a footer holding the TV, the theme toggle and the Search button, and below `md` a top bar whose menu button opens the same content as a drawer. The Integrations entry and the top bar wear the expiring-credential dot. AppShell applies `.light` to the document and removes it on unmount.",
+      "The desk's one chrome: a persistent left sidebar with the eight desk nouns as NavLinks (aria-current, an asset page lighting Portfolio), one row per asset beneath Portfolio (favicon, a severity dot for open attention, a stage glyph where not live; collapsible and remembered in localStorage), a footer holding the TV, the theme toggle and the Search button, and below `md` a top bar whose menu button opens the same content as a drawer. The Integrations entry and the top bar wear the expiring-credential dot. AppShell applies `.light` to the document and removes it on unmount.",
     variants: [
       "sidebar (md and up)",
       "active item (aria-current)",
-      "asset route lights Assets",
+      "asset route lights Portfolio",
       "asset rows (favicon + severity dot + stage glyph)",
       "row lit on a tab URL",
       "retired at the foot",
@@ -1193,7 +1193,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/surface/FilterBar.tsx",
     purpose:
       "A page's filters and sort, folded behind one Filters button carrying the active count below `sm`, and laid out in the page's own row from `sm` up. A period is not a filter and stays in view; `aside` holds a fact about the list and is never folded. FilterFold, FilterToggle and FilterControls are the parts for a page whose button shares a row with something else.",
-    variants: ["phone: folded (the button only)", "phone: open", "active count on the button (Filters, 2 on)", "desk: the page's own row, no button", "aside kept beside the button", "parts: toggle in another row (Sites)"],
+    variants: ["phone: folded (the button only)", "phone: open", "active count on the button (Filters, 2 on)", "desk: the page's own row, no button", "aside kept beside the button", "parts: toggle in another row (Assets)"],
   },
   {
     name: "RangeSelector",
@@ -1206,7 +1206,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "Panel",
     file: "components/surface/Panel.tsx",
     purpose:
-      "The shared non-list section shell for portfolio Settings and site detail: an anchored, heading-labelled region with a caption, action slot and optional body. Settings rows stack; other content keeps block flow. ListPanel retains its own row disclosure behavior.",
+      "The shared non-list section shell for portfolio Settings and asset detail: an anchored, heading-labelled region with a caption, action slot and optional body. Settings rows stack; other content keeps block flow. ListPanel retains its own row disclosure behavior.",
     variants: ["block content", "stacked settings rows", "caption and action", "header only", "saves paused", "anchor and data marks"],
   },
   {
@@ -1254,7 +1254,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "MinutePulse",
     file: "components/surface/MinutePulse.tsx",
     purpose:
-      "A site's live users minute by minute: one bar a minute for the last 30 minutes scaled to the busiest, the newest five in full ink and the rest muted, an inactive minute a tick on the floor and an uncovered minute nothing. Colour from currentColor; sizes row, roomy and focus.",
+      "An asset's live users minute by minute: one bar a minute for the last 30 minutes scaled to the busiest, the newest five in full ink and the rest muted, an inactive minute a tick on the floor and an uncovered minute nothing. Colour from currentColor; sizes row, roomy and focus.",
     variants: ["live", "dimmed", "quiet minutes", "unread minutes", "row", "roomy", "focus"],
   },
   {
@@ -1366,8 +1366,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "EventTimeline",
     file: "components/viz/EventTimeline.tsx",
     purpose:
-      "What happened when: one row per site on a time axis with NOW drawn, open problems as bars running to NOW (older than the window clipped and quiet), events as shaped marks that cluster, and a since-you-last-looked marker.",
-    variants: ["last 24 hours", "last 7 days", "one site's row (compact)", "quiet"],
+      "What happened when: one row per asset on a time axis with NOW drawn, open problems as bars running to NOW (older than the window clipped and quiet), events as shaped marks that cluster, and a since-you-last-looked marker.",
+    variants: ["last 24 hours", "last 7 days", "one asset's row (compact)", "quiet"],
   },
   {
     name: "FlowGraph",
@@ -1403,7 +1403,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PortfolioRows",
     file: "components/viz/PortfolioRows.tsx",
     purpose:
-      "The sites side by side, one ruled row each: people a day as a line, yesterday's money and change, share of the month and data sources live. Columns drop by the panel's own width before a name ever wraps.",
+      "The assets side by side, one ruled row each: people a day as a line, yesterday's money and change, share of the month and data sources live. Columns drop by the panel's own width before a name ever wraps.",
     variants: ["full width", "narrow column"],
   },
   {
@@ -1417,7 +1417,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ChangeRows",
     file: "components/viz/ChangeRows.tsx",
     purpose:
-      "Several measures each against its own earlier window, one ruled row each: the figure, its recent days as a bar strip against the earlier level, and the move as a bar from one shared zero line, right and green for better, left and red for worse. A site's Growth and Search tabs.",
+      "Several measures each against its own earlier window, one ruled row each: the figure, its recent days as a bar strip against the earlier level, and the move as a bar from one shared zero line, right and green for better, left and red for worse. An asset's Growth and Search tabs.",
     variants: ["three measures with a missing one", "narrow column"],
   },
   {
@@ -1445,8 +1445,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallHealth",
     file: "components/wall/WallHealth.tsx",
     purpose:
-      "The TV's Site health widget: one row per site with five dots (up, speed, errors, search, code) read from techHealth. Only a problem is coloured, red for bad and amber for worth a look; a measured fact is a filled neutral dot and an unmeasured one a hollow ring, and every dot carries its word for a screen reader. The worst problem's note sits beside its row with how many others it has, and the heading counts the measured sites that are fine.",
-    variants: ["problems and fine sites", "no sites yet"],
+      "The TV's Asset health widget: one row per asset with five dots (up, speed, errors, search, code) read from techHealth. Only a problem is coloured, red for bad and amber for worth a look; a measured fact is a filled neutral dot and an unmeasured one a hollow ring, and every dot carries its word for a screen reader. The worst problem's note sits beside its row with how many others it has, and the heading counts the measured assets that are fine.",
+    variants: ["problems and fine assets", "no assets yet"],
   },
   {
     name: "WallFactory",
@@ -1459,14 +1459,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "NextUp",
     file: "components/wall/NextUp.tsx",
     purpose:
-      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its site, age and what it holds, the next four as site marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
+      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its asset, age and what it holds, the next four as asset marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
     variants: ["decisions with the agents now", "nothing waits, nothing in progress", "tasks unknown"],
   },
   {
     name: "WallChannels",
     file: "components/wall/WallChannels.tsx",
     purpose:
-      "The TV's Visitors by channel widget: each site's channel split summed across the portfolio (portfolioChannels), largest first on one shared scale with visits and share, the tail folded into Other, then the one funnel step across every site that loses the most people (largestFunnelDrop).",
+      "The TV's Visitors by channel widget: each asset's channel split summed across the portfolio (portfolioChannels), largest first on one shared scale with visits and share, the tail folded into Other, then the one funnel step across every asset that loses the most people (largestFunnelDrop).",
     variants: ["channels and the largest drop", "no channel split yet"],
   },
   {

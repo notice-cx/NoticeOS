@@ -177,7 +177,7 @@ describe("which measure the chart opens on", () => {
 });
 
 describe("the hero row's measures", () => {
-  it("leads with money, then people, search and the product figure, leaving out what the site lacks", () => {
+  it("leads with money, then people, search and the product figure, leaving out what the asset lacks", () => {
     const keys = (data: AssetDetailFor<"overview">) => overviewMeasures(data, 28, NOW).map((measure) => measure.key);
     expect(keys(overview())).toEqual(["money", "people", "search", "product"]);
     expect(keys(overview((body) => {

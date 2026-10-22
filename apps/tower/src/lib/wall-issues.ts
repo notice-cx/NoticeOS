@@ -104,7 +104,7 @@ export function alertMark(item: Pick<AttentionItem, "ruleId" | "ruleInputs" | "m
     case "asset-declared":
       return translateAlert({ ...item, members: undefined }).headline.includes("below normal")
         ? metricLow(metric)
-        : "Site alert";
+        : "Asset alert";
     case "ingest-freshness":
       return item.ruleInputs?.state === "stale" ? REPORT_LATE_MARK : "Report alert";
     case "asset-pull-failed":
@@ -125,7 +125,7 @@ export function alertMark(item: Pick<AttentionItem, "ruleId" | "ruleInputs" | "m
 }
 
 function siteLabel(names: readonly string[]): string {
-  return names.length === 1 ? names[0]! : `${names.length} sites`;
+  return names.length === 1 ? names[0]! : `${names.length} assets`;
 }
 
 /** Failure onset is a stored transition, never the most recent retry or the

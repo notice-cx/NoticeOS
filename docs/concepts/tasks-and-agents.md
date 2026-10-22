@@ -9,19 +9,19 @@ This page covers the **Tasks** page, how a piece of work stays linked to its cau
 
 ## One shared task board
 
-NoticeOS keeps one task database. Every site gets its own project in it, and the **System** (this installation's own NoticeOS) has one too. People and AI agents file, claim, comment on and close tasks in the same place, with the same fields: status, priority, owner, what blocks what, and the evidence that closed it.
+NoticeOS keeps one task database. Every asset gets its own project in it, and the **System** (this installation's own NoticeOS) has one too. People and AI agents file, claim, comment on and close tasks in the same place, with the same fields: status, priority, owner, what blocks what, and the evidence that closed it.
 
-The **Tasks** page shows all projects together, in three tabs. **Next** shows the decision to take first, one only you can make, and why it is first; then your other decisions ranked by what each is worth, the work the agents take next, and the work held back, each with its one reason. **Projects** shows each site's projects, one per epic, as cards or on one time axis. **All tasks** is the board: **Your decisions**; **Urgent**, **Blocked** and **Done this week**, each with its change since last week; filters by project, status, priority, label and owner; and every task, which opens to its history and comments.
+The **Tasks** page shows all projects together, in three tabs. **Next** shows the decision to take first, one only you can make, and why it is first; then your other decisions ranked by what each is worth, the work the agents take next, and the work held back, each with its one reason. **Projects** shows each asset's projects, one per epic, as cards or on one time axis. **All tasks** is the board: **Your decisions**; **Urgent**, **Blocked** and **Done this week**, each with its change since last week; filters by project, status, priority, label and owner; and every task, which opens to its history and comments.
 
-A task can carry a card that records what the work is worth: the predicted change in the site's money a month, how likely it is to pay off, your minutes to review it, the days until the result shows, how the change is measured, and the state and date at which the work is given up. An agent writes the card through the task tools, and you write it in **New task** or on the task's page. The Tower ranks tasks by their cards, with the scoring policy in [doc 04, Decision policy](../04-decision-policy.md); a task without a card is listed, not ranked. A task can also record the kind of change it makes: content data, copy, a template, a feature or infrastructure.
+A task can carry a card that records what the work is worth: the predicted change in the asset's money a month, how likely it is to pay off, your minutes to review it, the days until the result shows, how the change is measured, and the state and date at which the work is given up. An agent writes the card through the task tools, and you write it in **New task** or on the task's page. The Tower ranks tasks by their cards, with the scoring policy in [doc 04, Decision policy](../04-decision-policy.md); a task without a card is listed, not ranked. A task can also record the kind of change it makes: content data, copy, a template, a feature or infrastructure.
 
-A site's own **Tasks** tab shows that site's decisions, ranked the same way, over the board narrowed to that site.
+An asset's own **Tasks** tab shows that asset's decisions, ranked the same way, over the board narrowed to that asset.
 
 On `example.com`, the project might hold "Rewrite recipe titles", "Fix broken ingredient links" and a review of last week's search rankings that NoticeOS filed automatically.
 
 ## Projects
 
-A project is the task list for one site. You add one under **Settings** > **Task projects** by choosing the site and a short prefix; every task id in that project starts with the prefix, so "ex-14" is plainly `example.com`'s fourteenth task. A site with no project shows "No task project for this site" on its Tasks tab until you add one.
+A project is the task list for one asset. You add one under **Settings** > **Task projects** by choosing the asset and a short prefix; every task id in that project starts with the prefix, so "ex-14" is plainly `example.com`'s fourteenth task. An asset with no project shows "No task project for this asset" on its Tasks tab until you add one.
 
 The steps for connecting a project are in [Connect a task project](/guides/connect-a-task-project).
 
@@ -39,11 +39,11 @@ The reason NoticeOS runs its own task board, instead of linking to a ticket tool
 
 ![Seven steps linked by the task id ex-14: a finding, File task, the work, the task closed with a commit, the change logged on the Activity tab, an outcome check, and the verdict posted back onto the task.](../images/finding-to-outcome.svg)
 
-1. **A finding appears** on `example.com`'s site page, say a query that lost its ranking, or an alert. Every such card has a **File task** button.
-2. **File task creates the task** on the site's project, carrying the site, the rule that raised it and the finding's own key. The finding now shows a badge with the task id and whether it is open or closed.
+1. **A finding appears** on `example.com`'s asset page, say a query that lost its ranking, or an alert. Every such card has a **File task** button.
+2. **File task creates the task** on the asset's project, carrying the asset, the rule that raised it and the finding's own key. The finding now shows a badge with the task id and whether it is open or closed.
 3. **The work happens** and every commit names the task id.
 4. **The task closes** with the decision and its evidence: a commit for shipped work, or the reason it was declined. Closing records a decision, never a result.
-5. **The change is logged** on the site's Activity tab with the same task id as its reference.
+5. **The change is logged** on the asset's Activity tab with the same task id as its reference.
 6. **An outcome check is registered** against that change, naming the task.
 7. **The verdict is posted** back onto the task, and the finding is closed as kept or reverted.
 
@@ -63,11 +63,11 @@ Connecting an agent to a hosted workspace is a single decision: the agent sends 
 
 - read tasks and their history
 - create, claim, update, comment on and close tasks, record what blocks what, and ask you for approval
-- read site reports and research
+- read asset reports and research
 
 On your own installation, an agent on the same machine connects to the Tower's own `/api/mcp` with the same tools and no sign-in; see [Connect an agent](/guides/connect-an-agent).
 
-Your own role still limits what the agent may do. Once connected, an agent can read NoticeOS's data on a site, pick up a task from the board, do the work in the site's code, and close the task with evidence. It can also file new tasks for work it notices rather than leaving a note nobody reads.
+Your own role still limits what the agent may do. Once connected, an agent can read NoticeOS's data on an asset, pick up a task from the board, do the work in the asset's code, and close the task with evidence. It can also file new tasks for work it notices rather than leaving a note nobody reads.
 
 The **Workflows** page shows the scheduled jobs NoticeOS runs on its own: collecting reports, running outcome checks, filing review tasks, sending notifications. None of those steps is an AI agent.
 
@@ -75,13 +75,13 @@ The **Workflows** page shows the scheduled jobs NoticeOS runs on its own: collec
 
 Three limits hold today, in every installation.
 
-**Nothing ships through NoticeOS without a person.** An agent can build and open a change; you merge it. There is no path from an agent to a live site through this product.
+**Nothing ships through NoticeOS without a person.** An agent can build and open a change; you merge it. There is no path from an agent to a live asset through this product.
 
 **Only you can change how results are measured.** Which pages are held out, the thresholds alerts fire on, and the logged history of changes are not for agents to edit. If the thing being measured could adjust how it is measured, it eventually would.
 
 **Some surfaces are off limits to automation, permanently**: sign-in, billing, security headers, database migrations, consent and privacy surfaces, and analytics or tracking code. No record of correct predictions makes them eligible for automation; a person does that work.
 
-The design describes a ladder of levels, where a kind of change on a site is allowed more automation as its predictions come true. NoticeOS has no level above "a person merges" yet.
+The design describes a ladder of levels, where a kind of change on an asset is allowed more automation as its predictions come true. NoticeOS has no level above "a person merges" yet.
 
 ## Related
 

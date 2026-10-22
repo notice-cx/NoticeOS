@@ -123,7 +123,7 @@ export async function handleOpenReclamationTargets(request: Request, env: Ingest
   const params = new URL(request.url).searchParams;
   const asset = (params.get('asset') ?? '').trim();
   if (asset === '' || asset.length > DOMAIN_MAX) {
-    return json({ error: 'bad_request', detail: 'asset must name a site' }, 400);
+    return json({ error: 'bad_request', detail: 'asset must name an asset' }, 400);
   }
   if (params.get('open') !== '1') {
     return json({ error: 'bad_request', detail: 'open=1 is required: this route answers open targets only' }, 400);

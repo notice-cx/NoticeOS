@@ -39,8 +39,8 @@ function draw(
 
 const row = (container: HTMLElement, id: string) => container.querySelector(`[data-site-row="${id}"]`)!;
 
-describe("the site rows", () => {
-  it("draws one row per site, in seed order, under headings computed from the data", () => {
+describe("the asset rows", () => {
+  it("draws one row per asset, in seed order, under headings computed from the data", () => {
     const data = wallFixturePayload();
     const container = draw(data.assets);
     expect([...container.querySelectorAll("[data-site-row]")].map((r) => r.getAttribute("data-site-row"))).toEqual(
@@ -48,7 +48,7 @@ describe("the site rows", () => {
     );
     const headings = [...container.querySelectorAll('[role="columnheader"]')].map((cell) => cell.textContent);
     // The weekday comes from the saved clock the hours were bucketed in.
-    expect(headings).toEqual(["Site", "Live · 30 min", "Today vs last Tue", "4 weeks"]);
+    expect(headings).toEqual(["Asset", "Live · 30 min", "Today vs last Tue", "4 weeks"]);
   });
 
   it("states live users, today's pace and four weeks without repeating the revenue widget", () => {
@@ -112,7 +112,7 @@ describe("the site rows", () => {
     expect(totals.querySelector('[data-site-total="missing"]')).toBeNull();
   });
 
-  it("keeps a counter-only site's known health when its totals are hidden", () => {
+  it("keeps a counter-only asset's known health when its totals are hidden", () => {
     const assets = structuredClone(wallFixturePayload().assets);
     const site = assets[0]!;
     site.pulseReceivedAt = null;
@@ -121,7 +121,7 @@ describe("the site rows", () => {
     const container = draw(assets, { realtime: { ...wallFixtureRealtime(), assets: [] }, pulseMetrics: { [site.id]: [] } });
     const siteRow = row(container, site.id);
     expect(siteRow.querySelector("[data-site-health]")).toHaveAttribute("data-site-health", "warn");
-    expect(siteRow.querySelector("[data-site-health]")).toHaveAccessibleName("Site health: At risk");
+    expect(siteRow.querySelector("[data-site-health]")).toHaveAccessibleName("Asset health: At risk");
     expect(siteRow.querySelector('[data-site-totals]')).toBeNull();
     expect(siteRow.querySelector('[data-site-waiting]')).toBeNull();
   });
@@ -298,7 +298,7 @@ describe("the minute pulse", () => {
     expect(row(container, "mosaic.example").querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
   });
 
-  it("draws a dash for a site without GA4, whatever the payload holds", () => {
+  it("draws a dash for an asset without GA4, whatever the payload holds", () => {
     const assets = wallFixturePayload().assets.map((asset) =>
       asset.id === "mosaic.example" ? { ...asset, dataSources: asset.dataSources.filter((source) => source.id !== "ga4") } : asset,
     );
@@ -320,7 +320,7 @@ describe("the minute pulse", () => {
     expect(words(mosaic)).toBe("21 · 30 min7 · 5 min");
   });
 
-  it("is drawn at each tier's size: compact rows, roomier rows and the one-site tile", () => {
+  it("is drawn at each tier's size: compact rows, roomier rows and the one-asset tile", () => {
     const assets = wallFixturePayload().assets;
     const width = (container: HTMLElement, id: string) => Number(row(container, id).querySelector("[data-minute-pulse]")?.getAttribute("width"));
     expect(width(draw(assets), "mosaic.example")).toBe(119);
@@ -333,7 +333,7 @@ describe("the minute pulse", () => {
   });
 });
 
-describe("the site rows", () => {
+describe("the asset rows", () => {
   it("takes the trend colour away from a change whose span crosses a reporting-timezone change", () => {
     const data = wallFixturePayload();
     const mosaic = data.assets.find((asset) => asset.id === "mosaic.example")!;
@@ -356,8 +356,8 @@ describe("the site rows", () => {
   });
 });
 
-describe("a site's signal-bar health indicator", () => {
-  it("shows observed health for active sites and no level for archived sites", () => {
+describe("an asset's signal-bar health indicator", () => {
+  it("shows observed health for active assets and no level for archived assets", () => {
     const data = wallFixturePayload();
     const archived = { ...data.assets[0]!, id: "archived.example", status: "retired" };
     const container = draw([...data.assets, archived], { attention: data.attention });
@@ -365,7 +365,7 @@ describe("a site's signal-bar health indicator", () => {
       const health = row(container, id).querySelector('[data-site-name] [data-site-health]')!;
       expect(health.getAttribute("data-site-health")).toBe(state);
       expect(health.querySelectorAll('.opacity-100')).toHaveLength(bars);
-      expect(health.getAttribute("aria-label")).toMatch(/^Site health:/);
+      expect(health.getAttribute("aria-label")).toMatch(/^Asset health:/);
     }
     expect(container.querySelector('[data-site-mark]')).toBeNull();
   });
@@ -379,11 +379,11 @@ describe("a site's signal-bar health indicator", () => {
     };
     const mark = row(draw(data.assets, { attention: [plansLow!, down] }), "plume.example").querySelector("[data-site-health]")!;
     expect(mark.getAttribute("data-site-health")).toBe("error");
-    expect(mark.getAttribute("aria-label")).toBe("Site health: Home page down; 1 more issue");
+    expect(mark.getAttribute("aria-label")).toBe("Asset health: Home page down; 1 more issue");
     expect(mark.querySelectorAll('.opacity-100')).toHaveLength(1);
   });
 
-  it("never marks a site that declared it sends no nightly report for a missing one", () => {
+  it("never marks an asset that declared it sends no nightly report for a missing one", () => {
     const data = wallFixturePayload();
     const assets = data.assets.map((asset) =>
       asset.id === "ripple.example" ? { ...asset, noNightlyReport: true, pulseReceivedAt: new Date(NOW - 9 * 24 * HOUR).toISOString() } : asset,
@@ -397,7 +397,7 @@ describe("a site's signal-bar health indicator", () => {
 });
 
 describe("rows without data yet", () => {
-  it("are one quiet line, the same whether or not the site declared it sends no report", () => {
+  it("are one quiet line, the same whether or not the asset declared it sends no report", () => {
     const container = draw(wallFixturePayload().assets);
     const waiting = row(container, "summit.example");
     expect(waiting.getAttribute("data-site-state")).toBe("waiting");
@@ -408,13 +408,13 @@ describe("rows without data yet", () => {
   });
 });
 
-describe("any number of sites", () => {
-  it("draws twelve sites as twelve rows of the same shape", () => {
+describe("any number of assets", () => {
+  it("draws twelve assets as twelve rows of the same shape", () => {
     const [template] = wallFixturePayload().assets;
     const twelve = Array.from({ length: 12 }, (_, index) => ({
       ...template!,
       id: `site-${index + 1}.example`,
-      displayName: `Site ${index + 1}`,
+      displayName: `Asset ${index + 1}`,
     }));
     const container = draw(twelve);
     const rows = [...container.querySelectorAll("[data-site-row]")];
@@ -422,7 +422,7 @@ describe("any number of sites", () => {
     expect(new Set(rows.map((r) => r.getAttribute("data-site-density")))).toEqual(new Set(["compact"]));
   });
 
-  it("keeps every site's complete name without truncating row content", () => {
+  it("keeps every asset's complete name without truncating row content", () => {
     const assets = wallFixturePayload().assets;
     const container = draw(assets);
     expect(container.querySelector("[data-site-row] .truncate")).toBeNull();
@@ -433,7 +433,7 @@ describe("any number of sites", () => {
 describe("the density tiers", () => {
   const density = (container: HTMLElement) => container.querySelector("[data-wall-sites]")?.getAttribute("data-site-density");
 
-  it("are chosen by the number of sites alone: one in depth, two or three roomier, four and more compact", () => {
+  it("are chosen by the number of assets alone: one in depth, two or three roomier, four and more compact", () => {
     expect([1, 2, 3, 4, 7, 12].map(siteRowDensity)).toEqual(["focus", "comfortable", "comfortable", "compact", "compact", "compact"]);
     expect([FOCUS_SITES, COMFORTABLE_MAX_SITES]).toEqual([1, 3]);
     const assets = wallFixturePayload().assets;
@@ -501,19 +501,19 @@ describe("the density tiers", () => {
   });
 });
 
-describe("one site, in depth", () => {
+describe("one asset, in depth", () => {
   const withSearch = (asset: AssetCard): AssetCard => ({ ...asset, searchClicks: asset.activeUsers });
   const tiles = (container: HTMLElement) =>
     [...container.querySelectorAll("[data-focus-tile]")].map((tile) => tile.getAttribute("data-focus-tile"));
 
-  it("names the site with its mark, then today, the month's visitors and money, and search", () => {
+  it("names the asset with its mark, then today, the month's visitors and money, and search", () => {
     const data = wallFixturePayload();
     const only = withSearch(data.assets[0]!);
     const container = draw([only], { attention: data.attention });
     expect(container.querySelector("[data-site-header]")).toBeNull();
     const header = row(container, "plume.example");
     expect(header.querySelector("[data-site-label]")?.textContent).toBe("Plume Studio");
-    expect(header.querySelector("[data-site-health]")?.getAttribute("aria-label")).toBe("Site health: Plans saved low");
+    expect(header.querySelector("[data-site-health]")?.getAttribute("aria-label")).toBe("Asset health: Plans saved low");
     expect(tiles(container)).toEqual(["today", "visitors", "search"]);
 
     const today = container.querySelector('[data-focus-tile="today"]')!;
@@ -536,7 +536,7 @@ describe("one site, in depth", () => {
     expect(search.querySelector("[data-site-week]")).not.toBeNull();
   });
 
-  it("leaves out a tile whose data the site lacks, and the others take its width", () => {
+  it("leaves out a tile whose data the asset lacks, and the others take its width", () => {
     const [only] = wallFixturePayload().assets;
     const noSearch = draw([only!]);
     expect(tiles(noSearch)).toEqual(["today", "visitors"]);
@@ -551,7 +551,7 @@ describe("one site, in depth", () => {
     expect(tiles(draw([withSearch(only!)], { realtime: noHours }))).toEqual(["visitors", "search"]);
   });
 
-  it("is the site's own row when there is nothing to show in depth yet", () => {
+  it("is the asset's own row when there is nothing to show in depth yet", () => {
     const waiting = wallFixturePayload().assets.find((asset) => asset.id === "summit.example")!;
     const container = draw([waiting]);
     expect(container.querySelector("[data-focus-tile]")).toBeNull();
@@ -563,7 +563,7 @@ describe("one site, in depth", () => {
 // feed, about 1,380 px of a 1920 TV but about 670 px of a 1440 window, so its
 // table must switch on the region's width. jsdom has no layout; this pins the
 // mechanism.
-describe("the site region's own breakpoints", () => {
+describe("the asset region's own breakpoints", () => {
   const css = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/index.css"), "utf8");
   const classesIn = (container: HTMLElement) =>
     [...container.querySelectorAll("*")].flatMap((el) => (el.getAttribute("class") ?? "").split(/\s+/));
@@ -577,7 +577,7 @@ describe("the site region's own breakpoints", () => {
   it.each([
     ["compact rows", 7],
     ["roomier rows", 3],
-    ["one site in depth", 1],
+    ["one asset in depth", 1],
   ])("keys the %s on the region, never on the Wall's width", (_tier, count) => {
     const assets = wallFixturePayload().assets.slice(0, count);
     const container = draw(assets);
@@ -589,7 +589,7 @@ describe("the site region's own breakpoints", () => {
 });
 
 
-describe("saved site traffic without a current-day reading", () => {
+describe("saved asset traffic without a current-day reading", () => {
   it.each(["absent", "failed", "previous-day"])("shows dated GA4 history when hourly observations are %s", mode => {
     const assets = structuredClone(wallFixturePayload().assets);
     const asset = assets.find(site => site.id === "mosaic.example")!;

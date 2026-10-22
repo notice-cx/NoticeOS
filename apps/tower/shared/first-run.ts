@@ -94,7 +94,7 @@ export function firstRunSteps(
 ): FirstRunStep[] {
   if (site === null) {
     return [
-      { key: "add", state: "current", title: "Add your first site", to: null },
+      { key: "add", state: "current", title: "Add your first asset", to: null },
       { key: "connect", state: "next", title: "Connect a source", to: "/integrations" },
       { key: "number", state: "next", title: "See your first number", to: null },
     ];

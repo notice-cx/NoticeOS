@@ -206,7 +206,7 @@ test('leap days and month/year transitions retain exact calendar coverage', () =
   assert.deepEqual(january.filter(row => row.family === 'inference').map(row => [row.period, row.coverageEnd]), [['2026-12', '2026-12-31']]);
 });
 
-test('each site runs its own weekly cycle, reviews and ships alternating, without claiming real execution or lift', () => {
+test('each asset runs its own weekly cycle, reviews and ships alternating, without claiming real execution or lift', () => {
   assert.deepEqual(activity.day('2026-10-16').tasks, []);
   const sites = scenario.assets.filter(asset => !asset.isOs).map(asset => asset.id);
   const first = activity.batch('2026-10-19', '2026-10-25').flatMap(day => day.tasks);
@@ -257,7 +257,7 @@ test('each site runs its own weekly cycle, reviews and ships alternating, withou
   }
 });
 
-test('every Monday each site reports its search queries against the week before, in the executive snapshot shape', () => {
+test('every Monday each asset reports its search queries against the week before, in the executive snapshot shape', () => {
   assert.deepEqual(activity.day('2026-10-18').reports, []);
   const monday = activity.day('2026-10-19');
   assert.equal(monday.reports.length, 5);
@@ -329,7 +329,7 @@ test('each weekly report says where the last four weeks of visits came from, sum
   assert.ok(share('2027-01-11', 'lightbrief.example', 'AI Assistant') > share('2026-10-19', 'lightbrief.example', 'AI Assistant') * 1.2);
 });
 
-test('the two product-analytics sites carry a product block the Tower reads: Pinwell slow for one in four, the recipe site clear with a funnel', () => {
+test('the two product-analytics assets carry a product block the Tower reads: Pinwell slow for one in four, the recipe asset clear with a funnel', () => {
   for (const report of [...activity.seededReports(), ...activity.day('2026-10-26').reports, ...activity.day('2027-03-01').reports]) {
     if (!['pinwell.example', 'weeknightpantry.example'].includes(report.asset)) { assert.equal(report.product, undefined); continue; }
     const product = parseProductSnapshot(report.product);
@@ -367,7 +367,7 @@ test('the two product-analytics sites carry a product block the Tower reads: Pin
   }
 });
 
-test('each mature site\'s week names one opportunity the Home list ranks', () => {
+test('each mature asset\'s week names one opportunity the Home list ranks', () => {
   // The keys the Home page's "Worth a look" list reads as opportunities.
   const gaps = readFileSync(new URL('../apps/tower/src/lib/business-gaps.ts', import.meta.url), 'utf8');
   const expected = { 'pinwell.example': 'search-striking-distance', 'weeknightpantry.example': 'posthog-funnel-drop-recipe-to-sign-up',
@@ -407,7 +407,7 @@ test('visits surge and settle on their own, so a day can read well above or belo
   }
 });
 
-test('the ad-supported sites continue their seeded estimates and are paid two months later', () => {
+test('the ad-supported assets continue their seeded estimates and are paid two months later', () => {
   assert.throws(() => activity.adRevenue('lightbrief.example', '2026-10-20'));
   const paid = activity.day('2026-12-06').money.filter(row => row.family === 'ads');
   assert.equal(paid.length, scenario.manifest.adSites.length);
@@ -432,7 +432,7 @@ test('the ad-supported sites continue their seeded estimates and are paid two mo
   assert.ok(continued.every(period => !seeded.has(period)));
 });
 
-test('recurring incidents dip each mature site\'s tracked action and recover; the young site has none', () => {
+test('recurring incidents dip each mature asset\'s tracked action and recover; the young asset has none', () => {
   const days = activity.batch('2026-10-16', '2026-10-22').concat(...Array.from({ length: 8 }, (_, w) =>
     activity.batch(shiftDemoDay('2026-10-23', w * 7), shiftDemoDay('2026-10-29', w * 7))));
   const dips = new Map();
@@ -490,7 +490,7 @@ test('each day one fictional home page is down briefly, across the hourly check 
   assert.equal((await activity.homeFetch(at('00'))('https://example.org/')).status, 404);
 });
 
-test('each fictional site answers the nightly site checks: robots.txt, a sitemap of its pages, and its security headers', async () => {
+test('each fictional asset answers the nightly asset checks: robots.txt, a sitemap of its pages, and its security headers', async () => {
   const sites = scenario.assets.filter(asset => !asset.isOs);
   const fetchAt = activity.homeFetch(`${shiftDemoDay(scenario.manifest.referenceDate, 1)}T${DEMO_NIGHTLY_HOUR}:00:00.000Z`);
   for (const site of sites) {
@@ -522,7 +522,7 @@ test('each fictional site answers the nightly site checks: robots.txt, a sitemap
   }
 });
 
-test("each measured site has a daily page speed: Pinwell's phones are slow, the others fast, the young site unmeasured", () => {
+test("each measured asset has a daily page speed: Pinwell's phones are slow, the others fast, the young asset unmeasured", () => {
   for (let i = -6; i < 60; i += 1) {
     const date = shiftDemoDay(scenario.manifest.referenceDate, i);
     const readings = activity.pageSpeed(date);
@@ -542,7 +542,7 @@ test("each measured site has a daily page speed: Pinwell's phones are slow, the 
   assert.deepEqual(activity.pageSpeed(scenario.manifest.referenceDate), createDemoActivity(generateDemoScenario(input)).pageSpeed(scenario.manifest.referenceDate));
 });
 
-test('each reporting site keeps its weekly codebase report after the seed, with the same stories, and the young site stays silent', () => {
+test('each reporting asset keeps its weekly codebase report after the seed, with the same stories, and the young asset stays silent', () => {
   const sites = scenario.assets.filter(asset => asset.prefix !== 'fr');
   const seededLast = new Map(sites.map(asset => [asset.id, scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)]));
   const sent = new Map(sites.map(asset => [asset.id, []]));

@@ -3,7 +3,7 @@ import { firstToConnect } from "@shared/connect-panel";
 
 /** The page's one filled Connect never asks a stranger to start with a
  * source that spends money on every collection. */
-describe("the source a site connects first", () => {
+describe("the source an asset connects first", () => {
   const reading = (label: string, provider: string) => ({ label, provider, kind: "not-connected" });
 
   it("puts a free source ahead of a paid one, whatever the alphabet says", () => {

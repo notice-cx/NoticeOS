@@ -1,22 +1,22 @@
 #!/usr/bin/env node
-// pulse-relay.mjs — relay a pull-mode site's live pulse into the LOCAL ingest worker.
+// pulse-relay.mjs — relay a pull-mode asset's live pulse into the LOCAL ingest worker.
 //
-// A PULL-mode site (the saved pull roster, config/pull.json) whose entry has
+// A PULL-mode asset (the saved pull roster, config/pull.json) whose entry has
 // `"format": "envelope"` computes the contract envelope at its own `url`
-// (Bearer-gated) and the nightly cron reads it. Such a site has no push cron of
+// (Bearer-gated) and the nightly cron reads it. Such an asset has no push cron of
 // its own, and while the OS runs on the operator's machine it could not reach
 // localhost if it did — so this relay is the by-hand version of that same read:
-// fetch the site's envelope, forward it verbatim through the local ingest's
+// fetch the asset's envelope, forward it verbatim through the local ingest's
 // POST /api/pulse. The envelope is already PulseEnvelope-shaped
 // (asset, generatedAt, capabilities, metrics{last24h,avg7d,total}, flags), so
 // this script transforms NOTHING — any 422 is a real contract break to fix at
 // the source, not to patch here.
 //
 // WHICH SITES: `--asset <id>`, else every enabled envelope entry in the roster —
-// read from this installation, never a site written here.
+// read from this installation, never an asset written here.
 //
-// ONE token, both hops: ASSET_TOKENS["<site id>"] (the structured local secret
-// source, gitignored) is that site's own ASSET_TOKEN — it gates the envelope
+// ONE token, both hops: ASSET_TOKENS["<asset id>"] (the structured local secret
+// source, gitignored) is that asset's own ASSET_TOKEN — it gates the envelope
 // endpoint on the way out and authenticates the pulse on the way in. See the
 // ASSET_TOKEN convention in docs/11-integrations.md.
 //
@@ -45,7 +45,7 @@ export function envelopeTargets(roster, asset = null) {
   if (asset === null) return relayable.map(({ asset: id, url }) => ({ asset: id, url }));
   const named = relayable.find((row) => row.asset === asset);
   if (!named) {
-    throw new Error(`${asset} is not an enabled pull site that serves an envelope (config/pull.json "format": "envelope").`);
+    throw new Error(`${asset} is not an enabled pull asset that serves an envelope (config/pull.json "format": "envelope").`);
   }
   return [{ asset: named.asset, url: named.url }];
 }
@@ -58,8 +58,8 @@ export async function relayPulse({ asset, url, token, ingestUrl, fetchImpl = fet
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     error(`${asset}: envelope fetch failed: ${res.status} ${body.slice(0, 200)}`);
-    if (res.status === 401) error(`  → ASSET_TOKENS["${asset}"] does not match the site worker's ASSET_TOKEN (or it is unset there).`);
-    if (res.status === 503) error('  → the site worker has no CF_ACCOUNT_ID / CF_ANALYTICS_API_TOKEN secrets yet.');
+    if (res.status === 401) error(`  → ASSET_TOKENS["${asset}"] does not match the asset worker's ASSET_TOKEN (or it is unset there).`);
+    if (res.status === 503) error('  → the asset worker has no CF_ACCOUNT_ID / CF_ANALYTICS_API_TOKEN secrets yet.');
     return false;
   }
   const envelope = await res.json();
@@ -81,7 +81,7 @@ export async function relayPulse({ asset, url, token, ingestUrl, fetchImpl = fet
     return true;
   }
   error(`${asset}: ingest rejected: ${push.status} ${pushBody.slice(0, 300)}`);
-  if (push.status === 422) error("  → contract violation — fix at the source (the site's pulse), do not patch the relay.");
+  if (push.status === 422) error("  → contract violation — fix at the source (the asset's pulse), do not patch the relay.");
   return false;
 }
 
@@ -89,7 +89,7 @@ function assetArgument(argv) {
   const index = argv.indexOf('--asset');
   if (index === -1) return null;
   const value = argv[index + 1];
-  if (!value || value.startsWith('--')) throw new Error('--asset requires a site id, such as example.com.');
+  if (!value || value.startsWith('--')) throw new Error('--asset requires an asset id, such as example.com.');
   return value;
 }
 
@@ -98,7 +98,7 @@ async function main(argv = process.argv.slice(2)) {
   const rosterFile = readablePath('config/pull.json', { root: REPO_ROOT });
   const targets = envelopeTargets(JSON.parse(await fs.readFile(rosterFile, 'utf8')), assetArgument(argv));
   if (targets.length === 0) {
-    console.error('No enabled pull site serves an envelope (config/pull.json "format": "envelope"): nothing to relay.');
+    console.error('No enabled pull asset serves an envelope (config/pull.json "format": "envelope"): nothing to relay.');
     return 1;
   }
   const { bindings: vars, sourceFile } = await readDevSecretBindings();
@@ -114,7 +114,7 @@ async function main(argv = process.argv.slice(2)) {
     if (!token) {
       console.error(
         `ASSET_TOKENS in ${path.relative(REPO_ROOT, sourceFile)} has no "${target.asset}" entry — ` +
-          "it must equal the ASSET_TOKEN wrangler secret on that site's worker.",
+          "it must equal the ASSET_TOKEN wrangler secret on that asset's worker.",
       );
       failed += 1;
       continue;

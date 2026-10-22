@@ -340,7 +340,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         // Missing projects are a setup/read problem, never proof of no tasks.
         !scoped ? <TaskHubUnavailable /> : <div className="rounded-[10px] border border-border bg-card p-4" data-tasks-unwired>
           <EmptyState
-            title="No task project for this site"
+            title="No task project for this asset"
             hint={<EmptyAction to={TASK_PROJECTS_PATH}>Add a task project</EmptyAction>}
           />
         </div>

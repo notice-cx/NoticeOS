@@ -476,7 +476,7 @@ describe("what state a credential is in", () => {
       ]),
     );
     const served = document.querySelector("[data-served-assets]");
-    expect(served).toHaveTextContent("Used by 2 sites");
+    expect(served).toHaveTextContent("Used by 2 assets");
     expect(
       within(served as HTMLElement).getByRole("link", { name: /meadow\.example/ }),
     ).toHaveAttribute("href", "/assets/meadow.example/sources");
@@ -522,7 +522,7 @@ describe("what state a credential is in", () => {
       },
     });
     const note = document.querySelector('[data-property-map="retired"]');
-    expect(note).toHaveTextContent("All Google data sources are mapped on their sites");
+    expect(note).toHaveTextContent("All Google data sources are mapped on their assets");
     expect(document.querySelector('[data-property-map="needed"]')).toBeNull();
   });
 
@@ -813,7 +813,7 @@ describe("a per-asset credential says which assets it actually covers", () => {
       ],
     });
     const list = document.querySelector("[data-served-assets]");
-    expect(list).toHaveTextContent("2 of 3 sites have a key");
+    expect(list).toHaveTextContent("2 of 3 assets have a key");
     expect(document.querySelector('[data-served-asset="meadow.example"]')).toHaveAttribute(
       "data-asset-key",
       "set",
@@ -945,7 +945,7 @@ describe("the connect form is generated from the field schema", () => {
     expect(screen.getByLabelText("or upload the file")).not.toBeRequired();
   });
 
-  it("describes a required key map without making every site's key mandatory", async () => {
+  it("describes a required key map without making every asset's key mandatory", async () => {
     api.save.mockResolvedValue(undefined);
     openForm(status("clarity", [field({ name: "CLARITY_TOKENS", label: "Project tokens", kind: "asset-map" })], {}, [
       { id: "meadow.example", lanes: ["clarity"] },
@@ -982,11 +982,11 @@ describe("the connect form is generated from the field schema", () => {
   it("opens scope help without opening a form, testing, saving or disconnecting", () => {
     renderCard(status("dataforseo", DATAFORSEO_FIELDS, { source: "store" }));
     expect(screen.getByText("Shared account")).toBeVisible();
-    expect(screen.queryByText("One account covers every site.")).toBeNull();
+    expect(screen.queryByText("One account covers every asset.")).toBeNull();
     const help = screen.getByRole("button", { name: "About dataforseo account scope" });
     expect(help.parentElement?.closest("button, a, label")).toBeNull();
     fireEvent.click(help);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("One account covers every site.");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("One account covers every asset.");
     expect(document.querySelector("[data-connect-form]")).toBeNull();
     expect(api.save).not.toHaveBeenCalled();
     expect(api.test).not.toHaveBeenCalled();
@@ -1306,7 +1306,7 @@ describe("disconnecting", () => {
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
 
     const confirm = screen.getByRole("group", { name: "Disconnect dataforseo" });
-    expect(within(confirm).getByRole("list", { name: "Sites that stop" })).toHaveTextContent("meadow.example");
+    expect(within(confirm).getByRole("list", { name: "Assets that stop" })).toHaveTextContent("meadow.example");
     expect(document.querySelector("[data-disconnect-effects]")).toHaveTextContent("Login deleted · no undo");
     expect(confirm.querySelector("input")).toBeNull();
     expect(api.remove).not.toHaveBeenCalled();
@@ -1419,7 +1419,7 @@ describe("connecting in the panel", () => {
     expect(api.connect).toHaveBeenCalledWith("bing-webmaster", { BING_WEBMASTER_API_KEY: "SEKRIT-new-key" });
     expect(api.save).not.toHaveBeenCalled();
     await waitFor(() => expect(dialog.querySelector('[data-connect-state="accepted"]')).toHaveTextContent("Key accepted"));
-    expect(dialog.querySelector('[data-connect-fact="sites"]')).toHaveTextContent("2");
+    expect(dialog.querySelector('[data-connect-fact="assets"]')).toHaveTextContent("2");
     expect(dialog.querySelector("[data-site-picker]")).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Disconnect" })).toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
@@ -1449,7 +1449,7 @@ describe("connecting in the panel", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("connects Clarity in the panel: a token pasted on a site's row is saved at once, with no key form", async () => {
+  it("connects Clarity in the panel: a token pasted on an asset's row is saved at once, with no key form", async () => {
     api.siteToken.mockResolvedValue(undefined);
     const tokens = field({ name: "CLARITY_TOKENS", kind: "asset-map", label: "Project tokens" });
     renderPage(page([status("clarity", [tokens], {}, [{ id: "journey.example", lanes: ["clarity"] }], { scope: "per-asset", connect: { kind: "site-tokens", credential: "api-key" } })]));
@@ -1902,7 +1902,7 @@ describe("the Google card offers a sign-in", () => {
       }),
       appStatus(true),
       ORIGIN,
-      async () => ({ ...discovery, message: "0 GA4 properties and 0 sites.", properties: [] }),
+      async () => ({ ...discovery, message: "0 GA4 properties and 0 assets.", properties: [] }),
     );
     fireEvent.click(document.querySelector("[data-oauth-discover]") as HTMLElement);
     await waitFor(() =>
@@ -2417,9 +2417,9 @@ describe("integration discovery and guided setup", () => {
 
   it("keeps a failed connection’s evidence visible while choosing assets", () => {
     renderCard(status("dataforseo", DATAFORSEO_FIELDS, { source: "store", lastError: "The provider refused the request.", lastUsedAt: iso(HOUR), lastOkAt: null }), { guided: true });
-    fireEvent.click(screen.getByRole("button", { name: "Choose sites" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose assets" }));
     expect(screen.getByText("The provider refused the request.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View sites" })).toHaveAttribute("href", "/assets");
+    expect(screen.getByRole("link", { name: "View assets" })).toHaveAttribute("href", "/assets");
   });
 });
 

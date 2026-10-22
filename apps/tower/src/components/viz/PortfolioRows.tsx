@@ -99,7 +99,7 @@ export function sourcesLive(sources: readonly PortfolioSource[]): { live: number
   };
 }
 
-export function PortfolioRows({ rows, formatMoney, title = "Sites", action, showSources = true, className }: PortfolioRowsProps) {
+export function PortfolioRows({ rows, formatMoney, title = "Portfolio", action, showSources = true, className }: PortfolioRowsProps) {
   return (
     <section aria-label={title} data-portfolio-rows="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
       <header className="flex items-baseline justify-between gap-3 px-5 pb-2 pt-4">
@@ -115,7 +115,7 @@ export function PortfolioRows({ rows, formatMoney, title = "Sites", action, show
       </header>
       <div role="table" aria-label={title} className="flex flex-col">
         <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", COLUMNS[showSources ? "sources" : "plain"])}>
-          <span role="columnheader">Site</span>
+          <span role="columnheader">Asset</span>
           <span role="columnheader" className="hidden justify-between gap-2 whitespace-nowrap @lg:flex">
             <span>People a day</span>
             <span className="w-14 text-end">Yesterday</span>

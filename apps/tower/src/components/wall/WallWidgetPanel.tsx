@@ -392,14 +392,14 @@ function AssetFilter({
   return (
     <div className="flex flex-col gap-1.5 border-t border-border pt-3" data-wall-asset-filter>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Sites</span>
+        <span className="text-xs text-muted-foreground">Assets</span>
         <span className="text-xs text-foreground">
-          {selected === null ? "Every site" : `${tickable.filter(ticked).length} of ${tickable.length}`}
+          {selected === null ? "Every asset" : `${tickable.filter(ticked).length} of ${tickable.length}`}
         </span>
       </div>
       {assets.length === 0 ? (
         <p className="text-xs leading-snug text-muted-foreground">
-          The store holds no sites yet, so there is nothing to filter.
+          The store holds no assets yet, so there is nothing to filter.
         </p>
       ) : (
         <ul className="flex flex-col">
@@ -457,7 +457,7 @@ function AssetFilter({
       )}
       <p className="text-xs leading-snug text-muted-foreground">
         {selected === null
-          ? `${label} shows every site, including any added later.`
+          ? `${label} shows every asset, including any added later.`
           : `${label} shows only these, in this order.`}
       </p>
     </div>

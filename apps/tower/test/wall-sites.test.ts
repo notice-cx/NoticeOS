@@ -71,7 +71,7 @@ describe("the visitors and money tile", () => {
     expect(visitorsTile(site("2026-09-02"))!.perThousand).toEqual({ date: "2026-09-01", value: 20 });
   });
 
-  it("is absent for a site with neither visitors nor money this month", () => {
+  it("is absent for an asset with neither visitors nor money this month", () => {
     const bare: AssetCard = {
       ...plume(),
       activeUsers: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
@@ -107,7 +107,7 @@ describe("the today tile", () => {
 });
 
 describe("the search tile", () => {
-  it("is absent for a site with no search source, and four weeks of finished days otherwise", () => {
+  it("is absent for an asset with no search source, and four weeks of finished days otherwise", () => {
     expect(searchTile(plume())).toBeNull();
     const users = plume().activeUsers;
     const tile = searchTile({ ...plume(), searchClicks: users })!;
@@ -193,7 +193,7 @@ describe("four weeks against the four before", () => {
 });
 
 
-describe("dated site traffic", () => {
+describe("dated asset traffic", () => {
   it("reads the newest actual finished day, preserving zero and gaps", () => {
     const trend: SignalTrend = { series: [{ t: "2026-09-18", v: 90 }, { t: "2026-09-20", v: 0 }, { t: "2026-09-22", v: 8 }], provisionalFrom: "2026-09-22", collectedAt: WALL_FIXTURE_NOW, timeZoneChanges: [] };
     expect(latestFinishedUsers(trend)).toEqual({ t: "2026-09-20", v: 0 });

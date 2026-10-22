@@ -88,7 +88,7 @@ export interface RecommendationValidity {
 
 /** The one instruction a copied brief ends on. Absence of a contradiction
  * never proves the advice still applies, so there is no "current" state. */
-export const RECOMMENDATION_RECHECK = "Recheck the latest reports, linked work and the site before acting.";
+export const RECOMMENDATION_RECHECK = "Recheck the latest reports, linked work and the asset before acting.";
 
 /** Calendar dates and instants have different contracts; reuse strict instant
  * validation without accepting Date.parse's rollover of impossible dates. */

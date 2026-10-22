@@ -137,7 +137,7 @@ interface EgressFlagInputs {
   rule: typeof EGRESS_DOWN_RULE_ID;
   /** Every beacon that failed on the most recent down verdict, with its error. */
   beacons: { url: string; error: string }[];
-  /** Every collector's unmeasured properties, de-duplicated: the number the
+  /** Every collector's unmeasured assets, de-duplicated: the number the
    * alert leads with. Derived from `lanes`. */
   unmeasuredAssets: string[];
   /** Per collector, what it is still owed. The flag stays open while any is. */
@@ -477,7 +477,7 @@ function nextLaneRecord(
   return record;
 }
 
-/** Every collector's unmeasured properties, once each, in first-seen order. */
+/** Every collector's unmeasured assets, once each, in first-seen order. */
 function unionOfLanes(lanes: Partial<Record<string, EgressLaneRecord>>): string[] {
   const all = new Set<string>();
   for (const record of Object.values(lanes)) {
@@ -489,9 +489,10 @@ function unionOfLanes(lanes: Partial<Record<string, EgressLaneRecord>>): string[
 /** The count, not the list: the list is one popover away in the inputs. */
 function egressFlagMessage(inputs: EgressFlagInputs): string {
   const n = inputs.unmeasuredAssets.length;
+  const noun = n === 1 ? 'asset' : 'assets';
   return inputs.connectionBackAt === null
-    ? `OS egress down — ${n} properties unmeasured`
-    : `OS connection back — ${n} properties not yet re-checked`;
+    ? `OS egress down — ${n} ${noun} unmeasured`
+    : `OS connection back — ${n} ${noun} not yet re-checked`;
 }
 
 /** Parse whatever the open flag holds, keeping only well-formed fields. */

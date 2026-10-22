@@ -142,7 +142,7 @@ export function everyTabPayload(): AssetDetailPayload {
       push: {
         endpoint: "POST /api/pulse",
         endpointOwner: "workers/ingest",
-        auth: "Site token",
+        auth: "Asset token",
         authOwner: "workers/ingest/.dev.vars",
       },
       lastPulseReceivedAt: "2026-07-05T02:00:00.000Z",

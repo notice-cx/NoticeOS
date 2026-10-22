@@ -385,7 +385,7 @@ export function WatchComposer({
             subject="watch:draft"
             label={
               <span className="break-words">
-                {scope.kind === "query" ? `Only “${scope.query}”` : "Whole site"}
+                {scope.kind === "query" ? `Only “${scope.query}”` : "Whole asset"}
               </span>
             }
           />

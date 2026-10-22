@@ -166,7 +166,7 @@ describe("copyText LAN fallback", () => {
 });
 
 describe("PropertyFavicon source routing", () => {
-  it("asks every site for its own favicon, with no site singled out", () => {
+  it("asks every asset for its own favicon, with no asset singled out", () => {
     // The Tower ships no icon for any particular site; a site without one
     // draws its initial.
     for (const domain of ["example.com", "shop.example.org", "fin.example"]) {
@@ -174,7 +174,7 @@ describe("PropertyFavicon source routing", () => {
     }
   });
 
-  it("serves a demo site's icon from the Tower's own origin", () => {
+  it("serves a demo asset's icon from the Tower's own origin", () => {
     expect(demoFaviconUrl("lightbrief.example")).toBe("/demo/favicons/lightbrief.example.svg");
     expect(demoFaviconUrl("a/b")).toBe("/demo/favicons/a%2Fb.svg");
   });
@@ -542,7 +542,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         "# Query decision: jarra del buen beber",
       );
       expect(markdown).toContain(
-        "- **Site:** Meadow Board (`meadow.example`)",
+        "- **Asset:** Meadow Board (`meadow.example`)",
       );
       expect(markdown).toContain("- **Decision:** Recover visibility");
       expect(markdown).toContain(
@@ -553,7 +553,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         "Only queries present in both windows are ranked.",
       );
       expect(markdown).toContain(
-        "Google/Bing impressions are observed site exposure",
+        "Google/Bing impressions are observed asset exposure",
       );
       expect(
         getByRole("button", {
@@ -997,7 +997,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       const markdown = await copiedMarkdown(trends);
       expect(markdown).toContain("- **What to do:** Investigate");
       expect(markdown).toContain(
-        "does not cite this site — the click is largely consumed inline",
+        "does not cite this asset — the click is largely consumed inline",
       );
       expect(markdown).toContain("- **Current Google organic position:** #6");
     });
@@ -1099,13 +1099,13 @@ describe("QueryVisibilityRankings comparison labels", () => {
       expect(cited).toHaveAttribute("data-aio-state", "cited");
       expect(cited).toHaveAttribute(
         "aria-label",
-        "AI Overview cites this site",
+        "AI Overview cites this asset",
       );
       const uncited = glyph(panelRow(true, false));
       expect(uncited).toHaveAttribute("data-aio-state", "uncited");
       expect(uncited).toHaveAttribute(
         "aria-label",
-        "AI Overview shown; this site is not cited",
+        "AI Overview shown; this asset is not cited",
       );
       const absent = glyph(panelRow(false, false));
       expect(absent).toHaveAttribute("data-aio-state", "absent");
@@ -1133,7 +1133,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
         const markdown = String(writeText.mock.calls[0]?.[0]);
         expect(markdown).toContain(
-          "- **Tracked SERP panel:** AI Overview fires and cites this site",
+          "- **Tracked SERP panel:** AI Overview fires and cites this asset",
         );
       } finally {
         restore();
@@ -1164,7 +1164,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       ]);
       expect(glyphs[0]).toHaveAttribute(
         "aria-label",
-        "Phone: AI Overview shown; this site is not cited",
+        "Phone: AI Overview shown; this asset is not cited",
       );
 
       expect(container.textContent).toContain(
@@ -1177,7 +1177,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
       const markdown = await copiedMarkdown(trends);
       expect(markdown).toContain(
-        "Phone: AI Overview fires and does not cite this site",
+        "Phone: AI Overview fires and does not cite this asset",
       );
       expect(markdown).toContain("Desktop: no AI Overview on the live result page");
     });
@@ -1399,7 +1399,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
     expect(markdown).toContain(
       "# Recommendation: Expand pages already earning search demand",
     );
-    expect(markdown).toContain("- **Site:** `meadow.example`");
+    expect(markdown).toContain("- **Asset:** `meadow.example`");
     expect(markdown).toContain("## Meaning / next move");
     expect(markdown).toContain("## Why it matters");
     expect(markdown).toContain("- **Captured impressions:** 1,003");
@@ -1612,7 +1612,7 @@ describe("the task handoff command", () => {
         noticeos_kind: "query", noticeos_rule: "recover", noticeos_key: "jarra del buen beber" },
     });
     expect(taskOf(markdown).description).toContain("From the NoticeOS saved query decision for meadow.example: Recover visibility.");
-    expect(taskOf(markdown).description).toContain("Recheck the latest reports, linked work and the site before acting.");
+    expect(taskOf(markdown).description).toContain("Recheck the latest reports, linked work and the asset before acting.");
     expect(markdown).toContain("**not proof of shipment or outcome**");
     expect(markdown).toContain("Nothing files, closes, or measures it on your behalf");
   });
@@ -2323,7 +2323,7 @@ describe("lib/attention — one alert's handoff and grouping", () => {
     expect(alertTaskHandoff(signupsDrop).title).not.toContain("avg7d");
   });
 
-  it("reads a row standing for several sites as a group, with their names as one hover", () => {
+  it("reads a row standing for several assets as a group, with their names as one hover", () => {
     const member = (id: number, asset: string, assetDisplayName: string) => ({ id, asset, assetDisplayName, firedAt: hoursAgo(24) });
     const group: AttentionItem = {
       ...signupsDrop,
@@ -2987,7 +2987,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     ]);
     expect(glyphs[0]).toHaveAttribute(
       "aria-label",
-      "Phone: AI Overview shown; this site is not cited",
+      "Phone: AI Overview shown; this asset is not cited",
     );
     expect(glyphs[1]).toHaveAttribute(
       "aria-label",
@@ -2998,7 +2998,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     expect(board.textContent).not.toContain("US/English");
   });
 
-  it("names the market the site saved, never a US/English it did not choose", () => {
+  it("names the market the asset saved, never a US/English it did not choose", () => {
     const { container } = render(
       <SerpPanelBoard panel={{ ...panel, market: { locationCode: 2276, languageCode: "de" } }} />,
     );
@@ -3036,7 +3036,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     expect(first.querySelectorAll("[data-aio-state]")).toHaveLength(1);
     expect(first.querySelector("[data-aio-state]")).toHaveAttribute(
       "aria-label",
-      "AI Overview cites this site",
+      "AI Overview cites this asset",
     );
   });
 
@@ -3299,7 +3299,7 @@ describe("AiOverviewGlyphs", () => {
     );
     expect(container.querySelector("[data-aio-state]")).toHaveAttribute(
       "aria-label",
-      "Desktop: AI Overview cites this site",
+      "Desktop: AI Overview cites this asset",
     );
   });
 
@@ -3312,7 +3312,7 @@ describe("AiOverviewGlyphs", () => {
     );
     expect(container.querySelector("[data-aio-state]")).toHaveAttribute(
       "aria-label",
-      "AI Overview cites this site",
+      "AI Overview cites this asset",
     );
   });
 
@@ -3881,7 +3881,7 @@ describe("phone mode — the tab strip scrolls, the page does not", () => {
   const strip = (at = "/assets/a") =>
     render(
       <MemoryRouter initialEntries={[at]}>
-        <Tabs label="Site sections" tabs={SEVEN} idBase="t" panelId="p" />
+        <Tabs label="Asset sections" tabs={SEVEN} idBase="t" panelId="p" />
       </MemoryRouter>,
     ).container;
 

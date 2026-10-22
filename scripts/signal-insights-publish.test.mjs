@@ -54,7 +54,7 @@ test('parseArgs: local by default, aimed at the loopback door', () => {
 });
 
 test('parseArgs: rejects a malformed asset', () => {
-  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /property id/);
+  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /asset id/);
 });
 
 test('publishes the reviewed snapshot through the operator-authed door', async () => {
@@ -153,7 +153,7 @@ test('a malformed or foreign snapshot never reaches the store', async () => {
         },
         token: 'op',
       }),
-      /malformed, unsupported, or belongs to another property/,
+      /malformed, unsupported, or belongs to another asset/,
     );
     await fs.rm(dir, { recursive: true, force: true });
   }

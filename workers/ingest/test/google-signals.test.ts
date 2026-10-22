@@ -713,7 +713,7 @@ describe('a register mapping on a service-account install', () => {
     vi.restoreAllMocks();
   });
 
-  it('collects the register-mapped site with the map’s service account', () => {
+  it('collects the register-mapped asset with the map’s service account', () => {
     const targets = googleTargets({ accounts: ONE_ACCOUNT, oauth: null }, 'store', undefined, ACORN);
     expect(
       targets.map(({ asset, integration, propertyRef, mappingSource }) =>
@@ -751,7 +751,7 @@ describe('a register mapping on a service-account install', () => {
     expect(googleTargets({ accounts: '{}', oauth: null }, 'env', undefined, ACORN)).toEqual([]);
   });
 
-  it('collects a site the map names and the register overrides once, on the map’s account', () => {
+  it('collects an asset the map names and the register overrides once, on the map’s account', () => {
     const both: LaneRegister = {
       assets: { ...ACORN.assets, 'meadow.example': { ga4: { propertyId: '999999' } } },
     };
@@ -809,7 +809,7 @@ describe('a register mapping on a service-account install', () => {
     expect(gsc?.account).toBe('first-signals');
   });
 
-  it('asks Google for the register-mapped site on a real run', async () => {
+  it('asks Google for the register-mapped asset on a real run', async () => {
     // The suite's own GOOGLE_SIGNAL_ACCOUNTS binding names meadow.example and
     // northwind.example under a real generated key.
     const { fetchImpl, calls } = googleFetch();

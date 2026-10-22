@@ -43,7 +43,7 @@ function stubDoor(body = {}) {
   return { post, calls };
 }
 
-test('parseArgs: one property, every due family, at the loopback door', () => {
+test('parseArgs: one asset, every due family, at the loopback door', () => {
   const options = parseArgs(['--asset', 'northwind.example']);
   assert.equal(options.asset, 'northwind.example');
   assert.equal(options.families, null);
@@ -71,7 +71,7 @@ test('parseArgs: --families is comma-separated and repeatable', () => {
 // A typo should cost a sentence, not a round trip — and never a billed call for
 // the wrong thing.
 test('parseArgs: refuses a malformed asset, an unknown family, a repeated one', () => {
-  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /property id/);
+  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /asset id/);
   assert.throws(() => parseArgs(['--asset', 'northwind.example', '--families', 'serp']), /Unknown report/);
   assert.throws(
     () => parseArgs(['--asset', 'northwind.example', '--families', 'serp-panel,serp-panel']),
@@ -79,7 +79,7 @@ test('parseArgs: refuses a malformed asset, an unknown family, a repeated one', 
   );
 });
 
-test('asks the operator-authed door for exactly the property and families named', async () => {
+test('asks the operator-authed door for exactly the asset and families named', async () => {
   const { post, calls } = stubDoor();
   const result = await collectSignals({
     asset: 'northwind.example',

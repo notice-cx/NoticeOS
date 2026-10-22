@@ -21,7 +21,7 @@ NoticeOS needs four secrets before it can read its own store. They cannot be sto
 | --- | --- |
 | `CREDENTIALS_KEY` | The key every stored provider credential is encrypted under. Make one with `openssl rand -base64 32`. |
 | `OPERATOR_TOKEN` | The token the runner and your own terminal commands present to the installation's write routes. |
-| `ASSET_TOKENS` | One shared token per site, checked when a site sends its report and presented when the installation pulls one. |
+| `ASSET_TOKENS` | One shared token per asset, checked when an asset sends its report and presented when the installation pulls one. |
 | `DATABASE_URL` | The address of the installation's own Postgres database, as the application login. |
 
 They are stored in one file, `workers/ingest/.dev.secrets.json`, which is never committed. It is in the installation folder's `state/` (`/state/workers/ingest/.dev.secrets.json` in the app container), and `pnpm os:setup` generates it.

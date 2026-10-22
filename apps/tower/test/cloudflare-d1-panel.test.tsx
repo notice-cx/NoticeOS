@@ -44,7 +44,7 @@ it('opens Manage without carried inventory, then loads the saved database mappin
   await act(async () => resolve({ ...initial, databases: inventory.databases,
     selection: { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] } }));
   await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Example database' })).toBeChecked());
-  expect(screen.getByRole('combobox', { name: 'Site for Example database' })).toHaveValue('example.com');
+  expect(screen.getByRole('combobox', { name: 'Asset for Example database' })).toHaveValue('example.com');
   expect(read).toHaveBeenCalledTimes(1);
   expect(connect).not.toHaveBeenCalled();
   expect(save).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ it('connects then explicitly selects an asset and starts backup with one action'
   expect(read).toHaveBeenCalledWith(false);
   fireEvent.click(database);
   expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled();
-  fireEvent.change(screen.getByRole('combobox', { name: 'Site for Example database' }), { target: { value: 'example.com' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Asset for Example database' }), { target: { value: 'example.com' } });
   expect(screen.getByText('Selected databases join nightly backups.')).toBeVisible();
   expect(screen.getByText('Export temporarily blocks database queries.')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Back up selected' }));

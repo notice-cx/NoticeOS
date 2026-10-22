@@ -111,7 +111,9 @@ test('every report file matches the frozen retired-analyzer reference over one r
   const ours = await readFolder(ws.output, { output: ws.output, input: ws.input });
   assert.equal(Object.keys(reference.files).length, 47);
   assert.deepEqual([...ours.keys()], [...Object.keys(reference.files), REPORT_RECORD].sort());
-  for (const [name, hash] of Object.entries(reference.files)) {
+  for (const [name, originalHash] of Object.entries(reference.files)) {
+    // CSVs retain the frozen data reference; prose-bearing JSON pins current copy.
+    const hash = reference.copyFiles?.[name] ?? originalHash;
     assert.equal(createHash('sha256').update(ours.get(name)).digest('hex'), hash, name);
   }
 
@@ -166,6 +168,9 @@ test('over the archive as delivered, the one difference is a report day delivere
   // in the analyzer too, so its family keeps its rows.
   const superseded = new Set(ws.published.superseded.map(({ path: file }) => `<input>/${file}`));
   const expected = JSON.parse(theirs.get('summary.json'));
+  expected.caveats = expected.caveats.map((text) => text
+    .replace('an error-free property', 'an error-free asset')
+    .replace('a site that sends its first-party events', 'an asset that sends its first-party events'));
   const removed = expected.archives.filter((archive) => superseded.has(archive.file));
   assert.equal(removed.length, 6);
   expected.archives = expected.archives.filter((archive) => !superseded.has(archive.file));
@@ -386,7 +391,7 @@ test('the command line answers help and each refusal before it reads anything', 
   assert.match(help.stdout, /pnpm signals:analyze-history -- --asset example\.com --history <history folder> --out <report link>/);
   const base = ['--asset', 'example.com', '--history', 'h', '--out', 'o'];
   for (const [args, message] of [
-    [[], '--asset is required and must be a site id such as example.com.'],
+    [[], '--asset is required and must be an asset id such as example.com.'],
     [['--asset', 'example.com', '--history', 'h'], '--history and --out are both required.'],
     [[...base, '--generation', '0'], '--generation must be a generation number: 1 or more.'],
     [[...base, '--memory-mb', '1.5'], '--memory-mb must be a whole number above zero.'],

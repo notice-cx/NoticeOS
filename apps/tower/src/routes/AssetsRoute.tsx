@@ -134,12 +134,12 @@ export function AssetsRoute() {
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <PageHeader
-        title="Sites"
+        title="Portfolio"
         actions={
           // Opens Add a site over this page: adding a site is one question,
           // not a page of its own.
           <AddSiteButton>
-            <Plus aria-hidden /> Add a site
+            <Plus aria-hidden /> Add an asset
           </AddSiteButton>
         }
         meta={
@@ -157,13 +157,13 @@ export function AssetsRoute() {
           site and one empty state, and one site is its row. */}
       {!data ? (
         isError ? (
-          <ReadFailed title="Couldn't load your sites" subject="read:sites" error={error} retrying={isFetching} onRetry={() => void refetch()} />
+          <ReadFailed title="Couldn't load your assets" subject="read:sites" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
           <PageSkeleton subject="read:sites" shape="list" />
         )
       ) : all.length === 0 ? (
         <section data-surface-hero data-assets-empty className="rounded-[10px] border border-border bg-card px-4 py-3">
-          <EmptyState title="No sites yet" />
+          <EmptyState title="No assets yet" />
         </section>
       ) : arranging ? (
         <section aria-labelledby="assets-arrange-heading" data-surface-hero data-assets-arrange className="flex flex-col gap-3">
@@ -176,13 +176,13 @@ export function AssetsRoute() {
             </Button>
           </div>
           <p className="m-0 text-sm text-muted-foreground">
-            Drag a site by its grip or move it with its arrows. Home, this page and the TV use this order.
+            Drag an asset by its grip or move it with its arrows. Home, this page and the TV use this order.
           </p>
           <LiveSiteArrange />
         </section>
       ) : assets.length === 0 ? (
         <section data-surface-hero data-assets-all-hidden className="rounded-[10px] border border-border bg-card px-4 py-3">
-          <EmptyState title="Every site is hidden" hint={<HiddenSites count={hidden} to={arrangeHref(true)} />} />
+          <EmptyState title="Every asset is hidden" hint={<HiddenSites count={hidden} to={arrangeHref(true)} />} />
         </section>
       ) : assets.length === 1 ? (
         <div data-surface-hero className="flex flex-col gap-3">
@@ -262,7 +262,7 @@ export function AssetsRoute() {
               // Not "No sites yet": a control hides them, and the line above
               // names the controls and holds Clear.
               <section className="rounded-[10px] border border-border bg-card px-4 py-3">
-                <EmptyState title="No sites match these filters" />
+                <EmptyState title="No assets match these filters" />
               </section>
             ) : (
               <AssetsTable lines={visible} />

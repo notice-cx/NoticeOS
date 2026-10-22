@@ -40,7 +40,7 @@ function usage() {
   pnpm signals:download -- --asset example.com [filters]
 
 Filters:
-  --asset <id>          required property id
+  --asset <id>          required asset id
   --from <YYYY-MM-DD>   earliest report date
   --to <YYYY-MM-DD>     latest report date
   --integration <id>    ga4, gsc, bing-webmaster, dataforseo, clarity, or posthog
@@ -81,7 +81,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!options.asset || !/^[a-z0-9.-]+$/.test(options.asset)) {
-    throw new Error('--asset is required and must be a property id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   if (options.integration && !DOWNLOADABLE_INTEGRATIONS.includes(options.integration)) {
     throw new Error(

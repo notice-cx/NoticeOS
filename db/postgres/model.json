@@ -16,7 +16,7 @@
         ],
         "delete": false
       },
-      "rule": "The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back."
+      "rule": "The last number each workspace handed out per numbered table, and the last place in its list of assets, started and advanced by the numbering trigger in the inserting transaction; it never moves back."
     },
     "assets": {
       "revision": {
@@ -30,7 +30,7 @@
         ],
         "delete": false
       },
-      "rule": "Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again."
+      "rule": "Identity never changes; an asset is retired, never deleted, since history references it. A new asset takes the next place in the list from the workspace's counter; a move deals the places of the assets it spans out again."
     },
     "pulses": {
       "revision": {
@@ -152,7 +152,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its site and hash, never one of the site's two newest."
+      "rule": "Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its asset and hash, never one of the asset's two newest."
     },
     "watch_windows": {
       "revision": {
@@ -263,7 +263,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per site, source, account, day and item is current."
+      "rule": "Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per asset, source, account, day and item is current."
     },
     "codebase_reports": {
       "revision": {
@@ -271,7 +271,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Append-only; a same-day resend of a site's codebase report is a new revision."
+      "rule": "Append-only; a same-day resend of an asset's codebase report is a new revision."
     },
     "asset_icons": {
       "revision": {
@@ -279,7 +279,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Append-only; each read of a site's home page is a new row, and a site's card shows the newest read that reached the page."
+      "rule": "Append-only; each read of an asset's home page is a new row, and an asset's card shows the newest read that reached the page."
     },
     "integration_connections": {
       "revision": {
@@ -451,7 +451,7 @@
         "update": "all",
         "delete": true
       },
-      "rule": "One row per site per day, upserted; swept after 400 days."
+      "rule": "One row per asset per day, upserted; swept after 400 days."
     },
     "current_pulses": {
       "view": true,
@@ -467,15 +467,15 @@
     },
     "mediavine_current_daily": {
       "view": true,
-      "rule": "The newest daily fact per site and day."
+      "rule": "The newest daily fact per asset and day."
     },
     "current_revenue": {
       "view": true,
-      "rule": "The newest figure per site, source, account, day and item."
+      "rule": "The newest figure per asset, source, account, day and item."
     },
     "current_codebase_reports": {
       "view": true,
-      "rule": "The newest revision of each site's codebase report per day, numbered by the day's first revision (day_number)."
+      "rule": "The newest revision of each asset's codebase report per day, numbered by the day's first revision (day_number)."
     },
     "hosted_job_occurrences": {
       "revision": {
@@ -582,7 +582,7 @@
       "beyond": "dataset egress_checks"
     },
     "asset_insight_snapshots": {
-      "keep": "each site's two newest",
+      "keep": "each asset's two newest",
       "beyond": "dataset insight_snapshots, one recorded move per snapshot (asset_insight_snapshot_moves)"
     },
     "job_runs": {
@@ -642,11 +642,11 @@
     },
     "assets.domain": {
       "unique": "excluded",
-      "means": "A site with no public domain (the OS's own); only domains take part in the one-site-per-domain rule."
+      "means": "An asset with no public domain (the OS's own); only domains take part in the one-asset-per-domain rule."
     },
     "capability_targets.asset_id": {
       "unique": "one",
-      "means": "A capability of the account, not one site: one target per provider, revision, capability, target and family."
+      "means": "A capability of the account, not one asset: one target per provider, revision, capability, target and family."
     },
     "measurement_series.time_zone": {
       "unique": "one",
@@ -668,13 +668,13 @@
       "means": "A failed run stored nothing; a success or unchanged run always names its object (a row check)."
     },
     "flags.pulse_id": {
-      "means": "Raised without a report (the freshness, pull, egress and quota lanes); the site link still holds."
+      "means": "Raised without a report (the freshness, pull, egress and quota lanes); the asset link still holds."
     },
     "flags.replaced_by_pulse_id": {
       "means": "Not replaced: the alert stands."
     },
     "research_log.asset_id": {
-      "means": "Research about no one site (a market scan)."
+      "means": "Research about no one asset (a market scan)."
     }
   }
 }

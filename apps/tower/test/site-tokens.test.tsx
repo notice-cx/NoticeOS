@@ -37,7 +37,7 @@ function renderTokens(over: Partial<SiteTokensProps> = {}) {
 
 const input = (asset: string) => document.querySelector(`[data-site-token-input="${asset}"]`) as HTMLInputElement;
 
-describe("tokens pasted per site", () => {
+describe("tokens pasted per asset", () => {
   it("saves a pasted token at once, and never shows it back", async () => {
     const { onSave } = renderTokens();
     await act(async () => { fireEvent.change(input("journey.example"), { target: { value: TOKEN } }); });
@@ -54,15 +54,15 @@ describe("tokens pasted per site", () => {
     expect(onSave).toHaveBeenCalledWith("journey.example", "abc");
   });
 
-  it("says a refusal on the site's own row and clears the token", async () => {
-    renderTokens({ onSave: async () => { throw new Error("That site is not one of this installation’s."); } });
+  it("says a refusal on the asset's own row and clears the token", async () => {
+    renderTokens({ onSave: async () => { throw new Error("That asset is not one of this installation’s."); } });
     await act(async () => { fireEvent.change(input("journey.example"), { target: { value: TOKEN } }); });
     const row = document.querySelector('[data-site-token-row="journey.example"]') as HTMLElement;
-    expect(within(row).getByText("That site is not one of this installation’s.")).toBeInTheDocument();
+    expect(within(row).getByText("That asset is not one of this installation’s.")).toBeInTheDocument();
     expect(input("journey.example")).toHaveValue("");
   });
 
-  it("shows each held site's status, and offers a replacement rather than showing the token", () => {
+  it("shows each held asset's status, and offers a replacement rather than showing the token", () => {
     renderTokens();
     const held = document.querySelector('[data-site-token-row="second.example"]') as HTMLElement;
     expect(held.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
@@ -70,7 +70,7 @@ describe("tokens pasted per site", () => {
     expect(document.querySelector('[data-site-token-row="journey.example"] [data-connection]')).toBeNull();
   });
 
-  it("runs the export for the sites holding a token, saying what it spends", async () => {
+  it("runs the export for the assets holding a token, saying what it spends", async () => {
     const { onRun } = renderTokens();
     const run = screen.getByRole("button", { name: /Run now/ });
     expect(run).toHaveTextContent("Run now · 1 of 10");
@@ -78,7 +78,7 @@ describe("tokens pasted per site", () => {
     expect(onRun).toHaveBeenCalledWith(["second.example"]);
   });
 
-  it("counts what is left today, and cannot spend a call a site no longer has", () => {
+  it("counts what is left today, and cannot spend a call an asset no longer has", () => {
     renderTokens({ remaining: () => 3 });
     expect(screen.getByRole("button", { name: /Run now/ })).toHaveTextContent("Run now · 1 of 3 left");
   });

@@ -26,7 +26,7 @@ Under **Settings** > **Alert rules** you tune when an anomaly is worth an alert:
 | Setting | Default | What it means |
 | --- | --- | --- |
 | Anomaly sensitivity | 0.01 | How unlikely a reading must be, against its recent average, before it is flagged |
-| Longest window | 14 days | The most days a quiet series is pooled over. Each series is tested over the fewest whole days in which a run of zeros could raise an alert, so low-volume sites do not raise false alarms; a series too quiet for this many days is not tested |
+| Longest window | 14 days | The most days a quiet series is pooled over. Each series is tested over the fewest whole days in which a run of zeros could raise an alert, so low-volume assets do not raise false alarms; a series too quiet for this many days is not tested |
 
 Alerts are not enforcement. They notify you; they stop nothing.
 
@@ -35,11 +35,11 @@ Alerts are not enforcement. They notify you; they stop nothing.
 Two actions spend money outside the schedule, and both show the cost first:
 
 - **Start collecting** on a connection's panel runs a provider's first collection now. A metered step shows its price before you confirm.
-- In the terminal, `pnpm os:collect -- --asset example.com` (`noticeos collect --asset example.com` when NoticeOS runs from Docker alone) collects one site now and prints what it cost. `--families` narrows it to the report families named. It goes through the same cap.
+- In the terminal, `pnpm os:collect -- --asset example.com` (`noticeos collect --asset example.com` when NoticeOS runs from Docker alone) collects one asset now and prints what it cost. `--families` narrows it to the report families named. It goes through the same cap.
 
 ## The kill switch
 
-NoticeOS does not have an automated kill switch yet: one rehearsed action that stops every cron, revokes repository access and freezes provider keys. NoticeOS does not execute changes on your sites in this release, so there is nothing of its own to stop. Any agent that acts on your sites is one you started, and you stop it where you started it.
+NoticeOS does not have an automated kill switch yet: one rehearsed action that stops every cron, revokes repository access and freezes provider keys. NoticeOS does not execute changes on your assets in this release, so there is nothing of its own to stop. Any agent that acts on your assets is one you started, and you stop it where you started it.
 
 The collection schedule controls are not an agent pause. Pausing a job stops data collection; it does not stop anything outside NoticeOS.
 
@@ -56,7 +56,7 @@ An external agent that misbehaves is stopped where it was started, before anyone
 | All metered spend | Set the Monthly data cap to the amount already spent this month |
 | The whole installation | `pnpm os:stop` |
 
-Stopping the installation stops collection and notifications; it does not touch your sites or any external service.
+Stopping the installation stops collection and notifications; it does not touch your assets or any external service.
 
 ## What NoticeOS will never do by itself
 

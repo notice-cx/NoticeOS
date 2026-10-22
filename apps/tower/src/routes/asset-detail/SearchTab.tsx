@@ -551,7 +551,7 @@ function SearchContextRows({
     snapshot.keywordIdeas.length > 0
       ? {
           key: "ideas",
-          summary: `Keyword ideas · ${formatInt(snapshot.keywordIdeas.length)} terms this site does not rank for`,
+          summary: `Keyword ideas · ${formatInt(snapshot.keywordIdeas.length)} terms this asset does not rank for`,
           head: ["Keyword", "Searches a month", "Difficulty", "Cost per click", "Intent"],
           rows: snapshot.keywordIdeas.map((idea) => [
             idea.keyword,

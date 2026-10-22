@@ -216,7 +216,7 @@ export function tuneProposalTask(
       `- Rule: ${facts.ruleId}`,
       `- Answered by tuning: ${facts.tuned} of ${facts.settled} settled (${percent}) in ${windowDays} days`,
       `- Proposal line: ${line}`,
-      "- Settings: config/constants.json → flag_defaults (the default for every site)",
+      "- Settings: config/constants.json → flag_defaults (the default for every asset)",
       "- Preview: the Tune panel on any alert from this rule",
     ].join("\n"),
     acceptance: [

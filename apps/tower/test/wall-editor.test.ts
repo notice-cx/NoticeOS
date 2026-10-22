@@ -331,7 +331,7 @@ describe("removing a widget", () => {
   });
 });
 
-describe("widths and the site filter", () => {
+describe("widths and the asset filter", () => {
   it("lands a width on the step grid however the arithmetic drifted", () => {
     const state = run(start(), { type: "widths", widths: { strip: 0.25 + 0.05 * 3 } });
     expect(wallWidgetAt(state.layout, "strip")?.widget.width).toBe(0.4);
@@ -358,7 +358,7 @@ describe("widths and the site filter", () => {
     expect(wallWidthShare(row, "not-here")).toBe(0);
   });
 
-  it("writes the site filter on the widget and takes it off again; an empty one is every site", () => {
+  it("writes the asset filter on the widget and takes it off again; an empty one is every asset", () => {
     const filtered = run(start(), { type: "settings", widgetId: "sites", settings: { assets: ["meadow.example"] } });
     expect(wallWidgetAt(filtered.layout, "sites")?.widget.settings).toEqual({ assets: ["meadow.example"] });
     const cleared = run(filtered, { type: "settings", widgetId: "sites", settings: { assets: [] } });
@@ -702,7 +702,7 @@ describe("heights", () => {
     const sizedParent = run(start(DEFAULT_WALL_LAYOUT), { type: "fit", rowId: "body" }, { type: "sizes", sizes: { body: 2 } });
     expect(wallWidgetHeightIsGiven(sizedParent.layout, "sites")).toBe(true);
     expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Bottom of the TV left empty");
-    expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Sites squeezed into a fixed-height row");
+    expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Portfolio squeezed into a fixed-height row");
   });
 
   it("rescales sharing weights before a short top-level pair would hit the weight bounds", () => {
@@ -781,10 +781,10 @@ describe("the edge a drop lands on", () => {
 });
 
 describe("what the operator is told beside Save", () => {
-  it("warns about squeezed site rows without refusing them", () => {
+  it("warns about squeezed asset rows without refusing them", () => {
     const state = run(start(), { type: "fill", rowId: "top" });
     expect(wallEditorRefusal(state.layout)).toBeNull();
-    expect(wallEditorWarnings(state.layout)).toContain("Sites squeezed into a fixed-height row");
+    expect(wallEditorWarnings(state.layout)).toContain("Portfolio squeezed into a fixed-height row");
   });
 
   it("does not call a sized row inside a stretching column squeezed", () => {

@@ -20,9 +20,9 @@ contract ([doc 02](02-signal-contract.md)):
   `REPORT_MAX_AGE_HOURS` — 48h, `REPORT_CADENCE_HOURS × REPORT_STALE_MULTIPLIER`
   in [`packages/contract/src/reporting.ts`](../packages/contract/src/reporting.ts)
   — and both places read this one number: the hourly `ingest-freshness`
-  cron raises its error past that age and the Tower counts the property stale
+  cron raises its error past that age and the Tower counts the asset stale
   past the same age, so one payload never contains an open error and a "fresh"
-  count for the same property. To flag a stopped data source sooner, change the
+  count for the same asset. To flag a stopped data source sooner, change the
   constant, not this document. An asset whose Settings declare that it sends no
   nightly report (`config/constants.json` `no_nightly_report`) is not expected
   to send one: `owesNightlyReport` in the same file leaves it out of both
@@ -269,7 +269,7 @@ baselines and must be visible on every affected timeline.
 
 The implemented Google and Bing collectors record every attempt in
 `signal_runs`, isolate provider/property failures, retain the last successful
-observations, and show the effective source state on each property card.
+observations, and show the effective source state on each asset card.
 GA4/GSC run every 15 minutes and degrade after two missed cadences (30
 minutes). Bing Webmaster's rank-and-traffic dataset updates daily, so it runs
 at 02:30 UTC and degrades after two missed daily cadences (48 hours); polling
@@ -295,7 +295,7 @@ its complete day. These reads are isolated from `/api/wall`: a timeout, quota
 failure, or invalid response leaves the rest of the card available, shows no
 zero in place of missing data, and lets the client keep showing its last good
 values, labelled “Reconnecting.”
-The response requests property-quota telemetry so a future cadence change can
+The response requests asset-quota telemetry so a future cadence change can
 be based on observed token consumption.
 
 The analysis-grade provider collections run separately from those live chart
@@ -316,12 +316,12 @@ the only way the Tower reads from the archive: it keeps rule, evidence,
 confidence, source, window, and caveat together, while the raw provider rows
 stay in R2. Publishing identical content is idempotent.
 
-Property health and Needs Attention count only flags with both
+Asset health and Needs Attention count only flags with both
 `resolved_at IS NULL` and `disposition IS NULL`. *Mark read* sets a
 disposition on this event; *Resolve* closes its underlying condition. A later
 recurrence is a new event, while a recovered metric auto-resolves its prior
 open flow event. This way the health indicator shows what needs the
-operator's attention now, not whether the property has ever produced a
+operator's attention now, not whether the asset has ever produced a
 warning.
 
 ## Reproducibility
@@ -355,7 +355,7 @@ warning.
   `config/tower.json` holds the shared Home/Wall countdown; applied values are
   sent in `/api/wall`, while the live clock always uses the display's local
   civil time.
-  `config/serp-panel.json` defines the per-property tracked head terms the
+  `config/serp-panel.json` defines the per-asset tracked head terms the
   weekly DataForSEO collection pays to check — the one place a tracked-query
   list is written down, and the document that determines that spend, so it is
   a config document like every other tunable.

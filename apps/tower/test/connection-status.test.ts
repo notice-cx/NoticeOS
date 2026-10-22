@@ -94,7 +94,7 @@ describe("a connection's one status", () => {
     expect(reportOf(items[0]!)).toEqual({ report: "", date: "" });
   });
 
-  it("is Working · 1 site failing when one site of several is refused and the rest work", () => {
+  it("is Working · 1 asset failing when one asset of several is refused and the rest work", () => {
     const items = [
       ...["meadow.example", "northwind.example", "ferns.example"].flatMap((asset) => site(asset, "bing-webmaster")),
       item({ provider: "bing-webmaster", capability: "bing-daily", asset: "puffin.example", state: "failing", lastSuccessAt: null, failure: "access", code: "access" }),
@@ -104,7 +104,7 @@ describe("a connection's one status", () => {
     expect(status.sitesFailing).toBe(1);
     expect(status.sites[0]).toMatchObject({ key: "puffin.example", kind: "failing" });
     expect(status.sites[0]!.failure?.failure).toBe("access");
-    expect(connectionFacts(status).map((fact) => fact.label)).toEqual(["1 site failing"]);
+    expect(connectionFacts(status).map((fact) => fact.label)).toEqual(["1 asset failing"]);
     expect(needsOperator(status)).toBe(1);
   });
 
@@ -115,17 +115,17 @@ describe("a connection's one status", () => {
     expect(needsOperator(status)).toBe(1);
   });
 
-  it("is Failing when most sites fail now, and then does not repeat the count as a fact", () => {
+  it("is Failing when most assets fail now, and then does not repeat the count as a fact", () => {
     const failing = (asset: string) => item({ asset, state: "failing", lastSuccessAt: null, failure: "access", code: "access" });
     const status = connectionStatus("google", credential(), [failing("a.test"), failing("b.test"), ...site("c.test")]);
     expect(status.kind).toBe("failing");
-    expect(connectionFacts(status).map((fact) => fact.label)).toEqual(["2 sites failing"]);
+    expect(connectionFacts(status).map((fact) => fact.label)).toEqual(["2 assets failing"]);
     const all = connectionStatus("google", credential(), [failing("a.test"), failing("b.test")]);
     expect(all.kind).toBe("failing");
     expect(connectionFacts(all)).toEqual([]);
   });
 
-  it("fails a site whose latest attempt of one report failed after an earlier success", () => {
+  it("fails an asset whose latest attempt of one report failed after an earlier success", () => {
     const items = [
       ...site("meadow.example"),
       report("meadow.example", "country", "2026-09-21", { state: "failing", lastSuccessAt: null, failure: "provider", code: "provider" }),
@@ -154,7 +154,7 @@ describe("a connection's one status", () => {
     expect(connectionStatus("google", credential(), [pending]).kind).toBe("collecting");
   });
 
-  it("is Not using when every site's collection is paused", () => {
+  it("is Not using when every asset's collection is paused", () => {
     const status = connectionStatus("google", credential(), [item({ state: "paused" }), item({ asset: "northwind.example", state: "paused" })]);
     expect(status.kind).toBe("not-using");
   });
@@ -190,7 +190,7 @@ describe("one data source on one asset", () => {
     expect(sourceStatus(credential(), null, "meadow.example", "ga4").kind).toBe("unknown");
   });
 
-  it("is Collecting, with no site yet, when the asset maps the source and the provider is connected", () => {
+  it("is Collecting, with no asset yet, when the asset maps the source and the provider is connected", () => {
     // A site added and mapped today: no monitoring item names it yet.
     expect(sourceStatus(credential(), items, "northwind.example", "ga4", true)).toEqual({ kind: "collecting", site: null });
     expect(sourceStatus(credential(), [], "northwind.example", "ga4", true).kind).toBe("collecting");
@@ -207,7 +207,7 @@ describe("one data source on one asset", () => {
     expect(sourceStatus(refused, [], "northwind.example", "ga4", true).kind).toBe("failing");
   });
 
-  it("lets the monitoring items speak once they name the mapped site", () => {
+  it("lets the monitoring items speak once they name the mapped asset", () => {
     expect(sourceStatus(credential(), items, "meadow.example", "ga4", true).kind).toBe("working");
     expect(sourceStatus(credential(), items, "meadow.example", "gsc", true).kind).toBe("failing");
   });

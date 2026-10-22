@@ -11,24 +11,24 @@ export interface WorkflowDefinition extends ScheduledJob { version: number; trig
 const action = (id: string, label: string, description: string, kind: WorkflowStepKind = 'task', after: string[] = ['config']): WorkflowStepDefinition => ({ id, label, description, kind, after });
 const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   mediavine: [action('revenue', 'Collect ad revenue', 'Checks the collection window and records revenue when due.', 'collection')],
-  stripe: [action('subscriptions', 'Collect subscription revenue', 'Records each completed day’s Stripe sales less refunds for the site that names the account.', 'collection')],
+  stripe: [action('subscriptions', 'Collect subscription revenue', 'Records each completed day’s Stripe sales less refunds for the asset that names the account.', 'collection')],
   // `connection-counts` and `source-history` are the Tower's steps of this tick
   // (apps/tower/worker/tower-cron.ts), run once the ingest's checks are done.
-  freshness: [action('freshness', 'Check report freshness', 'Compares received reports with their reporting obligations.', 'check'), action('uptime', 'Check sites are up', 'Fetches each site’s home page and records whether it answered.', 'check'),
+  freshness: [action('freshness', 'Check report freshness', 'Compares received reports with their reporting obligations.', 'check'), action('uptime', 'Check assets are up', 'Fetches each asset’s home page and records whether it answered.', 'check'),
     action('connection-counts', 'Record connection counts', 'Records today’s System health connection counts.', 'storage', ['freshness', 'uptime']),
     action('source-history', 'Record source history', 'Records today’s state and freshness of each data source.', 'storage', ['freshness', 'uptime'])],
   notifications: [action('notify', 'Deliver notifications', 'Delivers new error alerts and data-source failures, with retries for failed deliveries.')],
-  pull: [action('pull', 'Collect site reports', 'Retrieves the reports from sites configured for pull collection.', 'collection'), action('bing', 'Refresh Bing signals', 'Retrieves Bing search signals for connected sites.', 'collection')],
+  pull: [action('pull', 'Collect asset reports', 'Retrieves the reports from assets configured for pull collection.', 'collection'), action('bing', 'Refresh Bing signals', 'Retrieves Bing search signals for connected assets.', 'collection')],
   'asset-zero': [action('report', 'Record the OS report', 'Summarizes the OS’s own operating evidence.', 'storage')],
   'watch-windows': [action('outcomes', 'Evaluate outcome windows', 'Reads completed windows using the existing outcome rules.', 'check')],
   hygiene: [action('hygiene', 'Check search accessibility', 'Checks robots access, sitemaps, indexing directives, served page structure and security headers.', 'check'),
-    action('icons', 'Read site icons', 'Reads the light and dark icons each site’s home page declares.', 'collection')],
+    action('icons', 'Read asset icons', 'Reads the light and dark icons each asset’s home page declares.', 'collection')],
   clarity: [action('clarity', 'Collect behavior summaries', 'Retrieves available Clarity exports within provider limits.', 'collection')],
-  crux: [action('crux', 'Read page speed', 'Reads each site’s Chrome UX Report page speed for phones and desktops.', 'collection')],
+  crux: [action('crux', 'Read page speed', 'Reads each asset’s Chrome UX Report page speed for phones and desktops.', 'collection')],
   'signal-dumps': [action('archives', 'Archive traffic and search', 'Stores the available Google and Bing reporting archives.', 'collection'), action('search-recovery', 'Recover missed search intelligence', 'Re-collects reports an internet outage skipped.', 'collection')],
-  posthog: [action('product', 'Archive product analytics', 'Stores each connected site’s PostHog report families.', 'collection')],
+  posthog: [action('product', 'Archive product analytics', 'Stores each connected asset’s PostHog report families.', 'collection')],
   dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
-  counters: [action('counters', 'Refresh site counters', 'Retrieves configured public site counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
+  counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
 };
 
 // What a local job's one stage does, where a hosted service runs it too and

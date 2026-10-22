@@ -836,14 +836,14 @@ test('bootstrap creates the one workspace once, as the owner, after the migratio
     applyMigrations(dev);
     assert.throws(() => bootstrapWorkspace(dev, { slug: 'Not A Slug' }), MigrationRefused);
 
-    const first = bootstrapWorkspace(dev, { slug: 'main', displayName: 'My sites' });
+    const first = bootstrapWorkspace(dev, { slug: 'main', displayName: 'My assets' });
     assert.equal(first.created, true);
     const again = bootstrapWorkspace(dev, { slug: 'other' });
     assert.deepEqual([again.created, again.workspaceId], [false, first.workspaceId], 'a second bootstrap creates nothing');
 
     // The application sees it only when it names it.
     assert.deepEqual(inWorkspace(dev, first.workspaceId, null, { read: 'SELECT slug, display_name FROM noticeos.workspaces' }), [
-      { slug: 'main', display_name: 'My sites' },
+      { slug: 'main', display_name: 'My assets' },
     ]);
     const [owner] = dev.sql(
       "SELECT count(*) AS n, min(pg_get_userbyid(c.relowner)) AS owner FROM noticeos.workspaces w, pg_class c WHERE c.oid = 'noticeos.workspaces'::regclass",
@@ -903,7 +903,7 @@ test('the command applies to a throwaway folder and reuses it on the next run', 
     assert.equal(status.code, 0, status.err);
     assert.deepEqual(statesOf(JSON.parse(status.out)), REAL.map(() => 'applied'));
     assert.match(run(['apply', '--dir', folder]).out, /up to date; nothing applied/u);
-    const boot = run(['bootstrap', '--dir', folder, '--slug', 'main', '--name', 'My sites']);
+    const boot = run(['bootstrap', '--dir', folder, '--slug', 'main', '--name', 'My assets']);
     assert.equal(boot.code, 0, boot.err);
     assert.match(boot.out, /created workspace [0-9a-f-]{36}/u);
     assert.match(run(['bootstrap', '--dir', folder, '--slug', 'main']).out, /already has workspace/u);

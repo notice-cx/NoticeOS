@@ -117,7 +117,7 @@ describe("the revenue widget", () => {
     expect(container.querySelector("[data-revenue-change]")).toBeNull();
   });
 
-  it("reads the same for an installation with one site", () => {
+  it("reads the same for an installation with one asset", () => {
     const data = wallFixturePayload();
     const [only] = data.assets;
     const { container } = render(
@@ -163,12 +163,12 @@ describe("yesterday on the revenue widget", () => {
     };
   };
 
-  it("shows what is in and how many revenue sites it covers when a report is missing", () => {
+  it("shows what is in and how many revenue assets it covers when a report is missing", () => {
     const { container } = render(<RevenueHero {...withYesterday([4_318, null])} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("some");
     // Two of the six sites have a revenue source; the other four are not owed.
-    expect(container.querySelector("[data-revenue-pace]")?.textContent).toContain("Sep 21 · Pacific $43.18 est. · 1 of 2 sites · 9 days left");
+    expect(container.querySelector("[data-revenue-pace]")?.textContent).toContain("Sep 21 · Pacific $43.18 est. · 1 of 2 assets · 9 days left");
     // The figure is drawn as a figure; the words around it stay quiet.
     const figure = yesterday.querySelector("[data-revenue-yesterday-figure]")!;
     expect(figure.textContent).toBe("$43.18");
@@ -182,7 +182,7 @@ describe("yesterday on the revenue widget", () => {
     const { container } = render(<RevenueHero {...data} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("mixed");
-    expect(yesterday.textContent).toBe("Mixed report days · 2 of 2 sites · no total");
+    expect(yesterday.textContent).toBe("Mixed report days · 2 of 2 assets · no total");
     expect(yesterday.querySelector("[data-revenue-yesterday-figure]")).toBeNull();
     expect(yesterday.textContent).not.toContain("not reported");
   });
@@ -194,7 +194,7 @@ describe("yesterday on the revenue widget", () => {
     const { container } = render(<RevenueHero {...data} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
     expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("some");
-    expect(yesterday.textContent).toBe("Sep 21 · Pacific $43.18 est. · 1 of 2 sites");
+    expect(yesterday.textContent).toBe("Sep 21 · Pacific $43.18 est. · 1 of 2 assets");
   });
 
   it("says so in words, with no number, before any report is in", () => {
@@ -559,7 +559,7 @@ it('names partial dated previous-month coverage without calling it a portfolio t
   const assets = sources.map((asset, index) => ({ ...asset, revenueProjection: { ...asset.revenueProjection!, earnedMinor: null, previousMonthMinor: index === 0 ? 30000 : null } }));
   const { container } = render(<RevenueHero portfolio={{ ...data.portfolio, revenueRecorded: { booked: false, forecast: false }, forecast: { currency: 'USD', revenue: 0, cost: 35, net: -35 }, booked: ZERO }} assets={assets} nowMs={NOW} />);
   expect(container.querySelector('[data-revenue-figure]')).toBeNull();
-  expect(container.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $300 est. · 1 of 2 sites');
+  expect(container.querySelector('[data-revenue-previous-month]')).toHaveTextContent('August 2026 $300 est. · 1 of 2 assets');
   expect(container.querySelector('[data-revenue-change]')).toBeNull();
 });
 
@@ -586,7 +586,7 @@ describe("Needs attention", () => {
     expect(container).not.toHaveTextContent("Nothing needs attention");
   });
 
-  it("lists the fixture's warning with its site, sentence and age, and the urgent tasks beside the heading", () => {
+  it("lists the fixture's warning with its asset, sentence and age, and the urgent tasks beside the heading", () => {
     const data = wallFixturePayload();
     const { container } = render(
       <NeedsYou

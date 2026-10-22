@@ -455,7 +455,7 @@ describe('the Bing lane', () => {
     return { fetchImpl, sites };
   }
 
-  it('asks for the site the register holds, and matches the domain otherwise', async () => {
+  it('asks for the asset the register holds, and matches the domain otherwise', async () => {
     const { fetchImpl, sites } = bingFetch();
     const result = await runBingSignals(env, {
       nowMs: NOW,

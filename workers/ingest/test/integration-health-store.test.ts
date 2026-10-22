@@ -68,14 +68,14 @@ describe('durable integration history', () => {
     expect(await rows()).toEqual([]);
   });
   // An account's target names no site: it is stored with none and read as ''.
-  it('keeps an account-wide target apart from every site', async () => {
+  it('keeps an account-wide target apart from every asset', async () => {
     const account = { ...item('failure').scope, provider: 'dataforseo', capability: 'dataforseo-credit', asset: '', target: '' };
     await recordIntegrationObservation(env.STORE, item('failure', 0, { scope: account }));
     await recordIntegrationObservation(env.STORE, item('failure', 1000, { scope: account }));
     expect(await rows()).toEqual([expect.objectContaining({ provider: 'dataforseo', asset: '', target_id: '', outcome: 'failure' })]);
     expect(await events()).toHaveLength(1);
   });
-  it('refuses a site that is not in the site list, and keeps nothing of it', async () => {
+  it('refuses an asset that is not in the asset list, and keeps nothing of it', async () => {
     await expect(recordIntegrationObservation(env.STORE, item('failure', 0, { scope: { ...item('failure').scope, asset: 'unknown.example' } }))).rejects.toThrow();
     expect(await rows()).toEqual([]);
     expect(await events()).toEqual([]);
@@ -102,7 +102,7 @@ describe('durable integration history', () => {
 
 // A card's verdict is the site row's words, so the codes behind it must land
 // in the right kind.
-describe('a failed collection in the site row\'s words', () => {
+describe('a failed collection in the asset row\'s words', () => {
   it('reads Clarity\'s refused token as access and its ten-a-day cap as the daily allowance', () => {
     expect(healthFailure('clarity_token_rejected')).toEqual({ failure: 'access', code: 'access' });
     expect(healthFailure('clarity_daily_cap_reached')).toEqual({ failure: 'rate-limit', code: 'rate-limit-daily' });

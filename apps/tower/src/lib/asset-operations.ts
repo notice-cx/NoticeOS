@@ -37,7 +37,7 @@ export function createAssetOperations(writes: AssetWrites = { createAsset, creat
           try {
             const created = await writes.createAsset(attempt.row);
             if (created?.id !== attempt.row.id) {
-              throw new Error('The server did not confirm this site. No setup changes were sent; check Sites before trying again.');
+              throw new Error('The server did not confirm this asset. No setup changes were sent; check Portfolio before trying again.');
             }
             confirmedPlan = attempt;
           } catch (error) {
@@ -53,7 +53,7 @@ export function createAssetOperations(writes: AssetWrites = { createAsset, creat
             if (error instanceof ApiError && error.status === 422) {
               return { kind: 'rejected', field: error.field === 'displayName' ? 'displayName' : 'domain', message: error.message };
             }
-            return { kind: 'failed', message: error instanceof Error ? error.message : 'The site was not created' };
+            return { kind: 'failed', message: error instanceof Error ? error.message : 'The asset was not created' };
           }
         }
         try {

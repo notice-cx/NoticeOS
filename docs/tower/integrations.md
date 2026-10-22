@@ -5,7 +5,7 @@ description: "What you are connected with, whether each connection works, and wh
 
 # Integrations
 
-An **integration** is your account with a provider, such as Google or an ad network, connected so NoticeOS can collect from it, usually once for every site it covers. Credentials are entered here, encrypted in the store, and never written in a file. A site's own **Data sources** tab shows the same connections for that one site.
+An **integration** is your account with a provider, such as Google or an ad network, connected so NoticeOS can collect from it, usually once for every asset it covers. Credentials are entered here, encrypted in the store, and never written in a file. An asset's own **Data sources** tab shows the same connections for that one asset.
 
 The Integrations page shows what you are connected with, and what else you can connect.
 
@@ -19,22 +19,22 @@ Each row is the provider's logo, its name, its one status, and one button. A pro
 
 A banner at the top names anything that blocks connecting on this installation, with the one command that fixes it. The connect panel does not repeat it.
 
-**Integrations** and **System health** are next to each other in the sidebar, and separate on purpose. Integrations is where you make and change a connection, from the credential store. System health shows what each source is producing, from the collectors' own evidence, grouped by where a failure comes from: this machine's network, a provider, or a site's own setup.
+**Integrations** and **System health** are next to each other in the sidebar, and separate on purpose. Integrations is where you make and change a connection, from the credential store. System health shows what each source is producing, from the collectors' own evidence, grouped by where a failure comes from: this machine's network, a provider, or an asset's own setup.
 
 ## What you can do
 
 The button is the row's only control:
 
-- **Connect**, when nothing is connected, opens the connect panel: paste the credential, select **Connect**, tick the sites, select **Start collecting**.
+- **Connect**, when nothing is connected, opens the connect panel: paste the credential, select **Connect**, tick the assets, select **Start collecting**.
 - **Reconnect**, when the key is failing, opens the key field again.
-- **Manage**, when it is connected, opens the connection: its sites and how each is doing, its schedule, **Replace API key** (tested before it is saved) and **Disconnect** (one confirmation that names what stops).
+- **Manage**, when it is connected, opens the connection: its assets and how each is doing, its schedule, **Replace API key** (tested before it is saved) and **Disconnect** (one confirmation that names what stops).
 - **Import from this machine**, on a card marked **Legacy env**, moves the whole secrets file into the store.
 
 ## States and labels
 
 The statuses are the same on every screen: **Not connected**, **Not checked**, **Key accepted**, **Signed in**, **URL accepted**, **Collecting**, **Working**, **Overdue**, **Failing**, **Not using**, **Unknown**. Every status is explained in [Connect data sources](/guides/connect-data-sources).
 
-- Small chips beside a status count sites failing or reports missing.
+- Small chips beside a status count assets failing or reports missing.
 - **Expires in 7d** or **Key expired** appears when a credential has a recorded expiry.
 - **Unknown** means the monitoring read is older than ninety seconds or failed, so the page does not mark a connection as working or failing.
 - **Not checked** means a saved credential nobody has tested. A green status requires a stored successful attempt; the page never shows green before one exists.

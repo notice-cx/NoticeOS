@@ -79,7 +79,7 @@ export function MoneyHero({ money, yesterday, className, wordLevel = "operationa
         <div className="flex flex-col gap-2 border-t border-border/60 pt-4" data-money-by-site="">
           <span className="text-xs font-medium text-muted-foreground">Where {month} came from</span>
           <SegmentBar
-            ariaLabel={`${month} revenue by site: ${money.bySite.map((site) => `${site.name} ${usd(site.amount)}`).join(", ")}`}
+            ariaLabel={`${month} revenue by asset: ${money.bySite.map((site) => `${site.name} ${usd(site.amount)}`).join(", ")}`}
             className="h-2"
             segments={money.bySite.map((site, index) => ({ name: site.id, value: site.amount, fill: cn("bg-current", shareFill(site.id, index)) }))}
           />
@@ -105,7 +105,7 @@ function YesterdayRevenue({ total, business }: { total: YesterdayTotal | null; b
       Yesterday {total?.amount != null && !total.mixedBasis ? (
         <>
           <b className="font-semibold text-foreground">{cents(total.amount)}</b> {business ? "so far" : "est."}
-          {total.reported < total.sites ? ` · ${total.reported} of ${total.sites} sites` : null}
+          {total.reported < total.sites ? ` · ${total.reported} of ${total.sites} assets` : null}
         </>
       ) : total?.mixedBasis ? "· mixed report days · no total" : "· not reported yet"}
     </Link>

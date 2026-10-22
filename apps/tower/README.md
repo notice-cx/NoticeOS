@@ -85,7 +85,7 @@ restart, because the exported file is one Vite statically imports.
 An asset's own columns — lifecycle stage, automation mode, display name — are
 store writes on `PATCH /api/assets/:id`; creating one is `POST /api/assets`.
 Nothing deletes an asset: the store is history, and the one exit is
-`status = 'retired'`, which Archive writes. Adding a site uses both lanes, row
+`status = 'retired'`, which Archive writes. Adding an asset uses both lanes, row
 first: the row's `409` is the only authoritative duplicate check, and an
 orphaned row is a leftover the operator can see and archive, whereas half a
 config entry is not. The composition is `shared/asset-wizard.ts`.
@@ -140,7 +140,7 @@ dispatcher in `worker/stored-read-route.ts`. Paths that exist today:
 - `POST /api/assets`; `PATCH /api/assets/:id` (any other verb but GET is
   `405`); `/api/assets/:id/order`, `/annotations`, `/watch-windows`,
   `/watch-query-history`.
-- `GET /api/site-name` — the title a public page gives itself, for Add a site.
+- `GET /api/site-name` — the title a public page gives itself, for Add an asset.
 - `GET /api/integrations/providers`; per provider `PUT`/`DELETE …/credential`,
   `…/expiry`, `…/connect`, `…/site-token`, `…/test`, `…/sites`, `…/collect`;
   Mediavine's `…/mediavine/status`, `/settings`, `/sync`.
@@ -321,7 +321,7 @@ that output is gitignored and disposable: never commit it or cite its path as
 durable evidence. `--help` lists origin, port, dimensions and output options.
 
 The synthetic Wall the journeys and captures draw is `e2e/wall-fixture.ts`,
-on invented `.example` sites.
+on invented `.example` assets.
 
 ## Scripts / CI bar
 
@@ -339,7 +339,7 @@ only when a flow cannot be walked). CI runs the gates in
 
 Tests run reader SQL against real Postgres: `test/postgres-store.ts` opens
 each test's isolated, migrated copy of a throwaway cluster as the application
-role, and tests add their own sites and release their copies after each case.
+role, and tests add their own assets and release their copies after each case.
 
 No unit test reads the checkout's own `config/`: suites state synthetic
 documents or use the frozen copies in `test/fixture-config/`, which

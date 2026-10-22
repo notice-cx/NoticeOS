@@ -105,7 +105,7 @@ describe("CollectionEditor", () => {
     stubFetch();
     renderDomains();
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers.slice(0, 5)).toEqual(["Domain", "Site", "Order", "Paid (USD)", "Paid on"]);
+    expect(headers.slice(0, 5)).toEqual(["Domain", "Asset", "Order", "Paid (USD)", "Paid on"]);
     expect(screen.getAllByDisplayValue("ferns.example")).not.toHaveLength(0);
     expect(screen.getByDisplayValue("109.69")).toBeInTheDocument();
   });
@@ -156,7 +156,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "teller.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "ferns.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "ferns.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "registration" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "6.69" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-06-28" } });
@@ -203,7 +203,7 @@ describe("CollectionEditor", () => {
 
     // A key already in the list is the refusal a pointer cannot make.
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "northwind.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "northwind.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "northwind.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "renewal" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "12" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-09-01" } });
@@ -221,7 +221,7 @@ describe("CollectionEditor", () => {
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     const typed: Record<string, string> = {
       Domain: "teller.example",
-      Site: "ferns.example",
+      Asset: "ferns.example",
       Order: "registration",
       "Paid (USD)": "-5",
       "Paid on": "2026-06-28",
@@ -1018,9 +1018,9 @@ describe("CollectionEditor", () => {
       "northwind.example",
       "ferns.example",
     ]);
-    expect(within(form).getByLabelText("Site")).toHaveAttribute("list", list.id);
+    expect(within(form).getByLabelText("Asset")).toHaveAttribute("list", list.id);
 
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "nope.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "nope.example" } });
     fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "np" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
@@ -1084,7 +1084,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     expect(form.querySelector("datalist")).toBeNull();
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "northwind.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "northwind.example" } });
     fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "nw" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
@@ -1097,7 +1097,7 @@ describe("CollectionEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "northwind.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "northwind.example" } });
     fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "nw" } });
     expect(within(form).getByLabelText("Database")).toHaveValue("nw");
 
@@ -1121,7 +1121,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "teller.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "ferns.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "ferns.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "registration" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "6.69" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-06-28" } });
@@ -1141,7 +1141,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "teller.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "ferns.example" } });
+    fireEvent.change(within(form).getByLabelText("Asset"), { target: { value: "ferns.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "registration" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "6.69" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-06-28" } });

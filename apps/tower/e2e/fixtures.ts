@@ -97,7 +97,7 @@ export function journeyFindingSnapshot() {
       primary: { value: "-40", label: "Sitemap URLs" }, confidence: "high",
       windowStart: "2026-08-30", windowEnd: "2026-09-05",
       evidence: [{ label: "Before", value: "120" }, { label: "After", value: "80" }],
-      sources: ["bing-webmaster/sitemaps"], caveat: "Synthetic fixture: no real site.",
+      sources: ["bing-webmaster/sitemaps"], caveat: "Synthetic fixture: no real asset.",
     }],
   };
 }

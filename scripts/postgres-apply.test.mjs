@@ -431,7 +431,7 @@ test('apply runs as the owner over the socket, records each file by hash, leaves
     assert.equal(applied.code, 0, applied.err);
     for (const name of REAL) assert.match(applied.out, new RegExp(`^  applied\\s+${name}$`, 'mu'));
     assert.match(applied.out, new RegExp(`^Applied ${REAL.length} migrations? to ${db.name} on the local socket in \\S+, in one transaction\\.$`, 'mu'));
-    assert.match(applied.out, new RegExp(`^Next, its one workspace: pnpm os:migrate -- --bootstrap --database ${db.name} --socket \\S+ --slug main --name "My sites"$`, 'mu'));
+    assert.match(applied.out, new RegExp(`^Next, its one workspace: pnpm os:migrate -- --bootstrap --database ${db.name} --socket \\S+ --slug main --name "My assets"$`, 'mu'));
 
     const records = db.admin.sql('SELECT name, sha256, applied_by, applied_at FROM noticeos_migrations.applied ORDER BY version');
     assert.deepEqual(
@@ -596,7 +596,7 @@ test('bootstrap creates the one workspace once, as the owner, after the migratio
     let both;
     try {
       both = [
-        command(['bootstrap', ...db.flags, '--confirm', db.name, '--slug', 'main', '--name', 'My sites']),
+        command(['bootstrap', ...db.flags, '--confirm', db.name, '--slug', 'main', '--name', 'My assets']),
         command(['bootstrap', ...db.flags, '--confirm', db.name, '--slug', 'other']),
       ];
       const waiting = () =>

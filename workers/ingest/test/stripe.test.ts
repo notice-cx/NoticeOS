@@ -179,7 +179,7 @@ describe('runStripeRevenue', () => {
     expect(JSON.stringify(result)).not.toContain(KEY);
   });
 
-  it('collects for no site while two name a Stripe account, since one key reads one account', async () => {
+  it('collects for no asset while two name a Stripe account, since one key reads one account', async () => {
     await connect();
     const { fetchImpl, calls } = stripe();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -196,7 +196,7 @@ describe('runStripeRevenue', () => {
     expect(await stored()).toEqual([]);
   });
 
-  it('skips a site whose Subscriptions entry is declined, and records one currency only', async () => {
+  it('skips an asset whose Subscriptions entry is declined, and records one currency only', async () => {
     await connect();
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const declined = stripe();

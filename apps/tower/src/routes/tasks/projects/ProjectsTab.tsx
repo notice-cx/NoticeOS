@@ -69,7 +69,7 @@ export function ProjectsTab({ scope }: { scope: string | null }) {
   if (spokes.length === 0) {
     return scope === null ? <TaskHubUnavailable /> : (
       <div className="rounded-[10px] border border-border bg-card p-4" data-tasks-unwired="">
-        <EmptyState title="No task project for this site" hint={<Link to={TASK_PROJECTS_PATH} className="text-sm font-medium underline-offset-4 hover:underline">Add a task project</Link>} />
+        <EmptyState title="No task project for this asset" hint={<Link to={TASK_PROJECTS_PATH} className="text-sm font-medium underline-offset-4 hover:underline">Add a task project</Link>} />
       </div>
     );
   }

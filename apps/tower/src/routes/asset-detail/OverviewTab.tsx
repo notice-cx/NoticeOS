@@ -316,7 +316,7 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
   };
   if (measures.length === 0) {
     return (
-      <section aria-label="The site's numbers" data-overview-numbers="empty" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-5 py-4 ring-1 ring-border/70">
+      <section aria-label="The asset's numbers" data-overview-numbers="empty" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-5 py-4 ring-1 ring-border/70">
         <span className="text-sm text-muted-foreground">No numbers reported yet</span>
         <Link to={assetTabPath(id, "sources")} className={quietLink}>Data sources →</Link>
       </section>
@@ -324,7 +324,7 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
   }
   const watches = chartWatches(data, charted?.key ?? null, nowMs);
   return (
-    <section aria-label={`The site's numbers · last ${days} days`} data-overview-numbers="" className="flex flex-col gap-3">
+    <section aria-label={`The asset's numbers · last ${days} days`} data-overview-numbers="" className="flex flex-col gap-3">
       <div className={cn("grid gap-3", COLUMNS[measures.length])}>
         {measures.map((measure) => {
           const role: StatRole = measure.alert ? (measure.alert.severity === "error" ? "problem" : "warning") : ROLE[measure.key];

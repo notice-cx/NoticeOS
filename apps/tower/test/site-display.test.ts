@@ -3,6 +3,8 @@
 // allows, and its Undo is its exact reverse.
 
 import { describe, expect, it } from "vitest";
+import { ASSET_TYPES, assetTypeOf } from "@noticeos/contract/configuration";
+import { configRegister, rowRefusal } from "@shared/config-registers";
 import { ASSET_STATUS } from "@shared/changeset";
 import { readDashboardConfig } from "@shared/dashboard";
 import { cardIcons } from "../worker/site-icons";
@@ -20,7 +22,7 @@ import {
 const site = (id: string, status: string) => ({ id, status });
 
 describe("siteShownOn", () => {
-  it("shows a site of every stage but retired everywhere, and a retired one nowhere", () => {
+  it("shows an asset of every stage but retired everywhere, and a retired one nowhere", () => {
     for (const status of ASSET_STATUS) {
       const on = status !== "retired";
       expect(siteShownOn(site("a.example", status), undefined), status).toEqual({ list: on, tv: on, work: on });
@@ -34,7 +36,7 @@ describe("siteShownOn", () => {
     expect(siteSwitchesSet(site("b.example", "retired"), display)).toEqual({ list: true });
   });
 
-  it("brings a retired site back everywhere when it is restored, when no switch was set", () => {
+  it("brings a retired asset back everywhere when it is restored, when no switch was set", () => {
     expect(siteShownOn(site("a.example", "retired"), {})).toEqual({ list: false, tv: false, work: false });
     expect(siteShownOn(site("a.example", "live"), {})).toEqual({ list: true, tv: true, work: true });
   });
@@ -47,7 +49,7 @@ describe("siteShownOn", () => {
     expect(siteShownOn(site("a.example", "live"), off).list).toBe(false);
   });
 
-  it("narrows a list of sites to one surface, in the order given", () => {
+  it("narrows a list of assets to one surface, in the order given", () => {
     const sites = [site("c.example", "live"), site("a.example", "retired"), site("b.example", "live")];
     expect(sitesShownOn(sites, { "b.example": { tv: false } }, "tv").map((s) => s.id)).toEqual(["c.example"]);
     expect(sitesShownOn(sites, undefined, "list").map((s) => s.id)).toEqual(["c.example", "b.example"]);
@@ -61,14 +63,14 @@ describe("readSiteDisplay", () => {
     expect(readSiteDisplay({})).toEqual({});
   });
 
-  it("refuses anything but sites of true-or-false switches, naming where", () => {
+  it("refuses anything but assets of true-or-false switches, naming where", () => {
     expect(() => readSiteDisplay([])).toThrow(/must be an object/u);
     expect(() => readSiteDisplay({ "a.example": true })).toThrow(/sites\.a\.example must be an object/u);
     expect(() => readSiteDisplay({ "a.example": { tv: "no" } })).toThrow(/must be true or false/u);
     expect(() => readSiteDisplay({ "a.example": { wall: false } })).toThrow(new RegExp(SHOWN_ON.join(", ")));
   });
 
-  it("reads a site's icon addresses beside its switches, and refuses one that is not text", () => {
+  it("reads an asset's icon addresses beside its switches, and refuses one that is not text", () => {
     const row = { tv: false, lightIcon: "https://cdn.example.com/a.svg", darkIcon: "https://cdn.example.com/a-dark.png" };
     expect(readSiteDisplay({ "a.example": row })).toEqual({ "a.example": row });
     expect(siteIconAddresses({ "a.example": row }, "a.example")).toEqual({ light: row.lightIcon, dark: row.darkIcon });
@@ -94,7 +96,7 @@ describe("shownOnChange", () => {
     });
   });
 
-  it("inserts the site's row when it has none", () => {
+  it("inserts the asset's row when it has none", () => {
     expect(shownOnChange({ "b.example": { list: false } }, "a.example", "work", false)).toEqual({
       ops: [{ kind: "file-json-insert", file: "config/tower.json", pointer: "/sites/a.example", value: { work: false } }],
       undo: [{ kind: "file-json-delete", file: "config/tower.json", pointer: "/sites/a.example", expect: { work: false } }],
@@ -158,5 +160,33 @@ describe("cardIcons, the one place an address set here wins", () => {
       dark: null,
     });
     expect(cardIcons(undefined, { light: "icon.png" })).toBeNull();
+  });
+});
+
+
+describe("asset types", () => {
+  it("defaults older assets to website without rewriting their settings", () => {
+    expect(assetTypeOf(undefined)).toBe("website");
+    const unset = readSiteDisplay({ "a.example": { assetType: null } });
+    expect(assetTypeOf(unset?.["a.example"])).toBe("website");
+    expect(siteDisplayChange(unset, "a.example", "assetType", "web-app").ops).toEqual([
+      { kind: "file-json-set", file: "config/tower.json", pointer: "/sites/a.example/assetType", expect: null, value: "web-app" },
+    ]);
+    expect(assetTypeOf(readSiteDisplay({ "a.example": { tv: false } })?.["a.example"])).toBe("website");
+  });
+
+  it("round-trips each supported type beside switches and icons through both validators", () => {
+    for (const assetType of ASSET_TYPES) {
+      const row = { assetType, tv: false, lightIcon: "https://example.com/icon.svg" };
+      const parsed = readSiteDisplay({ "a.example": row });
+      expect(parsed?.["a.example"]).toEqual(row);
+      expect(assetTypeOf(parsed?.["a.example"])).toBe(assetType);
+      expect(rowRefusal(configRegister("site-display"), row)).toBeNull();
+      expect(siteShownOn(site("a.example", "live"), parsed)).toEqual({ list: true, tv: false, work: true });
+    }
+    for (const assetType of ["unknown", "", 42]) {
+      expect(() => readSiteDisplay({ "a.example": { assetType } })).toThrow(/assetType must be one of/);
+      expect(rowRefusal(configRegister("site-display"), { assetType })).not.toBeNull();
+    }
   });
 });

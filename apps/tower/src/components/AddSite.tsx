@@ -1,3 +1,4 @@
+import { ASSET_TYPES, ASSET_TYPE_LABEL, DEFAULT_ASSET_TYPE, isAssetType, type AssetType } from "@noticeos/contract/configuration";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useTowerApi } from '@/lib/browser-context';
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,6 +15,7 @@ import {
   type FieldIssue,
   type PlannedWrites,
 } from "@shared/asset-wizard";
+import { siteDisplayOf } from "@shared/site-display";
 import { RESTORE_HASH } from "@shared/asset-detail-views";
 import type { AssetStatusValue } from "@shared/changeset";
 import { EmptyState } from "@/components/EmptyState";
@@ -37,6 +39,8 @@ import { cn } from "@/lib/utils";
 export type SiteNameSource = "site" | "domain";
 
 export interface AddSitePanelProps {
+  assetType?: AssetType;
+  onAssetTypeChange?: (assetType: AssetType) => void;
   domain: string;
   onDomainChange: (domain: string) => void;
   /** The site as it will be saved, once the domain can be one: its id, its
@@ -65,7 +69,8 @@ export interface AddSitePanelProps {
 }
 
 /**
- * Add a site in one screen. The domain is the only question: the name is read
+ * Add an asset in one screen. The domain supplies its identity; type defaults
+ * to Website. The name is read
  * off it and replaced by the site's own name when it answers, and neither the
  * name nor the favicon ever holds Add up. Add writes through `planWrites`
  * (`lib/asset-operations.ts`) and lands on the new asset's Data sources.
@@ -73,6 +78,8 @@ export interface AddSitePanelProps {
  * after Add is pressed, so a field being typed into does not turn red.
  */
 export function AddSitePanel({
+  assetType = DEFAULT_ASSET_TYPE,
+  onAssetTypeChange,
   domain,
   onDomainChange,
   preview,
@@ -90,9 +97,10 @@ export function AddSitePanel({
 }: AddSitePanelProps) {
   const titleId = useId();
   const fieldId = useId();
+  const typeId = useId();
   const header = (
     <h2 id={titleId} className="m-0 text-base font-semibold leading-tight">
-      Add a site
+      Add an asset
     </h2>
   );
 
@@ -143,6 +151,14 @@ export function AddSitePanel({
         ) : null}
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={typeId} className="text-sm font-medium">Asset type</label>
+        <select id={typeId} className={fieldClass} value={assetType} disabled={adding}
+          onChange={(event) => { if (isAssetType(event.target.value)) onAssetTypeChange?.(event.target.value); }}>
+          {ASSET_TYPES.map((type) => <option key={type} value={type}>{ASSET_TYPE_LABEL[type]}</option>)}
+        </select>
+      </div>
+
       {preview ? (
         <p className="m-0 flex min-w-0 items-center gap-2.5" data-add-site-preview={preview.id}>
           <SiteMark id={preview.mark} name={preview.name} />
@@ -150,7 +166,7 @@ export function AddSitePanel({
             {preview.name}
           </span>
           <span className="shrink-0 font-mono text-xs text-muted-foreground" data-add-site-source={preview.source}>
-            {preview.source === "site" ? "from the site" : "from the domain"}
+            {preview.source === "site" ? "from the asset" : "from the domain"}
           </span>
         </p>
       ) : null}
@@ -168,7 +184,7 @@ export function AddSitePanel({
             silently unavailable. */}
         <Button type="submit" disabled={adding || blocked !== null || domain.trim() === "" || issue !== null} data-add-site-submit>
           {adding ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> : null}
-          {adding ? "Adding" : "Add site"}
+          {adding ? "Adding" : "Add asset"}
         </Button>
         <button
           type="button"
@@ -290,6 +306,7 @@ export function AddSiteSheet({ onClose }: { onClose: () => void }) {
 
   const [domain, setDomain] = useState("");
   const [prelaunch, setPrelaunch] = useState(false);
+  const [assetType, setAssetType] = useState<AssetType>(DEFAULT_ASSET_TYPE);
   const [tried, setTried] = useState(false);
   const [rejected, setRejected] = useState<(FieldIssue & { existingStatus?: AssetStatusValue }) | null>(null);
   const [adding, setAdding] = useState(false);
@@ -344,13 +361,17 @@ export function AddSiteSheet({ onClose }: { onClose: () => void }) {
       return;
     }
     setQueued(false);
-    const draft = siteDraft({ domain, displayName: name, prelaunch });
+    if (assetType !== DEFAULT_ASSET_TYPE && (wall.data === undefined || wall.data.dashboard?.refused?.sites !== undefined)) {
+      setFailed("Asset settings unavailable · try again");
+      return;
+    }
+    const draft = siteDraft({ domain, displayName: name, prelaunch, assetType });
     const first = validateDraft(draft, { existingIds })[0];
     if (first) {
       setRejected(first);
       return;
     }
-    const plan = planWrites(draft, settings.data.sources.rows, settings.data.entities?.rows ?? []);
+    const plan = planWrites(draft, settings.data.sources.rows, settings.data.entities?.rows ?? [], new Date(), siteDisplayOf(wall.data));
     setSent(plan);
     setAdding(true);
     const outcome = await operations.create(plan);
@@ -384,6 +405,8 @@ export function AddSiteSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <AddSitePanel
+      assetType={assetType}
+      onAssetTypeChange={setAssetType}
       domain={domain}
       onDomainChange={(value) => {
         setDomain(value);
@@ -419,7 +442,7 @@ export function AddSiteButton({ children, ...props }: Omit<ButtonProps, "onClick
   return (
     <>
       <Button type="button" {...props} disabled={readOnly || props.disabled} title={readOnly ? DEMO_READ_ONLY : props.title} onClick={() => { if (!readOnly) setOpen(true); }} data-add-site-open>
-        {children ?? "Add a site"}
+        {children ?? "Add an asset"}
       </Button>
       {open && !readOnly ? <AddSiteSheet onClose={() => setOpen(false)} /> : null}
     </>
@@ -434,9 +457,9 @@ export function AddSiteButton({ children, ...props }: Omit<ButtonProps, "onClick
 export function NoSitesYet() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3" data-no-sites>
-      <EmptyState title="No sites yet" />
+      <EmptyState title="No assets yet" />
       <AddSiteButton size="sm">
-        <Plus aria-hidden /> Add a site
+        <Plus aria-hidden /> Add an asset
       </AddSiteButton>
     </div>
   );

@@ -188,7 +188,7 @@ export const WALL_PAYLOAD_INVENTORY = {
   // The MCP `list_properties` tool hands the WHOLE band to agents, so the band
   // keeps fields no screen draws: `bookedDelta` (the last two closed months),
   // `residue`, `daysIn` and `trendGranularity` reach agents only.
-  portfolio: { class: "material-current", placement: "primary-content", destination: "RevenueHero + Home and Sites net; MCP list_properties returns the whole band" },
+  portfolio: { class: "material-current", placement: "primary-content", destination: "RevenueHero + Home and Assets net; MCP list_properties returns the whole band" },
   system: { class: "material-current", placement: "fixed-horizon", destination: "WallTimeline System row and its neutral line + Home System tile" },
   dashboard: { class: "configuration", placement: "primary-content", destination: "WallStrip countdown + the saved Wall layout" },
   assets: { class: "material-current", placement: "primary-content", destination: "SiteRows + WallLoop + WallWork" },

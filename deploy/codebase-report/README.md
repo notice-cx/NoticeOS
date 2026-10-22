@@ -2,7 +2,7 @@
 
 This folder builds the image that measures one repository and writes the
 codebase report, the envelope `POST /api/codebase-report` accepts
-(`CodebaseReport` in `packages/contract/src/codebase.ts`). The site's
+(`CodebaseReport` in `packages/contract/src/codebase.ts`). The asset's
 **Codebase** tab in the Tower shows the stored reports.
 
 Three commands run the same image:
@@ -25,7 +25,7 @@ product), `--ref <name>` (the branch name, for a checkout with no branch
 checked out), `--out <file>`, `--post <ingest address>` and `--measure
 key=value` (repeatable; see
 [Build, test and package-audit results](#build-test-and-package-audit-results)).
-Without `--out` or `--post` it writes the report to standard output. `--post` reads the site's
+Without `--out` or `--post` it writes the report to standard output. `--post` reads the asset's
 token from the environment variable `NOTICEOS_ASSET_TOKEN` and from nowhere
 else, and accepts only an `https` address, or plain `http` on `localhost`.
 
@@ -171,4 +171,4 @@ from the code.
 | `Dockerfile` | The image. `docker build deploy/codebase-report` builds it; the release workflow publishes it as `ghcr.io/notice-cx/noticeos-codebase-report`. |
 | `measure.mjs` | The measurement, Node built-ins only. |
 | `measure.test.mjs` | Its tests: the tool output parsers on fixed strings, the exclusion and test rules, the envelope's limits and path checks. `node --test deploy/codebase-report/measure.test.mjs` runs them; `pnpm test:scripts` runs them through `scripts/codebase-report.test.mjs`. |
-| `sample/example.com.json` | A real report of this repository at one commit, with the site id `example.com`, for fixtures and the Tower's development. |
+| `sample/example.com.json` | A real report of this repository at one commit, with the asset id `example.com`, for fixtures and the Tower's development. |

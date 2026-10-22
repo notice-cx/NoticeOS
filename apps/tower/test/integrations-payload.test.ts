@@ -721,7 +721,7 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     expect(nightlyReportState(NOW_MS, new Date(NOW_MS - 30 * 24 * HOUR).toISOString(), null).effective).toBe("degraded");
   });
 
-  it("keeps a declared site Not using, whatever it has sent", () => {
+  it("keeps a declared asset Not using, whatever it has sent", () => {
     expect(nightlyReportState(NOW_MS, null, null, true).effective).toBe("skipped");
     expect(nightlyReportState(NOW_MS, new Date(NOW_MS - 72 * HOUR).toISOString(), null, true).effective).toBe("skipped");
   });
@@ -1149,7 +1149,7 @@ describe("the L0 egress lane", () => {
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Reference sites that could not be reached",
+      source: "Reference websites that could not be reached",
       // Dated from the first down verdict, so the row ages from when the
       // connection went rather than from the last time the gate re-asked.
       at: "2026-07-04T02:30:00.000Z",
@@ -1159,7 +1159,7 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence[0]!.detail).toContain("www.google.com/generate_204: internal error; reference = 3b71");
     expect(cell.evidence[1]).toMatchObject({
       polarity: "against",
-      source: "Sites not measured",
+      source: "Assets not measured",
       detail: "meadow.example · northwind.example",
     });
   });
@@ -1309,7 +1309,7 @@ describe("the L0 egress lane", () => {
       evidence: [
         {
           polarity: "against",
-          source: "Reference sites that could not be reached",
+          source: "Reference websites that could not be reached",
           detail: "",
           at: "2026-07-04T02:30:00.000Z",
         },
@@ -1377,7 +1377,7 @@ describe("what to unblock next", () => {
       "property-setup",
       "property-setup",
     ]);
-    expect(list[0]).toMatchObject({ key: "uptime", action: "Site down", cells: 1 });
+    expect(list[0]).toMatchObject({ key: "uptime", action: "Asset down", cells: 1 });
     // A per-property install is grouped by the asset, the unit of the visit,
     // and names the lanes.
     expect(list[2]).toMatchObject({ kind: "property-setup", key: "meadow.example", cells: 1 });
@@ -2362,7 +2362,7 @@ describe("loadMeteredCallsToday", () => {
     });
   });
 
-  it("counts unknown prices by window and site without counting collector research twice", async () => {
+  it("counts unknown prices by window and asset without counting collector research twice", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertReport(ctx, "known", "meadow.example", "2026-09-05T02:00:00.000Z", 1.25);
@@ -2459,7 +2459,7 @@ describe("one integration evidence read for compact and detailed views", () => {
 });
 
 // Uptime is the OS's own hourly home-page check.
-describe("uptime — the site's own home-page check", () => {
+describe("uptime — the asset's own home-page check", () => {
   const AT = "2026-07-05T11:40:00.000Z";
   const up: HomeCheck = { observedAt: AT, status: "ok", httpStatus: 200, egressDown: false };
 
@@ -2496,7 +2496,7 @@ describe("uptime — the site's own home-page check", () => {
       effective: "degraded", evidence: [{ detail: "No response" }] });
   });
 
-  it("never accuses a site the OS could not reach the network to check", () => {
+  it("never accuses an asset the OS could not reach the network to check", () => {
     const offline = uptimeState("live", { ...up, status: "unreachable", httpStatus: null, egressDown: true });
     expect(offline.effective).toBe("live");
     expect(offline.evidence[0]!.verification).toBeUndefined();
@@ -2513,7 +2513,7 @@ describe("uptime — the site's own home-page check", () => {
     expect(mergeLane("live", "uptime", { ...NO_EVIDENCE, homeCheck: up }).effective).toBe("live");
   });
 
-  it("finds each site's newest check with one index seek per site", async () => {
+  it("finds each asset's newest check with one index seek per asset", async () => {
     const plan = await ((await createTestStore()).call).read(async (tx) => {
       // An empty table is cheapest to scan; forbidding that shows the plan the
       // index offers once the readings pile up.

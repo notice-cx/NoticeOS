@@ -122,7 +122,7 @@ export async function handleBingAiExport(
     ),
   );
   if (!property) {
-    return json({ error: 'unknown_asset', detail: `${asset} is not a property in the store.` }, 422);
+    return json({ error: 'unknown_asset', detail: `${asset} is not an asset in the store.` }, 422);
   }
 
   const target: DumpTarget = {

@@ -47,7 +47,7 @@ describe("formatAge", () => {
     expect(formatAge(2 * 86_400_000)).toBe("2d");
   });
 
-  it("never yields a word, so no call site can render 'never ago'", () => {
+  it("never yields a word, so no call asset can render 'never ago'", () => {
     // One table over every `formatAge` call site in the app, each with the
     // template it renders and whether that site can be handed a null age: no
     // output of any row contains a word, and "never ago" appears nowhere.
