@@ -25,20 +25,26 @@ function mount(previous = costMonth("2026-08"), current = costMonth(), response?
   return { ...view, fetch, client, changeMonth: (data: FinancialsPayload) => view.rerender(tree(data)) };
 }
 
-function toggle() { fireEvent.click(screen.getByRole("button", { name: "Compare with previous month" })); }
+async function toggle() {
+  const summary = screen.getByText("Compare with previous month", { selector: "summary" });
+  const expanded = summary.getAttribute("aria-expanded") !== "true";
+  fireEvent.click(summary);
+  await waitFor(() => expect(summary).toHaveAttribute("aria-expanded", String(expanded)));
+}
 
 it("makes no initial read, loads through the owner-bound API only on opening, and reuses the normal cache on reopening", async () => {
   const { fetch, client } = mount();
   expect(fetch).not.toHaveBeenCalled();
+  expect(screen.queryAllByRole("button")).toHaveLength(0);
   expect(client.getQueryCache().getAll()).toHaveLength(0);
-  toggle();
+  await toggle();
   await screen.findByRole("list", { name: "Cost changes by source" });
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(String(fetch.mock.calls[0]?.[0])).toContain("/api/financials?period=2026-08");
   const cached = client.getQueryData(["financials", "2026-08"]);
-  toggle();
+  await toggle();
   expect(screen.queryByRole("list", { name: "Cost changes by source" })).toBeNull();
-  toggle();
+  await toggle();
   await screen.findByRole("list", { name: "Cost changes by source" });
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(client.getQueryData(["financials", "2026-08"])).toBe(cached);
@@ -47,7 +53,7 @@ it("makes no initial read, loads through the owner-bound API only on opening, an
 
 it("shows cents, neutral signed changes, valid zero, unknown labels, added/absent sources and currency totals", async () => {
   const { container } = mount();
-  toggle();
+  await toggle();
   const list = await screen.findByRole("list", { name: "Cost changes by source" });
   const rows = within(list).getAllByRole("listitem");
   expect(rows[0]).toHaveTextContent("Example hosting");
@@ -73,7 +79,7 @@ it("labels a closed month and uses previous labels for sources no longer in the 
   const { container } = mount(previous, costMonth("2026-09", { recurringCosts: [], currentPeriod: "2026-10" }));
   // The calendar fact is supplied by the financial read, not the browser clock.
   previous.currentPeriod = "2026-10";
-  toggle();
+  await toggle();
   await screen.findByRole("list", { name: "Cost changes by source" });
   expect(container).toHaveTextContent("Retired subscription");
   expect(container).toHaveTextContent("Recorded costs for two complete calendar months");
@@ -87,7 +93,7 @@ it.each([
   ["empty ledger", costMonth("2026-08", { empty: true }), "No history for August 2026"],
 ] as const)("keeps %s unavailable instead of manufacturing zero", async (_name, previous, message) => {
   mount(previous);
-  toggle();
+  await toggle();
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(message));
   expect(screen.queryByRole("list", { name: "Cost changes by source" })).toBeNull();
 });
@@ -96,7 +102,7 @@ it("shows loading then a failed-read state without inventing amounts", async () 
   let fail!: (response: Response) => void;
   const pending = new Promise<Response>((resolve) => { fail = resolve; });
   mount(undefined, undefined, async () => (await pending).clone());
-  toggle();
+  await toggle();
   expect(await screen.findByRole("status")).toHaveTextContent("Loading August 2026 costs");
   await act(async () => { fail(Response.json({ error: "unavailable" }, { status: 503 })); });
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Previous month unavailable"));
@@ -105,7 +111,7 @@ it("shows loading then a failed-read state without inventing amounts", async () 
 
 it("uses December's key for January and rejects the previous period's data after a month change", async () => {
   const { fetch, changeMonth, client } = mount(costMonth("2025-12", { periods: ["2025-12", "2026-01"] }), costMonth("2026-01"));
-  toggle();
+  await toggle();
   await screen.findByRole("list", { name: "Cost changes by source" });
   expect(client.getQueryData(["financials", "2025-12"])).toBeDefined();
   fetch.mockImplementation(async () => Response.json(costMonth("2026-02", { periods: ["2026-02", "2026-03"] })));
@@ -120,7 +126,7 @@ it("uses December's key for January and rejects the previous period's data after
 it("reuses a financial month already in the owner cache without an additional read", async () => {
   const { fetch, client } = mount();
   client.setQueryData(["financials", "2026-08"], costMonth("2026-08"));
-  toggle();
+  await toggle();
   await screen.findByRole("list", { name: "Cost changes by source" });
   expect(fetch).not.toHaveBeenCalled();
 });
@@ -128,7 +134,7 @@ it("reuses a financial month already in the owner cache without an additional re
 it("hides last-good comparison amounts when a later history read fails", async () => {
   const { client } = mount(undefined, undefined, async () => Response.json({ error: "unavailable" }, { status: 503 }));
   client.setQueryData(["financials", "2026-08"], costMonth("2026-08"));
-  toggle();
+  await toggle();
   await screen.findByRole("list", { name: "Cost changes by source" });
   await act(async () => { await client.invalidateQueries({ queryKey: ["financials", "2026-08"] }); });
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Previous month unavailable"));
@@ -140,7 +146,7 @@ it("shows each currency separately even when the month has no combined currency 
   const previous = costMonth("2026-08", { costLines: [costLine("same", 1.01), costLine("same", 2.02, { currency: "EUR" })] });
   const current = costMonth("2026-09", { costLines: [costLine("same", 1.03), costLine("same", 1.01, { currency: "EUR" })] });
   const { container } = mount(previous, current);
-  toggle();
+  await toggle();
   const list = await screen.findByRole("list", { name: "Cost changes by source" });
   const rows = within(list).getAllByRole("listitem");
   expect(rows[0]).toHaveTextContent("EUR");

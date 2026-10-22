@@ -87,21 +87,19 @@ export function CostComposition({
           );
         })}
       </ul>
-      <div className="border-t border-border/60 pt-2">
-        <button
-          type="button"
+      <details className="border-t border-border/60 pt-2" onToggle={(event) => setComparisonOpen(event.currentTarget.open)}>
+        <summary
           aria-expanded={comparisonOpen}
           aria-controls={comparisonId}
-          onClick={() => setComparisonOpen((open) => !open)}
-          className="flex min-h-11 w-full items-center gap-2 rounded-md text-start text-sm font-medium outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-11 w-full cursor-pointer list-none items-center gap-2 rounded-md text-start text-sm font-medium outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
         >
           <ChevronRight aria-hidden className={cn("size-4 shrink-0", comparisonOpen && "rotate-90")} />
           Compare with previous month
-        </button>
+        </summary>
         <div id={comparisonId}>
           {comparisonOpen ? <CostComparison key={period} period={period} lines={lines} recurringCosts={recurringCosts} /> : null}
         </div>
-      </div>
+      </details>
     </section>
   );
 }

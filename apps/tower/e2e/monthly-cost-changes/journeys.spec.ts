@@ -25,7 +25,7 @@ for (const theme of ["dark", "light"] as const) {
     if (theme === "light") await expect(page.locator("html")).toHaveClass(/light/);
     const panel = page.locator("[data-cost-composition]");
     await expect(panel).toBeVisible();
-    const toggle = panel.getByRole("button", { name: "Compare with previous month" });
+    const toggle = panel.locator("summary").filter({ hasText: "Compare with previous month" });
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(reads).toEqual(["2026-09"]);
     await toggle.focus();
@@ -81,7 +81,7 @@ for (const theme of ["dark", "light"] as const) {
     });
     await page.goto("/financials?period=2026-09");
     const panel = page.locator("[data-cost-composition]");
-    await panel.getByRole("button", { name: "Compare with previous month" }).click();
+    await panel.locator("summary").filter({ hasText: "Compare with previous month" }).click();
     await expect(panel.getByRole("status")).toContainText("Previous month unavailable");
     await expect(panel.getByRole("list", { name: "Cost changes by source" })).toHaveCount(0);
   });
