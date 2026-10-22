@@ -162,15 +162,6 @@ function measure(box: HTMLElement, scale: number): StageGeometry {
     const id = row.getAttribute("data-wall-row") ?? "";
     geometry.tracks.push({ rowId: id, axis: "x", box: at(row), items: itemsOf(row) });
   }
-  geometry.tracks.push({
-    rowId: "canvas",
-    topLevel: true,
-    axis: "y",
-    box: at(canvas),
-    items: [...canvas.querySelectorAll(":scope > [data-wall-row]")].map(row => ({
-      id: row.getAttribute("data-wall-row") ?? "", box: at(row),
-    })),
-  });
   for (const column of canvas.querySelectorAll("[data-wall-column]")) {
     const id = column.getAttribute("data-wall-column") ?? "";
     const inner = [...column.children].filter((child) => child.hasAttribute("data-wall-row"));
@@ -185,6 +176,15 @@ function measure(box: HTMLElement, scale: number): StageGeometry {
       if (items.length > 1) geometry.tracks.push({ rowId: row.getAttribute("data-wall-row") ?? "", axis: "x", box: at(row), items });
     }
   }
+  geometry.tracks.push({
+    rowId: "canvas",
+    topLevel: true,
+    axis: "y",
+    box: at(canvas),
+    items: [...canvas.querySelectorAll(":scope > [data-wall-row]")].map(row => ({
+      id: row.getAttribute("data-wall-row") ?? "", box: at(row),
+    })),
+  });
   return geometry;
 }
 
