@@ -114,6 +114,34 @@ test("Wall full-width divider snaps, keeps minimums and records one Undo", { tag
   await preview.screenshot({ path: testInfo.outputPath("wall-top-level-resized.png") });
 });
 
+test("Wall short full-width rows resize without jumping above a large fill row", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
+  await wallScene(page, "one");
+  await page.goto("/wall/edit");
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  const preview = page.locator("[data-wall-preview]");
+  const rows = preview.locator("[data-wall-canvas] > [data-wall-row]");
+  await expect(rows).toHaveCount(3);
+  const before = await rows.evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height));
+  const handle = preview.locator('[data-wall-divider="y:strip:loop"]');
+  const box = (await handle.boundingBox())!;
+  const scale = Number(await preview.getAttribute("data-wall-preview-scale"));
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 4 * scale, { steps: 6 });
+  await page.mouse.up();
+  await expect(rows.nth(2)).toHaveAttribute("data-wall-row-size", "12");
+  const after = await rows.evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height));
+  expect(Math.abs(after[2]! - before[2]!) / scale).toBeLessThan(3);
+  expect(Math.abs(after[0]! - before[0]!) / scale).toBeLessThan(8);
+  expect(Math.abs(after[1]! - before[1]!) / scale).toBeLessThan(8);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(preview.locator("[data-wall-row-size]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  const undone = await rows.evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height));
+  undone.forEach((height, index) => expect(height).toBeCloseTo(before[index]!, 0));
+  await preview.screenshot({ path: testInfo.outputPath("wall-short-rows-undo.png") });
+});
+
 test("Wall fit warnings follow one and eight sites at the same size", async ({ page }, testInfo) => {
   const resizeErrors: string[] = [];
   page.on("pageerror", error => { if (error.message.includes("ResizeObserver")) resizeErrors.push(error.message); });

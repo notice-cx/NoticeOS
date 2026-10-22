@@ -639,10 +639,14 @@ export function wallStackSizes(
   // Pixels per unit of weight: the other sharing rows' own, or the pair's
   // when nothing else shares, so the pair's weights add up to two.
   const unit = otherWeight > 0 && otherPx > 0 ? otherPx / otherWeight : pair / 2;
-  return {
-    [upper.id]: roundWallWidth(upperPx / unit),
-    [lower.id]: roundWallWidth((pair - upperPx) / unit),
-  };
+  const sharing = [{ row: upper, px: upperPx }, { row: lower, px: pair - upperPx }, ...others];
+  const bounded = sharing.every(({ px }) => px / unit >= WALL_WIDTH_MIN && px / unit <= WALL_WIDTH_MAX);
+  // A small pair above a large fill row can fall below the weight floor.
+  // Rescale the whole sharing run before rounding, keeping its drawn ratios
+  // and using the full grid range for the best pixel precision.
+  const normalizedUnit = bounded ? unit : Math.max(...sharing.map(({ px }) => px)) / WALL_WIDTH_MAX;
+  return Object.fromEntries((bounded ? sharing.slice(0, 2) : sharing)
+    .map(({ row, px }) => [row.id, roundWallWidth(px / normalizedUnit)]));
 }
 
 /**
