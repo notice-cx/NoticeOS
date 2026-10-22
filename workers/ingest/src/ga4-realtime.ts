@@ -9,7 +9,6 @@ import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import type {
   Ga4MinuteRow,
   Ga4PropertyQuota,
-  Ga4QuotaStatus,
   Ga4RealtimeAsset,
   Ga4RealtimePayload,
   Ga4RealtimeQuota,
@@ -32,7 +31,7 @@ import { resolveGoogleCredential } from './google-oauth.js';
 import { Ga4ReadError, ga4ReadFailure } from './ga4-read-errors.js';
 import { cachedGa4Read, ga4CacheScope, type Ga4ReadCache } from './ga4-read-cache.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
-import { parseGa4PropertyQuota, recordGa4Quota } from './ga4-quota.js';
+import { combineGa4Quota, parseGa4PropertyQuota, recordGa4Quota } from './ga4-quota.js';
 import {
   normalizeSignalError,
   SignalError,
@@ -447,7 +446,7 @@ async function collectGa4RealtimeWindows(
     activeUsers30m: values.get(LAST_30_MINUTES)!,
     minutes,
     minuteAt: nowMs,
-    quota: combineRealtimeQuota(
+    quota: combineGa4Quota(
       parseGa4PropertyQuota(record),
       minutesRead.status === 'fulfilled' ? parseGa4PropertyQuota(minutesRead.value) : undefined,
     ),
@@ -498,26 +497,6 @@ export function parseGa4MinuteRows(record: Record<string, unknown> | null): Ga4M
   return [...rows.entries()]
     .sort(([a], [b]) => a - b)
     .map(([minutesAgo, activeUsers]) => ({ minutesAgo, activeUsers }));
-}
-
-/**
- * The realtime budget one reading drew on. Both requests spend the same
- * property's tokens, so `consumed` is their sum, unknown unless both reported
- * it, and `remaining` the lower of what they reported.
- */
-function combineRealtimeQuota(
-  windows: Ga4PropertyQuota | null,
-  minutes: Ga4PropertyQuota | null | undefined,
-): Ga4PropertyQuota | null {
-  const bucket = (a: Ga4QuotaStatus | null | undefined, b: Ga4QuotaStatus | null | undefined): Ga4QuotaStatus | null => {
-    if (!a && !b) return null;
-    const consumed = a?.consumed != null && b?.consumed != null ? a.consumed + b.consumed : null;
-    const reported = [a?.remaining, b?.remaining].filter((value): value is number => value != null);
-    return { consumed, remaining: reported.length ? Math.min(...reported) : null };
-  };
-  const tokensPerDay = bucket(windows?.tokensPerDay, minutes?.tokensPerDay);
-  const tokensPerHour = bucket(windows?.tokensPerHour, minutes?.tokensPerHour);
-  return tokensPerDay || tokensPerHour ? { tokensPerDay, tokensPerHour } : null;
 }
 
 function errorResult(

@@ -19,7 +19,7 @@ function realtimeFetch(status = 200, quota: QuotaFixture = {}, _unused = {}, min
     const body = String(init?.body ?? '');
     calls.push({ url, body });
     if (url === TOKEN_URL) return Response.json({ access_token: 'synthetic-realtime-token', expires_in: 3600 });
-    if (url.endsWith(':runReport')) return Response.json({ dimensionHeaders: [{ name: 'dateHourMinute' }, { name: 'dateRange' }], metricHeaders: [{ name: 'activeUsers' }], rows: [], rowCount: 0, metadata: { timeZone: 'UTC' } });
+    if (url.endsWith(':runReport')) return Response.json({ dimensionHeaders: [{ name: 'dateHourMinute' }], metricHeaders: [{ name: 'activeUsers' }], rows: [], rowCount: 0, metadata: { timeZone: 'UTC' } });
     if (!url.endsWith(':runRealtimeReport')) throw new Error(`unexpected provider read: ${url}`);
     if (status !== 200) return Response.json({ error: { message: 'GA4 access denied' } }, { status });
     if (isMinutesRequest(body)) return Response.json(minutes.body ?? {
@@ -173,7 +173,8 @@ describe('scheduled GA4 realtime collection', () => {
     expect(fixture.calls.filter(call => call.url.endsWith(':runRealtimeReport'))).toHaveLength(4);
     await runGa4Realtime(env, { ...options, nowMs: NOW + 60_000 });
     expect(fixture.calls.filter(call => call.url.endsWith(':runRealtimeReport'))).toHaveLength(8);
-    expect(fixture.calls.filter(call => call.url.endsWith(':runReport'))).toHaveLength(2);
+    // One backfill per property, read as two single-range reports.
+    expect(fixture.calls.filter(call => call.url.endsWith(':runReport'))).toHaveLength(4);
   });
 
   it('serves retained counters and a full-day chart without any provider calls', async () => {
