@@ -12,6 +12,8 @@ export interface AgentsWeekLine {
   /** The site's name; null when the line is about no one site. */
   site: string | null;
   line: string;
+  /** A finished task's id: the line opens that task's page. */
+  task?: string;
 }
 
 export interface AgentsWeek {
@@ -90,7 +92,7 @@ export function agentsWeek(cards: readonly AssetCard[], work: WorkPayload | null
       const evidence = event.evidence?.trim();
       const at = Date.parse(event.at);
       if (!evidence || !Number.isFinite(at)) continue;
-      dated.push({ title: event.title, site: names.get(project.asset) ?? project.name, line: evidenceLine(evidence), at });
+      dated.push({ title: event.title, site: names.get(project.asset) ?? project.name, line: evidenceLine(evidence), task: event.taskId, at });
     }
   }
 

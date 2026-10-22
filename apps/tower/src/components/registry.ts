@@ -1459,7 +1459,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallFactory",
     file: "components/wall/WallFactory.tsx",
     purpose:
-      "The TV's agents widget: building, finished this week and proven as three figures joined by chevrons, read from agentsWeek, how many changes are still being watched, and plain lines about the newest work under the figures, as many whole lines as fit the widget's height. A count nobody can read is a dash, never a zero.",
+      "The TV's agents widget: building, finished this week and proven as three figures joined by chevrons, read from agentsWeek, how many changes are still being watched, and plain lines about the newest work under the figures, as many whole lines as fit the widget's height, a finished task's title linking to /tasks/<id>. A count nobody can read is a dash, never a zero.",
     variants: ["counted with lines", "unknown counts, nothing finished"],
   },
   {

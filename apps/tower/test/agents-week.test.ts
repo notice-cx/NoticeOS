@@ -111,9 +111,10 @@ describe("agentsWeek lines", () => {
       project("unknown.example.com", [closed("Fix the menu", "2026-10-17T08:00:00.000Z", "3f2a1bc · https://example.com/pr/1")]),
     ]);
     const week = agentsWeek(cards, work, NOW);
+    // A finished task's line carries its id, which opens its page; a bet's has none.
     expect(week.latest).toEqual([
-      { title: "Dropped idea", site: "Acorn", line: "duplicate of another task" },
-      { title: "Faster sign-up page", site: "Acorn", line: "Sign-up loads in half the time" },
+      { title: "Dropped idea", site: "Acorn", line: "duplicate of another task", task: "t-Dropped idea" },
+      { title: "Faster sign-up page", site: "Acorn", line: "Sign-up loads in half the time", task: "t-Faster sign-up page" },
       { title: "Latest bet", site: "Acorn", line: "Worked" },
     ]);
     expect(agentsWeek(cards, null, NOW).latest).toEqual([

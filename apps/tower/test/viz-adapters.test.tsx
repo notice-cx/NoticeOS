@@ -102,6 +102,26 @@ describe("work as flow", () => {
 });
 
 
+describe("the timeline's marks from the feed", () => {
+  it("opens a task's page from its mark, and leaves any other mark unlinked", () => {
+    const card = { id: "example.com", displayName: "Example" } as unknown as AssetCard;
+    const line = { at: "2026-10-14T12:00:00.000Z", label: "Task done", asset: "example.com", site: "Example", count: 1, tone: "healthy" as const };
+    const { events } = timelineFromWall([card], [], [
+      { ...line, id: "task:1", kind: "task-done", text: "Faster sign-up page", task: "ex-1w2" },
+      { ...line, id: "deploy:1", kind: "deployed", label: "Deployed", text: "Shipped the header" },
+    ], () => "/assets/example.com");
+    expect(events.map((event) => [event.id, event.href ?? null])).toEqual([["task:1", "/tasks/ex-1w2"], ["deploy:1", null]]);
+  });
+
+  it("names the task an overdue review owes as the problem's task", () => {
+    const card = { id: "example.com", displayName: "Example", status: "live", pulseReceivedAt: null, dataSources: [], latestPanelDate: "2026-10-06",
+      panelReview: { beadId: "ex-4a2", panelDate: "2026-10-06", dueAt: "2026-10-09T00:00:00.000Z", status: "open", closedAt: null, panel: true } } as unknown as AssetCard;
+    const connections: ConnectionReads = { credentials: new Map(), items: [], events: [] };
+    const review = wallIssues({ assets: [card], attention: [], connections, nowMs: NOW }).find((issue) => issue.key === "review-example.com");
+    expect(review?.task).toBe("ex-4a2");
+  });
+});
+
 describe("observed source onset across health, problem rows and timeline spans", () => {
   const retry = "2026-10-14T15:00:00.000Z";
   const onset = "2026-10-09T15:00:00.000Z";
