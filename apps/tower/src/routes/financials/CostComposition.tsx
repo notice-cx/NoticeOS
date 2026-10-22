@@ -1,7 +1,9 @@
 import { sumMoneyFigures } from "@noticeos/contract/money";
-import { useId, type CSSProperties } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import { PROVENANCE_LABEL, costFamilyLabel, type CostProvenance, type FinancialCostLine, type RecurringCost } from "@shared/financials";
-import { integrationLabel } from "@shared/integrations";
+import { ChevronRight } from "lucide-react";
+import { CostComparison } from "./CostComparison";
+import { costSourceLabel } from "./cost-comparison";
 import { StateChip, type StateChipProps, type StatusSubject } from "@/components/StateChip";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { formatMoney, formatPeriodMonthLong } from "@/lib/format";
@@ -26,26 +28,6 @@ function ProvenanceChip({ provenance, subject }: { provenance: CostProvenance; s
 }
 
 /**
- * Where a cost line came from, named the way the operator names it: the
- * subscription's own label, the provider's product name for a metered bill,
- * "Domain orders" for the amortized terms. The store's keys are how the rows
- * are filed, not how anyone says them.
- */
-function costSourceLabel(source: string | null, recurringCosts: readonly RecurringCost[]): string | null {
-  if (source === null) return null;
-  if (source.startsWith("recurring:")) {
-    const id = source.slice("recurring:".length);
-    return recurringCosts.find((cost) => cost.id === id)?.label ?? id;
-  }
-  if (source.startsWith("metered:")) {
-    const id = source.slice("metered:".length);
-    return integrationLabel(id, id);
-  }
-  if (source === "domains") return "Domain orders";
-  return source;
-}
-
-/**
  * The cost side of the month's equation, opened up: each line ranked by what
  * it costs, its length the share of the month's cost, with what it is for and
  * how the figure came to be known. Neutral ink throughout: a cost is not a
@@ -63,6 +45,8 @@ export function CostComposition({
   className?: string;
 }) {
   const id = useId();
+  const comparisonId = useId();
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const total = sumMoneyFigures(lines.map((line) => ({ currency: line.currency, revenue: 0, cost: line.amount, net: -line.amount })));
   const ranked = [...lines].sort((a, b) => b.amount - a.amount);
   return (
@@ -103,6 +87,21 @@ export function CostComposition({
           );
         })}
       </ul>
+      <div className="border-t border-border/60 pt-2">
+        <button
+          type="button"
+          aria-expanded={comparisonOpen}
+          aria-controls={comparisonId}
+          onClick={() => setComparisonOpen((open) => !open)}
+          className="flex min-h-11 w-full items-center gap-2 rounded-md text-start text-sm font-medium outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronRight aria-hidden className={cn("size-4 shrink-0", comparisonOpen && "rotate-90")} />
+          Compare with previous month
+        </button>
+        <div id={comparisonId}>
+          {comparisonOpen ? <CostComparison key={period} period={period} lines={lines} recurringCosts={recurringCosts} /> : null}
+        </div>
+      </div>
     </section>
   );
 }
