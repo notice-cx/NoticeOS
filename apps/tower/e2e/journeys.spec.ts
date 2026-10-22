@@ -3386,10 +3386,10 @@ test("Home guides a new asset to its first number, then becomes the dashboard", 
   await assertNoPageOverflow(page);
 });
 
-/** Multi-asset copy does not apply to a one-asset install. Portfolio remains
- * the collection page's name; its heading is checked separately below. */
+/** Multi-asset comparisons do not apply to a one-asset install. Portfolio
+ * and Asset remain the collection and item labels at every asset count. */
 const MANY_ASSET_WORDS =
-  /\bportfolio\b|\bevery asset\b|\ball assets\b|\beach asset\b|\bacross (?:all |your )?assets\b|\b1 assets\b|\basset by asset\b/gi;
+  /\bevery asset\b|\ball assets\b|\beach asset\b|\bacross (?:all |your )?assets\b|\b1 assets\b|\basset by asset\b/gi;
 
 test("a one-asset install uses singular copy and hides filters with one choice", async ({ page }) => {
   // One connect flow and eleven page loads: close to the default minute on a
@@ -3424,10 +3424,9 @@ test("a one-asset install uses singular copy and hides filters with one choice",
     await page.goto(path);
     await expect(drawn).toBeVisible();
     await expect(page.locator("[data-route-loading]")).toHaveCount(0);
-    let copy = await main.innerText();
+    const copy = await main.innerText();
     if (path === "/assets") {
       await expect(main.getByRole("heading", { level: 1, name: "Portfolio", exact: true })).toBeVisible();
-      copy = copy.replace(/^Portfolio$/m, "");
     }
     for (const word of copy.match(MANY_ASSET_WORDS) ?? []) found.push(`${path}: ${word}`);
   }

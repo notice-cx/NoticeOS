@@ -172,7 +172,7 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   });
   expect(noteChanges).toBe(0);
   expect(resizeErrors).toEqual([]);
-  await expect(sites.locator("[data-wall-too-small-note]")).toContainText("Too short for Assets");
+  await expect(sites.locator("[data-wall-too-small-note]")).toContainText("Too short for Portfolio");
   await page.locator("[data-wall-preview]").screenshot({ path: testInfo.outputPath("wall-fit-eight.png") });
 
   // Narrow the content without changing the row's geometry.

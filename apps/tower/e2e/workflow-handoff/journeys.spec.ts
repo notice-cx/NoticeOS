@@ -82,7 +82,7 @@ test('workflow asset copy and readable outcomes retain captured verdict codes', 
   await page.route('**/api/workflows*', route => route.fulfill({ json: payload }));
   await page.goto('/workflows/pull');
   await expect(page.getByRole('button', { name: /Collect asset reports/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Collect asset reports/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Collect site reports/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Collect asset reports/ }).click();
   await expect(page.getByLabel('Stage details')).toContainText('reports from assets configured');
   await noOverflow(page);
