@@ -517,7 +517,7 @@ describe('validation — the same rules whichever door the write came through', 
 });
 
 describe('probes — one cheap real call, nothing persisted, no secret in the answer', () => {
-  it('asks Bing for its verified assets and stamps the credential', async () => {
+  it('asks Bing for its verified sites and stamps the credential', async () => {
     await putCredential(env, {
       provider: 'bing-webmaster',
       fields: { BING_WEBMASTER_API_KEY: BING_SECRET },
@@ -534,7 +534,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
     expect(probe.ok).toBe(true);
     // A result the card draws, and the same result as one short line.
     expect(probe.result).toEqual({ outcome: 'answered', facts: { sites: 1 } });
-    expect(probe.message).toBe('Answered · 1 asset');
+    expect(probe.message).toBe('Answered · 1 site');
     expect(probe.checkedAt).toBe(new Date(NOW).toISOString());
     // The cheapest authenticated read Bing offers, and only that one.
     expect(calls).toHaveLength(1);

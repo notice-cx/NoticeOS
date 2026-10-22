@@ -395,7 +395,7 @@ describe("buildFinancialsPayload — the period it describes", () => {
     await ledger({ id: 7, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 100 });
     await expect(
       ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 100, state: "reconciled", supersedes: 7 }),
-    ).rejects.toThrow(/same asset, month, kind, family and currency/);
+    ).rejects.toThrow(/same site, month, kind, family and currency/);
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
     expect(payload.periods).toEqual(["2026-07", "2026-08"]);

@@ -986,7 +986,7 @@ describe('hygiene: OS egress outage', () => {
     });
     const flag = await flagFor(EGRESS_DOWN_RULE_ID, 'root-os');
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: null });
-    expect(flag!.message).toBe('OS egress down — 1 properties unmeasured');
+    expect(flag!.message).toBe('OS egress down — 1 asset unmeasured');
 
     // One question for the whole sweep, asked as ourselves and never as the
     // hygiene lane.

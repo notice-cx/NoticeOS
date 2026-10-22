@@ -1650,9 +1650,9 @@ test('an archive it cannot read stops the analysis before any output is replaced
     reportDate: '2026-09-20', collectedAt: '2026-09-21T12:15:00.000Z', pages: [],
   };
   const cases = [
-    ['wrong-site', { ...good, asset: 'northwind.example' }, 'Unsupported or wrong-property signal archive'],
-    ['new-version', { ...good, schemaVersion: 2 }, 'Unsupported or wrong-property signal archive'],
-    ['not-an-object', [good], 'Unsupported or wrong-property signal archive'],
+    ['wrong-site', { ...good, asset: 'northwind.example' }, 'Unsupported or wrong-asset signal archive'],
+    ['new-version', { ...good, schemaVersion: 2 }, 'Unsupported or wrong-asset signal archive'],
+    ['not-an-object', [good], 'Unsupported or wrong-asset signal archive'],
     ['unknown-provider', { ...good, integration: 'matomo' }, 'Malformed signal archive'],
     ['unnamed-report', { ...good, report: 7 }, 'Malformed signal archive'],
   ];

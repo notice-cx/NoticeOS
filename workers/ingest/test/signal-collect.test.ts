@@ -199,7 +199,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
     const unknown = await refused({ asset: 'not-a-property' });
     expect(unknown.status).toBe(422);
     expect(unknown.body).toMatchObject({ error: 'unknown_asset' });
-    expect(unknown.body.detail).toBe('not-a-asset is not an asset in the store.');
+    expect(unknown.body.detail).toBe('not-a-property is not an asset in the store.');
 
     // Seeded, but pre-launch: a different mistake, and a different sentence.
     expect((await refused({ asset: 'ferns.example' })).body.detail).toBe(

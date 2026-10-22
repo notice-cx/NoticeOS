@@ -279,7 +279,7 @@ test('a published panel holds a collection only when it holds every family of th
     panelPublicationGap({ asset: 'shop.example', sources: [] }, landing),
     "the published panel's DataForSEO reaches no day",
   );
-  assert.equal(panelPublicationGap(published('other.example', '2026-09-21'), landing), "the published freshness.json is not this property's");
+  assert.equal(panelPublicationGap(published('other.example', '2026-09-21'), landing), "the published freshness.json is not this asset's");
   // A landing or a panel written before families were named: the day decides.
   assert.equal(panelPublicationGap(published('shop.example', '2026-09-21'), { ...landing, reports: null }), null);
   const unnamed = published('shop.example', '2026-09-21');

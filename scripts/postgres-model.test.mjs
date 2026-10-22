@@ -287,7 +287,7 @@ function loadModelProof(dev) {
   const script = path.join(dev.socketDir, 'proof.sql');
   const lines = ['SET ROLE noticeos_owner;'];
   for (const { ws, slug, site } of PROOF_WORKSPACES) {
-    lines.push(`\\set ws '${ws}'`, `\\set slug ${slug}`, `\\set asset ${site}`, `\\i '${path.join(MODEL_DIR, 'tests', 'fixture.sql')}'`);
+    lines.push(`\\set ws '${ws}'`, `\\set slug ${slug}`, `\\set site ${site}`, `\\i '${path.join(MODEL_DIR, 'tests', 'fixture.sql')}'`);
   }
   lines.push(
     'RESET ROLE;',

@@ -159,7 +159,7 @@ describe('createAsset — what a wizard may bring into being', () => {
       if (result.ok || result.error !== 'validation') throw new Error(`${JSON.stringify(body)} was not refused`);
       expect(result.issues).toHaveLength(1);
       expect(result.issues[0]).toMatchObject({ path, message });
-      expect(result.issues[0]!.message).not.toMatch(/\bproperty\b|\basset\b/i);
+      expect(result.issues[0]!.message).not.toMatch(/\bproperty\b|\bsite\b/i);
     }
     // A domain that is only padded is trimmed, as it always was.
     const padded = await createAsset(env, { id: NEW_ID, displayName: ' Brand New ', domain: ' brandnew.test ' }, NOW);

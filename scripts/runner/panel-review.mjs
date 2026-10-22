@@ -170,7 +170,7 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
     const file = checkoutRelative(installationPath(name, installation), installation);
     return path.isAbsolute(file) ? file : `${osCheckout}/${file}`;
   };
-  const settings = `NoticeOS: Assets → ${landing.asset} → Settings → Tracked search terms`;
+  const settings = `NoticeOS: Portfolio → ${landing.asset} → Settings → Tracked search terms`;
   const exports = { terms: exportPath('serp-panel.json'), roster: exportPath('signal-panels.json') };
   if (landing.panel === false) return collectionReviewDescription(landing, osCheckout, settings, exports);
   // The landing's `queries` field counts provider calls — one per (tracked

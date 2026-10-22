@@ -3386,14 +3386,12 @@ test("Home guides a new asset to its first number, then becomes the dashboard", 
   await assertNoPageOverflow(page);
 });
 
-/** Words that describe a portfolio of several sites, or the code's word for
- * one. The one-site walk below must meet none of them; the Financials by-site
- * table, which has no row to compare with one site, is checked by its own
- * heading below. */
-const MANY_SITE_WORDS =
-  /\bportfolio\b|\bassets?\b|\bevery asset\b|\ball assets\b|\beach asset\b|\bacross (?:all |your )?assets\b|\b1 assets\b|\bsite by asset\b/gi;
+/** Multi-asset copy does not apply to a one-asset install. Portfolio remains
+ * the collection page's name; its heading is checked separately below. */
+const MANY_ASSET_WORDS =
+  /\bportfolio\b|\bassets\b|\bevery asset\b|\beach asset\b|\basset by asset\b/gi;
 
-test("a one-asset install reads as one asset: no portfolio words, and no filter with one choice", async ({ page }) => {
+test("a one-asset install uses singular copy and hides filters with one choice", async ({ page }) => {
   // One connect flow and eleven page loads: close to the default minute on a
   // shared runner.
   test.setTimeout(120_000);
@@ -3426,7 +3424,12 @@ test("a one-asset install reads as one asset: no portfolio words, and no filter 
     await page.goto(path);
     await expect(drawn).toBeVisible();
     await expect(page.locator("[data-route-loading]")).toHaveCount(0);
-    for (const word of (await main.innerText()).match(MANY_SITE_WORDS) ?? []) found.push(`${path}: ${word}`);
+    let copy = await main.innerText();
+    if (path === "/assets") {
+      await expect(main.getByRole("heading", { level: 1, name: "Portfolio", exact: true })).toBeVisible();
+      copy = copy.replace(/^Portfolio$/m, "");
+    }
+    for (const word of copy.match(MANY_ASSET_WORDS) ?? []) found.push(`${path}: ${word}`);
   }
   expect(found).toEqual([]);
 

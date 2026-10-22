@@ -816,7 +816,7 @@ test('unreadable, superseded and missing archives are listed in the register and
   const result = await publish(input, output);
   assert.deepEqual(result.unreadable, [
     { path: 'gsc/page/2026-09-22.json', reason: 'not JSON' },
-    { path: 'gsc/page/2026-09-23.json', reason: 'Unsupported or wrong-property signal archive: gsc/page/2026-09-23.json' },
+    { path: 'gsc/page/2026-09-23.json', reason: 'Unsupported or wrong-asset signal archive: gsc/page/2026-09-23.json' },
   ]);
   assert.deepEqual(result.missing, [{ integration: 'ga4', report: 'traffic-acquisition', reportDate: '2026-09-17' }]);
   const manifest = await readCurrentGeneration(output);

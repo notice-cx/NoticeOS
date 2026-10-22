@@ -3221,7 +3221,7 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
     await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", amount: 50, booking_state: "estimated", recorded_at: "2026-09-01T00:00:00.000Z" });
     await expect(
       insertLedger(ctx, { id: 3, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 310, booking_state: "reconciled", supersedes_id: 2, recorded_at: "2026-09-02T00:00:00.000Z" }),
-    ).rejects.toThrow(/same asset, month, kind, family and currency/);
+    ).rejects.toThrow(/same site, month, kind, family and currency/);
 
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
     expect(p.portfolio.period).toBe("2026-08");
