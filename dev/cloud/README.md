@@ -8,10 +8,12 @@ it does not configure an agent's development host.
 
 The native-tool installer supports Debian 13 on Linux x86_64, running as the
 non-root user who owns the checkout. It requires Bash, Python 3, npm, Git,
-curl, tar, APT, dpkg, util-linux (`flock`), `ldd`, Docker CLI/Compose, access to
-the local Docker socket, and `docker-init` or `tini`. The relocated PostgreSQL
-builds use the Debian 13 system libraries. Other operating systems should use
-the source prerequisites in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+curl, tar, APT, dpkg, util-linux (`flock`), `ldd`, and `docker-init` or
+`tini`. The first install copies PostgreSQL 18 out of its pinned image, so it
+also needs the Docker CLI and the local Docker socket; `--task-store` needs
+both again, with Docker Compose. The relocated PostgreSQL build uses the
+Debian 13 system libraries. Other operating systems should use the source
+prerequisites in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 Preparation and verification require at least 12 GiB free on the affected
 storage before starting. Keep at least 8 GiB available during heavy work.
@@ -25,41 +27,72 @@ those operations and retain Docker registry authentication.
 From the repository root:
 
 ```sh
-bash dev/cloud/install.sh --with-deps --task-store
+bash dev/cloud/install.sh
 ```
 
-This installs relocated PostgreSQL 18 and 17, SQLite and a checksum-verified
-GitHub CLI, then prepares the checkout. PostgreSQL launchers select their own
-native libraries, including in sanitized child environments. The PostgreSQL
-image digests and GitHub CLI release are infrastructure pins in `install.sh`.
-Update them deliberately when the supported native toolchain changes.
-
-`--with-deps` passes through to `journey:install` for Linux browser libraries;
-Playwright may require administrator access for the system packages. Provision
-those packages during image preparation. Omit it when the image already has
-the required libraries. `--task-store` prepares the repository-pinned Beads
-and Dolt tools through `scripts/task-store-test-tools.mjs`; omit it when Docker
-qualification is unnecessary. These tools use only synthetic test resources.
+This installs relocated PostgreSQL 18, SQLite and a checksum-verified GitHub
+CLI, then runs `prepare.sh` with the same arguments. PostgreSQL 18 is the only
+supported major. PostgreSQL launchers select their own native libraries,
+including in sanitized child environments. The PostgreSQL image digest and
+GitHub CLI release are infrastructure pins in `install.sh`. Update them
+deliberately when the supported native toolchain changes.
 
 After changing revisions or dependency inputs, run:
 
 ```sh
-bash dev/cloud/prepare.sh --task-store
+bash dev/cloud/prepare.sh
 ```
+
+By default preparation installs the pinned Node and pnpm and the frozen
+dependencies, and nothing else: it downloads no browser, task tool or Docker
+image. A session adds only what its tests start:
+
+| Argument | Prepares | Downloads |
+| --- | --- | --- |
+| none | Node, pnpm and the frozen dependencies | only packages missing from the caches |
+| `--browser` | the journeys' pinned Chromium, checked with `ldd` | Chromium when its Playwright version is not cached |
+| `--with-deps` | `--browser`, plus Chromium's Linux libraries | system packages; Playwright may need administrator access |
+| `--task-store` | the task and Dolt clients `deploy/compose/Dockerfile` pins, and the Dolt server image | both clients and the image when not cached |
+
+`install.sh` and `codex/setup.sh` pass these arguments through. Provision the
+browser's system packages during image preparation and omit `--with-deps`
+when the image already has them. `--task-store` prepares the tools through
+`scripts/task-store-test-tools.mjs`, which uses only synthetic test resources.
 
 Preparation reads the exact Node version from CI and pnpm from
 `package.json`, and checks the Node engine constraint. Unsupported pin formats
-fail explicitly. The dependency cache includes the lockfile, workspace
-manifests, platform and toolchain. A changed input or failed pnpm preflight
-triggers a separate cache fetch followed by an offline
+fail explicitly. The dependency key includes the lockfile, workspace
+manifests, platform and toolchain. A changed key or failed pnpm preflight
+triggers a separate `pnpm fetch` followed by an offline
 `pnpm install --frozen-lockfile`. Valid modules are reused. The repository's
 `verifyDepsBeforeRun: error` remains enabled.
 
 The installed Playwright package selects Chromium through `journey:install`.
 Its versioned cache is linked at the repository's `JOURNEY_BROWSERS` location
 when no real cache directory already exists. Installation and execution use
-that same location. Preparation checks the browser's
-Linux libraries with `ldd`. Existing real browser-cache directories are retained.
+that same location. Existing real browser-cache directories are retained. A
+browser journey, flow walk or audit needs `--browser` once per checkout and
+again after the pinned Playwright version changes.
+
+## Caches
+
+Each preparation step owns its folders below `NOTICEOS_CLOUD_CACHE`. After it
+succeeds, it removes the download and staging files nothing reads again, and
+keeps what a prepared checkout runs from and the versions earlier revisions
+use.
+
+| Folder | Owner | Kept | Removed after success |
+| --- | --- | --- | --- |
+| `tools/toolchains/<key>` | `prepare.sh` | one Node and pnpm per pin | npm's download cache, `npm/` |
+| `pnpm-store` | `prepare.sh` | one content-addressed store for every revision; `node_modules` hard-links its files | the fetch staging folder, `fetch/`, and per-key stores of earlier setup versions, `pnpm/` |
+| `browsers/playwright-<version>-<arch>` | `prepare.sh --browser` | one folder per Playwright version | nothing; Playwright removes its archives |
+| `task-tools/<key>` | `prepare.sh --task-store` | the two verified binaries and `runtime.env`, one set per pin | the release archives; an attempt without `runtime.env` |
+| `tools/postgres`, `tools/sqlite`, `tools/github-cli` | `install.sh` | the extracted tools | APT lists and packages, the CLI archive and checksums |
+
+A `task-tools/<key>` set is keyed on the pinned clients and server image
+(`node scripts/task-store-test-tools.mjs --key`), so an unrelated Dockerfile
+change reuses it. Docker images belong to the daemon; preparation never
+removes one.
 
 ## Run tests
 
@@ -75,12 +108,14 @@ bash dev/cloud/test.sh --task-store pnpm test:task-store
 
 The launcher never installs dependencies or tools. It requires an explicitly
 prepared checkout, preserves pnpm's dependency checks, and supplies
-`NOTICEOS_TEST_PNPM_EXECUTABLE`, PostgreSQL 18 on `PATH`, the PostgreSQL 17
-selector and `NOTICEOS_REQUIRE_POSTGRES=1`. It sets `umask 022` in the test
-process tree, preserves explicitly private file modes, and runs the command
-under a subreaper. Each invocation has private HOME, XDG and TMPDIR directories
-outside every Git ancestor. Runtime paths are printed and retained for
-inspection; remove only resources whose processes have stopped.
+`NOTICEOS_TEST_PNPM_EXECUTABLE`, PostgreSQL 18 on `PATH` and
+`NOTICEOS_REQUIRE_POSTGRES=1`. `--task-store` adds the prepared task tools'
+variables and stops when `prepare.sh --task-store` has not run for the
+current pins. It sets `umask 022` in the test process tree, preserves
+explicitly private file modes, and runs the command under a subreaper. Each
+invocation has private HOME, XDG and TMPDIR directories outside every Git
+ancestor. Runtime paths are printed and retained for inspection; remove only
+resources whose processes have stopped.
 
 One verification gate runs at a time across processes sharing the state directory,
 with two unit/browser workers by default. `UNIT_TEST_WORKERS` and
@@ -130,18 +165,21 @@ persistent approval policy belong to the host configuration, outside this repo.
 An optional image `install_script`, executed at the repository root, is:
 
 ```sh
-bash dev/cloud/codex/setup.sh --with-deps --task-store
+bash dev/cloud/codex/setup.sh
 ```
 
-The adapter adds an owned Bash profile block pointing to this checkout's
+Add `--browser` (or `--with-deps`) and `--task-store` when the environment's
+tasks run browser or task-store suites, so the image holds those caches. The
+adapter adds an owned Bash profile block pointing to this checkout's
 activation script. It preserves other profile text and refuses symlinked or
 unowned profiles. Default login shells then select the prepared toolchain.
 Raw non-login shells may inherit the platform's original PATH; use the
 launcher or explicitly source `activate.sh` in those contexts.
 
 The corresponding task-start instructions should locate the actual checkout,
-run `bash dev/cloud/prepare.sh --task-store` after checkout, and use the test
-launcher above. Each cloud task is already isolated; use its checkout without
+run `bash dev/cloud/prepare.sh` after checkout, with `--browser` or
+`--task-store` for a task that runs those suites, and use the test launcher
+above. Each cloud task is already isolated; use its checkout without
 creating a Git worktree. Start disposable services with the repository's
 existing test helpers when needed; processes from image preparation do not
 survive a new task. Validate a newly started task after publishing an image.
@@ -167,7 +205,9 @@ process. To remove only this adapter's profile block:
 python3 dev/cloud/codex/shell-hooks.py --remove
 ```
 
-Revert the infrastructure commit to select an earlier setup version. Retain
-runtime output and caches until their owners confirm no process uses them.
-Test results, screenshots, logs and verification receipts remain runtime or CI
-artifacts and are not committed.
+Revert the infrastructure commit to select an earlier setup version. Its
+first preparation downloads its own dependency store again; the versioned
+folders it runs from, including a `tools/postgres17` folder from an earlier
+setup, stay in place. Retain runtime output and caches until their owners
+confirm no process uses them. Test results, screenshots, logs and verification
+receipts remain runtime or CI artifacts and are not committed.

@@ -6,9 +6,12 @@
 // image scripts/dolt-host.mjs pins; and a new empty evidence folder.
 //
 //   node scripts/task-store-test-tools.mjs --out <new folder> >> "$GITHUB_ENV"
+//   node scripts/task-store-test-tools.mjs --key
 //
 // Prints only KEY=VALUE lines on stdout; progress goes to stderr. It downloads
-// and pulls; it contacts no installed task hub and needs no credential.
+// and pulls, keeps only the two verified binaries and the evidence folder, and
+// contacts no installed task hub and needs no credential. --key prints a
+// digest of what --out would fetch on this host, and downloads nothing.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -39,6 +42,14 @@ export function pinnedTaskTools(dockerfile, arch) {
 function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
+
+/** Names one set of prepared tools: the pins for this architecture, the
+ * server image and this preparation's own code, and nothing else of the
+ * Dockerfile, so a cache of them changes only when they do. */
+export function taskToolsKey(dockerfile, arch, preparation = fs.readFileSync(fileURLToPath(import.meta.url))) {
+  const pins = pinnedTaskTools(dockerfile, arch);
+  return createHash('sha256').update(JSON.stringify({ arch, pins, image: DOLT_IMAGE, preparation: createHash('sha256').update(preparation).digest('hex') })).digest('hex');
+}
 async function download(pin, destination) {
   const reply = await fetch(pin.url, { redirect: 'follow' });
   if (!reply.ok) throw new Error(`${pin.url} answered HTTP ${reply.status}`);
@@ -48,10 +59,15 @@ async function download(pin, destination) {
 }
 
 async function main(argv) {
+  const arch = { x64: 'amd64', arm64: 'arm64' }[process.arch];
+  if (argv.includes('--key')) {
+    if (!arch) throw new Error(`no pinned task tools for ${process.arch}`);
+    process.stdout.write(`${taskToolsKey(fs.readFileSync(DOCKERFILE, 'utf8'), arch)}\n`);
+    return;
+  }
   const at = argv.indexOf('--out');
   const out = at === -1 ? undefined : argv[at + 1];
-  if (!out || !path.isAbsolute(out) || fs.existsSync(out)) throw new Error('usage: --out <absolute path of a new folder>');
-  const arch = { x64: 'amd64', arm64: 'arm64' }[process.arch];
+  if (!out || !path.isAbsolute(out) || fs.existsSync(out)) throw new Error('usage: --out <absolute path of a new folder> | --key');
   if (process.platform !== 'linux' || !arch) throw new Error('the pinned task tools are Linux builds');
   const pins = pinnedTaskTools(fs.readFileSync(DOCKERFILE, 'utf8'), arch);
   for (const folder of ['downloads', 'bin', 'evidence']) fs.mkdirSync(path.join(out, folder), { recursive: true, mode: 0o700 });
@@ -59,9 +75,10 @@ async function main(argv) {
   process.stderr.write(`task client ${pins.beads.url}\n`); await download(pins.beads, beadsArchive);
   process.stderr.write(`dolt client ${pins.dolt.url}\n`); await download(pins.dolt, doltArchive);
   execFileSync('tar', ['--no-same-owner', '-xzf', beadsArchive, '-C', path.join(out, 'bin'), 'bd'], { stdio: ['ignore', 'ignore', 'inherit'] });
-  execFileSync('tar', ['--no-same-owner', '-xzf', doltArchive, '-C', path.join(out, 'downloads'), `dolt-linux-${arch}/bin/dolt`], { stdio: ['ignore', 'ignore', 'inherit'] });
-  fs.copyFileSync(path.join(out, 'downloads', `dolt-linux-${arch}`, 'bin', 'dolt'), path.join(out, 'bin', 'dolt'));
+  execFileSync('tar', ['--no-same-owner', '--strip-components=2', '-xzf', doltArchive, '-C', path.join(out, 'bin'), `dolt-linux-${arch}/bin/dolt`], { stdio: ['ignore', 'ignore', 'inherit'] });
   for (const name of ['bd', 'dolt']) fs.chmodSync(path.join(out, 'bin', name), 0o700);
+  // The verified archives are not read again once both binaries are out.
+  fs.rmSync(path.join(out, 'downloads'), { recursive: true });
   process.stderr.write(`dolt server ${DOLT_IMAGE}\n`);
   execFileSync('docker', ['pull', '--quiet', DOLT_IMAGE], { stdio: ['ignore', 'ignore', 'inherit'] });
   const imageId = execFileSync('docker', ['image', 'inspect', '--format', '{{.Id}}', DOLT_IMAGE], { encoding: 'utf8' }).trim();

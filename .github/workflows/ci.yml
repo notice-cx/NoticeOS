@@ -9,7 +9,10 @@ on:
 # workspaces' (ingest, contract, mediavine, postgres), the root script suite,
 # the build with the browser journeys, the UX flow walker, and the task store
 # suites against a real Dolt server. Each gate runs once, in one job; `build`
-# is the verdict branch protection requires.
+# is the verdict branch protection requires. A job installs only what its own
+# suites start: PostgreSQL 18, Chromium in the two browser jobs, and the pinned
+# task client, Dolt client and Dolt server image in the task-store job
+# (scripts/ci-contract.test.mjs).
 jobs:
   # A pull request that changes only documentation no runtime suite reads
   # skips the unit, browser and flow-gate jobs (issue #4,
@@ -40,11 +43,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @noticeos/tower run typecheck
       # The Postgres proofs never skip: PostgreSQL 18's server binaries go on
-      # PATH before the first suite that
-      # starts a server (installed from PGDG if the runner lacks them), and
-      # NOTICEOS_REQUIRE_POSTGRES turns a server that cannot start into a
-      # failure. Every job that starts Postgres repeats this step.
-      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      # PATH before the first suite that starts a server (installed from PGDG
+      # if the runner lacks them; the PGDG script refreshes the package lists
+      # itself), and NOTICEOS_REQUIRE_POSTGRES turns a server that cannot
+      # start into a failure. 18 is the only supported major. Every job that
+      # starts Postgres repeats this step.
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm --filter @noticeos/tower run test
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
@@ -64,7 +68,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r --filter '!@noticeos/tower' typecheck
-      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r --filter '!@noticeos/tower' test
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
@@ -80,11 +84,10 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm test:scripts
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
-          NOTICEOS_TEST_POSTGRES17_BIN: /usr/lib/postgresql/17/bin
 
   browser:
     needs: scope
@@ -99,7 +102,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The journeys' run starts one throwaway Postgres for its fixture servers.
-      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r build
       # The fifth gate is `pnpm test:journeys`, split across this job and the
       # next so neither waits on the other: the isolated browser journeys
@@ -134,7 +137,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # The harness and each flow-gate lane start their own fixture server on
       # a throwaway Postgres.
-      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
       - run: pnpm --filter @noticeos/tower run test:journey-harness
       # The UX flow walker walks every declared operator flow in a browser and
@@ -169,7 +172,7 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"
       - run: pnpm test:task-store
         env:

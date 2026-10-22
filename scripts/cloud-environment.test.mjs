@@ -149,3 +149,60 @@ test('cloud setup rejects tool paths that cannot be used in executable shebangs'
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /must not contain whitespace/);
 });
+
+test('cloud cache cleanup removes only owned paths inside the cloud caches', { skip: !supported }, t => {
+  const { base, env } = fixture(t);
+  const cache = env.NOTICEOS_CLOUD_CACHE;
+  fs.mkdirSync(path.join(cache, 'fetch/key/node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(cache, 'download.tar.gz'), 'archive');
+  const outside = path.join(base, 'outside'); fs.mkdirSync(outside);
+  fs.writeFileSync(path.join(outside, 'kept'), 'kept');
+  fs.symlinkSync(outside, path.join(cache, 'linked'));
+  const discard = (...paths) => run('bash', ['-c', '. "$1" && shift && noticeos_discard "$@"', 'cloud-discard', path.join(cloud, 'paths.sh'), ...paths], env);
+  const removed = discard(path.join(cache, 'fetch'), path.join(cache, 'download.tar.gz'), path.join(cache, 'linked'), path.join(cache, 'missing'));
+  assert.equal(removed.status, 0, removed.stderr);
+  assert.deepEqual(fs.readdirSync(cache), []);
+  assert.equal(fs.readFileSync(path.join(outside, 'kept'), 'utf8'), 'kept', 'removing a link leaves its target');
+  for (const target of [outside, cache, path.join(cache, '..', 'outside', 'kept')]) {
+    const refused = discard(target);
+    assert.notEqual(refused.status, 0, target);
+    assert.match(refused.stderr, /outside the cloud caches/);
+  }
+  assert.ok(fs.existsSync(path.join(outside, 'kept')));
+  assert.ok(fs.existsSync(cache));
+});
+
+test('default cloud preparation reconciles dependencies and fetches no browser, task tool or image', {
+  skip: !supported || process.arch !== 'x64' || process.getuid?.() === 0,
+}, t => {
+  const { base, repo, env } = fixture(t);
+  const free = Number(spawnSync('df', ['-Pk', base], { encoding: 'utf8' }).stdout.split('\n')[1]?.split(/\s+/)[3]);
+  if (!(free >= 12 * 1024 * 1024)) { t.skip('preparation requires 12 GiB free'); return; }
+  // The stub toolchain is this Node, so the fixture pins it.
+  fs.writeFileSync(path.join(repo, '.github/workflows/ci.yml'), `node-version: ${process.versions.node}\n`);
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({ name: 'noticeos', engines: { node: `>=${process.versions.node}` }, packageManager: 'pnpm@12.8.1' }));
+  for (const args of [['init', '-q'], ['add', '-A'], ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '-qm', 'fixture']]) {
+    assert.equal(spawnSync('git', ['-C', repo, ...args]).status, 0);
+  }
+  const pins = requirements(env);
+  const calls = path.join(base, 'calls');
+  const bin = path.join(pins.tools, 'node_modules/.bin'); fs.mkdirSync(bin, { recursive: true });
+  fs.symlinkSync(process.execPath, path.join(bin, 'node'));
+  fs.writeFileSync(path.join(bin, 'pnpm'), `#!/bin/sh\necho "pnpm $*" >> "$CLOUD_TEST_CALLS"\ncase "$1" in --version) echo ${pins.pnpm};; exec) exit 1;; install) mkdir -p node_modules;; esac\n`, { mode: 0o755 });
+  const stubs = path.join(base, 'stubs'); fs.mkdirSync(stubs);
+  for (const name of ['docker', 'npm']) fs.writeFileSync(path.join(stubs, name), `#!/bin/sh\necho "${name} $*" >> "$CLOUD_TEST_CALLS"\nexit 1\n`, { mode: 0o755 });
+  fs.mkdirSync(path.join(env.NOTICEOS_CLOUD_CACHE, 'npm/_cacache'), { recursive: true });
+  const prepare = (...args) => run('bash', [path.join(cloud, 'prepare.sh'), ...args], { ...env, CLOUD_TEST_CALLS: calls, PATH: `${stubs}:${process.env.PATH}` });
+  const usage = prepare('--everything');
+  assert.equal(usage.status, 2);
+  assert.match(usage.stderr, /\[--browser\] \[--with-deps\] \[--task-store\]/);
+  const result = prepare();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /Prepared checkout \w+ with dependency key/);
+  const log = fs.readFileSync(calls, 'utf8');
+  assert.match(log, /^pnpm .* fetch --store-dir \S+\/pnpm-store$/m);
+  assert.match(log, /^pnpm install --offline --frozen-lockfile --store-dir \S+\/pnpm-store$/m);
+  assert.doesNotMatch(log, /journey:install|task-store|^docker |^npm /m);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(repo, 'node_modules/.noticeos-environment.json'))).key, pins.dependencies);
+  assert.deepEqual(fs.readdirSync(env.NOTICEOS_CLOUD_CACHE).sort(), [], 'the npm download cache and the fetch staging folder are gone');
+});

@@ -172,7 +172,9 @@ PR, each after `pnpm install --frozen-lockfile`: the Tower's typecheck and unit
 tests; the other workspaces'; `pnpm test:scripts`; `pnpm -r build` then the
 isolated browser journeys; the journey harness then the UX flow walker (a
 report; it fails only when a flow cannot be walked); and `pnpm test:task-store`
-against a real Dolt server in Docker. The `build` job is the required verdict.
+against a real Dolt server in Docker. Each job installs only what its suites
+start: PostgreSQL 18, Chromium in the two browser jobs, the pinned task and
+Dolt tools in the task-store job. The `build` job is the required verdict.
 A PR that changes only documentation no runtime suite reads (`docs/` and root
 Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
 `docs` workflow builds the asset whenever `docs/` changes; a push to `main` runs
@@ -318,8 +320,8 @@ branch someone else has.
 
 - Toolchain: Node 24.21.0 LTS and pnpm 12.8.1, declared in `package.json` and CI.
 - CI: the six jobs above; PostgreSQL 18 server binaries and
-  `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory; PostgreSQL 17
-  binaries back the cross-major restore fixture.
+  `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory. PostgreSQL 18
+  is the only supported major; no other major is installed or qualified.
 - Installation paths: `pnpm os:setup` provisions a new installation as the
   Compose stack in its own folder, and the image's launcher
   (`docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup`)

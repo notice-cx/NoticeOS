@@ -13,7 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { runBackup } from './host-backup.mjs';
 import { DEV_DATABASE, MODEL_DIR, PostgresUnavailable, ROLES_SQL, checkedSession, findPostgres, inWorkspace, processAlive, psqlEnvironment } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { applyMigrations } from './postgres-migrate.mjs';
+import { applyMigrations, migrationStatus } from './postgres-migrate.mjs';
 
 function fingerprint(db) {
   const tables = db.sql(`SELECT format('%I.%I', n.nspname, c.relname) AS name
@@ -39,7 +39,7 @@ function fingerprint(db) {
   };
 }
 
-test('the dated PG/R2 backup independently restores counts, identities, schema, sealed credentials and app reads/writes', async (t) => {
+test('the dated PG/R2 backup independently restores counts, identities, schema, sealed credentials, ledger rules, workspace isolation and app reads/writes', async (t) => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-pg-backup-'));
   const tools = findPostgres();
   let source, recovered;
@@ -69,6 +69,9 @@ test('the dated PG/R2 backup independently restores counts, identities, schema, 
   const seed = path.join(home, 'seed.sql');
   await fs.writeFile(seed, 'SET ROLE noticeos_owner;\n' + fixture.replace("repeat('a', 64), 1024", `'${archiveHash}', 1024`));
   source.file(seed, { vars: { ws: workspaceId, slug: 'backup', site: 'backup.example' } });
+  // An amount past 2^53 and non-ASCII text, which a lossy dump would change.
+  inWorkspace(source, workspaceId, `INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor, currency, booking_state, note)
+    VALUES (:'workspace_id', 'revenue', 'backup.example', '2026-09-01', 'ads', 9007199254740993, 'USD', 'reconciled', 'Café Ω 中')`);
   const rowCounts = fingerprint(source).tables;
   assert.ok(Object.values(rowCounts).every(row => Number(row.rows) > 0), 'the Postgres fixture exercises every table');
   const connectionId = randomUUID();
@@ -203,4 +206,16 @@ test('the dated PG/R2 backup independently restores counts, identities, schema, 
   assert.equal(read.length, 1);
   assert.ok(Number(read[0].annotation_number) > 0);
   assert.deepEqual(inWorkspace(app, randomUUID(), '', { read: 'SELECT asset_id FROM noticeos.assets' }), [], 'restored RLS still isolates workspaces');
+
+  // The restored ledger keeps its rules: exact values, immutable entries, the
+  // workspace's own numbering, and no rows for another workspace.
+  assert.ok(migrationStatus(restored).migrations.every(migration => migration.state === 'applied'));
+  const ledger = 'SELECT entry_number::text AS number, amount_minor::text AS amount, note FROM noticeos.ledger_entries ORDER BY entry_number';
+  const entries = inWorkspace(app, workspaceId, '', { read: ledger });
+  assert.deepEqual(entries.filter(entry => entry.note === 'Café Ω 中').map(entry => entry.amount), ['9007199254740993']);
+  assert.throws(() => inWorkspace(app, workspaceId, 'UPDATE noticeos.ledger_entries SET amount_minor = 1'), /immutable|permission denied/u);
+  const numbered = inWorkspace(app, workspaceId, `INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor, currency, booking_state)
+    VALUES (:'workspace_id', 'cost', 'backup.example', '2026-09-01', 'infra', 1, 'USD', 'reconciled')`, { read: 'SELECT max(entry_number)::text AS number FROM noticeos.ledger_entries' });
+  assert.deepEqual(numbered, [{ number: String(Math.max(...entries.map(entry => Number(entry.number))) + 1) }], 'the restored counter hands out the next entry number');
+  assert.deepEqual(inWorkspace(app, randomUUID(), '', { read: ledger }), [], 'another workspace sees none of the restored ledger');
 });

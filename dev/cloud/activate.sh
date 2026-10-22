@@ -9,7 +9,6 @@ fi
 export PATH="$noticeos_toolchain/node_modules/.bin:$NOTICEOS_CLOUD_TOOLS/bin:$NOTICEOS_CLOUD_TOOLS/postgres/usr/lib/postgresql/18/bin:$NOTICEOS_CLOUD_TOOLS/sqlite/root/usr/bin:$PATH"
 export LD_LIBRARY_PATH="$NOTICEOS_CLOUD_TOOLS/postgres/usr/lib/x86_64-linux-gnu:$NOTICEOS_CLOUD_TOOLS/sqlite/root/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export NOTICEOS_TEST_PNPM_EXECUTABLE="$noticeos_toolchain/node_modules/pnpm/pnpm"
-export NOTICEOS_TEST_POSTGRES17_BIN="$NOTICEOS_CLOUD_TOOLS/postgres17/usr/lib/postgresql/17/bin"
 export npm_config_cache="$NOTICEOS_CLOUD_CACHE/npm"
 export PNPM_HOME="$NOTICEOS_CLOUD_CACHE/pnpm-home"
 export WRANGLER_SEND_METRICS=false
