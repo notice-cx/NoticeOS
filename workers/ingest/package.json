@@ -18,9 +18,9 @@
     "@noticeos/postgres": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.18.0",
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
-    "wrangler": "^4.107.0"
+    "wrangler": "^4.151.1"
   }
 }
