@@ -705,6 +705,19 @@ describe("heights", () => {
     expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Sites squeezed into a fixed-height row");
   });
 
+  it("rescales sharing weights before a short top-level pair would hit the weight bounds", () => {
+    const heights = [104, 128, 784];
+    const sizes = wallStackSizes(DEFAULT_WALL_LAYOUT, heights, 0, 104 / 232);
+    expect(sizes).toEqual({ strip: 1.6, loop: 1.95, body: 12 });
+    const total = Object.values(sizes).reduce((sum, weight) => sum + weight, 0);
+    DEFAULT_WALL_LAYOUT.rows.forEach((row, index) => {
+      expect(Math.abs(sizes[row.id]! / total * 1016 - heights[index]!)).toBeLessThan(1);
+    });
+    const resized = run(start(DEFAULT_WALL_LAYOUT), { type: "sizes", sizes });
+    expect(drawable(resized.layout)).toBe(true);
+    expect(run(resized, { type: "undo" }).layout).toEqual(DEFAULT_WALL_LAYOUT);
+  });
+
   it("knows when a widget's height is given rather than its content's", () => {
     expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "sites")).toBe(true);
     expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "timeline")).toBe(false);
