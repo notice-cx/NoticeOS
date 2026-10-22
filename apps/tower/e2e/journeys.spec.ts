@@ -3389,7 +3389,7 @@ test("Home guides a new asset to its first number, then becomes the dashboard", 
 /** Multi-asset copy does not apply to a one-asset install. Portfolio remains
  * the collection page's name; its heading is checked separately below. */
 const MANY_ASSET_WORDS =
-  /\bportfolio\b|\bassets\b|\bevery asset\b|\beach asset\b|\basset by asset\b/gi;
+  /\bportfolio\b|\bevery asset\b|\ball assets\b|\beach asset\b|\bacross (?:all |your )?assets\b|\b1 assets\b|\basset by asset\b/gi;
 
 test("a one-asset install uses singular copy and hides filters with one choice", async ({ page }) => {
   // One connect flow and eleven page loads: close to the default minute on a
