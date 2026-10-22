@@ -44,6 +44,26 @@ export function parseGa4PropertyQuota(record: unknown): Ga4PropertyQuota | null 
   return { tokensPerDay, tokensPerHour };
 }
 
+/**
+ * The budget two requests of one reading drew on. Both spend the same
+ * property's tokens, so `consumed` is their sum, unknown unless both reported
+ * it, and `remaining` the lower of what they reported.
+ */
+export function combineGa4Quota(
+  first: Ga4PropertyQuota | null,
+  second: Ga4PropertyQuota | null | undefined,
+): Ga4PropertyQuota | null {
+  const bucket = (a: Ga4QuotaStatus | null | undefined, b: Ga4QuotaStatus | null | undefined): Ga4QuotaStatus | null => {
+    if (!a && !b) return null;
+    const consumed = a?.consumed != null && b?.consumed != null ? a.consumed + b.consumed : null;
+    const reported = [a?.remaining, b?.remaining].filter((value): value is number => value != null);
+    return { consumed, remaining: reported.length ? Math.min(...reported) : null };
+  };
+  const tokensPerDay = bucket(first?.tokensPerDay, second?.tokensPerDay);
+  const tokensPerHour = bucket(first?.tokensPerHour, second?.tokensPerHour);
+  return tokensPerDay || tokensPerHour ? { tokensPerDay, tokensPerHour } : null;
+}
+
 function parseQuotaStatus(value: unknown): Ga4QuotaStatus | null {
   const status = asRecord(value);
   if (!status) return null;
