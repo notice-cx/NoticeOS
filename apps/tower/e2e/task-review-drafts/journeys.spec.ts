@@ -86,6 +86,9 @@ test('task review drafts retain uncertain sends and newer revisions while a requ
     await expect(page.getByRole('button', { name: 'Comment', exact: true })).toBeEnabled();
     expect(calls).toBe(1);
     await expect(comment).toHaveValue('Synthetic note 1');
+    // Moving away lets the mobile toast dismiss before it covers the retry.
+    await page.mouse.move(0, 0);
+    await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Comment', exact: true }).click();
     await expect.poll(() => calls).toBe(2);
     await comment.fill('Synthetic note 2');
@@ -98,6 +101,8 @@ test('task review drafts retain uncertain sends and newer revisions while a requ
     await expect(page.getByRole('button', { name: 'Comment', exact: true })).toBeEnabled();
     await expect(comment).toHaveValue('Synthetic note 2');
     expect(calls).toBe(2);
+    await page.mouse.move(0, 0);
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
     await page.getByRole('button', { name: 'Comment', exact: true }).click();
     await expect(comment).toHaveValue('');
     expect(calls).toBe(3);
