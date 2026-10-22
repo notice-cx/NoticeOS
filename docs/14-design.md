@@ -909,6 +909,9 @@ one; on the light desk the light icon. Where the page declares no icon for
 the surface, the asset's `/favicon.ico` is drawn, and where that does not load
 either, the asset's initial on a muted tile. The phone layout is the same
 components at a responsive breakpoint, never a separate mobile set. The Wall
-renders no interactive controls beyond one small muted link home, and its
+renders no buttons. Its links are one small muted link home and the tasks it
+names: a task line in the live feed, and the top decision, each later
+decision's mark and each task in progress in "Next up", each open
+`/tasks/<id>` and draw no underline or colour of their own on the TV. Its
 event marks open read-only explanations that a viewer who only watches never
 needs to open.

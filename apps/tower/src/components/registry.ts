@@ -1459,7 +1459,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "NextUp",
     file: "components/wall/NextUp.tsx",
     purpose:
-      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its asset, age and what it holds, the next four as asset marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
+      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its asset, age and what it holds, the next four as asset marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. The top decision's title, each later mark and each agent row link to /tasks/<id>; it has no buttons. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
     variants: ["decisions with the agents now", "nothing waits, nothing in progress", "tasks unknown"],
   },
   {
