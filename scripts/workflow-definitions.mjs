@@ -14,7 +14,7 @@ const workerSteps = {
         action('connection-counts', 'Record connection counts', 'Records today’s System health connection counts.', 'storage', ['freshness', 'uptime']),
         action('source-history', 'Record source history', 'Records today’s state and freshness of each data source.', 'storage', ['freshness', 'uptime'])],
     notifications: [action('notify', 'Deliver notifications', 'Delivers new error alerts and data-source failures, with retries for failed deliveries.')],
-    pull: [action('pull', 'Collect asset reports', 'Retrieves the reports from assets configured for pull collection.', 'collection'), action('bing', 'Refresh Bing signals', 'Retrieves Bing search signals for connected assets.', 'collection')],
+    pull: [action('pull', 'Collect site reports', 'Retrieves the reports from sites configured for pull collection.', 'collection'), action('bing', 'Refresh Bing signals', 'Retrieves Bing search signals for connected sites.', 'collection')],
     'asset-zero': [action('report', 'Record the OS report', 'Summarizes the OS’s own operating evidence.', 'storage')],
     'watch-windows': [action('outcomes', 'Evaluate outcome windows', 'Reads completed windows using the existing outcome rules.', 'check')],
     hygiene: [action('hygiene', 'Check search accessibility', 'Checks robots access, sitemaps, indexing directives, served page structure and security headers.', 'check'),
@@ -22,9 +22,9 @@ const workerSteps = {
     clarity: [action('clarity', 'Collect behavior summaries', 'Retrieves available Clarity exports within provider limits.', 'collection')],
     crux: [action('crux', 'Read page speed', 'Reads each site’s Chrome UX Report page speed for phones and desktops.', 'collection')],
     'signal-dumps': [action('archives', 'Archive traffic and search', 'Stores the available Google and Bing reporting archives.', 'collection'), action('search-recovery', 'Recover missed search intelligence', 'Re-collects reports an internet outage skipped.', 'collection')],
-    posthog: [action('product', 'Archive product analytics', 'Stores each connected asset’s PostHog report families.', 'collection')],
+    posthog: [action('product', 'Archive product analytics', 'Stores each connected site’s PostHog report families.', 'collection')],
     dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
-    counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
+    counters: [action('counters', 'Refresh site counters', 'Retrieves configured public site counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
 };
 // What a local job's one stage does, where a hosted service runs it too and
 // "this machine" would not be true.
