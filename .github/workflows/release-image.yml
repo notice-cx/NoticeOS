@@ -93,7 +93,7 @@ jobs:
           docker buildx imagetools create --tag "$REPOSITORY:$COMMIT" --tag "$REPOSITORY:main" \
             --annotation "index:org.opencontainers.image.revision=$COMMIT" "$REPOSITORY:$COMMIT-amd64" "$REPOSITORY:$COMMIT-arm64"
           echo "digest=$(docker buildx imagetools inspect "$REPOSITORY:$COMMIT" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ steps.repository.outputs.name }}
           subject-digest: ${{ steps.index.outputs.digest }}
@@ -169,7 +169,7 @@ jobs:
           docker buildx imagetools create --tag "$REPOSITORY:$COMMIT" --tag "$REPOSITORY:main" \
             --annotation "index:org.opencontainers.image.revision=$COMMIT" "$REPOSITORY:$COMMIT-amd64" "$REPOSITORY:$COMMIT-arm64"
           echo "digest=$(docker buildx imagetools inspect "$REPOSITORY:$COMMIT" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ steps.repository.outputs.name }}-codebase-report
           subject-digest: ${{ steps.index.outputs.digest }}
