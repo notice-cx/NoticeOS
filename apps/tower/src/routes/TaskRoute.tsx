@@ -80,7 +80,8 @@ import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surf
 import { useAskActions } from "@/routes/tasks/ask-actions";
 import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
 import { GuideText, MarkdownText, TaskTextRefsProvider, taskListItems, toggleTaskListLine } from "@/routes/tasks/task-markdown";
-import { taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
+import { TaskRow, taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
+import { TASK_BLOCKING_DEPENDENCIES } from "@noticeos/contract/task-gate";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 import { readTaskCard, readTaskCardShipped, scoreTaskCard, type TaskCard } from "@noticeos/contract/task-card";
 import { TASK_CHANGE_CLASSES, TASK_CHANGE_CLASS_LABELS, isTaskChangeClass, readTaskChangeClass } from "@noticeos/contract/task-change-class";
@@ -171,6 +172,7 @@ export function TaskRoute() {
     : null;
   const blockers = task ? blockerRows(task, board.data?.tasks ?? [], actors) : [];
   const blocked = task ? blockedByThis(board.data?.tasks ?? [], task.id).map((other) => taskRowFacts(other, actors)) : [];
+  const related = task ? relatedRows(task, board.data?.tasks ?? [], actors) : [];
   const textRefs = useMemo(() => ({
     prefixes: [...new Set([detail.data?.prefix, ...(snapshot.data?.projects ?? []).map((row) => row.prefix)].filter((prefix): prefix is string => Boolean(prefix)))],
     taskHref,
@@ -311,6 +313,7 @@ export function TaskRoute() {
               {blockers.length > 0 || blocked.length > 0 ? (
                 <Dependencies task={task} blockers={blockers} blocked={blocked} />
               ) : null}
+              {related.length > 0 ? <Related rows={related} /> : null}
               {epicView ? <EpicTasks view={epicView} className={CONTENT_SECTION} /> : null}
               <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
             </Card>
@@ -1376,6 +1379,22 @@ function Dependencies({ task, blockers, blocked }: { task: LiveTask; blockers: T
   );
 }
 
+/** Tasks linked to this one that do not block it. They are rows, not cards in
+ * the graph above, because neither end of the link waits on the other. */
+function Related({ rows }: { rows: TaskRowFacts[] }) {
+  const taskHref = useTaskHref();
+  return (
+    <section className={CONTENT_SECTION} data-task-related="">
+      <SectionLabelRow title="Related" caption={formatInt(rows.length)} />
+      <ul className="-mx-2 flex flex-col">
+        {rows.map((row) => (
+          <TaskRow key={row.id} task={row} href={taskHref(row.id)} marks={{ "data-related-task": row.id }} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // --- Saving a fact: one write, and the toast carries the way back -----------
 
 type FieldSave = (input: { label: string; edit: TaskEdit; undo?: TaskEdit }) => Promise<boolean>;
@@ -1697,15 +1716,43 @@ function taskRowFacts(task: LiveTask, actors: readonly TaskActor[] | undefined):
   };
 }
 
-/** What this task waits on: its own read names each edge, and the board
- * read, where it holds the other task, adds its priority and holder. */
+function blocking(dep: TaskDependency): boolean {
+  return TASK_BLOCKING_DEPENDENCIES.includes(dep.type);
+}
+
+/** Related, discovered-from and any type this build has never heard of: a link
+ * that neither keeps work from being ready nor names the parent epic. */
+function relating(dep: TaskDependency): boolean {
+  return dep.type !== "parent-child" && !blocking(dep);
+}
+
+/** The edge's row: the board read, where it holds the other task, adds its
+ * priority and holder to what the task's own read names. */
+function edgeRow(dep: TaskDependency, known: readonly LiveTask[], actors: readonly TaskActor[] | undefined): TaskRowFacts {
+  const other = known.find((row) => row.id === dep.id);
+  return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status };
+}
+
+/** What this task waits on. */
 function blockerRows(task: LiveTask, known: readonly LiveTask[], actors: readonly TaskActor[] | undefined): TaskRowFacts[] {
-  return task.dependencies
-    .filter((dep) => dep.type !== "parent-child")
-    .map((dep: TaskDependency) => {
-      const other = known.find((row) => row.id === dep.id);
-      return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status };
-    });
+  return task.dependencies.filter(blocking).map((dep) => edgeRow(dep, known, actors));
+}
+
+/** Tasks linked to this one without blocking it, from either end of the link,
+ * each once: its own links first, then those other tasks on the board make to it. */
+function relatedRows(task: LiveTask, known: readonly LiveTask[], actors: readonly TaskActor[] | undefined): TaskRowFacts[] {
+  const own = task.dependencies.filter(relating).map((dep) => edgeRow(dep, known, actors));
+  const theirs = known
+    .filter((other) => other.dependencies.some((dep) => dep.id === task.id && relating(dep)))
+    .map((other) => taskRowFacts(other, actors));
+  const seen = new Set<string>([task.id]);
+  const rows: TaskRowFacts[] = [];
+  for (const row of [...own, ...theirs]) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    rows.push(row);
+  }
+  return rows;
 }
 
 /** Who holds work in a project's read, each name once. */
@@ -1716,9 +1763,7 @@ function holders(rows: readonly BoardTask[]): string[] {
 /** What this task blocks. `bd show` reports only the edges pointing out of a
  * task, so the reverse direction is read off the project's board. */
 function blockedByThis(tasks: LiveTask[], id: string): LiveTask[] {
-  return tasks.filter((task) =>
-    task.dependencies.some((dep) => dep.id === id && dep.type !== "parent-child"),
-  );
+  return tasks.filter((task) => task.dependencies.some((dep) => dep.id === id && blocking(dep)));
 }
 
 function epicOf(epics: LiveEpic[] | null, parent: string | null): LiveEpic | null {
