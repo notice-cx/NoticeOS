@@ -449,7 +449,7 @@ needsPostgres("buildWallFeed", () => {
     expect(filed).toEqual([
       {
         id: "task-filed:mn-7", at: at("19:11"), kind: "task-filed", label: "New task", asset: "medley.example.com",
-        site: "Medley", text: "Catalog import skips closed stores", count: 1, tone: "neutral",
+        site: "Medley", text: "Catalog import skips closed stores", count: 1, tone: "neutral", task: "mn-7",
       },
     ]);
     await snapshot(pg.call, at("19:28"), {}, { "unknown.example.com": [["un-1", "Stray task", at("19:27")]] });
@@ -473,6 +473,14 @@ needsPostgres("buildWallFeed", () => {
       ["task-filed:mn-7", "New task", undefined, undefined, "Catalog import skips closed stores"],
     ]);
     expect("who" in filed[2]!).toBe(false);
+  });
+
+  it("gives every task line its task's id, so the line opens the task page, and no other line one", async () => {
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    const lines = items.filter((item) => item.kind.startsWith("task-"));
+    expect([...new Set(lines.map((item) => item.kind))]).toEqual(expect.arrayContaining(["task-done", "task-claimed", "task-filed"]));
+    for (const item of lines) expect(item.task).toBe(item.id.split(":")[1]);
+    expect(items.filter((item) => !item.kind.startsWith("task-") && "task" in item)).toEqual([]);
   });
 
   it("names who claimed and closed a task, with the model and the close's evidence", async () => {
@@ -516,7 +524,7 @@ needsPostgres("buildWallFeed", () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     expect(items.filter((item) => item.kind === "task-chosen")).toEqual([{
       id: `task-chosen:md-2:${at("17:40")}`, at: at("17:40"), kind: "task-chosen", label: "Chosen", asset: "recipes.example.com", site: "Recipes",
-      text: "Pick the recipe card layout", count: 1, tone: "info", who: "Dana", model: null, evidence: null, choice: "(b) Two columns",
+      text: "Pick the recipe card layout", count: 1, tone: "info", who: "Dana", model: null, evidence: null, choice: "(b) Two columns", task: "md-2",
     }]);
     // A pick the snapshot cannot name an option for draws no line.
     await snapshot(pg.call, at("19:28"), {}, {}, {

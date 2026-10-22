@@ -82,6 +82,8 @@ export interface WallFeedItem {
   evidence?: string | null;
   /** A pick's option as a sentence names it: the line reads "Dana chose (b) Keep both on …". */
   choice?: string;
+  /** A task line's task id: the line opens that task's page. */
+  task?: string;
 }
 
 export interface WallFeedPayload {
