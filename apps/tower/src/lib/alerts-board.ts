@@ -177,7 +177,7 @@ export function alertNormal(facts: Pick<AttentionItem, "ruleId" | "ruleInputs" |
     const tightest = known.sort((a, b) => Number(a.remaining) / Number(a.threshold) - Number(b.remaining) / Number(b.threshold))[0];
     if (!tightest) return null;
     const threshold = Number(tightest.threshold);
-    return { value: Number(tightest.remaining), low: threshold, high: threshold * 5,
+    return { value: Number(tightest.remaining), low: threshold,
       label: "GA4 tokens left", unit: "tokens", bad: "below",
       level: { value: threshold, label: `warns at ${threshold.toLocaleString("en-US")} tokens` } };
   }

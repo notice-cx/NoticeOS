@@ -119,7 +119,8 @@ describe("alertNormal — a reading against its rule's own normal", () => {
       ruleId: "ga4-quota-pressure",
       ruleInputs: { pressured: [{ remaining: 30_000, threshold: 40_000 }, { remaining: 3_000, threshold: 8_000 }] },
     }));
-    expect(quota).toMatchObject({ low: 8_000, high: 40_000, bad: "below" });
+    expect(quota).toMatchObject({ low: 8_000, bad: "below" });
+    expect(quota!.high).toBeUndefined();
     expect(quota!.value).toBe(3_000);
   });
 });
