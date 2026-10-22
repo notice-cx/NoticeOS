@@ -388,11 +388,30 @@ describe('workflow history evidence', () => {
       expect((await failing(now)).workflows.find((w) => w.id === 'pull')!.runs.map((run) => run.trigger)).toEqual([undefined]);
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
+  it('merges complete manual calendar counts independently of the 200-detail cap and keeps unavailable coverage unknown', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'workflow-manual-counts-'));
+    try {
+      await mkdir(path.join(dir, '.local/logs'), { recursive: true });
+      await writeFile(path.join(dir, '.local/logs/job-runs.jsonl'), '');
+      const at = new Date(now - 5 * 86_400_000).toISOString();
+      const manual = { runs: Array.from({ length: 200 }, () => pressed), dailyHistory: { timeZone: 'UTC',
+        from: new Date(now - 30 * 86_400_000).toISOString(), through: new Date(now).toISOString(),
+        buckets: [{ job: pressed.job, at: at.slice(0, 10) + 'T00:00:00.000Z', succeeded: 47, failed: 1, skipped: 0, firstRunAt: at, runAt: at }] } };
+      const read = createWorkflowHistoryReader(dir, async () => manual);
+      const view = await read(now);
+      const own = view.workflows.find(workflow => workflow.id === 'pull')!;
+      const day = own.dailyHistory!.buckets.find(bucket => bucket.at.startsWith(at.slice(0, 10)));
+      expect(day).toMatchObject({ succeeded: 47, failed: 1, runId: `pull@manual/${at}` });
+      expect(own.runs).toHaveLength(30);
+      const unavailable = await createWorkflowHistoryReader(dir, async () => { throw new Error('fixture unavailable'); })(now);
+      expect(unavailable.workflows[0]!.dailyHistory!.from).toBe(unavailable.workflows[0]!.dailyHistory!.through);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
   it('reads the manual runs through the operator door, and any other answer as none', async () => {
     const request = vi.fn(async () => ({ status: 200, body: { runs: [pressed] } }));
     expect(await readManualRuns(request)).toEqual([pressed]);
-    expect(request).toHaveBeenCalledWith('api/job-runs', expect.objectContaining({ params: { trigger: 'manual' } }));
-    expect(await readManualRuns(async () => ({ status: 401, body: { error: 'unauthorized' } }))).toEqual([]);
+    expect(request).toHaveBeenCalledWith('api/job-runs', expect.objectContaining({ params: { trigger: 'manual', history: 'days' } }));
+    await expect(readManualRuns(async () => ({ status: 401, body: { error: 'unauthorized' } }))).rejects.toThrow('unavailable');
     // A malformed or impossible record is dropped rather than drawn.
     expect(manualRecords([{ ...pressed, finishedAt: '2026-09-09T14:00:00.000Z' }, { job: 7 }, null])).toEqual([]);
   });

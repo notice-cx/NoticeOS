@@ -44,5 +44,13 @@ export interface ManualJobRun {
   outcome: "ran" | "skipped" | "failed";
 }
 
+/** Complete UTC calendar counts, independent of the bounded manual details. */
+export interface ManualJobRunHistory {
+  timeZone: "UTC";
+  from: string;
+  through: string;
+  buckets: { job: string; at: string; succeeded: number; failed: number; skipped: number; firstRunAt: string; runAt: string }[];
+}
+
 /** A whole day with no firing means the local scheduler itself is silent. */
 export const CRON_RUN_SILENCE_MS = 24 * 3_600_000;

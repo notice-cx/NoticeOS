@@ -39,6 +39,16 @@ test('local complete daily counts survive rich-detail retention and resolve the 
   assert.equal(view.selectedRun.id, selected); assert.equal(view.selectedRun.state, 'failed');
 });
 
+test('local manual failure links distinguish a simultaneous scheduled success', () => {
+  const at = new Date(NOW - 5 * 24 * HOUR).toISOString();
+  const records = [{ job, at, ms: 1, outcome: 'ran' }, { job, at, ms: 1, outcome: 'failed', trigger: 'manual' }];
+  const selected = `counters@manual/${at}`;
+  const view = buildWorkflowHistory(records, [], [], NOW, selected);
+  assert.equal(view.selectedRun.id, selected);
+  assert.equal(view.selectedRun.state, 'failed');
+  assert.equal(view.workflows.find(workflow => workflow.id === 'counters').dailyHistory.buckets.find(bucket => bucket.failed).runId, selected);
+});
+
 test('hosted daily counts and old failure links remain complete and workspace isolated', { timeout: 120000 }, async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'workflow-week-'));
   let cluster, closePool;
@@ -66,9 +76,13 @@ test('hosted daily counts and old failure links remain complete and workspace is
           VALUES($1,'counters',$2,1,$3,$4,$5,$5)`, [workspace, occurrence, lease, state, at]);
       }
       await admin.query(`INSERT INTO noticeos.job_runs(workspace_id,job_run_number,job,started_at,finished_at,outcome,detail,recorded_at)
-        SELECT $1,n+1,$2,$3::timestamptz - n * interval '1 hour',$3::timestamptz - n * interval '1 hour',
-          CASE WHEN n=120 AND $5=0 THEN 'failed' ELSE 'ran' END,$4,$3::timestamptz FROM generate_series(0,167) n`, [workspace, job, now, MANUAL_RUN_DETAIL, index]);
-      stores.push(openWorkspaceStore(appUrl, { workspaceId: workspace }));
+        SELECT $1,n+1,$2,$3::timestamptz - n * interval '30 minutes',$3::timestamptz - n * interval '30 minutes',
+          CASE WHEN n=240 AND $5=0 THEN 'failed' ELSE 'ran' END,$4,$3::timestamptz FROM generate_series(0,335) n`, [workspace, job, now, MANUAL_RUN_DETAIL, index]);
+      const bound = openWorkspaceStore(appUrl, { workspaceId: workspace });
+      stores.push({ ...bound, read: work => bound.read(async tx => {
+        await tx.query("SELECT set_config('TimeZone',$1,true)", [index === 0 ? 'America/Los_Angeles' : 'Asia/Kathmandu']);
+        return work(tx);
+      }) });
     }
     const output = path.join(root, 'read.mjs');
     await build({ entryPoints: [path.join(REPO_ROOT, 'apps/tower/worker/hosted-workflow-read.ts')], outfile: output, bundle: true, platform: 'node', format: 'esm', target: 'node24', logLevel: 'silent' });
@@ -80,14 +94,26 @@ test('hosted daily counts and old failure links remain complete and workspace is
       assert.equal(own.runs.length, 30);
       assert.equal(own.history.length, 24);
       assert.equal(own.dailyHistory.buckets.length, 31);
-      assert.equal(own.dailyHistory.buckets.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed, 0), 336);
+      assert.equal(own.dailyHistory.buckets.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed, 0), 504);
       const day = own.dailyHistory.buckets.find(bucket => bucket.at.startsWith('2026-10-28'));
       assert.equal(day.failed, index === 0 ? 2 : 0);
-      assert.equal(day.succeeded, index === 0 ? 46 : 48);
+      assert.equal(day.succeeded, index === 0 ? 70 : 72);
       const selected = await read(store, day.runId);
       assert.equal(selected.selectedRun.id, day.runId);
       assert.equal(selected.selectedRun.state, index === 0 ? 'failed' : 'succeeded');
       assert.equal(selected.workflows[0].runs.length, 30);
+    }
+    const manualOutput = path.join(root, 'manual.mjs');
+    await build({ entryPoints: [path.join(REPO_ROOT, 'workers/ingest/src/job-runs.ts')], outfile: manualOutput, banner: { js: `import { createRequire } from 'node:module'; const require=createRequire(${JSON.stringify(path.join(REPO_ROOT, 'package.json'))});` }, bundle: true, platform: 'node', format: 'esm', target: 'node24', logLevel: 'silent' });
+    const { readManualJobRunHistory } = await import(pathToFileURL(manualOutput).href);
+    for (const [index, store] of stores.entries()) {
+      const manual = await readManualJobRunHistory({ STORE: store }, undefined, NOW);
+      assert.equal(manual.runs.length, 200);
+      assert.equal(manual.dailyHistory.buckets.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed, 0), 336);
+      const failed = manual.dailyHistory.buckets.find(bucket => bucket.at.startsWith('2026-10-28'));
+      assert.equal(failed.failed, index === 0 ? 1 : 0);
+      const opened = await readManualJobRunHistory({ STORE: store }, { job, at: failed.runAt }, NOW);
+      assert.equal(opened.runs.some(run => run.startedAt === failed.runAt && run.outcome === (index === 0 ? 'failed' : 'ran')), true);
     }
     const manualFailure = (await admin.query("SELECT job_run_id::text FROM noticeos.job_runs WHERE workspace_id=$1 AND outcome='failed'", [workspaces[0]])).rows[0].job_run_id;
     const oldManual = `counters@manual/${manualFailure}`;

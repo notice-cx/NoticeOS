@@ -7,6 +7,8 @@ import { requestLocalJob } from '../../../scripts/local-job-control.mjs';
 import { SCHEDULE_STATUS_FILE, manualLocalJob, type ScheduleStatus } from '../shared/scheduled-jobs';
 import { demoViewerReply, type DemoViewerDescriptor } from '../shared/demo-viewer';
 import { DEFAULT_REPO_ROOT, crossOrigin, isJson, laneMiddleware, type LaneReply, type LaneRequest } from './lane';
+import { jobRunName } from '../shared/scheduled-jobs';
+import { WORKFLOW_DEFINITIONS } from '../shared/workflows';
 import { createWorkflowHistoryReader } from './workflow-history';
 
 export async function handleScheduledJobsRequest(
@@ -47,16 +49,20 @@ export async function handleScheduledJobsRequest(
 
 /** The manual firings the store holds, through the same operator-authed door
  * the saved schedules are read through. */
-export async function readManualRuns(request: typeof configStoreRequest = configStoreRequest): Promise<unknown> {
+export async function readManualRuns(request: typeof configStoreRequest = configStoreRequest, selectedId?: string): Promise<unknown> {
+  const workflow = WORKFLOW_DEFINITIONS.find(workflow => selectedId?.startsWith(`${workflow.id}@`));
+  const at = workflow ? selectedId!.slice(workflow.id.length + 1).replace(/^manual\//, '') : null;
   const result = await request('api/job-runs', {
-    params: { trigger: 'manual' },
+    params: { trigger: 'manual', history: 'days', ...(workflow && at && Number.isFinite(Date.parse(at)) ? { job: jobRunName(workflow), at } : {}) },
     fetchImpl: (url: string | URL | Request, init?: RequestInit) => fetch(url, { ...init, signal: AbortSignal.timeout(5_000) }),
   });
-  return result.status === 200 ? (result.body as { runs?: unknown })?.runs ?? [] : [];
+  if (result.status !== 200) throw new Error('Manual run history unavailable');
+  const body = result.body as { runs?: unknown; dailyHistory?: unknown };
+  return body.dailyHistory ? body : body.runs ?? [];
 }
 
 export function scheduledJobsLane({ demoViewer = null }: { demoViewer?: DemoViewerDescriptor | null } = {}): Plugin {
-  const history = createWorkflowHistoryReader(DEFAULT_REPO_ROOT, () => readManualRuns());
+  const history = createWorkflowHistoryReader(DEFAULT_REPO_ROOT, (selectedId) => readManualRuns(configStoreRequest, selectedId));
   return {
     name: 'scheduled-jobs', apply: 'serve', enforce: 'pre',
     configureServer(server) {

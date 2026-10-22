@@ -78,7 +78,7 @@ export function buildWorkflowHistory(records: unknown[], traces: unknown[], acti
     const workflowId = names.get(record.job);
     const at = Date.parse(record.at);
     if (!workflowId || !Number.isFinite(at) || at > now || at < now - 30 * 24 * HOUR) return [];
-    const id = `${workflowId}@${new Date(at).toISOString()}`;
+    const id = `${workflowId}@${record.trigger === 'manual' ? 'manual/' : ''}${new Date(at).toISOString()}`;
     const trace = byTrace.get(id);
     return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
       finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',

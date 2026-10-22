@@ -258,3 +258,29 @@ describe('cronRunSuccessValue — the three states asset #0 can honestly report'
     ).toBe(1);
   });
 });
+
+describe('complete manual calendar counts', () => {
+  it('keeps counts beyond 200 details and opens an older failure through the authenticated read', async () => {
+    const at = new Date(NOW).toISOString();
+    await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.job_runs
+      (workspace_id,job,started_at,finished_at,outcome,detail,recorded_at)
+      SELECT $1,'backup',$2::timestamptz-n*interval '30 minutes',$2::timestamptz-n*interval '30 minutes',
+        CASE WHEN n=240 THEN 'failed' ELSE 'ran' END,'trigger:manual',$2::timestamptz
+      FROM generate_series(0,335) n`, [tx.workspaceId, at]));
+    const headers = { authorization: `Bearer ${OPERATOR_TOKEN}` };
+    const response = await call(new Request('https://test/api/job-runs?trigger=manual&history=days', { headers }));
+    expect(response.status).toBe(200);
+    const body = await response.json() as { runs: { startedAt: string; outcome: string }[]; dailyHistory: { timeZone: string; buckets: { succeeded: number; failed: number }[] } };
+    expect(body.runs).toHaveLength(200);
+    expect(body.dailyHistory.timeZone).toBe('UTC');
+    expect(body.dailyHistory.buckets.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed, 0)).toBe(336);
+    expect(body.dailyHistory.buckets.reduce((sum, bucket) => sum + bucket.failed, 0)).toBe(1);
+    const failedAt = new Date(NOW - 120 * 3_600_000).toISOString();
+    const selected = await call(new Request(`https://test/api/job-runs?trigger=manual&history=days&job=backup&at=${encodeURIComponent(failedAt)}`, { headers }));
+    const opened = await selected.json() as typeof body;
+    expect(opened.runs).toHaveLength(201);
+    expect(opened.runs.at(-1)).toMatchObject({ startedAt: failedAt, outcome: 'failed' });
+    expect((await call(new Request('https://test/api/job-runs?trigger=manual&history=days'))).status).toBe(401);
+    expect((await call(new Request('https://test/api/job-runs?trigger=manual&history=days&job=backup', { headers }))).status).toBe(400);
+  });
+});

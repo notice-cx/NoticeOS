@@ -16,6 +16,7 @@ import {
   MANUAL_JOB_RUNS_SQL,
   MANUAL_RUN_DETAIL,
   type ManualJobRun,
+  type ManualJobRunHistory,
 } from '@noticeos/contract';
 import { javascriptInstant } from '@noticeos/postgres';
 import {
@@ -268,6 +269,38 @@ export async function readManualJobRuns(env: IngestEnv): Promise<ManualJobRun[]>
   );
 }
 
+/** Bounded aggregates from every stored manual firing in the retained window.
+ * A caller may also open one older retained execution without expanding details. */
+export async function readManualJobRunHistory(env: IngestEnv, selected?: { job: string; at: string }, now = Date.now()) {
+  const from = new Date(now - JOB_RUN_RETENTION_DAYS * 86_400_000).toISOString();
+  const through = new Date(now).toISOString();
+  return env.STORE.read(async tx => {
+    const buckets = await tx.query(`SELECT job,(date_trunc('day',started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AS at,
+      min(started_at) AS first_run_at,coalesce(max(started_at) FILTER(WHERE outcome='failed'),max(started_at)) AS run_at,
+      count(*) FILTER(WHERE outcome='ran')::int AS succeeded,count(*) FILTER(WHERE outcome='failed')::int AS failed,
+      count(*) FILTER(WHERE outcome='skipped')::int AS skipped
+      FROM noticeos.job_runs WHERE workspace_id=$1::uuid AND detail=$2 AND started_at>=$3::timestamptz AND started_at<=$4::timestamptz
+        AND finished_at>=started_at GROUP BY job,(date_trunc('day',started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
+      ORDER BY job,at LIMIT 2049`, [tx.workspaceId, MANUAL_RUN_DETAIL, from, through]);
+    if (buckets.length > 2048) throw new Error('Manual run aggregates unavailable');
+    const rows = await tx.query(`SELECT job,started_at,finished_at,outcome FROM noticeos.job_runs
+      WHERE workspace_id=$1::uuid AND detail=$2 AND started_at>=$3::timestamptz AND started_at<=$4::timestamptz AND finished_at>=started_at
+      ORDER BY started_at DESC,job_run_id DESC LIMIT 200`, [tx.workspaceId, MANUAL_RUN_DETAIL, from, through]);
+    const opened = selected ? await tx.query(`SELECT job,started_at,finished_at,outcome FROM noticeos.job_runs
+      WHERE workspace_id=$1::uuid AND detail=$2 AND job=$3 AND started_at=$4::timestamptz
+        AND started_at>=$5::timestamptz AND started_at<=$6::timestamptz AND finished_at>=started_at LIMIT 1`,
+      [tx.workspaceId, MANUAL_RUN_DETAIL, selected.job, selected.at, from, through]) : [];
+    const runs: ManualJobRun[] = [...rows, ...opened.filter(row => !rows.some(other => other.job === row.job && other.started_at === row.started_at))].map(row => ({
+      job: String(row.job), startedAt: javascriptInstant(String(row.started_at)), finishedAt: javascriptInstant(String(row.finished_at)), outcome: row.outcome as ManualJobRun['outcome'],
+    }));
+    const dailyHistory: ManualJobRunHistory = { timeZone: 'UTC', from, through, buckets: buckets.map(row => ({
+      job: String(row.job), at: javascriptInstant(String(row.at)), firstRunAt: javascriptInstant(String(row.first_run_at)), runAt: javascriptInstant(String(row.run_at)),
+      succeeded: Number(row.succeeded), failed: Number(row.failed), skipped: Number(row.skipped),
+    })) };
+    return { runs, dailyHistory };
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // The reader: what the record says about whether the crons are running.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,7 +325,7 @@ export async function latestJobRuns(env: Pick<IngestEnv, 'STORE'>): Promise<JobR
   return rows.map((row) => ({
     job: row.job,
     outcome: row.outcome,
-    startedAt: javascriptInstant(row.started_at),
+    startedAt: javascriptInstant(String(row.started_at)),
   }));
 }
 
