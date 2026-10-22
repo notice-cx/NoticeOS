@@ -111,7 +111,7 @@ jobs:
           # Browser workers, each with its own fixture server. Unset, a run
           # takes half the machine's cores, which on a small runner is 1.
           JOURNEY_WORKERS: 3
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: user-journey-browser-evidence
@@ -144,7 +144,7 @@ jobs:
         env:
           # Walker lanes, each with its own fixture server.
           JOURNEY_WORKERS: 3
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ux-flow-walker-report
@@ -176,7 +176,7 @@ jobs:
           NOTICEOS_REQUIRE_POSTGRES: '1'
       # Each suite's redacted receipt: every task and Dolt client command it
       # ran, with its exit code and output, and the fixture's cleanup.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: task-store-evidence
