@@ -1,9 +1,0 @@
-
- RUN  v4.1.9 /workspace/NoticeOS/apps/tower
-
-
- Test Files  5 passed (5)
-      Tests  230 passed (230)
-   Start at  00:16:26
-   Duration  17.59s (transform 3.67s, setup 2.20s, import 4.96s, tests 14.13s, environment 2.57s)
-

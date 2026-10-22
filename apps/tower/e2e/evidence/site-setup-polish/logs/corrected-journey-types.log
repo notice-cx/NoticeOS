@@ -1,2 +1,0 @@
-$ tsc -p e2e/tsconfig.json
-real 8.692 user 13.505 sys 2.122

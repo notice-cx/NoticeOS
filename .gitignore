@@ -16,10 +16,10 @@ playwright-report/
 test-results/
 # the flow gate's walk (results.json + the screenshot each failure names)
 /apps/tower/e2e/ux-flows-results/
+/apps/tower/e2e/**/evidence/
 
-# point-in-time visual review output; keep only the generation instructions
-/docs/artifacts/viewport-audit/*
-!/docs/artifacts/viewport-audit/README.md
+# point-in-time visual review output
+/docs/artifacts/
 
 # cloudflare / wrangler
 # No trailing slash: inside a runtime copy (.local/runtime/) these are links,

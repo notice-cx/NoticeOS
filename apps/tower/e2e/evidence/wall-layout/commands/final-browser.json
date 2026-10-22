@@ -1,7 +1,0 @@
-{
-  "name": "final-browser",
-  "command": "node apps/tower/e2e/run-journeys.mjs wall-layout",
-  "exit_code": 0,
-  "elapsed_seconds": 102.976,
-  "candidate": "df0e2074ec4f3cd7f16c3f5178ad951908e8d177"
-}

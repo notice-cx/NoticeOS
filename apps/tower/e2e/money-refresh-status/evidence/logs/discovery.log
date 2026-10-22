@@ -1,9 +1,0 @@
-$ node e2e/run-journeys.mjs -- --list -g 'Money refresh status'
-Listing tests:
-  [desktop] › money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in dark
-  [desktop] › money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in light
-  [desktop] › money-refresh-status/journeys.spec.ts:155:1 › Money refresh status: month switching, missing period and initial failure stay distinct
-  [mobile] › money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in dark
-  [mobile] › money-refresh-status/journeys.spec.ts:61:3 › Money refresh status: retained read, retry and recovery in light
-  [mobile] › money-refresh-status/journeys.spec.ts:155:1 › Money refresh status: month switching, missing period and initial failure stay distinct
-Total: 6 tests in 1 file

@@ -3,5 +3,5 @@
   "compilerOptions": {
     "paths": { "@/*": ["../src/*"], "@shared/*": ["../shared/*"] }
   },
-  "include": ["*.ts", "health-recovery/*.ts", "../test/worker-globals.d.ts"]
+  "include": ["**/*.ts", "../test/worker-globals.d.ts"]
 }
