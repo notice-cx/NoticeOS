@@ -1,0 +1,11 @@
+Listing tests:
+  [desktop] › wall-layout/journeys.spec.ts:15:1 › Wall default fills both columns with whole site rows
+  [desktop] › wall-layout/journeys.spec.ts:74:1 › Wall full-width divider snaps, keeps minimums and records one Undo
+  [desktop] › wall-layout/journeys.spec.ts:117:1 › Wall short full-width rows resize without jumping above a large fill row
+  [desktop] › wall-layout/journeys.spec.ts:145:1 › Wall fit warnings follow one and eight sites at the same size
+  [desktop] › wall-layout/journeys.spec.ts:189:1 › Wall default remains readable on desktop and phone
+  [desktop] › wall-layout/journeys.spec.ts:204:1 › Wall gallery specimens use TV tokens in light and dark themes
+  [mobile] › wall-layout/journeys.spec.ts:145:1 › Wall fit warnings follow one and eight sites at the same size
+  [mobile] › wall-layout/journeys.spec.ts:189:1 › Wall default remains readable on desktop and phone
+  [mobile] › wall-layout/journeys.spec.ts:204:1 › Wall gallery specimens use TV tokens in light and dark themes
+Total: 9 tests in 1 file

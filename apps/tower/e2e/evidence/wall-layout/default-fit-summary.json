@@ -1,0 +1,316 @@
+[
+  {
+    "variant": "one",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 37
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 543,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "focus",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 53
+        }
+      ],
+      "spare": null
+    }
+  },
+  {
+    "variant": "two",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 20
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 611,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "comfortable",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 316
+        },
+        {
+          "id": "mosaic.example",
+          "height": 316
+        }
+      ],
+      "spare": 0
+    }
+  },
+  {
+    "variant": "three",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 20
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 724,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "comfortable",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 210
+        },
+        {
+          "id": "mosaic.example",
+          "height": 210
+        },
+        {
+          "id": "lantern.example",
+          "height": 210
+        }
+      ],
+      "spare": 0
+    }
+  },
+  {
+    "variant": "six",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 41.40625
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 960,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "compact",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 105
+        },
+        {
+          "id": "mosaic.example",
+          "height": 105
+        },
+        {
+          "id": "lantern.example",
+          "height": 105
+        },
+        {
+          "id": "acorn.example",
+          "height": 105
+        },
+        {
+          "id": "ripple.example",
+          "height": 105
+        },
+        {
+          "id": "summit.example",
+          "height": 105
+        }
+      ],
+      "spare": 0
+    }
+  },
+  {
+    "variant": "seven",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 37.015625
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 1067,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "compact",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 90
+        },
+        {
+          "id": "mosaic.example",
+          "height": 90
+        },
+        {
+          "id": "lantern.example",
+          "height": 90
+        },
+        {
+          "id": "acorn.example",
+          "height": 90
+        },
+        {
+          "id": "ripple.example",
+          "height": 90
+        },
+        {
+          "id": "summit.example",
+          "height": 90
+        },
+        {
+          "id": "seventh.example",
+          "height": 90
+        }
+      ],
+      "spare": 0
+    }
+  },
+  {
+    "variant": "eight",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 32.703125
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 1174,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "compact",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 79
+        },
+        {
+          "id": "mosaic.example",
+          "height": 79
+        },
+        {
+          "id": "lantern.example",
+          "height": 79
+        },
+        {
+          "id": "acorn.example",
+          "height": 79
+        },
+        {
+          "id": "ripple.example",
+          "height": 79
+        },
+        {
+          "id": "summit.example",
+          "height": 79
+        },
+        {
+          "id": "seventh.example",
+          "height": 79
+        },
+        {
+          "id": "eighth.example",
+          "height": 79
+        }
+      ],
+      "spare": 0
+    }
+  },
+  {
+    "variant": "fire",
+    "gaps": [
+      {
+        "column": "business",
+        "gap": 36.15625
+      },
+      {
+        "column": "side",
+        "gap": 21
+      }
+    ],
+    "counts": {
+      "elements": 1019,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    },
+    "sites": {
+      "density": "compact",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 90
+        },
+        {
+          "id": "mosaic.example",
+          "height": 90
+        },
+        {
+          "id": "lantern.example",
+          "height": 90
+        },
+        {
+          "id": "acorn.example",
+          "height": 90
+        },
+        {
+          "id": "ripple.example",
+          "height": 90
+        },
+        {
+          "id": "summit.example",
+          "height": 90
+        }
+      ],
+      "spare": 0
+    }
+  }
+]

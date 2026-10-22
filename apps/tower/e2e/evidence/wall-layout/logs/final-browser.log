@@ -1,0 +1,18 @@
+
+Running 9 tests using 1 worker
+
+(node:11081) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › apps/tower/e2e/wall-layout/journeys.spec.ts:15:1 › Wall default fills both columns with whole site rows @desktop-only (29.5s)
+  ✓  2 [desktop] › apps/tower/e2e/wall-layout/journeys.spec.ts:74:1 › Wall full-width divider snaps, keeps minimums and records one Undo @desktop-only (5.8s)
+  ✓  3 [desktop] › apps/tower/e2e/wall-layout/journeys.spec.ts:117:1 › Wall short full-width rows resize without jumping above a large fill row @desktop-only (4.4s)
+  ✓  4 [desktop] › apps/tower/e2e/wall-layout/journeys.spec.ts:145:1 › Wall fit warnings follow one and eight sites at the same size (8.6s)
+  ✓  5 [desktop] › apps/tower/e2e/wall-layout/journeys.spec.ts:189:1 › Wall default remains readable on desktop and phone (3.2s)
+  ✓  6 [desktop] › apps/tower/e2e/wall-layout/journeys.spec.ts:204:1 › Wall gallery specimens use TV tokens in light and dark themes (13.7s)
+(node:11741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  7 [mobile] › apps/tower/e2e/wall-layout/journeys.spec.ts:145:1 › Wall fit warnings follow one and eight sites at the same size (9.4s)
+  ✓  8 [mobile] › apps/tower/e2e/wall-layout/journeys.spec.ts:189:1 › Wall default remains readable on desktop and phone (3.3s)
+  ✓  9 [mobile] › apps/tower/e2e/wall-layout/journeys.spec.ts:204:1 › Wall gallery specimens use TV tokens in light and dark themes (13.5s)
+
+  9 passed (1.7m)

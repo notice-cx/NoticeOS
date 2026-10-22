@@ -1,0 +1,114 @@
+{
+  "measured": {
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "tvMediaQuery": true,
+    "layout": "tv",
+    "scale": 1,
+    "rootClipped": true,
+    "content": {
+      "right": 1920,
+      "bottom": 1080
+    },
+    "tight": {
+      "right": 1888,
+      "bottom": 1056
+    },
+    "worst": {
+      "x": null,
+      "y": null
+    },
+    "offenders": {
+      "x": [],
+      "y": []
+    },
+    "ink": [],
+    "clipped": [],
+    "regions": {
+      "strip": {
+        "top": 24,
+        "bottom": 128,
+        "left": 32,
+        "right": 1888,
+        "width": 1856,
+        "height": 104
+      },
+      "loop": {
+        "top": 148,
+        "bottom": 260,
+        "left": 32,
+        "right": 1888,
+        "width": 1856,
+        "height": 112
+      },
+      "revenue": {
+        "top": 280,
+        "bottom": 840,
+        "left": 1126,
+        "right": 1888,
+        "width": 762,
+        "height": 560
+      },
+      "sites": {
+        "top": 397,
+        "bottom": 1056,
+        "left": 32,
+        "right": 1098,
+        "width": 1066,
+        "height": 659
+      },
+      "timeline": {
+        "top": 280,
+        "bottom": 377,
+        "left": 32,
+        "right": 1098,
+        "width": 1066,
+        "height": 97
+      },
+      "work": {
+        "top": 860,
+        "bottom": 1056,
+        "left": 1126,
+        "right": 1888,
+        "width": 762,
+        "height": 196
+      },
+      "needs": null,
+      "feed": null,
+      "agents": null
+    },
+    "sites": {
+      "density": "focus",
+      "rows": [
+        {
+          "id": "plume.example",
+          "height": 53
+        }
+      ],
+      "spare": null
+    },
+    "feed": {
+      "shown": 0,
+      "lastRowWhole": null
+    },
+    "counts": {
+      "elements": 543,
+      "overX": 0,
+      "overY": 0,
+      "ink": 0,
+      "clipped": 0
+    }
+  },
+  "gaps": [
+    {
+      "column": "business",
+      "gap": 37
+    },
+    {
+      "column": "side",
+      "gap": 21
+    }
+  ]
+}

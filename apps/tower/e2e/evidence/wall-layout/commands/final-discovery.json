@@ -1,0 +1,7 @@
+{
+  "name": "final-discovery",
+  "command": "node apps/tower/e2e/run-journeys.mjs --list wall-layout",
+  "exit_code": 0,
+  "elapsed_seconds": 1.431,
+  "candidate": "df0e2074ec4f3cd7f16c3f5178ad951908e8d177"
+}

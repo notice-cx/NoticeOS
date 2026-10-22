@@ -1,0 +1,10 @@
+
+Running 3 tests using 1 worker
+
+(node:12171) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › apps/tower/e2e/journeys.spec.ts:1241:3 › the Wall fits the TV with one, two, three, six, seven or eight sites and on fire, cutting off no text @desktop-only (29.4s)
+  ✓  2 [desktop] › apps/tower/e2e/journeys.spec.ts:1614:1 › the TV layout is arranged by dragging, resizing and the Move menu, each step undone and redone, then saved @desktop-only (12.5s)
+  ✓  3 [desktop] › apps/tower/e2e/journeys.spec.ts:1710:1 › the TV layout's preview draws the TV dark on a light desk, exactly as the TV draws itself @desktop-only (8.0s)
+
+  3 passed (56.7s)
