@@ -212,11 +212,13 @@ pnpm os:logs         # recent logs; -- --follow, -- --lines N, -- <service>
 pnpm os:start        # databases, then backup, then the app, each healthy first
 pnpm os:stop         # the app, then backup, then the databases
 pnpm os:restart      # the whole stack in dependency order, waiting for health
+pnpm os:restart:noticeos   # only the app; :backup only the backup worker; :postgres or :dolt one database, with the app and backup worker stopped until it is healthy
 pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
 pnpm os:run-job -- --id panel-refresh   # run exactly this local job through the live scheduler
 pnpm os:collect -- --asset example.com --families posthog-events   # one asset's report families now; DataForSEO calls are billed
+pnpm os:refresh-comparison   # every GA4 site's last-week comparison now, instead of at its next hourly attempt
 pnpm os:capacity     # the store's size and growth per table; -- --json
 pnpm os:mcp          # at a terminal, the line that connects an agent to the Tower's /api/mcp; run by an agent, the same server over stdio; -- --actor <name>
 pnpm os:bd -- ready  # the task tool, inside the app; -- --project <prefix> picks a project

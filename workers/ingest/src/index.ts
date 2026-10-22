@@ -100,6 +100,7 @@ import {
 } from './asset-state.js';
 import { backtestRule } from './rule-backtest.js';
 import { handleAnomalyRefresh } from './routes/anomaly-refresh.js';
+import { handleGa4ComparisonRefresh } from './routes/ga4-comparison-refresh.js';
 import { handleAnnotations } from './routes/annotations.js';
 import { handleOpenReclamationTargets, handleReclamationTargets } from './routes/reclamation-targets.js';
 import { handleAssetState, handleAssetStateEdit } from './routes/asset-state.js';
@@ -151,6 +152,7 @@ async function route(request: Request, env: IngestEnv): Promise<Response> {
   const { pathname } = new URL(request.url);
 
   if (request.method === 'POST' && pathname === '/api/anomaly-refresh') return handleAnomalyRefresh(request, env);
+  if (request.method === 'POST' && pathname === '/api/ga4-comparison-refresh') return handleGa4ComparisonRefresh(request, env);
 
   if (request.method === 'POST' && pathname === '/api/pulse') {
     return handlePulse(request, env);
