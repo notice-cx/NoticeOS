@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "./render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { TaskHubSpoke } from "@shared/settings";
+import type { SettingsPayload, TaskHubSpoke } from "@shared/settings";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT, type TasksCapabilities } from "@shared/tasks";
 import type { NewTask } from "@/lib/api";
 
@@ -28,11 +28,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-// The composer reads the spoke map from `/api/settings`; nothing serves it
-// here and every case passes `projects` explicitly, so the hook answers with
-// nothing rather than opening a fetch jsdom cannot complete.
+const settings = vi.hoisted(() => ({ data: undefined as SettingsPayload | undefined, isPending: false }));
 vi.mock("@/hooks/useSettings", () => ({
-  useSettings: () => ({ data: undefined }),
+  useSettings: () => settings,
 }));
 
 const toasts = vi.hoisted(() => ({
@@ -62,6 +60,8 @@ const SPOKES: TaskHubSpoke[] = [
 
 afterEach(() => {
   resetTaskSourceMock();
+  settings.data = undefined;
+  settings.isPending = false;
   lane.calls.length = 0;
   lane.fail = null;
   lane.capability = { live: true, reason: null };
@@ -97,6 +97,30 @@ function renderComposer(prefill: TaskComposerPrefill | null = null) {
 
 const field = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 const fileTask = () => screen.getByRole("button", { name: "File task" });
+
+it("waits for the project roster before filing while preserving the linked draft", async () => {
+  const client = new QueryClient();
+  settings.isPending = true;
+  const compose = () => <QueryClientProvider client={client}><MemoryRouter>
+    <TaskComposer open onClose={vi.fn()} prefill={{ project: "meadow.example", title: "Review the saved report" }} />
+  </MemoryRouter></QueryClientProvider>;
+  const view = render(compose());
+  fireEvent.change(field("Title"), { target: { value: "Review the revised report" } });
+  expect(fileTask()).toBeDisabled();
+  fireEvent.keyDown(field("Title"), { key: "Enter" });
+  expect(lane.calls).toEqual([]);
+  expect(screen.queryByText("Choose the asset whose repo this task belongs to.")).toBeNull();
+
+  settings.data = { taskHub: { spokes: SPOKES } } as SettingsPayload;
+  settings.isPending = false;
+  view.rerender(compose());
+  expect(field("Title")).toHaveValue("Review the revised report");
+  expect(field("Project")).toHaveValue("meadow.example");
+  expect(fileTask()).toBeEnabled();
+  fireEvent.click(fileTask());
+  await waitFor(() => expect(lane.calls).toEqual([expect.objectContaining({ project: "meadow.example", title: "Review the revised report" })]));
+  client.clear();
+});
 
 it("refuses a project removed from the roster while its task form is open", async () => {
   const client = new QueryClient();
