@@ -99,6 +99,28 @@ test('the three-service profile omits backup and only uses existing-container op
   assert.ok(own.writes().every(step => !step.includes('backup') && ['start','stop','restart'].includes(step[0])));
   assert.equal(own.writes().length, 5);
 });
+test('restarting the app or the backup worker restarts that container alone and waits for its health', async () => {
+  for (const service of ['noticeos', 'backup']) {
+    const own = fixture(); await stackControl('restart', selector, { ...own, args: [service] });
+    assert.deepEqual(own.writes(), [['restart','--no-deps',service],['start','--wait','--wait-timeout','90',service]], service);
+    assert.match(own.output(), new RegExp(`${service} restart complete\\.\\n$`, 'u'));
+  }
+});
+test('restarting one database stops the app and backup worker until it is healthy again', async () => {
+  for (const service of ['postgres', 'dolt']) {
+    const own = fixture(); await stackControl('restart', selector, { ...own, args: [service] });
+    assert.deepEqual(own.writes(), [['stop','noticeos','backup'],['restart','--no-deps',service],['start','--wait','--wait-timeout','90',service],
+      ['start','--wait','--wait-timeout','90','backup'],['start','--wait','--wait-timeout','90','noticeos']], service);
+  }
+  const lean = fixture({ inventory: rows(false) }); await stackControl('restart', selector, { ...lean, args: ['postgres'] });
+  assert.deepEqual(lean.writes(), [['stop','noticeos'],['restart','--no-deps','postgres'],['start','--wait','--wait-timeout','90','postgres'],['start','--wait','--wait-timeout','90','noticeos']]);
+});
+test('a one-service restart names a service the stack has, and nothing else', async () => {
+  for (const args of [['foreign'], ['noticeos', 'dolt'], ['--all']]) assert.throws(() => actionArgs('restart', args), /Usage/u, args.join(' '));
+  const lean = fixture({ inventory: rows(false) });
+  await assert.rejects(stackControl('restart', selector, { ...lean, args: ['backup'] }), /no backup worker/u);
+  assert.deepEqual(lean.writes(), []);
+});
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
   const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\), dolt \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));

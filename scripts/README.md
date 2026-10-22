@@ -12,6 +12,10 @@
 | `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
 | `os:stop` | Stop the app, then backup, then the databases. | `scripts/stack-control.mjs stop` |
 | `os:restart` | Restart the stack in the same order, waiting for each layer's health. | `scripts/stack-control.mjs restart` |
+| `os:restart:noticeos` | Restart only the app, waiting for its health. | `scripts/stack-control.mjs restart noticeos` |
+| `os:restart:backup` | Restart only the backup worker, waiting for its health. | `scripts/stack-control.mjs restart backup` |
+| `os:restart:postgres` | Restart Postgres, with the app and backup worker stopped until it is healthy again. | `scripts/stack-control.mjs restart postgres` |
+| `os:restart:dolt` | Restart the task store, with the app and backup worker stopped until it is healthy again. | `scripts/stack-control.mjs restart dolt` |
 | `os:update` | Move the app to main's image, show the plan, and apply it after you confirm. | `scripts/stack-deploy.mjs` |
 | `os:rollback` | Move the app back to the previous image, after you confirm. | `scripts/stack-deploy.mjs --rollback` |
 | `os:migrate` | What is applied and pending; `-- --apply` applies it after you type the database's name. | `scripts/os-migrate.mjs` |
@@ -193,6 +197,7 @@ supported; the `os:*` commands reach it through the stack
 pnpm os:status                # each service's state and health, the database's migrations, the app's commit
 pnpm os:logs -- --lines 200   # recent redacted output (-- --follow to tail, -- <service> for one)
 pnpm os:restart               # the whole stack, in dependency order, waiting for health
+pnpm os:restart:noticeos      # only the app (also :backup, :postgres, :dolt; a database restarts with the app and backup worker stopped)
 pnpm os:capacity              # store size and growth per table, read-only
 pnpm os:backup                # one full backup now (Postgres + R2 + hub, then offsite)
 pnpm os:run-job -- "0 * * * *"   # fire the jobs scheduled on one cron expression now

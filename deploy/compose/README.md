@@ -212,6 +212,7 @@ pnpm os:logs         # recent logs; -- --follow, -- --lines N, -- <service>
 pnpm os:start        # databases, then backup, then the app, each healthy first
 pnpm os:stop         # the app, then backup, then the databases
 pnpm os:restart      # the whole stack in dependency order, waiting for health
+pnpm os:restart:noticeos   # only the app; :backup only the backup worker; :postgres or :dolt one database, with the app and backup worker stopped until it is healthy
 pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now

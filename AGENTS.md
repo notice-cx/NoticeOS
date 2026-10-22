@@ -243,6 +243,7 @@ pnpm os:status                 # each service's health, the database's migration
 pnpm os:logs -- --lines 200    # recent logs; -- --follow, -- <service>
 pnpm os:capacity               # store size and growth per table, read-only
 pnpm os:restart                # the whole stack, in dependency order, waiting for health
+pnpm os:restart:noticeos       # only the app; :backup, :postgres and :dolt name the other services
 pnpm os:update                 # move the app to main's image (published, or built here), show the plan, apply it after you type `update`
 ```
 
@@ -265,8 +266,8 @@ migration is operator-only: `pnpm os:status` → a backup you can restore
 `os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback`,
 `os:convert-legacy`, `os:apply`, `os:refresh-anomalies` (preview reads stored
 reports; apply changes count alerts) and `os:collect` (it asks providers and can
-spend) are operator-directed. An agent's verbs are `os:status`, `os:logs`,
-`os:restart`, the task verbs `os:mcp` and `os:bd` and, after a verified merge,
+spend) are operator-directed. An agent's verbs are `os:status`, `os:logs`, `os:restart` and its one-service
+forms, the task verbs `os:mcp` and `os:bd` and, after a verified merge,
 `os:update`; never `os:migrate`.
 
 `pnpm os:setup` on a machine that already runs an installation stops when it

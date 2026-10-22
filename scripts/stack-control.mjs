@@ -10,6 +10,10 @@
 //   pnpm os:start       Start the stack: databases, then backup, then the app, each healthy first.
 //   pnpm os:stop        Stop the app, then backup, then the databases.
 //   pnpm os:restart     Restart the stack in the same order, waiting for each layer's health.
+//   pnpm os:restart:noticeos  Restart only the app, waiting for its health.
+//   pnpm os:restart:backup    Restart only the backup worker, waiting for its health.
+//   pnpm os:restart:postgres  Restart Postgres, with the app and backup worker stopped until it is healthy again.
+//   pnpm os:restart:dolt      Restart the task store, with the app and backup worker stopped until it is healthy again.
 //   pnpm os:backup      Run one backup now, inside the app container.
 //   pnpm os:run-job -- "<cron>"  Run one allowed local job with `--id <job-id>`, or fire one cron expression now.
 //   pnpm os:run-job -- --id <job-id>  Run one allowed local job now through the live scheduler.
@@ -39,6 +43,7 @@ const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
 const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000, mcp: Infinity, bd: 600_000 };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
+       stack-control.mjs restart postgres|dolt|backup|noticeos
        stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
        stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>
        stack-control.mjs run-job --id <job-id>
@@ -142,6 +147,7 @@ export function actionArgs(action, args) {
     if (!args.length) refuse('Name the task command: pnpm os:bd -- list');
     return { job: ['bd', ...args] };
   }
+  if (action === 'restart' && args.length === 1 && SERVICES.includes(args[0])) return { service: args[0] };
   if (args.length) refuse(HELP);
   return action === 'backup' ? { job: ['backup'] } : {};
 }
@@ -222,8 +228,14 @@ export async function stackControl(action, input, { run = runCommand, out = proc
   }
   const backup = original.has('backup') ? ['backup'] : [];
   const wait = services => ['start','--wait','--wait-timeout','90',...services];
+  const one = own.service ?? null;
+  if (one === 'backup' && !backup.length) refuse('This installation runs no backup worker.');
+  // A database restarts with the app and backup worker stopped, as in the whole
+  // stack's restart: neither loses its connections in the middle of work.
   const steps = action === 'stop' ? [['stop','noticeos'], ...(backup.length ? [['stop',...backup]] : []), ['stop','postgres','dolt']] :
     action === 'start' ? [wait(['postgres','dolt']), ...(backup.length ? [wait(backup)] : []), wait(['noticeos'])] :
+    one === 'noticeos' || one === 'backup' ? [['restart','--no-deps',one], wait([one])] :
+    one ? [['stop','noticeos',...backup], ['restart','--no-deps',one], wait([one]), ...(backup.length ? [wait(backup)] : []), wait(['noticeos'])] :
     [['stop','noticeos',...backup], ['restart','--no-deps','postgres','dolt'], wait(['postgres','dolt']),
       ...(backup.length ? [['restart','--no-deps',...backup],wait(backup)] : []), ['restart','--no-deps','noticeos'],wait(['noticeos'])];
   for (const step of steps) {
@@ -238,7 +250,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
       refuse(await notHealthy(names, inventory, () => database(selector, { root, run, env })));
     }
   }
-  out.write(`Stack ${action} complete.\n`);
+  out.write(one ? `${one} restart complete.\n` : `Stack ${action} complete.\n`);
 }
 /** Shell-safe as printed: a word with nothing a shell would read is left bare. */
 const shellWord = word => /^[A-Za-z0-9_./:=@%+-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
