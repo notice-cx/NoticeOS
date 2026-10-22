@@ -26,6 +26,32 @@ async function fixture(t) {
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   return root;
 }
+const because = (reason, secret) => error => error.message.includes(`(${reason})`) && (secret === undefined || !error.message.includes(secret));
+/** The app's backup route over real HTTP. `declaresLength: false` sends the SQL
+ * chunked, as the Workers runtime does for a stored object relayed to the Tower. */
+async function appFixture(t, { declaresLength }) {
+  const root = await fixture(t), token = randomUUID(), saved = receipt(); const calls = [];
+  const secrets = path.join(root, 'workers/ingest/.dev.secrets.json');
+  await fs.mkdir(path.dirname(secrets), { recursive: true }); await fs.writeFile(secrets, JSON.stringify({ OPERATOR_TOKEN: token }), { mode: 0o600 });
+  const server = http.createServer(async (request, response) => {
+    calls.push(request.url); assert.equal(request.headers.authorization, `Bearer ${token}`);
+    const url = new URL(request.url, 'http://fixture'); assert.equal(url.pathname, '/api/backup/cloudflare-d1');
+    response.setHeader('content-type', 'application/json');
+    if (request.method === 'POST') {
+      let body = ''; for await (const chunk of request) body += chunk;
+      assert.deepEqual(JSON.parse(body), { accountId, databaseId }); response.end(JSON.stringify(saved));
+    } else if (url.searchParams.get('view') === 'artifact') {
+      assert.equal(url.searchParams.get('runId'), saved.runId);
+      response.setHeader('content-type', 'application/sql'); response.setHeader('x-noticeos-sha256', saved.sha256);
+      if (declaresLength) { response.setHeader('content-length', saved.bytes); response.end(sql); }
+      else { response.write(sql.slice(0, 10)); response.end(sql.slice(10)); }
+    } else response.end(JSON.stringify(status()));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const native = createCloudflareD1BackupClient({ repoRoot: root, env: { OS_UP_INGEST_DOOR_HOST: '127.0.0.1', OS_UP_INGEST_DOOR_PORT: String(server.address().port) } });
+  return { root, token, native, calls };
+}
 
 test('only the selected loopback or fixed protected Compose service receives the bootstrap bearer', async () => {
   let reads = 0;
@@ -44,25 +70,7 @@ test('only the selected loopback or fixed protected Compose service receives the
   assert.deepEqual(await native.inventory(), selection);
 });
 test('an owned HTTP fixture streams hashed gzip with recoverable SQL and exact private custody', async t => {
-  const root = await fixture(t), token = randomUUID(), saved = receipt(); const calls = [];
-  const secrets = path.join(root, 'workers/ingest/.dev.secrets.json');
-  await fs.mkdir(path.dirname(secrets), { recursive: true }); await fs.writeFile(secrets, JSON.stringify({ OPERATOR_TOKEN: token }), { mode: 0o600 });
-  const server = http.createServer(async (request, response) => {
-    calls.push(request.url); assert.equal(request.headers.authorization, `Bearer ${token}`);
-    const url = new URL(request.url, 'http://fixture'); assert.equal(url.pathname, '/api/backup/cloudflare-d1');
-    response.setHeader('content-type', 'application/json');
-    if (request.method === 'POST') {
-      let body = ''; for await (const chunk of request) body += chunk;
-      assert.deepEqual(JSON.parse(body), { accountId, databaseId }); response.end(JSON.stringify(saved));
-    } else if (url.searchParams.get('view') === 'artifact') {
-      assert.equal(url.searchParams.get('runId'), saved.runId);
-      response.setHeader('content-type', 'application/sql'); response.setHeader('content-length', saved.bytes);
-      response.setHeader('x-noticeos-sha256', saved.sha256); response.end(sql);
-    } else response.end(JSON.stringify(status()));
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
-  const native = createCloudflareD1BackupClient({ repoRoot: root, env: { OS_UP_INGEST_DOOR_HOST: '127.0.0.1', OS_UP_INGEST_DOOR_PORT: String(server.address().port) } });
+  const { root, token, native, calls } = await appFixture(t, { declaresLength: true });
   assert.deepEqual(await native.inventory(), selection);
   const output = path.join(root, 'output');
   const custody = await copyCloudflareD1({ client: native, selection, target, output });
@@ -77,6 +85,14 @@ test('an owned HTTP fixture streams hashed gzip with recoverable SQL and exact p
   try { recovered.exec(gunzipSync(gzip).toString()); assert.equal(recovered.prepare('SELECT id FROM fixture').get().id, 7); }
   finally { recovered.close(); }
   assert.equal(calls.length, 3);
+});
+test('a chunked SQL download without content-length is verified against its receipt and kept', async t => {
+  const { root, native } = await appFixture(t, { declaresLength: false });
+  const output = path.join(root, 'output');
+  const custody = await copyCloudflareD1({ client: native, selection, target, output });
+  assert.equal(gunzipSync(await fs.readFile(path.join(output, 'export.sql.gz'))).toString(), sql);
+  assert.equal(custody.receipt.bytes, Buffer.byteLength(sql));
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(output, 'receipt.json'), 'utf8')), custody);
 });
 test('only an explicitly disconnected connection skips; unknown, mismatched and unavailable inventory fail', async () => {
   assert.equal(await client(async () => Response.json({ error: 'not_connected' }, { status: 409 })).inventory(), null);
@@ -133,16 +149,39 @@ test('foreign account, database, asset or malformed export receipts are refused 
     await assert.rejects(native.exportTarget(selection, target));
   }
 });
-test('artifact redirects, changed headers, encoded bodies and wrong actual hashes cannot complete a gzip item', async t => {
-  const root = await fixture(t), saved = receipt();
-  for (const headers of [{}, { 'content-length': String(saved.bytes), 'x-noticeos-sha256': 'b'.repeat(64) },
-    { 'content-length': String(saved.bytes), 'x-noticeos-sha256': saved.sha256, 'content-encoding': 'gzip' }]) {
-    await assert.rejects(client(async () => new Response(sql, { headers })).artifact(saved));
+test('each refused artifact download names its own cause without forwarding response or error text', async () => {
+  const saved = receipt(), secret = randomUUID(), hash = { 'x-noticeos-sha256': saved.sha256 };
+  const cases = [
+    [async () => new Response(sql, { headers: { 'content-length': String(saved.bytes + 1), ...hash } }), 'the download length header differs from its receipt'],
+    [async () => new Response(sql), 'the download hash header differs from its receipt'],
+    [async () => new Response(sql, { headers: { 'x-noticeos-sha256': 'b'.repeat(64) } }), 'the download hash header differs from its receipt'],
+    [async () => new Response(sql, { headers: { ...hash, 'content-encoding': 'gzip' } }), 'the download arrived encoded'],
+    [async () => new Response(null, { status: 302, headers: hash }), 'the download answered 302'],
+    [async () => Response.json({ error: 'artifact_unavailable', detail: secret }, { status: 409 }), 'the download answered 409'],
+    [async () => new Response(null, { headers: hash }), 'the download had no body'],
+    [async () => { throw new TypeError('fetch failed', { cause: Object.assign(new Error(secret), { code: 'ECONNRESET' }) }); }, 'the app could not be reached: ECONNRESET'],
+  ];
+  for (const [fetchImpl, reason] of cases) await assert.rejects(client(fetchImpl).artifact(saved), because(reason, secret));
+  await assert.rejects(client(async () => assert.fail('no request')).artifact({ ...saved, state: 'failed' }), because('the receipt is not complete'));
+});
+test('each refused SQL copy names its own cause and leaves no receipt', async t => {
+  const root = await fixture(t), saved = receipt(), secret = randomUUID();
+  const cases = [
+    [async () => new Response(sql.replace('7', '8')), 'the download hash differs from its receipt'],
+    [async () => new Response(sql.slice(0, -1)), 'the download is shorter than its receipt'],
+    [async () => new Response(`${sql} `), 'the download is longer than its receipt'],
+    [async () => new Response(''), 'the download was empty'],
+    [async () => new Response(null), 'the download had no body'],
+    [async () => new Response(new ReadableStream({ start(controller) { controller.error(new Error(secret)); } })), 'the copy failed'],
+  ];
+  for (const [index, [artifact, reason]] of cases.entries()) {
+    const output = path.join(root, `case-${index}`);
+    await assert.rejects(copyCloudflareD1({ client: { exportTarget: async () => saved, artifact }, selection, target, output }), because(reason, secret));
+    await assert.rejects(fs.stat(path.join(output, 'receipt.json')), { code: 'ENOENT' });
   }
-  await assert.rejects(client(async () => new Response(null, { status: 302 })).artifact(saved));
-  const native = { exportTarget: async () => saved, artifact: async () => new Response(sql.replace('7', '8')) };
-  await assert.rejects(copyCloudflareD1({ client: native, selection, target, output: path.join(root, 'wrong') }));
-  await assert.rejects(fs.stat(path.join(root, 'wrong/receipt.json')), { code: 'ENOENT' });
+  const foreign = { exportTarget: async () => ({ ...saved, asset: 'foreign.example' }), artifact: async () => assert.fail('no download') };
+  await assert.rejects(copyCloudflareD1({ client: foreign, selection, target, output: path.join(root, 'foreign') }),
+    because('the export answered a receipt for another target'));
 });
 test('JSON response limits and empty-stream limits terminate without forwarding error contents', async () => {
   await assert.rejects(client(async () => new Response('x'.repeat(1024 ** 2 + 1))).inventory());
