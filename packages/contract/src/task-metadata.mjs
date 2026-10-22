@@ -111,3 +111,28 @@ export function taskMetadataValue(metadata, field) {
 export function isHandoffLabel(label) {
     return typeof label === "string" && HANDOFF_LABELS.includes(label);
 }
+/** Only these non-authority source fields may arrive in copied task metadata. */
+export const TASK_HANDOFF_METADATA_FIELDS = Object.freeze([
+    'noticeos_source', 'noticeos_asset', 'noticeos_kind', 'noticeos_rule', 'noticeos_key',
+]);
+/** The site key plus the six-character `asset:` prefix fits a 128-character label. */
+export const TASK_HANDOFF_METADATA_LIMITS = Object.freeze({ asset: 122, value: 2048 });
+export const TASK_HANDOFF_KINDS = Object.freeze(['query', 'finding', 'page', 'alert']);
+/** Validate the complete source identity without normalizing or clipping its keys. */
+export function taskHandoffMetadataOf(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return null;
+    const row = value;
+    if (Object.keys(row).length !== TASK_HANDOFF_METADATA_FIELDS.length
+        || !TASK_HANDOFF_METADATA_FIELDS.every(key => Object.hasOwn(row, key))
+        || Object.values(row).some(entry => typeof entry !== 'string' || !entry.trim()
+            || entry.length > TASK_HANDOFF_METADATA_LIMITS.value || /[\p{Cc}\p{Cf}]/u.test(entry)))
+        return null;
+    if (row.noticeos_source !== HANDOFF_LABEL || !TASK_HANDOFF_KINDS.includes(row.noticeos_kind)
+        || row.noticeos_asset.length > TASK_HANDOFF_METADATA_LIMITS.asset
+        || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(row.noticeos_asset))
+        return null;
+    return { noticeos_source: HANDOFF_LABEL, noticeos_asset: row.noticeos_asset,
+        noticeos_kind: row.noticeos_kind,
+        noticeos_rule: row.noticeos_rule, noticeos_key: row.noticeos_key };
+}

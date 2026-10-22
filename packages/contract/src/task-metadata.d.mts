@@ -159,3 +159,20 @@ export declare const HANDOFF_LABELS: readonly string[];
 export declare function taskMetadataValue(metadata: unknown, field: TaskMetadataName): unknown;
 /** Whether a label is the handoff label, of either vintage. */
 export declare function isHandoffLabel(label: unknown): boolean;
+/** Only these non-authority source fields may arrive in copied task metadata. */
+export declare const TASK_HANDOFF_METADATA_FIELDS: readonly ["noticeos_source", "noticeos_asset", "noticeos_kind", "noticeos_rule", "noticeos_key"];
+/** The site key plus the six-character `asset:` prefix fits a 128-character label. */
+export declare const TASK_HANDOFF_METADATA_LIMITS: Readonly<{
+    asset: 122;
+    value: 2048;
+}>;
+export declare const TASK_HANDOFF_KINDS: readonly ["query", "finding", "page", "alert"];
+export type TaskHandoffMetadata = {
+    noticeos_source: typeof HANDOFF_LABEL;
+    noticeos_asset: string;
+    noticeos_kind: typeof TASK_HANDOFF_KINDS[number];
+    noticeos_rule: string;
+    noticeos_key: string;
+};
+/** Validate the complete source identity without normalizing or clipping its keys. */
+export declare function taskHandoffMetadataOf(value: unknown): TaskHandoffMetadata | null;
