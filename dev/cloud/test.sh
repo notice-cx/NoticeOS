@@ -33,7 +33,7 @@ if [ "${1:-}" = --task-store ]; then
   task_store_key=$(noticeos_task_tools_key)
   task_store_tools="${NOTICEOS_CLOUD_CACHE}/task-tools/$task_store_key"
   if [ ! -f "$task_store_tools/runtime.env" ]; then
-    echo 'Pinned task tools need explicit preparation: bash dev/cloud/prepare.sh' >&2
+    echo 'Pinned task tools need explicit preparation: bash dev/cloud/prepare.sh --task-store' >&2
     exit 1
   fi
   while IFS= read -r task_line; do

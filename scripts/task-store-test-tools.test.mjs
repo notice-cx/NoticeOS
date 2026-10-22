@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { DOCKERFILE, pinnedTaskTools } from './task-store-test-tools.mjs';
+import { DOCKERFILE, pinnedTaskTools, taskToolsKey } from './task-store-test-tools.mjs';
 
 // The CI task-store job's tools come from the application image's own pins
 // (scripts/task-store-test-tools.mjs); a Dockerfile change that moves them
@@ -21,4 +21,18 @@ test('the task store suites use the exact task and Dolt clients the application 
   assert.notEqual(pinnedTaskTools(dockerfile, 'amd64').beads.sha256, pinnedTaskTools(dockerfile, 'arm64').beads.sha256);
   assert.throws(() => pinnedTaskTools(dockerfile, 'riscv64'), /no pinned task tools/u);
   assert.throws(() => pinnedTaskTools(dockerfile.replace(/amd64\) digest=[0-9a-f]{64} ;;/gu, ''), 'amd64'), /no amd64 download/u);
+});
+
+// A cached set of tools is keyed on what it holds: an unrelated Dockerfile
+// change keeps it, a moved pin or a changed preparation replaces it.
+test('the prepared task tools key changes only with their pins, architecture or preparation', () => {
+  const dockerfile = readFileSync(DOCKERFILE, 'utf8');
+  const key = taskToolsKey(dockerfile, 'amd64', 'preparation');
+  assert.match(key, /^[0-9a-f]{64}$/u);
+  assert.equal(taskToolsKey(dockerfile, 'amd64', 'preparation'), key);
+  assert.equal(taskToolsKey(`${dockerfile}\nENV UNRELATED=1\n`, 'amd64', 'preparation'), key);
+  const pin = pinnedTaskTools(dockerfile, 'amd64').dolt.sha256;
+  assert.notEqual(taskToolsKey(dockerfile.replace(pin, 'f'.repeat(64)), 'amd64', 'preparation'), key);
+  assert.notEqual(taskToolsKey(dockerfile, 'arm64', 'preparation'), key);
+  assert.notEqual(taskToolsKey(dockerfile, 'amd64', 'another preparation'), key);
 });

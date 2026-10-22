@@ -33,10 +33,32 @@ noticeos_headroom() {
     return 1
   fi
 }
+# Removes download and staging files a finished preparation no longer reads:
+# only owned paths inside the cache or tool folders, never those folders.
+# Callers hold the verification lock, so no test or preparation is using them.
+noticeos_discard() {
+  local task_path task_parent task_cache task_tools
+  task_cache=$(cd -P -- "$NOTICEOS_CLOUD_CACHE" && pwd) || return
+  task_tools=$(cd -P -- "$NOTICEOS_CLOUD_TOOLS" 2>/dev/null && pwd) || task_tools=$task_cache
+  for task_path in "$@"; do
+    [ -e "$task_path" ] || [ -L "$task_path" ] || continue
+    task_parent=$(cd -P -- "$(dirname -- "$task_path")" && pwd) || return
+    case "$task_parent/" in
+      "$task_cache"/*|"$task_tools"/*) ;;
+      *) printf 'Refusing to discard outside the cloud caches: %s\n' "$task_path" >&2; return 1;;
+    esac
+    if [ "$(stat -c %u -- "$task_path")" != "$(id -u)" ]; then
+      printf 'Refusing to discard a path another user owns: %s\n' "$task_path" >&2
+      return 1
+    fi
+    rm -rf -- "$task_path"
+  done
+}
 noticeos_managed_docker() {
   env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \
     docker --host=unix:///var/run/docker.sock "$@"
 }
+# Changes only when the pinned task tools or the way they are prepared change.
 noticeos_task_tools_key() {
-  sha256sum deploy/compose/Dockerfile scripts/dolt-host.mjs scripts/task-store-test-tools.mjs | sha256sum | cut -d ' ' -f 1
+  node "$NOTICEOS_REPO/scripts/task-store-test-tools.mjs" --key
 }
