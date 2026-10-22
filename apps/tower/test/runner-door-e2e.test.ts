@@ -17,6 +17,7 @@
 // empty, so no scheduled step can fetch a real site.
 
 import net from "node:net";
+import http from "node:http";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -68,7 +69,12 @@ beforeAll(async () => {
   postgres = postgresUnavailable() === null ? await createTestStore({ scope: "suite" }) : undefined;
   process.env[LOCAL_CONNECTION_VARIABLE] = postgres?.url ?? UNREACHABLE_STORE_URL;
 
-  const stolen = net.createServer(socket => socket.destroy());
+  let foreignRequests = 0;
+  const stolen = http.createServer((_request, response) => {
+    foreignRequests++;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ ok: true, service: "ingest" }));
+  });
   try {
     server = await startDoorFixture({ env: process.env, root: stateDir, attempts, beforeAttempt: async (port, index) => {
       if (index !== 0) return;
@@ -79,12 +85,14 @@ beforeAll(async () => {
     } });
     towerPort = server.towerPort;
     doorPort = server.doorPort;
+    expect(foreignRequests).toBe(0);
     expect(attempts).toHaveLength(2);
     expect(attempts[0]).toMatchObject({ collision: true, closed: true });
     expect(doorPort).not.toBe(attempts[0]!.port);
     expect([5173, 8791]).not.toContain(towerPort);
     expect([5173, 8791]).not.toContain(doorPort);
   } finally {
+    stolen.closeAllConnections();
     await new Promise<void>((resolve, reject) => stolen.close(error => error ? reject(error) : resolve()));
     expect(stolen.listening).toBe(false);
   }

@@ -11,6 +11,10 @@ import { createTestViteServer } from "../../../../scripts/test-vite-server.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 installOwnerConfigReadGuard({ testDir: path.join(root, "test") });
 const logger = createLogger("silent");
+let doorListening = false;
+logger.info = message => {
+  if (message === `  ➜  ingest door: http://127.0.0.1:${doorPort}/ (loopback only)`) doorListening = true;
+};
 logger.error = (message) => {
   // Only this exact production bind diagnostic authorizes another acquisition.
   if (message.startsWith(`[tower-port] This Tower could not listen on its port ${towerPort} (EADDRINUSE).`) ||
@@ -61,6 +65,9 @@ try {
   const deadline = Date.now() + 60_000;
   for (;;) {
     try {
+      // A foreign listener can answer health while the production door is
+      // still reporting a bind collision. Its own listening event must precede HTTP.
+      if (!doorListening) throw new Error("owned ingest door has not bound");
       const response = await fetch(`http://127.0.0.1:${process.env.OS_UP_INGEST_DOOR_PORT}/healthz`, { signal: AbortSignal.timeout(1000) });
       if (response.ok) break;
     } catch { /* workerd is starting */ }
