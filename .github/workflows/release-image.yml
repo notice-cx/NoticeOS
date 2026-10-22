@@ -38,12 +38,12 @@ jobs:
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
       # The builder builds main from a clean checkout at main.
       - run: git checkout -B main
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       # Image preparation keeps 8 GiB free beside its build.
@@ -72,10 +72,10 @@ jobs:
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       - id: repository
@@ -93,7 +93,7 @@ jobs:
           docker buildx imagetools create --tag "$REPOSITORY:$COMMIT" --tag "$REPOSITORY:main" \
             --annotation "index:org.opencontainers.image.revision=$COMMIT" "$REPOSITORY:$COMMIT-amd64" "$REPOSITORY:$COMMIT-arm64"
           echo "digest=$(docker buildx imagetools inspect "$REPOSITORY:$COMMIT" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ steps.repository.outputs.name }}
           subject-digest: ${{ steps.index.outputs.digest }}
@@ -121,10 +121,10 @@ jobs:
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       - id: repository
@@ -150,10 +150,10 @@ jobs:
     env:
       COMMIT: ${{ github.event.workflow_run.head_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.21.0
       - id: repository
@@ -169,7 +169,7 @@ jobs:
           docker buildx imagetools create --tag "$REPOSITORY:$COMMIT" --tag "$REPOSITORY:main" \
             --annotation "index:org.opencontainers.image.revision=$COMMIT" "$REPOSITORY:$COMMIT-amd64" "$REPOSITORY:$COMMIT-arm64"
           echo "digest=$(docker buildx imagetools inspect "$REPOSITORY:$COMMIT" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ steps.repository.outputs.name }}-codebase-report
           subject-digest: ${{ steps.index.outputs.digest }}
