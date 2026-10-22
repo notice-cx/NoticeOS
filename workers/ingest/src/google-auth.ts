@@ -229,8 +229,9 @@ export function decodeServiceAccount(
 // Reading what Google answered
 // ---------------------------------------------------------------------------
 
-export function responseJson(response: Response): Promise<unknown> {
-  return boundedResponseJson(response, 'Google', MAX_RESPONSE_BYTES);
+/** A read whose request bounds its own rows passes the bound those rows need. */
+export function responseJson(response: Response, maxBytes = MAX_RESPONSE_BYTES): Promise<unknown> {
+  return boundedResponseJson(response, 'Google', maxBytes);
 }
 
 export function providerError(prefix: string, status: number, body: unknown): SignalError {
