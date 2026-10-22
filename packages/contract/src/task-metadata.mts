@@ -123,3 +123,34 @@ export function taskMetadataValue(metadata: unknown, field: TaskMetadataName): u
 export function isHandoffLabel(label: unknown): boolean {
   return typeof label === "string" && HANDOFF_LABELS.includes(label);
 }
+
+/** Only these non-authority source fields may arrive in copied task metadata. */
+export const TASK_HANDOFF_METADATA_FIELDS = Object.freeze([
+  'noticeos_source', 'noticeos_asset', 'noticeos_kind', 'noticeos_rule', 'noticeos_key',
+] as const);
+/** The site key plus the six-character `asset:` prefix fits a 128-character label. */
+export const TASK_HANDOFF_METADATA_LIMITS = Object.freeze({ asset: 122, value: 2048 });
+export const TASK_HANDOFF_KINDS = Object.freeze(['query', 'finding', 'page', 'alert'] as const);
+export type TaskHandoffMetadata = {
+  noticeos_source: typeof HANDOFF_LABEL;
+  noticeos_asset: string;
+  noticeos_kind: typeof TASK_HANDOFF_KINDS[number];
+  noticeos_rule: string;
+  noticeos_key: string;
+};
+
+/** Validate the complete source identity without normalizing or clipping its keys. */
+export function taskHandoffMetadataOf(value: unknown): TaskHandoffMetadata | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (Object.keys(row).length !== TASK_HANDOFF_METADATA_FIELDS.length
+    || !TASK_HANDOFF_METADATA_FIELDS.every(key => Object.hasOwn(row, key))
+    || Object.values(row).some(entry => typeof entry !== 'string' || !entry.trim()
+      || entry.length > TASK_HANDOFF_METADATA_LIMITS.value || /[\p{Cc}\p{Cf}]/u.test(entry))) return null;
+  if (row.noticeos_source !== HANDOFF_LABEL || !TASK_HANDOFF_KINDS.includes(row.noticeos_kind as typeof TASK_HANDOFF_KINDS[number])
+    || (row.noticeos_asset as string).length > TASK_HANDOFF_METADATA_LIMITS.asset
+    || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(row.noticeos_asset as string)) return null;
+  return { noticeos_source: HANDOFF_LABEL, noticeos_asset: row.noticeos_asset as string,
+    noticeos_kind: row.noticeos_kind as typeof TASK_HANDOFF_KINDS[number],
+    noticeos_rule: row.noticeos_rule as string, noticeos_key: row.noticeos_key as string };
+}

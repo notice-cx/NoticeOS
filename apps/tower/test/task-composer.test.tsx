@@ -6,12 +6,7 @@ import type { TaskHubSpoke } from "@shared/settings";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT, type TasksCapabilities } from "@shared/tasks";
 import type { NewTask } from "@/lib/api";
 
-/**
- * The composer files exactly the task the copied `bd create` describes. Both
- * are rendered from one function, and the parity case parses the emitted shell
- * command back apart and compares what a shell would hand `bd` against the
- * object the composer sends to the lane.
- */
+/** The composer and copied MCP fields describe the same task. */
 
 const lane = vi.hoisted(() => ({
   calls: [] as NewTask[],
@@ -138,31 +133,12 @@ describe('hosted composer fields', () => {
   });
 });
 
-/** Reverse of the emitter's POSIX single-quoting, so a test reads back what
- * the shell would actually hand `bd`. */
-function unquote(token: string): string {
-  return token.slice(1, -1).replaceAll("'\\''", "'");
-}
-
-/** The `bd create` the copied handoff carries, parsed into the task it makes. */
+/** Read the copied task fields as an MCP client would. */
 function parseCommand(markdown: string) {
-  const title = /^bd create (.+) \\$/m.exec(markdown)?.[1] ?? "";
-  const labels = [...markdown.matchAll(/^ {2}-l (.+) \\$/gm)].map((match) =>
-    unquote(match[1]!),
-  );
-  const metadata = /^ {2}--metadata (.+) \\$/m.exec(markdown)?.[1] ?? "";
-  const description = /^ {2}-d (.+)$/m.exec(markdown)?.[1] ?? "";
-  return {
-    title: unquote(title),
-    type: /^ {2}-t (\w+) \\$/m.exec(markdown)?.[1] ?? "",
-    priority: Number(/^ {2}-p (\d) \\$/m.exec(markdown)?.[1]),
-    labels,
-    metadata: JSON.parse(unquote(metadata)) as Record<string, unknown>,
-    description: unquote(description),
-  };
+  return JSON.parse(markdown.match(/`{3,}json\n([\s\S]*?)\n`{3,}/)![1]!) as Omit<NewTask, 'project'>;
 }
 
-describe("the composer's prefill IS the copied bd create", () => {
+describe("the composer's prefill is the copied MCP task", () => {
   const asset = { id: "meadow.example", displayName: "Meadow Board", domain: "meadow.example" };
 
   const cases = [
@@ -204,7 +180,7 @@ describe("the composer's prefill IS the copied bd create", () => {
       }),
     },
     {
-      name: "a query whose text would be a shell injection if it were not quoted",
+      name: "a query containing shell metacharacters",
       handoff: {
         asset: "meadow.example",
         kind: "query" as const,
@@ -218,7 +194,7 @@ describe("the composer's prefill IS the copied bd create", () => {
   ];
 
   for (const { name, handoff } of cases) {
-    it(`agrees with the command for ${name}`, () => {
+    it(`files the copied task for ${name}`, async () => {
       const command = taskHandoffSection(handoff).join("\n");
       const parsed = parseCommand(command);
       const prefill = taskHandoffPrefill(handoff)!;
@@ -229,16 +205,22 @@ describe("the composer's prefill IS the copied bd create", () => {
       expect(prefill.type).toBe(parsed.type);
       expect(prefill.priority).toBe(parsed.priority);
       expect(prefill.description).toBe(parsed.description);
-      expect(command).toContain(`Run it in the \`${prefill.project}\` asset repo`);
+      expect(command).toContain(JSON.stringify(prefill.project));
+      expect(command).toContain("`projectId` as `project`");
       // The section leads with the button rather than teaching the command.
       expect(command).toContain("**File task** button");
       expect(command.indexOf("**File task** button")).toBeLessThan(
-        command.indexOf("bd create"),
+        command.indexOf("`create_task`"),
       );
       // No tutorial, and none of the internal vocabulary.
-      for (const gone of ["bd config list", "issue_prefix", "task hub", "bead id"]) {
+      for (const gone of ["bd create", "bd close", "config/beads.json", "Run it in", "issue_prefix"]) {
         expect(command).not.toContain(gone);
       }
+      for (const tool of ['list_workspaces', 'get_task_guide', 'list_projects', 'claim_task', 'close_task']) expect(command).toContain('`' + tool + '`');
+      renderComposer(prefill);
+      fireEvent.click(fileTask());
+      await waitFor(() => expect(lane.calls).toHaveLength(1));
+      expect(lane.calls[0]).toEqual({ project: prefill.project, ...parsed });
     });
   }
 
@@ -249,7 +231,7 @@ describe("the composer's prefill IS the copied bd create", () => {
     const prefill = taskHandoffPrefill(handoff)!;
     expect(prefill.title.length).toBeLessThanOrEqual(110);
     expect(prefill.description.indexOf(applicabilityReview)).toBeGreaterThan(0);
-    expect(prefill.description.indexOf(applicabilityReview)).toBeLessThanOrEqual(301);
+    expect(prefill.description.indexOf(applicabilityReview)).toBeLessThanOrEqual(301 + `Evidence: ${window.location.origin}/assets/meadow.example `.length);
     expect(prefill.description).toContain(applicabilityReview);
     expect(copied.description).toBe(prefill.description);
     renderComposer(prefill);
@@ -258,6 +240,36 @@ describe("the composer's prefill IS the copied bd create", () => {
     await waitFor(() => expect(lane.calls).toHaveLength(1));
     expect(lane.calls[0]!.description).toBe(copied.description);
     expect(JSON.parse(JSON.stringify(lane.calls[0])).description).toContain(applicabilityReview);
+  });
+
+  it("keeps distinct identities when discovery labels collide", () => {
+    const keys = ["meal plan, weekly", "meal plan weekly", "  Meal  Plan Weekly  ", "https://example.com/a?b=1&c=2"];
+    const prefills = keys.map(key => taskHandoffPrefill({ ...cases[0]!.handoff, key, rule: "Exact Rule, A" })!);
+    expect(prefills[0]!.labels).toEqual(prefills[1]!.labels);
+    prefills.forEach((prefill, index) => {
+      const copied = parseCommand(taskHandoffSection({ ...cases[0]!.handoff, key: keys[index]!, rule: "Exact Rule, A" }).join("\n"));
+      expect(copied.metadata).toEqual(prefill.metadata);
+      expect(copied.metadata!.noticeos_key).toBe(keys[index]);
+      expect(copied.metadata!.noticeos_rule).toBe("Exact Rule, A");
+    });
+  });
+
+  it.each(["x".repeat(2049), "bad\nkey", "bad\u202ekey", " "])("omits an identity that cannot round-trip: %s", key => {
+    const handoff = { ...cases[0]!.handoff, key };
+    expect(taskHandoffPrefill(handoff)).toBeNull();
+    expect(taskHandoffSection(handoff)).toEqual([]);
+  });
+
+  it("keeps a source evidence URL for every handoff and preserves an explicit deep link", () => {
+    for (const kind of ['query', 'page', 'finding', 'alert'] as const) {
+      const handoff = { ...cases[0]!.handoff, kind, summary: 'Long summary. '.repeat(50) };
+      const prefill = taskHandoffPrefill(handoff)!;
+      expect(prefill.description).toContain(`Evidence: ${window.location.origin}/assets/meadow.example`);
+      const evidenceUrl = 'https://tower.example.test/assets/meadow.example/search?query=meal%20plan#evidence';
+      const linked = { ...handoff, evidenceUrl };
+      expect(taskHandoffPrefill(linked)!.description).toContain(`Evidence: ${evidenceUrl}`);
+      expect(parseCommand(taskHandoffSection(linked).join("\n")).description).toBe(taskHandoffPrefill(linked)!.description);
+    }
   });
 
   it("names the alert kind and keys on the firing", () => {

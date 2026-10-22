@@ -998,3 +998,71 @@ test('a card is set on a closed task as any other edit is', async () => {
     idempotency_key: 'agent-card-0203' })).structuredContent;
   assert.deepEqual([carded.task.status, carded.task.card?.likelihood, carded.task.changeClass], ['closed', CARD.likelihood, 'copy']);
 });
+
+
+test('copied handoff identity survives synthetic creation, retries and readback', async () => {
+  const f = fixture();
+  const projects = (await call(f, 'list_projects', { workspace: A })).structuredContent.projects;
+  const selected = projects.find(project => project.key === 'example');
+  assert.equal(selected.projectId, P);
+  const fields = { title: 'Review saved evidence', type: 'task', priority: 1,
+    labels: ['noticeos-handoff', 'asset:example', 'rule:recover', 'key:meal-plan-weekly'],
+    description: 'Review the saved report. Evidence: https://tower.example.test/assets/example',
+    metadata: { noticeos_source: 'noticeos-handoff', noticeos_asset: 'example', noticeos_kind: 'query',
+      noticeos_rule: 'recover', noticeos_key: 'meal plan, weekly' } };
+  const args = { ...JSON.parse(JSON.stringify(fields)), workspace: A, project: selected.projectId,
+    model: 'GPT-6', idempotency_key: 'handoff-create-0001' };
+  const made = (await call(f, 'create_task', args)).structuredContent;
+  assert.ok(made.id);
+  assert.equal((await call(f, 'create_task', args)).structuredContent.replayed, true);
+  const other = (await call(f, 'create_task', { ...args, metadata: { ...fields.metadata, noticeos_key: 'meal plan weekly' },
+    idempotency_key: 'handoff-create-0002' })).structuredContent;
+  assert.notEqual(other.id, made.id);
+  for (const [id, key] of [[made.id, 'meal plan, weekly'], [other.id, 'meal plan weekly']]) {
+    const task = (await call(f, 'get_task', { workspace: A, project: P, task: id })).structuredContent.task;
+    assert.deepEqual(task.labels, fields.labels);
+    assert.equal(task.description, fields.description);
+    assert.equal(task.title, fields.title);
+    assert.equal(task.priority, fields.priority);
+    for (const [name, value] of Object.entries(fields.metadata)) assert.equal(task.metadata[name], name === 'noticeos_key' ? key : value);
+  }
+  assert.match((await call(f, 'create_task', { ...args, project: 'example' })).content[0].text, /projectId from list_projects/u);
+  const exact = '  Meal  Plan, Weekly — café https://example.com/a?b=1&c=2  ';
+  const batch = (await call(f, 'create_tasks', { workspace: A, project: P, model: 'GPT-6',
+    idempotency_key: 'handoff-batch-0001', tasks: [{ ...fields, metadata: { ...fields.metadata, noticeos_key: exact } }] })).structuredContent;
+  const task = (await call(f, 'get_task', { workspace: A, project: P, task: batch.created[0].id })).structuredContent.task;
+  assert.equal(task.metadata.noticeos_key, exact);
+  assert.equal(task.metadata.noticeos_filed_by, PERSON, 'attribution remains server-owned');
+});
+
+test('handoff metadata accepts only the five bounded non-authority fields before any write', async () => {
+  const f = fixture();
+  const metadata = { noticeos_source: 'noticeos-handoff', noticeos_asset: 'example', noticeos_kind: 'query',
+    noticeos_rule: 'recover', noticeos_key: 'meal plan, weekly' };
+  const list = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result.tools;
+  for (const schema of [list.find(tool => tool.name === 'create_task').inputSchema.properties.metadata,
+    list.find(tool => tool.name === 'create_tasks').inputSchema.properties.tasks.items.properties.metadata]) {
+    assert.equal(schema.additionalProperties, false);
+    assert.deepEqual(Object.keys(schema.properties), Object.keys(metadata));
+    assert.deepEqual(schema.required, Object.keys(metadata));
+    assert.equal(schema.properties.noticeos_key.maxLength, 2048);
+  }
+  const unsupported = ['noticeos_operation_id', 'noticeos_filed_by', 'noticeos_filed_model', 'noticeos_claimed_model',
+    'noticeos_closed_by', 'noticeos_closed_at', 'noticeos_closed_model', 'noticeos_choice', 'noticeos_choices',
+    'noticeos_resolution', 'noticeos_duplicate_of', 'noticeos_maintenance', 'noticeos_card_shipped',
+    'noticeos_approval', 'noticeos_panel_asset', 'noticeos_anything', 'reindex_key', 'arbitrary'];
+  const bad = unsupported.map(key => ({ ...metadata, [key]: 'forged' }));
+  bad.push(null, [], 'invalid', {}, { ...metadata, noticeos_kind: 'decision' },
+    { ...metadata, noticeos_source: 'forged' }, { ...metadata, noticeos_asset: 'not a site' },
+    { ...metadata, noticeos_asset: 'x'.repeat(123) }, { ...metadata, noticeos_key: 'x'.repeat(2049) },
+    { ...metadata, noticeos_rule: ' ' }, { ...metadata, noticeos_key: 'line\nkey' },
+    { ...metadata, noticeos_key: 'bidi\u202ekey' }, { ...metadata, noticeos_key: 12 });
+  for (const entry of bad) {
+    const args = { workspace: A, project: P, title: 'Invalid handoff', metadata: entry, idempotency_key: 'handoff-invalid-0001' };
+    assert.match((await call(f, 'create_task', args)).content[0].text, /(?:^|\. )invalid arguments: metadata/u, JSON.stringify(entry));
+    assert.match((await call(f, 'create_tasks', { workspace: A, project: P, idempotency_key: 'handoff-invalid-0002',
+      tasks: [{ title: 'Valid first' }, { title: 'Invalid second', metadata: entry }] })).content[0].text,
+    /(?:^|\. )invalid arguments: tasks\[1\]: metadata/u);
+  }
+  assert.equal(f.tasks.size, 0, 'invalid metadata never dispatches a create, including the earlier batch entry');
+});

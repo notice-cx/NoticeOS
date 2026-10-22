@@ -13,6 +13,7 @@
  * A created or changed task comes back with what lint finds missing, as
  * advice: nothing is refused for it.
  */
+import { HANDOFF_LABEL, TASK_HANDOFF_METADATA_FIELDS, TASK_HANDOFF_METADATA_LIMITS, TASK_HANDOFF_KINDS, taskHandoffMetadataOf } from '../packages/contract/src/task-metadata.mjs';
 import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, TaskProjectRefused } from './hosted-task-operations.mjs';
 import { HOSTED_TASK_LIMITS, HumanDecisionRefused, MAINTENANCE_ACTIONS, sameActor, sentTaskCard, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
@@ -375,7 +376,15 @@ function instantArg(args, name) {
 /** A new task's fields, from create_task or one entry of create_tasks. `target`
  * reads each task id it names: a parent or a linked task. */
 const CREATE_FIELDS = Object.freeze(['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance',
-    ...LINKS.map(([name]) => name), 'approval', 'choices', 'card', 'change_class']);
+    ...LINKS.map(([name]) => name), 'approval', 'choices', 'card', 'change_class', 'metadata']);
+function handoffMetadataArg(args) {
+    if (args.metadata === undefined)
+        return undefined;
+    const metadata = taskHandoffMetadataOf(args.metadata);
+    if (!metadata)
+        refuse('invalid arguments: metadata (the five bounded handoff source fields only; keep the complete identity unchanged)');
+    return metadata;
+}
 function creation(args, target) {
     const parent = args.parent === undefined ? undefined : target('parent', args.parent);
     const links = [];
@@ -397,7 +406,7 @@ function creation(args, target) {
         refuse('invalid arguments: the parent is linked already; leave it out of the other links');
     return { operation: defined({ kind: 'create', title: textArg(args, 'title', HOSTED_TASK_LIMITS.title),
             description: textArg(args, 'description', HOSTED_TASK_LIMITS.body, false, true), type: taskType(args),
-            priority: priority(args), labels: labels(args, 'labels'), parent,
+            priority: priority(args), labels: labels(args, 'labels'), parent, metadata: handoffMetadataArg(args),
             acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true), links: links.length ? links : undefined,
             choices: choicesArg(args), card: cardArg(args), changeClass: choice(args, 'change_class', TASK_CHANGE_CLASSES) }),
         approval: textArg(args, 'approval', GATE_REASON_MAX, false) };
@@ -546,7 +555,16 @@ const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK
     discovered_from: TASK_IDS('Tasks whose work turned this one up.'),
     approval: { type: 'string', maxLength: GATE_REASON_MAX,
         description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' },
-    choices: CHOICES, card: CARD, change_class: CHANGE_CLASS });
+    choices: CHOICES, card: CARD, change_class: CHANGE_CLASS,
+    metadata: { type: 'object', additionalProperties: false, required: TASK_HANDOFF_METADATA_FIELDS,
+        description: 'The complete source identity from a copied NoticeOS handoff. Only these five fields are accepted; they grant no authority.',
+        properties: {
+            noticeos_source: { type: 'string', const: HANDOFF_LABEL },
+            noticeos_asset: { type: 'string', maxLength: TASK_HANDOFF_METADATA_LIMITS.asset, pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]*$' },
+            noticeos_kind: { type: 'string', enum: TASK_HANDOFF_KINDS },
+            noticeos_rule: { type: 'string', minLength: 1, maxLength: TASK_HANDOFF_METADATA_LIMITS.value },
+            noticeos_key: { type: 'string', minLength: 1, maxLength: TASK_HANDOFF_METADATA_LIMITS.value },
+        } } });
 const READ = Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false });
 const WRITE = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false });
 async function write(context, projectId, operation, idempotencyKey, present) {

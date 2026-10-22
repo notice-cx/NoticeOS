@@ -857,7 +857,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     it("joins on the byte-exact key the handoff itself emits, commas and all", async () => {
       // End to end over the one string the chain turns on: the row normalizes
-      // the query, the copied `bd create` carries it in metadata (the `key:`
+      // the query, the copied MCP task carries it in metadata (the `key:`
       // label is a comma-splitting slug), and the poller hands it back untouched.
       const query = "Meal Plan, Weekly";
       const writeText = vi.fn().mockResolvedValue(undefined);
@@ -876,12 +876,12 @@ describe("QueryVisibilityRankings comparison labels", () => {
         await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
 
         const markdown = String(writeText.mock.calls[0]?.[0]);
-        const metadata = JSON.parse(
-          String(markdown.match(/--metadata '(\{.*?\})'/)?.[1]),
+        const { metadata } = JSON.parse(
+          String(markdown.match(/`{3,}json\n([\s\S]*?)\n`{3,}/)?.[1]),
         );
         expect(metadata.noticeos_key).toBe("meal plan, weekly");
         expect(metadata.noticeos_kind).toBe("query");
-        expect(markdown).toContain("-l 'key:meal-plan-weekly'");
+        expect(markdown).toContain('"key:meal-plan-weekly"');
 
         const { container } = render(
           <QueryVisibilityRankings
@@ -1597,44 +1597,27 @@ describe("the task handoff command", () => {
           ? asset
           : { ...asset, id: overrides.asset },
     });
-  /** Reverse of the generator's POSIX single-quoting, so a test can read back
-   * what the shell would actually hand `bd`. */
-  const unquote = (token: string) =>
-    token.slice(1, -1).replaceAll("'\\''", "'");
-  const metadataOf = (markdown: string) =>
-    JSON.parse(unquote(/^ {2}--metadata (.+) \\$/m.exec(markdown)?.[1] ?? ""));
+  const taskOf = (markdown: string) => JSON.parse(markdown.match(/`{3,}json\n([\s\S]*?)\n`{3,}/)![1]!);
+  const metadataOf = (markdown: string) => taskOf(markdown).metadata;
 
   it("files a query decision with the keys that make the chain joinable", () => {
     const markdown = decisionMarkdown("jarra del buen beber");
-
     expect(markdown).toContain("## File this task");
-    expect(markdown).toContain("in the `meadow.example` asset repo");
     expect(markdown).toContain("**File task** button");
-    expect(markdown).toContain("bd create 'Act on “jarra del buen beber”'");
-    expect(markdown).toContain("  -t task");
-    expect(markdown).toContain("  -p 1");
-    expect(markdown).toContain("  -l 'noticeos-handoff'");
-    expect(markdown).toContain("  -l 'asset:meadow.example'");
-    expect(markdown).toContain("  -l 'rule:recover'");
-    expect(markdown).toContain("  -l 'key:jarra-del-buen-beber'");
-    expect(markdown).toContain(
-      `--metadata '${JSON.stringify({
-        noticeos_source: "noticeos-handoff",
-        noticeos_asset: "meadow.example",
-        noticeos_kind: "query",
-        noticeos_rule: "recover",
-        noticeos_key: "jarra del buen beber",
-      })}'`,
-    );
-    expect(markdown).toContain(
-      "-d 'From the NoticeOS saved query decision for meadow.example: Recover visibility. Original suggested step: Confirm the page still exists and is indexed.",
-    );
+    expect(markdown).toContain("`list_projects`");
+    expect(taskOf(markdown)).toMatchObject({
+      title: "Act on “jarra del buen beber”", type: "task", priority: 1,
+      labels: ["noticeos-handoff", "asset:meadow.example", "rule:recover", "key:jarra-del-buen-beber"],
+      metadata: { noticeos_source: "noticeos-handoff", noticeos_asset: "meadow.example",
+        noticeos_kind: "query", noticeos_rule: "recover", noticeos_key: "jarra del buen beber" },
+    });
+    expect(taskOf(markdown).description).toContain("From the NoticeOS saved query decision for meadow.example: Recover visibility.");
+    expect(taskOf(markdown).description).toContain("Recheck the latest reports, linked work and the site before acting.");
     expect(markdown).toContain("**not proof of shipment or outcome**");
-    expect(markdown.split("-d '")[1]).toContain("Recheck the latest reports, linked work and the site before acting.");
     expect(markdown).toContain("Nothing files, closes, or measures it on your behalf");
   });
 
-  // What the button files is the same `queryTaskHandoff` the command above is
+  // What the button files is the same `queryTaskHandoff` the payload above is
   // rendered from, which `test/task-composer.test.tsx` pins field by field.
   it("offers File task on every query row", () => {
     const { getAllByRole } = render(
@@ -1678,45 +1661,28 @@ describe("the task handoff command", () => {
         trends: { google: null, bing: bingTrend, dataforseo: null },
         asset,
       });
-      expect(markdown).toContain(`bd create '${title} “chia pudding”'`);
-      expect(markdown).toContain(`  -p ${priority}`);
+      expect(taskOf(markdown).title).toBe(`${title} “chia pudding”`);
+      expect(taskOf(markdown).priority).toBe(priority);
     }
   });
 
-  it("neutralizes shell metacharacters in the query it interpolates", () => {
+  it("keeps shell metacharacters as JSON data", () => {
     const hostile = 'best "protein" powder, `whoami` $(id); rm -rf ~ — cheap\'s';
     const markdown = decisionMarkdown(hostile);
-    const command = markdown.slice(markdown.indexOf("bd create"));
-
-    // Everything data-derived is POSIX single-quoted, where a backtick, $(…)
-    // and a double quote are inert; each quote is escaped as '\''.
-    expect(command).toContain(
-      `bd create 'Act on “best "protein" powder, \`whoami\` $(id); rm -rf ~ — cheap'\\''s”'`,
-    );
-    // The comma would split one label into two; the verbatim key rides in
-    // metadata, which bd matches exactly.
-    expect(markdown).toContain(
-      "  -l 'key:best-protein-powder-whoami-id-rm-rf-cheap-s'",
-    );
+    expect(taskOf(markdown).title).toBe(`Act on “${hostile}”`);
+    expect(taskOf(markdown).labels).toContain("key:best-protein-powder-whoami-id-rm-rf-cheap-s");
     expect(metadataOf(markdown).noticeos_key).toBe(hostile);
-    // An odd quote count would mean the shell string never closed.
-    expect((command.match(/'/g) ?? []).length % 2).toBe(0);
+    expect(markdown).not.toContain("bd create");
   });
 
-  it("flattens a query that tries to span lines or reorder what it renders", () => {
-    // A newline would put the rest of the query on a line the command does not
-    // own; a bidi override would let the rendered command read differently
-    // from the one that runs.
-    const markdown = decisionMarkdown("chia\n  pudding‮rm -rf ~");
-
-    expect(markdown).toContain("bd create 'Act on “chia pudding rm -rf ~”'");
-    expect(metadataOf(markdown).noticeos_key).toBe("chia pudding rm -rf ~");
+  it("omits filing when a query contains control or format characters", () => {
+    expect(decisionMarkdown("chia\n  pudding\u202erm -rf ~")).not.toContain("## File this task");
   });
 
   it("opens a fence the query's own backticks cannot escape", () => {
     const markdown = decisionMarkdown("how to write ``` in markdown");
 
-    expect(markdown).toContain("````sh");
+    expect(markdown).toContain("````json");
     expect(markdown).toContain("\n````\n");
   });
 
@@ -1742,26 +1708,13 @@ describe("the task handoff command", () => {
     const markdown = executiveInsightMarkdown(insightFixture, "meadow.example");
 
     expect(markdown).toContain("## File this task");
-    expect(markdown).toContain(
-      "bd create 'Expand pages already earning search demand'",
-    );
-    expect(markdown).toContain("  -p 2");
-    expect(markdown).toContain("  -l 'noticeos-handoff'");
-    expect(markdown).toContain("  -l 'asset:meadow.example'");
-    expect(markdown).toContain("  -l 'rule:search-opportunity'");
-    expect(markdown).toContain("  -l 'key:search-opportunity'");
-    expect(markdown).toContain(
-      `--metadata '${JSON.stringify({
-        noticeos_source: "noticeos-handoff",
-        noticeos_asset: "meadow.example",
-        noticeos_kind: "finding",
-        noticeos_rule: "search-opportunity",
-        noticeos_key: "search-opportunity",
-      })}'`,
-    );
-    expect(markdown).toContain(
-      "-d 'Recommendation on meadow.example. Captured impressions: 1,003. High-impression pages: 12. Window: 2026-05-01 to 2026-07-29. Sources: gsc/search-analytics, bing-webmaster/query-stats. Original analysis confidence: high.",
-    );
+    expect(taskOf(markdown)).toMatchObject({
+      title: "Expand pages already earning search demand", priority: 2,
+      labels: ["noticeos-handoff", "asset:meadow.example", "rule:search-opportunity", "key:search-opportunity"],
+      metadata: { noticeos_source: "noticeos-handoff", noticeos_asset: "meadow.example", noticeos_kind: "finding",
+        noticeos_rule: "search-opportunity", noticeos_key: "search-opportunity" },
+    });
+    expect(taskOf(markdown).description).toContain("Recommendation on meadow.example. Captured impressions: 1,003.");
     expect(markdown.split("## File this task")[1]).not.toContain("Several pages earn impressions");
   });
 
@@ -1784,13 +1737,13 @@ describe("the task handoff command", () => {
         { ...insightFixture, kind: "warning" },
         "meadow.example",
       ),
-    ).toContain("  -p 1");
+    ).toContain('"priority": 1');
     expect(
       executiveInsightMarkdown(
         { ...insightFixture, kind: "insight" },
         "meadow.example",
       ),
-    ).toContain("  -p 3");
+    ).toContain('"priority": 3');
   });
 
   it("omits the section for a vintage finding or an unattributed one", () => {
@@ -3816,8 +3769,9 @@ describe("PageDecisions", () => {
     expect(markdown).toContain("- **What to do:** Investigate");
     expect(markdown).toContain("**Clicks:** 5 → 5");
     // The page URL is the key, because two assets can share a path.
-    expect(markdown).toContain('"noticeos_kind":"page"');
-    expect(markdown).toContain('"noticeos_key":"https://meadow.example/recipes"');
+    const task = JSON.parse(markdown.match(/`{3,}json\n([\s\S]*?)\n`{3,}/)![1]!);
+    expect(task.metadata.noticeos_kind).toBe("page");
+    expect(task.metadata.noticeos_key).toBe("https://meadow.example/recipes");
     expect(markdown).toContain(
       "**Grounding queries excluded from the leading-query join:** 0",
     );

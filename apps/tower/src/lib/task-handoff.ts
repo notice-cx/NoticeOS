@@ -1,34 +1,11 @@
-/**
- * The "File this task" section every copied handoff carries, and the same
- * task as data for the Tower's own composer. A copied handoff is executed by
- * an agent working in the asset's own repo, a spoke on the portfolio task hub
- * (`config/beads.json`); the task id becomes the ref the commit quotes, the
- * annotation carries, and the outcome watch window is keyed to.
- *
- * Two consumers, one grammar: `taskHandoffPrefill` is the single computation
- * of what the task is, `taskHandoffSection` renders it as the shell command an
- * agent pastes, and `TaskComposer` renders it as a form. They cannot drift,
- * because the command is built from the prefill; `test/task-composer.test.tsx`
- * pins that by parsing the emitted command back apart.
- *
- * Everything interpolated into the command is POSIX single-quoted (`'\''` for
- * an embedded quote), never double-quoted: inside single quotes a backtick,
- * `$(…)`, or `"` is inert. The prefill carries the same values unquoted, since
- * the lane passes `bd` its arguments as an array.
- */
+/** One task prefill for the Tower composer and copied MCP instructions. */
 
-import { HANDOFF_LABEL } from "@noticeos/contract/task-metadata";
+import { HANDOFF_LABEL, taskHandoffMetadataOf, type TaskHandoffMetadata } from "@noticeos/contract/task-metadata";
 
-/** The fixed label every task filed from a Tower handoff carries, so the whole
- * lane is one `bd list -l noticeos-handoff` away (older tasks carry
- * `reindex-handoff`, and every reader finds both:
- * packages/contract/src/task-metadata.mts). */
+/** The label shared by every task filed from a Tower handoff. */
 export const HANDOFF_SOURCE_LABEL = HANDOFF_LABEL;
 
-/** Asset ids come from the seeded `assets` table and are what
- * `config/beads.json` joins a spoke on. A value outside this shape is not an
- * asset id, and the section that tells an agent which repo to file in is
- * dropped rather than guessed. */
+/** Site keys identify the source; MCP project UUIDs come from list_projects. */
 const ASSET_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
 /**
@@ -62,45 +39,27 @@ export interface TaskHandoff {
    * whole (never clipped with the summary) so the filed task can be followed
    * back to what raised it. */
   evidenceUrl?: string;
-  /** `bd` priority, 0 (highest) to 4. */
+  /** Priority, 0 (highest) to 4. */
   priority: number;
 }
 
-/** The `noticeos_*` grammar, in the ONE order both consumers emit it. Key order
- * is load-bearing for the copied command (it is `JSON.stringify`d into
- * `--metadata`) and irrelevant to the lane, so the stricter reader wins.
- *
- * A `type` rather than an `interface` on purpose: only a type alias picks up an
- * implicit index signature, and the composer hands this straight to the lane's
- * `metadata?: Record<string, unknown>` without a cast that would let a renamed
- * field through. */
-export type TaskHandoffMetadata = {
-  noticeos_source: typeof HANDOFF_SOURCE_LABEL;
-  noticeos_asset: string;
-  noticeos_kind: TaskHandoffKind;
-  noticeos_rule: string;
-  noticeos_key: string;
-};
+export type { TaskHandoffMetadata } from "@noticeos/contract/task-metadata";
 
-/**
- * The task a handoff files, as data: what `TaskComposer` opens with and what
- * `POST /api/tasks` receives, byte-for-byte the same task the copied `bd
- * create` makes. `null` where the command would also be dropped.
- */
+/** The task the composer files. `project` is the site's logical key; copied
+ * instructions resolve it to a projectId before calling create_task. */
 export interface TaskHandoffPrefill {
   /** The `config/beads.json` spoke this files in — the asset id. */
   project: string;
   title: string;
-  /** `bd -t`. Every handoff is a `task`; the composer lets the operator change
-   * it before filing. */
+  /** Every handoff starts as a task. */
   type: "task";
-  /** `bd -p`, 0–4. */
+  /** Priority, 0–4. */
   priority: number;
   /** `noticeos-handoff`, `asset:<id>`, and the `rule:` / `key:` slugs — in the
-   * order the command writes them. Locked in the composer: they are the join
+   * order the payload writes them. Locked in the composer: they are the join
    * the badge and the poller read, not the operator's taxonomy. */
   labels: string[];
-  /** `bd -d`. */
+  /** Work summary and evidence. */
   description: string;
   metadata: TaskHandoffMetadata;
   /** Repeated out of the metadata so a surface can say "Linked to <kind>"
@@ -110,17 +69,24 @@ export interface TaskHandoffPrefill {
 }
 
 /** The task this handoff would file, or `null` when it cannot name one. The
- * single source of the grammar: the copied command below is rendered from
+ * single source of the grammar: the copied payload below is rendered from
  * this, and the composer files this. */
 export function taskHandoffPrefill(
   handoff: TaskHandoff | null,
 ): TaskHandoffPrefill | null {
   if (!handoff) return null;
   const asset = handoff.asset.trim();
-  const key = oneLine(handoff.key);
-  const rule = oneLine(handoff.rule);
+  const key = handoff.key;
+  const rule = handoff.rule;
   const title = oneLine(handoff.title);
-  if (!ASSET_ID.test(asset) || !key || !rule || !title) return null;
+  const metadata = taskHandoffMetadataOf({
+    noticeos_source: HANDOFF_SOURCE_LABEL,
+    noticeos_asset: asset,
+    noticeos_kind: handoff.kind,
+    noticeos_rule: rule,
+    noticeos_key: key,
+  });
+  if (!metadata || !title) return null;
 
   const keyLabel = labelSlug(key);
   const ruleLabel = labelSlug(rule);
@@ -137,51 +103,39 @@ export function taskHandoffPrefill(
     ],
     description: [
       clip(oneLine(handoff.summary), 300),
-      evidenceLink(handoff.evidenceUrl),
+      evidenceLink(handoff.evidenceUrl ?? findingEvidenceUrl(asset)),
       handoff.applicabilityReview ? oneLine(handoff.applicabilityReview) : null,
     ].filter(Boolean).join(" "),
-    metadata: {
-      noticeos_source: HANDOFF_SOURCE_LABEL,
-      noticeos_asset: asset,
-      noticeos_kind: handoff.kind,
-      noticeos_rule: rule,
-      noticeos_key: key,
-    },
+    metadata,
     kind: handoff.kind,
     key,
   };
 }
 
-/** The section's lines, or `[]` when the handoff cannot name a real repo and a
- * real key — a snapshot vintage that predates either degrades to the handoff
- * it always was rather than emitting a command that files against nothing. */
+/** Copied instructions carry data, never a checkout-dependent shell command. */
 export function taskHandoffSection(handoff: TaskHandoff | null): string[] {
   const prefill = taskHandoffPrefill(handoff);
   if (!prefill) return [];
-  const asset = prefill.project;
-
-  const command = [
-    `bd create ${shellQuote(prefill.title)} \\`,
-    `  -t ${prefill.type} \\`,
-    `  -p ${prefill.priority} \\`,
-    ...prefill.labels.map((label) => `  -l ${shellQuote(label)} \\`),
-    `  --metadata ${shellQuote(JSON.stringify(prefill.metadata))} \\`,
-    `  -d ${shellQuote(prefill.description)}`,
-  ].join("\n");
-  const fence = fenceFor(command);
+  const { project: asset, kind: _kind, key: _key, ...task } = prefill;
+  const payload = JSON.stringify(task, null, 2);
+  const fence = fenceFor(payload);
 
   return [
     "## File this task",
     "",
-    "The row this came from has a **File task** button, which opens this already filled in and files it for you. That is the path if NoticeOS is in front of you. What follows is the same task for a reader who does not have it open — an agent standing in the asset's own repository.",
+    "The **File task** button opens the same task already filled in. To file it through the NoticeOS MCP task tools:",
     "",
-    `Run it in the \`${asset}\` asset repo — the \`repo\` path recorded for that asset in NoticeOS \`config/beads.json\`. The command takes its project from the directory it runs in, so running it anywhere else files against the wrong asset.`,
+    "1. Call `list_workspaces`, select the workspace that owns this site, and read `get_task_guide`.",
+    `2. Call \`list_projects\` with that workspace. Match the site's logical key ${JSON.stringify(asset)} to the project's \`key\`, and use its \`projectId\` as \`project\`. The site key is not a project UUID. If no project matches, stop and ask the operator.`,
+    "3. Search with `list_tasks` before filing, as the guide requires. Add evidence to matching work with `comment_on_task`; otherwise call `create_task` with the task fields below, the selected `workspace` and `project`, your `model`, and a fresh `idempotency_key`. Reuse the same key and arguments on retries. Keep the labels, metadata and evidence link intact.",
     "",
-    `${fence}sh`,
-    command,
+    `${fence}json`,
+    payload,
     fence,
     "",
-    `Quote the id it prints in every commit for this work, and close it with \`bd close <id> -r '<decision and evidence>'\` once the work is complete. A closed task records a decision, **not proof of shipment or outcome**. Verify any claimed change and its measured result separately. Nothing files, closes, or measures it on your behalf.`,
+    "4. Use the returned task id in commits. Call `claim_task` when starting and `close_task` when complete, with the selected `workspace` and `project`, the returned id as `task`, your `model`, and a fresh `idempotency_key` for each operation. Reuse each key and its arguments on retries. The close reason must cite the decision and evidence, such as a commit or URL. A closed task records a decision, **not proof of shipment or outcome**. Verify the change and its measured result separately.",
+    "",
+    "If the task tools are unavailable, reconnect the NoticeOS server with `/mcp` before filing. Nothing files, closes, or measures it on your behalf.",
     "",
   ];
 }
@@ -207,9 +161,7 @@ function evidenceLink(url: string | undefined): string | null {
   }
 }
 
-/** Labels are a comma-separated list to `bd`, so a comma inside one value
- * silently becomes two labels. The label carries a slug; the exact key travels
- * in metadata, which `bd list --metadata-field` queries verbatim. */
+/** Labels aid discovery; exact identity stays in metadata even when slugs collide. */
 function labelSlug(value: string): string {
   return value
     .toLowerCase()
@@ -218,15 +170,7 @@ function labelSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** POSIX single-quoting: the only shell quoting with no escape sequences
- * inside it. A literal quote closes the string, escapes, and reopens. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-/** One line, no control or format characters: a newline would break the command
- * across lines it does not own, and a bidi override would let the rendered
- * command read differently from the one that runs. */
+/** Display text stays on one line without control or format characters. */
 function oneLine(value: string): string {
   return value.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ").trim();
 }
@@ -241,7 +185,7 @@ function priorityDigit(priority: number): number {
 }
 
 /** A query may contain backticks; the fence has to outrun the longest run in
- * the block or the command spills out of it. */
+ * the block or the payload spills out of it. */
 function fenceFor(block: string): string {
   const longest = (block.match(/`+/g) ?? []).reduce(
     (max, run) => Math.max(max, run.length),
