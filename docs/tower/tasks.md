@@ -94,6 +94,14 @@ A dashed line runs from today to the last mark ahead. A label with no room above
 
 ### All tasks
 
+**Search task titles or ids** filters the available tasks by title or id, with the search kept as `q` in the address, such as `/tasks/all?q=retry+API%3A`. Matching ignores case, splits on whitespace and requires every term to occur in the title or id, in any order. Punctuation is literal: `API:` matches that punctuation, and an exact task id matches its row. Descriptions and comments are not searched.
+
+Search runs over the records read before the table's 25-row display limit and combines with **Project**, **Status**, **Priority**, label and **Assignee**. Changing the search starts the table at its first page. Refreshing the page or returning from a task keeps the search and filters; **Clear filters** clears them together. A site's **Tasks** tab keeps its project fixed during search and after clearing.
+
+Live reads include closed tasks from the last 7 days. Saved snapshots include only the tasks listed in the snapshot, so search cannot cover the full task history. With no matches in a complete live read, the table shows **No task matches these filters.** A limited read shows **No matches in available records. The search is limited to the tasks read.** A failed project read shows **Search is incomplete: some projects could not be read.**, with the project failure and retry control above the table.
+
+In the command palette, ordinary text offers **Search tasks for “…”**, which opens **All tasks** with that search. A task id still offers **Open task**. The palette does not fetch project task lists.
+
 **All tasks** is the board: how big the queue is, and which tasks in it cannot move forward without you.
 
 ![The Tasks page in the synthetic demo: three decisions waiting for you, tasks closed and filed a day over 14 days, and work done this week and still open by project.](../images/tower-tasks.webp)

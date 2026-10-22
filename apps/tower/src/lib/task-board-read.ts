@@ -1,6 +1,7 @@
 import type { LiveTask, LiveTasksPayload, TasksCapabilities, TaskProject, TaskActor } from "@shared/tasks";
 import { PRIORITY_BANDS, sumWorkWeeks, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
 import { TASK_BLOCKING_DEPENDENCIES, waitsOnPerson } from "@noticeos/contract/task-gate";
+import { taskSearch } from "./task-search";
 
 export const IN_PROGRESS = "in_progress";
 export const PARKED = "deferred";
@@ -371,6 +372,7 @@ function clampBand(priority: number): number {
 
 
 export interface TaskBoardFilters {
+  q?: string;
   project: string;
   status: string;
   priority: string;
@@ -446,7 +448,9 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   });
   const allTasks = projects.flatMap(project => project.tasks);
   const projectFilter = scope ?? filters.project;
+  const matchesSearch = taskSearch(filters.q ?? "");
   const matches = (task: BoardTask): boolean =>
+    matchesSearch(task) &&
     (projectFilter === "all" || task.project === projectFilter) &&
     (filters.status === "all" || STORED_TO_KEY.get(isWork(task) ? task.workStatus ?? task.status : task.status) === filters.status) &&
     (filters.priority === "all" || PRIORITY_BANDS[clampBand(task.priority)] === filters.priority) &&

@@ -6,7 +6,7 @@ import { LoaderCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, taskWritesAvailable, taskActorLabel } from "@shared/tasks";
+import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import {
   PRIORITY_BANDS,
@@ -153,12 +153,13 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const priorityFilter = params.get("priority") ?? "all";
   const labelFilter = params.get("label") ?? "";
   const assigneeFilter = params.get("assignee") ?? "all";
+  const search = params.get("q") ?? "";
   const location = useLocation();
   const navigate = useNavigate();
   const composing = params.get("new") === "1" || composeRequested(location.state);
 
   // Narrowing the board starts it again at the first page.
-  const filterKey = [projectFilter, statusFilter, priorityFilter, labelFilter, assigneeFilter].join("|");
+  const filterKey = JSON.stringify([projectFilter, statusFilter, priorityFilter, labelFilter, assigneeFilter, search]);
   useEffect(() => {
     setShown(PAGE_ROWS);
   }, [filterKey]);
@@ -166,7 +167,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   function setParam(name: string, value: string) {
     const next = new URLSearchParams(params);
     // A default never occupies the query string: one view, one link.
-    if (value === "all" || value === "") next.delete(name);
+    if ((name !== "q" && value === "all") || value === "") next.delete(name);
     else next.set(name, value);
     // `replace`: Back should leave Tasks, not walk every control touched.
     setParams(next, { replace: true });
@@ -191,7 +192,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     closedHistoryState, weeks, doneRead,
   } = useTaskBoard(scope, {
     project: projectFilter, status: statusFilter, priority: priorityFilter,
-    label: labelFilter, assignee: assigneeFilter,
+    label: labelFilter, assignee: assigneeFilter, q: search,
   });
 
   // An answered row leaves at once: out of the list and the count while its
@@ -213,7 +214,12 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     statusFilter !== "all" ||
     priorityFilter !== "all" ||
     labelFilter !== "" ||
-    assigneeFilter !== "all";
+    assigneeFilter !== "all" || search.trim() !== "";
+
+  const searchedProjects = projects.filter(project => projectFilter === "all" || project.asset === (scopeKey ?? projectFilter));
+  const searchComplete = searchedProjects.length > 0
+    && searchedProjects.every(project => project.source === "live" && project.laneError === null);
+  const searchUnavailable = searchedProjects.some(project => !project.ok || project.laneError !== null);
 
   // The pictures are of the whole board, as the answer's counts are: the
   // filters below narrow the list, not the shape of the work.
@@ -375,6 +381,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
               priority: priorityFilter,
               label: labelFilter,
               assignee: assigneeFilter,
+              q: search,
             }}
             narrowed={narrowed}
             age={
@@ -397,6 +404,10 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
             }
             onPick={setParam}
           />
+
+          <p id="tasks-search-scope" className="m-0 text-xs text-muted-foreground">
+            Titles/ids only · live closes: last {TASKS_CLOSED_WINDOW_DAYS} days; snapshots: listed tasks only.
+          </p>
 
           {/* One banner for projects that could not be read: which, and a way
               to try again. Their rows stay on the board, from the last read or
@@ -430,7 +441,9 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
             projects={byId}
             nowMs={now}
             showProject={!scoped}
-            countsComplete={countsComplete}
+            countsComplete={search.trim() ? searchComplete : countsComplete}
+            searchIncomplete={search.trim() !== "" && !searchComplete}
+            searchUnavailable={searchUnavailable}
           />
         </>
       )}
@@ -470,6 +483,7 @@ export function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
 // --- Filters: the state is the URL, so a narrowed board is a link -----------
 
 interface FilterValue {
+  q: string;
   project: string;
   status: string;
   priority: string;
@@ -522,7 +536,7 @@ function Filters({
   // What the fold's one press carries on a phone: how many of these are
   // narrowing the board now.
   const active = [scoped ? "all" : value.project, value.status, value.priority, value.assignee].filter((pick) => pick !== "all").length
-    + (value.label === "" ? 0 : 1);
+    + (value.label === "" ? 0 : 1) + (value.q.trim() === "" ? 0 : 1);
   return (
     <FilterBar
       active={active}
@@ -531,6 +545,16 @@ function Filters({
       // How old the board is: a fact about the list, never folded.
       aside={age ? <span className="ms-auto inline-flex items-center gap-2">{age}</span> : null}
     >
+      <label className="sr-only" htmlFor="tasks-search">Search task titles or ids</label>
+      <input
+        id="tasks-search"
+        type="search"
+        className={cn(fieldClass, "w-56 max-w-full")}
+        placeholder="Title or id…"
+        aria-describedby="tasks-search-scope"
+        value={value.q}
+        onChange={(event) => onPick("q", event.target.value)}
+      />
       {/* One project is not a choice; a link that already narrows keeps its
           select so it can be cleared. */}
       {scoped || (projects.length < 2 && value.project === "all") ? null : (
@@ -668,6 +692,8 @@ function Board({
   nowMs,
   showProject,
   countsComplete,
+  searchIncomplete,
+  searchUnavailable,
 }: {
   rows: BoardTask[];
   shown: number;
@@ -678,6 +704,8 @@ function Board({
   nowMs: number;
   showProject: boolean;
   countsComplete: boolean;
+  searchIncomplete: boolean;
+  searchUnavailable: boolean;
 }) {
   const capabilities = useTasksLive();
   const selection = useSelection();
@@ -717,7 +745,9 @@ function Board({
         <p className="px-4 pb-4 text-xs text-muted-foreground">
           {/* Unfiltered and empty with tasks on the board: every one of them
               is in Waiting on you above, which this table does not repeat. */}
-          {!countsComplete ? "Task availability is unknown for unread projects." : total === 0 ? "Nothing is queued." : narrowed ? "No task matches these filters." : "Nothing else is queued."}
+          {searchIncomplete
+            ? searchUnavailable ? "Search is incomplete: some projects could not be read." : "No matches in available records. The search is limited to the tasks read."
+            : !countsComplete ? "Task availability is unknown for unread projects." : total === 0 ? "Nothing is queued." : narrowed ? "No task matches these filters." : "Nothing else is queued."}
         </p>
       ) : (
         <div className="px-2 pb-1">

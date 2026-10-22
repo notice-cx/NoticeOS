@@ -654,7 +654,7 @@ describe("/tasks — the filters are the URL", () => {
     });
     const filters = container.querySelector("[data-tasks-filters]")!;
     expect(filters.querySelectorAll("select")).toHaveLength(4);
-    expect(filters.querySelectorAll("input")).toHaveLength(1);
+    expect(filters.querySelectorAll("input")).toHaveLength(2);
     // The one button is the phone's fold, hidden from `sm` up; the controls
     // themselves hold none.
     expect(filters.querySelector("[data-filter-controls]")!.querySelectorAll("button")).toHaveLength(0);
@@ -1259,8 +1259,8 @@ describe("/tasks — claim, close and defer in place", () => {
     { scope: "asset", link: "open" },
   ])("preserves $scope board filters through the $link task link", ({ scope, link }) => {
     const entry = scope === "asset"
-      ? "/assets/meadow.example/tasks?range=90&status=open"
-      : "/tasks/all?status=open&project=meadow.example";
+      ? "/assets/meadow.example/tasks?range=90&status=open&q=recipe"
+      : "/tasks/all?status=open&project=meadow.example&q=recipe";
     const { container } = scope === "asset"
       ? renderScoped("meadow.example", { entry })
       : renderBoard({ entry });
@@ -2555,4 +2555,62 @@ describe("/tasks and the Wall: one Done this week and one Done last week", () =>
       await store.close();
     }
   });
+});
+
+
+describe("task word search on the board", () => {
+  it("stores literal all as q, resets pagination and clears with the other filters", () => {
+    const tasks = Array.from({ length: 250 }, (_, index) => liveTask({ id: `md-${index}`, title: `Install all schema ${index}` }));
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board(tasks) } });
+    fireEvent.click(screen.getByRole("button", { name: /Load 25 more/ }));
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(50);
+    const search = screen.getByRole("searchbox", { name: "Search task titles or ids" });
+    expect(search).toHaveAccessibleDescription(/Titles\/ids only/);
+    fireEvent.change(search, { target: { value: "all" } });
+    expect(screen.getByTestId("search")).toHaveTextContent("?q=all");
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
+    fireEvent.change(search, { target: { value: "MD-249" } });
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(1);
+    expect(row(container, "md-249")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }));
+    expect(search).toHaveValue("");
+    expect(screen.getByTestId("search").textContent).toBe("");
+  });
+
+  it.each([
+    { live: true, errors: {}, text: "No task matches these filters." },
+    { live: false, errors: {}, text: "No matches in available records. The search is limited to the tasks read." },
+    { live: true, errors: { "meadow.example": "fixture unavailable" }, text: "Search is incomplete: some projects could not be read." },
+  ])("distinguishes available records with live=$live, errors=$errors", ({ live, errors, text }) => {
+    renderBoard({ live, errors, boards: errors["meadow.example"] ? {} : { "meadow.example": board([liveTask()]) }, entry: "/tasks/all?q=absent" });
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.getByText(/snapshots: listed tasks only/)).toBeInTheDocument();
+  });
+
+  it("keeps q with the five filters on initial load and narrows selection and row actions", () => {
+    const tasks = [liveTask({ id: "md-1", title: "Retry API: one", assignee: "Ada", labels: ["review"] }),
+      liveTask({ id: "md-2", title: "Retry API: two", assignee: "Ada", labels: ["review"] }),
+      liveTask({ id: "md-3", title: "Outside search", assignee: "Ada", labels: ["review"] })];
+    const entry = "/tasks/all?q=retry+API%3A&project=meadow.example&status=open&priority=normal&label=review&assignee=Ada";
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board(tasks) }, entry });
+    expect(screen.getByRole("searchbox", { name: "Search task titles or ids" })).toHaveValue("retry API:");
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(2);
+    expect(within(open(container, "md-1")).getByRole("button", { name: "Claim" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Select" }));
+    expect(container.querySelectorAll("[data-task-select]")).toHaveLength(2);
+    expect(container.querySelector('[data-task-select="md-3"]')).toBeNull();
+    expect(screen.getByTestId("search")).toHaveTextContent(entry.slice(entry.indexOf("?")));
+  });
+});
+
+it("keeps a site search pinned despite a conflicting URL project and after Clear filters", () => {
+  const { container } = renderScoped("meadow.example", { entry: "/assets/meadow.example/tasks?q=recipe&project=northwind.example" });
+  expect(row(container, "md-1w2")).toBeInTheDocument();
+  expect(container.querySelector('[data-task-row="nw-1"]')).toBeNull();
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search task titles or ids" }), { target: { value: "Northwind" } });
+  expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(0);
+  fireEvent.click(screen.getByRole("link", { name: "Clear filters" }));
+  expect(row(container, "md-1w2")).toBeInTheDocument();
+  expect(container.querySelector("[data-tasks-board]")).toHaveAttribute("data-tasks-board", "meadow.example");
+  expect(screen.queryByRole("combobox", { name: "Project" })).toBeNull();
 });
