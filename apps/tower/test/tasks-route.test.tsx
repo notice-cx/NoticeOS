@@ -641,7 +641,7 @@ describe("/tasks — the filters are the URL", () => {
     ],
   });
 
-  it("names a retired site's project Retired in the project list, and keeps it there", () => {
+  it("names a retired asset's project Retired in the project list, and keeps it there", () => {
     state.sites = [{ id: "meadow.example", status: "live" }, { id: "northwind.example", status: "retired" }];
     const { container } = renderBoard({ data: twoProjects });
     const labels = [...container.querySelector<HTMLSelectElement>("#tasks-project")!.options].map((option) => option.textContent);
@@ -1580,10 +1580,10 @@ describe("/tasks — core hub availability", () => {
     expect(screen.queryByText("No tasks yet")).toBeNull();
   });
 
-  it("shows a missing site's project without hiding the core Tasks tab", () => {
+  it("shows a missing asset's project without hiding the core Tasks tab", () => {
     taskSourceMock.connected = null;
     const { container } = renderScoped("example.com");
-    expect(screen.getByText("No task project for this site")).toBeInTheDocument();
+    expect(screen.getByText("No task project for this asset")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings/task-projects");
     expect(container.querySelector("[data-new-task]")).not.toBeNull();
   });
@@ -1792,7 +1792,7 @@ describe("the asset page's Tasks tab", () => {
   it("says how to wire a project for an asset the task database has never heard of", () => {
     const { container } = renderScoped("acorn.example", { data: two });
 
-    expect(screen.getByText("No task project for this site")).toBeInTheDocument();
+    expect(screen.getByText("No task project for this asset")).toBeInTheDocument();
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
     expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings/task-projects");
     expect(container.querySelector("[data-tasks-filters]")).toBeNull();
@@ -2469,7 +2469,7 @@ describe("/tasks — each figure's week against the week before", () => {
     expect([value(fig(container, "urgent")), value(fig(container, "blocked")), value(fig(container, "closed"))]).toEqual(["6", "9", "36"]);
   });
 
-  it("gives a site's Tasks tab its own project's week", () => {
+  it("gives an asset's Tasks tab its own project's week", () => {
     const { container } = renderScoped("northwind.example", { data });
     expect([value(fig(container, "urgent")), value(fig(container, "blocked")), value(fig(container, "closed"))]).toEqual(["4", "6", "24"]);
     expect(within(fig(container, "closed")).getByLabelText("12 more than last week by today")).toBeInTheDocument();
@@ -2603,7 +2603,7 @@ describe("task word search on the board", () => {
   });
 });
 
-it("keeps a site search pinned despite a conflicting URL project and after Clear filters", () => {
+it("keeps an asset search pinned despite a conflicting URL project and after Clear filters", () => {
   const { container } = renderScoped("meadow.example", { entry: "/assets/meadow.example/tasks?q=recipe&project=northwind.example" });
   expect(row(container, "md-1w2")).toBeInTheDocument();
   expect(container.querySelector('[data-task-row="nw-1"]')).toBeNull();

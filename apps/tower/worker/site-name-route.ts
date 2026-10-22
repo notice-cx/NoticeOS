@@ -60,7 +60,7 @@ async function fetchHome(domain: string, fetcher: typeof fetch, signal: AbortSig
       method: "GET",
       redirect: "manual",
       signal,
-      headers: { accept: "text/html", "user-agent": "NoticeOS site name lookup" },
+      headers: { accept: "text/html", "user-agent": "NoticeOS asset name lookup" },
     });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");

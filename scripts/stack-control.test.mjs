@@ -149,7 +149,7 @@ test('stored anomaly refresh uses the selected app and refuses unbounded input b
   await assert.rejects(stackControl('refresh-anomalies', selector, { ...refused, args: ['--all'] }), /Usage/);
   assert.deepEqual(refused.calls, []);
 });
-test('one site\'s collection runs inside the running app with exactly the asset, families and window given, and nothing else', async () => {
+test('one asset\'s collection runs inside the running app with exactly the asset, families and window given, and nothing else', async () => {
   for (const args of [['--asset', 'example.com', '--families', 'posthog-inp-targets'], ['--asset', 'example.com'],
     ['--', '--asset', 'example.com', '--families', 'posthog-*', '--start', '2026-09-08', '--end', '2026-09-22'],
     ['--asset', 'example.com', '--families', 'serp-panel,ranked-keywords']]) {
@@ -157,7 +157,7 @@ test('one site\'s collection runs inside the running app with exactly the asset,
     assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','collect',...args.filter(arg => arg !== '--')]], args.join(' '));
   }
   // Refused before Docker is asked anything: no site, a site id a shell would read, another door, an unknown or mixed family.
-  for (const [args, refusal] of [[[], /pnpm os:collect -- --asset example\.com/u], [['--asset', '$(id)'], /must be a property id/u],
+  for (const [args, refusal] of [[[], /pnpm os:collect -- --asset example\.com/u], [['--asset', '$(id)'], /must be an asset id/u],
     [['--asset', 'example.com', '--door', 'http://example.org'], /pnpm os:collect -- --asset/u], [['--asset', 'example.com', '--help'], /pnpm os:collect/u],
     [['--asset', 'example.com', '--families', 'everything'], /Unknown report family: everything/u],
     [['--asset', 'example.com', '--families', 'posthog-events,serp-panel'], /one provider per run/u], [['--asset', 'example.com', '--json', 'yes'], /Unknown option: --json/u]]) {

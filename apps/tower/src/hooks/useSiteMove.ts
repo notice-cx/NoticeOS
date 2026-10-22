@@ -34,7 +34,7 @@ export function useSiteMove(): {
       busy.current = true;
       try {
         const result = await mutateAsync({ asset, to, expectRevision });
-        toast.success(expectRevision ? "Site order restored" : "Site order saved", {
+        toast.success(expectRevision ? "Asset order restored" : "Asset order saved", {
           ...(expectRevision === undefined && result.undoTo !== null
             ? { action: { label: "Undo", onClick: () => { void save(asset, result.undoTo!, result.revision); } } }
             : {}),
@@ -42,8 +42,8 @@ export function useSiteMove(): {
         return true;
       } catch (error) {
         toast.error(error instanceof ApiError && error.code === "expect_mismatch"
-          ? "Site order changed elsewhere. Refresh before moving again."
-          : "Site order could not be confirmed. Refresh before retrying.");
+          ? "Asset order changed elsewhere. Refresh before moving again."
+          : "Asset order could not be confirmed. Refresh before retrying.");
         await queryClient.invalidateQueries({ queryKey: ["wall"] });
         return false;
       } finally {

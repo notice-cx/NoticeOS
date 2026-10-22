@@ -180,7 +180,7 @@ describe('os-egress-down flag', () => {
     const flag = await egressFlag();
     // The subject is the OS, read from the site list's OS flag rather than written down.
     expect(flag).toMatchObject({ asset: 'root-os', severity: 'warn', fired_at: AT });
-    expect(flag!.message).toBe('OS egress down — 2 properties unmeasured');
+    expect(flag!.message).toBe('OS egress down — 2 assets unmeasured');
     expect(JSON.parse(flag!.rule_inputs)).toMatchObject({
       rule: EGRESS_DOWN_RULE_ID,
       unmeasuredAssets: ['meadow.example', 'northwind.example'],
@@ -205,7 +205,7 @@ describe('os-egress-down flag', () => {
 
     const flag = await egressFlag();
     expect(flag!.fired_at).toBe(AT); // onset, not tonight
-    expect(flag!.message).toBe('OS egress down — 2 properties unmeasured');
+    expect(flag!.message).toBe('OS egress down — 2 assets unmeasured');
     expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ failureCount: 2, lastFailedAt: later });
 
     const open = await pgCount(
@@ -293,13 +293,13 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
     await gate.finalize();
   }
 
-  it('counts every collector\'s unmeasured properties, not whichever ran last', async () => {
+  it('counts every collector\'s unmeasured assets, not whichever ran last', async () => {
     await darkRun('pull', NIGHT, ['meadow.example', 'northwind.example']);
     await darkRun('hygiene', AT, ['northwind.example', 'ferns.example']);
 
     const flag = await egressFlag();
     // Three distinct properties went dark across the two, not hygiene's two.
-    expect(flag!.message).toBe('OS egress down — 3 properties unmeasured');
+    expect(flag!.message).toBe('OS egress down — 3 assets unmeasured');
     const inputs = await inputsOf();
     expect(inputs.unmeasuredAssets).toEqual(['meadow.example', 'northwind.example', 'ferns.example']);
     expect(inputs.lanes).toMatchObject({
@@ -322,7 +322,7 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
     expect(open!.resolved_at).toBeNull();
     // What is left is exactly what hygiene is still owed — and the alert says
     // the connection itself is back, rather than still claiming it is down.
-    expect(open!.message).toBe('OS connection back — 2 properties not yet re-checked');
+    expect(open!.message).toBe('OS connection back — 2 assets not yet re-checked');
     const inputs = await inputsOf();
     expect(Object.keys(inputs.lanes)).toEqual(['hygiene']);
     expect(inputs.unmeasuredAssets).toEqual(['northwind.example', 'ferns.example']);
@@ -411,7 +411,7 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
       firedAt: AT,
       severity: 'warn',
       kind: 'anomaly',
-      message: 'OS egress down — 2 properties unmeasured',
+      message: 'OS egress down — 2 assets unmeasured',
       ruleId: EGRESS_DOWN_RULE_ID,
       ruleInputs: JSON.stringify({ rule: EGRESS_DOWN_RULE_ID, beacons: [], unmeasuredAssets: ['a', 'b'], failureCount: 4 }),
     });

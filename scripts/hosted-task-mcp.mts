@@ -71,12 +71,12 @@ export const WHATS_CHANGED: readonly string[] = Object.freeze([
 ]);
 
 /** How a session starts, said in every session's instructions. */
-export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page groups work by model; missing or unrecognized models share Other. Use get_agent_stats for activity statistics without individual task details.';
+export const TASK_START = 'NoticeOS tasks and asset reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page groups work by model; missing or unrecognized models share Other. Use get_agent_stats for activity statistics without individual task details.';
 /** Said only where the panel tools are offered. */
-export const PANEL_RULE = 'For a site\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
+export const PANEL_RULE = 'For an asset\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
 /** The order of task work, in the tools' own names. */
 export const TASK_WORKFLOW: readonly string[] = Object.freeze([
-  '1. list_workspaces, then list_projects: a project is one repository or site, and its prefix starts each of its task ids.',
+  '1. list_workspaces, then list_projects: a project is one repository or asset, and its prefix starts each of its task ids.',
   '2. list_tasks with ready: true and no project for work nothing blocks anywhere; assignee: "me" for what you hold. get_task reads one with its comments before you choose.',
   '3. claim_task the moment you start, naming your model.',
   '4. comment_on_task with progress and evidence as the work moves.',
@@ -98,7 +98,7 @@ export const TASK_GUIDE_TOOL = 'get_task_guide';
 export function taskGuide(panels: boolean): { readonly version: string; readonly guide: string } {
   const body = ['## What changed', '', ...WHATS_CHANGED.map(entry => `- ${entry}`), '', '## Start', '', TASK_START, '',
     '## Workflow', '', ...TASK_WORKFLOW, '', '## Writing a task', '', ...TASK_QUALITY,
-    ...(panels ? ['', '## Site data', '', PANEL_RULE] : [])].join('\n');
+    ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])].join('\n');
   const version = createHash('sha256').update(body).digest('hex').slice(0, 12);
   return Object.freeze({ version, guide: `# Working with NoticeOS tasks\n\nGuide version ${version}; `
     + `list_workspaces returns the current one as guideVersion.\n\n${body}\n` });

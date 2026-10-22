@@ -64,7 +64,7 @@ describe('reportingState — four states, never a boolean', () => {
     expect(reportingState('live', at(50), NOW, MAX_AGE_HOURS)).toBe('stale');
   });
 
-  it('reads a site that has never sent a report as not-expected, whatever its stage', () => {
+  it('reads an asset that has never sent a report as not-expected, whatever its stage', () => {
     expect(reportingState('onboarding', null, NOW, MAX_AGE_HOURS)).toBe('not-expected');
     expect(reportingState('live', undefined, NOW, MAX_AGE_HOURS)).toBe('not-expected');
   });
@@ -111,7 +111,7 @@ describe('isAllFresh — a claim about the whole expected set', () => {
     expect(isAllFresh(summarizeReporting(['fresh', 'fresh', 'not-expected']))).toBe(true);
   });
 
-  it('keeps a new unconfigured site outside the reporting obligation', () => {
+  it('keeps a new unconfigured asset outside the reporting obligation', () => {
     const newSite = reportingState('live', null, NOW, MAX_AGE_HOURS);
     expect(newSite).toBe('not-expected');
     expect(isAllFresh(summarizeReporting(['fresh', 'fresh', newSite]))).toBe(true);
@@ -180,8 +180,8 @@ describe('a declared "no nightly report"', () => {
   });
 });
 
-describe('expectsNightlyReport — a site expects a report once it has sent one', () => {
-  it('expects none from a brand-new site, so nothing warns about a sender nobody set up', () => {
+describe('expectsNightlyReport — an asset expects a report once it has sent one', () => {
+  it('expects none from a brand-new asset, so nothing warns about a sender nobody set up', () => {
     expect(expectsNightlyReport(false, null)).toBe(false);
     expect(expectsNightlyReport(false, undefined)).toBe(false);
     expect(owesNightlyReport('onboarding', false, null)).toBe(false);
@@ -199,7 +199,7 @@ describe('expectsNightlyReport — a site expects a report once it has sent one'
     expect(expectsNightlyReport(false, 'not-a-date')).toBe(true);
   });
 
-  it('never expects one from a declared site, whatever it has sent', () => {
+  it('never expects one from a declared asset, whatever it has sent', () => {
     expect(expectsNightlyReport(true, null)).toBe(false);
     expect(expectsNightlyReport(true, at(1))).toBe(false);
   });
@@ -209,7 +209,7 @@ describe('expectsNightlyReport — a site expects a report once it has sent one'
 // own report, and sites declared as sending none that never sent one. The
 // "has sent one" condition changes nothing for any of them; it differs only
 // for a site that has never sent a report and was never declared.
-describe('the "has sent one" condition leaves every other site unchanged', () => {
+describe('the "has sent one" condition leaves every other asset unchanged', () => {
   /** The rule without the "has sent one" condition, frozen here as the
    * reference: owed whenever the stage reports and nothing was declared. */
   function previousRule(status: string, latest: string | null, declared: boolean): ReportingState | 'never-reported' {
@@ -230,7 +230,7 @@ describe('the "has sent one" condition leaves every other site unchanged', () =>
     { id: 'lookup.example.com', status: 'live', latest: null, declared: true },
   ];
 
-  it('classifies every site exactly as before', () => {
+  it('classifies every asset exactly as before', () => {
     for (const site of SITES) {
       expect(reportingState(site.status, site.latest, NOW, MAX_AGE_HOURS, site.declared), site.id).toBe(
         previousRule(site.status, site.latest, site.declared),
@@ -238,7 +238,7 @@ describe('the "has sent one" condition leaves every other site unchanged', () =>
     }
   });
 
-  it('counts the same fraction, with the stopped sender still stale and the declared sites outside it', () => {
+  it('counts the same fraction, with the stopped sender still stale and the declared assets outside it', () => {
     const coverage = summarizeReporting(
       SITES.map((site) => reportingState(site.status, site.latest, NOW, MAX_AGE_HOURS, site.declared)),
     );
@@ -252,7 +252,7 @@ describe('the "has sent one" condition leaves every other site unchanged', () =>
     }
   });
 
-  it('changes only a site that has never sent a report and was never declared', () => {
+  it('changes only an asset that has never sent a report and was never declared', () => {
     expect(previousRule('onboarding', null, false)).toBe('never-reported');
     expect(reportingState('onboarding', null, NOW, MAX_AGE_HOURS, false)).toBe('not-expected');
   });

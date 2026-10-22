@@ -39,10 +39,10 @@ function usage() {
   pnpm bing-ai:import <file.csv> [more files...] [options]
 
 Drops a Bing Webmaster AI Performance export into the archive and refreshes the
-property's panel dir. The asset and export date come from Bing's own filename.
+asset's panel dir. The asset and export date come from Bing's own filename.
 
 Options:
-  --asset <id>          override the property id read from the filename
+  --asset <id>          override the asset id read from the filename
   --export-date <YYYY-MM-DD>
                         override the export date read from the filename
                         (one file at a time — it is a fact about that file)
@@ -86,7 +86,7 @@ export function parseArgs(argv) {
     throw new Error('Name at least one exported CSV file to import.');
   }
   if (options.asset !== null && !/^[a-z0-9.-]+$/.test(options.asset)) {
-    throw new Error('--asset must be a property id such as example.com.');
+    throw new Error('--asset must be an asset id such as example.com.');
   }
   if (options.exportDate !== null && !isCalendarDate(options.exportDate)) {
     throw new Error('--export-date must be a real YYYY-MM-DD date.');
@@ -122,12 +122,12 @@ export function resolveImport(file, options) {
   const exportDate = options.exportDate ?? named?.exportDate ?? null;
   if (asset === null || exportDate === null) {
     const missing = [
-      asset === null ? '--asset <property id>' : null,
+      asset === null ? '--asset <asset id>' : null,
       exportDate === null ? '--export-date <YYYY-MM-DD>' : null,
     ].filter(Boolean);
     throw new Error(
       `"${basename}" is not named the way Bing names an export ` +
-        '(<site>_<Report>_<M_D_YYYY>.csv), so this importer cannot read ' +
+        '(<asset>_<Report>_<M_D_YYYY>.csv), so this importer cannot read ' +
         `${missing.join(' and ')} off it. Re-download the file, or pass ${missing.join(' and ')} ` +
         'explicitly — the export date is the only date these snapshots have, and guessing it ' +
         'would misdate the series.',

@@ -59,7 +59,7 @@ export const FOCUS_IDS = ["money", "visitors", "site-health", "agents", "costs"]
 export const FOCUS_LIBRARY = [
     { id: "money", label: "Money", detail: "this month, and where it comes from", module: "money" },
     { id: "visitors", label: "Visitors", detail: "how many, and how they found you", module: "sites" },
-    { id: "site-health", label: "Site health", detail: "up, fast, error-free, well built", module: "health" },
+    { id: "site-health", label: "Asset health", detail: "up, fast, error-free, well built", module: "health" },
     { id: "agents", label: "The agents' work", detail: "what they built, and whether it worked", module: "factory" },
     { id: "costs", label: "Costs", detail: "what running it all costs", module: "money" },
 ];
@@ -67,7 +67,7 @@ export const VIEW_LIBRARY = [
     {
         id: "business",
         label: "I run the business",
-        detail: "Is my site healthy and easy to find? In plain words.",
+        detail: "Is my asset healthy and easy to find? In plain words.",
         nav: ["/", "/assets", "/financials", "/tasks", "/settings"],
         home: ["health", "money", "factory", "decide"],
         siteTabs: ["overview", "financials", "search", "health", "tasks", "settings"],

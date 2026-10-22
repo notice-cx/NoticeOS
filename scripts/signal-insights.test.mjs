@@ -13,7 +13,7 @@ const clarityRow = (over = {}) => ({ asset: 'meadow.example', report_date: '2026
   metric: 'ScriptErrorCount', url: 'https://meadow.example/planner', sessions_count: '114', sub_total: '19', ...over });
 const clarityOf = (input, archives = []) => claritySnapshot('meadow.example', new Map([['clarity-url-3d', input]]), archives);
 
-test('Clarity Overview keeps one named page and one unattributed bucket, never an inferred site audience', () => {
+test('Clarity Overview keeps one named page and one unattributed bucket, never an inferred asset audience', () => {
   const block = clarityOf([clarityRow(), clarityRow({ url: 'https://meadow.example/recipes', sub_total: '4', sessions_count: '12' }),
     clarityRow({ metric: 'Traffic', url: '', total_session_count: '0' }),
     clarityRow({ metric: 'Traffic', url: 'https://meadow.example/planner', total_session_count: '400' })]);
@@ -1370,7 +1370,7 @@ test('recommends consolidating a query only when two pages each hold a fifth of 
   const item = cardFor(split, 'query-cannibalization');
   assert.equal(item?.kind, 'recommendation');
   assert.equal(item.primary.value, '300');
-  assert.match(item.title, /2 of the property’s own pages compete/);
+  assert.match(item.title, /2 of the asset’s own pages compete/);
   assert.match(item.summary, /300 impressions across 3 reported dates/);
   assert.equal(item.evidence[0].label, '/');
   assert.equal(item.evidence[0].value, '180');
@@ -1850,7 +1850,7 @@ test('a settled day’s (data not available) sessions count as unattributed, and
   });
 });
 
-test('recommends a locale review for a country clicking at half the rest-of-property rate', () => {
+test('recommends a locale review for a country clicking at half the rest-of-asset rate', () => {
   const countryRows = (split) =>
     Object.entries(split).map(([country, [impressions, clicks]]) => ({
       report_date: '2026-07-28',
@@ -1888,7 +1888,7 @@ test('recommends a locale review for a country clicking at half the rest-of-prop
   assert.equal(item?.kind, 'recommendation');
   assert.equal(item.primary.value, '1.0%');
   assert.match(item.title, /Review the KOR locale: 6\.5% of impressions/);
-  assert.match(item.summary, /against the 2\.0% the rest of the property earns/);
+  assert.match(item.summary, /against the 2\.0% the rest of the asset earns/);
   assert.ok(
     item.evidence.some(
       (row) =>
@@ -1912,7 +1912,7 @@ test('recommends a locale review for a country clicking at half the rest-of-prop
       'query-language-drift',
     ),
     undefined,
-    'a country clicking above half the rest-of-property rate is not drifting',
+    'a country clicking above half the rest-of-asset rate is not drifting',
   );
   assert.equal(
     cardFor(
@@ -1984,7 +1984,7 @@ test('recommends a mobile snippet review only when mobile CTR halves desktop abo
   );
 });
 
-test('lists prune candidates only for a property with enough pages and enough window', () => {
+test('lists prune candidates only for an asset with enough pages and enough window', () => {
   // Thin pages report one impression on their first `thinDates` dates only; a
   // date a page is absent from is unknown, not a zero.
   const pageRows = (pageCount, dateCount, thinDates = 1) =>
@@ -2237,7 +2237,7 @@ test('sets aside one-SERP-block queries rather than recommending consolidation (
     ],
   ]);
   const item = cardFor(genuine, 'query-cannibalization');
-  assert.match(item?.title ?? '', /2 of the property’s own pages compete/);
+  assert.match(item?.title ?? '', /2 of the asset’s own pages compete/);
   assert.ok(
     !item.evidence.some((row) => row.label === 'Single-SERP-block queries set aside'),
     'nothing was set aside, so nothing is claimed to have been',
@@ -2364,7 +2364,7 @@ test('withholds a striking-distance term whose tracked overview does not cite us
   );
   assert.equal(withheldRow?.value, '1');
   assert.match(withheldRow.detail, /where to find free meal plans/);
-  assert.match(withheldRow.detail, /does not cite this property/);
+  assert.match(withheldRow.detail, /does not cite this asset/);
   assert.deepEqual(walled.sources, ['gsc/page-query', 'dataforseo/serp-panel']);
   assert.match(walled.caveat, /withheld rather than recommended/);
 
@@ -2375,9 +2375,9 @@ test('withholds a striking-distance term whose tracked overview does not cite us
       [panelRow('where to find free meal plans', true, true)],
       {
         label: 'AI Overview on this term',
-        value: 'Cites this property',
+        value: 'Cites this asset',
         detail:
-          'An AI Overview holds this result page and cites this property · tracked panel observed 2026-07-28',
+          'An AI Overview holds this result page and cites this asset · tracked panel observed 2026-07-28',
       },
     ],
     [
@@ -2526,7 +2526,7 @@ test('surfaces grounding traffic as its own discovery above the share and volume
       'llm-grounding-traffic',
     ),
     undefined,
-    '2.4% of impressions is not a claim about the property’s demand profile',
+    '2.4% of impressions is not a claim about the asset’s demand profile',
   );
   assert.equal(
     cardFor(
@@ -2815,7 +2815,7 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
       'northwind.example',
     ),
     undefined,
-    'a property with no declaration of its own stays silent',
+    'an asset with no declaration of its own stays silent',
   );
   assert.equal(
     valueEventCard(new Map(), MEADOW_VALUE_EVENTS),
@@ -3025,7 +3025,7 @@ test('surfaces high-demand clusters past the near-win band, one card per page (F
 
 // A site's DataForSEO numbers are asked in the market its settings save, so
 // every finding that names a market names that one.
-test('search findings name the site’s own saved market, and a neutral one when it saved none', () => {
+test('search findings name the asset’s own saved market, and a neutral one when it saved none', () => {
   const ranked = (reportDate, keyword, page, volume, position, difficulty = 20) => ({
     report_date: reportDate,
     keyword,
@@ -3070,11 +3070,11 @@ test('search findings name the site’s own saved market, and a neutral one when
   assert.doesNotMatch(JSON.stringify(unset), ASSUMED_US);
   for (const key of namedCards) {
     const item = unset.items.find((entry) => entry.key === key);
-    assert.match(`${item.summary} ${item.caveat}`, /the site’s default market/, key);
+    assert.match(`${item.summary} ${item.caveat}`, /the asset’s default market/, key);
   }
 });
 
-test('names where the property sits among the domains each AI platform cites', () => {
+test('names where the asset sits among the domains each AI platform cites', () => {
   const platform = (mentions, aiSearchVolume) => ({
     report_date: '2026-07-30',
     row_grain: 'platform-summary',
@@ -3502,7 +3502,7 @@ test('one observer cannot disagree, and a silent observer is never read as agree
       (row) => row.label === 'Clarity cross-check',
     ),
     false,
-    'a property Clarity never read must not carry a row implying it agreed',
+    'an asset Clarity never read must not carry a row implying it agreed',
   );
   assert.deepEqual(cardFor(ga4Only, 'javascript-errors').sources, ['ga4/page-events']);
 
@@ -3698,7 +3698,7 @@ test('the error card names WHAT is thrown, not only where — and never ranks GA
   assert.equal(cardFor(families, 'error-observer-disagreement'), undefined);
 });
 
-test('a property whose triage family is absent gets exactly the card it had before', () => {
+test('an asset whose triage family is absent gets exactly the card it had before', () => {
   const base = [
     ['ga4-page-events', ga4ErrorRows({ '/calculator': 56, '/recipes': 14 })],
     [
@@ -3793,7 +3793,7 @@ test('messages are counted as masked buckets, and one position is never named tw
   assert.equal(
     byLabel.has('Busiest source position'),
     false,
-    'the property’s busiest position IS this message’s position — say it once',
+    'the asset’s busiest position IS this message’s position — say it once',
   );
   assert.equal(byLabel.get('Errors without a message').value, '0');
   assert.match(
@@ -3898,7 +3898,7 @@ function checkState(snapshot, key) {
   return snapshot.product?.checks.find((entry) => entry.key === key) ?? null;
 }
 
-test('PostHog: a property with no PostHog family has no product block and no product card', () => {
+test('PostHog: an asset with no PostHog family has no product block and no product card', () => {
   const snapshot = productOf(new Map());
   assert.equal(snapshot.product, null);
   assert.equal(snapshot.items.some((item) => item.key.startsWith('posthog-')), false);

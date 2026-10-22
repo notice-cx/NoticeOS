@@ -195,7 +195,7 @@ for (const theme of ["dark", "light"] as const) {
       id: `panel-review@${startedAt}`, workflowId: "panel-review", definitionVersion: 1,
       startedAt, finishedAt, state: "failed", steps: [
         { id: "execute", attempt: 1, startedAt, finishedAt, state: "failed",
-          summary: "One site could not be checked.",
+          summary: "One asset could not be checked.",
           output: captureWorkflowOutput({ failed: 1, checked: 3, filed: 1, closed: 0 }) },
         { id: "record", attempt: 1, startedAt: finishedAt, finishedAt, state: "succeeded" },
       ],
@@ -279,8 +279,8 @@ async function createAsset(page: Page, failSetup = false) {
   await expect(page.locator("[data-first-run]")).toBeVisible();
   await assertNoPageOverflow(page);
   for (const step of await page.locator("[data-first-run-step]").all()) await assertContained(step);
-  await keyboardActivate(page, page.getByRole("button", { name: "Add your first site", exact: true }));
-  const sheet = page.getByRole("dialog", { name: "Add a site" });
+  await keyboardActivate(page, page.getByRole("button", { name: "Add your first asset", exact: true }));
+  const sheet = page.getByRole("dialog", { name: "Add an asset" });
   await expect(sheet).toBeVisible();
   // A question asked over Home, not a page of its own.
   await expect(page).toHaveURL(/\/$/);
@@ -300,13 +300,13 @@ async function createAsset(page: Page, failSetup = false) {
   }
   await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET.replace(".", "\\.")}/sources$`));
   await expect(page.getByRole("heading", { name: /^Journey Example/, level: 1 })).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Add a site" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Add an asset" })).toHaveCount(0);
   const state = await (await page.request.get("/__journey/status")).json();
   expect(state.assets).toHaveLength(1);
   expect(state.requests.filter((row: { method: string; path: string }) => row.method === "POST" && row.path === "/api/assets")).toHaveLength(1);
 }
 
-test('site order moves in the Wall editor, persists across every list, and supports guarded Undo', async ({ page, request }, testInfo) => {
+test('asset order moves in the Wall editor, persists across every list, and supports guarded Undo', async ({ page, request }, testInfo) => {
   expect((await request.post('/__journey/wall-feed')).ok()).toBe(true);
   const wall = await (await request.get('/api/wall')).json();
   const initial: string[] = wall.assets.map((asset: { id: string }) => asset.id);
@@ -318,13 +318,13 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(initial);
   await page.getByRole('button', { name: `Move ${first.displayName} down`, exact: true }).click();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
-  await page.locator('[data-sonner-toast]').filter({ hasText: 'Site order saved' }).getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.locator('[data-sonner-toast]').filter({ hasText: 'Asset order saved' }).getByRole('button', { name: 'Undo', exact: true }).click();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(initial);
   await page.getByRole('button', { name: `Move ${first.displayName} down`, exact: true }).click();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
   await page.reload();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
-  await testInfo.attach('site ordering', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+  await testInfo.attach('asset ordering', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
   // Home's site rows and the Sites list follow the saved order.
   for (const [route, attribute] of [['/', 'data-portfolio-row'], ['/assets', 'data-portfolio-row']] as const) {
     await page.goto(route); await page.reload();
@@ -332,7 +332,7 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   }
   const menu = page.getByRole('button', { name: 'Open navigation', exact: true });
   if (await menu.isVisible()) await menu.click();
-  const expand = page.getByRole('button', { name: 'Expand the site list', exact: true });
+  const expand = page.getByRole('button', { name: 'Expand the asset list', exact: true });
   if (await expand.isVisible()) await expand.click();
   await expect.poll(() => ids('[data-nav-asset]:visible', 'data-nav-asset')).toEqual(reordered);
   await page.goto('/wall'); await page.reload();
@@ -344,13 +344,13 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   const changed = await request.patch(`/api/assets/${initial[2]}/order`, { data: { to: initial[0] } });
   expect(changed.ok()).toBe(true);
   const latest = ((await changed.json()).order as string[]).filter(id => initial.includes(id));
-  await page.locator('[data-sonner-toast]').filter({ hasText: 'Site order saved' }).getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(page.getByText('Site order changed elsewhere. Refresh before moving again.', { exact: true })).toBeVisible();
+  await page.locator('[data-sonner-toast]').filter({ hasText: 'Asset order saved' }).getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByText('Asset order changed elsewhere. Refresh before moving again.', { exact: true })).toBeVisible();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(latest);
   expect((await (await request.get('/api/wall')).json()).assets.map((asset: { id: string }) => asset.id)).toEqual(latest);
 });
 
-test('Arrange on the Sites page drags a site to the top and switches one off the TV, and Home, Sites and the Wall follow', async ({ page, request }, testInfo) => {
+test('Arrange on the Assets page drags an asset to the top and switches one off the TV, and Home, Assets and the Wall follow', async ({ page, request }, testInfo) => {
   expect((await request.post('/__journey/wall-feed')).ok()).toBe(true);
   const wall = await (await request.get('/api/wall')).json();
   const sites = wall.assets as { id: string; displayName: string }[];
@@ -397,7 +397,7 @@ test('Arrange on the Sites page drags a site to the top and switches one off the
     }
   }
   await expect.poll(arranged).toEqual(reordered);
-  await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Site order saved' }).last()).toBeVisible();
+  await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Asset order saved' }).last()).toBeVisible();
 
   // One switch takes the first site off the TV, saved with its own Undo.
   await page.getByRole('switch', { name: `TV for ${first.displayName}`, exact: true }).click();
@@ -416,7 +416,7 @@ test('Arrange on the Sites page drags a site to the top and switches one off the
   await expect.poll(() => ids('[data-wall-sites] [data-site-row]', 'data-site-row')).toEqual(reordered.filter((id) => id !== first.id));
 });
 
-test('Mediavine signs in in the panel, its site is matched by domain and synced on Start, and it disconnects', async ({ page }, testInfo) => {
+test('Mediavine signs in in the panel, its asset is matched by domain and synced on Start, and it disconnects', async ({ page }, testInfo) => {
   await createAsset(page);
   await page.goto('/integrations');
   // Mediavine connects in the panel over the list: the login is shown to
@@ -456,7 +456,7 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   const revenue = page.getByRole('region', { name: 'Mediavine revenue', exact: true });
   // No site picker, no Load my sites and no on/off switch are left on the row:
   // the panel picks the site, and Not using stops it.
-  await expect(revenue.getByRole('button', { name: 'Load my sites' })).toHaveCount(0);
+  await expect(revenue.getByRole('button', { name: 'Load my assets' })).toHaveCount(0);
   await expect(revenue.getByRole('button', { name: /automatic sync/ })).toHaveCount(0);
   await expect(revenue).toContainText('2026-09-04');
   // Mediavine's two totals for the same days, as one labelled figure.
@@ -596,12 +596,12 @@ function attentionTones() {
 
 // A TV has no controls, so a stranger's first Wall must not be alarms for
 // things nobody set up: warn and error mean something broke.
-test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where sites will be", desktopOnly("a Wall size check: the TV and a laptop"), async ({ page }, testInfo) => {
+test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where assets will be", desktopOnly("a Wall size check: the TV and a laptop"), async ({ page }, testInfo) => {
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
     await wallAt(page, [width, height]);
     await expect(page.locator("[data-wall-strip]")).toBeVisible();
     await expect(page.locator("[data-system-state]")).toHaveCount(0);
-    await expect(page.locator('[data-wall-sites="none"]')).toHaveText("No sites yet");
+    await expect(page.locator('[data-wall-sites="none"]')).toHaveText("No assets yet");
     await expect(page.locator("[data-wall-work]")).toContainText("Tasks unknown");
     await expect(page.locator("[data-wall-timeline]")).toContainText("Nothing broken");
     expect(await page.evaluate(attentionTones), `the empty Wall at ${width}×${height}`).toEqual([]);
@@ -613,7 +613,7 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
     await wallAt(page, [width, height]);
     await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();
     await expect(page.locator("[data-system-state]")).toHaveCount(0);
-    expect(await page.evaluate(attentionTones), `the one-site Wall at ${width}×${height}`).toEqual([]);
+    expect(await page.evaluate(attentionTones), `the one-asset Wall at ${width}×${height}`).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`wall-one-site-${width}.png`) });
   }
 });
@@ -762,7 +762,7 @@ function expectStackedInOrder(stack: ReturnType<typeof wallStack>, at: string) {
   expect(stack.feed.shown, `${at}: the feed lists at most the TV's rows`).toBe(Math.min(stack.feed.fetched, WALL_FEED_TV_ROWS));
   expect(stack.feed.newestFirst, `${at}: the feed newest first`).toBe(true);
   const order = [...stack.regions].sort((a, b) => a.top - b.top).map((region) => region.name);
-  expect(order, `${at}: strip, revenue, sites, Needs attention, feed`).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
+  expect(order, `${at}: strip, revenue, assets, Needs attention, feed`).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
   for (const region of stack.regions) {
     expect(Math.abs(region.left - stack.canvas.left), `${at}: ${region.name} starts at the column's edge`).toBeLessThanOrEqual(1);
     expect(Math.abs(region.right - stack.canvas.right), `${at}: ${region.name} spans the column`).toBeLessThanOrEqual(1);
@@ -779,7 +779,7 @@ test.describe(() => {
   // The Wall the fixture draws with nothing saved is the strip and the loop,
   // the last 24 hours over the site rows, beside revenue over the work: every
   // region's text and the site rows' one-line headings are checked.
-  test("the Wall cuts off no text in any region, and marks only the first site's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
+  test("the Wall cuts off no text in any region, and marks only the first asset's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     await wallScene(page);
     for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
       await wallAt(page, [width, height]);
@@ -804,14 +804,14 @@ test.describe(() => {
       await page.evaluate(() => document.fonts.ready);
       const found = await page.evaluate(wallLegibility, "[data-wall-sites] [role='columnheader']:not(.sr-only)");
       expect(found.clipped, `text cut off at ${width}×${height}`).toEqual([]);
-      expect(found.wrapped, `site headings off their line at ${width}×${height}`).toEqual([]);
+      expect(found.wrapped, `asset headings off their line at ${width}×${height}`).toEqual([]);
       // A site that has sent nothing says so in full: that line is the one
       // fact its row exists to say, so not even a designed ellipsis may
       // shorten it.
       const waiting = await page.evaluate(() => [...document.querySelectorAll("[data-site-waiting]")].map((cell) => ({
         text: (cell.textContent ?? "").trim(), cut: cell.scrollWidth - cell.clientWidth,
       })));
-      expect(waiting, `the waiting site's line at ${width}×${height}`).toEqual([{ text: "No data yet", cut: 0 }]);
+      expect(waiting, `the waiting asset's line at ${width}×${height}`).toEqual([{ text: "No data yet", cut: 0 }]);
       await page.locator('[data-site-state="waiting"]').screenshot({ path: testInfo.outputPath(`wall-waiting-site-${width}.png`) });
       await page.locator('[data-site-row="plume.example"]').screenshot({ path: testInfo.outputPath(`wall-first-site-stale-${width}.png`) });
       await page.screenshot({ path: testInfo.outputPath(`wall-${width}.png`) });
@@ -823,7 +823,7 @@ test.describe(() => {
   // site is a card whose charts span it with the live figure at its right
   // edge, the feed is as tall as its rows (the TV's twelve at most, newest
   // first) and nothing scrolls sideways.
-  test("the Wall reads on a phone and a tablet: the strip wraps, each site's charts span its card, the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
+  test("the Wall reads on a phone and a tablet: the strip wraps, each asset's charts span its card, the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
     await wallScene(page, "fire", { layout: WALL_FEED_LAYOUT });
@@ -1084,7 +1084,7 @@ test.describe(() => {
   // its floors, and the Wall fits the screen
   // exactly as the TV fits 1920 × 1080, measured by `pnpm audit:wall-fit`'s own
   // function.
-  test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the site rows, the small type on its floors, nothing cut off", desktopOnly("walks the laptop widths itself"), async ({ page }, testInfo) => {
+  test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the asset rows, the small type on its floors, nothing cut off", desktopOnly("walks the laptop widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
     await wallScene(page, "fire", { layout: WALL_FEED_LAYOUT });
@@ -1130,8 +1130,8 @@ test.describe(() => {
       // the site rows; the feed to the right of all three, the body's height.
       expect(found.revenue.top, `${at}: revenue under the strip`).toBeGreaterThanOrEqual(found.strip.bottom);
       expect(found.needs.left, `${at}: Needs attention beside revenue`).toBeGreaterThanOrEqual(found.revenue.right);
-      expect(found.sites.top, `${at}: the site rows under revenue`).toBeGreaterThanOrEqual(found.revenue.bottom);
-      expect(found.feed.left, `${at}: the feed right of the site rows`).toBeGreaterThanOrEqual(found.sites.right);
+      expect(found.sites.top, `${at}: the asset rows under revenue`).toBeGreaterThanOrEqual(found.revenue.bottom);
+      expect(found.feed.left, `${at}: the feed right of the asset rows`).toBeGreaterThanOrEqual(found.sites.right);
       expect(found.feed.left, `${at}: the feed right of Needs attention`).toBeGreaterThanOrEqual(found.needs.right);
       expect(Math.abs(found.feed.top - found.revenue.top), `${at}: the feed from the body's top`).toBeLessThanOrEqual(1);
       // Bounded: its share of the row between 21 and 30 rem of the TV's box —
@@ -1139,7 +1139,7 @@ test.describe(() => {
       expect(found.feed.width, `${at}: the feed at least 21 rem`).toBeGreaterThanOrEqual(21 * 16 * found.zoom - 1);
       expect(found.feed.width, `${at}: the feed at most 30 rem`).toBeLessThanOrEqual(30 * 16 * found.zoom + 1);
       expect(found.feed.width / width, `${at}: the feed about a quarter of the screen`).toBeLessThan(0.3);
-      expect(found.sites.width, `${at}: the site rows take the rest`).toBeGreaterThan(found.feed.width * 2.5);
+      expect(found.sites.width, `${at}: the asset rows take the rest`).toBeGreaterThan(found.feed.width * 2.5);
       // The small type on its floors: 11 px for the axis words and a list's
       // label and meta, 12 for the headings, 13 for a list's line.
       const floors = { axis: 11, listLabel: 11, listMeta: 11, eyebrow: 12, listLine: 13 } as const;
@@ -1155,7 +1155,7 @@ test.describe(() => {
       expect(measured.ink, `${at}: painting outside its own box`).toEqual([]);
       expect(measured.clipped, `${at}: text cut off`).toEqual([]);
       expect(measured.feed.lastRowWhole, `${at}: the feed's lowest row cut`).not.toBe(false);
-      expect(measured.sites.rows.length, `${at}: every site a row`).toBe(wallFixturePayload("fire").assets.length);
+      expect(measured.sites.rows.length, `${at}: every asset a row`).toBe(wallFixturePayload("fire").assets.length);
       const health = page.locator("[data-site-row] [data-site-health]");
       await expect(health).toHaveCount(wallFixturePayload("fire").assets.length);
       await expect(page.locator("[data-site-mark]")).toHaveCount(0);
@@ -1238,7 +1238,7 @@ test.describe(() => {
   // Nothing reaches past the screen, nothing paints outside its own box, no
   // text is cut off, and rows and plots use the region while remaining
   // readable at each supported density.
-  test("the Wall fits the TV with one, two, three, six, seven or eight sites and on fire, cutting off no text", desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
+  test("the Wall fits the TV with one, two, three, six, seven or eight assets and on fire, cutting off no text", desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     // The source-health reads included: a failing source is read from them (`fire`).
     const scene = await wallScene(page);
@@ -2011,7 +2011,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(matched.locator("[data-site-detail]")).toHaveText(JOURNEY_SITE);
   await expect(panel.locator('[data-other-site="https://blog.journey.example/"]')).toContainText("Not verified");
   const startButton = panel.getByRole("button", { name: /^Start collecting/ });
-  await expect(startButton).toHaveText("Start collecting · 1 site");
+  await expect(startButton).toHaveText("Start collecting · 1 asset");
   await expect(startButton).toBeFocused();
   const connected = await (await page.request.get("/__journey/status")).json();
   expect(connected.connected).toBe(true);
@@ -2051,7 +2051,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   await keyboardActivate(page, page.getByRole("button", { name: /Bing Webmaster/ }).first());
   const lane = page.locator('[data-lane-config="bing-webmaster"]');
   await expect(lane).toBeVisible();
-  await expect(lane.getByLabel("Site", { exact: true })).toHaveValue(JOURNEY_SITE);
+  await expect(lane.getByLabel("Provider site", { exact: true })).toHaveValue(JOURNEY_SITE);
   await expect(page.locator("[data-lane-step]")).toHaveCount(0);
   await assertNoPageOverflow(page);
 
@@ -2509,13 +2509,13 @@ for (const theme of ["dark", "light"] as const) {
     let money = true;
     await page.route("**/api/wall", route => route.fulfill({ json: money ? wall : noRevenue }));
     const waiting = Array.from({ length: 6 }, (_, index) => ({
-      id: `ex-${index}`, title: `Review a detailed synthetic change for the site ${index + 1}: ${"a long request ".repeat(12)}`,
+      id: `ex-${index}`, title: `Review a detailed synthetic change for the asset ${index + 1}: ${"a long request ".repeat(12)}`,
       status: "open", priority: index, issueType: "gate", assignee: null, updatedAt: WALL_FIXTURE_NOW,
       closedAt: null, parent: null, deferUntil: null,
     }));
     const work: WorkPayload = {
       generatedAt: WALL_FIXTURE_NOW, capturedAt: WALL_FIXTURE_NOW, pollCadenceHours: 1 / 60, owner: "config/beads.json", historyDays: 0,
-      projects: [{ asset: wall.assets[0]!.id, prefix: "ex", name: "Example site", ok: true, error: null,
+      projects: [{ asset: wall.assets[0]!.id, prefix: "ex", name: "Example asset", ok: true, error: null,
         counts: { open: 120, highPriority: 2, ready: 0, inProgress: 3, blocked: 0, closedRecent: 12, deferred: 0, waiting: 120 },
         history: emptyWorkHistory(), priorities: null, epics: null, ready: [], inProgress: [], recentlyClosed: [], deferred: [], waiting,
         workers: [{ id: "worker-1", model: "Opus 5.5", closedRecent: 9, inProgress: 2 }, { id: "codex", model: "GPT-5-Codex", closedRecent: 3, inProgress: 1 }],
@@ -2680,7 +2680,7 @@ test("a page without the change stream polls while it is shown and sends nothing
   await expect.poll(() => polls.includes("/api/wall")).toBe(true);
 });
 
-test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
+test("a new asset raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);
@@ -2752,10 +2752,10 @@ for (const { status, leaveRestore } of [
   { status: 'live', leaveRestore: false },
 ] as const) {
   test(leaveRestore
-    ? "scrolling away from Restore keeps the chosen position when site data finishes loading"
+    ? "scrolling away from Restore keeps the chosen position when asset data finishes loading"
     : status === 'retired'
-    ? "adding an archived site's domain again opens that site at Restore, and nothing offers Delete"
-    : "adding an active site's domain again opens that site before the wall loads", async ({ page }) => {
+    ? "adding an archived asset's domain again opens that asset at Restore, and nothing offers Delete"
+    : "adding an active asset's domain again opens that asset before the wall loads", async ({ page }) => {
     const pageErrors: string[] = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     const seeded = await page.request.post(`/__journey/archived-site?status=${status}`);
@@ -2773,9 +2773,9 @@ for (const { status, leaveRestore } of [
     try {
       await page.goto("/assets/new");
       await requestedWall;
-      const sheet = page.getByRole("dialog", { name: "Add a site" });
+      const sheet = page.getByRole("dialog", { name: "Add an asset" });
       await sheet.getByLabel("Domain", { exact: true }).fill(domain);
-      await sheet.getByRole("button", { name: "Add site", exact: true }).click();
+      await sheet.getByRole("button", { name: "Add asset", exact: true }).click();
       const issue = sheet.locator('[data-add-site-issue="exists"]');
       await expect(issue).toContainText("Already added");
       await expect(issue.getByRole("link")).toHaveText(`Open ${id}`);
@@ -2896,7 +2896,7 @@ test("Google connects in the panel: the client file dropped, signed in, GA4 and 
   const row = back.locator(`[data-site-row="${JOURNEY_ASSET}"]`);
   await expect(row).toHaveAttribute("data-site-state", "matched matched", { timeout: 15_000 });
   await expect(row.locator("[data-site-detail]")).toHaveText(`GA4 123456789 · sc-domain:${JOURNEY_ASSET}`);
-  await expect(back.locator('[data-other-site="987654321"]')).toContainText("Another site");
+  await expect(back.locator('[data-other-site="987654321"]')).toContainText("Another asset");
   await expect(back.locator('[data-status-for="integration:google"]').first()).toContainText("Signed in");
   await back.locator("[data-sites-start]").click();
   await expect(row.locator("[data-connection]")).toHaveAttribute("data-connection", "working", { timeout: 60_000 });
@@ -2928,7 +2928,7 @@ test("Google, hosted: the installation's own client makes the panel one button",
   await expect(row.locator("[data-connection]")).toHaveAttribute("data-connection", "working", { timeout: 60_000 });
 });
 
-test("a press the Tower answers with a redirect to another site never leaves the fixture, and the test names the URL", async ({ page, offlineGuard }) => {
+test("a press the Tower answers with a redirect to another asset never leaves the fixture, and the test names the URL", async ({ page, offlineGuard }) => {
   const failed = await page.goto("/__journey/redirect-away").then(() => null, (error: Error) => error);
   expect(failed, "the proxy refused the foreign redirect before returning it").toBeInstanceOf(Error);
   expect(page.url()).not.toContain("example.com");
@@ -3135,7 +3135,7 @@ test("the Codebase tab answers how the code changed, and before a first report s
 // only the site's answer is the fixture's). The Data sources row reads Up
 // with when it was checked, then Down with what the page answered, and a site
 // that is down is an error alert.
-test("a site's uptime row reads Up, stays Up after one failed try, then Down with an error alert when the retry fails too", async ({ page }) => {
+test("an asset's uptime row reads Up, stays Up after one failed try, then Down with an error alert when the retry fails too", async ({ page }) => {
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   await createAsset(page);
   // Before its first check a site has no uptime row: nothing to set up.
@@ -3173,7 +3173,7 @@ test("a site's uptime row reads Up, stays Up after one failed try, then Down wit
 // fixture's): 503 "unconfigured", then 401 twice. The alert speaks for last
 // night; the site's Data sources tab and the alert's Evidence list every
 // night, so the first night's 503 is still readable.
-test("a site whose nightly fetch fails lists each failed night on Data sources and in the alert's Evidence", async ({ page }) => {
+test("an asset whose nightly fetch fails lists each failed night on Data sources and in the alert's Evidence", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);
@@ -3250,13 +3250,13 @@ test("settings panel shells preserve content and fit both settings surfaces", as
 // A new site's report auth row is a state ("Site token", locked, "Never
 // shown"), never the environment binding as one unbreakable line, and the
 // page fits at every width.
-test("a new site's Settings fits a tablet, a laptop and a phone, and names its token without the binding", desktopOnly("walks the tablet, laptop and phone widths itself"), async ({ page }) => {
+test("a new asset's Settings fits a tablet, a laptop and a phone, and names its token without the binding", desktopOnly("walks the tablet, laptop and phone widths itself"), async ({ page }) => {
   await createAsset(page);
   for (const [width, height] of [[768, 1024], [1440, 900], [390, 844]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`/assets/${JOURNEY_ASSET}/settings`);
     const auth = page.locator("[data-secret-pointer]");
-    await expect(auth).toContainText("Site token");
+    await expect(auth).toContainText("Asset token");
     await expect(auth).toContainText("Never shown");
     await expect(page.locator("main")).not.toContainText("ASSET_TOKENS");
     const size = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
@@ -3303,7 +3303,7 @@ test("Home first-run actions keep their destinations and phone touch targets in 
 
   await page.goto("/");
   await expect(guide).toBeVisible();
-  await expect(guide.locator('[data-first-run-state="current"]')).toContainText("Add your first site");
+  await expect(guide.locator('[data-first-run-state="current"]')).toContainText("Add your first asset");
   await expect(guide.getByRole("link", { name: "See your first number" })).toHaveCount(0);
   const connect = guide.getByRole("link", { name: "Connect a source", exact: true });
   await expect(connect).toHaveAttribute("href", "/integrations");
@@ -3346,7 +3346,7 @@ test("Home first-run actions keep their destinations and phone touch targets in 
     generatedAt: new Date().toISOString(), available: true, events: [], items: [{
       id: "bing-daily", provider: "bing-webmaster", capability: "bing-daily", label: "Bing daily reports", asset: JOURNEY_ASSET,
       detail: null, report: null, reportDate: null, state: "never-run", lastAttemptAt: null, lastSuccessAt: null,
-      nextAttemptAt: null, failure: null, code: null, action: "Review the verified site and Bing connection.", coverage: "monitored",
+      nextAttemptAt: null, failure: null, code: null, action: "Review the verified asset and Bing connection.", coverage: "monitored",
     }],
   } }));
   await page.goto("/");
@@ -3362,7 +3362,7 @@ test("Home first-run actions keep their destinations and phone touch targets in 
   await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET.replaceAll(".", "\\.")}$`));
 });
 
-test("Home guides a new site to its first number, then becomes the dashboard", async ({ page }) => {
+test("Home guides a new asset to its first number, then becomes the dashboard", async ({ page }) => {
   await createAsset(page);
   await page.goto("/");
   const guide = page.locator("[data-first-run]");
@@ -3391,9 +3391,9 @@ test("Home guides a new site to its first number, then becomes the dashboard", a
  * table, which has no row to compare with one site, is checked by its own
  * heading below. */
 const MANY_SITE_WORDS =
-  /\bportfolio\b|\bassets?\b|\bevery site\b|\ball sites\b|\beach site\b|\bacross (?:all |your )?sites\b|\b1 sites\b|\bsite by site\b/gi;
+  /\bportfolio\b|\bassets?\b|\bevery asset\b|\ball assets\b|\beach asset\b|\bacross (?:all |your )?assets\b|\b1 assets\b|\bsite by asset\b/gi;
 
-test("a one-site install reads as one site: no portfolio words, and no filter with one choice", async ({ page }) => {
+test("a one-asset install reads as one asset: no portfolio words, and no filter with one choice", async ({ page }) => {
   // One connect flow and eleven page loads: close to the default minute on a
   // shared runner.
   test.setTimeout(120_000);
@@ -3444,7 +3444,7 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   // it: nothing is shared, so there is nothing to allocate.
   await page.goto("/financials");
   await expect(main.locator("[data-money-answer]")).toBeVisible();
-  await expect(main.getByRole("heading", { name: "By site" })).toHaveCount(0);
+  await expect(main.getByRole("heading", { name: "By asset" })).toHaveCount(0);
   // The site's Search tab opens on its Bing numbers and the one step to
   // tracking terms, never a blank page.
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
@@ -3463,7 +3463,7 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
 // A site whose first source is ad revenue or PostHog opens its Overview on
 // that number, the first figure drawn under the header and the one its chart
 // opens on, never on a row of traffic dashes.
-test("a revenue-first and a PostHog-first site each open on their own number", async ({ page, request, baseURL }) => {
+test("a revenue-first and a PostHog-first asset each open on their own number", async ({ page, request, baseURL }) => {
   const origin = new URL(baseURL!).origin;
   const main = page.locator("main");
   const firstStat = main.locator('[role="tabpanel"] [data-overview-numbers] [data-stat]').first();
@@ -3567,7 +3567,7 @@ test("each main address loads its own screen and no other", async ({ page }) => 
   // The synthetic store is empty, so the asset page answers with its own
   // not-found state — which is the asset page's code, loaded and drawing.
   const asset = await openAndList(page, "/assets/plume.example", async (p) => {
-    await expect(p.getByText("No such site", { exact: true })).toBeVisible();
+    await expect(p.getByText("No such asset", { exact: true })).toBeVisible();
   });
   expect(asset.screens).toEqual(["components/AppShell", "routes/AssetDetailRoute"]);
   // …and none of its tabs' code but the one it was about to show, and no
@@ -3643,9 +3643,9 @@ test("an asset's tabs fetch their code when opened, and the palette on its first
 
   // The very first ⌘K opens the palette; its code arrives then.
   await page.keyboard.press("ControlOrMeta+k");
-  const palette = page.getByRole("dialog", { name: "Search pages and sites" });
+  const palette = page.getByRole("dialog", { name: "Search pages and assets" });
   await expect(palette).toBeVisible();
-  await expect(palette.getByPlaceholder("Search pages and sites…")).toBeFocused();
+  await expect(palette.getByPlaceholder("Search pages and assets…")).toBeFocused();
   expect([...parts].sort()).toEqual(["components/CommandPalette", "npm:cmdk", "routes/asset-detail/GrowthTab"]);
   await page.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
@@ -3768,7 +3768,7 @@ test("the nav fetches a screen's code when the pointer rests on its link", deskt
 
 // Core work is usable before the first managed site and independent of a
 // delayed snapshot-health request.
-test("core Tasks creates, opens and completes work before any user site", async ({ page, request }, testInfo) => {
+test("core Tasks creates, opens and completes work before any user asset", async ({ page, request }, testInfo) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto("/tasks");

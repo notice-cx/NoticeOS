@@ -384,7 +384,7 @@ function revenue() {
   return { from: shiftLabel(LAST_DAY, -89), to: LAST_DAY, days: revenueDays, reportedThrough: LAST_DAY };
 }
 
-describe("Asset Overview — the site's numbers over one chart", () => {
+describe("Asset Overview — the asset's numbers over one chart", () => {
   it("leads with money, then people, search and the product figure, each naming its window and its role", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
@@ -599,7 +599,7 @@ describe("Asset Overview — an alert drawn on the series it is about", () => {
   });
 });
 
-describe("Asset Overview — leads with the numbers the site has", () => {
+describe("Asset Overview — leads with the numbers the asset has", () => {
   const clarity = { source: "clarity" as const, reportDate: LAST_DAY,
     collectedAt: "2026-07-05T11:00:00.000Z", windowHours: 72 as const, truncated: false,
     page: { url: "https://meadow.example/planner", sessions: 114, scriptErrors: 19 }, unattributedSessions: null };
@@ -630,7 +630,7 @@ describe("Asset Overview — leads with the numbers the site has", () => {
     expect(body.ledger.periods[0]!.booked.figure).toEqual(booked);
   });
 
-  it("opens a revenue-only site on its ad revenue, on the network's own days", async () => {
+  it("opens a revenue-only asset on its ad revenue, on the network's own days", async () => {
     stubJsonFetch({ ...noTraffic(), dailyRevenue: revenue() });
     const { container } = renderOverview();
     await screen.findByRole("tablist");
@@ -647,7 +647,7 @@ describe("Asset Overview — leads with the numbers the site has", () => {
     await waitFor(() => expect(figureOf(measure(container, "money"))).toBe("$35.00"), { timeout: 3000 });
   });
 
-  it("draws people a day from product analytics when that is where the site's people are", async () => {
+  it("draws people a day from product analytics when that is where the asset's people are", async () => {
     const body = noTraffic();
     const productDays = Array.from({ length: 28 }, (_, index) => ({ date: shiftLabel(LAST_DAY, index - 27), people: 100, pageviews: 500, sessions: 140 }));
     body.executive = { ...body.executive!, product: {
@@ -688,7 +688,7 @@ describe("Asset Overview — leads with the numbers the site has", () => {
     expect(lead.querySelectorAll('[data-series="unavailable"]')).toHaveLength(4);
   });
 
-  it("names the absence and the way to the data sources when the site has no numbers at all", async () => {
+  it("names the absence and the way to the data sources when the asset has no numbers at all", async () => {
     const body = noTraffic();
     body.metrics = [];
     body.ledger = { periods: [], recentRows: [], empty: true, currency: "USD" };
@@ -801,7 +801,7 @@ describe("Asset Overview — explanations are disclosed, essential context stays
 
 
 // The site's all-time totals live on its own Overview.
-describe("Asset Overview — the site's all-time totals", () => {
+describe("Asset Overview — the asset's all-time totals", () => {
   const minutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 
   it("shows each total with its value and read age, amber past twice the counters cadence", async () => {
@@ -835,7 +835,7 @@ describe("Asset Overview — the site's all-time totals", () => {
     expect(container.querySelector("[data-site-totals]")).toBe(section);
   });
 
-  it("draws nothing for a site with no totals configured, or none with a number yet", async () => {
+  it("draws nothing for an asset with no totals configured, or none with a number yet", async () => {
     stubJsonFetch({ ...payload(), counters: null });
     const first = renderOverview();
     await screen.findByRole("tablist");

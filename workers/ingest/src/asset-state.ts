@@ -305,7 +305,7 @@ export async function moveAsset(
     if (from === undefined) return { ok: false, error: 'unknown_asset', asset };
     if (onto === undefined) return { ok: false, error: 'unknown_asset', asset: to };
     // Every site took its place through the counter, so a site means a counter.
-    if (counter === undefined) throw new Error('the site list has places but no list_position counter');
+    if (counter === undefined) throw new Error('the asset list has places but no list_position counter');
 
     let undoTo: string | null = null;
     if (from !== onto) {

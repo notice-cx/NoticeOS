@@ -929,7 +929,7 @@ Options:
   --url URL         Tower origin (default ${DEFAULT_URL})
   --routes LIST     comma-separated routes; repeatable. Default:
                     ${DEFAULT_ROUTES.join(" ")}
-  --asset ID        the site whose pages fill ${SITE_TOKEN} (default: the first site /assets lists)
+  --asset ID        the asset whose pages fill ${SITE_TOKEN} (default: the first asset /assets lists)
   --strict          also flag one-sentence subtitles over ${SUBTITLE_MAX_CHARS} characters
   --json            print the raw measurement instead of the table
   --settle-ms MS    pause after a route stops growing (default 2500)
@@ -1163,7 +1163,7 @@ async function main() {
         if (routes === null) {
           const site = options.asset ?? (await listedSite(page, options));
           if (site === null) {
-            console.error(`No site is listed on ${options.url}/assets, so the site pages are skipped. Pass --asset <id> to choose one.`);
+            console.error(`No asset is listed on ${options.url}/assets, so the asset pages are skipped. Pass --asset <id> to choose one.`);
           }
           routes = siteRoutes(options.routes, site);
         }

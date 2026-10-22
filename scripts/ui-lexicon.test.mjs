@@ -451,46 +451,13 @@ test('SQL table-name exemptions do not exempt nearby user-facing vocabulary', ()
 });
 
 // ---------------------------------------------------------------------------
-// The word a person reads for a site
-// ---------------------------------------------------------------------------
-// Everything a person reads says *site*: the navigation, the index page,
-// headings, columns, counts, empty states, the palette, hover and
-// screen-reader text. Code keeps *asset*: `/assets` and `/assets/:id`, the
-// `assets` table and its `asset` columns, `/api/assets`, asset ids, `asset:`
-// task labels, query keys and DOM ids. So *asset* cannot simply join BANNED
-// (it is the most common identifier in the Tower), and an exact-phrase
-// allowlist would be a list of every query key in the product.
-//
-// WHAT IT READS is the UX gate's own answer to "what does a person read"
-// (`extractVisibleStrings` in `scripts/ux-gate.mjs`, one derivation): JSX
-// paragraphs and every string that can reach the screen or a screen reader,
-// with class lists, ids, `data-*`, `to`/`href`, types, property names,
-// comparisons, imports and SQL already set aside. Inside what is left, three
-// shapes are still code, and nothing else is:
-//
-//   - a path, the word right after a `/` (a route, an API URL, a JSON
-//     pointer), or a qualified name right after a `.` (`f.asset`), or a bound
-//     SQL column too short for the gate's SQL test (`asset = ?`);
-//   - a string that is ONE lowercase token (`"asset"`, `"asset-detail"`,
-//     `"per-asset"`, `asset:${id}`): a URL parameter, a query key, a step id
-//     or a task label, unless it is handed to a prop a person reads (`label`,
-//     `title`, `placeholder`, an accessible name);
-//   - an identifier inside a longer string, named in SITE_NOUN_IDENTIFIERS.
-//
-// And one shape is copy wherever it sits: singular and plural side by side in
-// a conditional (`n === 1 ? "asset" : "assets"`), which is how "1 assets" is
-// born. A count of sites is written by `siteCount()` / `siteNoun()` in
-// `apps/tower/shared/site-noun.ts`, so a hand-rolled `? "site" : "sites"`
-// fails too, anywhere but in that helper.
-//
-// It reads the Tower's source, `scripts/config-registers.mjs` (the labels,
-// `surface` lines and refusals `/settings` renders verbatim),
-// `scripts/scheduled-jobs.mjs` (the job names and categories Settings → Data
-// collection and Workflows render) and `config/integrations.json` (the
-// data-source catalog the Integrations page and a site's Sources tab render).
-// The UX gate still reads every config document.
+// Asset names the item and Portfolio names the collection. Existing code,
+// paths, storage values, and provider objects keep their technical names.
+// The AST reader separates these from visible labels; exact exceptions cover
+// provider terms and technical fragments embedded in prose. Counts use the
+// shared helper so the singular and plural stay consistent.
 
-const SITE_NOUN = /\bassets?\b/gi;
+const SITE_NOUN = /\bsites?\b/gi;
 
 /** A prop whose value a person reads or hears — even one lowercase word. */
 const PROSE_CONTEXT =
@@ -516,8 +483,17 @@ const SITE_NOUN_FILES = [
  * can see them. Exact phrases; each is code a person does not read as the noun.
  */
 const SITE_NOUN_IDENTIFIERS = [
-  'cloudflare-d1/ · assets/', // Actual backup directories, displayed as code beside Site databases.
-  'db · assets row', // an owner chip naming the `assets` table it writes (doc 14 owner-chip row)
+  'cloudflare-d1/ · assets/', // Actual backup directories.
+  'Search Console site',
+  'Search Console sites',
+  'Mediavine site',
+  'site id from Mediavine', // Provider identifier.
+  'site search',
+  'Provider site', // The Search Console/Bing mapping, not the asset.
+  'Second Site', // A fixture's proper name, inferred from second-site.com.
+  'sites:', // Existing Tailwind container variants.
+  '--text-wall-site-stat', // Existing CSS token.
+  'config/tower.json sites', // The persisted configuration key, in diagnostics.
 ];
 
 let ts;
@@ -566,7 +542,7 @@ function siteNounOffenders(name, source) {
   return found;
 }
 
-test('no shipped desk string calls a site an asset, and every site count uses the helper', () => {
+test('no shipped desk string calls an asset a site, and every asset count uses the helper', () => {
   assert.ok(SITE_NOUN_FILES.includes(SITE_COUNT_HELPER), `${SITE_COUNT_HELPER} must be in the scan`);
   const offenders = SITE_NOUN_FILES.flatMap((name) =>
     siteNounOffenders(name, readFileSync(path.join(REPO_ROOT, name), 'utf8')),
@@ -574,8 +550,8 @@ test('no shipped desk string calls a site an asset, and every site count uses th
   assert.deepEqual(
     offenders,
     [],
-    `these shipped desk strings still say asset where a person reads it:\n  ${offenders.join('\n  ')}\n` +
-      'A person reads *site*: "Sites", "1 site", "this site", "Every site". Code keeps asset — ' +
+    `these shipped desk strings still say site where a person reads it:\n  ${offenders.join('\n  ')}\n` +
+      'A person reads *asset*: "Portfolio", "1 asset", "this asset", "Every asset". Code keeps existing names — ' +
       'a route or API path, SQL, a query key, a DOM id or a task label passes on its own shape. ' +
       'An identifier inside a multi-word string goes in SITE_NOUN_IDENTIFIERS with its reason; ' +
       'never widen a rule to let copy through.',
@@ -596,13 +572,13 @@ test('every site-noun identifier phrase still matches something', () => {
 // read as a clean desk. One line per shape the rule decides on.
 test('the site-noun guard tells copy from code', () => {
   const copy = [
-    'const a = () => <PageHeader title="Assets" />;',
-    'const a = () => <p>No asset matches.</p>;',
-    'const a = () => <select aria-label="asset" />;',
+    'const a = () => <PageHeader title="Sites" />;',
+    'const a = () => <p>No site matches.</p>;',
+    'const a = () => <select aria-label="site" />;',
     'const a = (n: number) => `${n} ${n === 1 ? "asset" : "assets"}`;',
-    'const a = { label: "All assets" };',
+    'const a = { label: "All sites" };',
     'const a = (n: number) => `${n} ${n === 1 ? "site" : "sites"}`;',
-    'const a = () => <option value="all">Every asset</option>;',
+    'const a = () => <option value="all">Every site</option>;',
   ];
   const code = [
     'const a = () => <Link to="/assets" />;',

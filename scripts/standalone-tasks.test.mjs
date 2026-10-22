@@ -44,13 +44,13 @@ function fixture({ human = [] } = {}) {
 
 const UUID_V8 = /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 
-test('a project\'s id is a UUID derived from its database alone, the same on every read and never a site-derived id', () => {
+test('a project\'s id is a UUID derived from its database alone, the same on every read and never an asset-derived id', () => {
   const id = standaloneProjectId('example');
   assert.match(id, UUID_V8);
   assert.equal(standaloneProjectId('example'), id);
   assert.notEqual(standaloneProjectId('example_2'), id);
   assert.match(formerStandaloneProjectId('example.com'), UUID_V8);
-  assert.notEqual(formerStandaloneProjectId('example'), id, 'a site and a database with one name answer different ids');
+  assert.notEqual(formerStandaloneProjectId('example'), id, 'an asset and a database with one name answer different ids');
 });
 
 /** The tools an agent calls, over a linked-project read and a site list. */
@@ -71,7 +71,7 @@ function endpoint({ read, sites }) {
 const SITES = [{ id: 'os-1f2e', displayName: 'Stored name of the OS row', isOs: true },
   { id: 'example.com', displayName: 'Example', isOs: false }, { id: 'example.org', displayName: 'Example Org', isOs: 0 }];
 
-test('a project moved to another site keeps its projectId, and the site it left gives its id to no other project', async () => {
+test('a project moved to another asset keeps its projectId, and the asset it left gives its id to no other project', async () => {
   let rows = [{ asset: 'os-1f2e', prefix: 'ex', database: 'ex', repo: 'ex' }];
   const tools = () => endpoint({ read: async () => rows, sites: async () => SITES });
   const before = await tools().listed();
@@ -88,7 +88,7 @@ test('a project moved to another site keeps its projectId, and the site it left 
   assert.ok(after.commands.length > 0 && after.commands.every(command => command.cwd === '/spokes/ex'));
 });
 
-test('a project is named by its site\'s on-screen name: the System for the installation\'s own row, else the stored name or the site\'s id', async () => {
+test('a project is named by its asset\'s on-screen name: the System for the installation\'s own row, else the stored name or the asset\'s id', async () => {
   const rows = [{ asset: 'os-1f2e', prefix: 'sy', database: 'sy', repo: 'sy' }, { asset: 'example.org', prefix: 'eo', database: 'eo', repo: 'eo' },
     { asset: 'unlisted.example', prefix: 'un', database: 'un', repo: 'un' }];
   const named = async sites => (await endpoint({ read: async () => rows, sites }).listed()).map(project => [project.prefix, project.key, project.name]);
@@ -99,7 +99,7 @@ test('a project is named by its site\'s on-screen name: the System for the insta
     [['sy', 'os-1f2e', 'os-1f2e'], ['eo', 'example.org', 'example.org'], ['un', 'unlisted.example', 'unlisted.example']]);
 });
 
-test('a site-derived id names no project, and the directory finds the project now filed under that site', async () => {
+test('an asset-derived id names no project, and the directory finds the project now filed under that asset', async () => {
   const rows = [{ asset: 'example.com', prefix: 'ex', database: 'ex', repo: 'ex' }];
   const tools = endpoint({ read: async () => rows, sites: async () => SITES });
   assert.deepEqual(await tools.directory.formerly(WORKSPACE, formerStandaloneProjectId('example.com')),

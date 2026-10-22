@@ -12,7 +12,7 @@ test.beforeEach(async ({ request }) => {
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
 });
 
-test("Wall default fills both columns with whole site rows", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
+test("Wall default fills both columns with whole asset rows", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const scene = await wallScene(page);
   for (const variant of WALL_FIXTURE_VARIANTS) {
@@ -142,7 +142,7 @@ test("Wall short full-width rows resize without jumping above a large fill row",
   await preview.screenshot({ path: testInfo.outputPath("wall-short-rows-undo.png") });
 });
 
-test("Wall fit warnings follow one and eight sites at the same size", async ({ page }, testInfo) => {
+test("Wall fit warnings follow one and eight assets at the same size", async ({ page }, testInfo) => {
   const resizeErrors: string[] = [];
   page.on("pageerror", error => { if (error.message.includes("ResizeObserver")) resizeErrors.push(error.message); });
   const layout = structuredClone(TWO_ROWS);
@@ -172,7 +172,7 @@ test("Wall fit warnings follow one and eight sites at the same size", async ({ p
   });
   expect(noteChanges).toBe(0);
   expect(resizeErrors).toEqual([]);
-  await expect(sites.locator("[data-wall-too-small-note]")).toContainText("Too short for Sites");
+  await expect(sites.locator("[data-wall-too-small-note]")).toContainText("Too short for Assets");
   await page.locator("[data-wall-preview]").screenshot({ path: testInfo.outputPath("wall-fit-eight.png") });
 
   // Narrow the content without changing the row's geometry.

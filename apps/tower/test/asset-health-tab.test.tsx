@@ -177,14 +177,14 @@ describe("the Health tab", () => {
     );
   });
 
-  it("waits for the site's card rather than guessing", () => {
+  it("waits for the asset's card rather than guessing", () => {
     state.assets = [];
     const { container } = renderTab();
     expect(container.querySelector('[data-health-tab="reading"]')).toHaveTextContent("Not measured yet");
   });
 });
 
-describe("the Health tab on the site page", () => {
+describe("the Health tab on the asset page", () => {
   function stubStore() {
     const payload: AssetDetailPayload = { ...everyTabPayload(), hygiene: HYGIENE };
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {

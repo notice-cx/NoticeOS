@@ -34,7 +34,7 @@ export async function putSiteToken(env: IngestEnv, input: PutSiteTokenInput): Pr
   const known = asset !== '' && (await env.STORE.read((tx) =>
     tx.query(`SELECT 1 AS known FROM noticeos.assets WHERE asset_id = $1 AND NOT is_os`, [asset]),
   )).length > 0;
-  if (!known) return { ok: false, error: 'validation', issues: [{ path: 'asset', code: 'unknown_asset', message: 'That site is not one of this installation’s.' }] };
+  if (!known) return { ok: false, error: 'validation', issues: [{ path: 'asset', code: 'unknown_asset', message: 'That asset is not one of this installation’s.' }] };
 
   const current = await resolveCredential(env, provider.id);
   let map: Record<string, string> = {};

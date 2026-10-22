@@ -183,7 +183,7 @@ describe('POST /api/asset-state — what it will edit', () => {
     ).toContain('asset');
     expect(
       (await edit({ asset: 'NOT VALID', column: 'status', value: 'live' })).body.issues,
-    ).toEqual([{ path: 'asset', code: 'invalid_value', message: 'Site must be a site id' }]);
+    ).toEqual([{ path: 'asset', code: 'invalid_value', message: 'Asset must be an asset id' }]);
   });
 
   it('refuses a property the store does not know (422 unknown_asset)', async () => {
@@ -250,7 +250,7 @@ describe('POST /api/asset-state — what it stores', () => {
     expect((await stored('northwind.example'))?.updated_at).toBe(SEEDED_AT);
   });
 
-  it('renames the stored site', async () => {
+  it('renames the stored asset', async () => {
     const { status, body } = await edit({ asset: 'meadow.example', column: 'display_name', value: 'Meadow Board Pro' });
     expect(status).toBe(200);
     expect(body.value).toBe('Meadow Board Pro');
@@ -258,7 +258,7 @@ describe('POST /api/asset-state — what it stores', () => {
   });
 });
 
-describe('the site list is read on Postgres', () => {
+describe('the asset list is read on Postgres', () => {
   it('reads the current stored value for the expect guard', async () => {
     await changeSites(['meadow.example'], { displayName: 'Stored Name' });
     expect((await read('meadow.example')).body.columns?.display_name).toBe('Stored Name');

@@ -66,9 +66,9 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs"] },
   {
     to: ASSETS_ROUTE,
-    label: "Sites",
+    label: "Portfolio",
     icon: Globe,
-    keywords: ["assets", "portfolio", "domains"],
+    keywords: ["assets", "sites", "properties", "domains"],
   },
   { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "beads", "todo"] },
@@ -128,7 +128,7 @@ export const SITES_ARRANGE_PARAM = "arrange";
 
 export const SITES_ARRANGE_ITEM: NavItem = {
   to: `${ASSETS_ROUTE}?${SITES_ARRANGE_PARAM}=1`,
-  label: "Arrange the sites",
+  label: "Arrange the assets",
   icon: ArrowDownUp,
   keywords: ["order", "reorder", "drag", "hide", "show", "sites", "tv"],
 };

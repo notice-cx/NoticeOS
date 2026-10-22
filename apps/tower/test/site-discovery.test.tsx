@@ -75,8 +75,8 @@ const MEDIAVINE_PAYLOAD: SitesPayload = {
   domainMatch: [],
 };
 
-describe("matching an account's sites to the portfolio", () => {
-  it("ticks the domain matches and the already-mapped site, and lists everything else", () => {
+describe("matching an account's assets to the portfolio", () => {
+  it("ticks the domain matches and the already-mapped asset, and lists everything else", () => {
     const plan = planSites(PAYLOAD);
     const byId = Object.fromEntries(plan.rows.map((row) => [row.asset.id, row]));
     expect(byId["journey.example"]).toMatchObject({ checked: true, excluded: null, lanes: [{ state: "matched", site: { ref: "https://journey.example/" } }] });
@@ -95,7 +95,7 @@ describe("matching an account's sites to the portfolio", () => {
     expect(unlisted.rows[0]).toMatchObject({ asset: { id: "second.example" }, preselected: true, checked: false });
   });
 
-  it("never ticks a site the provider will not serve yet", () => {
+  it("never ticks an asset the provider will not serve yet", () => {
     const plan = planSites({ ...PAYLOAD, discovery: account([bingSite("https://journey.example/", false)]), assets: [asset("journey.example")] });
     expect(plan.rows[0]).toMatchObject({ checked: false, lanes: [{ state: "not-ready" }] });
     expect(startPlan(plan, initialSelection(plan))).toEqual({ ops: [], assets: [], declined: [] });
@@ -146,7 +146,7 @@ describe("reconciling explicit choices with a fresh reading", () => {
     expect(startPlan(plan, selection).assets).toEqual(["second.example"]);
   });
 
-  it("keeps a manual option that becomes the current mapped site", () => {
+  it("keeps a manual option that becomes the current mapped asset", () => {
     const plan = planSites({
       ...PAYLOAD,
       assets: [asset("second.example", { cells: { "bing-webmaster": { status: "needs-setup", mapping: { siteUrl: "https://shop.example/" } } } })],
@@ -160,7 +160,7 @@ describe("reconciling explicit choices with a fresh reading", () => {
 });
 
 describe("Start writes what the Data sources tab writes", () => {
-  it("builds the tab's own op for each confirmed site and skips what is already saved", () => {
+  it("builds the tab's own op for each confirmed asset and skips what is already saved", () => {
     const plan = planSites(PAYLOAD);
     const { ops, assets } = startPlan(plan, initialSelection(plan));
     expect(assets).toEqual(["journey.example", "mapped.example"]);
@@ -171,7 +171,7 @@ describe("Start writes what the Data sources tab writes", () => {
     });
   });
 
-  it("writes the site the operator picked for an asset the account lists nothing for", () => {
+  it("writes the asset the operator picked for an asset the account lists nothing for", () => {
     const plan = planSites(PAYLOAD);
     const selection = initialSelection(plan);
     const picked = { checked: new Set([...selection.checked, "second.example"]), picks: { "second.example": { "bing-webmaster": "https://shop.example/" } } };
@@ -219,8 +219,8 @@ describe("Start writes what the Data sources tab writes", () => {
   });
 });
 
-describe("Mediavine's sites", () => {
-  it("ticks the site on the asset's domain and the one already mapped, and Start writes only the new site id", () => {
+describe("Mediavine's assets", () => {
+  it("ticks the asset on the asset's domain and the one already mapped, and Start writes only the new asset id", () => {
     const plan = planSites(MEDIAVINE_PAYLOAD);
     expect(plan.rows.map((row) => [row.asset.id, row.checked, row.lanes[0]!.state])).toEqual([
       ["journey.example", true, "matched"], ["mapped.example", true, "mapped"],
@@ -239,7 +239,7 @@ describe("Mediavine's sites", () => {
     expect(startPlan(plan, unticked)).toEqual({ ops: [], assets: [], declined: [] });
   });
 
-  it("reads the saved site id into the row, though no card field declares it, and says no lane falls back to a domain", async () => {
+  it("reads the saved asset id into the row, though no card field declares it, and says no lane falls back to a domain", async () => {
     const binding = { discoverSites: vi.fn(async () => MEDIAVINE_PAYLOAD.discovery), collectNow: vi.fn() };
     const ctx = await createTestStore();
     await addSites(ctx, [{ id: "mapped.example", displayName: "Mapped", status: "live" }]);
@@ -255,7 +255,7 @@ describe("Mediavine's sites", () => {
 });
 
 describe("the spend a metered provider states before its first collection", () => {
-  it("averages one site's recorded week from the cost records and bounds a first run by the reserve", async () => {
+  it("averages one asset's recorded week from the cost records and bounds a first run by the reserve", async () => {
     const ctx = await createTestStore();
     await addSites(ctx, ["a.test", "b.test"].map((id) => ({ id, displayName: id, status: "live" })));
     const runs: TestArchiveRun[] = [];
@@ -283,7 +283,7 @@ describe("the spend a metered provider states before its first collection", () =
     expect(empty.perSiteWeekUsd).toBeNull();
   });
 
-  it("prices each site's panel from its newest successful panel run, never a failed one", async () => {
+  it("prices each asset's panel from its newest successful panel run, never a failed one", async () => {
     const ctx = await createTestStore();
     await addSites(ctx, ["a.test", "b.test"].map((id) => ({ id, displayName: id, status: "live" })));
     const run = (id: string, asset: string, report: string, date: string, cost: number, status: TestArchiveRun["status"] = "success"): TestArchiveRun => ({
@@ -310,7 +310,7 @@ describe("the spend a metered provider states before its first collection", () =
   });
 });
 
-describe("the sites and collect routes", () => {
+describe("the assets and collect routes", () => {
   const ingest = (discovery: SiteDiscovery, collected?: CollectNowResult) => ({
     discoverSites: vi.fn(async () => discovery),
     collectNow: vi.fn(async () => collected ?? ({ ok: false, provider: "bing-webmaster", error: "paused", job: "pull" } as const)),
@@ -328,7 +328,7 @@ describe("the sites and collect routes", () => {
     };
   };
 
-  it("lists monitored sites with their derived stage and saved mapping", async () => {
+  it("lists monitored assets with their derived stage and saved mapping", async () => {
     const binding = ingest(account([bingSite("https://journey.example/")]));
     const d = await deps(binding);
     const res = await handleSitesRequest(new Request("http://t/api/integrations/bing-webmaster/sites"), new URL("http://t/api/integrations/bing-webmaster/sites"), d, "bing-webmaster", "sites");
@@ -385,14 +385,14 @@ describe("the picker", () => {
     return { ...utils, onStart };
   }
 
-  it("draws each asset once, the unmatched sites under them, and counts what Start will collect", () => {
+  it("draws each asset once, the unmatched assets under them, and counts what Start will collect", () => {
     renderPicker();
     const rows = screen.getAllByRole("listitem").filter((item) => item.hasAttribute("data-site-row"));
     expect(rows.map((row) => row.getAttribute("data-site-row"))).toEqual(["journey.example", "mapped.example", "second.example", "declined.example"]);
-    expect(within(rows[2]!).getByRole("combobox", { name: "Site for Second" })).toBeTruthy();
+    expect(within(rows[2]!).getByRole("combobox", { name: "Asset for Second" })).toBeTruthy();
     expect(within(rows[3]!).getByText("Not using")).toBeTruthy();
     expect(screen.getByText("https://blog.journey.example/")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 2 sites");
+    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 2 assets");
   });
 
   it("preserves explicit choices and reasons, but refreshes untouched suggestions and Start guards", async () => {
@@ -405,7 +405,7 @@ describe("the picker", () => {
     fireEvent.click(within(journey()).getByRole("checkbox"));
     fireEvent.click(within(journey()).getByRole("button", { name: "Replaced by another tool" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Mapped/ }));
-    const mapping = screen.getByRole("combobox", { name: "Site for Second" });
+    const mapping = screen.getByRole("combobox", { name: "Asset for Second" });
     fireEvent.change(mapping, { target: { value: "https://shop.example/" } });
     mapping.focus();
     const refreshed: SitesPayload = {
@@ -446,12 +446,12 @@ describe("the picker", () => {
       <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
     );
     const view = render(panel(PAYLOAD));
-    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Asset for Second" }), { target: { value: "https://shop.example/" } });
     view.rerender(panel({
       ...PAYLOAD,
       discovery: account([bingSite("https://journey.example/"), bingSite("https://shop.example/"), bingSite("https://second.example/")]),
     }));
-    expect(screen.getByRole("combobox", { name: "Site for Second" })).toHaveValue("https://shop.example/");
+    expect(screen.getByRole("combobox", { name: "Asset for Second" })).toHaveValue("https://shop.example/");
     expect(screen.getByRole("checkbox", { name: /Second/ })).toBeChecked();
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
     expect(onStart).toHaveBeenCalledWith({
@@ -467,13 +467,13 @@ describe("the picker", () => {
     const view = render(panel(PAYLOAD));
     fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
     fireEvent.click(screen.getByRole("button", { name: "Replaced by another tool" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Asset for Second" }), { target: { value: "https://shop.example/" } });
     view.rerender(panel({ ...PAYLOAD, discovery: { ok: false, provider: "bing-webmaster", checkedAt: AT, reason: "refused" } }));
     expect(screen.queryByRole("button", { name: /Start collecting/ })).toBeNull();
     view.rerender(panel(PAYLOAD, true));
     expect(screen.queryByRole("button", { name: /Start collecting/ })).toBeNull();
     view.rerender(panel({ ...PAYLOAD }));
-    expect(screen.getByRole("combobox", { name: "Site for Second" })).toHaveValue("https://shop.example/");
+    expect(screen.getByRole("combobox", { name: "Asset for Second" })).toHaveValue("https://shop.example/");
     expect(screen.getByRole("checkbox", { name: /Journey/ })).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Replaced by another tool" })).toHaveAttribute("aria-pressed", "true");
   });
@@ -484,7 +484,7 @@ describe("the picker", () => {
       <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
     );
     const view = render(panel(PAYLOAD));
-    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Asset for Second" }), { target: { value: "https://shop.example/" } });
     view.rerender(panel({
       ...PAYLOAD,
       discovery: account([
@@ -501,7 +501,7 @@ describe("the picker", () => {
     expect(submitted.ops.some((op) => op.pointer.includes("/second.example/"))).toBe(false);
   });
 
-  it("drops unavailable suggested sites before Start", async () => {
+  it("drops unavailable suggested assets before Start", async () => {
     const onStart = vi.fn(async () => null);
     const panel = (payload: SitesPayload) => (
       <MemoryRouter><SitePicker provider={BING} payload={payload} onStart={onStart} onClose={() => {}} /></MemoryRouter>
@@ -521,19 +521,19 @@ describe("the picker", () => {
     );
     const view = render(panel());
     fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Site for Second" }), { target: { value: "https://shop.example/" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Asset for Second" }), { target: { value: "https://shop.example/" } });
     view.rerender(panel(integrationProvider("mediavine")!, MEDIAVINE_PAYLOAD));
     expect(screen.getByRole("checkbox", { name: /Journey/ })).toBeChecked();
     view.rerender(panel());
     expect(screen.getByRole("checkbox", { name: /Journey/ })).toBeChecked();
-    expect(screen.getByRole("combobox", { name: "Site for Second" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Asset for Second" })).toHaveValue("");
     fireEvent.click(screen.getByRole("checkbox", { name: /Journey/ }));
     view.unmount();
     render(panel());
     expect(screen.getByRole("checkbox", { name: /Journey/ })).toBeChecked();
   });
 
-  it("offers the provider's own place to add a site the account does not hold", () => {
+  it("offers the provider's own place to add an asset the account does not hold", () => {
     renderPicker({ payload: { ...PAYLOAD, discovery: account([bingSite("https://journey.example/")]) } });
     const row = document.querySelector('[data-site-row="second.example"]') as HTMLElement;
     expect(within(row).getByText("Not in this account")).toBeTruthy();
@@ -544,7 +544,7 @@ describe("the picker", () => {
   it("starts with the ticked rows, then shows each one's status from the connection model", async () => {
     const { onStart } = renderPicker({ siteStatus: (id) => (id === "journey.example" ? { kind: "working", site: null } : null) });
     fireEvent.click(screen.getByRole("checkbox", { name: /Mapped/ }));
-    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 1 site");
+    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 1 asset");
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
     expect(onStart).toHaveBeenCalledWith({ ops: [laneFieldOp("journey.example", "bing-webmaster", "siteUrl", null, "https://journey.example/")], assets: ["journey.example"], declined: [] });
     const started = document.querySelector('[data-sites-phase="started"]')!;
@@ -560,23 +560,23 @@ describe("the picker", () => {
     expect(within(row()).getByText("Still collected")).toBeTruthy();
     const chips = within(row()).getByRole("group", { name: "Why not use Journey?" });
     expect(within(chips).queryAllByRole("button", { pressed: true })).toHaveLength(0);
-    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 1 site");
+    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 1 asset");
 
-    fireEvent.click(within(chips).getByRole("button", { name: "Not relevant for this site" }));
+    fireEvent.click(within(chips).getByRole("button", { name: "Not relevant for this asset" }));
     expect(row().dataset.siteDecision).toBe("not-using");
     expect(within(row()).getByText("Not using")).toBeTruthy();
     expect(within(row()).queryByText("Still collected")).toBeNull();
-    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 1 site · 1 not using");
+    expect(screen.getByRole("button", { name: /Start collecting/ }).textContent).toBe("Start collecting · 1 asset · 1 not using");
 
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
     expect(onStart).toHaveBeenCalledWith({
-      ops: declineOps("journey.example", "bing-webmaster", { status: "needs-setup", note: null }, "Not relevant for this site"),
+      ops: declineOps("journey.example", "bing-webmaster", { status: "needs-setup", note: null }, "Not relevant for this asset"),
       assets: ["mapped.example"],
       declined: ["journey.example"],
     });
     const started = document.querySelector('[data-sites-phase="started"]')!;
     expect(started.querySelector('[data-site-row="journey.example"] [data-connection="not-using"]')).not.toBeNull();
-    expect(within(started as HTMLElement).getByText("Not relevant for this site")).toBeTruthy();
+    expect(within(started as HTMLElement).getByText("Not relevant for this asset")).toBeTruthy();
   });
 
   it("saves a press that only declines, and collects nothing", async () => {
@@ -606,7 +606,7 @@ describe("the picker", () => {
     );
     const untouched = render(panel(undefined));
     untouched.rerender(panel(PAYLOAD));
-    expect(document.activeElement?.textContent).toBe("Start collecting · 2 sites");
+    expect(document.activeElement?.textContent).toBe("Start collecting · 2 assets");
     untouched.unmount();
 
     // Tabbed to Replace while the list loaded: the list arriving leaves focus
@@ -646,10 +646,10 @@ describe("the picker", () => {
     expect(screen.getByText("United States · English")).toBeTruthy();
     expect(document.querySelector("[data-spend-week]")?.textContent).toBe("≈ $0.45");
     expect(document.querySelector("[data-spend-month]")?.textContent).toBe("$3.10 of $25");
-    expect(screen.getByRole("button", { name: /Start weekly reports/ }).textContent).toBe("Start weekly reports · 1 site");
+    expect(screen.getByRole("button", { name: /Start weekly reports/ }).textContent).toBe("Start weekly reports · 1 asset");
   });
 
-  it("keeps billing an unticked DataForSEO site in the weekly figure until it is declined", () => {
+  it("keeps billing an unticked DataForSEO asset in the weekly figure until it is declined", () => {
     const listed = (id: string) => ({ lane: "dataforseo", ref: id, label: id, host: id, mapping: {}, asset: id, ready: true });
     render(
       <MemoryRouter>
@@ -671,7 +671,7 @@ describe("the picker", () => {
     expect(within(second).getByText("Still collected")).toBeTruthy();
     fireEvent.click(within(second).getByRole("button", { name: "Don't use this product" }));
     expect(document.querySelector("[data-spend-week]")?.textContent).toBe("≈ $0.50");
-    expect(screen.getByRole("button", { name: /Start weekly reports/ }).textContent).toBe("Start weekly reports · 1 site · 1 not using");
+    expect(screen.getByRole("button", { name: /Start weekly reports/ }).textContent).toBe("Start weekly reports · 1 asset · 1 not using");
   });
 });
 
@@ -702,7 +702,7 @@ describe("PostHog's projects in the panel", () => {
     ]);
   });
 
-  it("never writes picked-up funnels over a list the site already holds", () => {
+  it("never writes picked-up funnels over a list the asset already holds", () => {
     const chosen = [{ id: "mine", name: "Mine", steps: [{ event: "a" }, { event: "b" }] }];
     const plan = planSites(payload([asset("journey.example", { cells: cell({ funnels: chosen }) })]));
     expect(startPlan(plan, initialSelection(plan)).ops.map((op) => op.pointer)).toEqual([
@@ -713,7 +713,7 @@ describe("PostHog's projects in the panel", () => {
     expect(startPlan(empty, initialSelection(empty)).ops.at(-1)).toEqual(laneFieldOp("journey.example", "posthog", "funnels", [], [SIGNUP] as never));
   });
 
-  it("shows each project by its name and number, the funnels it brings, and the project no site claims", () => {
+  it("shows each project by its name and number, the funnels it brings, and the project no asset claims", () => {
     render(
       <MemoryRouter>
         <SitePicker provider={POSTHOG} payload={payload([asset("journey.example", { cells: cell() })])} onStart={async () => null} onClose={() => {}} />
@@ -727,7 +727,7 @@ describe("PostHog's projects in the panel", () => {
   });
 });
 
-describe("Google's two kinds of site on one row", () => {
+describe("Google's two kinds of asset on one row", () => {
   const GOOGLE = integrationProvider("google")!;
   const ga4 = (id: string, host: string | null, label = host ?? "Untitled"): DiscoveredSite => ({
     lane: "ga4", ref: id, label, host, mapping: { propertyId: id }, ready: true,
@@ -755,7 +755,7 @@ describe("Google's two kinds of site on one row", () => {
     ]);
   });
 
-  it("reads the row as the property's number and the site, and names each picker by what it picks", () => {
+  it("reads the row as the property's number and the asset, and names each picker by what it picks", () => {
     render(
       <MemoryRouter>
         <SitePicker
@@ -777,7 +777,7 @@ describe("Google's two kinds of site on one row", () => {
     expect(document.querySelector('[data-other-site="987654321"]')?.textContent).toContain("another.example");
   });
 
-  it("names the kind of site the account does not hold, and says it once when it holds neither", () => {
+  it("names the kind of asset the account does not hold, and says it once when it holds neither", () => {
     render(
       <MemoryRouter>
         <SitePicker
@@ -820,15 +820,15 @@ describe("Google's two kinds of site on one row", () => {
       const grant = grants()[0]!;
       expect(grant.getAttribute("data-site-grant")).toBe("gsc");
       expect(grant.textContent).toBe(
-        "Listed for the service account signals@example.test. Missing a Search Console site? In Search Console, add this account as a Full user on that site, then press Read again.",
+        "Listed for the service account signals@example.test. Missing a Search Console site? In Search Console, add this account as a Full user on that Search Console site, then press Read again.",
       );
-      const list = screen.getByRole("list", { name: "Sites" });
+      const list = screen.getByRole("list", { name: "Assets" });
       expect(list.contains(grant)).toBe(false);
       expect(list.compareDocumentPosition(grant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(grant.parentElement!.contains(screen.getByRole("button", { name: "Read again" }))).toBe(true);
     });
 
-    it("reads the account again on Read again, and lists the newly granted site without leaving the panel", () => {
+    it("reads the account again on Read again, and lists the newly granted asset without leaving the panel", () => {
       const onRetry = vi.fn();
       const view = render(picker(listedFor(noSearchConsole, SERVICE_ACCOUNT), { onRetry }));
       fireEvent.click(screen.getByRole("button", { name: "Read again" }));

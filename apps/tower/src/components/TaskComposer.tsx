@@ -379,7 +379,7 @@ export function TaskComposer({
     const next: Record<string, string> = {};
     const cleanTitle = title.trim();
     if (!spoke) {
-      next.project = "Choose the site whose repo this task belongs to.";
+      next.project = "Choose the asset whose repo this task belongs to.";
     }
     if (!cleanTitle) {
       next.title = "A task needs a title somebody could read cold.";

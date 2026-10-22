@@ -436,7 +436,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       const selected = readinessProof(workspace, provider, operation, evidence);
       return client.fetch(selected.url, selected.init);
     };
-    await t.test('readiness calls use selected grants and keep site mappings and technical health workspace-owned', async () => {
+    await t.test('readiness calls use selected grants and keep asset mappings and technical health workspace-owned', async () => {
       for (const [workspace, slug] of [[a, 'tenant-a'], [b, 'tenant-b']]) {
         for (const provider of ['bing-webmaster', 'google']) {
           const before = providerCalls.length;
@@ -985,7 +985,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       }
       assert.deepEqual(await credentialRows(b), foreign); assert.equal(outside, 0, JSON.stringify(outsideDetails));
     });
-    await t.test('expiry changes only selected metadata and site tokens merge only selected owned assets', async () => {
+    await t.test('expiry changes only selected metadata and asset tokens merge only selected owned assets', async () => {
       const foreign = await credentialRows(b), before = (await credentialRows(a)).find(row => row.provider === 'google');
       const expiry = new Date(Date.now() + 86_400_000).toISOString();
       for (const expiresAt of [expiry, null]) {
@@ -1335,7 +1335,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       assert.equal((await mutationAudit(demo)).length, 0);
       assert.equal((await admin.query('SELECT resolved_at FROM noticeos.flags WHERE workspace_id=$1 AND flag_number=900', [demo])).rows[0].resolved_at, null);
     });
-    await t.test('site moves and guarded Undo affect only the admitted tenant and audit the real person', async () => {
+    await t.test('asset moves and guarded Undo affect only the admitted tenant and audit the real person', async () => {
       const order = async workspace => (await admin.query('SELECT asset_id FROM noticeos.assets WHERE workspace_id=$1 ORDER BY list_position,asset_id', [workspace])).rows.map(row => row.asset_id);
       const untouched = await order(b), demoOrder = await order(demo), original = await order(a);
       const before = (await mutationAudit(a)).length;

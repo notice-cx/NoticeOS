@@ -8,19 +8,19 @@ description: "The words you meet on NoticeOS screens and in these docs, each in 
 This page defines the words used on NoticeOS screens and in these docs, so other pages do not have to define them again.
 
 **Agent**
-: An AI coding agent, such as Claude Code, connected to your installation. It reads and works the same tasks you see and reads site reports; approving work stays with you. See [Connect an agent](/guides/connect-an-agent).
+: An AI coding agent, such as Claude Code, connected to your installation. It reads and works the same tasks you see and reads asset reports; approving work stays with you. See [Connect an agent](/guides/connect-an-agent).
 
 **Alert**
-: A record that a number on a site is unlikely to be normal, with the evidence attached. Every alert has a severity and a kind. See [Alerts](/concepts/alerts).
+: A record that a number on an asset is unlikely to be normal, with the evidence attached. Every alert has a severity and a kind. See [Alerts](/concepts/alerts).
 
 **Anomaly**
 : An alert kind: a number moved in a way it should not have. Most alerts are anomalies.
 
-**Archived site**
-: A site taken out of collection and off the Tower's pages, with its history and domain kept. A site is never deleted; restoring it returns it to the state it had when it was archived.
+**Archived asset**
+: An asset taken out of collection and off the Tower's pages, with its history and domain kept. An asset is never deleted; restoring it returns it to the state it had when it was archived.
 
 **Automation enabled / Monitor only**
-: The Automation setting on a site's Settings tab. Monitor only marks the site as observed only, with no automation on it.
+: The Automation setting on an asset's Settings tab. Monitor only marks the asset as observed only, with no automation on it.
 
 **Baseline**
 : The days before a change that an outcome check compares against, or the recent average an alert rule tests today's count against.
@@ -32,22 +32,22 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : One of the few secrets that start an installation, kept in its secrets file rather than entered in the product. Every other credential is connected on Integrations. See [Secrets and credentials](/operate/secrets-and-credentials).
 
 **Change**
-: An event you log on a site's Activity tab: a deploy, a config change, an incident, a model change, an autonomy change, or something external like a search engine update. Changes are what outcome checks attach to.
+: An event you log on an asset's Activity tab: a deploy, a config change, an incident, a model change, an autonomy change, or something external like a search engine update. Changes are what outcome checks attach to.
 
 **Checkout**
-: A copy of a code repository on your machine, made with `git clone`. You need NoticeOS's own checkout only to install from source or work on NoticeOS; a site's checkout is where people and agents work on that site's code.
+: A copy of a code repository on your machine, made with `git clone`. You need NoticeOS's own checkout only to install from source or work on NoticeOS; an asset's checkout is where people and agents work on that asset's code.
 
 **Cohort**
 : A group of comparable pages treated as one unit so a change to the group can be compared with a group like it. NoticeOS does not assign cohorts today.
 
 **Connect (an agent)**
-: The page where you allow an AI agent to read tasks and site reports and to work tasks in your workspaces. Your own role still limits it.
+: The page where you allow an AI agent to read tasks and asset reports and to work tasks in your workspaces. Your own role still limits it.
 
 **Could not be measured**
 : An outcome check verdict: the data was not enough to reach a result. It never means the change did nothing.
 
 **Data source**
-: Something NoticeOS collects about a site: Google Analytics, Search Console, Bing, an ad network, or the site's own nightly report. Listed on a site's Data sources tab.
+: Something NoticeOS collects about an asset: Google Analytics, Search Console, Bing, an ad network, or the asset's own nightly report. Listed on an asset's Data sources tab.
 
 **Decline confirmed**
 : An outcome check verdict: the decline threshold was met. It raises a warning alert.
@@ -62,10 +62,10 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : A hold on a task that keeps it out of the ready list until you resolve it. Approval is a gate you open.
 
 **Holdout**
-: A slice of a site you leave unchanged on purpose, to compare against. Which pages are held out is never changed by automation.
+: A slice of an asset you leave unchanged on purpose, to compare against. Which pages are held out is never changed by automation.
 
 **Home**
-: The first page: what needs your attention today, across every site.
+: The first page: what needs your attention today, across every asset.
 
 **Improvement confirmed**
 : An outcome check verdict: the improvement threshold was met. It raises an opportunity alert.
@@ -86,10 +86,10 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : The `noticeos` command in the installation folder, such as `~/noticeos/noticeos status`. It runs status, logs, apply, update and the rest without a checkout; from a checkout the same commands are `pnpm os:status` and so on.
 
 **Ledger**
-: The record of money: revenue and cost rows per site per month. A row never changes; a correction is a new row that replaces it. Shown on the Money page.
+: The record of money: revenue and cost rows per asset per month. A row never changes; a correction is a new row that replaces it. Shown on the Money page.
 
 **Lifecycle stage**
-: A site's stage: Onboarding before collection has recorded data, then Live. Pre-launch and Retired record explicit launch-hold and archive decisions. Active stages are computed from stored collection history.
+: An asset's stage: Onboarding before collection has recorded data, then Live. Pre-launch and Retired record explicit launch-hold and archive decisions. Active stages are computed from stored collection history.
 
 **MCP**
 : The Model Context Protocol, an open standard that lets an AI agent use a service's tools. The Tower serves NoticeOS's tools at `/api/mcp`.
@@ -101,19 +101,19 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : An alert kind for a number reaching a set level. Always info severity, never urgent.
 
 **Money**
-: The page that shows the ledger month by month, with Net P&L. Also a site's own Money tab.
+: The page that shows the ledger month by month, with Net P&L. Also an asset's own Money tab.
 
 **Month to date**
 : The current month on the Money page, whose figures are not final yet.
 
 **Net P&L**
-: Revenue minus cost for a site or the portfolio in a month. It is a monthly result, not a return on investment.
+: Revenue minus cost for an asset or the portfolio in a month. It is a monthly result, not a return on investment.
 
 **Next up**
 : The TV widget that shows how many decisions wait on you, the first of them, and what the agents hold now. On the Tasks page, the ready tasks with nothing blocking them are listed under **Agents, next up**; an agent asking for ready work gets the same list.
 
 **Nightly report**
-: The counts a site's own servers recorded, sent to NoticeOS once a day. A site never queries outside analytics about itself.
+: The counts an asset's own servers recorded, sent to NoticeOS once a day. An asset never queries outside analytics about itself.
 
 **No clear change**
 : An outcome check verdict: neither threshold was met, or none was set. The numbers are shown.
@@ -125,16 +125,16 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : A comparison you register before the numbers exist: a change, a metric, a scope, a baseline, check days and thresholds. NoticeOS reads it on the check days and closes it with a verdict. See [Attribution and measurement](/concepts/attribution-and-measurement).
 
 **Overview**
-: The first tab on a site's page: the site's main figures, a chart of the one you pick, its data sources and what needs your attention.
+: The first tab on an asset's page: the asset's main figures, a chart of the one you pick, its data sources and what needs your attention.
 
 **Owner**
 : The person or agent a task is assigned to. An agent claims a task before starting it.
 
 **Portfolio**
-: All the sites in one installation, taken together.
+: All the assets in one installation, taken together.
 
 **Project**
-: One site's task list, with its own short prefix on every task id. Added under Settings > Task projects.
+: One asset's task list, with its own short prefix on every task id. Added under Settings > Task projects.
 
 **Resolve**
 : Marking an alert as fixed. The alert is settled.
@@ -143,7 +143,7 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : Something NoticeOS runs on a timer: collecting reports, running outcome checks, filing review tasks. Shown on the Workflows page and under System health.
 
 **Scope**
-: What an outcome check measures: the whole site, one search query, or one page.
+: What an outcome check measures: the whole asset, one search query, or one page.
 
 **Settled**
 : An alert that does not come back: resolved, or marked read. A snoozed alert is not settled.
@@ -151,11 +151,11 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 **Severity**
 : The first label on an alert: error, warning or info.
 
-**Site**
-: One website in your portfolio. The word on screen is always Site; "property" is reserved for a provider's own object, such as a Google Analytics property.
+**Asset**
+: One website or software product in your Portfolio. Each Asset has a type: Website (marketing/landing), Web app (SaaS), or Mobile app. “Property” names a provider's own object, such as a Google Analytics property.
 
-**Site status**
-: The one status label a site shows: On track, Monitor only, At risk or Off track. Home, Sites, the site's own page and the Wall all show the same label.
+**Asset status**
+: The one status label an asset shows: On track, Monitor only, At risk or Off track. Home, Portfolio, the asset's own page and the Wall all show the same label.
 
 **Snooze**
 : Hiding an alert from the open list until a date within 90 days. The same alert comes back on that date.
@@ -170,13 +170,13 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : The installation's own database, in Postgres: every report, reading, ledger row and setting. It keeps history; nothing in it is truncated.
 
 **System**
-: The row for this installation's own NoticeOS, listed beside the sites: its scheduled jobs, backups and data spend, the shared costs no site carries (**Overhead** on the Money page) and its own task project. Every page shows it as System, whatever name the store holds for it.
+: The row for this installation's own NoticeOS, listed beside the assets: its scheduled jobs, backups and data spend, the shared costs no asset carries (**Overhead** on the Money page) and its own task project. Every page shows it as System, whatever name the store holds for it.
 
 **System health**
 : The page that shows whether NoticeOS itself is working: each source's collection, the scheduled jobs, expiring credentials and data spend.
 
 **Task**
-: A piece of work on the shared board, for a site or for the System, with status, owner, priority, blockers and the evidence that closed it. Closing a task records a decision, never a business result.
+: A piece of work on the shared board, for an asset or for the System, with status, owner, priority, blockers and the evidence that closed it. Closing a task records a decision, never a business result.
 
 **Task database**
 : The one database that holds every project's tasks, run by Dolt inside the stack. Its task model comes from Beads, and `bd` is its command-line tool.
@@ -197,13 +197,13 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : The result an outcome check closes with: improvement confirmed, decline confirmed, no clear change, or could not be measured.
 
 **Wall**
-: The TV view: statuses and trends for every site on one screen, meant to be read from across a room. The sidebar labels it **TV dashboard**.
+: The TV view: statuses and trends for every asset on one screen, meant to be read from across a room. The sidebar labels it **TV dashboard**.
 
 **Workflow**
 : A named automation with a purpose, a schedule and a run history, shown on the Workflows page. Its runs record what happened; they are not business results.
 
 **Workspace**
-: The boundary that contains a portfolio's sites, evidence, connections and work. You may belong to several without sharing data between them.
+: The boundary that contains a portfolio's assets, evidence, connections and work. You may belong to several without sharing data between them.
 
 **Your decisions**
 : The section at the top of the Tasks page: tasks and gates that need a decision from you and nobody else.

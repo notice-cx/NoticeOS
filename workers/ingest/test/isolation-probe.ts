@@ -142,7 +142,7 @@ export function isolationProbe(self: Probe): void {
     await expectRefused(inFile!, `${file} > ends with its writes still waiting to run`);
   });
 
-  const leaving = 'leaves a saved document, a stored object, a cached response, a stored site, a warm read cache, a dead clock and running work behind';
+  const leaving = 'leaves a saved document, a stored object, a cached response, a stored asset, a warm read cache, a dead clock and running work behind';
   it(leaving, async () => {
     const document = { countdown: { label: `Isolation probe ${self}`, target: '2026-10-01' } };
     expect((await seedConfigDocuments(env, { documents: { [FILE]: document }, actor: 'isolation-probe' })).ok).toBe(true);

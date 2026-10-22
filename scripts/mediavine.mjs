@@ -8,7 +8,7 @@ export const USAGE = `Usage:
   pnpm mediavine sync --asset example.com [--start YYYY-MM-DD --end YYYY-MM-DD]
 
 Options: --url <NoticeOS URL> (default http://127.0.0.1:5173)
-Connect Mediavine and start its sites in NoticeOS first. Output is JSON. Sync uses
+Connect Mediavine and start its assets in NoticeOS first. Output is JSON. Sync uses
 NoticeOS's saved session, request limits and revenue store.
 `;
 
@@ -16,7 +16,7 @@ export function parseArgs(argv) {
   const args = argv.filter(arg => arg !== '--');
   if (args.includes('--help') || args.includes('-h')) return { help: true };
   const command = args.shift();
-  if (!['status', 'sites', 'sync'].includes(command)) throw new Error('Choose status, sites or sync. Use --help for examples.');
+  if (!['status', 'sites', 'sync'].includes(command)) throw new Error('Choose status, assets or sync. Use --help for examples.');
   const options = { command, url: 'http://127.0.0.1:5173' };
   while (args.length) {
     const flag = args.shift();
@@ -47,7 +47,7 @@ export async function run(options, fetcher = fetch) {
   try { result = await response.json(); } catch { throw new Error(`NoticeOS did not return JSON (HTTP ${response.status}). Check its URL and access settings.`); }
   if (options.command === 'sites') {
     if (!response.ok || typeof result?.discovery !== 'object' || result.discovery === null) throw new Error(`NoticeOS refused the request (HTTP ${response.status}).`);
-    if (result.discovery.ok !== true) throw new Error(`Mediavine's sites could not be read: ${result.discovery.reason}.`);
+    if (result.discovery.ok !== true) throw new Error(`Mediavine's assets could not be read: ${result.discovery.reason}.`);
     return result.discovery.sites;
   }
   if (!response.ok || result?.ok !== true) throw new Error(result?.message ?? `NoticeOS refused the request (HTTP ${response.status}).`);

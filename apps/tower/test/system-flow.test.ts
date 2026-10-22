@@ -25,7 +25,7 @@ const system = (lanes: SystemBand["scheduledLanes"]): SystemBand => ({
 });
 
 describe("the system map", () => {
-  it("draws only connected providers, and a provider failing on some sites as at risk with its onset", () => {
+  it("draws only connected providers, and a provider failing on some assets as at risk with its onset", () => {
     const credentials = new Map([["google", credential("google")], ["bing-webmaster", credential("bing-webmaster")]]);
     const items = [
       item("google", "ga4-daily", "a.example", "healthy", at(1)),
@@ -36,7 +36,7 @@ describe("the system map", () => {
     const { nodes, edges } = systemFlow({ credentials, items, system: system([{ job: "signals", outcome: "ran", startedAt: at(0.1), lastRanAt: at(0.1), failedRuns: 0, failingSince: null }]), nowMs: NOW });
     const sources = nodes.filter((node) => node.id.startsWith("source:"));
     expect(sources.map((node) => node.label)).toEqual(["Google", "Bing"]);
-    expect(sources[0]).toMatchObject({ state: "warn", since: at(6), caption: "1 of 3 sites failing" });
+    expect(sources[0]).toMatchObject({ state: "warn", since: at(6), caption: "1 of 3 assets failing" });
     expect(sources[1]).toMatchObject({ state: "ok" });
     expect(nodes.find((node) => node.id === "collectors")).toMatchObject({ state: "warn", value: "1 of 2" });
     expect(edges.find((edge) => edge.from === "source:bing-webmaster")?.state).toBe("flowing");

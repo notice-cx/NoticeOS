@@ -28,12 +28,12 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
 | `os:run-job` | Run one allowed local job with `--id <job-id>`, or fire one cron expression now. | `scripts/stack-control.mjs run-job` |
-| `os:collect` | Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
+| `os:collect` | Collect one asset's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
-| `os:codebase-report` | Measure one site's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
+| `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
 
 ### Change the database
 
@@ -60,25 +60,25 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
-| `signals:collect` | Collect one property's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
+| `signals:collect` | Collect one asset's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
 | `signals:download` | Download the latest immutable raw-signal object for each selected report day. | `scripts/signal-dumps-download.mjs` |
 | `signals:history` | The provider history as analytical files. | `scripts/signal-history.mjs` |
 | `signals:analyze-history` | The analysis, read from the history files. | `scripts/signal-history-analyze.mjs` |
-| `signals:refresh` | Keep every rostered property's panel dir current. | `scripts/signal-panels-refresh.mjs` |
+| `signals:refresh` | Keep every rostered asset's panel dir current. | `scripts/signal-panels-refresh.mjs` |
 | `signals:publish-insights` | Publish one compact executive snapshot into the store's presentation boundary. | `scripts/signal-insights-publish.mjs` |
 | `signals:event-params` | GA4 event-parameter report for one asset: the manual companion to the daily GA4 archive lane, for event params the archive does not export. | `scripts/ga4-event-params.mjs` |
 | `bing-ai:import` | Drop a Bing AI Performance export anywhere, run one command, and it becomes evidence. | `scripts/bing-ai-import.mjs` |
 | `reclamation:import` | Load a campaign's static target CSV into the store's link-outreach targets, carrying whatever send state the campaign recorded elsewhere. | `scripts/reclamation-import.mjs` |
-| `reclamation:open-targets` | A site's OPEN link-outreach targets, written to the file the reclamation-match rule reads (`pnpm signals:analyze-history -- --reclamation-targets <file>`, scripts/signal-insights.mjs). | `scripts/reclamation-open-targets.mjs` |
+| `reclamation:open-targets` | An asset's OPEN link-outreach targets, written to the file the reclamation-match rule reads (`pnpm signals:analyze-history -- --reclamation-targets <file>`, scripts/signal-insights.mjs). | `scripts/reclamation-open-targets.mjs` |
 | `mediavine` | The Mediavine publisher-portal client in the terminal: status, sites and a revenue sync for one site. | `scripts/mediavine.mjs` |
 | `cost:import-inference` | Book a model provider's usage export into the ledger as inference costs. | `scripts/inference-cost-import.mjs` |
-| `pulse:relay` | Relay a pull-mode site's live pulse into the LOCAL ingest worker. | `scripts/pulse-relay.mjs` |
+| `pulse:relay` | Relay a pull-mode asset's live pulse into the LOCAL ingest worker. | `scripts/pulse-relay.mjs` |
 
 ### Check the code and the screens
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
-| `check:neutral` | Product code names no installation's own sites, accounts or clock. | `scripts/neutral-code-gate.mjs` |
+| `check:neutral` | Product code names no installation's own assets, accounts or clock. | `scripts/neutral-code-gate.mjs` |
 | `audit:copy` | The UX text report: how much reading each Tower screen asks for. | `scripts/ux-gate.mjs` |
 | `audit:flows` | The flow walker: walk every declared operator flow in a real browser and report what each one costs (actions, screens, page changes, explanatory words, empty steps, repeated checks, duplicate statuses, ungrouped lists). | `apps/tower/e2e/flow-gate.mjs` |
 | `audit:viewport` | Capture the running Tower at each viewport through a local Firefox Marionette session, for a visual review. | `scripts/tower-viewport-audit.mjs` |

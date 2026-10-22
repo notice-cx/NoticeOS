@@ -137,7 +137,7 @@ export async function fill(tx, fixture, { where = 'the secrets file' } = {}) {
     throw new SeedRefused([
       'refusing to seed: this store already holds data.',
       ...held.map((table) => `  noticeos.${table}: ${counts[table]} row(s)`),
-      ...taken.map((row) => `  noticeos.assets: the site ${row.asset_id}, on an id or domain the fixture uses`),
+      ...taken.map((row) => `  noticeos.assets: the asset ${row.asset_id}, on an id or domain the fixture uses`),
       'These rows are invented; once mixed in with real ones, nothing in the store can tell them apart.',
       'Seed only a new development database: pnpm db:try-tower -- --dir <an empty folder>.',
       'Nothing was written.',
@@ -252,7 +252,7 @@ export async function seedLocal({ dir = null, root = REPO_ROOT, fixture = null }
     const workspace = await store.onlyWorkspace();
     const written = await store.inWorkspace(workspace, (tx) => fill(tx, rows, { where }));
     log(
-      `seeded the store of ${shown(plan.home)}: ${written.assets} sites, ${written.pulses} reports, ${written.flags} alerts, ` +
+      `seeded the store of ${shown(plan.home)}: ${written.assets} assets, ${written.pulses} reports, ${written.flags} alerts, ` +
         `${written.ledger_entries} ledger entries, ${written.counter_readings} counter readings, ${written.annotations} change notes.`,
     );
     return 0;

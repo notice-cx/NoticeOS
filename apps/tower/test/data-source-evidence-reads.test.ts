@@ -297,7 +297,7 @@ describe("the data-source evidence reads seek instead of ranking history", () =>
     }
   });
 
-  it("reads each site's latest Mediavine attempt and last day through their indexes on Postgres", async () => {
+  it("reads each asset's latest Mediavine attempt and last day through their indexes on Postgres", async () => {
     const test = await createTestStore();
     try {
       const plan = await test.store.inWorkspace(test.workspaceId, async (tx) => {

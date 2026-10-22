@@ -34,7 +34,7 @@ const LIGHT_AND_DARK_PNGS = `<!doctype html><html lang="en"><head><meta charset=
 </head><body><h1>Example</h1></body></html>`;
 
 /** A site that declares only its `/favicon.ico`. */
-const FAVICON_ONLY = `<html><head><title>Old site</title>
+const FAVICON_ONLY = `<html><head><title>Old asset</title>
 <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 <link rel="stylesheet" href="/style.css">
 </head><body></body></html>`;
@@ -293,7 +293,7 @@ describe('the daily icon read', () => {
     expect((await storedReads())[0]!.detail).toEqual({ pageUrl: 'https://www.meadow.example/en/', status: 200 });
   });
 
-  it('calls a site unreachable after five redirects', async () => {
+  it('calls an asset unreachable after five redirects', async () => {
     const routes: Record<string, () => Response> = {};
     for (let hop = 0; hop < 7; hop += 1) {
       routes[hop === 0 ? 'https://meadow.example/' : `https://meadow.example/hop-${hop}`] = () =>
@@ -357,7 +357,7 @@ describe('the daily icon read', () => {
     expect(fillerPulls).toBeLessThanOrEqual(6);
   });
 
-  it('stores nothing for a site when the OS itself cannot get out, and counts it on the egress flag', async () => {
+  it('stores nothing for an asset when the OS itself cannot get out, and counts it on the egress flag', async () => {
     await runSiteIcons(env, {
       fetchImpl: stubOrigin({ ...EGRESS_UP, 'https://meadow.example/': () => html(FAVICON_ONLY) }).fetchImpl,
       nowMs: NOW - 86_400_000,
@@ -375,7 +375,7 @@ describe('the daily icon read', () => {
     expect(JSON.parse(flag!.rule_inputs!).lanes.icons.unmeasuredAssets).toEqual(['meadow.example']);
   });
 
-  it('calls a silent site unreachable when the OS can get out', async () => {
+  it('calls a silent asset unreachable when the OS can get out', async () => {
     const { fetchImpl } = stubOrigin(EGRESS_UP);
 
     const result = await runSiteIcons(env, { fetchImpl, nowMs: NOW, assets: [MEADOW] });
@@ -389,7 +389,7 @@ describe('the daily icon read', () => {
     });
   });
 
-  it('goes on to the next site when one read cannot be stored', async () => {
+  it('goes on to the next asset when one read cannot be stored', async () => {
     const { fetchImpl } = stubOrigin({
       'https://ghost.example/': () => html(FAVICON_ONLY),
       'https://meadow.example/': () => html(FAVICON_ONLY),
@@ -406,7 +406,7 @@ describe('the daily icon read', () => {
     expect((await storedReads()).map((read) => read.asset)).toEqual(['meadow.example']);
   });
 
-  it('reads every site with a domain that is not retired and is not the OS row', async () => {
+  it('reads every asset with a domain that is not retired and is not the OS row', async () => {
     await changeSites(['puffin.example'], { status: 'retired' });
     try {
       const { fetchImpl, calls } = stubOrigin(EGRESS_UP);
@@ -424,7 +424,7 @@ describe('the daily icon read', () => {
     }
   });
 
-  it('asks no site while the store has no icon table yet', async () => {
+  it('asks no asset while the store has no icon table yet', async () => {
     // The store as one the migration has not reached: its table lookup finds nothing.
     const unmigrated = (store: WorkspaceStore): WorkspaceStore => {
       const lookup = (tx: Transaction): Transaction => ({

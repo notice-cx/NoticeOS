@@ -141,7 +141,7 @@ test('fresh provenance required; failed init preserves partial files and blocks 
   assert.equal((await preflightStartedTasks(f.plan, f)).ok, false);
 });
 
-test('OS bootstrap is workspace scoped, creates no user site, and refuses all existing assets', async () => {
+test('OS bootstrap is workspace scoped, creates no user asset, and refuses all existing assets', async () => {
   const calls = [];
   const store = () => ({ onlyWorkspace: async () => 'own-workspace', close: async () => calls.push('close'),
     inWorkspace: async (workspace, work) => work({ query: async () => [], execute: async (sql, values) => calls.push({ workspace, sql, values }) }) });
@@ -159,7 +159,7 @@ test('Tower task selectors and credentials are scrubbed without changing toolcha
   assert.deepEqual(scrubTaskEnvironment({ HOME: '/synthetic', PATH: '/bin', BD_ACTOR: 'old', BEADS_DOLT_PASSWORD: 'old', DOLT_ROOT_PATH: 'old', MYSQL_PWD: 'old' }), { HOME: '/synthetic', PATH: '/bin' });
 });
 
-test('actual application-role OS bootstrap uses numbering trigger and leaves the next position for a user site', { timeout: 60_000 }, async t => {
+test('actual application-role OS bootstrap uses numbering trigger and leaves the next position for a user asset', { timeout: 60_000 }, async t => {
   let cluster;
   try { cluster = await startTestCluster(); }
   catch (error) { const reason = unavailableReason(error); if (reason === null || postgresRequired()) throw error; return t.skip(reason); }

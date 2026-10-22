@@ -103,7 +103,7 @@ const CLARITY = integrationProvider("clarity")!;
 
 /** Each desk surface that holds a site id, drawn as its screen draws it. */
 const SURFACES: readonly [string, () => ReactNode][] = [
-  ["the site page header", () => (
+  ["the asset page header", () => (
     <Header asset={detail.asset} integrations={detail.integrations} pulseReceivedAt={null} nowMs={NOW} lastGood={false} />
   )],
   ["an Alerts row", () => (
@@ -123,7 +123,7 @@ const SURFACES: readonly [string, () => ReactNode][] = [
       sites={2}
     />
   )],
-  ["an Integrations site row", () => (
+  ["an Integrations asset row", () => (
     <SiteTokens
       provider={CLARITY}
       sites={[{ id: SITE, label: "Meadow Board", domain: SITE, held: false }]}
@@ -136,7 +136,7 @@ const SURFACES: readonly [string, () => ReactNode][] = [
   )],
 ];
 
-describe("a desk screen that holds a site's id draws the icon its card carries", () => {
+describe("a desk screen that holds an asset's id draws the icon its card carries", () => {
   it.each(SURFACES)("%s draws the dark icon on the dark desk and the light icon on the light desk", (_name, surface) => {
     const dark = draw(surface(), deskClient(wallWith(ICONS)));
     expect(drawn(dark.container)).toBe(DARK);

@@ -90,7 +90,7 @@ approach (posterior-weighted, with protected exploration) but runs in batches.
 - **Kill criteria are pre-committed and automated.** Every bet's state+date is
   checked by cron; when the date passes, the bet is parked automatically and
   closed out in the ledger (sunk cost does not count in later decisions).
-  Asset-class-level kill criteria exist too (the "content-site
+  Asset-class-level kill criteria exist too (the "content-asset
   forecastability" question is periodically re-evaluated for every asset, with
   numbers).
 

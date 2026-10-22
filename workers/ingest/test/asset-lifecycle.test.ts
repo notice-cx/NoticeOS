@@ -103,7 +103,7 @@ describe('createAsset — what a wizard may bring into being', () => {
 
   // One site per domain (0001_baseline.sql `assets_one_per_domain`): a second
   // id on a domain a site already holds is that site, and the answer names it.
-  it('refuses a domain another site holds, naming that site, and writes nothing', async () => {
+  it('refuses a domain another asset holds, naming that asset, and writes nothing', async () => {
     const holder = (await storeSites()).find((site) => site.domain !== null && site.domain !== site.id);
     expect(holder).toBeDefined();
     const result = await createAsset(env, { id: 'second.test', displayName: 'Second', domain: holder!.domain }, NOW);
@@ -144,10 +144,10 @@ describe('createAsset — what a wizard may bring into being', () => {
   // field by the label a person reads, in the words every register refusal
   // uses (`fieldRefusal`), and says site — never the body's key or a system
   // noun.
-  it('words each refusal by the field’s label and says site, keeping the key as the path', async () => {
+  it('words each refusal by the field’s label and says asset, keeping the key as the path', async () => {
     const cases: [unknown, string, string | RegExp][] = [
-      [{ id: 'NOT VALID', displayName: 'Bad Id' }, 'id', 'Site must be a site id'],
-      [{ displayName: 'No Id' }, 'id', 'Site is required'],
+      [{ id: 'NOT VALID', displayName: 'Bad Id' }, 'id', 'Asset must be an asset id'],
+      [{ displayName: 'No Id' }, 'id', 'Asset is required'],
       [{ id: NEW_ID, displayName: '   ' }, 'displayName', 'Display name is required'],
       [{ id: NEW_ID, displayName: 'x'.repeat(81) }, 'displayName', 'Display name must be 80 characters or fewer'],
       [{ id: NEW_ID, displayName: 'Brand New', domain: 'https://brandnew.test/x' }, 'domain', 'Domain must be a hostname such as example.com'],
@@ -189,7 +189,7 @@ const refusingSiteStatements = (store: WorkspaceStore): WorkspaceStore => ({
       work({
         ...tx,
         query: (async (sql: string, params?: Parameters<Transaction['query']>[1]) => {
-          if (/^\s*(INSERT INTO|UPDATE) noticeos\.assets\b/.test(sql)) throw new Error('Postgres refused the site row');
+          if (/^\s*(INSERT INTO|UPDATE) noticeos\.assets\b/.test(sql)) throw new Error('Postgres refused the asset row');
           return tx.query(sql, params);
         }) as Transaction['query'],
       }),
@@ -206,8 +206,8 @@ const abortingTransaction = (store: WorkspaceStore): WorkspaceStore => ({
     }),
 });
 
-describe('a failed site transaction', () => {
-  it('a failed Postgres statement leaves sites unchanged', async () => {
+describe('a failed asset transaction', () => {
+  it('a failed Postgres statement leaves assets unchanged', async () => {
     await expect(createAsset(withStore(refusingSiteStatements), { id: NEW_ID, displayName: 'Brand New' }, NOW)).rejects.toThrow();
     expect(await stored(NEW_ID)).toBeNull();
 
@@ -218,7 +218,7 @@ describe('a failed site transaction', () => {
     expect(await stored('meadow.example')).toEqual(before);
   });
 
-  it('a failed transaction leaves no new site and a later retry can create it', async () => {
+  it('a failed transaction leaves no new asset and a later retry can create it', async () => {
     await expect(createAsset(withStore(abortingTransaction), { id: NEW_ID, displayName: 'Brand New' }, NOW)).rejects.toThrow(
       'the Postgres transaction aborted',
     );

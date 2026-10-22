@@ -46,7 +46,7 @@ export const INTEGRATION_MONITORS = {
   'google-oauth-app': [monitor('google-app-setup', 'Google sign-in setup', [], 'credential-probes', 'account', 'setup', 'setup-only', 'Complete Google sign-in in Integrations.')],
   'bing-webmaster': [
     // Saved Bing collection schedule.
-    monitor('bing-daily', 'Bing daily reports', ['bing-webmaster'], 'bing-signals', 'property', 'scheduled', 'signal_runs', 'Review the verified site and Bing connection.'),
+    monitor('bing-daily', 'Bing daily reports', ['bing-webmaster'], 'bing-signals', 'property', 'scheduled', 'signal_runs', 'Review the verified asset and Bing connection.'),
     // Each family’s existing daily or weekly obligation.
     monitor('bing-archive', 'Bing report archive', ['bing-webmaster'], 'signal-dumps', 'family', 'scheduled', 'signal_dump_runs', 'Review the failed report family; delayed reporting is separate from request failure.'),
     // Explicit connection test only.
@@ -56,9 +56,9 @@ export const INTEGRATION_MONITORS = {
     // Existing daily target and bounded retry plan in mediavine_state.
     monitor('mediavine-revenue', 'Daily ad revenue', ['ad-network'], 'mediavine', 'property', 'scheduled', 'mediavine_runs', 'Review missing report dates; reconnect if the session is blocked.'),
     // Explicit site discovery with existing 15-minute cache/cooldown.
-    monitor('mediavine-discovery', 'Ad revenue site discovery', ['ad-network'], 'mediavine-connection', 'account', 'event', 'live-only', 'Review the publisher connection and permitted sites.'),
+    monitor('mediavine-discovery', 'Ad revenue asset discovery', ['ad-network'], 'mediavine-connection', 'account', 'event', 'live-only', 'Review the publisher connection and permitted assets.'),
     // Explicit connection test; never clears a revenue report failure.
-    monitor('mediavine-test', 'Mediavine connection test', [], 'mediavine-connection', 'account', 'event', 'live-only', 'Review the publisher connection and permitted sites.'),
+    monitor('mediavine-test', 'Mediavine connection test', [], 'mediavine-connection', 'account', 'event', 'live-only', 'Review the publisher connection and permitted assets.'),
   ],
   dataforseo: [
     // Each applicable family’s collector plan, including tracked terms and device scope.
@@ -100,7 +100,7 @@ export const INTEGRATION_MONITORS = {
   ],
   stripe: [
     // The hourly subscriptions job; each site's completed UTC days are revenue_observations rows.
-    monitor('stripe-revenue', 'Daily subscription revenue', ['subscriptions'], 'stripe', 'property', 'scheduled', 'live-only', 'Review the Stripe key and the account this site’s Subscriptions entry names.'),
+    monitor('stripe-revenue', 'Daily subscription revenue', ['subscriptions'], 'stripe', 'property', 'scheduled', 'live-only', 'Review the Stripe key and the account this asset’s Subscriptions entry names.'),
     // Explicit connection test only.
     monitor('stripe-test', 'Stripe connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the Stripe key in Integrations.'),
   ],

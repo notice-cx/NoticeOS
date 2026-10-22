@@ -55,7 +55,7 @@ const healthy = (id: string, over: Partial<AssetCard> = {}) =>
 const fact = (c: AssetCard, key: TechFactKey, issues: WallIssue[] = []) => techHealth(c, issues).facts.find((f) => f.key === key)!;
 
 describe("techHealth facts", () => {
-  it("reads every fact as fine on a healthy site", () => {
+  it("reads every fact as fine on a healthy asset", () => {
     const health = techHealth(healthy("meadow.example.com"), []);
     expect(health).toMatchObject({ key: "fine", word: "Fine", tone: "affirmative" });
     expect(health.facts.map((f) => [f.key, f.state, f.word, f.note])).toEqual([
@@ -142,7 +142,7 @@ describe("techHealth's one word", () => {
     expect(techHealth(card("acorn.example.com", { dataSources: [uptime("live")] }), []).key).toBe("fine");
   });
 
-  it("measures nothing on a retired or pre-launch site", () => {
+  it("measures nothing on a retired or pre-launch asset", () => {
     for (const status of ["retired", "pre-launch"]) {
       const site = healthy("meadow.example.com", { status });
       const health = techHealth(site, [issue(site.id, "alert-1", "Home page down")]);
@@ -158,7 +158,7 @@ describe("a late or missing nightly report", () => {
   const late = (hours: number) => healthy("brief.example.com", { pulseReceivedAt: new Date(NOW - hours * HOUR).toISOString() });
   const issuesFor = (site: AssetCard) => wallIssues({ assets: [site], attention: [], connections: NO_READS, nowMs: NOW });
 
-  it("is a note on the row, in days from two days, and folds the site to watch, never fine", () => {
+  it("is a note on the row, in days from two days, and folds the asset to watch, never fine", () => {
     const site = late(49);
     const issues = issuesFor(site);
     expect(issues.map((i) => i.mark)).toEqual(["Report late"]);
@@ -213,7 +213,7 @@ describe("a late or missing nightly report", () => {
 });
 
 describe("techHealthSummary", () => {
-  it("counts the fine among the measured and leads with the worst site", () => {
+  it("counts the fine among the measured and leads with the worst asset", () => {
     const sites = [
       healthy("a.example.com"),
       healthy("b.example.com", { codebase: codebase(50) }),

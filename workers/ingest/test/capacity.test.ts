@@ -218,7 +218,7 @@ describe('readCapacityInventory', () => {
     expect(measured.bytesPerDay).toBe(measured.valueBytes);
   });
 
-  it('sizes insight snapshots per site: what is read, what is superseded, what arrives per day', async () => {
+  it('sizes insight snapshots per asset: what is read, what is superseded, what arrives per day', async () => {
     const before = (await readCapacityInventory(env, NOW)).insightSnapshots;
     expect(before).not.toBeNull();
     const rows = [

@@ -195,15 +195,15 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
 
   /** The collector has no roster: membership IS the store query. A property this
    * route refuses is one the Monday lane would not have collected either. */
-  it('refuses a property the weekly lane does not collect, and says which kind', async () => {
+  it('refuses an asset the weekly lane does not collect, and says which kind', async () => {
     const unknown = await refused({ asset: 'not-a-property' });
     expect(unknown.status).toBe(422);
     expect(unknown.body).toMatchObject({ error: 'unknown_asset' });
-    expect(unknown.body.detail).toBe('not-a-property is not a property in the store.');
+    expect(unknown.body.detail).toBe('not-a-asset is not an asset in the store.');
 
     // Seeded, but pre-launch: a different mistake, and a different sentence.
     expect((await refused({ asset: 'ferns.example' })).body.detail).toBe(
-      'ferns.example is pre-launch; the DataForSEO lane collects launched properties only.',
+      'ferns.example is pre-launch; the DataForSEO lane collects launched assets only.',
     );
     expect((await refused({ asset: 'root-os' })).body.detail).toBe(
       'root-os is the OS itself and has no public search surface.',
@@ -217,7 +217,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
    * file, not a run that attempts nothing and reports a $0.00 success.
    * `appliesTo` would have filtered it silently — right for a portfolio sweep
    * and wrong for a request somebody typed. */
-  it('refuses a panel family for a property config/serp-panel.json does not name', async () => {
+  it('refuses a panel family for an asset config/serp-panel.json does not name', async () => {
     const { status, body } = await refused({
       asset: 'pebble.example',
       families: ['serp-panel'],
@@ -241,8 +241,8 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
   });
 });
 
-describe('POST /api/signal-collect — one property, on the day it launched', () => {
-  it('bills the named property alone', async () => {
+describe('POST /api/signal-collect — one asset, on the day it launched', () => {
+  it('bills the named asset alone', async () => {
     const { fetchImpl, calls } = providerFetch();
     const { status, body } = await collect({ asset: 'northwind.example' }, { fetchImpl });
 

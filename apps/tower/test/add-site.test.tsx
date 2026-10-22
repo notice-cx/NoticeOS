@@ -113,7 +113,7 @@ function typeDomain(value: string) {
 }
 
 function add() {
-  fireEvent.click(screen.getByRole("button", { name: "Add site" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add asset" }));
 }
 
 beforeEach(() => {
@@ -131,7 +131,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("the address is not captured by the site page", () => {
+describe("the address is not captured by the asset page", () => {
   it("ranks /assets/new above /assets/:id/:tab?", () => {
     expect(matchRoutes(deskRoutes, "/assets/new")?.at(-1)?.route.path).toBe("/assets/new");
     expect(matchRoutes(deskRoutes, "/assets/shop.example.com")?.at(-1)?.route.path).toBe("/assets/:id/:tab?");
@@ -143,9 +143,9 @@ describe("one question: the domain", () => {
   it("is a dialog with one field, Add, and the one optional press", () => {
     stubFetch([]);
     renderSheet();
-    expect(screen.getByRole("dialog", { name: "Add a site" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Add an asset" })).toBeInTheDocument();
     expect(screen.getAllByRole("textbox")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Add site" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add asset" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Not launched yet" })).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -155,10 +155,10 @@ describe("one question: the domain", () => {
     typeDomain("https://www.journey.example/pricing");
     expect(document.querySelector("[data-add-site-name]")?.textContent).toBe("Journey Example");
     expect(document.querySelector("[data-add-site-source]")?.getAttribute("data-add-site-source")).toBe("domain");
-    expect(screen.getByRole("button", { name: "Add site" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add asset" })).toBeEnabled();
   });
 
-  it("takes the site's own name when the site answers with one", async () => {
+  it("takes the asset's own name when the asset answers with one", async () => {
     stubFetch([], "Example Shop");
     renderSheet();
     typeDomain("shop.example.com");
@@ -174,12 +174,12 @@ describe("one question: the domain", () => {
     typeDomain("shop.example.com");
     expect(screen.getByText("Already added")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open shop.example.com" })).toHaveAttribute("href", "/assets/shop.example.com");
-    expect(screen.getByRole("button", { name: "Add site" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add asset" })).toBeDisabled();
   });
 
   // Archive is the one way out of the site list, so an archived site is the
   // one a person most often adds again: its link lands on Restore.
-  it("opens an archived site it already has where Restore is", () => {
+  it("opens an archived asset it already has where Restore is", () => {
     state.assets = [{ id: "shop.example.com", status: "retired" }];
     stubFetch([]);
     renderSheet();
@@ -232,7 +232,7 @@ describe("one question: the domain", () => {
     renderSheet();
     typeDomain("shop.example.com");
     expect(screen.getByText("This deployment cannot save file-owned settings.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add site" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add asset" })).toBeDisabled();
   });
 });
 
@@ -268,7 +268,7 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
     expect(toasts.success).not.toHaveBeenCalled();
   });
 
-  it("starts a site that has not launched in pre-launch", async () => {
+  it("starts an asset that has not launched in pre-launch", async () => {
     const calls = stubFetch([
       { status: 201, body: { ok: true, asset: { id: "shop.example.com" } } },
       { status: 200, body: { applied: 2, archive: null, commit: null } },
@@ -295,7 +295,7 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
 
   // One site per domain: the store's 409 names the site holding the domain,
   // whose id may not be the one typed. The link opens that site.
-  it("opens the site the store says holds the domain, not a page for the id typed", async () => {
+  it("opens the asset the store says holds the domain, not a page for the id typed", async () => {
     state.assets = [{ id: "shop", status: "retired" }];
     const calls = stubFetch([{ status: 409, body: { error: "asset_exists", id: "shop" } }]);
     renderSheet();
@@ -309,7 +309,7 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
     expect(path).toBe("/assets/shop/settings#restore");
   });
 
-  it("offers no way to a site when the refusal names none", async () => {
+  it("offers no way to an asset when the refusal names none", async () => {
     stubFetch([{ status: 409, body: { error: "asset_exists" } }]);
     renderSheet();
     typeDomain("shop.example.com");
@@ -400,7 +400,7 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
     renderSheet();
     typeDomain("shop.example.com");
     add();
-    await screen.findByText(/did not confirm this site/);
+    await screen.findByText(/did not confirm this asset/);
     expect(calls).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Retry setup" })).toBeNull();
   });
@@ -414,5 +414,25 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
     });
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(calls).toHaveLength(0);
+  });
+});
+
+
+describe("asset type selection", () => {
+  it.each(["web-app", "mobile-app"])("saves %s in the same setup transaction", async (assetType) => {
+    const calls = stubFetch([
+      { status: 201, body: { ok: true, asset: { id: "shop.example.com" } } },
+      { status: 200, body: { applied: 3, archive: null, commit: null } },
+    ]);
+    renderSheet();
+    expect(screen.getByLabelText("Asset type")).toHaveValue("website");
+    typeDomain("shop.example.com");
+    fireEvent.change(screen.getByLabelText("Asset type"), { target: { value: assetType } });
+    add();
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1]?.body).toMatchObject({ ops: expect.arrayContaining([
+      { kind: "file-json-insert", file: "config/tower.json", pointer: "/sites", value: { "shop.example.com": { assetType } } },
+    ]) });
+    await waitFor(() => expect(path).toBe("/assets/shop.example.com/sources"));
   });
 });

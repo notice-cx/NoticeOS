@@ -142,7 +142,7 @@ describe('hourly ingest-freshness cron', () => {
 
 // A site expects a nightly report once it has sent one; a site that has never
 // sent one owes none, however long ago it was added.
-describe('a site that has never sent a report owes none', () => {
+describe('an asset that has never sent a report owes none', () => {
   it('is outside the expected set and fires nothing, however long ago it was added', async () => {
     const result = await runFreshnessCheck(env, LATER);
 
@@ -153,7 +153,7 @@ describe('a site that has never sent a report owes none', () => {
     expect(await openFreshness('pebble.example')).toBe(0);
   });
 
-  it('counts only the sites that have sent one', async () => {
+  it('counts only the assets that have sent one', async () => {
     await insertPulse('northwind.example', '2026-07-05', NOW - 2 * HOUR);
 
     const result = await runFreshnessCheck(env, NOW);
@@ -175,7 +175,7 @@ describe('a site that has never sent a report owes none', () => {
     expect(await freshnessInputs('acorn.example')).toMatchObject({ state: 'stale' });
   });
 
-  it('resolves an open flag on a site that has never reported, on the next run', async () => {
+  it('resolves an open flag on an asset that has never reported, on the next run', async () => {
     await insertFlag({
       asset: 'pebble.example',
       firedAt: new Date(LATER).toISOString(),

@@ -29,7 +29,7 @@ function usage() {
   pnpm signals:publish-insights -- --asset example.com [options]
 
 Options:
-  --asset <id>      required property id
+  --asset <id>      required asset id
   --file <path>     default ${PANEL_REPORTS_DIRECTORY}/<asset>/executive.json
   --door <url>      local ingest base url (default ${DEFAULT_DOOR})
 `);
@@ -56,7 +56,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!asset || !/^[a-z0-9.-]+$/.test(asset)) {
-    throw new Error('--asset is required and must be a property id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   return {
     asset,
@@ -93,7 +93,7 @@ function validateSnapshot(value, asset) {
     !Number.isInteger(snapshot.sourceArchiveCount) ||
     snapshot.sourceArchiveCount < 0
   ) {
-    throw new Error('Snapshot is malformed, unsupported, or belongs to another property.');
+    throw new Error('Snapshot is malformed, unsupported, or belongs to another asset.');
   }
   return snapshot;
 }

@@ -205,7 +205,7 @@ export async function proveHostedDemoBrowser(t, options) {
           await expect(main).toBeVisible();
           if (route === '/') {
             await expect(main.locator('[data-home-brief]')).toBeVisible();
-            await expect(main.getByRole('region', { name: 'Sites', exact: true })).toContainText(scenario.assets[0].name);
+            await expect(main.getByRole('region', { name: 'Assets', exact: true })).toContainText(scenario.assets[0].name);
           }
           if (route === '/assets') await expect(main.getByRole('link', { name: scenario.assets[0].name, exact: true })).toBeVisible();
           if (route === `/assets/${scenario.assets[0].id}`) {

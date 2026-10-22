@@ -50,7 +50,7 @@ export function Header({
   // `h1` rather than repeating the name above a separate identity strip.
   return (
     <PageHeader
-      breadcrumb={[{ label: "Sites", to: "/assets" }]}
+      breadcrumb={[{ label: "Portfolio", to: "/assets" }]}
       documentTitle={asset.displayName}
       title={
         <>

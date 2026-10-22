@@ -191,7 +191,7 @@ describe("one source, one status, on every screen", () => {
     const siteHealth = wall.container.querySelector(`[data-site-row="${ASSET}"] [data-site-health]`);
     expect(siteHealth).toHaveAttribute("data-site-health", "error");
     expect(siteHealth).toHaveAttribute("role", "img");
-    expect(siteHealth?.getAttribute("aria-label")).toMatch(/^Site health: (Search Console|Bing) failing; 1 more issue$/u);
+    expect(siteHealth?.getAttribute("aria-label")).toMatch(/^Asset health: (Search Console|Bing) failing; 1 more issue$/u);
     // The specific concern is a bar on the timeline, named in its list.
     const concerns = wall.container.querySelector("[data-wall-timeline] [data-event-timeline-list]")!;
     expect(concerns).toHaveTextContent("Search Console collection failing");

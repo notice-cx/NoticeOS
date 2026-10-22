@@ -136,8 +136,8 @@ export function IntegrationHealthPanel({ data, isError = false, nowMs, provider,
     const sites = siteStatuses(health.items.filter((item) => item.provider === provider && item.state !== 'disconnected'));
     if (sites.length === 0) return null;
     return <section aria-labelledby={headingId} className="flex flex-col gap-2" data-provider-sites={provider}>
-      <SectionLabel id={headingId} title="Sites" caption={<span className="tabular-nums">{sites.length}</span>} />
-      <ul aria-label="Sites" className="overflow-hidden rounded-xl border border-border bg-card [&>li:first-child]:border-t-0">
+      <SectionLabel id={headingId} title="Assets" caption={<span className="tabular-nums">{sites.length}</span>} />
+      <ul aria-label="Assets" className="overflow-hidden rounded-xl border border-border bg-card [&>li:first-child]:border-t-0">
         {sites.map((site) => <Site key={site.key} site={site} provider={provider} nowMs={nowMs} />)}
       </ul>
     </section>;
@@ -171,10 +171,10 @@ export function IntegrationHealthPanel({ data, isError = false, nowMs, provider,
       </span>
     </div>
     <KpiStrip columns={4} className="border-t border-border">
-      <Kpi label="Sites failing" value={known ? counts.sitesFailing : '—'} valueTone={known && counts.sitesFailing ? 'error' : 'default'} caption="latest attempt" improvement="down" {...history('sitesFailing')} />
-      <Kpi label="Sites overdue" value={known ? counts.sitesOverdue : '—'} valueTone={known && counts.sitesOverdue ? 'warn' : 'default'} caption="past schedule" improvement="down" {...history('sitesOverdue')} />
+      <Kpi label="Assets failing" value={known ? counts.sitesFailing : '—'} valueTone={known && counts.sitesFailing ? 'error' : 'default'} caption="latest attempt" improvement="down" {...history('sitesFailing')} />
+      <Kpi label="Assets overdue" value={known ? counts.sitesOverdue : '—'} valueTone={known && counts.sitesOverdue ? 'warn' : 'default'} caption="past schedule" improvement="down" {...history('sitesOverdue')} />
       <Kpi label="Reports missing" value={known ? counts.reportsMissing : '—'} caption="not yet re-collected" improvement="down" {...history('reportsMissing')} />
-      <Kpi label="Sites working" value={known ? counts.sitesWorking : '—'} valueTone={known && counts.sitesWorking ? 'healthy' : 'default'} caption="latest attempt" {...history('sitesWorking')} />
+      <Kpi label="Assets working" value={known ? counts.sitesWorking : '—'} valueTone={known && counts.sitesWorking ? 'healthy' : 'default'} caption="latest attempt" {...history('sitesWorking')} />
     </KpiStrip>
     <div className="flex items-center gap-1 border-t border-border px-4 py-2 md:px-6" aria-label="Show connections" role="group">
       {([['needs', `Needs attention · ${pressing.length}`], ['all', `All · ${statuses.length}`]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setChosen(value)} className={cn('min-h-11 rounded-md px-3 text-xs font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring', filter === value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>{label}</button>)}
@@ -199,7 +199,7 @@ export function IntegrationHealthPanel({ data, isError = false, nowMs, provider,
             </div>
             <Link to={`/integrations?provider=${encodeURIComponent(id)}`} className="inline-flex min-h-11 shrink-0 items-center text-xs font-medium underline-offset-4 hover:underline" aria-label={`${status.kind === 'not-connected' ? 'Connect' : 'Manage'} ${name}`}>{status.kind === 'not-connected' ? 'Connect' : 'Manage'}</Link>
           </div>
-          {listed.length > 0 ? <ul aria-label={`${name} sites`} className="bg-muted/10">{listed.map((site) => <Site key={site.key} site={site} provider={id} nowMs={nowMs} />)}</ul> : null}
+          {listed.length > 0 ? <ul aria-label={`${name} assets`} className="bg-muted/10">{listed.map((site) => <Site key={site.key} site={site} provider={id} nowMs={nowMs} />)}</ul> : null}
         </li>;
       })}
     </ul>

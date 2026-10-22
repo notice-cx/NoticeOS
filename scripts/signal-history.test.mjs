@@ -908,7 +908,7 @@ test('it refuses what would mix or misplace a history', async (t) => {
   const { root, input, output } = await workspace(t);
   await assert.rejects(publishSignalHistory({ asset: FIXTURE_ASSET, input, output: path.join(input, 'history') }), /must not contain each other/);
   await assert.rejects(publishSignalHistory({ asset: FIXTURE_ASSET, input: root, output }), /must not contain each other/);
-  await assert.rejects(publishSignalHistory({ asset: 'Not A Site', input, output }), /site id/);
+  await assert.rejects(publishSignalHistory({ asset: 'Not An Asset', input, output }), /asset id/);
   await assert.rejects(publishSignalHistory({ asset: FIXTURE_ASSET, input: path.join(root, 'nowhere'), output }), /not a folder/);
   await publish(input, output);
   await assert.rejects(publishSignalHistory({ asset: 'other.example', input, output }), /holds meadow\.example's history/);

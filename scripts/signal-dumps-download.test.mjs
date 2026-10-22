@@ -80,7 +80,7 @@ test('parseArgs: the documented filters still parse', () => {
 });
 
 test('parseArgs: rejects a malformed asset, integration, report and date', () => {
-  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /property id/);
+  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /asset id/);
   assert.throws(() => parseArgs(['--asset', 'northwind.example', '--integration', 'ga5']), /--integration must/);
   assert.throws(() => parseArgs(['--asset', 'northwind.example', '--report', 'page_query']), /--report must/);
   assert.throws(() => parseArgs(['--asset', 'northwind.example', '--from', '07-01-2026']), /YYYY-MM-DD/);

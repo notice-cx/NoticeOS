@@ -803,7 +803,7 @@ function AiOverviewEvidenceLine({ row }: { row: DataForSeoQueryVisibilityRow }) 
     return (
       <EvidenceLine label="AI Overview">
         {aio.aioCitesUs === true
-          ? "Cites this site on the tracked panel"
+          ? "Cites this asset on the tracked panel"
           : "Shown on the tracked panel; not cited"}
       </EvidenceLine>
     );

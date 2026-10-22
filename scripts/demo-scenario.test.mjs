@@ -23,7 +23,7 @@ test('the same declared seed, cutoff and release reproduce all facts and identit
   assert.equal(first.manifest.identities.length, 6);
 });
 
-test('mature sites have 400 days and the young site has no pre-launch history', () => {
+test('mature assets have 400 days and the young asset has no pre-launch history', () => {
   const scenario = generateDemoScenario(options);
   for (const asset of scenario.assets.filter(a => !a.isOs)) {
     const daily = scenario.daily.filter(d => d.asset === asset.id);
@@ -149,7 +149,7 @@ test('the repair and current failure share their dated source facts', () => {
   }
 });
 
-test('the recipe site shipped a change a week ago whose comparison is still counting', () => {
+test('the recipe asset shipped a change a week ago whose comparison is still counting', () => {
   const scenario = generateDemoScenario(options);
   const { ship } = scenario.manifest;
   const site = scenario.assets.find(a => a.prefix === 'wp');
@@ -232,7 +232,7 @@ test('partial income has bounded explicit coverage even on the first posting day
   }
 });
 
-test('the subscription site has daily income through its last complete day, and only finished months on the ledger', () => {
+test('the subscription asset has daily income through its last complete day, and only finished months on the ledger', () => {
   for (const [cutoff, through] of [['2026-10-16T12:00:00.000Z', '2026-10-15'], ['2026-10-16T00:30:00.000Z', '2026-10-14'], ['2026-10-01T00:01:00.000Z', '2026-09-29'], ['2026-10-01T07:00:00.000Z', '2026-09-30']]) {
     const scenario = generateDemoScenario({ ...options, cutoff });
     assert.deepEqual(scenario.manifest.subscriptionSites, [{ asset: 'lightbrief.example', account: 'acct_demo_lb' }]);
@@ -254,7 +254,7 @@ test('the subscription site has daily income through its last complete day, and 
   }
 });
 
-test('the ad-supported sites have daily estimates through their reported day and paid months reconciled', () => {
+test('the ad-supported assets have daily estimates through their reported day and paid months reconciled', () => {
   for (const [cutoff, through] of [['2026-10-16T12:00:00.000Z', '2026-10-14'], ['2026-10-16T14:10:00.000Z', '2026-10-15'], ['2026-10-01T00:01:00.000Z', '2026-09-29']]) {
     const scenario = generateDemoScenario({ ...options, cutoff });
     assert.deepEqual(scenario.manifest.adSites, [{ asset: 'weeknightpantry.example', siteId: 'demo-wp' }, { asset: 'trailnotes.example', siteId: 'demo-tn' }]);
@@ -301,7 +301,7 @@ test('the outdoor guide slides, and its redesign comparison has a decline to rea
   assert.ok(readback.events.find(event => event.status === 'closed').at > slide.checkAt);
 });
 
-test('the recipe site\'s one-day dip recovers on its next report, and the save repair ships after the last report', () => {
+test('the recipe asset\'s one-day dip recovers on its next report, and the save repair ships after the last report', () => {
   const scenario = generateDemoScenario(options);
   const { dip, fix } = scenario.manifest;
   const saves = date => scenario.pulses.find(p => p.asset === dip.asset && p.date === date).metrics[dip.metric].last24h;
@@ -313,7 +313,7 @@ test('the recipe site\'s one-day dip recovers on its next report, and the save r
   assert.equal(scenario.tasks.find(task => task.id === fix.ref).events.at(-1).status, 'closed');
 });
 
-test('each source names the property the register maps', () => {
+test('each source names the asset the register maps', () => {
   const scenario = generateDemoScenario(options);
   const sites = scenario.assets.filter(asset => !asset.isOs);
   for (const site of sites) {

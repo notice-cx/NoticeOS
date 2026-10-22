@@ -15,7 +15,7 @@ const spend = (period: string, token: string | null = OPERATOR_TOKEN) =>
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
   }));
 
-it('sums each site and lane by the month of the report day, exactly, and leaves out what cost nothing', async () => {
+it('sums each asset and lane by the month of the report day, exactly, and leaves out what cost nothing', async () => {
   await storeArchiveRuns([
     { id: 'dfs-1', asset: 'northwind.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-09-01', finished_at: '2026-09-01T12:45:00.000Z', provider_cost_usd: 0.1 },
     { id: 'dfs-2', asset: 'northwind.example', integration: 'dataforseo', report: 'serp-panel', report_date: '2026-09-01', finished_at: '2026-09-01T12:50:00.000Z', provider_cost_usd: 0.2 },

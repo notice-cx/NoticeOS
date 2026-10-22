@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A site's OPEN link-outreach targets, written to the file the
+// An asset's OPEN link-outreach targets, written to the file the
 // reclamation-match rule reads (`pnpm signals:analyze-history -- --reclamation-targets
 // <file>`, scripts/signal-insights.mjs).
 //
@@ -7,13 +7,13 @@
 //
 // Open is every target not won, skipped or dead. The command reads them from
 // the store through the ingest's door (GET /api/reclamation-targets
-// ?asset=<site>&open=1, with the operator bearer), never with a database
+// ?asset=<asset>&open=1, with the operator bearer), never with a database
 // credential of its own.
 //
 // The file holds the rule's own reading of the answer (`reclamationTargetList`,
 // imported, never a second copy of its shape), so the rule reads back exactly
-// what was written. A site with no open target gets an empty list, and the
-// command says so. A refusal (an unknown site, more open targets than one list
+// what was written. An asset with no open target gets an empty list, and the
+// command says so. A refusal (an unknown asset, more open targets than one list
 // may carry, a door that does not answer) writes nothing and exits 1.
 
 import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
@@ -36,7 +36,7 @@ export function defaultOutFile(asset) {
 export const USAGE = `usage:
   pnpm reclamation:open-targets -- --asset example.com [--out <file>] [--door <url>]
 
---asset  required site id
+--asset  required asset id
 --out    the file to write (default .local/reclamation/<asset>-open.json)
 --door   where the ingest answers (default ${DEFAULT_DOOR})`;
 
@@ -56,7 +56,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!asset || !/^[a-z0-9.-]+$/.test(asset)) {
-    throw new Error('--asset is required and must be a site id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   return { asset, out: out ?? defaultOutFile(asset), door };
 }

@@ -33,7 +33,7 @@ async function send(request: Request, reader = ingest()) {
 }
 
 describe("POST /api/assets/:id/icons", () => {
-  it("runs the ingest's read for the site the path names and answers what it stored", async () => {
+  it("runs the ingest's read for the asset the path names and answers what it stored", async () => {
     const { status, body, reader } = await send(post("{}"));
     expect(status).toBe(200);
     expect(body).toEqual(STORED);

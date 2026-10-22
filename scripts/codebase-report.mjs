@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Measure one site's codebase with the codebase report image and send the report to this installation's ingest.
+// Measure one asset's codebase with the codebase report image and send the report to this installation's ingest.
 //
 //   pnpm os:codebase-report -- --asset <id> --repo <path> [--paths a,b] [--image <ref> | --build] [--config /absolute/stack.json]
 //                              [--measure build_passed=success] [--measure tests_passed=failure] [--measure vulnerable_dependencies=3]
@@ -8,7 +8,7 @@
 // `.local/stack.json` selects) with the repository mounted read-only. It
 // joins the app container's network namespace, because the ingest answers
 // only on that container's loopback (MANAGED_DOOR), and posts there with
-// the site's token from ASSET_TOKENS in the installation's bootstrap secrets,
+// the asset's token from ASSET_TOKENS in the installation's bootstrap secrets,
 // the entry pulse-relay.mjs reads. The token reaches the image as an
 // environment variable named on the command line without its value, so it is
 // never in a process list. `--build` builds the image from this checkout's
@@ -72,8 +72,8 @@ export function parseArgs(argv, { cwd = process.cwd() } = {}) {
     parsed[key] = value;
     i += 1;
   }
-  if (!parsed.asset || !ASSET.test(parsed.asset)) refuse(`Name the site with --asset, such as --asset example.com.\n${HELP}`);
-  if (!parsed.repo) refuse(`Name the site's checkout with --repo.\n${HELP}`);
+  if (!parsed.asset || !ASSET.test(parsed.asset)) refuse(`Name the asset with --asset, such as --asset example.com.\n${HELP}`);
+  if (!parsed.repo) refuse(`Name the asset's checkout with --repo.\n${HELP}`);
   parsed.repo = path.resolve(cwd, parsed.repo);
   if (!MOUNTABLE.test(parsed.repo)) refuse('The checkout\'s path may not hold a comma, a quote or a line break; move or link it to a plain path.');
   if (parsed.paths !== null) {
@@ -107,7 +107,7 @@ export async function assetToken(asset, files, read = readDevSecretBindings) {
   let tokens = {};
   try { tokens = JSON.parse(bindings.ASSET_TOKENS || '{}'); } catch { refuse(`ASSET_TOKENS in ${sourceFile} is not valid JSON.`); }
   const token = tokens?.[asset];
-  if (typeof token !== 'string' || !token) refuse(`ASSET_TOKENS in ${sourceFile} has no "${asset}" entry; add the site's token there, then pnpm os:restart.`);
+  if (typeof token !== 'string' || !token) refuse(`ASSET_TOKENS in ${sourceFile} has no "${asset}" entry; add the asset's token there, then pnpm os:restart.`);
   return token;
 }
 

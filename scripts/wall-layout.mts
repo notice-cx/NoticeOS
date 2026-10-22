@@ -327,7 +327,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
   },
   sites: {
     type: 'sites',
-    label: 'Sites',
+    label: 'Portfolio',
     shows: ['Live users', 'Today vs last week', '30 days', 'Money', 'Issues'],
     defaultWidth: 1,
     minWidthRem: 0,
@@ -373,7 +373,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
   // coloured, and that problem's note sits beside the row.
   health: {
     type: 'health',
-    label: 'Site health',
+    label: 'Asset health',
     shows: ['Reachable', 'Speed', 'Errors', 'Search', 'Code'],
     defaultWidth: 1,
     minWidthRem: 24,
@@ -834,14 +834,14 @@ function checkWidget(rawWidget: unknown, where: string, ids: LayoutIds): Checked
     }
     if (rawWidget.settings.pulseMetrics !== undefined) {
       const raw = rawWidget.settings.pulseMetrics;
-      if (!isRecord(raw)) return { ok: false, reason: 'Pulse totals must be grouped by site.' };
+      if (!isRecord(raw)) return { ok: false, reason: 'Pulse totals must be grouped by asset.' };
       const entries: [string, string[]][] = [];
       for (const [asset, metrics] of Object.entries(raw)) {
-        if (!ASSET_ID_RE.test(asset)) return { ok: false, reason: 'Pulse totals need a valid site.' };
+        if (!ASSET_ID_RE.test(asset)) return { ok: false, reason: 'Pulse totals need a valid asset.' };
         if (!Array.isArray(metrics) || metrics.some((metric) => typeof metric !== 'string' || !metric.trim())) {
           return { ok: false, reason: 'Choose pulse totals by their metric names.' };
         }
-        if (new Set(metrics).size !== metrics.length) return { ok: false, reason: 'A pulse total can appear only once per site.' };
+        if (new Set(metrics).size !== metrics.length) return { ok: false, reason: 'A pulse total can appear only once per asset.' };
         entries.push([asset, [...metrics] as string[]]);
       }
       if (entries.length) settings = { ...settings, pulseMetrics: Object.fromEntries(entries) };
@@ -883,7 +883,7 @@ export function wallLayoutWarnings(layout: WallLayout): string[] {
   }
   // Site health is a row per site and names each site's problem, so it
   // answers both.
-  if (!present.has('sites') && !present.has('health')) warnings.push('No sites on the TV');
+  if (!present.has('sites') && !present.has('health')) warnings.push('No assets on the TV');
   if (!present.has('timeline') && !present.has('needs') && !present.has('health')) warnings.push('No alerts on the TV');
   return warnings;
 }

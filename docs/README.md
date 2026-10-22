@@ -2,7 +2,7 @@
 
 This folder is the documentation site. The guides, screens and operations
 pages are for the person running NoticeOS; the numbered docs below are the
-design library: why the product works the way it does. Build the site with
+design library: why the product works the way it does. Build the asset with
 `pnpm --filter @noticeos/docs dev`. Start with [00](00-objective-and-roi.md)
 (what the product is for) and [01](01-architecture.md) (how it is built).
 `scripts/docs-index.test.mjs` fails when a numbered doc is missing here.
@@ -18,13 +18,13 @@ design library: why the product works the way it does. Build the site with
 | [06 — Operations & self-observability](06-operations.md) | How NoticeOS monitors itself, budget caps, the kill switch, secrets, vendor failure |
 | [07 — Roadmap](07-roadmap.md) | Phases with numeric exit criteria and standing kill criteria |
 | [08 — SEO/GEO signal reference](08-seo-geo-signals.md) | The search-signal families under the contract |
-| [09 — Onboarding a site](09-onboarding-a-site.md) | What a new site's report counts, what its signal panel tracks, what a deploy could break |
+| [09 — Onboarding an asset](09-onboarding-a-site.md) | What a new asset's report counts, what its signal panel tracks, what a deploy could break |
 | [10 — Control Tower UX](10-control-tower.md) | The Wall, the review queue, undo, phone mode |
 | [11 — Integrations & economics](11-integrations.md) | Every data source: what it costs, its quotas, how it fails |
 | [13 — Opportunity scouting](13-opportunity-scouting.md) | Finding new opportunities: scheduled scouting sweeps, news and trend intake, the playbook |
 | [14 — Design](14-design.md) | The Tower's stack, tokens, principles, surfaces, the Wall, operator flows, lexicon and components |
 | [16 — Replacing the chat workflow](16-replacing-the-chat-workflow.md) | Which parts of an operator's weekly work the Tower covers (File task, New task, the palette) and which are not built |
-| [20 — Signal panels](20-signal-panels.md) | The read contract a site's own repository uses |
+| [20 — Signal panels](20-signal-panels.md) | The read contract an asset's own repository uses |
 | [22 — Workflows](22-workflows-research-and-design.md) | Workflow operations, execution visibility, later LLM steps |
 | [23 — Configuration ownership](23-configuration-ownership.md) | Where each setting lives, and what accounts would need |
 | [24 — Integration monitoring](24-integration-monitoring.md) | How each data source's health is observed |

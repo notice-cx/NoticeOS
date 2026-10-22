@@ -29,8 +29,8 @@ function undo() {
   if (!action) throw new Error('Expected Undo');
   return action.onClick;
 }
-describe('site ordering from the Wall editor', () => {
-  it('links to Arrange on the Sites page, where the order is dragged and each site switched', () => {
+describe('asset ordering from the Wall editor', () => {
+  it('links to Arrange on the Assets page, where the order is dragged and each asset switched', () => {
     setup();
     expect(screen.getByRole('link', { name: /Arrange/ })).toHaveAttribute('href', '/assets?arrange=1');
   });
@@ -47,7 +47,7 @@ describe('site ordering from the Wall editor', () => {
     act(undo());
     await waitFor(() => expect(f.fetch).toHaveBeenCalledTimes(2));
     expect(JSON.parse(String(f.fetch.mock.calls[1]?.[1]?.body))).toEqual({ to: 'second.test', expectRevision: moved.revision });
-    await waitFor(() => expect(toasts.success).toHaveBeenLastCalledWith('Site order restored', {}));
+    await waitFor(() => expect(toasts.success).toHaveBeenLastCalledWith('Asset order restored', {}));
   });
   it('refuses read-only controls and an Undo captured by a retired browser context', async () => {
     const disabled = setup(true);
@@ -63,11 +63,11 @@ describe('site ordering from the Wall editor', () => {
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     f.fetch.mockResolvedValueOnce(Response.json({ error: 'expect_mismatch' }, { status: 409 }));
     act(undo());
-    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Site order changed elsewhere. Refresh before moving again.'));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith('Asset order changed elsewhere. Refresh before moving again.'));
     expect(toasts.success).toHaveBeenCalledTimes(1); expect(f.invalidate).toHaveBeenCalledTimes(2);
   });
 });
-describe('site-order response checks', () => {
+describe('asset-order response checks', () => {
   it.each([{ ...moved, asset: 'foreign.test' }, { ...moved, order: ['first.test', 'first.test'] },
     { ...moved, revision: '' }, { ...moved, undoTo: 'absent.test' }, { ...moved, undoTo: 'first.test' }])('refuses malformed success before exposing Undo', value => {
     expect(() => decodeAssetOrder(value, 'first.test')).toThrow('Save outcome unknown');

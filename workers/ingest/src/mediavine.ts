@@ -40,7 +40,7 @@ function enabled(lane: Lane): boolean {
 async function validateSiteAssignment(env: IngestEnv, config: Register, asset: string, siteId: string): Promise<void> {
   const previous = await env.STORE.read((tx) => tx.query<{ asset: string; site_id: string }>(
     'SELECT asset_id AS asset, site_id FROM noticeos.mediavine_sites WHERE asset_id = $1 OR site_id = $2', [asset, siteId]));
-  if (previous.some(row => row.asset !== asset || row.site_id !== siteId)) throw new MediavineError('invalid', 'This site already has revenue assigned elsewhere. Keep the original asset and site mapping.');
+  if (previous.some(row => row.asset !== asset || row.site_id !== siteId)) throw new MediavineError('invalid', 'This asset already has revenue assigned elsewhere. Keep the original asset and Mediavine site mapping.');
   if (Object.entries(config.assets ?? {}).some(([id, lanes]) => id !== asset && lanes['ad-network']?.mediavineSiteId === siteId)) throw new MediavineError('invalid', 'This Mediavine site is already assigned to another asset.');
 }
 function settingOp(asset: string, field: string, held: unknown, value: JsonValue): FileJsonSetOp {
@@ -62,7 +62,7 @@ async function writeSettings(env: IngestEnv, input: MediavineSettings, lane: Lan
 }
 export async function saveMediavineSettings(env: IngestEnv, input: MediavineSettings): Promise<MediavineResult<MediavineStatus>> {
   try {
-    if (!input || typeof input.asset !== 'string' || typeof input.siteId !== 'string' || typeof input.enabled !== 'boolean') throw new MediavineError('invalid', 'Choose a site and whether automatic sync is enabled.');
+    if (!input || typeof input.asset !== 'string' || typeof input.siteId !== 'string' || typeof input.enabled !== 'boolean') throw new MediavineError('invalid', 'Choose an asset and whether automatic sync is enabled.');
     if (input.holidayCalendar !== undefined && !['none', 'US', 'CA', 'US,CA'].includes(input.holidayCalendar)) throw new MediavineError('invalid', 'Choose a supported holiday calendar.');
     await withMediavineLease(env, async () => {
       const config = await register(env); const lane = laneFor(config, input.asset);
@@ -70,7 +70,7 @@ export async function saveMediavineSettings(env: IngestEnv, input: MediavineSett
       if (!config.assets?.[input.asset]?.['ad-network']) throw new MediavineError('invalid', 'This asset has no ad revenue data source.');
       // Switching a running sync off is a decline, and a decline carries its
       // reason: it is the Ad revenue row's Not using, never this door.
-      if (!input.enabled && enabled(lane)) throw new MediavineError('invalid', 'Stop this sync with Not using on the site’s Ad revenue row.');
+      if (!input.enabled && enabled(lane)) throw new MediavineError('invalid', 'Stop this sync with Not using on the asset’s Ad revenue row.');
       // Only a site newly named or newly enabled is checked against the account:
       // a forecast-calendar save on a syncing site changes neither.
       if (input.enabled && !(input.siteId === lane.mediavineSiteId && enabled(lane))) {

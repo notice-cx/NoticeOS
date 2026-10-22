@@ -6,7 +6,7 @@ import test from 'node:test';
 import { main, prepareProjectContext } from './project-context.mjs';
 import { runCommand } from './run-command.mjs';
 
-const STANZA = '- Tasks and site data come from the `noticeos` MCP server. Call `get_task_guide` before task work.\n- Never run `bd`, `bv` or `br` in this repository.';
+const STANZA = '- Tasks and asset data come from the `noticeos` MCP server. Call `get_task_guide` before task work.\n- Never run `bd`, `bv` or `br` in this repository.';
 async function fixture(t) {
   const base = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'noticeos-context-test-'));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));

@@ -69,11 +69,11 @@ test('task word search finds row 250, composes filters and survives refresh and 
 test('task word search palette opens the searched board without task reads on initial open or typing', async ({ page }) => {
   await fixture(page);
   await page.goto('/assets');
-  await expect(page.getByRole('heading', { name: 'Sites', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Assets', exact: true })).toBeVisible();
   const apiReads: string[] = [];
   page.on('request', request => { const url = new URL(request.url()); if (url.pathname.startsWith('/api/')) apiReads.push(url.pathname); });
   await page.keyboard.press('Control+k');
-  const palette = page.getByRole('dialog', { name: 'Search pages and sites' });
+  const palette = page.getByRole('dialog', { name: 'Search pages and assets' });
   const input = palette.getByRole('combobox');
   await expect(input).toBeFocused();
   expect(apiReads).toEqual([]);

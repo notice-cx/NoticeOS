@@ -299,7 +299,7 @@ export function RuleTunePanel({
         data-rule-tune-scope
       >
         <Globe className="size-3.5 shrink-0" aria-hidden />
-        Applies to every site
+        Applies to every asset
       </span>
 
       {/* What this rule has already cost leads the replay: it is a
@@ -406,7 +406,7 @@ export function previewRefusal(err: unknown): string {
       return "No preview for this rule — it is not judged by these settings.";
     }
     if (err.code === "unknown_asset") {
-      return "The store no longer has this site, so there is nothing to replay.";
+      return "The store no longer has this asset, so there is nothing to replay.";
     }
     if (err.code === "validation") {
       return "The detector rejected one of these values. Change it to run the replay again.";

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// signal-panels-refresh.mjs — keep every rostered property's panel dir current.
+// signal-panels-refresh.mjs — keep every rostered asset's panel dir current.
 //
 // This is the lane that turns `.local/signal-dumps/reports/<asset>/` from
-// "whatever the operator last pulled by hand" into a STANDING source a property
+// "whatever the operator last pulled by hand" into a STANDING source an asset
 // repo can read without touching a provider API (docs/20-signal-panels.md).
 //
-// One pass per property downloads only new archives through the ingest door,
+// One pass per asset downloads only new archives through the ingest door,
 // publishes their Parquet history, then analyzes one pinned generation in a
 // bounded child. Reports, daily trend and source freshness become visible in
 // one atomic publication, followed by the compact advisory snapshot in Tower.
@@ -138,7 +138,7 @@ function usage() {
   pnpm signals:refresh [options]
 
 Options:
-  --asset <id>       refresh one property instead of every enabled one
+  --asset <id>       refresh one asset instead of every enabled one
   --all              include roster entries marked enabled:false
   --no-publish       refresh local files only; leave Tower advice unchanged
   --window-days <n>  override the roster's archive window
@@ -196,7 +196,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (options.asset !== null && !/^[a-z0-9.-]+$/.test(options.asset)) {
-    throw new Error('--asset must be a property id such as example.com.');
+    throw new Error('--asset must be an asset id such as example.com.');
   }
   if (
     options.windowDays !== null &&

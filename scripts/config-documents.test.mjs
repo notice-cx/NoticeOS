@@ -441,11 +441,11 @@ test('the roster and entity descriptions leave a stored document and cannot retu
   const legacyPanels = {
     version: 1,
     updated: '2026-08-05',
-    purpose: 'The roster of sites whose panels are kept current.',
+    purpose: 'The roster of assets whose panels are kept current.',
     refresh: { windowDays: 35, freshnessMaxAgeDays: 7, costNote: 'A refresh pass makes zero provider calls.' },
     assets: {},
   };
-  const legacyEntities = { version: 1, purpose: 'Which legal entity owns which sites.', entities: [] };
+  const legacyEntities = { version: 1, purpose: 'Which legal entity owns which assets.', entities: [] };
   const cs = changeset([
     { kind: 'file-json-delete', file: PANELS, pointer: '/purpose', expect: legacyPanels.purpose },
     { kind: 'file-json-delete', file: PANELS, pointer: '/refresh/costNote', expect: legacyPanels.refresh.costNote },

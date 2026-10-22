@@ -273,7 +273,7 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   }
   const targets = stripeTargets(options.laneRegister);
   if (resolved.source === 'demo' || targets.length === 0) {
-    return { outcome: 'skipped', detail: 'No site names a Stripe account.', connected: true, outcomes: [] };
+    return { outcome: 'skipped', detail: 'No asset names a Stripe account.', connected: true, outcomes: [] };
   }
   const [clock] = await env.STORE.read((tx) => tx.query<SourceClock>(
     `SELECT time_zone AS "timeZone", ready_after_minute AS "readyAfterMinute"
@@ -300,7 +300,7 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   if (targets.length > 1) {
     // One key reads one account: two sites naming it would each be credited
     // with the other's sales.
-    for (const target of targets) await fail(target, new StripeFailure('stripe_mapping_shared', 'More than one site names a Stripe account; one key reads one account.'));
+    for (const target of targets) await fail(target, new StripeFailure('stripe_mapping_shared', 'More than one asset names a Stripe account; one key reads one account.'));
   } else {
     const target = targets[0]!;
     const [held] = await env.STORE.read((tx) => tx.query<{ day: string | null }>(

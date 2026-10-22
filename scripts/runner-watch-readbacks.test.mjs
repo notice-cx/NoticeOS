@@ -32,7 +32,7 @@ function lane({ bdCode = 0 } = {}) {
   return { deps, requests, ran, lines };
 }
 
-test('a verdict is commented on its bead, then stamped; an unmapped site is named', async () => {
+test('a verdict is commented on its bead, then stamped; an unmapped asset is named', async () => {
   const { deps, requests, ran } = lane();
   const result = await runWatchReadbackFiler(deps);
   assert.deepEqual(ran, [['-C', '/shop', 'comment', 'shop-1', 'Verdict: won']]);

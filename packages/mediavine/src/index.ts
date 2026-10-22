@@ -128,7 +128,7 @@ export class MediavineClient {
     }
     if (response.status === 403) {
       await response.body?.cancel();
-      throw new MediavineError('permission', 'Mediavine refused access. Check your account’s site permissions and reconnect.');
+      throw new MediavineError('permission', 'Mediavine refused access. Check your account’s asset permissions and reconnect.');
     }
     if (response.status === 401) {
       await response.body?.cancel();
@@ -161,7 +161,7 @@ export class MediavineClient {
       if (result.errors.some(error => {
         const record = object(error);
         return record.extensions && object(record.extensions).code === 'FORBIDDEN';
-      })) throw new MediavineError('permission', 'Mediavine refused access. Check your account’s site permissions and reconnect.');
+      })) throw new MediavineError('permission', 'Mediavine refused access. Check your account’s asset permissions and reconnect.');
       const auth = result.errors.some(error => {
         const record = object(error);
         const code = record.extensions && object(record.extensions).code;

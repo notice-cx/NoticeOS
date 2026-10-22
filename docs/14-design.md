@@ -75,10 +75,10 @@ The families, and what each means:
   stay distinguishable on the TV's black background and the light background
   of the Tower's pages (`test/brand-identity.test.ts`).
 - **Asset contribution identities: `asset-1` through `asset-6`.** Home's
-  daily visitor and revenue bars use these colours for each site's share,
-  with matching named legends and per-site values on hover. The mapping uses
-  site ID order across all Home charts, independent of contribution size.
-  These colours identify sites and never show severity.
+  daily visitor and revenue bars use these colours for each asset's share,
+  with matching named legends and per-asset values on hover. The mapping uses
+  asset ID order across all Home charts, independent of contribution size.
+  These colours identify assets and never show severity.
 - **Provider colour: `search-bing`.** One provider identity token, always
   beside the word "Bing", never alone, never on the Wall (it shares the blue
   family with `traffic`).
@@ -106,7 +106,7 @@ The families, and what each means:
   `text-figure-sm`, `text-micro`) are listed in `THEME_TEXT_SIZES`
   (`lib/utils.ts`) so a class merge never drops them.
 - **Icon swatches: `swatch-light` / `swatch-dark`.** White and the Wall's
-  black, the same in both themes: the two backgrounds a site's icon is
+  black, the same in both themes: the two backgrounds an asset's icon is
   previewed on in its Identity card, so the operator sees it on the light
   Tower and on the TV. They are used for nothing else.
 - **The Wall's scale.** Every type size on the TV (`text-wall-*`) and every
@@ -147,8 +147,8 @@ yes:
 **One subject per screen, shown as a chart or graphic first.** Each screen
 covers one subject, and its first screenful shows all of it. Home shows how
 the business is doing, what is broken and what needs the operator's
-attention. A site's Overview shows how the site is doing, what needs
-attention and what matters. Sites shows which sites need attention. Anything
+attention. An asset's Overview shows how the asset is doing, what needs
+attention and what matters. Portfolio shows which assets need attention. Anything
 on a different subject is a tab or a link, not a section further down. Charts
 and graphics show the information; words give what a chart cannot: a name, a
 cause, an action.
@@ -182,7 +182,7 @@ that can be read quickly, and the kit has a component for it:
 
 **Tabs are the only way a page in the Tower is divided into sections.** When
 a page covers more than one subject, `Tabs` divides it: the same bar on a
-site's page, Alerts, Tasks, System health, Workflows and Settings. Each tab has its
+asset's page, Alerts, Tasks, System health, Workflows and Settings. Each tab has its
 own URL (the first tab the bare address, each other one a segment after it),
 the arrow keys and Home/End move between tabs, and on a phone the tab strip
 scrolls within its own row. A page never adds its own navigation beside the
@@ -191,7 +191,7 @@ that holds its section. Inside a tab, the groups are panels, each starting
 with a small uppercase section label.
 
 Redesign a region around what it shows, not one component at a time: five
-alert cards may become one grid and one ranked list, six site cards one
+alert cards may become one grid and one ranked list, six asset cards one
 comparison panel. When no form in the kit fits a new kind of data, build the
 form and add it to the table above.
 
@@ -209,13 +209,13 @@ paragraph.
 few modules and compact rows. Severity, freshness and money at stake set
 order, size and colour: what broke since the operator last looked comes first
 and has the strongest colour, a problem open for over a week is collapsed
-under its own heading, and a healthy site is shown in neutral colours. Giving
+under its own heading, and a healthy asset is shown in neutral colours. Giving
 equal weight to things of unequal importance is a bug.
 
 **Group things of the same kind; show each on its subject.** Many alerts are
-one board, many sites one comparison, many data sources one grid. One card
+one board, many assets one comparison, many data sources one grid. One card
 per item is a design failure, not a layout. A failing data source highlights
-its cell in its site's row, a failed backup highlights its node in the system
+its cell in its asset's row, a failed backup highlights its node in the system
 graph, and an alert appears on the chart of the metric it is about, so the
 operator never has to piece the picture together from boxes scattered across
 the page.
@@ -248,7 +248,7 @@ threshold to dispute.
 
 **A flow should be short, and a new step needs a clear reason.** New
 capability is usually a control on the current step. Connect panels are the
-example to follow: one press tests and saves the pasted key, the matched sites
+example to follow: one press tests and saves the pasted key, the matched assets
 appear in the same panel, and *Start collecting* is the last press. One status
 per subject per screen, shown where the operator acts on it; a list that
 repeats one subject is grouped under it. Prefer Undo to a confirmation for
@@ -272,7 +272,7 @@ recorded-execution and connectivity greens. Each region has one coloured
 element to look at; the rest of its marks are neutral ink, so red stands out
 and always means a problem when it appears: in a single-series bar strip the newest day has
 its identity colour and the days before it are grey; contribution bars use
-a named colour for each site throughout; in a grid only the
+a named colour for each asset throughout; in a grid only the
 failing cell is red. Colour goes on data and state, not on controls: a row's
 action is grey until the pointer is over the row or the row has focus, and
 the brand blue marks the screen's one primary action, a selection or focus,
@@ -332,10 +332,10 @@ data.
 
 ## Surfaces, as built
 
-**`PageAnswer`** is at the top of every index page and site tab: one summary
+**`PageAnswer`** is at the top of every index page and asset tab: one summary
 sentence at the display size, a muted detail line and at most three figures (a
 small label over a number) beside it, in place of a strip of equal boxes. "2
-open alerts, both warnings" over the alert list; "1 of 7 sites at risk",
+open alerts, both warnings" over the alert list; "1 of 7 assets at risk",
 naming them, over the comparison table; "September net +$135 so far" over the
 money chart.
 
@@ -348,7 +348,7 @@ a blank panel.
 every view.** A person chooses one of three views on Home's first run ("Which
 describes you?") or in Settings → General → "Your view": "I run the
 business", "I build the product" or "Everything". The view sets the sidebar's
-entries, Home's modules and their order, and a site's tabs; each "What
+entries, Home's modules and their order, and an asset's tabs; each "What
 matters most?" pick moves one Home module to the front. The registry is
 `packages/contract/src/views.mts` (`VIEW_LIBRARY`, `FOCUS_LIBRARY`) and
 `useView` reads it: the person's own choice, stored in the browser, else the
@@ -364,16 +364,16 @@ things changed in that time; under it one sentence summarises where the month
 is heading and what is broken. The month's money is the main figure
 (`MoneyHero`: the month so far as the largest figure on the screen, its
 projected total against last month's total on a `PaceBar`, the month's days as
-a `BarStrip`, yesterday's reported revenue and which sites the revenue came
+a `BarStrip`, yesterday's reported revenue and which assets the revenue came
 from). Visitors in the last 28 days is a `StatTile` in the overview group. Its figure
 sums reported daily counts over 28 calendar days ending at the newest settled
 reading; provisional days are excluded and missing days remain gaps. Home's
-visitor and revenue bars are stacked by site with matching colour legends. With no revenue source anywhere,
+visitor and revenue bars are stacked by asset with matching colour legends. With no revenue source anywhere,
 no money figure is drawn and Visitors stays in the overview group. Four
 compact cards form a two-column, two-row group: Visitors and Agents on the
 first row, Decisions and Problems on the second. On narrow screens they stack
-in that order. Sites follows the group (`PortfolioRows`, in seed order; with
-only one site, Home shows that site's own Overview strip and chart instead). Problems
+in that order. Portfolio follows the group (`PortfolioRows`, in seed order; with
+only one asset, Home shows that asset's own Overview strip and chart instead). Problems
 includes source failures and shows the three highest-ranked issues with total
 severity counts. Decisions shows the waiting count, oldest known wait and
 three requests as two-line links; full request details and actions are on
@@ -381,51 +381,51 @@ Tasks. Agents shows closes in seven days, work in progress and the three
 workers with the most closes, each beside its maker icon. Claude uses the
 official light spark on an orange tile. Unread, partial and outdated readings are
 labelled. The `EventTimeline` below them has the visible heading "Problems
-and activity" and the caption "Last 24 hours". Data sources are shown on the site pages and Integrations. Home's layout depends on its own width: one
+and activity" and the caption "Last 24 hours". Data sources are shown on the asset pages and Integrations. Home's layout depends on its own width: one
 column, two from about 768 px of content, twelve from about 1150 px, so a
 narrow window or a portrait monitor gets a layout made for it instead of a
 squeezed desktop one.
 
 **Home is drawn from modules, in the order the person's view lists them**
 (`HOME_MODULES`, `routes/home/modules.tsx`); the paragraph above is the
-"Everything" view. "I run the business" draws Site health, the money, the
+"Everything" view. "I run the business" draws Asset health, the money, the
 agents' week and the decisions; "I build the product" draws the money,
 visitors by channel, "Worth a look", the problems, the decisions and the
-sites. Each module keeps its own column span, and a list that holds a new
+assets. Each module keeps its own column span, and a list that holds a new
 module packs the grid densely, so a four-column module fills the space an
 eight-column one leaves.
 
-- **Site health** (`HealthModule`) is one row per site with five dots under
+- **Asset health** (`HealthModule`) is one row per asset with five dots under
   "Up", "Speed", "Errors", "Search" and "Code", from `techHealth`
-  (`lib/tech-health.ts`), the one calculation the site's Health tab and the
-  TV's Site health widget also use. Only a problem is coloured (red for a site
+  (`lib/tech-health.ts`), the one calculation the asset's Health tab and the
+  TV's Asset health widget also use. Only a problem is coloured (red for an asset
   that is down, amber for a fact worth a look); a fine fact is a grey dot and
   an unmeasured one a dashed ring, so state is a shape as well as a colour.
   The row's problems are words beside its dots.
 - **"The agents · this week"** (`FactoryModule`, `agentsWeek`) reads left to
   right as "Building › Finished › Proven to work", then the newest three
-  lines, each a finished task with what it did or a site's latest bet with
+  lines, each a finished task with what it did or an asset's latest bet with
   its verdict in plain words.
 - **"Where visitors come from · 4 weeks"** (`ChannelsModule`) is every listed
-  site's visits summed by channel, one bar and percent per channel with the
+  asset's visits summed by channel, one bar and percent per channel with the
   tail after five as "Other", beside every step of the funnel that loses the
   most people at one step as `FunnelBars`, that step in amber, and one
   sentence naming the two steps. The module is as tall as its content.
 - **"Worth a look"** (`GapsModule`, `businessGaps`) is a `ListPanel` of what
-  the sites lack as a business, ranked: no income source, no data feeds, no
+  the assets lack as a business, ranked: no income source, no data feeds, no
   task project, no code report, then the newest readings' opportunities. Each
   row's "Make a task" opens the task composer with the row as its title.
-- **In the business view the summary sentence starts with the sites'
-  health**: "All 3 sites are fine.", or "2 of 3 sites are fine." and the site
-  most in need of a look with its first problem, red when that site is down
+- **In the business view the summary sentence starts with the assets'
+  health**: "All 3 assets are fine.", or "2 of 3 assets are fine." and the asset
+  most in need of a look with its first problem, red when that asset is down
   and amber otherwise. The money follows, and the count of broken things is
   drawn only when there is one.
 
-**A site's Overview starts with the site's health**: the header shows one
+**An asset's Overview starts with the asset's health**: the header shows one
 health word (`siteHealth` in `lib/site-health.ts`, the same calculation Home,
-the Sites page and the TV's site rows use) and one line of three facts
+the Portfolio page and the TV's asset rows use) and one line of three facts
 separated by dots. Below it the main row shows money, people, search and the
-site's one product figure as `StatTile`s, each with its window, its change
+asset's one product figure as `StatTile`s, each with its window, its change
 against the days before, its recent days as a dated `BarStrip` and one context
 line. The selected figure is drawn on the chart: bars with the days before as
 a dashed level, the best and lowest day named on the bars, every shipped
@@ -437,8 +437,8 @@ recently, and the open alerts the chart does not already show. Bets, Needs
 you, the search queries that moved most and the product cells follow.
 Provider names appear only as a chart key beside their own line.
 
-**A site's other tabs start with a chart or graphic of their main
-information.** Growth: every series the site collects against the window
+**An asset's other tabs start with a chart or graphic of their main
+information.** Growth: every series the asset collects against the window
 before, as `ChangeRows` above the four charts, the tracked terms as a
 `FunnelBars` and product use as bars. Money: the month as one equation, its ad
 revenue days against the usual day and the month against last month on a
@@ -449,30 +449,30 @@ on every row. Alerts: the last thirty days as an `EventTimeline`, one row per
 condition, and each open reading on its `NormalBand`. Activity: the last
 ninety days of changes and bets on one `EventTimeline`, a bet marked where it
 was recorded and where its verdict arrived. Data sources: the connected
-sources that supply the site's data as a `FlowGraph`, the failing one
+sources that supply the asset's data as a `FlowGraph`, the failing one
 highlighted in place, the rest named on one line. Codebase: one sentence
 setting the code's 30-day change beside the visitors, the five figures counted
-from the files as a `KpiStrip`, the three checks the site's own workflow sends
+from the files as a `KpiStrip`, the three checks the asset's own workflow sends
 ("Build", "Tests", "Vulnerable packages") as a second strip under it, where a
 failed check is red and a pass shows how many of 30 days' reports passed,
 then lines of code over time and the findings as `ListPanel`s, each row with
-"Make a task". Health: the five facts of Home's Site health as five large
+"Make a task". Health: the five facts of Home's Asset health as five large
 words in a row of buttons, each opening the readings behind it in a panel
 under the row, and "Not measured yet" with the link that connects the missing
 reading, so a missing reading shows the step that adds it. Settings is a form: one
 column of panels at the width `/settings` uses.
 
-**The Sites page shows which sites need attention.** Its summary names
-those sites, beside where the month is heading and yesterday's visitors; one
-bar splits every site by its health word, and its legend is the filter. The
+**The Portfolio page shows which assets need attention.** Its summary names
+those assets, beside where the month is heading and yesterday's visitors; one
+bar splits every asset by its health word, and its legend is the filter. The
 comparison is the main element: `PortfolioRows` with the sources column, one
-row per site with its people a day over four weeks (dated), yesterday's figure
+row per asset with its people a day over four weeks (dated), yesterday's figure
 against a week before, yesterday's revenue, its share of the month and its
 data sources as small dots where only a failing or late source is coloured.
 
 **Alerts shows what is broken and since when**: the summary, the last seven
 days as an `EventTimeline` (open problems as bars to now, settled ones as
-closed bars), then one board grouped by site, worst first, each reading drawn
+closed bars), then one board grouped by asset, worst first, each reading drawn
 on a `NormalBand` against the range its own rule computed, and anything open
 for over a week collapsed under one line.
 
@@ -487,7 +487,7 @@ are ranked by policy v1.0 over each task's card ([doc 04](04-decision-policy.md)
 a task with no card is listed after the ranked ones and never scored. Focus
 (`/tasks/focus`) takes the decisions one at a time, full width, with an
 option's letter, Enter and → as its keys. Projects shows each epic as a card
-of its site, with its tasks as a `TaskProgressBar` and its next step or its
+of its asset, with its tasks as a `TaskProgressBar` and its next step or its
 question on the card, or every project on one `ProjectJourneys` axis.
 **All tasks shows the size and age of the queue**: the answer's figures each with
 its change chip against a week ago or last week by today (`WorkWeekChip`, the
@@ -516,7 +516,7 @@ write the flipped line back; a `DependencyGraph` when the task waits on
 others or others wait on it; an epic's tasks; and a `TaskTimeline` ending in
 the comment box). The description, Done when and comments are Markdown drawn
 by one renderer (`task-markdown.tsx`) that emits React elements and no raw
-HTML, links only `http(s)`, `mailto:` and site-relative addresses, and
+HTML, links only `http(s)`, `mailto:` and asset-relative addresses, and
 loads images only from `http(s)`. Beside the card is a rail of facts, Kind
 among them, each a `FactChip` that edits in place with an Undo. On a phone the
 facts wrap as one row of chips under the header.
@@ -535,7 +535,7 @@ name's first letter for a person or an unknown maker.
 **Money shows one equation**: revenue − cost = net for the month, net the
 largest, beside the month's days as a `BarStrip` (a day some source did not
 report is outlined), the month against last month on a `PaceBar` and the split
-by site. Then the costs, largest first, and the sites ranked by revenue with
+by asset. Then the costs, largest first, and the assets ranked by revenue with
 their net by month. **System health** starts with the System as a `FlowGraph`
 and, under it, every scheduled job's last seven days as one row of cells, the
 newest failure named at the top.
@@ -545,10 +545,10 @@ collection, TV dashboard, Ownership and Task projects as tabs (Installation
 and Members where they apply), each a single column of a readable width so a
 field and the visual beside it stay close together on a wide screen. Every
 group is a panel with its section label and rows divided by thin lines, the
-same layout a site's Settings tab uses for its groups, so the two settings
+same layout an asset's Settings tab uses for its groups, so the two settings
 pages look alike.
 
-**Index pages** meet the same checklist: Sites, Alerts, Tasks, Money,
+**Index pages** meet the same checklist: Portfolio, Alerts, Tasks, Money,
 Integrations and Workflows each start with a `PageAnswer`; Alerts and Tasks
 end with a `FinishLine`; a fact appears once per screen, so the selected item
 in a navigation list is not repeated as a card title and a back link is not
@@ -587,27 +587,27 @@ the new one then fades in.
 The TV shows five things, in the order a viewer reads them: the business's
 position in its own cycle (the loop across the top: Sense, Attribute, Decide,
 Act, Learn, each with its live count and state); current problems (the last
-24 hours, one row per site and one for the System, every open problem a bar
-from its onset to now, and the issue mark beside a site's name); progress
+24 hours, one row per asset and one for the System, every open problem a bar
+from its onset to now, and the issue mark beside an asset's name); progress
 against this month (the revenue figure, its pace, the month's line against
-last month's total); which sites need attention and how each is doing right
-now (one row per site: live people, today against the same weekday last week,
+last month's total); which assets need attention and how each is doing right
+now (one row per asset: live people, today against the same weekday last week,
 a 30-day trend, the month's money); and whether work is moving (waiting on the
 operator, in progress, done this week and blocked, each with its change chip
 against a week ago, this week's done against last week's on a `PaceBar`, one
 row per project, done work as a bar extending left of a centre line over last
 week's done as a dashed outline, and the open queue extending right). That
 is the "Everything" view's layout, `DEFAULT_WALL_LAYOUT`. Anything else belongs on the Tower page for its subject; the Needs
-attention, live feed, agents, Site health, "The agents", "Visitors by
+attention, live feed, agents, Asset health, "The agents", "Visitors by
 channel" and "Next up" widgets stay in the widget library for an operator who
 wants them on the Wall.
 
 **Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
-"I run the business": the strip, "Next up" across the TV, then Site health
+"I run the business": the strip, "Next up" across the TV, then Asset health
 over the revenue beside Needs attention over "The agents"; the decisions are
 the view's subject, and at the TV's full width "Next up" is at its shortest.
 "I build the product": the strip, then the
-revenue over "Visitors by channel" beside the site rows over the work.
+revenue over "Visitors by channel" beside the asset rows over the work.
 "Everything": the default above. With no layout saved, the TV and the editor
 draw the preset of the workspace default view (`config/tower.json` `/view`);
 a saved layout always wins. The editor's Add a widget drawer holds "Start
@@ -616,7 +616,7 @@ already on the TV. Picking one replaces the whole arrangement as one step
 Undo reverses, nothing reaches the TV until Save, and a version saved as a
 preset with no note is named "Started from \<view>".
 
-Site health on the TV is one row per site with the same five dots as Home's
+Asset health on the TV is one row per asset with the same five dots as Home's
 module and the worst problem's note beside the row, with "+N" for the row's
 other problems; on the TV the rows share the widget's height and the names
 and dots grow with them up to the TV's stat size. "The agents" shows
@@ -624,27 +624,27 @@ Building › Finished › Proven as large figures and up to three lines about th
 newest work, spread over the widget's height. "Visitors by channel"
 draws the portfolio's visits by channel on one shared scale with each
 channel's visits and share, and under them the largest funnel drop across the
-sites. "Next up" shows the decisions waiting on the operator as one large
-figure with the oldest one's age, the top decision by name with its site and
-age, the next four as site marks with their ages, and beside them up to three
+assets. "Next up" shows the decisions waiting on the operator as one large
+figure with the oldest one's age, the top decision by name with its asset and
+age, the next four as asset marks with their ages, and beside them up to three
 tasks in progress, urgent first, over the week's done with its change chip;
 the business preset places it, and the payload carries it under `next`, from
 the newest task snapshot.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
 renders rows of thirteen widget types: the strip, the loop, revenue, the last 24
-hours, Needs attention, the site rows, work, the feed, the agents' ranking,
-Site health, "The agents" (the agents' week), "Visitors by channel" and "Next
+hours, Needs attention, the asset rows, work, the feed, the agents' ranking,
+Asset health, "The agents" (the agents' week), "Visitors by channel" and "Next
 up". `scripts/wall-layout.mts`
 defines the composition rules: how many rows and widgets a layout may hold,
 that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining
 height, and the one-column order a portrait tablet or a phone stacks into
-(`stackOrder`): the strip, revenue, the site rows, the last 24 hours, Needs
-attention, "Next up", work, the agents' ranking, the feed, the loop, Site
-health, "The agents" and "Visitors by channel". A layout with neither the site rows nor
-Site health is warned "No sites on the TV", and one with none of the last 24
-hours, Needs attention or Site health "No alerts on the TV". The
+(`stackOrder`): the strip, revenue, the asset rows, the last 24 hours, Needs
+attention, "Next up", work, the agents' ranking, the feed, the loop, Asset
+health, "The agents" and "Visitors by channel". A layout with neither the asset rows nor
+Asset health is warned "No assets on the TV", and one with none of the last 24
+hours, Needs attention or Asset health "No alerts on the TV". The
 same validator runs on every path a layout can be written through, so the
 editor, the config pipeline and the renderer always accept the same layouts.
 The kit's components for the Tower's pages render on the TV inside
@@ -660,7 +660,7 @@ placed by the edge of the target the pointer is nearest, measured as a share
 of the target so a long thin strip still has sides: top or bottom stacks the
 two in one column, left or right makes a column beside it taking half its
 width, a band between rows starts a new row. A line and a short label ("Above
-Sites") show where the widget will land before the drop, and only where the
+Portfolio") show where the widget will land before the drop, and only where the
 drop is allowed, so the line shows exactly what will happen and no rejection
 message is needed. Every place a drag reaches is also an item in the widget's
 Move menu, with Alt and the arrows as its keys and a screen-reader
@@ -723,33 +723,33 @@ The flows that exist today, as `apps/tower/e2e/ux-flows.mjs` runs them, each
 from its starting point to its result:
 
 - **Connect Bing Webmaster Tools** — Integrations → the row's Connect panel:
-  one key, tested and saved, sites matched, collecting.
+  one key, tested and saved, assets matched, collecting.
 - **Connect DataForSEO** — Integrations → Connect: login and password saved,
   spend shown, first reports collected.
 - **Connect PostHog** — Integrations → Connect: one key, region found,
   projects matched, saved funnels imported, collecting.
-- **Connect Microsoft Clarity** — Integrations: a token pasted on each site's
+- **Connect Microsoft Clarity** — Integrations: a token pasted on each asset's
   row, saved on paste; Run now spends one of the day's calls.
-- **Change a site's PostHog funnels** — the site's Data sources tab: pick one
+- **Change an asset's PostHog funnels** — the asset's Data sources tab: pick one
   of the project's saved funnels on the row, saved on the pick.
 - **Connect Mediavine** — Integrations → Connect: sign-in tested before it is
-  saved, sites found and matched, synced.
+  saved, assets found and matched, synced.
 - **Connect Google, self-hosted** — Integrations: console steps deep-linked,
-  the client file dropped in, signed in, sites matched and collecting.
-- **Connect Google, hosted** — Integrations: Continue with Google, sites
+  the client file dropped in, signed in, assets matched and collecting.
+- **Connect Google, hosted** — Integrations: Continue with Google, assets
   matched and collecting.
 - **Connect Discord** — Integrations → Connect: the webhook saved once its
   test message is delivered, the message shown before the press.
 - **Connect calendar feeds** — Integrations: a secret feed address pasted on
   its row, read once before it is saved.
-- **Open the core Tasks board** — Tasks, before any site exists: the board.
-- **Add a site** — Add your first site: the domain, name inferred, ending on
+- **Open the core Tasks board** — Tasks, before any asset exists: the board.
+- **Add an asset** — Add your first asset: the domain, type defaulting to Website, name inferred, ending on
   its Data sources.
-- **New site to first data** — Add a site, then its Bing row's Connect: key,
-  site matched, collecting.
-- **Fresh install to the first number** — Add a site, connect Bing from its
-  row, open the site: its clicks on screen.
-- **Configure a site's data sources** — the site's Data sources: skip one with
+- **New asset to first data** — Add an asset, then its Bing row's Connect: key,
+  asset matched, collecting.
+- **Fresh install to the first number** — Add an asset, connect Bing from its
+  row, open the asset: its clicks on screen.
+- **Configure an asset's data sources** — the asset's Data sources: skip one with
   a reason, set a market.
 - **Answer the inbox** — Tasks: approve a gate and answer a request, on the
   row.
@@ -762,7 +762,7 @@ from its starting point to its result:
 - **Close several tasks at once** — Tasks: a label in the filters, Select
   beside All tasks, Select all, Close 3 as, Already handled, a note, Close 3
   tasks, with one Undo.
-- **File a task from a finding** — the site page: File task on the finding,
+- **File a task from a finding** — the asset page: File task on the finding,
   prefilled.
 - **File a task** — Tasks → New task.
 - **Choose a view on the first run** — fresh install, Home: a view under
@@ -770,11 +770,11 @@ from its starting point to its result:
   sidebar shows the view's five pages.
 - **Switch the view** — Settings → General → Your view: a view picked is saved
   on change and the sidebar follows at once, then Undo.
-- **Read a site's health, in the business view** — Settings → General → Your
-  view, "I run the business"; Home's Site health row opens the site; its
+- **Read an asset's health, in the business view** — Settings → General → Your
+  view, "I run the business"; Home's Asset health row opens the asset; its
   Health tab shows every fact's readings below the five words.
 - **See where the money comes from, in the product view** — Settings →
-  General → Your view, "I build the product"; Home shows the money by site,
+  General → Your view, "I build the product"; Home shows the money by asset,
   visitors by channel and "Worth a look"; "Make a task" on a row, File task.
 - **Change the time zone** — Settings → General: saved on change, then Undo.
 - **Change a portfolio setting** — Settings: the monthly data budget.
@@ -784,14 +784,14 @@ from its starting point to its result:
   before it is saved.
 - **Disconnect an integration** — Integrations → the connection: one
   confirmation naming what stops.
-- **Arrange the sites** — Sites → Arrange: on a desktop, drag the last site
-  to the top by its grip (Move up on a phone); switch one site off the TV;
+- **Arrange the assets** — Portfolio → Arrange: on a desktop, drag the last asset
+  to the top by its grip (Move up on a phone); switch one asset off the TV;
   Done.
 - **Arrange the TV Wall** — Edit beside the TV entry: on a desktop, drag a
   widget onto another's top edge to stack them; move the strip down through
   its Move menu (the phone's whole path); save.
 - **Start the TV from a view's preset** — Edit beside the TV entry: Add a
-  widget, Start from, "I run the business"; the preview shows Site health;
+  widget, Start from, "I run the business"; the preview shows Asset health;
   Undo.
 - **Screen survey** — every main screen, populated: a pass that measures each
   page's statuses and lists, not a flow.
@@ -808,17 +808,17 @@ person reading them. The system's own vocabulary — bead, spoke, lane, pulse,
 knob, poller, hub, register, asset #0 — never appears on a screen; the words
 on screen are *task*, *project*, *data source* or *scheduled job*, *nightly
 report*, *setting*, *the System*. The on-screen noun for the thing in the
-portfolio is **Site**, never *property*, which is reserved for the provider's
+portfolio is **Asset**. The collection page is **Portfolio**. The word *property* is reserved for the provider's
 own GA4 and Search Console objects that the Data sources tab has to name. One
 concept has one word everywhere; an alert's text states what happened and
 which direction is good, in the verb, with the statistics behind the evidence
 icon; a missing value is shown as a word, not a dash.
 
 Every word also has a level: business, operational or technical. *Business*
-surfaces — Home, Sites, Money, a site's Overview, the TV — use words about
+surfaces — Home, Portfolio, Money, an asset's Overview, the TV — use words about
 money, people, visitors, bets, decisions and verdicts: on track, at risk,
 still counting, verdict in three days. *Operational* surfaces — Alerts,
-Tasks, Workflows, a site's Activity and Alerts tabs — may also use alert,
+Tasks, Workflows, an asset's Activity and Alerts tabs — may also use alert,
 watch, change, run, shipped, reverted. *Technical* surfaces — Data sources,
 System health, Integrations, Settings — may also name providers, jobs,
 credentials and freshness. A surface uses words from its own level or a less
@@ -834,7 +834,7 @@ business level.
 The enforced word lists are `scripts/ui-lexicon.test.mjs` (the banned
 coinages, each with the word to use instead, and the operational and technical
 words banned on the business surfaces) and `scripts/ui-noun.test.mjs` (never
-*property* for a site). Both check shipped text only — string literals and
+*site* or *property* for an asset). Both check shipped text only — string literals and
 JSX text — and both are exact lists, so widening either is a deliberate
 decision, made in the same commit that widens the list.
 
@@ -849,7 +849,7 @@ Prefer reuse; a near-duplicate (a second badge, a third card variant) is the
 most expensive thing a builder can add, because every later agent will have
 to choose between two. A new component's registry entry gives, in one line,
 the need that no existing entry covers. A better component replaces the old
-one at all its call sites instead of existing beside it.
+one at all its call assets instead of existing beside it.
 
 The component set covers every shape of data the Tower draws, and is extended
 when a new shape appears: the form table under Principles lists each form and
@@ -901,13 +901,13 @@ arrow keys, the same readout the pointer shows; series keys expose their
 on/off state to screen readers. Toasts mount through `AppToaster` only, so a
 toast is one tab stop in the page's own theme. Contrast is checked at AA for
 text and 3:1 for series on the card, in both themes
-(`test/chart-series-contrast.test.ts`). A decorative logo (a site's icon) is
-`aria-hidden` and sits beside a visible name. The icon drawn for a site is
+(`test/chart-series-contrast.test.ts`). A decorative logo (an asset's icon) is
+`aria-hidden` and sits beside a visible name. The icon drawn for an asset is
 the one its home page declares for the surface: on the Wall and on the dark
 desk the dark-scheme icon, or the light icon when the page declares no dark
 one; on the light desk the light icon. Where the page declares no icon for
-the surface, the site's `/favicon.ico` is drawn, and where that does not load
-either, the site's initial on a muted tile. The phone layout is the same
+the surface, the asset's `/favicon.ico` is drawn, and where that does not load
+either, the asset's initial on a muted tile. The phone layout is the same
 components at a responsive breakpoint, never a separate mobile set. The Wall
 renders no interactive controls beyond one small muted link home, and its
 event marks open read-only explanations that a viewer who only watches never

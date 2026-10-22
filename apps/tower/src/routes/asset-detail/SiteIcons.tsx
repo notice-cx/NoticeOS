@@ -39,7 +39,7 @@ const READ_STATUS: Readonly<Record<ReadStatus, { label: string; tone: StateTone 
 /** Why a Read again read nothing, in one line beside it. */
 const READ_REFUSAL: Readonly<Record<SiteIconsReadRefusal, string>> = {
   paused: "Schedule paused",
-  "no-site": "Not read for this site",
+  "no-site": "Not read for this asset",
   "not-migrated": "Needs a database update",
   failed: "Read failed · try again",
 };

@@ -92,7 +92,7 @@ test('work counts include blocked work once and exclude approval records in ever
   assert.deepEqual(entry.priorities, [1, 2, 1, 0, 0]);
 });
 
-test('the handoff join keeps one bead per finding, open first, and only this site’s', () => {
+test('the handoff join keeps one bead per finding, open first, and only this asset’s', () => {
   const rows = [
     { id: 'shop-9', status: 'closed', closed_at: '2026-09-01T00:00:00Z', metadata: { noticeos_key: 'k1', noticeos_kind: 'finding' } },
     { id: 'shop-8', status: 'open', metadata: { noticeos_key: 'k1', noticeos_kind: 'finding' } },

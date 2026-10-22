@@ -106,7 +106,7 @@ describe('security-headers', () => {
     });
   });
 
-  it('never fires on absence alone: a site that never sent a header is not flagged', async () => {
+  it('never fires on absence alone: an asset that never sent a header is not flagged', async () => {
     await sweep({}, 0);
     await sweep({}, 1);
     await sweep({ ...NOSNIFF }, 2);
@@ -222,7 +222,7 @@ async function connect(): Promise<void> {
 }
 
 describe('crux-vitals', () => {
-  it('stores one reading per site with the p75 of LCP, INP and CLS for phones and desktops', async () => {
+  it('stores one reading per asset with the p75 of LCP, INP and CLS for phones and desktops', async () => {
     await connect();
     const { fetchImpl, calls } = crux((_origin, formFactor) =>
       formFactor === 'PHONE' ? json(record(2900, 240, '0.12')) : json(record(1800, 90, '0.03')));
@@ -276,7 +276,7 @@ describe('crux-vitals', () => {
     expect(log.mock.calls.map(([line]) => String(line))).toContain(JSON.stringify({ event: 'crux_not_connected' }));
   });
 
-  it('stops at a refused key: every site fails, nothing is stored, and the key is not shown', async () => {
+  it('stops at a refused key: every asset fails, nothing is stored, and the key is not shown', async () => {
     await connect();
     const sites: HygieneAsset[] = [...SITES, { asset: 'northwind.example', domain: 'northwind.example' }];
     const { fetchImpl, calls } = crux(() => json({ error: { code: 400, message: 'API key not valid.', status: 'INVALID_ARGUMENT' } }, 400));

@@ -184,14 +184,14 @@ describe('portfolio previous month', () => {
   const readyWithoutPrevious = projectRevenue(NOW, ZONE, revenue.filter(day => day.date !== '2026-08-01'), traffic);
   const waiting = projectRevenue(new Date('2026-09-09T13:10:00Z'), ZONE, revenue.slice(0, -1), { ...traffic, collectedAt: '2026-09-09T12:00:00Z' });
   const sourceless = projectRevenue(NOW, ZONE, [], traffic);
-  it('states no total or percent while one site with revenue this month has no complete previous month', () => {
+  it('states no total or percent while one asset with revenue this month has no complete previous month', () => {
     expect(ready).toMatchObject({ status: 'ready', previousPeriod: '2026-08' });
     expect(ready.previousMonthMinor).toBeGreaterThan(0);
     expect(readyWithoutPrevious.previousMonthMinor).toBeNull();
     // One site's own month is never stated as the portfolio's.
     expect(portfolioRevenueComparison([ready, readyWithoutPrevious])).toEqual({ previousPeriod: '2026-08', previousMonthMinor: null, changePercent: null });
   });
-  it('states the total of every site, and the percent only once every site has a ready projection', () => {
+  it('states the total of every asset, and the percent only once every asset has a ready projection', () => {
     expect(waiting).toMatchObject({ status: 'waiting-revenue', projectedMinor: null });
     expect(waiting.previousMonthMinor).toBe(ready.previousMonthMinor);
     expect(portfolioRevenueComparison([ready, waiting, sourceless])).toEqual({ previousPeriod: '2026-08', previousMonthMinor: ready.previousMonthMinor! * 2, changePercent: null });

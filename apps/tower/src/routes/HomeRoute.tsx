@@ -235,8 +235,8 @@ export function healthWords(cards: readonly AssetCard[], issues: readonly WallIs
   const count = lead === null
     ? only
       ? `${only.displayName} is fine.`
-      : `All ${formatInt(measured)} sites are fine.`
-    : `${formatInt(fine)} of ${formatInt(measured)} ${measured === 1 ? "site is" : "sites are"} fine.`;
+      : `All ${formatInt(measured)} assets are fine.`
+    : `${formatInt(fine)} of ${formatInt(measured)} ${measured === 1 ? "asset is" : "assets are"} fine.`;
   if (lead === null) return { words: count, tone: null };
   const facts = rowFacts(lead.health);
   const worst = facts.find((fact) => fact.state === "bad" && fact.note) ?? facts.find((fact) => fact.note);
@@ -311,7 +311,7 @@ function VisitorsLast28Days({ assets, display = false }: { assets: readonly Asse
       history={people && people.series.length >= 3 ? (
         <BarStrip contributors={people.contributors} partial={people.partial} data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last 28 days" className="h-20" />
       ) : null}
-      context={people ? <>as of <b>{formatSeriesDate(people.date)}</b>{reported.length < DEFAULT_RANGE_DAYS ? ` · ${reported.length} of ${DEFAULT_RANGE_DAYS} days reported` : people.partial.length > 0 ? " · some sites have missing days" : null}</> : null}
+      context={people ? <>as of <b>{formatSeriesDate(people.date)}</b>{reported.length < DEFAULT_RANGE_DAYS ? ` · ${reported.length} of ${DEFAULT_RANGE_DAYS} days reported` : people.partial.length > 0 ? " · some assets have missing days" : null}</> : null}
     />
   );
 }
@@ -346,7 +346,7 @@ function Sites({ assets, issues, money, nowMs }: { assets: readonly AssetCard[];
       sources: [],
     };
   });
-  return <PortfolioRows rows={rows} formatMoney={cents} showSources={false} action={{ label: "All sites →", to: "/assets" }} className="h-full" />;
+  return <PortfolioRows rows={rows} formatMoney={cents} showSources={false} action={{ label: "All assets →", to: "/assets" }} className="h-full" />;
 }
 
 /** A site's visitors on its latest settled day, or null when nothing settled. */
@@ -597,7 +597,7 @@ export function FirstRun({
     <Card data-first-run>
       <CardContent className="flex flex-col gap-5 p-5">
         <h2 className="m-0 text-base font-semibold text-foreground">
-          Your sites’ traffic, money and open work, in one place
+          Your assets’ traffic, money and open work, in one place
         </h2>
         <ViewQuestions />
         <ol className="grid gap-3 md:grid-cols-3">

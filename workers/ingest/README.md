@@ -14,15 +14,15 @@ The pulse-ingest and ledger Worker, its collectors and its scheduled lanes
 | `POST /api/annotations` | Bearer, operator | Timeline events: `{asset, kind, at?, ref?, note?}`. Backdating allowed, future `at` rejected; an identical `(asset, at, kind, ref)` re-post returns the existing row instead of duplicating it. |
 | `POST /api/watch-windows` | Bearer, operator | Register a pre-registered outcome check — see [Watch windows](#watch-windows-pre-registered-outcome-checks). |
 | `POST /api/reclamation-targets` | Bearer, operator | A link-outreach campaign's target list, from `pnpm reclamation:import` ([scripts/README](../../scripts/README.md#reclamation-importmjs--load-an-outreach-campaign-into-the-store)): `{asset, targets}`, stored in one transaction. Each page is inserted once, a status only moves forward and a verification stamp only moves forward, so importing the same list twice changes nothing. |
-| `GET /api/reclamation-targets?asset=&open=1` | Bearer, operator | A site's open targets (not won, skipped or dead), in the order they were stored, for `pnpm reclamation:open-targets`, which writes the reclamation-match rule's input: `{ok, asset, targets: [{domain, referringPage, replaceWith, status}]}`. `422` for an unknown site; `409` when the site holds more than one list may carry (5,000), never a partial answer. |
+| `GET /api/reclamation-targets?asset=&open=1` | Bearer, operator | An asset's open targets (not won, skipped or dead), in the order they were stored, for `pnpm reclamation:open-targets`, which writes the reclamation-match rule's input: `{ok, asset, targets: [{domain, referringPage, replaceWith, status}]}`. `422` for an unknown asset; `409` when the asset holds more than one list may carry (5,000), never a partial answer. |
 | `POST /api/beads-snapshot` | Bearer, operator | One photograph of the beads task hub, filed once a minute by the local runner's poller and rendered by the Tower's read-only `/work` board. Keeps the newest row whole, older rows only what the Wall feed reads, and prunes past 2 days — see [Beads snapshots](#beads-snapshots-the-task-hub-photograph). |
 | `POST /api/job-runs` | Bearer, operator | A batch of scheduled-lane firings from the local runner — the evidence asset #0's `cronRunSuccess` is derived from. Idempotent on `(job, startedAt)`, because a runner catching up after an outage re-sends what it cannot know the store already has — see [Job runs](#job-runs-proof-that-the-scheduled-lanes-fired). |
-| `POST /api/insight-snapshot` | Bearer, operator | Publish one reviewed executive snapshot into `noticeos.asset_insight_snapshots` — what `pnpm signals:publish-insights` writes and the Tower's property page reads. Stored verbatim and content-addressed, so a re-publish is a `200 {created:false}` no-op — see [Insight snapshots](#insight-snapshots-the-executive-publish). |
+| `POST /api/insight-snapshot` | Bearer, operator | Publish one reviewed executive snapshot into `noticeos.asset_insight_snapshots` — what `pnpm signals:publish-insights` writes and the Tower's asset page reads. Stored verbatim and content-addressed, so a re-publish is a `200 {created:false}` no-op — see [Insight snapshots](#insight-snapshots-the-executive-publish). |
 | `POST /api/asset-state` | Bearer, operator | Set one sanctioned column of one asset row — `status` or `sense_only`, the only two db/README lets anything edit. The `store-asset-set` op of a changeset the operator applies with `pnpm config:apply` — see [Asset state](#asset-state-the-two-editable-columns). |
 | `GET /api/asset-state` | Bearer, operator | Read-only: `?asset=` → those same two columns, which is what the changeset's `expect` guard compares against before anything is written. An asset the store does not have is `200 {known:false}`, not a 404. |
-| `POST /api/signal-collect` | Bearer, operator | **Spends money.** Collect one property's DataForSEO families now — `{asset, families?}` — instead of waiting for the Monday sweep. Runs the same collector the cron runs, scoped: same cap gate, same retries, same manifest row. What `pnpm signals:collect` fires — see [On-demand collection](#on-demand-collection-a-baseline-on-the-day-the-bet-launches). |
-| `GET /api/serp-panel-landings` | Bearer, operator | Read-only: which properties have a fresh weekly DataForSEO collection in the archive, newest per property inside a 21-day window, flagged with whether the S1b panel was one of its families. The local runner's panel-review filer acts on it — see [SERP panel landings](#serp-panel-landings-what-the-review-filer-reads). |
-| `GET /api/panel-source` | Bearer, operator | Read-only: `?asset=&windowDays=` → the revision-resolved archive manifest **and** the normalized daily site-level series for one property. What the standing panel refresh runs on — see [Panel source](#panel-source-what-the-local-scripts-read). |
+| `POST /api/signal-collect` | Bearer, operator | **Spends money.** Collect one asset's DataForSEO families now — `{asset, families?}` — instead of waiting for the Monday sweep. Runs the same collector the cron runs, scoped: same cap gate, same retries, same manifest row. What `pnpm signals:collect` fires — see [On-demand collection](#on-demand-collection-a-baseline-on-the-day-the-bet-launches). |
+| `GET /api/serp-panel-landings` | Bearer, operator | Read-only: which assets have a fresh weekly DataForSEO collection in the archive, newest per asset inside a 21-day window, flagged with whether the S1b panel was one of its families. The local runner's panel-review filer acts on it — see [SERP panel landings](#serp-panel-landings-what-the-review-filer-reads). |
+| `GET /api/panel-source` | Bearer, operator | Read-only: `?asset=&windowDays=` → the revision-resolved archive manifest **and** the normalized daily asset-level series for one asset. What the standing panel refresh runs on — see [Panel source](#panel-source-what-the-local-scripts-read). |
 | `GET /api/signal-archives` | Bearer, operator | Read-only: `?asset=&from=&to=&integration=&report=` → the same revision-resolved manifest, filtered as an operator asks and unwindowed by default. What `pnpm signals:download` runs on — see [The hand downloader's manifest](#the-hand-downloaders-manifest). |
 | `GET /api/panel-object` | Bearer, operator | Read-only: `?key=` → one archived provider response, gunzipped, as the JSON the flattener expects on disk. The key must appear in `signal_dump_runs`; nothing else in the bucket is reachable. |
 | `GET /healthz` | none | Liveness. |
@@ -90,8 +90,8 @@ already existed, so nothing was created), or a collection run and reported
 every family landed).
 
 `/api/signal-collect` adds two `422`s of its own before it spends anything:
-`unknown_asset` for a property the collector does not sweep, with the reason,
-and `family_unavailable` for a family that property is not due. It also answers
+`unknown_asset` for an asset the collector does not sweep, with the reason,
+and `family_unavailable` for a family that asset is not due. It also answers
 `409 collection_in_flight` — the collector runs one collection at a time, and the
 body names the run that already holds the lane (start time, scope, how long it
 has been going, when its lease expires). Nothing is asked of the provider and
@@ -108,17 +108,17 @@ and the operator-facing error body must not vary per route.
 
 | Cron | Handler | Behaviour |
 |---|---|---|
-| `0 * * * *` (hourly) | ingest-freshness | For every non-`pre-launch`/`retired` asset that owes a report, fire an `error` flag (`rule_id = ingest-freshness`) once its latest pulse is older than the contract's `REPORT_MAX_AGE_HOURS` — 48h, two missed nights. That constant, not a number of this Worker's, is also what the Tower counts a property stale at, so the flag and the Tower's coverage can never describe one property differently. A site that has never sent a report owes none and never fires it; its first report makes it expected. Never double-fires while an identical open flag exists; the flag auto-resolves when a pulse next arrives. |
-| `30 2 * * *` (02:30 UTC) | pull adapter + Bing signals | Pull each enabled pull-mode asset's self-report endpoint (`config/pull.json`) through the pulse path, then collect daily Bing Webmaster clicks/impressions for every non-retired portfolio property verified under the central key. This includes Sense-only pre-launch properties; observation does not authorize publication or action. The jobs are failure-isolated. |
+| `0 * * * *` (hourly) | ingest-freshness | For every non-`pre-launch`/`retired` asset that owes a report, fire an `error` flag (`rule_id = ingest-freshness`) once its latest pulse is older than the contract's `REPORT_MAX_AGE_HOURS` — 48h, two missed nights. That constant, not a number of this Worker's, is also what the Tower counts an asset stale at, so the flag and the Tower's coverage can never describe one asset differently. An asset that has never sent a report owes none and never fires it; its first report makes it expected. Never double-fires while an identical open flag exists; the flag auto-resolves when a pulse next arrives. |
+| `30 2 * * *` (02:30 UTC) | pull adapter + Bing signals | Pull each enabled pull-mode asset's self-report endpoint (`config/pull.json`) through the pulse path, then collect daily Bing Webmaster clicks/impressions for every non-retired portfolio asset verified under the central key. This includes Sense-only pre-launch assets; observation does not authorize publication or action. The jobs are failure-isolated. |
 | `0 3 * * *` (03:00 UTC) | asset-#0 self-pulse | The OS writes its own pulse (`asset = <os-asset-id>`) with pulses received, ledger rows ingested, open flags, and `cronRunSuccess` — derived from the job-run record (`job_runs`). Three-valued: `1` while every lane's latest firing ran or stood down, `0` the moment one lane's latest firing failed *or* nothing has fired for a day (a dead runner stops writing, so stale evidence must not read as health), and absent — capability and metric both — while the record is empty, because nothing observed is not success. See [Job runs](#job-runs-proof-that-the-scheduled-lanes-fired). |
 | `30 3 * * *` (03:30 UTC) | watch-window evaluation | Read out every open watch window whose next check has come due: record an interim reading, or close the window on its final offset with an outcome and a flag. Runs after the 02:30 signal pulls so a check due today reads today's data. See [Watch windows](#watch-windows-pre-registered-outcome-checks). |
-| `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible property's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, a sitemap outage, or a security header the home page stopped sending (`hygiene-security-headers`, read from the home-page response with no extra request). Six plain HTTPS requests per property, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each property's declared light and dark icons from one more GET of its home page and stores one row per property in `asset_icons`. See [Site icons](#site-icons). |
-| `15 4 * * *` (04:15 UTC) | Chrome UX Report page speed | For each property the hygiene guards read, two `records:queryRecord` calls (phones, desktops) on its origin, and two more on its `www.` host when the bare domain has no data; one `crux-vitals` reading per property per day in `hygiene_checks` with the LCP, INP and CLS 75th percentiles. No key connected: no request and no row. See [docs/11 § Chrome UX Report](../../docs/11-integrations.md#chrome-ux-report). |
-| `30 4 * * *` (04:30 UTC) | Microsoft Clarity export | One Data Export call per property that has a project token, archived verbatim: a trailing 72-hour, URL-split read of the behavior metrics (dead/rage clicks, quickbacks, script errors, scroll, engagement). Once a day on purpose — the provider allows 10 calls per project per day total, so every later read comes from the archive. A property with no token is skipped silently. See [Clarity](#clarity-behaviour-signals-10-calls-per-project-per-day). |
-| `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive eight completed-day GA4 families and ten GSC breakdowns for the previous four dates, plus the BWT report families a property is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier GA4 / Search Console dates an outage cost. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
-| `30 12 * * *` (12:30 UTC) | PostHog product analytics archive | Per launched asset with a PostHog key **and** a saved region + project: one project read (timezone), then seven aggregated HogQL queries run one at a time: `web-daily` (28 days), `events`, `exceptions`, `rageclicks`, `web-vitals`, `inp-targets` (14 days) and `funnels` (7 days, only where funnels are declared). Each is stored in private/local R2 with one `signal_dump_runs` row (`integration = 'posthog'`). A 429 from PostHog's hourly query budget stops the run, lists the families it did not ask for, and stores its project retry delay across restarts. Collection sends no requests for that project until the delay expires; an on-demand call returns the retry deadline. Queries filter event names and dates before reading properties. No key, no mapping or an unmigrated store skips with a named reason, with no request and no row. One run per asset at a time: an asset another run holds (its `integration_leases` row `posthog:<asset>`, 30-minute expiry) is skipped as `in-flight`. An offline night writes no PostHog row, and the next run asks again, per family before its own window, up to seven earlier window ends an outage cost ([the dates an outage cost](#the-dates-an-outage-cost)). See [docs/11 § PostHog](../../docs/11-integrations.md#posthog). |
-| `45 12 * * 1` (Monday 12:45 UTC) | DataForSEO search intelligence | For every launched content property, archive ranked keywords, backlink stock + 90-day movement, and Google/ChatGPT mention metrics — plus, where `config/serp-panel.json` names tracked head terms, one live result page per term **per device** (phone and desktop) with its AI Overview citation state. Exact report cost is indexed; the portfolio data cap fails closed before a call. |
-| `*/15 * * * *` (every 15 min) | counters + Google signals | Re-read property total cards and pull bounded 97-day GA4/GSC daily snapshots: 90 visible property-detail dates plus seven calculation-only dates. The two jobs run independently on the same tick. Counters upsert current state; Google runs/changed values append (see [Google signals](#google-signals-ga4--gsc)). Neither writes pulses or flags. |
+| `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible asset's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, a sitemap outage, or a security header the home page stopped sending (`hygiene-security-headers`, read from the home-page response with no extra request). Six plain HTTPS requests per asset, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each asset's declared light and dark icons from one more GET of its home page and stores one row per asset in `asset_icons`. See [Asset icons](#asset-icons). |
+| `15 4 * * *` (04:15 UTC) | Chrome UX Report page speed | For each asset the hygiene guards read, two `records:queryRecord` calls (phones, desktops) on its origin, and two more on its `www.` host when the bare domain has no data; one `crux-vitals` reading per asset per day in `hygiene_checks` with the LCP, INP and CLS 75th percentiles. No key connected: no request and no row. See [docs/11 § Chrome UX Report](../../docs/11-integrations.md#chrome-ux-report). |
+| `30 4 * * *` (04:30 UTC) | Microsoft Clarity export | One Data Export call per asset that has a project token, archived verbatim: a trailing 72-hour, URL-split read of the behavior metrics (dead/rage clicks, quickbacks, script errors, scroll, engagement). Once a day on purpose — the provider allows 10 calls per project per day total, so every later read comes from the archive. An asset with no token is skipped silently. See [Clarity](#clarity-behaviour-signals-10-calls-per-project-per-day). |
+| `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive eight completed-day GA4 families and ten GSC breakdowns for the previous four dates, plus the BWT report families an asset is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier GA4 / Search Console dates an outage cost. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
+| `30 12 * * *` (12:30 UTC) | PostHog product analytics archive | Per launched asset with a PostHog key **and** a saved region + project: one project read (timezone), then seven aggregated HogQL queries run one at a time: `web-daily` (28 days), `events`, `exceptions`, `rageclicks`, `web-vitals`, `inp-targets` (14 days) and `funnels` (7 days, only where funnels are declared). Each is stored in private/local R2 with one `signal_dump_runs` row (`integration = 'posthog'`). A 429 from PostHog's hourly query budget stops the run, lists the families it did not ask for, and stores its project retry delay across restarts. Collection sends no requests for that project until the delay expires; an on-demand call returns the retry deadline. Queries filter event names and dates before reading assets. No key, no mapping or an unmigrated store skips with a named reason, with no request and no row. One run per asset at a time: an asset another run holds (its `integration_leases` row `posthog:<asset>`, 30-minute expiry) is skipped as `in-flight`. An offline night writes no PostHog row, and the next run asks again, per family before its own window, up to seven earlier window ends an outage cost ([the dates an outage cost](#the-dates-an-outage-cost)). See [docs/11 § PostHog](../../docs/11-integrations.md#posthog). |
+| `45 12 * * 1` (Monday 12:45 UTC) | DataForSEO search intelligence | For every launched content asset, archive ranked keywords, backlink stock + 90-day movement, and Google/ChatGPT mention metrics — plus, where `config/serp-panel.json` names tracked head terms, one live result page per term **per device** (phone and desktop) with its AI Overview citation state. Exact report cost is indexed; the portfolio data cap fails closed before a call. |
+| `*/15 * * * *` (every 15 min) | counters + Google signals | Re-read asset total cards and pull bounded 97-day GA4/GSC daily snapshots: 90 visible asset-detail dates plus seven calculation-only dates. The two jobs run independently on the same tick. Counters upsert current state; Google runs/changed values append (see [Google signals](#google-signals-ga4--gsc)). Neither writes pulses or flags. |
 
 The handler dispatches on the cron string verbatim: each expression is the
 dispatch key of one job in `scripts/scheduled-jobs.mts`, `src/dispatch.ts`
@@ -138,7 +138,7 @@ store boundary.
 | Document | Who reads it |
 |---|---|
 | `config/pull.json` | the nightly pull adapter's registry of self-report endpoints |
-| `config/counters.json` | which totals each property's fast-lane cards show |
+| `config/counters.json` | which totals each asset's fast-lane cards show |
 | `config/integrations.json` | the per-asset property/site/scope mapping every Google, Bing and DataForSEO job resolves through (`src/lane-mapping.ts`) |
 | `config/ga4-custom-dimensions.json` | which GA4 event-parameter families the dumps ask for |
 | `config/serp-panel.json` | the tracked head terms the weekly DataForSEO sweep pays for, and the panel roster the landings read grades a collection day against |
@@ -177,7 +177,7 @@ still wins, so every suite states its own thresholds.
   "configSource": { "config/integrations.json": "store" } }
 ```
 
-The word only — a config document holds property ids, tracked queries and
+The word only — a config document holds asset ids, tracked queries and
 spend caps, and a log is the one place none of them belong. The field is absent
 when the caller resolved nothing (every suite here states its own config), so a
 run that read neither the store nor a file never claims on a log line that it
@@ -218,7 +218,7 @@ stand for. The clock is this runtime's `receivedAt`, never the asset-supplied
 
 **The flow-anomaly resolution.** Each fresh metric reading closes the previous
 `flow-poisson-low` / `flow-lowvol-window` alert before a current one is
-inserted, so a recovered Saturday cannot leave a property yellow forever. That
+inserted, so a recovered Saturday cannot leave an asset yellow forever. That
 close reaches a **snoozed** row as well — but *only when the metric did not
 fire tonight*. A snooze says "ask me later", so a condition that genuinely
 cleared has answered and must not come back on its date as a stale alarm; but
@@ -242,7 +242,7 @@ grain the row occupies:
 <source|ref|operator>:auto/<kind>/<asset>/<period>/<family>/<booking_state>
 ```
 
-The assumption worth stating plainly: **one figure per source, per property,
+The assumption worth stating plainly: **one figure per source, per asset,
 per month, per family, per booking state.** Two genuine payouts from one source
 inside one month therefore need explicit `external_id` values — and the lane
 refuses them rather than merging them (below), so the assumption fails loudly.
@@ -325,7 +325,7 @@ on the same weekday and overlapping neither one another nor the window being
 judged (`seasonalInputsFrom` in `src/db.ts`). Any missing cohort
 keeps the rule unarmed; no code falls back to the envelope's `avg7d`. Each new
 metric reading resolves the prior open central flow event before the current
-one is evaluated, so recovered metrics stop contributing to property health.
+one is evaluated, so recovered metrics stop contributing to asset health.
 Each fired flag stores `rule_id` + `rule_inputs` (including comparison dates)
 for auditability.
 
@@ -340,7 +340,7 @@ shows beside "Not measured". A findings list a tool did not produce is left
 out, which is not the same as an empty list.
 
 A same-day resend appends the next revision; `noticeos.current_codebase_reports`
-shows the newest per site and day, and `reportNumber` stays the day's first
+shows the newest per asset and day, and `reportNumber` stays the day's first
 revision's number. In the same transaction the five rules
 (`packages/contract/src/codebase-measures.ts`) run with the thresholds in
 `config/constants.json` `codebase_rules`, store first:
@@ -351,12 +351,12 @@ revision's number. In the same transaction the five rules
 | `codebase-duplication` | warn, opportunity | `duplication_percent` is at least `duplication_percent` |
 | `codebase-unused` | info, opportunity | `unused_files` plus `unused_dependencies` is at least `unused_items` |
 | `codebase-complexity` | info, opportunity | `complex_functions` rose by at least `complex_functions_added_30d` over the comparison report |
-| `codebase-vulnerabilities` | info, opportunity | `vulnerable_dependencies`, sent by the site's own workflow, is at least `vulnerable_dependencies` (and at least 1) |
+| `codebase-vulnerabilities` | info, opportunity | `vulnerable_dependencies`, sent by the asset's own workflow, is at least `vulnerable_dependencies` (and at least 1) |
 
-The comparison report is the site's current report nearest 30 days back, 28
+The comparison report is the asset's current report nearest 30 days back, 28
 to 45 days back; with none, the growth and complexity rules do not run. A
 rule runs only when the report measured its inputs. When it runs, it first
-resolves the rule's open alert for the site, then writes a new alert if it
+resolves the rule's open alert for the asset, then writes a new alert if it
 fires, with the numbers it used in `rule_inputs`. Resolution skips an alert
 the operator acknowledged, tuned, opened an incident or a hypothesis for; a
 snoozed alert is resolved only when the rule no longer fires, and while the
@@ -452,7 +452,7 @@ check would reach back over the change).
 GSC `position` is `down`.
 
 The `10` above is an **example, not a norm**. The Tower's composer derives that
-number from the property's own series: it makes this evaluator's exact
+number from the asset's own series: it makes this evaluator's exact
 comparison (mean daily value over two adjacent windows of the baseline's
 length) across the historical span the archives hold, and proposes the smallest
 whole percent above the ninetieth percentile of those moves — stating the span,
@@ -464,14 +464,14 @@ ledger over the full 180-day horizon (not the capped visible Timeline) and
 excludes every comparison pair crossing a recorded deploy, config, model,
 incident, autonomy, or external change. A payload without that complete
 calendar is amber `HISTORICAL ONLY`, never presented as change-filtered.
-Registering by hand? Open the composer on that property and read the sentence;
+Registering by hand? Open the composer on that asset and read the sentence;
 it is the only place the number is derived, because a recorded calibration goes
 stale and a derived one cannot.
 
 A query-scoped composer calibrates from that **same query's** provider-final
 daily `gsc/query` R2 series, loaded on demand through the private
 `watchQueryHistory(input)` Service Binding RPC. It never borrows the already
-loaded site series. The visual state names the exact query, retained archive
+loaded asset series. The visual state names the exact query, retained archive
 span, typical absolute move, ninetieth-percentile floor, and number of
 coverage-valid adjacent comparisons. Until two baseline-length windows each
 meet `WATCH_MIN_WINDOW_COVERAGE`, it stays visibly `UNCALIBRATED` and keeps 10%
@@ -522,13 +522,13 @@ comparison. Count metrics also carry their window sum; rate metrics (`ctr`,
   objects already retained in R2 and compares only that query's daily rows.
   Missing/suppressed query days stay missing and therefore count against the
   same coverage threshold. Any malformed or unsupported scope closes
-  `unmeasurable` with a note; the site-wide number is never substituted.
+  `unmeasurable` with a note; the asset-wide number is never substituted.
 - **Thin coverage closes `unmeasurable`, never `inconclusive`.** A window needs
   observations on at least 80% of its days (`MIN_WINDOW_COVERAGE`); a zero
   baseline, an empty window, or one that is mostly holes is reported as
   unmeasurable. "We could not measure this" and "we measured it and it did
   nothing" are different facts and the ledger keeps them apart.
-- **One provider resource per comparison.** Each site-wide aggregate records the
+- **One provider resource per comparison.** Each asset-wide aggregate records the
   `property_ref`s its counted days were read from (`properties`). A baseline and
   post window read from different properties, or a window whose own days mix
   two, closes `unmeasurable` with a note naming them. Rotating the credential
@@ -599,7 +599,7 @@ snapshot is a cache of a third-party tracker's state, and a store that rejects
 the portfolio's real shape is worse than one that records it:
 
 - **No `assets` FK.** The annotation and revenue lanes check the asset id
-  because those rows are evidence about a property. An asset id that has drifted
+  because those rows are evidence about an asset. An asset id that has drifted
   out of `config/beads.json` should surface on the board as an unrecognized
   project, not cost the other projects their snapshot.
 - **No status enum.** `bd` ships seven statuses and lets an operator add custom
@@ -613,7 +613,7 @@ because both are ways a failure would quietly look healthy: a project with
 
 ### `panelReview` — SERP-panel triage state
 
-Each project may carry `panelReview`, the property's standing on reading its
+Each project may carry `panelReview`, the asset's standing on reading its
 last SERP panel ([docs/08 §S1b](../../docs/08-seo-geo-signals.md)): the open
 `panel-review` task, or — when the triage is done — the most recently closed
 one.
@@ -629,7 +629,7 @@ one.
 ```
 
 **Three-valued, and the two absences are different answers.** The key **absent**
-means this poller did not look; **`null`** means it looked and the property has
+means this poller did not look; **`null`** means it looked and the asset has
 no review task at all. Collapsing them would let "we never asked" render as
 "nothing to triage". `status` is deliberately not `bd`'s: `in_progress`,
 `blocked` and `deferred` are all ways of not having triaged the panel yet, and
@@ -689,7 +689,7 @@ log.
 
 ## SERP panel landings (what the review filer reads)
 
-`GET /api/serp-panel-landings` answers one question: **which properties have a
+`GET /api/serp-panel-landings` answers one question: **which assets have a
 collection worth triaging?** It writes nothing.
 
 ```jsonc
@@ -708,7 +708,7 @@ It reads the report runs (`noticeos.archive_runs`) the weekly collector already
 writes (`integration = 'dataforseo'`, every report family), so nothing new is
 recorded for this lane — and that is what makes the runner's filer idempotent:
 it re-derives the same `(asset, panelDate)` pair every pass, with no cursor to
-lose. Rows are grouped into one landing per (property, collection day) and ranked
+lose. Rows are grouped into one landing per (asset, collection day) and ranked
 by day, so a re-archive of an older collection cannot promote it. `error` rows
 are excluded — nothing landed, and asking somebody to triage an empty archive
 would be the OS inventing work; `unchanged` rows count, because the archive holds
@@ -785,8 +785,8 @@ curl -sS -X POST http://127.0.0.1:8787/api/research-log \
 ```
 
 `asset` is optional — portfolio-level research (a market scan, a competitor
-nobody owns yet) has no property — but a value that is not a real asset id is a
-422 rather than a ghost in every per-property read.
+nobody owns yet) has no asset — but a value that is not a real asset id is a
+422 rather than a ghost in every per-asset read.
 
 ### The two rules the shape enforces
 
@@ -869,7 +869,7 @@ is a well-formed filter that matches nothing, which is the true answer.
 
 `POST /api/insight-snapshot` (operator bearer) is how a reviewed
 `executive.json` crosses into `noticeos.asset_insight_snapshots` — the
-compact presentation boundary the Tower's property page reads. The caller is
+compact presentation boundary the Tower's asset page reads. The caller is
 `pnpm signals:publish-insights`, which writes through this route so that the
 one runtime that owns the store does the write.
 
@@ -943,7 +943,7 @@ connection tests), over `noticeos.integration_connections` and
 `noticeos.connection_secrets` ([Postgres model](../../db/postgres/README.md#the-decided-model)).
 Save writes the next secret version and removes the previous version in the
 same transaction; it never rewrites ciphertext in place. The connection's
-public facts are columns, with field names and covered site ids on the secret
+public facts are columns, with field names and covered asset ids on the secret
 version ([model](../../db/postgres/model.json)).
 
 A provider is connected in the product, and the environment holds only the
@@ -976,7 +976,7 @@ on `.dev.vars`" is a fact you read rather than one you assume.
 collectors (Google signals, Bing signals, the DataForSEO sweep) and the
 connection test — once per run, about the credential rather than about coverage:
 a service account that minted a token and returned rows for *anything* is a
-working credential, and one property's failure is that property's story. The
+working credential, and one asset's failure is that asset's story. The
 polled display reads deliberately do not stamp: GA4 realtime runs every 30
 seconds and the calendar every 60, and a status column is not worth two writes a
 minute.
@@ -1181,17 +1181,17 @@ quota and failure modes are in
   (`credential-probes.ts`) lists every GA4 property, matched to a host by its
   web data stream's default address (one free Admin API read for each of the
   first fifty), and every Search Console site; an unverified Search Console
-  site is listed, never ticked. The answer carries the credential it listed
+  asset is listed, never ticked. The answer carries the credential it listed
   with (`account`, `auth`), from which the connect panel names who to grant a
-  site the list lacks. **Start** writes each site's own mapping, which
+  asset the list lacks. **Start** writes each asset's own mapping, which
   one resolver reads (`lane-mapping.ts`), and runs the Google step for the
-  named sites. A sign-in with nothing mapped collects nothing and logs
+  named assets. A sign-in with nothing mapped collects nothing and logs
   `google_signals_no_properties_mapped` once per pull; how the older account
   map is shadowed by the mappings is under
   [Google signals](#google-signals-ga4--gsc).
 - **The public facts.** The Google account, granted scopes and sign-in time
   are columns of `noticeos.integration_connections`; field names and covered
-  site ids are on the current `noticeos.connection_secrets` version
+  asset ids are on the current `noticeos.connection_secrets` version
   ([model](../../db/postgres/model.json)). In the clear, deliberately:
   `deleteCredential` and `listCredentialSummaries` both answer without the
   bootstrap key, so anything the card renders has to live outside the
@@ -1212,9 +1212,9 @@ quota and failure modes are in
 
 ## On-demand collection (a baseline on the day the bet launches)
 
-`POST /api/signal-collect` (operator bearer) collects **one** property's
+`POST /api/signal-collect` (operator bearer) collects **one** asset's
 DataForSEO families now, so a bet that launches on a Tuesday has a baseline on
-Tuesday without running the whole Monday lane for every property.
+Tuesday without running the whole Monday lane for every asset.
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8791/api/signal-collect \
@@ -1228,7 +1228,7 @@ curl -sS -X POST http://127.0.0.1:8791/api/signal-collect \
 ```
 
 `pnpm signals:collect -- --asset example.com --families serp-panel` is the same call
-with a summary — see [scripts/README](../../scripts/README.md#collect-one-property-now-signalscollect).
+with a summary — see [scripts/README](../../scripts/README.md#collect-one-asset-now-signalscollect).
 
 - **It is not a second collector.** The body becomes a scope and
   `runDataForSeoDumps` — the function the cron calls — does the work, with the
@@ -1236,18 +1236,18 @@ with a summary — see [scripts/README](../../scripts/README.md#collect-one-prop
   fail-closed `$0.25` reserve against `monthly_caps.data_usd`. A scope narrows
   the *plan* and nothing else, so an on-demand landing writes the manifest row,
   the R2 object and the recorded cost the Monday lane would have written for that
-  property. The ingest suite pins that: same clock, same provider answers, the
+  asset. The ingest suite pins that: same clock, same provider answers, the
   two rows are equal on every field and the archives are byte-identical. Nothing
   downstream — the panel-review filer, `signals:refresh`, the lane evidence, the
   review loop — needs to know which door a run came through.
 - **It can only reach what the sweep reaches.** The asset is matched against the
   collector's own membership query (launched, non-OS, has a domain), with the id
-  bound rather than interpolated. A property outside it is `422 unknown_asset`
+  bound rather than interpolated. An asset outside it is `422 unknown_asset`
   with the *reason* — not in the store, still pre-launch, the OS itself, no
   domain — because those are different mistakes.
-- **A family a property does not own is `422`, never a silent skip.** `families`
+- **A family an asset does not own is `422`, never a silent skip.** `families`
   is validated against the collector's exported family list, and then against
-  what that property is actually due. Asking for `serp-panel` for a property
+  what that asset is actually due. Asking for `serp-panel` for an asset
   `config/serp-panel.json` does not name answers `422 family_unavailable`
   naming the file and listing what *is* available. The portfolio sweep is right
   to skip such a family quietly; a request somebody typed is not.
@@ -1300,16 +1300,16 @@ Console notification. `src/hygiene.ts` runs the checks nightly at 04:00 UTC and
 stores one row per `(asset, check, day)` in `hygiene_checks`.
 
 **Who is swept:** every asset with a domain that is not `retired` and not asset
-#0. Pre-launch properties are included — observing them is Sense, and a
-pre-launch property is exactly where a robots block sits unnoticed. Asset #0 is
+#0. Pre-launch assets are included — observing them is Sense, and a
+pre-launch asset is exactly where a robots block sits unnoticed. Asset #0 is
 excluded because the OS cockpit has no crawl surface to guard, and including it
 would mean a permanent "no sitemap" warn on the OS row.
 
-**Cost:** six requests per property on a healthy night — three site-level
+**Cost:** six requests per asset on a healthy night — three asset-level
 (`robots.txt`, the home page, the sitemap) and **three sampled real pages**.
 `robots.txt` is fetched **once** and shared by the robots check and the sitemap's
 URL resolution; the sitemap's URL list is handed to the page sample rather than
-re-fetched. No check can disagree with another about what the property served.
+re-fetched. No check can disagree with another about what the asset served.
 
 ### The four checks
 
@@ -1330,7 +1330,7 @@ each carries two rule ids:
   never produce both, and the depth rule keeps its single sanctioned trigger.
   Reachability needs no baseline, so unlike the depth flag it retracts the moment
   the page answers again, armed or not.
-- `robots-ai-access` → `hygiene-robots-ai` (the site-level file) and
+- `robots-ai-access` → `hygiene-robots-ai` (the asset-level file) and
   `hygiene-page-directives` (`<meta name="robots">` and `X-Robots-Tag` on real
   pages). Two levels, two rules, because they are two different regressions with
   two different fixes: one is a `robots.txt` line, the other is a template. An
@@ -1352,7 +1352,7 @@ page or **disclaim it** in favour of another.
 **It fetches nothing.** `robots-ai-access` already reads a stable three-page
 sample for its page-level directive rule; this check reads the same bytes a
 second way, handed over in-process. A served page is one document — fetching it
-twice would double every property's nightly requests to learn nothing, and the
+twice would double every asset's nightly requests to learn nothing, and the
 two answers could then disagree about a page that changed between them. A test
 pins that each sampled URL is fetched exactly once across both checks.
 
@@ -1361,7 +1361,7 @@ page that has always shipped without a meta description is a standing editorial
 decision to argue about at leisure; a page that had one last night and does not
 tonight is a regression somebody shipped today. The first reading of a URL
 establishes the baseline and can never flag — which is also what keeps this check
-from opening a flag on every page of every property the night it landed.
+from opening a flag on every page of every asset the night it landed.
 Retraction needs **proof**: a page that 500s tonight is "we did not measure it",
 never grounds for withdrawing an alert.
 
@@ -1370,7 +1370,7 @@ the check makes. It is the one hygiene check that stores a real zero ("the roste
 was empty"), told apart from null by the `unreachable` status beside it: a check
 that measured nothing has not found nothing wrong.
 
-**Why four faults and not twenty-five.** A site-audit tool ships a taxonomy; this
+**Why four faults and not twenty-five.** An asset-audit tool ships a taxonomy; this
 register records incidents. Each fault has a decision attached and no room to
 be wrong: a missing title or description is a lost click with a written repair;
 a missing or duplicated `h1` is a page that states no subject or several; a
@@ -1397,12 +1397,12 @@ a page to prove it.
 
 ### The page sample (`hygiene-page-directives`)
 
-A site-level file cannot show a `noindex` shipped by a template, and that is the
+An asset-level file cannot show a `noindex` shipped by a template, and that is the
 block a CMS, a staging flag, or a copy-paste actually produces. So the check also
-reads **three real pages** per property per night.
+reads **three real pages** per asset per night.
 
 **The roster is the sitemap** — no per-asset route list to add, and none to keep
-true as a property's URLs move. **The sample is stable**: the three URLs whose
+true as an asset's URLs move. **The sample is stable**: the three URLs whose
 FNV-1a hash sorts first, so it is independent of sitemap order and survives pages
 being added. "The first three `<loc>` entries" would be simpler and useless —
 sitemaps are commonly `lastmod`-ordered, so the sample would be three different
@@ -1417,7 +1417,7 @@ it is there. Directives are agent-qualified when scoped (`googlebot:nosnippet`),
 and the reading names them, so a flag says which line to go and delete.
 
 It is a **sample and says so** (`pages_sampled` of `pages_available`): it can
-prove the pages it read are clean; it never claims the property is. An empty
+prove the pages it read are clean; it never claims the asset is. An empty
 roster — no sitemap tonight — reads as `pages_sampled: 0`, never as a clean bill.
 
 The sitemap URL comes from a `Sitemap:` line in `robots.txt` (the first absolute
@@ -1442,30 +1442,30 @@ stays floor-to-floor.
   `value_num = NULL` and files **no** depth flag; that rule's only trigger is the
   median collapse. It files a `hygiene-home-unreachable` flag instead, naming the
   HTTP status or the transport error.
-- **A site served only at `www.` is read there.** A stored domain is the bare
+- **An asset served only at `www.` is read there.** A stored domain is the bare
   host. When `https://<domain>/` gets no response or a 404, the home page is
   requested once at `https://www.<domain>/`; when that host responds, the run
   reads the home page, `robots.txt` and the sitemap from it, and the
   `html-depth` reading records it as `served_host`. A redirect from the bare
-  host is followed, and a 5xx is the site's own error: neither requests
+  host is followed, and a 5xx is the asset's own error: neither requests
   `www.`. `hygiene-home-unreachable` fires only when neither host responds, and
   its message names both addresses. No setting stores the host; each run
   checks it again.
 - **One failed GET is not an outage.** A home page that fails is asked once more
-  45 seconds later, after every other site, with one wait for the whole run
+  45 seconds later, after every other asset, with one wait for the whole run
   (`HOME_CONFIRM_WAIT_MS`, `confirmHomeFailures`). Only the second failure
   writes the failing reading (`failed_tries: 2`) and files the flag; a page
   that answers the retry is an ordinary reading carrying `failed_tries: 1`.
   Nothing is written in between.
 - **A 200 we declined to read accuses nobody.** Past the 8 MB ceiling, or a
   content type we will not decode, the reading is `error` with
-  `unsupported: true` and **no** flag: that is our limit, not the property's
+  `unsupported: true` and **no** flag: that is our limit, not the asset's
   failure — the same posture the sitemap guard takes on a gzipped file.
 - **A page we could not re-read is unknown, not clean.** `hygiene-page-directives`
   retracts only on proof: a URL the open flag names is cleared when it reads clean
   again, never because it left the sample or answered 500. Same reason a night
   that sampled nothing resolves nothing.
-- **First reading never flags.** A property that has always blocked ClaudeBot is
+- **First reading never flags.** An asset that has always blocked ClaudeBot is
   a standing configuration to argue about, not tonight's incident.
 - **A gzipped sitemap records `error` and flags nothing.** We cannot read one, and
   we cannot tell a real outage from our own missing capability.
@@ -1473,16 +1473,16 @@ stays floor-to-floor.
   night inserts, later nights **rewrite** the open flag's message and inputs
   (`occurrences`, `lastObservedAt`) while `fired_at` keeps dating the onset. A
   healthy reading resolves it.
-- **Failure isolation is per check**, not just per property: a home page that
-  times out must not cost that property its robots reading.
+- **Failure isolation is per check**, not just per asset: a home page that
+  times out must not cost that asset its robots reading.
 - **A fetch with no status at all might be ours.** Before a statusless failure
-  becomes a flag, the sweep asks two reference sites whether the OS can reach the
+  becomes a flag, the sweep asks two reference assets whether the OS can reach the
   network — see [the egress gate](#egress-gate-before-accusing-anybody-of-being-dark).
   A real HTTP status never asks.
 
 ### What the robots parser does and does not catch
 
-Hand-rolled, no dependencies, and deliberately a **site-level** detector.
+Hand-rolled, no dependencies, and deliberately an **asset-level** detector.
 
 - **Catches:** a named bot (or `*`) acquiring a blanket `Disallow: /`; a bot's
   group disappearing so it falls back to a blocking `*` group; `robots.txt`
@@ -1490,7 +1490,7 @@ Hand-rolled, no dependencies, and deliberately a **site-level** detector.
   carrying both `Disallow: /` and `Allow: /` resolves to allowed (the documented
   equal-length tie-break).
 - **Does not catch:** path-level rules (`Disallow: /recipes/` reads as allowed —
-  the bot *is* still allowed the rest of the site), wildcard/`$` patterns,
+  the bot *is* still allowed the rest of the asset), wildcard/`$` patterns,
   longest-match precedence inside a group, and `crawl-delay`. Agent matching is
   exact on the token, not the substring prefix real crawlers use — so a
   `Googlebot` group does not resolve `Google-Extended`. That is the conservative
@@ -1514,31 +1514,31 @@ article body. It catches collapse, not quality.
 
 Requests go out as
 `NoticeOS-Hygiene/1.0 (+https://www.notice.cx; portfolio self-check)`.
-The lane **never** sends a crawler's User-Agent. Reading a property's robots.txt
+The lane **never** sends a crawler's User-Agent. Reading an asset's robots.txt
 to see whether GPTBot is allowed is a different act from fetching a page *as*
-GPTBot, and only the first is ours to do — so a property that serves different
+GPTBot, and only the first is ours to do — so an asset that serves different
 HTML to crawlers than to us is outside what this check can see.
 
-## Site icons
+## Asset icons
 
-`src/site-icons.ts` reads the icons each site's home page declares, once a day
-as the `icons` step of the 04:00 UTC job, and stores one row per site per read
-in `asset_icons` (migration 0017). The Tower's site cards (`AssetCard.icons`,
+`src/site-icons.ts` reads the icons each asset's home page declares, once a day
+as the `icons` step of the 04:00 UTC job, and stores one row per asset per read
+in `asset_icons` (migration 0017). The Tower's asset cards (`AssetCard.icons`,
 read by `apps/tower/worker/site-icons.ts`) carry the newest read that reached
-the page, so a site that does not answer one morning keeps the icons it
-declared the day before, and an address the operator set on the site's
+the page, so an asset that does not answer one morning keeps the icons it
+declared the day before, and an address the operator set on the asset's
 Settings tab (`config/tower.json` `/sites/<id>/lightIcon`, `darkIcon`) in
 place of the one read.
 
-**Who is read:** every site with a domain that is not `retired` and is not the
-OS's own row, the same sites the hygiene checks read. A site added during the
+**Who is read:** every asset with a domain that is not `retired` and is not the
+OS's own row, the same assets the hygiene checks read. An asset added during the
 day is read at the next 04:00 run.
 
 **Read again:** the `readSiteIcons` RPC (the Tower's `POST
-/api/assets/<id>/icons`, the site's Settings tab) runs the same step now for
-one of those sites (`runSiteIconsNow` in `src/dispatch.ts`) and answers the
+/api/assets/<id>/icons`, the asset's Settings tab) runs the same step now for
+one of those assets (`runSiteIconsNow` in `src/dispatch.ts`) and answers the
 read it stored. It refuses with `paused` while the 04:00 job is paused on its
-schedule, `no-site` for a site the daily read does not cover, and
+schedule, `no-site` for an asset the daily read does not cover, and
 `not-migrated` before migration 0017, and records the press in the job's run
 history as a manual run.
 
@@ -1576,38 +1576,38 @@ after the head, are not read; `rel="mask-icon"` is not an icon here.
 
 `detail` records the address read, its HTTP status and any transport error.
 A read that got no HTTP status at all asks the [egress gate](#egress-gate-before-accusing-anybody-of-being-dark)
-first: when the OS itself cannot get out, the lane stores nothing for that site
-and adds it to the `icons` entry of the `os-egress-down` flag. A site whose
+first: when the OS itself cannot get out, the lane stores nothing for that asset
+and adds it to the `icons` entry of the `os-egress-down` flag. An asset whose
 read or write throws is listed in the run's `failed`, and the run goes on to
-the next site.
+the next asset.
 
 **Before migration 0017 is applied:** the lane looks for the `asset_icons`
-table first and, without it, asks no site and returns
+table first and, without it, asks no asset and returns
 `skipped: 'not-migrated'`; the Tower's reader returns no icons, so every card
 carries `icons: null`.
 
 ## Egress gate (before accusing anybody of being dark)
 
 This OS runs local-first, so every nightly lane runs from one machine. When
-that machine's own connection is down, every property looks unreachable at
+that machine's own connection is down, every asset looks unreachable at
 once, and the OS would be reporting its own blindness as everybody else's
 outage. `src/egress.ts` turns on one distinction:
 
 > **Any HTTP status proves egress.** A 403, a 404, even a 500 means a packet left
 > this machine, reached an origin, and came back — that failure is the
-> property's, and the gate is never consulted about it. Only a fetch that came
+> asset's, and the gate is never consulted about it. Only a fetch that came
 > back with **no status at all** is ambiguous, and only that case pays for a
 > question.
 
 The question cannot be answered by reading the error: workerd wraps every
 connection-level failure as `internal error; reference = 0123…`, the same
 sentence for a dead uplink, a refused connection, and DNS that never resolved. So
-the lanes ask two **reference sites** instead —
+the lanes ask two **reference assets** instead —
 `https://www.cloudflare.com/cdn-cgi/trace` and
 `https://www.google.com/generate_204`, two independent operators on purpose, 5s
 each, under our own `NoticeOS-Egress/1.0` User-Agent. Egress is **up** the moment
 either answers with any status; it is **down** only when every one of them fails
-at the transport level, which is the same evidence the property fetch produced.
+at the transport level, which is the same evidence the asset fetch produced.
 
 **What the gate changes, and what it deliberately does not:**
 
@@ -1617,7 +1617,7 @@ at the transport level, which is the same evidence the property fetch produced.
   nothing wrong.
 - **Nothing is retracted either.** A gated check files no flag *and* resolves
   none: the same "we did not measure it" rule the page-directive guard already
-  follows. A property flag that predates the outage is exactly where it was in
+  follows. An asset flag that predates the outage is exactly where it was in
   the morning.
 - **One flag, on the OS's own row.** `os-egress-down` (`warn`, `anomaly`) lands on
   asset #0 — read from `assets.is_os`, never hard-coded — with the message
@@ -1627,14 +1627,14 @@ at the transport level, which is the same evidence the property fetch produced.
   `lastFailedAt`, `connectionBackAt`) while `fired_at` keeps dating the onset.
 - **Every collector keeps its own entry on that one flag.** `lanes` holds, per
   collector (`pull`, `hygiene`, `google-signals`, `bing-signals`,
-  `signal-dumps`, `dataforseo`, `posthog`, `uptime`, `icons`), the properties its runs left
+  `signal-dumps`, `dataforseo`, `posthog`, `uptime`, `icons`), the assets its runs left
   unmeasured and have not measured since — down to the report family where the
   collector can name one. `N` in the message is the **union** across collectors,
   not whichever ran last. A collector's run replaces only its own entry (a scoped
   DataForSEO collection replaces only the slice it covered), and the write is a
   compare-and-swap on the stored inputs, so two collectors finishing on the same
   tick cannot overwrite each other. A beacon answering records
-  `connectionBackAt` (the message becomes `OS connection back — N properties not
+  `connectionBackAt` (the message becomes `OS connection back — N assets not
   yet re-checked`, and the Tower stops pointing at the router), but the flag
   **resolves** only when the connection is up **and** no collector is still owed
   a re-check. A flag carrying no `lanes` resolves on the first up verdict.
@@ -1642,10 +1642,10 @@ at the transport level, which is the same evidence the property fetch produced.
   until a fetch has already come back empty-handed. The one exception is a run
   that ends owing the open flag something — its own entry to clear, or, while no
   collector has yet seen the connection come back, the up reading that closes the
-  dark span. Recovery is the case where no property fails, so nothing would
+  dark span. Recovery is the case where no asset fails, so nothing would
   otherwise ask; once `connectionBackAt` is on record, a collector with no entry
   asks nothing.
-- **One verdict per run, re-asked after 5 minutes.** Six properties failing six
+- **One verdict per run, re-asked after 5 minutes.** Six assets failing six
   fetches each is 36 asks of one question. The window bounds the cost without
   freezing the answer, because an outage can begin in the middle of a sweep.
 - **Every probe round is stored** in `egress_checks`, so a quiet night has a
@@ -1672,14 +1672,14 @@ identity. Only such an error pays for the gate's (cached) question
 `errorCode: os_egress_down` and still counts in `failed` (nothing was
 collected), but it writes **no** provider run row, **no** Health observation and
 **no** credential stamp, and the run's one `os-egress-down` flag names the
-property instead. Anything that came back with a status — a 401, a 503, a body
+asset instead. Anything that came back with a status — a 401, a 503, a body
 that would not parse — is the provider's answer and is recorded as such,
 including a provider that never answers while the beacons do.
 
 | Lane | Gated calls |
 |---|---|
 | `google-signals` | the token mint and every GA4 / Search Console collect call |
-| `bing-signals` | the `GetUserSites` discovery call (one fact for the whole portfolio, which also keeps `bwt_site_unverified` unreachable on a night no site list arrived) and every per-site traffic call |
+| `bing-signals` | the `GetUserSites` discovery call (one fact for the whole portfolio, which also keeps `bwt_site_unverified` unreachable on a night no asset list arrived) and every per-asset traffic call |
 | `signal-dumps` | the Google token mint, every GA4 / Search Console archive call, the Bing discovery call and every Bing archive call. No manifest means the family stays due: only a `success`/`unchanged` row satisfies a cadence. The flag's `signal-dumps` entry names each GA4 / Search Console family down to its date (`ga4:events-28d:2026-09-13`), because the next run's window does not reach every date the dark one owed — see [the dates an outage cost](#the-dates-an-outage-cost) |
 | `dataforseo-dumps` | every report call, asked **before** a status-less failure is granted a retry: a dead uplink spends no ladder. The family writes no manifest, stays due, and is named on the flag's `dataforseo` entry, so the next daily `15 12 * * *` tick re-collects exactly those families once the connection is back instead of leaving them for next Monday. One exception, for the money: a tracked panel whose first pages were already paid for when the uplink went writes its attempt with code `os_egress_down`, the OS's own sentence and the spend, and no Health observation, because the monthly meter sums manifests |
 | `posthog-dumps` | the project read and every family query. A dead project read leaves every family of that asset unmeasured; an uplink that dies after it leaves the rest of that asset's windows unmeasured without sending them into the wall. No row, no Health observation, no credential stamp. The flag's `posthog` entry names each window down to its end (`posthog:events:2026-09-13`), which the next run asks for again — see [the dates an outage cost](#the-dates-an-outage-cost) |
@@ -1698,8 +1698,8 @@ it, one per kind of provider:
   a date whose **latest** attempt failed for a network reason (the same
   `healthFailure` rule that shows it as `network` on the page), and a date the
   flag's `signal-dumps` entry names because the dead uplink wrote nothing for it.
-  Only for a property and family the run still collects, on the same Google
-  property, and never a date its own window asks for anyway. Oldest first, at
+  Only for an asset and family the run still collects, on the same Google
+  asset, and never a date its own window asks for anyway. Oldest first, at
   most `ARCHIVE_RETRY_LIMIT` (100) a run — about one dark night's worth — so a
   week-long outage drains over several ticks. The pass runs before the window,
   so a family's newest manifest is still the run's own date. It asks nothing
@@ -1740,7 +1740,7 @@ it, one per kind of provider:
   doing it). There, the lane's next attempt at the same report is the answer:
   once the asset has a later attempt at that report on the same connection that
   did not fail at the network — a collected snapshot or the provider's own
-  refusal, under any of the asset's targets (a night the site list never
+  refusal, under any of the asset's targets (a night the asset list never
   arrived files its failures under the bare domain) — the health read
   (`src/integration-health-read.ts`) stops counting the old network failure as
   current. A refusal is never retired this way.
@@ -1754,19 +1754,19 @@ fires them early.
 ### …and the hours after it (ingest-freshness)
 
 The gate only speaks for checks that ran *during* the outage. A pull-mode
-property cannot report while the OS cannot reach it, and a push-mode one
+asset cannot report while the OS cannot reach it, and a push-mode one
 cannot reach the OS either, so the silence is this house's, not theirs — and
 the hourly **ingest-freshness** rule must not fire `no pulse in 48h` on it two
 days later. The rule runs on one sentence: **staleness does not count hours the
 OS itself was dark.** `runFreshnessCheck` (`src/db.ts`) reads `egress_checks`
-over each stale property's own silence, subtracts the dark hours it finds, and
+over each stale asset's own silence, subtracts the dark hours it finds, and
 fires only if what is left still exceeds `REPORT_MAX_AGE_HOURS`. A flag that
 does fire carries `osDarkHours` in its `rule_inputs` and says so in its message
 (`… — the OS itself was offline 10h of these`), so the operator is never sent
-to read a property's logs for hours in which nobody could have reported. What
-the rule deliberately keeps: the property is still counted **stale** (the Tower
+to read an asset's logs for hours in which nobody could have reported. What
+the rule deliberately keeps: the asset is still counted **stale** (the Tower
 counts it stale at the same age off the same store), and a gated hour
-**retracts nothing** that was already open. A site that never reported is not
+**retracts nothing** that was already open. An asset that never reported is not
 a staleness fact either: it owes no report at all.
 
 The dark hours are only ever the ones the store **evidences**, which keeps this
@@ -1777,7 +1777,7 @@ stops: the hours between two down readings are credited (no up reading
 contradicts them), the hours after the last one are not, and an isolated down
 reading is a moment rather than a night. The one reading *before* the window is
 read too, for its verdict alone — it is what says the OS was already dark when
-the window opened, the shape of an outage that straddles a property's last
+the window opened, the shape of an outage that straddles an asset's last
 report. The span cannot creep past recovery either: `EgressGate.finalize` probes
 once at the end of any run that owes an open `os-egress-down` flag its
 retraction, so the first lane run after the uplink returns writes the up reading
@@ -1850,31 +1850,31 @@ block — the response body already carries the full metric set.
 
 A Prometheus source reports point-in-time / daily counts, not 7-day baselines, so
 for the **`prometheus`** format the adapter computes `avg7d` per metric as the
-mean `last24h` of the **last 7 stored nightly reports** for that property (days
+mean `last24h` of the **last 7 stored nightly reports** for that asset (days
 strictly before today). With no stored history yet a metric falls back to its
 current `last24h`. This value remains useful in the report and Daily metrics
 table, but it does not arm or drive the central anomaly rule.
 
-The **`envelope`** format trusts the property-computed `avg7d` source-side and
+The **`envelope`** format trusts the asset-computed `avg7d` source-side and
 stores it verbatim. Central rules ignore it and assemble their matching-weekday
 baseline from stored `last24h` observations for every wire format, so the
-property cannot influence the ruler.
+asset cannot influence the ruler.
 
-### The `envelope` format — when the property already speaks the contract
+### The `envelope` format — when the asset already speaks the contract
 
-Use `envelope` when the property's own endpoint returns the exact signal-contract
+Use `envelope` when the asset's own endpoint returns the exact signal-contract
 envelope (`{ asset, generatedAt, capabilities, metrics, flags }`). The adapter:
 
 1. fetches the URL with the same `env.ASSET_TOKENS` bearer as any pull;
 2. validates the body against the `PulseEnvelope` contract, and additionally
    **guards that `body.asset` equals the configured asset id** — a mismatch is a
-   pull failure, never a silent cross-write into another property's row;
+   pull failure, never a silent cross-write into another asset's row;
 3. hands the validated body to the shared path unchanged: envelope `flags` still
    explode as `asset-declared`, and the central rules still re-run with OS config.
 
 No `metrics` mapping and no history lookup happen for this format — the body is
-the nightly report as-is. When the property later gains push, flip `enabled` to
-`false` exactly as with any pull-mode property.
+the nightly report as-is. When the asset later gains push, flip `enabled` to
+`false` exactly as with any pull-mode asset.
 
 ### Auth — `env.ASSET_TOKENS`
 
@@ -1897,17 +1897,17 @@ secret; if a deployed worker still carries one, delete it
 ### Failure alert — `asset-pull-failed`
 
 Any pull failure (fetch error, non-200, an asset-id mismatch, or an
-unmappable/invalid body) raises a `warn` alert on **that** property with
+unmappable/invalid body) raises a `warn` alert on **that** asset with
 `rule_id = asset-pull-failed`, `pulse_id NULL`, and
 `rule_inputs = { url, status, error, … }`. It does **not** double-fire while an
 identical open alert exists (a persistent outage alerts once, not every night),
-and it **auto-resolves** on the next successful pull. One property's failure is
-caught and alerted in isolation — it never aborts the other properties' pulls.
+and it **auto-resolves** on the next successful pull. One asset's failure is
+caught and alerted in isolation — it never aborts the other assets' pulls.
 
 **Every failed night keeps its own record.** A continuing outage refreshes the
 open alert to tonight's cause, and each failure — the first included — also
 appends its reading (`message`, `rule_inputs`) to `noticeos.flag_evidence` on
-that alert, so N failed nights leave N rows. The Tower lists them on the site's
+that alert, so N failed nights leave N rows. The Tower lists them on the asset's
 Data sources tab and in the alert's Evidence. On a store without the evidence
 table the outcome says `evidence: 'not-migrated'` and the alert is refreshed
 exactly as before.
@@ -1927,7 +1927,7 @@ diagnosis, not a bare status:
 queryable audit trail. A non-200 with no JSON error body falls back to a
 status-only message.
 
-**One exception, and it is not the property's fault.** A pull that reached the
+**One exception, and it is not the asset's fault.** A pull that reached the
 wire and came back with *no status* is checked against
 [the egress gate](#egress-gate-before-accusing-anybody-of-being-dark) first: if
 the OS's own connection is down, the outcome carries `egressDown: true`, no
@@ -1950,7 +1950,7 @@ pulled by a cron.
 
 The nightly pull already carries every metric's all-time `total` — once a day.
 The **counters** lane exists to make the two or three totals an operator watches
-on a property page *fresh*: a `*/15 * * * *` cron re-reads them and upserts one
+on an asset page *fresh*: a `*/15 * * * *` cron re-reads them and upserts one
 current-state row per card into `counter_readings`. It is a freshness upgrade to
 a fact the OS already has, not a new signal.
 
@@ -1981,9 +1981,9 @@ Which counters get a card, and their labels (full field contract in
 ```
 
 `metric` is the **envelope metric name**, not the source counter — that is what
-makes the primitive format-agnostic: a property with no `source` still gets
+makes the primitive format-agnostic: an asset with no `source` still gets
 cards, resolved Tower-side from its nightly report's own `metrics[metric].total`.
-A property with `enabled: false` is the same case; the cards stand, just at
+An asset with `enabled: false` is the same case; the cards stand, just at
 nightly freshness. Neither is fetched at all.
 
 How often the lane runs is the counters job's schedule, and it is also what the
@@ -1994,18 +1994,18 @@ there is no second copy of the cadence to keep equal.
 
 The scrape reuses `env.ASSET_TOKENS[<asset>]` and the same request shape as the
 nightly pull (`fetchScrape` in `src/pull.ts`) — the same endpoint, the same
-bearer, a different cadence. A property's worker never has to authorize a
-second caller. A missing token is a clean per-property failure, not a throw,
+bearer, a different cadence. An asset's worker never has to authorize a
+second caller. A missing token is a clean per-asset failure, not a throw,
 and nothing is fetched.
 
-### All-or-nothing per property, per run
+### All-or-nothing per asset, per run
 
 Every card is resolved to a value **before anything is written**; the whole
-property's readings then go in as one batch of upserts sharing one
-`observed_at`. One unreadable counter fails that property's entire refresh — the
+asset's readings then go in as one batch of upserts sharing one
+`observed_at`. One unreadable counter fails that asset's entire refresh — the
 readable cards are *not* written on their own. A half-refreshed card set would
 put two different moments under one age badge, and the badge is the only thing
-telling the operator how old the numbers are. Properties are independent: one's
+telling the operator how old the numbers are. Assets are independent: one's
 failure never touches another's readings.
 
 ### Failure semantics — no alert lane, and why
@@ -2085,7 +2085,7 @@ scope, and reuses it across the mapped targets. The Postgres run record stores
 private key, assertion, or access token.
 
 Both providers receive a bounded date-only 97-day request. The Tower renders
-90 dates on property detail and retains the preceding seven out of view for
+90 dates on asset detail and retains the preceding seven out of view for
 the first visible day's prior-week comparison and rolling-average context:
 
 - GA4: `sessions`, `activeUsers`, `screenPageViews`, `eventCount`. Today's
@@ -2117,7 +2117,7 @@ The longer horizon does not change quota consumption: it is still one request
 per provider/property every 15 minutes. The asset-detail API renders up to all
 90 dates; the compact Home/Wall read model applies its own 28-day slice.
 
-At the current cadence each property makes 96 simple requests/day/provider.
+At the current cadence each asset makes 96 simple requests/day/provider.
 That is far below GSC's 1,200 queries/min/site limit and GA4's standard
 200,000 tokens/day + 40,000/hour budgets (most requests use fewer than ten
 tokens). Source processing is slower than polling — standard GA4 intraday is
@@ -2183,7 +2183,7 @@ outage or a bad credential.
 |---|---|
 | `providerQuota` on the archived envelope in R2 | 12:15 signal dumps |
 | A `ga4_quota` structured log line, every run | both |
-| A `ga4-quota-pressure` flag on the property, while a bucket is under 20% | both |
+| A `ga4-quota-pressure` flag on the asset, while a bucket is under 20% | both |
 | `error_code = ga4_quota_exhausted` on the manifest / run row | both |
 
 - **The quota is lifted out of the archived response body**, into the envelope
@@ -2191,7 +2191,7 @@ outage or a bad credential.
   to be: `consumed` moves on every single call, so leaving it in the bytes would
   put it in the content hash and every GA4 archive would read as *changed*
   forever — silently retiring the unchanged-detection that keeps the R2 footprint
-  honest. The archive is evidence about the property's data; what the call cost
+  honest. The archive is evidence about the asset's data; what the call cost
   us is a different fact, and it travels beside it.
 - **An exhausted budget is not a rate limit.** Both arrive as HTTP 429; only one
   needs an operator. `RESOURCE_EXHAUSTED` (or an explicit quota/token mention)
@@ -2232,7 +2232,7 @@ At 12:15 UTC it re-fetches the previous four completed dates:
   [probe mode](#probe-mode-for-an-always-empty-family) and needs
   [registered custom dimensions](#ga4-event-parameters-need-operator-registration).
 - BWT: one provider snapshot each for `rank-traffic`, `queries`, `pages`,
-  `crawl-stats`, `crawl-issues`, and `feeds`. The first verified-sites request
+  `crawl-stats`, `crawl-issues`, and `feeds`. The first verified-assets request
   is shared across the portfolio; each family then gets one bounded request per
   verified property. Query/page snapshots update weekly, while traffic and
   crawl history are daily provider series — so `queries` and `pages` are
@@ -2269,7 +2269,7 @@ raw/dataforseo/dataforseo/<asset>/<report>/<YYYY-MM-DD>/<run>-<hash>.json.gz
 
 ### Probe mode for an always-empty family
 
-A property that does not participate in a surface at all — a site Google has
+An asset that does not participate in a surface at all — an asset Google has
 never put in Discover — answers `discover-page` with an empty body on every one
 of the four revision dates. Re-learning that same nothing four times a day,
 forever, is the whole cost of the family.
@@ -2284,7 +2284,7 @@ collector reads that (asset, report)'s own report-run history:
 | **Any** completed run with `provider_rows > 0` | the full revision window |
 
 Errors are not evidence of emptiness, so a failed attempt neither arms nor
-disarms the probe. The narrowing is per property and per report, and it is not
+disarms the probe. The narrowing is per asset and per report, and it is not
 a latch: one non-empty row anywhere in the history restores the full window, so
 Discover switching on is visible the next day at the cost of one request.
 
@@ -2307,10 +2307,10 @@ the answer can differ every day. `queries` and `pages` set 7; `rank-traffic`,
 `crawl-stats`, `crawl-issues`, and `feeds` stay daily because each is a genuine
 daily provider series that gains a day of history every day.
 
-Before the run calls anything, it asks each property's own report runs
+Before the run calls anything, it asks each asset's own report runs
 history for the newest date each family has archived, and collects a family only
 when that date is at least `cadenceDays` behind the date being collected. Three
-properties are deliberate:
+assets are deliberate:
 
 - **Measured from archives, not from the calendar.** No day-of-week anchor, so a
   run the OS missed does not push the family a further week out — the day after
@@ -2319,8 +2319,8 @@ properties are deliberate:
   so a weekly family whose fetch failed is due again tomorrow rather than waiting
   out a week on the strength of an error.
 - **Not due means not asked, on every path.** The due set is computed once per
-  property, before any manifest is written, and the credential-failure and
-  unverified-site paths use the same set — so a family nobody was going to
+  asset, before any manifest is written, and the credential-failure and
+  unverified-asset paths use the same set — so a family nobody was going to
   request never gets an error row invented for it.
 
 **A skipped day writes nothing at all**, which is the one place this differs from
@@ -2350,13 +2350,13 @@ portfolio's hardest-capped provider — **10 calls per project per day**, a
 trailing 72-hour window only, at most three dimensions, and 1,000 rows with no
 pagination. Every design choice follows from that:
 
-- **One call per property per day**, archived verbatim to R2 with a
+- **One call per asset per day**, archived verbatim to R2 with a
   report-run row (`integration = 'clarity'`, `report = 'url-3d'`). Re-analysis
   reads the stored object; it must never cost one of the day's ten.
 - **One dimension (URL).** A second split is a second call, so it is a separate
   budget decision, not a free addition.
-- **A property with no token is skipped** — no call, no manifest row, no error.
-  A daily error row for a property the operator deliberately has not set up is
+- **An asset with no token is skipped** — no call, no manifest row, no error.
+  A daily error row for an asset the operator deliberately has not set up is
   an alarm about a settled decision. The run log names the count as
   `skippedNoToken`, so an all-skipped run cannot read as "the lane ran clean".
 - **A block sitting on the 1,000-row cap is marked `provider_truncated`.** There
@@ -2365,14 +2365,14 @@ pagination. Every design choice follows from that:
 Failures are split by the operator action they need: `clarity_token_rejected`
 (401/403 — the token), `clarity_daily_cap_reached` (402/429 — the ten are
 spent), `clarity_invalid_response` (the call was spent and answered with nothing
-recognizable — a failed observation, never a property with no behavior), and
+recognizable — a failed observation, never an asset with no behavior), and
 `clarity_http_<status>` for everything else.
 
 **Credentials.** The canonical slot is `CLARITY_TOKENS`, a JSON map of asset id
 to project token, because Clarity issues a token **per project** and there is no
 portfolio credential. `CLARITY_PROJECT_API_TOKEN` — a single flat token — is
 accepted as a documented fallback bound to one asset; it should migrate to the
-map when a second property gets a token. Where both name the same asset the
+map when a second asset gets a token. Where both name the same asset the
 **map wins**, since it is the shape that can express the whole portfolio. Only
 the slot name reaches Postgres; the token itself never enters report rows or R2.
 
@@ -2397,12 +2397,12 @@ nothing** — data begins accruing at registration, so dates before it stay
 permanently unknown. Registration is operator work: the analytics pipeline is
 `forbidden`-class (`AGENTS.md`), so this repo asks and never configures.
 
-**Which properties are asked is config, not a guess.**
+**Which assets are asked is config, not a guess.**
 [`config/ga4-custom-dimensions.json`](../../config/ga4-custom-dimensions.json)
-records where the operator has registered the parameters; a property it does not
-cover is skipped entirely, exactly like a property with no SERP panel — no
+records where the operator has registered the parameters; an asset it does not
+cover is skipped entirely, exactly like an asset with no SERP panel — no
 request, no manifest row. That keeps a permanent, known gap from generating a
-daily error row on every unregistered property.
+daily error row on every unregistered asset.
 
 The gate does not retire the unregistered state, because registration is
 forward-only and the file is a hand-maintained claim about a system it cannot
@@ -2411,12 +2411,12 @@ rejection as its own manifest state:
 
 | Manifest row | Means |
 |---|---|
-| `status = 'success'`, `provider_rows = 0` | the property genuinely threw no errors that day |
+| `status = 'success'`, `provider_rows = 0` | the asset genuinely threw no errors that day |
 | `status = 'error'`, `error_code = 'ga4_custom_dimension_unregistered'` | nobody has registered the parameters; this family has never been answerable |
 | `status = 'error'`, any other code | an ordinary provider/credential failure |
 
 A generic `ga4_dump_http_400` would send an operator to check credentials, and
-an empty success would state that the property throws no JavaScript errors —
+an empty success would state that the asset throws no JavaScript errors —
 the "absent means zero" reading the signal contract forbids. Every other GA4
 rejection still flows through the normal error path.
 
@@ -2450,17 +2450,17 @@ them, so the archive never labels them as AI citations.
 
 `src/dataforseo-dumps.ts` runs separately on the Monday cron. It discovers
 eligible canonical domains from Postgres and calls five bounded current endpoints:
-`ranked-keywords` (top 200 rows in the site's saved market; United States · English
+`ranked-keywords` (top 200 rows in the asset's saved market; United States · English
 by default), `backlinks-summary`,
 `backlinks-new-lost` (90 days grouped weekly), and LLM target metrics for
 Google and ChatGPT. OS, pre-launch, and retired assets are skipped. Each report
 is failure-isolated. Missing credentials, provider failure, incomplete
 family evidence, staleness, and budget exhaustion drive the same
-automatic integration-health state shown on every property surface.
+automatic integration-health state shown on every asset surface.
 
 The Monday cron is not the only way in. `POST /api/signal-collect` runs the same
-function scoped to one property (and optionally a subset of its families), so a
-property seeded on a Tuesday is baselined on Tuesday for its own price rather
+function scoped to one asset (and optionally a subset of its families), so a
+asset seeded on a Tuesday is baselined on Tuesday for its own price rather
 than the portfolio's — see
 [On-demand collection](#on-demand-collection-a-baseline-on-the-day-the-bet-launches).
 There is deliberately no second collector: the scope narrows the sweep plan, and
@@ -2538,7 +2538,7 @@ file is not where it belongs. The amount lives on the provider card, with its ag
 
 ### The tracked SERP panel (`serp-panel`, S1b)
 
-A sixth family runs on the same cron, for the properties that have a panel in
+A sixth family runs on the same cron, for the assets that have a panel in
 `config/serp-panel.json` — see that file's README for the field contract and the
 validation rules. Three properties of the design are worth reading here because
 they are the only places this collector departs from "one family, one call":
@@ -2548,17 +2548,17 @@ they are the only places this collector departs from "one family, one call":
   panel is one POST per **(tracked query, device)** — mobile and desktop. All of
   the responses land in a single R2 object under a single manifest row
   (`report = 'serp-panel'`, `request_count` = terms × devices), because a run is
-  still one durable observation per (property, report): no second family for
+  still one durable observation per (asset, report): no second family for
   the on-demand route to know about, no second landing for the review filer, no
   manifest column. The device rides in the request body the archive stores
   verbatim, and the flattener reads it back into a `device` column. Two devices
   can never dedupe against each other either — the content hash that decides
   `success` vs `unchanged` compares whole archives, and both devices are pages
   of the same one.
-- **Absence of config is not a failure.** A property with no panel is filtered
+- **Absence of config is not a failure.** An asset with no panel is filtered
   out *before* the budget gate: it consumes no reserve and writes no attempt
-  row. A **malformed** panel is the opposite — it fails that one property with
-  `config_invalid` while every other property still collects.
+  row. A **malformed** panel is the opposite — it fails that one asset with
+  `config_invalid` while every other asset still collects.
 - **A partial answer beats a discarded one.** One tracked query the provider
   accepts and cannot answer is archived with the rest (it was billed, and the
   analysis layer needs to see it as *unknown*); only a panel where every query
@@ -2603,8 +2603,8 @@ The 02:30 UTC daily tick also runs `src/bing-signals.ts`. A single
 `env.BING_WEBMASTER_API_KEY` belongs to the central Bing Webmaster account.
 The collector calls `GetUserSites` once, intersects those verified hostnames
 with launched portfolio assets in Postgres, then calls `GetRankAndTrafficStats` for each
-eligible site. A site outside the portfolio, asset #0, a pre-launch property,
-or a retired property is never queried.
+eligible asset. An asset outside the portfolio, asset #0, a pre-launch asset,
+or a retired asset is never queried.
 
 Each attempt uses the same append-only `signal_runs` / changed-value
 `signal_observations` store as Google. Bing's response supplies daily `clicks`
@@ -2613,7 +2613,7 @@ actual dates inside the rolling 97-day retrieval horizon; the Tower exposes at
 most 90 dates and uses up to seven earlier dates only as chart context. The
 stored window ends on Bing's latest actual date. It never manufactures missing
 dates or zeroes for the unreported provider-lag tail. Failures are isolated per
-site, except a shared authentication/list-sites failure, which records a safe
+asset, except a shared authentication/list-sites failure, which records a safe
 error for each eligible target.
 
 The lane is daily because Bing documents rank-and-traffic data as daily-updated.

@@ -145,7 +145,7 @@ describe('POST /api/reclamation-targets', () => {
     expect(await stored()).toEqual([]);
   });
 
-  it('refuses a site the store does not hold, naming it', async () => {
+  it('refuses an asset the store does not hold, naming it', async () => {
     const res = await call(post({ ...LIST, asset: 'not-a-site.example' }));
     expect(res.status).toBe(422);
     expect(await res.json()).toEqual({ error: 'unknown_asset', detail: 'not-a-site.example' });
@@ -218,13 +218,13 @@ describe('GET /api/reclamation-targets?open=1', () => {
     expect([...statuses].sort()).toEqual(['clicked', 'opened', 'queued', 'replied', 'sent']);
   });
 
-  it('answers an empty list for a site that holds no open target', async () => {
+  it('answers an empty list for an asset that holds no open target', async () => {
     const res = await call(get(`?asset=${SITE}&open=1`));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, asset: SITE, targets: [] });
   });
 
-  it('refuses a caller without the operator token, a request without a site or open=1, and names a site the store does not hold', async () => {
+  it('refuses a caller without the operator token, a request without an asset or open=1, and names an asset the store does not hold', async () => {
     expect((await call(get(`?asset=${SITE}&open=1`, null))).status).toBe(401);
     expect((await call(get(`?asset=${SITE}&open=1`, 'nope'))).status).toBe(401);
     expect((await call(get('?open=1'))).status).toBe(400);
@@ -234,7 +234,7 @@ describe('GET /api/reclamation-targets?open=1', () => {
     expect(await unknown.json()).toEqual({ error: 'unknown_asset', detail: 'not-a-site.example' });
   });
 
-  it('is bounded as a list is: a site holding more open targets is refused, never answered in part', async () => {
+  it('is bounded as a list is: an asset holding more open targets is refused, never answered in part', async () => {
     const many = Array.from({ length: RECLAMATION_TARGETS_MAX }, (_, index) => ({
       ...LATER[0]!,
       domain: `t${index}.example.org`,
@@ -254,7 +254,7 @@ describe('GET /api/reclamation-targets?open=1', () => {
     });
   });
 
-  it('reads the targets table and the site check the POST makes too, and writes nothing', async () => {
+  it('reads the targets table and the asset check the POST makes too, and writes nothing', async () => {
     await call(post(LIST));
     const statements: string[] = [];
     const watched = (tx: Transaction): Transaction => ({

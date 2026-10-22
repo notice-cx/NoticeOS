@@ -528,7 +528,7 @@ describe("threshold calibration", () => {
     expect(watchCalibrationBasis(null)).toEqual({ kind: "none", gap: "short-history" });
   });
 
-  it("never lends site-wide calibration to a query-scoped threshold", () => {
+  it("never lends asset-wide calibration to a query-scoped threshold", () => {
     const siteCalibration = watchCalibration(history(alternating(7, 100, 110, 12)), 7)!;
     expect(
       watchCalibrationBasis(siteCalibration, { query: "tornado kit specs" }),
@@ -662,8 +662,8 @@ describe("a closed watch's stored verdict", () => {
       ),
     ).toBe("no observations in the post window");
     expect(
-      watchVerdictFigures("gsc/clicks: stored scope unsupported · no site-wide fallback", "gsc", "clicks"),
-    ).toBe("stored scope unsupported · no site-wide fallback");
+      watchVerdictFigures("gsc/clicks: stored scope unsupported · no asset-wide fallback", "gsc", "clicks"),
+    ).toBe("stored scope unsupported · no asset-wide fallback");
     expect(
       watchVerdictFigures(
         'gsc/clicks at +28d: baseline on "https://example.com/", post window on "sc-domain:example.com"',

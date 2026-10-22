@@ -69,7 +69,7 @@ describe('the Mediavine lease', () => {
   });
 });
 
-describe('a PostHog site lease', () => {
+describe('a PostHog asset lease', () => {
   it('goes to exactly one of two runs asking at the same instant, round after round', async () => {
     for (let round = 0; round < ROUNDS; round += 1) {
       const at = NOW + round * 1000;

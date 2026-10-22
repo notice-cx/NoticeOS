@@ -470,7 +470,7 @@ export function executiveInsightMarkdown(
   return [
     `# ${meta.label}: ${insight.title}`,
     "",
-    ...(asset ? [`- **Site:** \`${asset}\``, ""] : []),
+    ...(asset ? [`- **Asset:** \`${asset}\``, ""] : []),
     "## Meaning / next move",
     "",
     insight.summary,

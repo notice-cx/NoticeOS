@@ -22,7 +22,7 @@ One backup run captures every store of the installation into a dated folder, `.l
 | `postgres/noticeos.dump` | A `pg_dump` of the operational database, in custom format, mode 0600 |
 | `r2/` | The raw provider archive: report files plus their index |
 | `beads/` | Every task database, taken online from the running task service, with its permissions and recovery credentials under `beads/metadata/` |
-| `assets/` and `cloudflare-d1/` | Production exports for sites you have explicitly approved |
+| `assets/` and `cloudflare-d1/` | Production exports for assets you have explicitly approved |
 | `recovery/` | The key that decrypts stored provider credentials, the database passwords and the task service settings. Only the local set has it: the offsite copy leaves it out, so keep a copy of this folder in a password manager |
 | `RESTORE.md` | Generated instructions: what the set is, how each part went, how to restore it |
 | `backup.json` | The completeness record, written last |
@@ -66,7 +66,7 @@ Old sets are removed only after every stage, including the offsite copy, succeed
    pnpm os:backup
    ```
 
-## Add site production exports
+## Add asset production exports
 
 1. In `host-backup.json`, list under `assetBackups` each repository whose own `backup:prod` script exports a production database into the set. Each entry pins the script's hash, so a changed script fails before it runs.
 2. For Cloudflare D1 databases, open **Integrations** > **Cloudflare**, connect the account and select the databases there instead.
@@ -93,7 +93,7 @@ For a demo installation, the procedure is a stopped backup of its four volumes; 
 
 - The dated folder holds `backup.json`, written last, and `RESTORE.md` lists the result of each part.
 - The finished set is copied under `<offsiteBackupDir>/<date>/`.
-- Open **System health** > **Background operations** > **Backups** and select a run. Its contents table shows captured counts, selected site and task database identifiers, omissions, and separate local-set and sync-folder results. The destination panels show the folders recorded during that run.
+- Open **System health** > **Background operations** > **Backups** and select a run. Its contents table shows captured counts, selected asset and task database identifiers, omissions, and separate local-set and sync-folder results. The destination panels show the folders recorded during that run.
 
 New backup workers attach this metadata to execution history. An older run can show the latest private backup report only when its timestamps match that run. Missing contents or host paths remain unavailable; the page does not substitute today's settings. Workers without recorded host paths display their internal paths instead. **Execution details** expands the recorded stages.
 

@@ -20,6 +20,7 @@ import {
   ASSET_ID_MAX,
   ASSET_ID_RE,
   ASSET_STATUSES,
+  ASSET_TYPES,
   CONFIG_ASSET_KEY_SOURCE as ASSET_ID_SOURCE,
   DISPLAY_NAME_MAX,
   DOMAIN_RE,
@@ -317,10 +318,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     fields: null,
-    label: 'Site data sources',
-    describe: "one site's data sources",
+    label: 'Asset data sources',
+    describe: "one asset's data sources",
     owner: 'config/integrations.README.md',
-    surface: 'Add a site (/assets/new)',
+    surface: 'Add an asset (/assets/new)',
     assetRegister: true,
   },
   // The per-asset lane register the Sources tab edits. One row is one (asset,
@@ -340,10 +341,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     // Lane ids, not asset ids.
     keyRule: 'lane-id',
     keyField: null,
-    label: 'Site data sources',
-    describe: 'one data source on one site',
+    label: 'Asset data sources',
+    describe: 'one data source on one asset',
     owner: 'config/integrations.README.md',
-    surface: "the site's Data sources tab",
+    surface: "the asset's Data sources tab",
     // `since` means "when this posture was recorded", so it moves with
     // `status` whatever surface the write comes from; a note-only edit moves
     // nothing.
@@ -377,7 +378,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         type: 'string',
         required: false,
         maxLength: 200,
-        describe: 'which credential reaches this site — a convention or placeholder, never a secret',
+        describe: 'which credential reaches this asset — a convention or placeholder, never a secret',
       },
       {
         name: 'since',
@@ -399,7 +400,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       {
         name: 'revenueHolidayCalendar', label: 'Revenue forecast holiday calendar', type: 'enum', required: false,
         values: ['none', 'US', 'CA', 'US,CA'],
-        describe: 'holidays compared with this site’s traffic',
+        describe: 'holidays compared with this asset’s traffic',
       },
       {
         name: 'stripeAccountId', label: 'Stripe account', type: 'string', required: false,
@@ -419,7 +420,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       },
       {
         name: 'siteUrl',
-        label: 'Site',
+        label: 'Provider site',
         type: 'string',
         required: false,
         maxLength: 253,
@@ -482,10 +483,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     fields: null,
-    label: 'Site counter cards',
-    describe: "one site's counter cards",
+    label: 'Asset counter cards',
+    describe: "one asset's counter cards",
     owner: 'config/counters.README.md',
-    surface: "Add a site, then the site's Settings tab (Card totals)",
+    surface: "Add an asset, then the asset's Settings tab (Card totals)",
     assetRegister: true,
   },
   'asset-pull': {
@@ -494,10 +495,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     shape: 'array',
     keyField: 'asset',
     fields: null,
-    label: 'Site metrics endpoints',
-    describe: "one site's own metrics endpoint",
+    label: 'Asset metrics endpoints',
+    describe: "one asset's own metrics endpoint",
     owner: 'config/pull.README.md',
-    surface: "Add a site, then the site's Settings tab (Fetch from an endpoint)",
+    surface: "Add an asset, then the asset's Settings tab (Fetch from an endpoint)",
     assetRegister: true,
   },
 
@@ -525,10 +526,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       },
       {
         name: 'asset',
-        label: 'Site',
+        label: 'Asset',
         type: 'asset-id',
         required: true,
-        describe: 'the site that carries the cost',
+        describe: 'the asset that carries the cost',
       },
       {
         name: 'kind',
@@ -582,7 +583,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       { name: 'label', label: 'Label', type: 'string', required: true, maxLength: 80, describe: 'what the charge is called on the statement' },
       {
         name: 'asset',
-        label: 'Site',
+        label: 'Asset',
         type: 'asset-id',
         required: true,
         describe: 'who carries it — the OS for anything portfolio-wide',
@@ -640,10 +641,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     fields: null,
-    label: 'Sites declaring value events',
-    describe: "one site's value-event declaration, holding its list",
+    label: 'Assets declaring value events',
+    describe: "one asset's value-event declaration, holding its list",
     owner: 'config/value-events.README.md',
-    surface: "the site's Data sources tab",
+    surface: "the asset's Data sources tab",
     assetRegister: true,
   },
   'value-events': {
@@ -654,9 +655,9 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     scalarField: 'event',
     addableContainer: true,
     label: 'Value events',
-    describe: 'one GA4 event this site calls a value event',
+    describe: 'one GA4 event this asset calls a value event',
     owner: 'config/value-events.README.md',
-    surface: "the site's Data sources tab",
+    surface: "the asset's Data sources tab",
     fields: [
       {
         name: 'event',
@@ -665,7 +666,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         required: true,
         maxLength: 40,
         pattern: '^[A-Za-z][A-Za-z0-9_]*$',
-        describe: 'verbatim as the site emits it (calculation_complete, never "Calculation complete")',
+        describe: 'verbatim as the asset emits it (calculation_complete, never "Calculation complete")',
       },
     ],
   },
@@ -679,7 +680,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Product use stages',
     describe: 'saved event counts shown in Product use',
     owner: 'config/value-events.README.md',
-    surface: "the site's Data sources tab",
+    surface: "the asset's Data sources tab",
     fields: [
       { name: 'eventName', label: 'GA4 event', type: 'string', required: true,
         maxLength: PRODUCT_USE_EVENT_MAX_LENGTH, pattern: PRODUCT_USE_EVENT_PATTERN, describe: 'the saved event name' },
@@ -700,10 +701,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     fields: null,
-    label: 'Sites with registered dimensions',
-    describe: "one site's registered-dimension declaration, holding its list",
+    label: 'Assets with registered dimensions',
+    describe: "one asset's registered-dimension declaration, holding its list",
     owner: 'config/ga4-custom-dimensions.README.md',
-    surface: "the site's Data sources tab",
+    surface: "the asset's Data sources tab",
     assetRegister: true,
   },
   'ga4-event-params': {
@@ -715,7 +716,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Registered event parameters',
     describe: 'a parameter registered as a GA4 custom dimension',
     owner: 'config/ga4-custom-dimensions.README.md',
-    surface: "the site's Data sources tab",
+    surface: "the asset's Data sources tab",
     fields: [
       {
         name: 'param',
@@ -726,7 +727,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         pattern: '^[A-Za-z][A-Za-z0-9_]*$',
         // As the emitter names it, never as the Data API addresses it
         // (customEvent:message).
-        describe: 'as the site sends it, e.g. message',
+        describe: 'as the asset sends it, e.g. message',
       },
     ],
   },
@@ -742,10 +743,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     fields: null,
-    label: 'Sites buying a tracked panel',
-    describe: "one site's tracked-query panel, holding its terms",
+    label: 'Assets buying a tracked panel',
+    describe: "one asset's tracked-query panel, holding its terms",
     owner: 'config/serp-panel.README.md',
-    surface: "the site's Growth tab",
+    surface: "the asset's Growth tab",
     assetRegister: true,
   },
   'serp-panel-queries': {
@@ -768,7 +769,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Tracked queries',
     describe: 'one tracked term, and the bet it measures',
     owner: 'config/serp-panel.README.md',
-    surface: "the site's Growth tab",
+    surface: "the asset's Growth tab",
     fields: [
       {
         name: 'query',
@@ -798,9 +799,9 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     label: 'Panel refresh roster',
-    describe: 'whether a site stays on the standing panel-refresh cadence',
+    describe: 'whether an asset stays on the standing panel-refresh cadence',
     owner: 'config/signal-panels.README.md',
-    surface: "the site's Growth tab",
+    surface: "the asset's Growth tab",
     assetRegister: true,
     // The fact this rule turns on lives in another file; the rule is
     // `liveSearchLaneRefusal`, and the lane statuses are supplied by whoever
@@ -860,11 +861,11 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Task projects',
     // Adding a row does not create the Dolt database it names; that is an
     // operator step, and the surface says so.
-    describe: 'one task project per site',
+    describe: 'one task project per asset',
     owner: 'config/beads.README.md',
     surface: '/settings',
     fields: [
-      { name: 'asset', label: 'Site', type: 'asset-id', required: true, describe: 'the site this project belongs to' },
+      { name: 'asset', label: 'Asset', type: 'asset-id', required: true, describe: 'the asset this project belongs to' },
       {
         name: 'prefix',
         label: 'Task prefix',
@@ -927,7 +928,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         type: 'enum',
         required: true,
         values: ['property', 'portfolio', 'both'],
-        describe: 'whether it collects for a site, for the OS, or both',
+        describe: 'whether it collects for an asset, for the OS, or both',
         readOnly: true,
       },
       {
@@ -947,7 +948,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         type: 'enum',
         required: true,
         values: ['shared', 'per-property'],
-        describe: 'whether one credential can serve more than one site',
+        describe: 'whether one credential can serve more than one asset',
         readOnly: true,
       },
       // A stored copy that still carries the retired prose fields drops them
@@ -973,7 +974,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     shape: 'array',
     keyField: 'slug',
     label: 'Entities',
-    describe: 'one legal entity, and the sites it owns',
+    describe: 'one legal entity, and the assets it owns',
     owner: 'config/entities.README.md',
     surface: '/settings',
     fields: [
@@ -1017,10 +1018,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       },
       {
         name: 'assets',
-        label: 'Sites',
+        label: 'Assets',
         type: 'string-list',
         required: false,
-        describe: 'the site ids this entity owns',
+        describe: 'the asset ids this entity owns',
       },
     ],
   },
@@ -1038,24 +1039,29 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyRule: 'asset-id',
     keyField: null,
     addableContainer: true,
-    label: 'Where each site shows',
-    describe: 'where one site shows and the icons it uses',
+    label: 'Where each asset shows',
+    describe: 'where one asset shows and the icons it uses',
     owner: 'config/tower.README.md',
-    surface: "Sites → Arrange, Settings → Sites, and the site's Settings tab (Identity, Where it shows)",
+    surface: "Portfolio → Arrange, Settings → Assets, and the asset's Settings tab (Identity, Where it shows)",
     fields: [
       {
+        name: 'assetType', label: 'Asset type', type: 'enum', required: false,
+        values: ASSET_TYPES,
+        describe: 'website (marketing/landing), web app (SaaS), or mobile app; defaults to website',
+      },
+      {
         name: 'list',
-        label: 'Home and Sites list',
+        label: 'Home and Portfolio',
         type: 'boolean',
         required: false,
-        describe: "a row on Home and on the Sites page",
+        describe: "a row on Home and on the Portfolio page",
       },
       {
         name: 'tv',
         label: 'TV',
         type: 'boolean',
         required: false,
-        describe: 'site rows and counts on the TV',
+        describe: 'asset rows and counts on the TV',
       },
       {
         name: 'work',
@@ -1109,7 +1115,7 @@ export const LANE_MAPPING_TIMING_LABEL: Readonly<Record<LaneMappingTiming, strin
  * lane wears `LANE_MAPPED_LABEL` instead. */
 export const LANE_FALLBACK_LABEL: Readonly<Record<LaneFallback, string>> = {
   'google-account-map': 'Using the Google account map',
-  'domain-match': 'Matching the site’s domain',
+  'domain-match': 'Matching the asset’s domain',
   'portfolio-market': 'Using the US · English default',
   none: 'Not collected until mapped',
 };
@@ -1281,7 +1287,7 @@ export function resolveContainer(register: ConfigRegister, params: { asset?: str
   if (!register.container.includes(ASSET_PARAM)) return register.container;
   const asset = params.asset;
   if (typeof asset !== 'string' || !new RegExp(`^${ASSET_ID_SOURCE}$`).test(asset)) {
-    throw new Error(`register container ${register.container} needs a site id, got ${JSON.stringify(asset)}`);
+    throw new Error(`register container ${register.container} needs an asset id, got ${JSON.stringify(asset)}`);
   }
   return register.container.split(ASSET_PARAM).join(asset);
 }
@@ -1437,9 +1443,9 @@ export function fieldRefusal(field: RegisterField, value: unknown): string | nul
       if (field.type === 'date' && !isCalendarDate(value)) return `${label} must be a date, YYYY-MM-DD`;
       if (field.type === 'month' && !MONTH_RE.test(value)) return `${label} must be a month, YYYY-MM`;
       if (field.type === 'asset-id' && !new RegExp(`^${ASSET_ID_SOURCE}$`).test(value)) {
-        return `${label} must be a site id`;
+        return `${label} must be an asset id`;
       }
-      if (field.type === 'store-asset-id' && !ASSET_ID_RE.test(value)) return `${label} must be a site id`;
+      if (field.type === 'store-asset-id' && !ASSET_ID_RE.test(value)) return `${label} must be an asset id`;
       if (field.type === 'domain' && !DOMAIN_RE.test(value)) {
         return `${label} must be a hostname such as example.com`;
       }
@@ -1490,7 +1496,7 @@ export type SiteRowField = 'id' | 'displayName' | 'domain' | 'status' | 'senseOn
 export const SITE_ROW_FIELDS: Readonly<Record<SiteRowField, RegisterField>> = {
   id: {
     name: 'id',
-    label: 'Site',
+    label: 'Asset',
     type: 'store-asset-id',
     required: true,
     maxLength: ASSET_ID_MAX,
@@ -1556,7 +1562,7 @@ export function rowIssue(register: ConfigRegister, value: unknown): RowIssue | n
     message === null ? null : { field: field.name, message };
   if (register.fields === null) {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      return whole('value must be a JSON object (one site\'s entry)');
+      return whole('value must be a JSON object (one asset\'s entry)');
     }
     return null;
   }

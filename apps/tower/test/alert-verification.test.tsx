@@ -8,7 +8,7 @@ const NOW = Date.parse("2026-09-06T01:00:00.000Z");
 const FIRST = "2026-08-04T04:00:00.000Z";
 const confirmed: SignalVerification = {
   state: "confirmed", lastConfirmedAt: "2026-09-05T04:00:00.000Z",
-  lastEvaluatedAt: "2026-09-05T04:05:00.000Z", source: "Site checks",
+  lastEvaluatedAt: "2026-09-05T04:05:00.000Z", source: "Asset checks",
   reason: "source-confirms",
 };
 
@@ -28,7 +28,7 @@ describe("AlertVerification", () => {
     expect(detail).toHaveTextContent(formatTimestamp(FIRST));
     expect(detail).toHaveTextContent(formatTimestamp(confirmed.lastConfirmedAt!));
     expect(detail).toHaveTextContent(formatTimestamp(confirmed.lastEvaluatedAt!));
-    expect(fact(detail, "Checked by")).toBe("Site checks");
+    expect(fact(detail, "Checked by")).toBe("Asset checks");
     expect(fact(detail, "Why")).toBe(VERIFICATION_REASON_LABEL[confirmed.reason]);
     expect(detail.querySelectorAll("time")).toHaveLength(3);
     expect([...detail.querySelectorAll("time")].map((time) => time.dateTime)).toEqual([FIRST, confirmed.lastConfirmedAt, confirmed.lastEvaluatedAt]);

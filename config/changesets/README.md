@@ -276,12 +276,12 @@ Delete must name.
 | `task-hub-spokes` | `beads.json` · `/spokes` | array · `asset` | `asset`, `prefix`, `database`, `repo` | `/settings` |
 | `data-source-catalog` | `integrations.json` · `/catalog` | array · `id` | `id`, `label`, `scope`, `layer`, `credential`, `docRef` | `/settings` |
 | `entities` | `entities.json` · `/entities` | array · `slug` | `slug`, `name`, `form`, `jurisdiction`, `assets` | `/settings`, and an asset's Identity card |
-| `site-display` | `tower.json` · `/sites` | object · asset id | `list`, `tv`, `work`, `lightIcon`, `darkIcon` | `/assets` (Arrange), `/settings`, and an asset's Settings tab (Identity, Where it shows) |
+| `site-display` | `tower.json` · `/sites` | object · asset id | `assetType`, `list`, `tv`, `work`, `lightIcon`, `darkIcon` | `/assets` (Arrange), `/settings`, and an asset's Settings tab (Identity, Where it shows) |
 
 `site-display` is addable whole: a store seeded before `/sites` existed holds
 no map, so the first save is a `file-json-insert` of the whole map at
 `/sites`, and its Undo the matching delete. After that a save inserts the
-site's row, writes one key with `expectAbsent`, or sets it with `expect`; an
+asset's row, writes one key with `expectAbsent`, or sets it with `expect`; an
 icon address cleared is a `file-json-delete` of its key, undone by a set with
 `expectAbsent`.
 
@@ -323,9 +323,9 @@ Each field declares a **type** (`string`, `number`, `integer`, `boolean`,
 `string-list`), whether it is required, its bounds or pattern, and one line
 saying what it means — the same line the Tower shows under the input and the
 refusal quotes back. A value that breaks a rule is refused naming the file, the
-pointer, the field by its label and the rule. A site's row in the store is
-declared the same way (`SITE_ROW_FIELDS`), so Add a site and
-the other site lanes refuse in the same words ("Domain must be a hostname such
+pointer, the field by its label and the rule. An asset's row in the store is
+declared the same way (`SITE_ROW_FIELDS`), so Add an asset and
+the other asset lanes refuse in the same words ("Domain must be a hostname such
 as example.com"); `store-asset-id` is the store's id spelling and `asset-id`
 the configuration key's.
 
@@ -434,7 +434,7 @@ archive nothing and report a change that happened as a change that did not.
 Creating an asset ROW is not a changeset op at all. It is `POST /api/assets`
 on the Tower, over the ingest binding — see
 [the Tower's API](../../apps/tower/README.md#api). Nothing deletes one: the
-store is history, and a site's one exit is `status = 'retired'`.
+store is history, and an asset's one exit is `status = 'retired'`.
 
 **The write lane does not accept these** — it answers `422
 store_op_not_accepted`, naming the route that does. They are not files, so they
@@ -502,7 +502,7 @@ been chosen, and the way back is the Undo in its toast (principle 5).
 - A successful database save with a failed export still reports **saved** and
   directs the operator to `pnpm config:export`. Unknown save outcomes require
   checking current settings before retrying. Neither case blindly reapplies.
-  A deployed installation's settings and sites are configured in its Tower:
+  A deployed installation's settings and assets are configured in its Tower:
   asset columns are saved on Postgres through the ingest, so `--remote` is
   refused and changes nothing.
 - **A write also refreshes the date a file states about itself.**
@@ -536,7 +536,7 @@ been chosen, and the way back is the Undo in its toast (principle 5).
 The lane is the operator's own dev server, and there is no authentication on the
 Tower (doc 10: one operator, LAN-served) — so the boundary is **same origin**: a
 request whose `Origin`/`Referer` host is not the server's own `Host` is refused
-`403`, which is what stops a page on another site from steering the operator's
+`403`, which is what stops a page on another asset from steering the operator's
 browser into a config write. Beyond that: `415` for a non-JSON body, `422` for
 anything the allowlist or the schema refuses, `409` for a stale `expect`.
 

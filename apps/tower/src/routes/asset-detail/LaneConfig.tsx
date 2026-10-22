@@ -734,7 +734,7 @@ export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetG
         rows={config.eventParams}
         statesReadOnly={false}
         describe="Read by the error report"
-        emptyHint="JavaScript-error report skips this site"
+        emptyHint="JavaScript-error report skips this asset"
       />
     </div>
   );
@@ -754,7 +754,7 @@ function notApplicableWhy(lane: AssetIntegrationLane, asset: string, isOs: boole
     catalog.scope === "portfolio" && !isOs
       ? "System only"
       : catalog.scope === "property" && isOs
-        ? "Content sites only"
+        ? "Content assets only"
         : null;
   return ruled === null ? (
     <StateChip tone="caution" label="Not decided yet" subject={`source:${asset}:${cell.laneId}`} />

@@ -15,7 +15,7 @@ import { askHome, eligibleAssets, type HygieneAsset } from './hygiene.js';
 
 /** Honest identification, with a product token of its own. */
 export const SITE_ICONS_USER_AGENT =
-  'NoticeOS-Icons/1.0 (+https://www.notice.cx; site icon read)';
+  'NoticeOS-Icons/1.0 (+https://www.notice.cx; asset icon read)';
 
 /** The whole read of one address, redirects and body included. */
 const READ_TIMEOUT_MS = 10_000;

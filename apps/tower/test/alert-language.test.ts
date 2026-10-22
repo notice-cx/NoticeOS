@@ -330,7 +330,7 @@ describe("ingest-freshness — the report that never arrived", () => {
 
   it("states a cross-asset group once, with the count spelled out", () => {
     const a = translateAlert({ ...neverReported, members });
-    expect(a.headline).toBe("Four sites have no nightly reports");
+    expect(a.headline).toBe("Four assets have no nightly reports");
     expect(a.hint).toBe("their nightly reporting may never have been wired up");
   });
 
@@ -343,8 +343,8 @@ describe("ingest-freshness — the report that never arrived", () => {
       ...neverReported,
       members: Array.from({ length: 10 }, (_, i) => ({ assetDisplayName: `A${i}` })),
     });
-    expect(nine.headline).toBe("Nine sites have no nightly reports");
-    expect(ten.headline).toBe("10 sites have no nightly reports");
+    expect(nine.headline).toBe("Nine assets have no nightly reports");
+    expect(ten.headline).toBe("10 assets have no nightly reports");
   });
 
   it("names the assets in evidence and drops the representative's registration date", () => {
@@ -352,7 +352,7 @@ describe("ingest-freshness — the report that never arrived", () => {
     // A registration date belongs to one asset; printing the representative's
     // beside a plural headline would attribute it to all four.
     expect(a.evidence.find((e) => e.source === "Registered, never reported")).toBeUndefined();
-    expect(a.evidence.find((e) => e.source === "Sites with no nightly reports")?.detail).toBe(
+    expect(a.evidence.find((e) => e.source === "Assets with no nightly reports")?.detail).toBe(
       "Fern Index, Puffin Post, Acorn Atlas, Pebble Works",
     );
   });
@@ -404,7 +404,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
       },
     });
     expect(a.headline).toBe("Nightly report fetch failed — non-200 response (503)");
-    expect(a.hint).toBe("the site's endpoint is erroring");
+    expect(a.hint).toBe("the asset's endpoint is erroring");
     expect(a.evidence.some((e) => e.source === "Failed fetches")).toBe(false);
   });
 
@@ -457,7 +457,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
     expect(a.evidence.some((e) => e.source === "Latest response")).toBe(false);
   });
 
-  it("names a night's cause the same way on the alert and on the site's list", () => {
+  it("names a night's cause the same way on the alert and on the asset's list", () => {
     expect(pullFailureCause({ status: 401, providerError: "unauthorized", error: "401 unauthorized — x" })).toBe("401 unauthorized");
     expect(pullFailureCause({ status: 502, error: "non-200 response (502): gateway" })).toBe("non-200 response (502): gateway");
     expect(pullFailureCause({ status: 504 })).toBe("HTTP 504");
@@ -484,8 +484,8 @@ describe("asset-declared — the asset's own words", () => {
     assertNoStatistics(a.headline);
     expect(a.evidence.map((row) => row.source)).toEqual([
       "Arrived",
-      "Normal · site's 7-day average",
-      "Site's own rule · poisson-24h",
+      "Normal · asset's 7-day average",
+      "Asset's own rule · poisson-24h",
     ]);
     expect(a.evidence[0]!.detail).toBe("51 in 24h");
     expect(a.evidence[1]!.detail).toBe("86.4/day");
@@ -517,7 +517,7 @@ describe("asset-declared — the asset's own words", () => {
     expect(a.headline).toBe("4300 signups");
     expect(a.hint).toBeUndefined();
     expect(a.evidence[0]!.source).toBe("Raised by");
-    expect(a.evidence[0]!.detail).toBe("the site's own nightly report · no statistics attached");
+    expect(a.evidence[0]!.detail).toBe("the asset's own nightly report · no statistics attached");
   });
 
   it("does not half-parse a malformed or different asset declaration", () => {
@@ -552,7 +552,7 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
       },
     });
     expect(a.headline).toBe("Home page check failed — HTTP 403");
-    expect(a.hint).toBe("the site may be blocking the checker");
+    expect(a.hint).toBe("the asset may be blocking the checker");
     expect(a.headline).not.toMatch(/html depth|https?:/i);
     expect(a.evidence.find((row) => row.source === "URL checked")?.detail).toBe(
       "https://northwind.example/",
@@ -643,7 +643,7 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
 
 // The store keeps a short headline with its values, and the row draws the
 // figures as label · value evidence.
-describe("site checks and quota — a headline and its values, never the rule's sentence", () => {
+describe("asset checks and quota — a headline and its values, never the rule's sentence", () => {
   const AT = "2026-09-06T04:30:00.000Z";
 
   it("hygiene-html-depth: the words served against the median", () => {
@@ -810,15 +810,15 @@ describe("os-egress-down — the outage that is the OS's own", () => {
 
   it("says whose fault tonight's silence is, before anything else", async () => {
     const a = translateAlert(outage);
-    expect(a.headline).toBe("OS is offline — 3 sites not checked");
+    expect(a.headline).toBe("OS is offline — 3 assets not checked");
     expect(a.headline).not.toMatch(/egress/i);
     expect(a.hint).toBe("check this machine's internet connection");
     assertNoStatistics(a.headline);
   });
 
-  it("keeps the reference sites' own errors verbatim — they are the whole argument", () => {
+  it("keeps the reference assets' own errors verbatim — they are the whole argument", () => {
     const a = translateAlert(outage);
-    const beacons = a.evidence.find((e) => e.source === "Reference sites that could not be reached")!;
+    const beacons = a.evidence.find((e) => e.source === "Reference websites that could not be reached")!;
     // Two unrelated operators failing the same way is what licenses
     // suppressing the asset alerts; a paraphrase would not be evidence.
     expect(beacons.detail).toContain("cloudflare.com");
@@ -862,7 +862,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
         connectionBackAt: "2026-08-09T12:15:00.000Z",
       },
     });
-    expect(a.headline).toBe("OS connection back — 2 sites not yet re-checked");
+    expect(a.headline).toBe("OS connection back — 2 assets not yet re-checked");
     expect(a.hint).toBe("no action needed");
     expect(a.hint).not.toContain("connection is out");
     expect(a.evidence.find((e) => e.source === "Connection answered again")).toMatchObject({

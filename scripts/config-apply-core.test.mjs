@@ -1443,7 +1443,7 @@ test('a per-asset register carries the asset in its container', async () => {
           },
         ]),
       ),
-    { message: 'op #1: GA4 event: verbatim as the site emits it (calculation_complete, never "Calculation complete")' },
+    { message: 'op #1: GA4 event: verbatim as the asset emits it (calculation_complete, never "Calculation complete")' },
   );
   // An asset the file has no entry for is FILED first, through the holder
   // register beside the list — a pointer never creates structure.

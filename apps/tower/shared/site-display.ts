@@ -12,6 +12,7 @@
 // register at every write and every seeded document, and again by the Worker
 // before it draws one (apps/tower/worker/site-icons.ts).
 
+import { ASSET_TYPES, isAssetType, type AssetType } from "@noticeos/contract/configuration";
 import { isRetired } from "./asset-setup";
 import type { FileJsonDeleteOp, FileJsonInsertOp, FileJsonSetOp, JsonValue } from "./changeset";
 import { toPointer } from "./changeset";
@@ -30,9 +31,8 @@ export type SiteIconScheme = keyof typeof SITE_ICON_KEY;
 export type SiteIconKey = (typeof SITE_ICON_KEY)[SiteIconScheme];
 const SITE_ICON_KEYS: readonly string[] = Object.values(SITE_ICON_KEY);
 
-/** One site's stored row: the switches and the icon addresses the operator
- * set. A missing key is one nobody set. */
-export type SiteDisplayRow = Partial<ShownOn> & Partial<Record<SiteIconKey, string>>;
+/** Per-asset type, visibility switches and icon overrides. Missing type means Website. */
+export type SiteDisplayRow = Partial<ShownOn> & Partial<Record<SiteIconKey, string>> & { assetType?: AssetType | null };
 
 /** What the operator set, by site id, as stored. A missing site or key is
  * one nobody set. */
@@ -40,7 +40,7 @@ export type SiteDisplay = Readonly<Record<string, Readonly<SiteDisplayRow>>>;
 
 /** What each switch is called on every screen, and in the register. */
 export const SHOWN_ON_LABEL: Readonly<Record<ShownOnSurface, string>> = {
-  list: "Home and Sites list",
+  list: "Home and Portfolio",
   tv: "TV",
   work: "Work this week",
 };
@@ -103,7 +103,7 @@ export function siteIconAddresses(display: SiteDisplay | null | undefined, site:
 
 /**
  * The stored `/sites` map, read whole: an object of sites, each an object
- * holding only the three switches as true or false and the two icon
+ * holding the type, three switches as true or false and two icon
  * addresses as text. `undefined` for absent or `null`, which is nothing saved
  * yet; throws, naming what is wrong, for anything else.
  */
@@ -119,14 +119,18 @@ export function readSiteDisplay(value: unknown): SiteDisplay | undefined {
     }
     const read: SiteDisplayRow = {};
     for (const [key, held] of Object.entries(row as Record<string, unknown>)) {
-      if ((SHOWN_ON as readonly string[]).includes(key)) {
+      if (key === "assetType") {
+        if (held === null) { read.assetType = null; continue; }
+        if (!isAssetType(held)) throw new Error(`config/tower.json sites.${site}.assetType must be one of ${ASSET_TYPES.join(", ")}`);
+        read.assetType = held;
+      } else if ((SHOWN_ON as readonly string[]).includes(key)) {
         if (typeof held !== "boolean") throw new Error(`config/tower.json sites.${site}.${key} must be true or false`);
         read[key as ShownOnSurface] = held;
       } else if (SITE_ICON_KEYS.includes(key)) {
         if (typeof held !== "string") throw new Error(`config/tower.json sites.${site}.${key} must be an address`);
         read[key as SiteIconKey] = held;
       } else {
-        throw new Error(`config/tower.json sites.${site}.${key} is not one of ${[...SHOWN_ON, ...SITE_ICON_KEYS].join(", ")}`);
+        throw new Error(`config/tower.json sites.${site}.${key} is not one of ${[...SHOWN_ON, ...SITE_ICON_KEYS, "assetType"].join(", ")}`);
       }
     }
     out[site] = read;
@@ -145,7 +149,7 @@ export interface SiteDisplayChange {
 /** One switch flipped, as `siteDisplayChange` writes it. */
 export type ShownOnChange = SiteDisplayChange;
 
-type SiteDisplayKey = ShownOnSurface | SiteIconKey;
+type SiteDisplayKey = ShownOnSurface | SiteIconKey | "assetType";
 
 /**
  * Set or clear one key of one site, guarded by the map as the page read it. A

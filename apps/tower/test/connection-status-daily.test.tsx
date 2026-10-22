@@ -86,7 +86,7 @@ function strip(data: IntegrationHealthResponse, nowMs = NOW.getTime()) {
   return (label: string) => container.querySelector(`[data-connections] [data-kpi="${label}"]`)!;
 }
 
-const LABELS = ['Sites failing', 'Sites overdue', 'Reports missing', 'Sites working'] as const;
+const LABELS = ['Assets failing', 'Assets overdue', 'Reports missing', 'Assets working'] as const;
 
 let store: TestStore;
 beforeEach(async () => { store = await createTestStore(); });
@@ -102,10 +102,10 @@ needsPostgres('System health’s four connection counts, once a day', () => {
     const [row] = await rows(store);
     expect(row).toMatchObject({ day: '2026-09-12', observed_at: AT, sites_failing: 1, sites_overdue: 1, reports_missing: 1, sites_working: 3 });
     const kpi = strip(body);
-    expect(kpi('Sites failing')).toHaveTextContent(String(row!.sites_failing));
-    expect(kpi('Sites overdue')).toHaveTextContent(String(row!.sites_overdue));
+    expect(kpi('Assets failing')).toHaveTextContent(String(row!.sites_failing));
+    expect(kpi('Assets overdue')).toHaveTextContent(String(row!.sites_overdue));
     expect(kpi('Reports missing')).toHaveTextContent(String(row!.reports_missing));
-    expect(kpi('Sites working')).toHaveTextContent(String(row!.sites_working));
+    expect(kpi('Assets working')).toHaveTextContent(String(row!.sites_working));
   });
 
   it('writes nothing when System health is read', async () => {

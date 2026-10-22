@@ -166,7 +166,7 @@ describe("proxying the ingest's own routes", () => {
 
   // A site's own reports: the nightly report and the codebase report take the
   // one path, and the site's token reaches the ingest's per-site check as sent.
-  it.each(["/api/pulse", "/api/codebase-report"])("carries a site's %s and its token to the ingest unchanged", async (path) => {
+  it.each(["/api/pulse", "/api/codebase-report"])("carries an asset's %s and its token to the ingest unchanged", async (path) => {
     const seen: Request[] = [];
     const ingest = stubIngest({
       fetch: vi.fn(async (request: Request) => {
@@ -177,7 +177,7 @@ describe("proxying the ingest's own routes", () => {
     const body = JSON.stringify({ asset: "example.com" });
     const { request, url } = doorRequest(`${RUNNER_INGEST_PREFIX}${path}`, {
       method: "POST",
-      headers: { authorization: "Bearer site-token", "content-type": "application/json" },
+      headers: { authorization: "Bearer asset-token", "content-type": "application/json" },
       body,
     });
     const response = await handleRunnerRequest(request, url, ingest);
@@ -185,7 +185,7 @@ describe("proxying the ingest's own routes", () => {
     const forwarded = seen[0]!;
     expect(new URL(forwarded.url).pathname).toBe(path);
     expect(forwarded.method).toBe("POST");
-    expect(forwarded.headers.get("authorization")).toBe("Bearer site-token");
+    expect(forwarded.headers.get("authorization")).toBe("Bearer asset-token");
     await expect(forwarded.text()).resolves.toBe(body);
   });
 

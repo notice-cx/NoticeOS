@@ -344,7 +344,7 @@ function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; 
         {data.assets.length > 1 || asset !== "all" ? (
           <>
             <label className="sr-only" htmlFor="alerts-asset">
-              Site
+              Asset
             </label>
             <select
               id="alerts-asset"
@@ -352,7 +352,7 @@ function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; 
               value={asset}
               onChange={(event) => setFilter("asset", event.target.value)}
             >
-              <option value="all">Every site</option>
+              <option value="all">Every asset</option>
               {data.assets.filter((card) => !isRetired(card.status)).map((card) => (
                 <option key={card.id} value={card.id}>
                   {card.displayName}
@@ -461,7 +461,7 @@ function HistoryView({
         {assets.length > 1 || query.asset !== null ? (
           <>
             <label className="sr-only" htmlFor="alert-history-asset">
-              Site
+              Asset
             </label>
             <select
               id="alert-history-asset"
@@ -471,7 +471,7 @@ function HistoryView({
               // one asset's history is page 4 of a list that no longer exists.
               onChange={(event) => setFilter("asset", event.target.value, ["offset"])}
             >
-              <option value="all">Every site</option>
+              <option value="all">Every asset</option>
               {assets.filter((card) => !isRetired(card.status)).map((card) => (
                 <option key={card.id} value={card.id}>
                   {card.displayName}

@@ -110,7 +110,7 @@ export async function handleSignalCollect(
         error: 'family_unavailable',
         detail:
           `${asset} has no ${missing.join(', ')} to collect. ` +
-          'The tracked SERP panel is the one DataForSEO family a property must be ' +
+          'The tracked SERP panel is the one DataForSEO family an asset must be ' +
           'named in config/serp-panel.json to receive; add it there first. ' +
           `Available for ${asset}: ${due.join(', ')}.`,
         asset,
@@ -254,12 +254,12 @@ async function whyNotCollected(env: IngestEnv, asset: string, provider: string):
       [asset],
     ),
   );
-  if (!row) return `${asset} is not a property in the store.`;
+  if (!row) return `${asset} is not an asset in the store.`;
   if (row.isOs) return `${asset} is the OS itself and has no public search surface.`;
   if (row.status === 'pre-launch' || row.status === 'retired') {
     return provider === 'DataForSEO'
-      ? `${asset} is ${row.status}; the DataForSEO lane collects launched properties only.`
-      : `${asset} is ${row.status}; the ${provider} collector reads launched properties only.`;
+      ? `${asset} is ${row.status}; the DataForSEO lane collects launched assets only.`
+      : `${asset} is ${row.status}; the ${provider} collector reads launched assets only.`;
   }
   return `${asset} has no canonical domain, so there is nothing to ask the provider about.`;
 }

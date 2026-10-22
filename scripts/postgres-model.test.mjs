@@ -242,7 +242,7 @@ test('retention names real tables and the columns that date them, and maintenanc
   assert.ok(definition.maintenance._rule && definition.reference._rule, 'maintenance and reference say what they are');
 });
 
-test('a site keeps as many insight snapshots as the Tower reads: the store, the model and the capacity count agree', () => {
+test('an asset keeps as many insight snapshots as the Tower reads: the store, the model and the capacity count agree', () => {
   const repo = path.resolve(MODEL_DIR, '..', '..');
   const lastNumber = (text, pattern, where) => {
     const found = [...text.matchAll(pattern)].at(-1)?.[1];
@@ -252,7 +252,7 @@ test('a site keeps as many insight snapshots as the Tower reads: the store, the 
   const feed = readFileSync(path.join(repo, 'apps', 'tower', 'worker', 'wall-feed.ts'), 'utf8');
   const towerReads = lastNumber(feed, /export const FEED_INSIGHTS_SQL = `[^`]*?LIMIT (\d+)\)[^`]*`/gu, "the Wall feed's FEED_INSIGHTS_SQL");
   const capacity = readFileSync(path.join(repo, 'workers', 'ingest', 'src', 'capacity.ts'), 'utf8');
-  const keep = /^each site's (two|[1-9][0-9]*) newest$/u.exec(definition.retention.asset_insight_snapshots.keep);
+  const keep = /^each asset's (two|[1-9][0-9]*) newest$/u.exec(definition.retention.asset_insight_snapshots.keep);
   assert.ok(keep, 'the model states an explicit insight snapshot count');
   const modelKeeps = keep[1] === 'two' ? 2 : Number(keep[1]);
   assert.deepEqual(
@@ -287,7 +287,7 @@ function loadModelProof(dev) {
   const script = path.join(dev.socketDir, 'proof.sql');
   const lines = ['SET ROLE noticeos_owner;'];
   for (const { ws, slug, site } of PROOF_WORKSPACES) {
-    lines.push(`\\set ws '${ws}'`, `\\set slug ${slug}`, `\\set site ${site}`, `\\i '${path.join(MODEL_DIR, 'tests', 'fixture.sql')}'`);
+    lines.push(`\\set ws '${ws}'`, `\\set slug ${slug}`, `\\set asset ${site}`, `\\i '${path.join(MODEL_DIR, 'tests', 'fixture.sql')}'`);
   }
   lines.push(
     'RESET ROLE;',
@@ -647,7 +647,7 @@ test("on a disposable Postgres: each workspace numbers the rows readers show fro
       assert.deepEqual(
         inWorkspace(dev, b, null, { read: 'SELECT counter, last_number FROM noticeos.workspace_counters ORDER BY counter' }),
         [{ counter: 'annotation_number', last_number: '2' }, { counter: 'list_position', last_number: '1' }],
-        'B sees its own counters (its one site took place 1) and no other',
+        'B sees its own counters (its one asset took place 1) and no other',
       );
 
       // Two transactions numbering in one workspace at the same moment: the

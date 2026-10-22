@@ -60,7 +60,7 @@ try {
   const other = takeReached().has('env.POSTGRES_OTHER');
   const copied = await env.TEST_POSTGRES.fetch('http://test-postgres/reset', { method: 'POST', body: JSON.stringify({ other }) });
   if (!copied.ok) throw new Error(`the copy service answered ${copied.status}`);
-  starting = 'seeding the Postgres test sites';
+  starting = 'seeding the Postgres test assets';
   await seedTestSites();
   starting = 'forgetting module state';
   forgetIsolateState();

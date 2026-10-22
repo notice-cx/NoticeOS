@@ -2,16 +2,16 @@
 export const READ_MODEL_TOOLS = Object.freeze([
     {
         name: "list_properties",
-        description: "Every property under management with its lifecycle status, open-flag severity, the period's booked and forecast revenue, cost and margin, and its last 28 days in totals: daily revenue by source (each named, with its provider and family) and traffic by provider and metric. Start here when you do not know a property's id; call property_history for the days behind the totals.",
+        description: "Every asset under management with its lifecycle status, open-flag severity, the period's booked and forecast revenue, cost and margin, and its last 28 days in totals: daily revenue by source (each named, with its provider and family) and traffic by provider and metric. Start here when you do not know an asset's id; call property_history for the days behind the totals.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
         name: "property_history",
-        description: "Revenue and traffic day by day for one property, or for every property when asset is omitted. Revenue: each day's figures per source from the revenue ledger (the source's name, provider, family, currency, first and last reported day, and the clock its days are counted on), their daily sum, the days a source missed, and accounting months by source and booking state (estimated or reconciled). Traffic: each provider's daily series (GA4 sessions, users, page views and events; Search Console and Bing clicks and impressions; Search Console CTR and position) with its unit, whether days add up, when it was collected and the first provisional day. A missing day is unknown, never zero.",
+        description: "Revenue and traffic day by day for one asset, or for every asset when asset is omitted. Revenue: each day's figures per source from the revenue ledger (the source's name, provider, family, currency, first and last reported day, and the clock its days are counted on), their daily sum, the days a source missed, and accounting months by source and booking state (estimated or reconciled). Traffic: each provider's daily series (GA4 sessions, users, page views and events; Search Console and Bing clicks and impressions; Search Console CTR and position) with its unit, whether days add up, when it was collected and the first provisional day. A missing day is unknown, never zero.",
         inputSchema: {
             type: "object",
             properties: {
-                asset: { type: "string", description: "Property id, e.g. example.com. Omit for every property." },
+                asset: { type: "string", description: "Asset id, e.g. example.com. Omit for every asset." },
                 days: {
                     type: "integer",
                     minimum: 1,
@@ -30,11 +30,11 @@ export const READ_MODEL_TOOLS = Object.freeze([
     },
     {
         name: "property_report",
-        description: "The full read model behind one property's Tower page: P&L for the period, open flags, signal freshness, the tracked SERP panel with its AI-Overview readings, and the query and page decision lanes (act / investigate / protect / wait). This is the single richest call — prefer it over several narrow ones.",
+        description: "The full read model behind one asset's Tower page: P&L for the period, open flags, signal freshness, the tracked SERP panel with its AI-Overview readings, and the query and page decision lanes (act / investigate / protect / wait). This is the single richest call — prefer it over several narrow ones.",
         inputSchema: {
             type: "object",
             properties: {
-                asset: { type: "string", description: "Property id, e.g. example.com" },
+                asset: { type: "string", description: "Asset id, e.g. example.com" },
             },
             required: ["asset"],
             additionalProperties: false,

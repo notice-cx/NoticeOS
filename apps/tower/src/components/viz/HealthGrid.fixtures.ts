@@ -102,7 +102,7 @@ export const HEALTH_ROWS_HEALTHY: HealthRow[] = [
  * one source the OS cannot read right now. */
 export const HEALTH_ROWS_NARROW: HealthRow[] = [
   site("acorn-atlas.example.com", "Acorn Atlas", {
-    "bing-webmaster": { state: "failing", since: ago(67 * DAY), detail: "Bing has not listed this site since it moved" },
+    "bing-webmaster": { state: "failing", since: ago(67 * DAY), detail: "Bing has not listed this asset since it moved" },
     ga4: { state: "unknown", detail: "The last check could not be read" },
     clarity: "not-connected",
   }),

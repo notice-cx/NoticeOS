@@ -62,13 +62,13 @@ export function VisualKitGallery() {
             ariaLabel="People a day, last 15 days"
           />
         </Specimen>
-        <Specimen id="bar-strip-assets" title="BarStrip — daily contributions by site" className="w-80">
+        <Specimen id="bar-strip-assets" title="BarStrip — daily contributions by asset" className="w-80">
           <BarStrip
             data={REVENUE_14.map((day) => ({ ...day, contributions: { "first.example": day.v * 0.6, "second.example": day.v * 0.4 } }))}
-            contributors={[{ id: "first.example", name: "First Site", tone: "text-asset-1" }, { id: "second.example", name: "Second Site", tone: "text-asset-2" }]}
+            contributors={[{ id: "first.example", name: "First Asset", tone: "text-asset-1" }, { id: "second.example", name: "Second Site", tone: "text-asset-2" }]}
             tone="text-financial-revenue"
             format={usd}
-            ariaLabel="Revenue a day by site"
+            ariaLabel="Revenue a day by asset"
           />
         </Specimen>
         <Specimen id="pace-bar" title="PaceBar — the month so far, where it is heading, last month's total" className="w-[28rem]">
@@ -162,7 +162,7 @@ export function VisualKitGallery() {
       </Group>
 
       <Group title="Data-source health">
-        <Specimen id="health-grid" title="HealthGrid — every site × every data source; the failing cell lights where it lives" className="w-full">
+        <Specimen id="health-grid" title="HealthGrid — every asset × every data source; the failing cell lights where it lives" className="w-full">
           <HealthGrid rows={HEALTH_ROWS} columns={HEALTH_COLUMNS} nowMs={HEALTH_NOW_MS} action={<a href="#" className="text-xs text-muted-foreground">Integrations →</a>} />
         </Specimen>
         <Specimen id="health-grid-calm" title="HealthGrid, calm: working cells recede so only problems carry colour" className="w-full">
@@ -177,13 +177,13 @@ export function VisualKitGallery() {
       </Group>
 
       <Group title="Home: problems">
-        <Specimen id="timeline-day" title="EventTimeline — the last 24 hours, one row per site; open problems run to NOW; since-you-looked shaded" className="w-full">
+        <Specimen id="timeline-day" title="EventTimeline — the last 24 hours, one row per asset; open problems run to NOW; since-you-looked shaded" className="w-full">
           <EventTimeline {...eventTimelineDay} />
         </Specimen>
         <Specimen id="timeline-week" title="EventTimeline — the last 7 days" className="w-full">
           <EventTimeline {...eventTimelineWeek} />
         </Specimen>
-        <Specimen id="timeline-compact" title="EventTimeline, one site's row (for its own page)" className="w-[40rem]">
+        <Specimen id="timeline-compact" title="EventTimeline, one asset's row (for its own page)" className="w-[40rem]">
           <EventTimeline {...eventTimelineCompact} />
         </Specimen>
         <Specimen id="incidents" title="IncidentList — ranked; new since you looked leads; over a week folds into one line" className="w-[40rem]">
@@ -219,7 +219,7 @@ export function VisualKitGallery() {
         </Specimen>
       </Group>
 
-      <Group title="Home: decisions and sites">
+      <Group title="Home: decisions and assets">
         <Specimen id="decision-queue" title="DecisionQueue — size, age spread, then the rows with age as a length" className="w-[34rem]">
           <DecisionQueue compact limit={3}
             items={QUEUE.map((item) => ({
@@ -234,8 +234,8 @@ export function VisualKitGallery() {
             action={{ label: "All tasks →", to: "#" }}
           />
         </Specimen>
-        <Specimen id="portfolio" title="PortfolioRows — one ruled row per site; a name is never cut" className="w-[52rem]">
-          <PortfolioRows rows={PORTFOLIO} formatMoney={usd} action={{ label: "All sites →", to: "#" }} />
+        <Specimen id="portfolio" title="PortfolioRows — one ruled row per asset; a name is never cut" className="w-[52rem]">
+          <PortfolioRows rows={PORTFOLIO} formatMoney={usd} action={{ label: "All assets →", to: "#" }} />
         </Specimen>
         <Specimen id="portfolio-narrow" title="PortfolioRows in a narrow column" className="w-[22rem]">
           <PortfolioRows rows={PORTFOLIO} formatMoney={usd} />

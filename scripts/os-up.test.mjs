@@ -3066,7 +3066,7 @@ test('the bead tells its reader where the panel is, from inside the property rep
   assert.match(text, /\.local\/signal-dumps\/reports\/northwind\.example\//);
   assert.match(text, /dataforseo_serp_panel/);
   // Every path is qualified: none of these files are the reader's.
-  assert.match(text, /NoticeOS: Sites → northwind\.example → Settings → Tracked search terms/);
+  assert.match(text, /NoticeOS: Assets → northwind\.example → Settings → Tracked search terms/);
   assert.match(text, /pnpm config:export in home-os/);
   assert.match(text, /home-os\/installation\/serp-panel\.json/);
   assert.doesNotMatch(text, /config\/serp-panel\.json/);
@@ -3098,7 +3098,7 @@ test("a filed bead names the OS checkout by the home folder's own name", () => {
   assert.equal(text, panelReviewDescription(landing, { osCheckout: home }));
   assert.match(text, new RegExp(`docs/20-signal-panels\\.md in ${home} is the read contract`));
   const panelless = panelReviewDescription({ ...landing, panel: false, queries: null, families: 5 }, { osCheckout: 'noticeos' });
-  assert.match(panelless, /current saved terms at NoticeOS: Sites → shop\.example → Settings/);
+  assert.match(panelless, /current saved terms at NoticeOS: Assets → shop\.example → Settings/);
   assert.match(panelless, /that is a bead in the OS's own tracker/);
   assert.match(panelless, /Filed automatically by the OS runner \(scripts\/os-up\.mjs\)/);
 });
@@ -3123,7 +3123,7 @@ test('a two-device panel is sized in result pages, never in tracked queries', ()
   // And the reader is told what the extra rows ARE, so 56 pages against 28
   // configured terms reads as one fact rather than two registers disagreeing.
   assert.match(text, /one per tracked term per device/);
-  assert.match(text, /terms themselves are saved under NoticeOS: Sites → meadow\.example → Settings/);
+  assert.match(text, /terms themselves are saved under NoticeOS: Assets → meadow\.example → Settings/);
 });
 
 test('the filer never divides a call count it cannot divide', () => {

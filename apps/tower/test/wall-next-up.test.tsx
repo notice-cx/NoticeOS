@@ -186,7 +186,7 @@ describe("NextUp", () => {
     expect(decisionLine(bare, "Meadow Board")).toBe("Meadow Board");
     expect(decisionLine({ ...bare, ageDays: 0, releases: 1 }, "Meadow Board")).toBe("Meadow Board · under a day · holds 1 task");
     expect(decisionLine({ ...bare, ageDays: 1, releases: 0 }, "Meadow Board")).toBe("Meadow Board · 1 day");
-    expect(workingLine({ id: "x", title: "T", asset: "a", who: null, sinceHours: 0, urgent: false }, "Site")).toBe("Site · 0h in");
+    expect(workingLine({ id: "x", title: "T", asset: "a", who: null, sinceHours: 0, urgent: false }, "Asset")).toBe("Asset · 0h in");
   });
 
   it("says nothing waits when the inbox is counted, fresh and empty", () => {
@@ -198,7 +198,7 @@ describe("NextUp", () => {
     expect(document.querySelector("[data-next-calm]")!.textContent).toBe("Nothing waits on you");
   });
 
-  it("leaves out the decisions and work of a site whose TV switch is off", () => {
+  it("leaves out the decisions and work of an asset whose TV switch is off", () => {
     draw({ hidden: new Set(["meadow.example"]) });
     expect(document.querySelector('[data-next-top="or-2"]')).not.toBeNull();
     expect([...document.querySelectorAll("[data-next-then-item]")].map((node) => node.getAttribute("data-next-then-item"))).toEqual(["or-4"]);

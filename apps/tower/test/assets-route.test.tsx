@@ -163,7 +163,7 @@ function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS, sites?: Sit
       <MemoryRouter initialEntries={[url]}>
         <Routes>
           <Route path="/assets" element={<AssetsRoute />} />
-          <Route path="/assets/*" element={<p>Site page</p>} />
+          <Route path="/assets/*" element={<p>Asset page</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -191,11 +191,11 @@ afterEach(() => {
   state.isPending = false;
 });
 
-describe("/assets — which site needs attention, and how each is doing", () => {
-  it("draws one row per site in the saved order, each with its one health word, its name opening the site", () => {
+describe("/assets — which asset needs attention, and how each is doing", () => {
+  it("draws one row per asset in the saved order, each with its one health word, its name opening the asset", () => {
     const { container } = renderAssets();
 
-    expect(screen.getByRole("heading", { level: 1, name: "Sites" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Portfolio" })).toBeInTheDocument();
     expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
     expect(row(container, "meadow.example")).toHaveTextContent("Off track");
     expect(row(container, "northwind.example")).toHaveTextContent("At risk");
@@ -204,10 +204,10 @@ describe("/assets — which site needs attention, and how each is doing", () => 
     // A site with no number yet has an empty Overview, so its row opens its Data sources.
     expect(within(row(container, "ferns.example")).getByRole("link")).toHaveAttribute("href", "/assets/ferns.example/sources");
     fireEvent.click(within(row(container, "meadow.example")).getByRole("link"));
-    expect(screen.getByText("Site page")).toBeVisible();
+    expect(screen.getByText("Asset page")).toBeVisible();
   });
 
-  it("states each site's people, money and sources, and names what nobody reported", () => {
+  it("states each asset's people, money and sources, and names what nobody reported", () => {
     const { container } = renderAssets();
 
     expect(row(container, "meadow.example")).toHaveTextContent("no revenue");
@@ -217,53 +217,53 @@ describe("/assets — which site needs attention, and how each is doing", () => 
     expect(within(row(container, "meadow.example")).getByText("0 of 1 data sources live")).toBeInTheDocument();
   });
 
-  it("offers Add a site as the page's one primary action, opened over the page", () => {
+  it("offers Add an asset as the page's one primary action, opened over the page", () => {
     const { container } = renderAssets();
 
     // A button, not a link (test/add-site.test.tsx pins what it opens).
-    const action = screen.getByRole("button", { name: "Add a site" });
+    const action = screen.getByRole("button", { name: "Add an asset" });
     expect(action).toHaveAttribute("data-add-site-open");
     expect(container.querySelector("[data-page-header]")?.contains(action)).toBe(true);
-    expect(screen.getAllByRole("button", { name: "Add a site" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Add an asset" })).toHaveLength(1);
   });
 
-  it("opens with one answer: which sites need attention, each named a way in", () => {
+  it("opens with one answer: which assets need attention, each named a way in", () => {
     const { container } = renderAssets();
 
     const answer = container.querySelector<HTMLElement>("[data-sites-answer]")!;
     expect(answer).toHaveAttribute("data-surface-hero");
     expect(answer).toHaveAttribute("data-sites-answer", "needs-you");
-    expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need attention");
+    expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 assets need attention");
     expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meadow Board", "Northwind"]);
     expect(answer.querySelector("[data-visitors-figure]")).toHaveTextContent("1,500");
   });
 
-  it("says All on track when no site needs attention, regardless of manual stage", () => {
+  it("says All on track when no asset needs attention, regardless of manual stage", () => {
     const calm = [assetCard({ id: "one.example" }), assetCard({ id: "two.example" })];
     const { container, unmount } = renderAssets("/assets", calm);
-    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 sites on track");
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 assets on track");
     unmount();
     const young = [assetCard({ id: "one.example" }), assetCard({ id: "two.example", status: "baselining" })];
     const second = renderAssets("/assets", young);
-    expect(second.container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 sites on track");
+    expect(second.container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 assets on track");
   });
 
-  it("includes a late reporting site in attention counts during baselining", () => {
+  it("includes a late reporting asset in attention counts during baselining", () => {
     const late = assetCard({ id: "late.example", status: "baselining", pulseReceivedAt: "2026-07-30T10:00:00.000Z" });
     const { container } = renderAssets("/assets", [late, assetCard({ id: "fine.example" })]);
     expect(row(container, late.id)).toHaveTextContent("At risk");
-    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 2 sites at risk");
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 2 assets at risk");
     expect(screen.queryByRole("button", { name: /setting up/i })).toBeNull();
   });
 
   it("answers for the portfolio, not the narrowed view", () => {
     const { container } = renderAssets("/assets?status=live");
 
-    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("2 of 4 sites need attention");
-    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · stage: live");
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("2 of 4 assets need attention");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 assets · stage: live");
   });
 
-  it("leaves tasks, search clicks, the ledger and the traffic period to each site's own page", () => {
+  it("leaves tasks, search clicks, the ledger and the traffic period to each asset's own page", () => {
     const { container } = renderAssets();
 
     expect(screen.queryByRole("group", { name: "Traffic period" })).toBeNull();
@@ -276,7 +276,7 @@ describe("/assets — the health split is the Health filter", () => {
   it("splits the whole portfolio by health word, worst first, with each count in its legend", () => {
     const { container } = renderAssets();
 
-    const bar = screen.getByRole("img", { name: "Site health: 1 off track, 1 at risk, 2 on track" });
+    const bar = screen.getByRole("img", { name: "Asset health: 1 off track, 1 at risk, 2 on track" });
     expect([...bar.querySelectorAll("[data-segment]")].map((segment) => segment.getAttribute("data-segment"))).toEqual([
       "off-track", "at-risk", "on-track",
     ]);
@@ -289,14 +289,14 @@ describe("/assets — the health split is the Health filter", () => {
     expect(container.querySelector("[data-assets-summary]")).toBeNull();
   });
 
-  it("shows only a word's sites on a press, and all of them on a second", () => {
+  it("shows only a word's assets on a press, and all of them on a second", () => {
     const { container } = renderAssets();
 
     fireEvent.click(screen.getByRole("button", { name: "2 on track" }));
     expect(shown(container)).toEqual(["acorn.example", "ferns.example"]);
     expect(pressed("Health")).toEqual(["2 on track"]);
     expect(container.querySelector('[data-segment="off-track"]')!.className).toContain("opacity-25");
-    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · health: on track");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 assets · health: on track");
 
     fireEvent.click(screen.getByRole("button", { name: "2 on track" }));
     expect(shown(container)).toHaveLength(4);
@@ -308,12 +308,12 @@ describe("/assets — the health split is the Health filter", () => {
     expect(shown(container)).toEqual(["northwind.example"]);
     expect(screen.getByLabelText("Stage")).toHaveValue("live");
     expect(pressed("Health")).toEqual(["1 at risk"]);
-    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("1 of 4 sites · stage: live · health: at risk");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("1 of 4 assets · stage: live · health: at risk");
 
     const nobody = renderAssets("/assets?health=monitor-only");
     expect(within(nobody.container.querySelector<HTMLElement>("[data-health-split]")!).getByRole("button", { name: "0 monitor only" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(nobody.container.querySelector("[data-assets-summary]")).toHaveTextContent("0 of 4 sites · health: monitor only");
+    expect(nobody.container.querySelector("[data-assets-summary]")).toHaveTextContent("0 of 4 assets · health: monitor only");
   });
 });
 
@@ -333,11 +333,11 @@ describe("/assets — the stage", () => {
   it("says nothing matches, and never calls it an empty portfolio", () => {
     const { container } = renderAssets("/assets?status=retired");
 
-    expect(screen.getByText("No sites match these filters")).toBeInTheDocument();
-    expect(screen.queryByText("No sites yet")).toBeNull();
+    expect(screen.getByText("No assets match these filters")).toBeInTheDocument();
+    expect(screen.queryByText("No assets yet")).toBeNull();
     expect(shown(container)).toEqual([]);
     const summary = container.querySelector<HTMLElement>("[data-assets-summary]")!;
-    expect(summary).toHaveTextContent("0 of 4 sites · stage: retired");
+    expect(summary).toHaveTextContent("0 of 4 assets · stage: retired");
     expect(within(summary).getByRole("link", { name: "Clear" })).toBeInTheDocument();
   });
 
@@ -411,17 +411,17 @@ describe("/assets — the orderings", () => {
 
 /** A site whose Home and Sites list switch is off is listed nowhere here and
  * counted as hidden; an archived site stays off until restored. */
-describe("/assets — sites hidden by their own switch", () => {
-  it("leaves a list-off site out of the rows, the answer and the stage counts, and says how many are hidden", () => {
+describe("/assets — assets hidden by their own switch", () => {
+  it("leaves a list-off asset out of the rows, the answer and the stage counts, and says how many are hidden", () => {
     const { container } = renderAssets("/assets", ASSETS, { "northwind.example": { list: false } });
     expect(shown(container)).toEqual(["meadow.example", "acorn.example", "ferns.example"]);
-    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 sites off track");
-    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent(/^3 sites\s*·\s*1 hidden$/u);
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 assets off track");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent(/^3 assets\s*·\s*1 hidden$/u);
     expect(container.querySelector("[data-assets-hidden]")).toHaveAttribute("data-assets-hidden", "1");
     expect(screen.getByRole("option", { name: "Live · 1" })).toBeInTheDocument();
   });
 
-  it("keeps archived sites hidden even with a saved list switch", () => {
+  it("keeps archived assets hidden even with a saved list switch", () => {
     const retired = ASSETS.map((card) => (card.id === "acorn.example" ? { ...card, status: "retired" } : card));
     const off = renderAssets("/assets", retired);
     expect(shown(off.container)).toEqual(["meadow.example", "northwind.example", "ferns.example"]);
@@ -432,19 +432,19 @@ describe("/assets — sites hidden by their own switch", () => {
     expect(on.container.querySelector("[data-assets-hidden]")).toHaveAttribute("data-assets-hidden", "1");
   });
 
-  it("excludes archived sites from rows, answer and health bar", () => {
+  it("excludes archived assets from rows, answer and health bar", () => {
     const retired = ASSETS.map((card) => (card.id === "meadow.example" ? { ...card, status: "retired" } : card));
     const { container } = renderAssets("/assets", retired, { "meadow.example": { list: true } });
     expect(row(container, "meadow.example")).toBeNull();
     // Northwind at risk, of the three watched sites.
-    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 sites at risk");
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 assets at risk");
     expect(container.querySelector("[data-health-split]")).not.toHaveTextContent("Retired");
   });
 
-  it("says every site is hidden rather than that there are none", () => {
+  it("says every asset is hidden rather than that there are none", () => {
     const { container } = renderAssets("/assets", ASSETS.slice(0, 2), { "meadow.example": { list: false }, "northwind.example": { list: false } });
-    expect(screen.getByText("Every site is hidden")).toBeInTheDocument();
-    expect(screen.queryByText("No sites yet")).toBeNull();
+    expect(screen.getByText("Every asset is hidden")).toBeInTheDocument();
+    expect(screen.queryByText("No assets yet")).toBeNull();
     expect(container.querySelector("[data-assets-hidden]")).toHaveTextContent("2 hidden");
   });
 });
@@ -464,27 +464,27 @@ describe("/assets — the comparison arrives with a second site", () => {
   }
   const none = { answer: null, split: null, filters: null, order: null, stage: null, summary: null };
 
-  it("with no sites, is its header, Add a site and one empty state", () => {
+  it("with no assets, is its header, Add an asset and one empty state", () => {
     const { container } = renderAssets("/assets", []);
     expect(machinery(container)).toEqual(none);
-    expect(screen.getByText("No sites yet")).toBeInTheDocument();
+    expect(screen.getByText("No assets yet")).toBeInTheDocument();
     expect(container.querySelector("[data-assets-empty]")).toHaveAttribute("data-surface-hero");
-    expect(screen.getAllByRole("button")).toEqual([screen.getByRole("button", { name: "Add a site" })]);
+    expect(screen.getAllByRole("button")).toEqual([screen.getByRole("button", { name: "Add an asset" })]);
     expect(container.querySelector("[data-assets-age]")).toBeNull();
   });
 
-  it("with one site, is that site's row and nothing to filter, order or add up", () => {
+  it("with one asset, is that asset's row and nothing to filter, order or add up", () => {
     const { container } = renderAssets("/assets?status=retired&health=at-risk", [ASSETS[0]!]);
     expect(machinery(container)).toEqual(none);
     expect(shown(container)).toEqual(["meadow.example"]);
-    expect(screen.queryByText("No sites match these filters")).toBeNull();
+    expect(screen.queryByText("No assets match these filters")).toBeNull();
     expect(container.querySelector("[data-assets-age]")).toHaveTextContent("updated");
   });
 
-  it("with two sites, compares them", () => {
+  it("with two assets, compares them", () => {
     const { container } = renderAssets("/assets", ASSETS.slice(0, 2));
     const shownMachinery = machinery(container);
-    expect(shownMachinery.answer).toHaveTextContent("2 of 2 sites need attention");
+    expect(shownMachinery.answer).toHaveTextContent("2 of 2 assets need attention");
     expect(shownMachinery.split).not.toBeNull();
     expect(shownMachinery.order).not.toBeNull();
     expect(shownMachinery.stage).not.toBeNull();

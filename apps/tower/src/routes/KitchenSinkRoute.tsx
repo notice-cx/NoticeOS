@@ -299,10 +299,10 @@ const FEED_DEMO_ITEMS: WallFeedItem[] = (
   [
     [6, "task-done", "Task done", "Recipes", "Recipe cards load faster", "healthy"],
     [19, "task-filed", "New task", "Medley", "Catalog import skips closed stores", "neutral"],
-    [31, "collected", "Collected", null, "Google · 5 sites, none failed", "neutral"],
+    [31, "collected", "Collected", null, "Google · 5 assets, none failed", "neutral"],
     [52, "source-failed", "Source failed", "Codes", "Analytics daily reports: access denied", "error"],
     [120, "alert", "Alert", "Recipes", "Plans saved well below normal", "warn"],
-    [195, "revenue", "Revenue", null, "2 sites reported $55.25 for Sep 21", "revenue"],
+    [195, "revenue", "Revenue", null, "2 assets reported $55.25 for Sep 21", "revenue"],
     [268, "cost", "Cost", null, "DataForSEO · $0.41 for 12 reports", "cost"],
     [780, "deployed", "Deployed", "System", "The OS moved to a newer version", "neutral"],
   ] as const
@@ -2717,7 +2717,7 @@ const demoEgressLane: DerivedLaneRow = {
       evidence: [
         {
           polarity: "against",
-          source: "Reference sites that could not be reached",
+          source: "Reference websites that could not be reached",
           detail:
             "https://www.cloudflare.com/cdn-cgi/trace: internal error; reference = 9f2a; https://www.google.com/generate_204: internal error; reference = 3b71",
           at: iso(6 * HOUR),
@@ -2955,7 +2955,7 @@ export function KitchenSinkRoute() {
               <VisualKitGallery />
             </div>
           </Section>
-          <Section title="Visual kit for a site's tabs: ChangeRows, FunnelBars">
+          <Section title="Visual kit for an asset's tabs: ChangeRows, FunnelBars">
             <p className="text-xs text-muted-foreground">Staged in the gallery above, under Changes and funnels.</p>
           </Section>
           <Section title="Visual kit for Tasks: TaskProgressBar, ProjectJourneys">
@@ -2971,8 +2971,8 @@ export function KitchenSinkRoute() {
 
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">
-              <PageAnswer answer="1 of 7 sites at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
-              <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
+              <PageAnswer answer="1 of 7 assets at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
+              <PageAnswer answer="All 7 assets on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
               <PageAnswer answer="No decisions for you" detail="read 1m ago" />
               <PageAnswer
                 answer="3 decisions for you"
@@ -3449,7 +3449,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="EmptyState · NoSitesYet (an empty site list's door)">
+          <Section title="EmptyState · NoSitesYet (an empty asset list's door)">
             <EmptyState
               title="P&L starts with the first reconciled month — 6 days in."
               hint="Revenue and cost book on reconciliation; estimates don't count yet."
@@ -3466,7 +3466,7 @@ export function KitchenSinkRoute() {
                 <ReadFailed title="Couldn't load alerts" subject="read:alerts" error={new ApiError("GET /api/wall failed", 503)} retrying={false} onRetry={() => {}} />
               </div>
               <div className="overflow-hidden rounded-md border border-border">
-                <ReadFailed title="Couldn't load this site" subject="read:site" detail={<span className="font-mono">example.com</span>} error={new TypeError("Failed to fetch")} retrying={false} onRetry={() => {}} />
+                <ReadFailed title="Couldn't load this asset" subject="read:site" detail={<span className="font-mono">example.com</span>} error={new TypeError("Failed to fetch")} retrying={false} onRetry={() => {}} />
               </div>
               <div className="overflow-hidden rounded-md border border-border">
                 <ReadFailed title="Couldn't load Home" subject="read:home" error={new ApiError("GET /api/wall failed", 500)} retrying onRetry={() => {}} />
@@ -3605,7 +3605,7 @@ export function KitchenSinkRoute() {
               {(["confirmed", "unverified", "source-ended", "recorded-closed", "not-applicable"] as const).map((state) =>
                 <AlertVerification key={state} firstDetectedAt="2026-07-01T04:00:00.000Z" nowMs={NOW}
                   verification={{ state, lastConfirmedAt: new Date(NOW - 21 * 3_600_000).toISOString(),
-                    lastEvaluatedAt: new Date(NOW - 21 * 3_600_000).toISOString(), source: "Site checks",
+                    lastEvaluatedAt: new Date(NOW - 21 * 3_600_000).toISOString(), source: "Asset checks",
                     reason: state === "confirmed" ? "source-confirms" : "confirmation-stale" }} />)}
               <AlertVerification firstDetectedAt="2026-07-01T04:00:00.000Z" nowMs={NOW} />
               <span className="text-base"><AlertVerification firstDetectedAt="2026-07-01T04:00:00.000Z" nowMs={NOW} interactive={false} /></span>
@@ -4307,7 +4307,7 @@ export function KitchenSinkRoute() {
 
           {/* Add a site: the one screen in each of its states, drawn in place,
               plus the button that opens the real sheet. */}
-          <Section title="AddSitePanel / AddSiteButton — add a site in one screen">
+          <Section title="AddSitePanel / AddSiteButton — add an asset in one screen">
             <div className="flex w-full flex-wrap items-start gap-4">
               <AddSiteButton />
               {ADD_SITE_DEMOS.map((demo) => (
@@ -4502,7 +4502,7 @@ export function KitchenSinkRoute() {
           {/* The sites in their order with each site's switches, as Arrange,
               Settings and a site's Settings tab draw them, and the line a drag
               draws before the drop. */}
-          <Section title="SiteArrange / ShownOnSwitches / RetiredChip / DropLine (four sites, one retired, saves paused, one site's switches, a drop line)">
+          <Section title="SiteArrange / ShownOnSwitches / RetiredChip / DropLine (four assets, one retired, saves paused, one asset's switches, a drop line)">
             <SiteArrangeDemo />
           </Section>
 
@@ -4720,7 +4720,7 @@ export function KitchenSinkRoute() {
             </div>
             <p className="w-full text-xs text-muted-foreground">
               The GA4 property map a Google credential still carries. Each
-              site's GA4 property and Search Console site is saved on its own
+              asset's GA4 property and Search Console site is saved on its own
               Sources tab; the card names what is still waiting, and says so
               when nothing is. No tone: it is neither a fault nor connectivity.
             </p>
@@ -4777,7 +4777,7 @@ export function KitchenSinkRoute() {
             <p className="w-full text-xs text-muted-foreground">
               The panel drawn in place; on the desk it slides over
               /integrations as a sheet. Each demo answers after a beat so
-              Checking can be seen: Bing accepts any key and reports two sites,
+              Checking can be seen: Bing accepts any key and reports two assets,
               the second Bing refuses whatever is pasted, DataForSEO accepts
               and reports its credit, the second DataForSEO does not answer,
               and the last cannot be pressed because the install cannot store
@@ -4799,7 +4799,7 @@ export function KitchenSinkRoute() {
             ))}
           </Section>
 
-          <Section title="SiteTokens — a token pasted per site, saved on paste, Run now">
+          <Section title="SiteTokens — a token pasted per asset, saved on paste, Run now">
             {/* Clarity's panel body: one site holds a token and works, one
                 waits for its paste; the second demo has three calls left
                 today. Saving and running answer after a beat; nothing is
@@ -4909,7 +4909,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="SitePicker — the account's sites, matched, and Start">
+          <Section title="SitePicker — the account's assets, matched, and Start">
             {SITE_PICKER_DEMOS.map((demo, index) => (
               <div key={demo.key} className="flex min-h-96 w-full max-w-[430px] flex-col rounded-xl border border-border bg-card p-5">
                 <SitePicker
@@ -4994,7 +4994,7 @@ export function KitchenSinkRoute() {
               container, so each box draws the arrangement its own width earns;
               the editor's preview at `/wall/edit` is where the real geometry is
               reviewed. */}
-          <Section title="WallCanvas (the default · a rearranged one with a site filter)">
+          <Section title="WallCanvas (the default · a rearranged one with an asset filter)">
             <p className="w-full text-xs text-muted-foreground">
               With nothing saved in <code>config/tower.json</code> at{" "}
               <code>/wall</code>, this is what the television draws.
@@ -5018,9 +5018,9 @@ export function KitchenSinkRoute() {
               />
             </div>
             <p className="w-full text-xs text-muted-foreground">
-              The same payload under a layout somebody arranged: the site rows
+              The same payload under a layout somebody arranged: the asset rows
               first beside the feed, money under them, no strip, and both
-              per-site widgets narrowed to two sites — in the layout's order,
+              per-asset widgets narrowed to two assets — in the layout's order,
               so Monarch leads.
             </p>
             <div data-theme="dark" className="wall-root text-foreground h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
@@ -5417,7 +5417,7 @@ export function KitchenSinkRoute() {
                 register="ga4-event-params"
                 params={{ asset: "demo.example" }}
                 rows={null}
-                emptyHint="JavaScript-error report skips this site"
+                emptyHint="JavaScript-error report skips this asset"
                 onSave={demoCollectionSave}
               />
               <CollectionEditor
@@ -5801,7 +5801,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="WallHealth (problems and fine sites / no sites yet)">
+          <Section title="WallHealth (problems and fine assets / no assets yet)">
             <div data-theme="dark" className="wall-root text-foreground w-full max-w-4xl rounded-lg bg-background p-4">
               <WallHealth assets={healthDemoCards} issues={[]} />
             </div>
@@ -5851,7 +5851,7 @@ export function KitchenSinkRoute() {
           </Section>
 
           {/* The default Wall's three visual-kit widgets, on the TV's ground. */}
-          <Section title="WallLoop (the demo sites / nothing read yet)">
+          <Section title="WallLoop (the demo assets / nothing read yet)">
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <WallLoop data={wallFixture} connections={DEMO_CONNECTIONS} nowMs={NOW} />
             </div>
@@ -5895,7 +5895,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="SiteRows (the demo sites with their marks / three sites, roomier / one site in depth / a failed live read)">
+          <Section title="SiteRows (the demo assets with their marks / three assets, roomier / one asset in depth / a failed live read)">
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows
                 assets={wallFixture.assets}
@@ -6077,7 +6077,7 @@ const WALL_DEMO_HISTORY: WallLayoutVersion[] = [
   },
   {
     savedAt: iso(30 * DAY),
-    reason: "Sites only, while the ledger was still empty",
+    reason: "Assets only, while the ledger was still empty",
     layout: {
       version: 1,
       rows: [
@@ -6628,10 +6628,10 @@ function SurfaceSections() {
         </div>
       </Section>
 
-      <Section title="Panel — shared settings and site sections">
+      <Section title="Panel — shared settings and asset sections">
         <div className="flex w-full max-w-4xl flex-col gap-4">
-          <Panel id="panel-block-demo" title="Identity" count="one site" action={<OwnerChip path="db · assets row" />} data-panel-demo="block">
-            <p className="text-sm">Example site</p>
+          <Panel id="panel-block-demo" title="Identity" count="one asset" action={<OwnerChip path="db · assets row" />} data-panel-demo="block">
+            <p className="text-sm">Example asset</p>
           </Panel>
           <Panel id="panel-stack-demo" title="Collection" count="2 settings" action={<PanelLock />} bodyLayout="stack" data-panel-demo="stack">
             <div className="border-b border-border py-3 text-sm first:pt-1">Every day</div>
@@ -6949,7 +6949,7 @@ function SurfaceSections() {
         <ChartMarksDemo />
       </Section>
 
-      <Section title="MinutePulse — a site's live users minute by minute">
+      <Section title="MinutePulse — an asset's live users minute by minute">
         <MinutePulseDemo />
       </Section>
 
@@ -7240,7 +7240,7 @@ function SurfaceSections() {
               },
               {
                 key: "site",
-                title: "Whole site",
+                title: "Whole asset",
                 count: "1 found",
                 rows: [<ListRow key="once" tone="warn" glyph="△" title="first_meal_logged fires 3.0× per person" caption="Named to happen once" value="3.0×" valueLabel="per person" />],
               },

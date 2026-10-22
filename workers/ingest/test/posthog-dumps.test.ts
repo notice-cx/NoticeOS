@@ -455,7 +455,7 @@ describe('PostHog product analytics archive', () => {
     expect(stamped).toEqual({ lastOkAt: new Date(NOW).toISOString(), lastError: null });
   });
 
-  it('leaves a refused key on the card as one short line, in the words the site row uses', async () => {
+  it('leaves a refused key on the card as one short line, in the words the asset row uses', async () => {
     // What went wrong, then the count — never a list of every site and report.
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: KEYS } });
     const { fetchImpl } = posthogFetch(() =>

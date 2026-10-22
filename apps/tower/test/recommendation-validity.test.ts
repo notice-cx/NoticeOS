@@ -72,7 +72,7 @@ describe("recommendation applicability is an evidence review, never a current ve
     const result = recommendationValidity(subject, context({ generatedAt: "2026-09-06T11:30:00Z" }), NOW);
     expect(result.state).toBe("unverified");
     expect(result.label).toBe("Not rechecked");
-    expect(recommendationHandoffCaveat(result)).toMatch(/Recheck the latest reports, linked work and the site before acting\.$/);
+    expect(recommendationHandoffCaveat(result)).toMatch(/Recheck the latest reports, linked work and the asset before acting\.$/);
   });
   it("only labels replacement when an explicitly older analysis is supplied", () => {
     const result = recommendationValidity({ ...subject, generatedAt: "2026-07-31T23:00:00Z" }, context(), NOW);

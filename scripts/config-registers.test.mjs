@@ -253,7 +253,7 @@ test('pattern refusals give a readable correction instead of regular-expression 
 test('resolveContainer fills the asset in, and refuses to guess one', () => {
   const register = CONFIG_REGISTERS['serp-panel-queries'];
   assert.equal(resolveContainer(register, { asset: 'northwind.example' }), '/assets/northwind.example/queries');
-  assert.throws(() => resolveContainer(register, {}), /needs a site id/);
+  assert.throws(() => resolveContainer(register, {}), /needs an asset id/);
   assert.equal(resolveContainer(CONFIG_REGISTERS['domain-costs'], {}), '/domains');
   assert.ok(containerRegExp(register).test('/assets/northwind.example/queries/4'));
   assert.ok(!containerRegExp(register).test('/assets/northwind.example/other'));
@@ -266,7 +266,7 @@ test('a field refusal names the field by its label and the rule it broke', () =>
   assert.match(fieldRefusal(fieldOf(domain, 'paidUsd'), -1), /^Paid \(USD\) must be at least 0$/);
   assert.match(fieldRefusal(fieldOf(domain, 'kind'), 'gift'), /^Order must be one of registration \| renewal \| transfer$/);
   assert.match(fieldRefusal(fieldOf(domain, 'paidOn'), '2026-02-30'), /^Paid on must be a date/);
-  assert.match(fieldRefusal(fieldOf(domain, 'asset'), 'Not An Asset'), /^Site must be a site id$/);
+  assert.match(fieldRefusal(fieldOf(domain, 'asset'), 'Not An Asset'), /^Asset must be an asset id$/);
   assert.equal(fieldRefusal(fieldOf(domain, 'domain'), 'https://x.test'), 'Domain: lowercase, a name not a URL: example.com');
 
   const costs = CONFIG_REGISTERS['recurring-costs'];
@@ -312,21 +312,21 @@ test('a row refusal names the field it is about, or none for the whole row', () 
 // refusal through `fieldRefusal` over `SITE_ROW_FIELDS`, so Add a site reads
 // "Domain must be a hostname such as example.com" beside its Domain input,
 // never a request key ("domain must …") and never "… a property id".
-test('a site row refusal names the field by its label and says site', () => {
+test('an asset row refusal names the field by its label and says asset', () => {
   const { id, displayName, domain, status, senseOnly } = SITE_ROW_FIELDS;
   assert.equal(fieldRefusal(domain, 'shop.example.com'), null);
-  assert.equal(fieldRefusal(domain, undefined), null, 'a site with no domain is a service');
+  assert.equal(fieldRefusal(domain, undefined), null, 'an asset with no domain is a service');
   assert.equal(fieldRefusal(domain, 'https://shop.example.com/x'), 'Domain must be a hostname such as example.com');
   assert.equal(fieldRefusal(domain, 'Shop.Example.com'), 'Domain must be a hostname such as example.com');
   assert.equal(fieldRefusal(id, 'shop.example.com'), null);
-  assert.equal(fieldRefusal(id, 'home-os'), null, 'a short slug is a site id');
-  assert.equal(fieldRefusal(id, 'NOT VALID'), 'Site must be a site id');
+  assert.equal(fieldRefusal(id, 'home-os'), null, 'a short slug is an asset id');
+  assert.equal(fieldRefusal(id, 'NOT VALID'), 'Asset must be an asset id');
   // The store's spelling, not a configuration key's: an underscore is refused
   // here and accepted there, as each rule always did.
-  assert.equal(fieldRefusal(id, 'shop_example'), 'Site must be a site id');
+  assert.equal(fieldRefusal(id, 'shop_example'), 'Asset must be an asset id');
   assert.equal(fieldRefusal({ ...id, type: 'asset-id' }, 'shop_example'), null);
-  assert.equal(fieldRefusal(id, 'x'.repeat(129)), 'Site must be 128 characters or fewer');
-  assert.equal(fieldRefusal(id, undefined), 'Site is required');
+  assert.equal(fieldRefusal(id, 'x'.repeat(129)), 'Asset must be 128 characters or fewer');
+  assert.equal(fieldRefusal(id, undefined), 'Asset is required');
   assert.equal(fieldRefusal(displayName, ''), 'Display name is required');
   assert.equal(fieldRefusal(displayName, 'x'.repeat(81)), 'Display name must be 80 characters or fewer');
   assert.match(fieldRefusal(status, 'shipping'), /^Lifecycle stage must be one of pre-launch \| onboarding/);
@@ -339,7 +339,7 @@ test('a site row refusal names the field by its label and says site', () => {
       const refusal = fieldRefusal(field, value);
       if (refusal === null) continue;
       assert.ok(refusal.startsWith(`${field.label} `), `${key}: ${refusal}`);
-      assert.doesNotMatch(refusal, /\bproperty\b|\basset\b/i, `${key}: ${refusal}`);
+      assert.doesNotMatch(refusal, /\bproperty\b|\bsite\b/i, `${key}: ${refusal}`);
     }
   }
 });
@@ -384,7 +384,7 @@ test('a scalar register takes the bare value as well as its one-field object', (
   const events = CONFIG_REGISTERS['value-events'];
   assert.equal(rowRefusal(events, 'calculation_complete'), null);
   assert.equal(rowRefusal(events, { event: 'sign_up' }), null);
-  assert.match(rowRefusal(events, 'Calculation Complete'), /^GA4 event: verbatim as the site emits it/);
+  assert.match(rowRefusal(events, 'Calculation Complete'), /^GA4 event: verbatim as the asset emits it/);
   assert.deepEqual(rowValue(events, 'sign_up'), { event: 'sign_up' });
 
   // A tracked query is a string OR an object carrying its cluster, in any mix.

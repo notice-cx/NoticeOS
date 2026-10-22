@@ -13,7 +13,7 @@ An installation is a handful of Docker containers that work together. Docker Com
 
 | Container | What it does |
 |---|---|
-| `noticeos`, the app | Serves the Tower, receives the reports sites send (the data receiver), runs the scheduled jobs (the scheduler) and reads and writes tasks (the task client) |
+| `noticeos`, the app | Serves the Tower, receives the reports assets send (the data receiver), runs the scheduled jobs (the scheduler) and reads and writes tasks (the task client) |
 | `postgres` | The store: every report, reading, ledger row and setting |
 | `dolt` | The task database: every project's tasks |
 | `backup` | Optional: takes the nightly backup. See [Backups and restore](/operate/backups-and-restore) |

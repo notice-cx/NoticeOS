@@ -777,7 +777,7 @@ async function evaluateWindow(
   if (window.scope_json !== null && (selector === null || window.metric_integration !== 'gsc')) {
     const unsupported: Verdict = {
       outcome: 'unmeasurable',
-      note: 'stored scope unsupported · no site-wide fallback',
+      note: 'stored scope unsupported · no asset-wide fallback',
     };
     await closeWindow(env, window, readings, fresh, now, unsupported, series);
     result.closed.push({ id: window.id, asset: window.asset, ...unsupported });

@@ -34,7 +34,7 @@ test('the window holds meetings in progress and those starting within 48 hours, 
   assert.ok(meetings.length <= 20);
 });
 
-test('site meetings name the scenario sites, every day has one, and the countdown review is on its day', () => {
+test('asset meetings name the scenario assets, every day has one, and the countdown review is on its day', () => {
   const names = scenario.assets.filter(asset => !asset.isOs).map(asset => asset.name);
   const week = Array.from({ length: 7 }, (_, day) => calendar.read(Date.parse(`${shiftDemoDay('2026-10-04', day)}T00:00:00.000Z`)).meetings);
   for (const [day, meetings] of week.entries()) {

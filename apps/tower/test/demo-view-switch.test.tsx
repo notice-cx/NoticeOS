@@ -161,7 +161,7 @@ describe("the demo's TV", () => {
     expect(drawn()).toEqual(SAVED);
   });
 
-  it("carries the saved sites' totals onto the picked preset", () => {
+  it("carries the saved assets' totals onto the picked preset", () => {
     demoPreferences().write("view", JSON.stringify({ view: "product", focus: [] }));
     wallAt("/wall");
     expect(sitesSettings(drawn())).toEqual({ pulseMetrics: { "meadow.example": ["recipe_saves"] } });

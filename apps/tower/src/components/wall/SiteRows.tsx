@@ -168,12 +168,12 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
   if (assets.length === 0) {
     return (
       <section
-        aria-label="Sites"
+        aria-label="Portfolio"
         className="flex min-w-0 items-center gap-3 self-start text-wall-body text-muted-foreground"
         data-wall-sites="none"
       >
         <Globe className="size-6 shrink-0" aria-hidden />
-        No sites yet
+        No assets yet
       </section>
     );
   }
@@ -200,10 +200,10 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
   const size: RowSize = density === "compact" ? "compact" : "comfortable";
   const compactTotals = size === "compact" && assets.some((asset) => visiblePulseCounters(asset, pulseMetrics).length > 0);
   return (
-    <section aria-label="Sites" className="flex h-full min-h-0 min-w-0 flex-col" style={{ "--site-rows": assets.length } as CSSProperties} data-wall-sites data-site-density={density}>
+    <section aria-label="Portfolio" className="flex h-full min-h-0 min-w-0 flex-col" style={{ "--site-rows": assets.length } as CSSProperties} data-wall-sites data-site-density={density}>
       <div
         role="table"
-        aria-label="Sites"
+        aria-label="Portfolio"
         // Rows past the region's height scroll inside it under the headings
         // rather than the Wall falling back to one column.
         className={cn("min-h-0 flex-1 tv:overflow-y-auto", TABLE, ROW_SIZE[size].table, compactTotals && "sites:grid-cols-[minmax(12.5rem,1.6fr)_auto_minmax(13rem,0.6fr)_minmax(min-content,1fr)] sites-wide:grid-cols-[minmax(14.5rem,1.6fr)_auto_minmax(9rem,0.6fr)_minmax(min-content,1fr)]")}
@@ -211,7 +211,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
         style={{ "--site-rows": assets.length } as CSSProperties}
       >
         <div role="row" className={cn(ROW, "hidden px-4 pb-2 sites:grid tv:sticky tv:top-0 tv:z-10 tv:bg-background")} data-site-header>
-          <span role="columnheader" className={eyebrow}>Site</span>
+          <span role="columnheader" className={eyebrow}>Asset</span>
           <span role="columnheader" className={`${eyebrow} whitespace-nowrap`}>{LIVE_HEADING}</span>
           {/* Scaled, today's column may narrow under its heading, which then
               takes two lines. */}
@@ -628,7 +628,7 @@ function SiteHealth({ asset, mark, site }: { asset: AssetCard; mark: SiteMark | 
   return (
     <svg
       role="img"
-      aria-label={`Site health: ${label}`}
+      aria-label={`Asset health: ${label}`}
       viewBox="0 0 20 20"
       className={cn("size-5 shrink-0", state === "error" ? "text-error" : state === "warn" ? "text-warn" : "text-muted-foreground")}
       data-site-health={state}
@@ -666,7 +666,7 @@ function SiteFocus({
   lastWeekday: string;
 }) {
   return (
-    <section aria-label="Sites" className="flex h-full min-h-0 min-w-0 flex-col gap-3" style={{ "--site-rows": 1 } as CSSProperties} data-wall-sites data-site-density="focus">
+    <section aria-label="Portfolio" className="flex h-full min-h-0 min-w-0 flex-col gap-3" style={{ "--site-rows": 1 } as CSSProperties} data-wall-sites data-site-density="focus">
       <div className="flex min-w-0 items-center gap-4 border-t border-border/60 px-1 pt-3" data-site-row={asset.id} data-site-density="focus">
         <span className="flex min-w-0 items-center gap-3" data-site-name>
           <SiteName asset={asset} favicon="size-9 text-base" name="text-2xl" mark={mark} />

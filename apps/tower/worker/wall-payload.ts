@@ -45,6 +45,7 @@ import {
 import { CORRELATION_WINDOW_HOURS, correlateChanges } from "../shared/alert-language";
 import type { AnnotationItem, AnnotationKind } from "../shared/annotations";
 import type { IntegrationsConfig } from "../shared/integrations";
+import { assetTypeOf } from "@noticeos/contract/configuration";
 import type { DashboardConfig } from "../shared/dashboard";
 import {
   AMBER_MULTIPLIER,
@@ -752,6 +753,7 @@ export async function buildWallPayload(
     const latestPanelDate = panelLandingByAsset.get(a.id) ?? null;
     return {
       id: a.id,
+      assetType: assetTypeOf(dashboard.sites?.[a.id]),
       displayName: a.displayName,
       status: a.status,
       hasCollectedData: a.hasCollectedData,

@@ -230,7 +230,7 @@ describe("the answer", () => {
     expect(codebaseAnswer(slice, 0.4).answer).toBe("The code grew 5.2% in 28 days while visitors grew under 1%.");
   });
 
-  it("leaves visitors out when the site has none to compare", () => {
+  it("leaves visitors out when the asset has none to compare", () => {
     expect(visitorsChange(trend([]))).toBeNull();
     expect(codebaseAnswer(codebaseSlice(ASSET, TODAY), null).answer).toBe("The code grew 5.2% in 28 days.");
   });
@@ -299,7 +299,7 @@ describe("the chart, languages and findings", () => {
 });
 
 describe("the first report", () => {
-  it("fills the workflow file and the command with the site, and reads the address and token from secrets", () => {
+  it("fills the workflow file and the command with the asset, and reads the address and token from secrets", () => {
     const workflow = actionWorkflow(ASSET);
     expect(workflow).toContain('asset: "meadow.example"');
     expect(workflow).toContain("ingest-url: ${{ secrets.NOTICEOS_INGEST_URL }}");

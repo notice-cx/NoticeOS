@@ -52,7 +52,7 @@ address, a socket or the run's database password.
 
 No page leaves its server, not even by a redirect. Playwright
 routes only the first request of a redirect chain, so a route answering 302 to
-another site would take the browser to the real internet unseen.
+another asset would take the browser to the real internet unseen.
 `offline-guard.mjs`, installed on every journey's context (`journey-test.ts`)
 and every flow-gate walk, aborts requests to other origins, refuses a
 navigation whose answer redirects to one, records any other redirect hop that
@@ -67,7 +67,7 @@ only once the guard is armed, and gone when its runner dies.
 
 The journey covers an empty install, asset creation, a refused and then an
 accepted Bing key in the one-panel connect (nothing stored until Bing says
-yes), site mapping, receipt of deterministic data, completed-period
+yes), asset mapping, receipt of deterministic data, completed-period
 metric totals, range retention across tabs, exact task/approval links, gate
 resolution, and a failed setup save followed by retry without duplicate creation.
 Integration health on the provider pages and catalog tiles is the ingest's own
@@ -76,14 +76,14 @@ Working once data arrives while its report archive still awaits a first run, and
 Mediavine's revenue reads Working after its sync and Not connected after
 Disconnect.
 A Wall journey answers `/api/wall` and
-`/api/ga4/realtime` from the synthetic six-site `wall-fixture.ts` (invented
-`.example` sites) with the first site's live reading out of date, and fails at
+`/api/ga4/realtime` from the synthetic six-asset `wall-fixture.ts` (invented
+`.example` assets) with the first asset's live reading out of date, and fails at
 1920×1080 or 1440×900 if any region cuts text off sideways. A second draws
 the same fixture's `WallFixtureVariant`s — one, two, three,
-six, seven and eight sites, and on fire — at 1920×1080 and fails if any reaches
+six, seven and eight assets, and on fire — at 1920×1080 and fails if any reaches
 past the TV, paints outside its own box, cuts text off or draws half a feed row
 (the measurement `pnpm audit:wall-fit` runs, `scripts/wall-fit-measure.mts`), if a
-seventh site's row is not a full 70 px, or if the strip, Needs attention and the site
+seventh asset's row is not a full 70 px, or if the strip, Needs attention and the asset
 marks do not say what is on fire.
 The Wall journeys set this up through `wall-scene.ts`. `wallScene` pins the
 clock and answers the Wall's five reads once, with each load starting from an
@@ -94,7 +94,7 @@ and a phone (`openWall`). The live-feed journey skips the browser's clock one
 30-second poll ahead (`page.clock.runFor`) instead of waiting for it.
 A Sources-tab journey opens every data-source row, disclosure and a new PostHog
 funnel one at a time, and fails naming the row if the page grows wider than the
-viewport or a doc reference is clipped; a synthetic Google property list with
+viewport or a doc reference is clipped; a synthetic Google asset list with
 long names stands in for the connected account.
 Four route-split journeys open `/`, `/wall`,
 `/work`, `/integrations` and `/assets/plume.example` and require each to fetch only
@@ -179,13 +179,13 @@ boundaries. Only `journey-only-not-a-real-key` is accepted; its value is never
 returned or journaled. The connect panel's save-and-test is the ingest's own
 `connectCredential`, run unchanged; only
 the providers' side of the network is the fixture's (`journeyProviderNetwork`
-in `harness.ts`): Bing's GetUserSites lists the journey site for the synthetic
+in `harness.ts`): Bing's GetUserSites lists the journey asset for the synthetic
 key and refuses any other, and DataForSEO's account endpoint answers the
 synthetic login `journey-login` with that key. The data-arrival control refuses to run before the actual
-asset, fake connection test and saved site mapping exist. Where a real probe,
+asset, fake connection test and saved asset mapping exist. Where a real probe,
 collector or Mediavine sync records its outcome for integration health, the
 fixture's stand-in records the same outcome through the production recorders
-(integration health, and the verdict a test, site discovery or sync stamps on
+(integration health, and the verdict a test, asset discovery or sync stamps on
 the stored credential), so health states and a card's "This credential worked"
 come from saved evidence, never from the browser or a fixture flag. It does not exercise
 provider OAuth, collector scheduling, or real task-hub reconciliation. Those are
@@ -249,9 +249,9 @@ Fixture-only HTTP controls are available on **that isolated port**:
   revenue for the created asset, complete through the last day a report is due
   on the fixture's clock, and answer with that clock, the day, and each day's
   amount for last month and this one.
-- `POST /__journey/every-source`: add the remaining property data sources
+- `POST /__journey/every-source`: add the remaining asset data sources
   (Google, Clarity, PostHog, DataForSEO, uptime) to the synthetic catalog. Call
-  it before creating the asset, so Add a site writes a row for each.
+  it before creating the asset, so Add an asset writes a row for each.
 - `POST /__journey/finding`: save one analysis finding (`journey-sitemap-drop`)
   on the created asset, so its Overview's What matters has a finding to file a
   task from.

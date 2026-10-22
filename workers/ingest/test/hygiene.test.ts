@@ -672,7 +672,7 @@ describe('hygiene: home-unreachable', () => {
 
 // --- a site served only at www. ---------------------------------------------
 
-describe('hygiene: a site whose bare host does not answer is read at www.', () => {
+describe('hygiene: an asset whose bare host does not answer is read at www.', () => {
   // The stored domain is always the bare host; this site answers only at www.
   const APEX_ONLY_DEAD: HygieneAsset[] = [{ asset: 'meadow.example', domain: 'example.com' }];
   const APEX_HOME = 'https://example.com/';
@@ -839,7 +839,7 @@ describe('uptime: the hourly home-page check', () => {
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, true)).toBe(0);
   });
 
-  it('accuses no site when the OS went offline before the retry', async () => {
+  it('accuses no asset when the OS went offline before the retry', async () => {
     // The first GET got a 503 back, so the OS was online; the retry gets
     // nothing, and neither do the beacons.
     let tries = 0;
@@ -859,7 +859,7 @@ describe('uptime: the hourly home-page check', () => {
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(0);
   });
 
-  it('waits once for every site whose first GET failed, not once a site', async () => {
+  it('waits once for every asset whose first GET failed, not once an asset', async () => {
     const other: HygieneAsset = { asset: 'northwind.example', domain: 'northwind.example' };
     const { fetchImpl, calls } = stubOrigin({
       [HOME]: () => status(503),
@@ -900,7 +900,7 @@ describe('uptime: the hourly home-page check', () => {
     expect(await readingFor('html-depth')).toMatchObject({ status: 'ok', value_num: 800 });
   });
 
-  it('files a site-down alert at error, not warn', async () => {
+  it('files an asset-down alert at error, not warn', async () => {
     await insertFlag({
       asset: 'meadow.example',
       firedAt: new Date(NOW - DAY_MS).toISOString(),
@@ -922,7 +922,7 @@ describe('uptime: the hourly home-page check', () => {
     expect(await flagFor(HOME_UNREACHABLE_RULE_ID)).toMatchObject({ severity: 'error' });
   });
 
-  it('asks a site nothing when its home page was read within the half hour', async () => {
+  it('asks an asset nothing when its home page was read within the half hour', async () => {
     // The nightly sweep read it at 04:00; the 04:00 hourly tick is the same check.
     await runHygieneChecks(env, { assets: ASSETS, fetchImpl: origin().fetchImpl, nowMs: NOW });
     const { fetchImpl, calls } = origin({ [HOME]: () => status(503) });
@@ -934,7 +934,7 @@ describe('uptime: the hourly home-page check', () => {
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(0);
   });
 
-  it('accuses no site when the OS itself cannot reach the network', async () => {
+  it('accuses no asset when the OS itself cannot reach the network', async () => {
     const result = await runUptimeChecks(env, { assets: ASSETS, fetchImpl: stubOrigin({}).fetchImpl, nowMs: NOW + HOUR_MS });
 
     expect(result).toMatchObject({ checked: 1, fired: 0 });

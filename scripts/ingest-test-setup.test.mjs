@@ -41,7 +41,7 @@ test('an ingest file setup failure names the awaited operation and preserves its
     ['reset', 'resetting R2 and the Cache API'],
     ['clearRawSignals', 'resetting R2 and the Cache API'],
     ['postgres', "resetting this runtime's Postgres test copy"],
-    ['seedTestSites', 'seeding the Postgres test sites'],
+    ['seedTestSites', 'seeding the Postgres test assets'],
     ['forgetIsolateState', 'forgetting module state'],
   ];
   for (const [name, label] of steps) {

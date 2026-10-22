@@ -340,7 +340,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Nightly report")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: On track");
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
   });
 
@@ -352,7 +352,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: On track");
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
   });
@@ -366,7 +366,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "error");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: GA4 failing");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: GA4 failing");
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "problems");
     expect(timelineOn(wall.container).querySelector('[data-span^="source-ga4"]')).toHaveAttribute("data-severity", "error");
     expect(timelineOn(wall.container).querySelector("[data-event-timeline-list]")).toHaveTextContent("GA4 collection failing");
@@ -383,7 +383,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(wall.container.querySelector("[data-source]")).toBeNull();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: On track");
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
   });
 });
@@ -490,23 +490,23 @@ describe("Home — a fresh install", () => {
     ).toBeInTheDocument();
     expect(container.querySelector("[data-first-run]")).not.toBeNull();
     expect(
-      screen.getByRole("heading", { level: 2, name: "Your sites’ traffic, money and open work, in one place" }),
+      screen.getByRole("heading", { level: 2, name: "Your assets’ traffic, money and open work, in one place" }),
     ).toBeInTheDocument();
 
     const steps = container.querySelectorAll<HTMLElement>("[data-first-run-step]");
     expect(steps).toHaveLength(3);
     // Step 1 is the screen's one primary action, and it opens Add a site over
     // Home. What it opens is pinned in test/add-site.test.tsx.
-    expect(screen.getByRole("button", { name: "Add your first site" })).toHaveAttribute("data-add-site-open");
+    expect(screen.getByRole("button", { name: "Add your first asset" })).toHaveAttribute("data-add-site-open");
     expect(screen.queryByRole("link", { name: /Add a/ })).toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Add a site" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Add an asset" })).toBeNull();
     expect(
       screen.getByRole("link", { name: "Connect a source" }),
     ).toHaveAttribute("href", "/integrations");
     expect(screen.getByRole("link", { name: "Connect a source" }).tabIndex).toBe(0);
 
     expect([...steps].map((step) => step.textContent)).toEqual([
-      "Step 1Add your first site",
+      "Step 1Add your first asset",
       "Step 2Connect a source",
       "Step 3See your first number",
     ]);
@@ -514,7 +514,7 @@ describe("Home — a fresh install", () => {
     expect(container.querySelector("[data-first-run] p")).toBeNull();
   });
 
-  it("names the arrival step by the number it ends on and sends it nowhere before a site exists", () => {
+  it("names the arrival step by the number it ends on and sends it nowhere before an asset exists", () => {
     emptyStore();
 
     const { container } = renderHome();
@@ -541,12 +541,12 @@ describe("Home — a fresh install", () => {
     expect(container.querySelector("table")).toBeNull();
     // Not even the table's own empty state: one first-run state, not six.
     expect(container.querySelector("[data-no-sites]")).toBeNull();
-    expect(screen.queryAllByText("No sites yet")).toHaveLength(0);
+    expect(screen.queryAllByText("No assets yet")).toHaveLength(0);
     expect(container.querySelector("[data-portfolio-census]")).toBeNull();
     expect(container.querySelector("[data-about]")).toBeNull();
   });
 
-  it("stays out of the way once a site has reported", () => {
+  it("stays out of the way once an asset has reported", () => {
     const { container } = renderHome();
 
     expect(container.querySelector("[data-first-run]")).toBeNull();
@@ -596,7 +596,7 @@ describe("Home — a fresh install", () => {
 });
 
 /** The guide stays until the first number arrives. */
-describe("Home — a site still being set up", () => {
+describe("Home — an asset still being set up", () => {
   const at = "2026-07-29T12:00:00.000Z";
   const bingSource: CardDataSource = { id: "bing-webmaster", label: "Bing Webmaster Tools", state: "needs-setup" };
   const gscSource: CardDataSource = { id: "gsc", label: "Google Search Console", state: "needs-setup" };
@@ -629,7 +629,7 @@ describe("Home — a site still being set up", () => {
       items: startedFor === null ? [] : [{
         id: "bing-daily", provider: "bing-webmaster", capability: "bing-daily", label: "Bing daily reports", asset: startedFor,
         detail: null, report: null, reportDate: null, state: "never-run", lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: null, code: null,
-        action: "Review the verified site and Bing connection.", coverage: "monitored",
+        action: "Review the verified asset and Bing connection.", coverage: "monitored",
       }],
     };
   }
@@ -640,7 +640,7 @@ describe("Home — a site still being set up", () => {
     }));
   }
 
-  it("ticks the added site and makes its first source's Connect the one action", () => {
+  it("ticks the added asset and makes its first source's Connect the one action", () => {
     payload.assets = [newSite("journey.example", "Journey Example")];
     payload.attention = [];
     bingAnswers(false);
@@ -657,14 +657,14 @@ describe("Home — a site still being set up", () => {
     expect(screen.getByRole("link", { name: "See your first number" })).toHaveAttribute("href", "/assets/journey.example");
     expect(screen.getByRole("link", { name: "See your first number" }).tabIndex).toBe(0);
     expect(container.querySelector('[data-first-run-state="current"]')).toBe(container.querySelector("[data-first-run-step='2']"));
-    expect(screen.queryByRole("button", { name: "Add your first site" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add your first asset" })).toBeNull();
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(container.querySelector("table")).toBeNull();
     expect(container.querySelector("[data-portfolio-census]")).toBeNull();
     expect(screen.queryAllByText("Decide")).toHaveLength(0);
   });
 
-  it("keeps Connect as the one action while the key is saved but this site is not collecting", () => {
+  it("keeps Connect as the one action while the key is saved but this asset is not collecting", () => {
     payload.assets = [newSite("journey.example", "Journey Example")];
     payload.attention = [];
     bingAnswers(true);
@@ -691,7 +691,7 @@ describe("Home — a site still being set up", () => {
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
   });
 
-  it("follows the newest of several sites still being set up", () => {
+  it("follows the newest of several assets still being set up", () => {
     payload.assets = [newSite("first.example", "First Example"), newSite("second.example", "Second Example")];
     payload.attention = [];
     bingAnswers(false);
@@ -809,8 +809,8 @@ describe("Home — the first run asks which view describes the person", () => {
     // Above the steps, not one of them.
     expect(block.compareDocumentPosition(container.querySelector("[data-first-run-step='1']")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
-    expect(container.querySelector('[data-first-run-state="current"]')).toHaveTextContent("Add your first site");
-    expect(screen.getByRole("button", { name: "Add your first site" })).toHaveAttribute("data-add-site-open");
+    expect(container.querySelector('[data-first-run-state="current"]')).toHaveTextContent("Add your first asset");
+    expect(screen.getByRole("button", { name: "Add your first asset" })).toHaveAttribute("data-add-site-open");
   });
 
   it("stores the picked view, saves it as the workspace default and asks what matters most", () => {
@@ -921,8 +921,8 @@ describe("Home and the Wall with an unread core task hub", () => {
 
 /** With one site the portfolio is that site, so Home draws the site's own
  * strip and chart under the money, never a site list of one row. */
-describe("Home — one site leads with its own numbers", () => {
-  it("draws the site's own strip and chart under the money, and no one-row site list", () => {
+describe("Home — one asset leads with its own numbers", () => {
+  it("draws the asset's own strip and chart under the money, and no one-row asset list", () => {
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
 
@@ -938,13 +938,13 @@ describe("Home — one site leads with its own numbers", () => {
 
     expect(container.querySelector("table")).toBeNull();
     expect(container.querySelector("[data-portfolio-rows]")).toBeNull();
-    expect(screen.queryByRole("link", { name: "All sites →" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "All assets →" })).toBeNull();
     expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
     expect(container.textContent).not.toMatch(/portfolio|1 site/i);
     expect(panelFor("Decisions")).toBeInTheDocument();
   });
 
-  it("leads with the one site's revenue when revenue is what it has", () => {
+  it("leads with the one asset's revenue when revenue is what it has", () => {
     const body = everyTabPayload();
     const empty = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
     body.performance = { ...body.performance, activeUsers: empty, sessions: empty,
@@ -960,7 +960,7 @@ describe("Home — one site leads with its own numbers", () => {
     expect(within(lead).queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
   });
 
-  it("holds the site's place, with its state and its link, until its numbers arrive", () => {
+  it("holds the asset's place, with its state and its link, until its numbers arrive", () => {
     const { container } = renderHome();
     const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
     expect(lead.querySelector("[data-kpi]")).toBeNull();
@@ -968,7 +968,7 @@ describe("Home — one site leads with its own numbers", () => {
     expect(container.querySelector("table")).toBeNull();
   });
 
-  it("lists the sites, and reads no single site, from two sites", () => {
+  it("lists the assets, and reads no single asset, from two assets", () => {
     withSecondSite();
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
@@ -991,7 +991,7 @@ describe("Home — the answer, the money and what is broken", () => {
     const { container } = renderHome();
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
-    expect(container.querySelector("[data-portfolio-census]")!.textContent).toContain("2 sites · updated");
+    expect(container.querySelector("[data-portfolio-census]")!.textContent).toContain("2 assets · updated");
     expect(container.querySelector("[data-portfolio-census]")!.textContent).not.toMatch(/portfolio/i);
 
     const answer = container.querySelector<HTMLElement>("[data-home-answer]")!;
@@ -1021,7 +1021,7 @@ describe("Home — the answer, the money and what is broken", () => {
 
     expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
-    expect(screen.getByRole("link", { name: "All sites →" })).toHaveAttribute("href", "/assets");
+    expect(screen.getByRole("link", { name: "All assets →" })).toHaveAttribute("href", "/assets");
   });
 
   // On the first days of a month the payload falls back to the latest month
@@ -1103,7 +1103,7 @@ describe("Home — the answer, the money and what is broken", () => {
   });
 
   /** A site with no number yet opens on its Data sources, as the sidebar sends it. */
-  it("opens a site with no number yet on its Data sources from its problem row", () => {
+  it("opens an asset with no number yet on its Data sources from its problem row", () => {
     const empty = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
     payload.assets = [...SEEDED_ASSETS, { ...SEEDED_ASSETS[0]!, id: "fresh.example", displayName: "Fresh Example",
       pulseReceivedAt: null, firstReportAt: null, activeUsers: empty, searchClicks: empty,
@@ -1117,7 +1117,7 @@ describe("Home — the answer, the money and what is broken", () => {
   });
 
   /** One fact about four sites is one problem, and the way through is `/alerts`. */
-  it("lists sites that have never reported as ONE problem, pointing at Alerts", () => {
+  it("lists assets that have never reported as ONE problem, pointing at Alerts", () => {
     payload.attention = [
       alert({
         id: 31, asset: "ferns.example", assetDisplayName: "Fern Index", severity: "error",
@@ -1136,7 +1136,7 @@ describe("Home — the answer, the money and what is broken", () => {
     const list = container.querySelector<HTMLElement>("[data-incident-list]")!;
     const rows = list.querySelectorAll<HTMLElement>("[data-incident]");
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toHaveTextContent("Four sites have no nightly reports");
+    expect(rows[0]).toHaveTextContent("Four assets have no nightly reports");
     expect(rows[0]!.textContent).not.toContain("recurred");
     expect(rows[0]!.querySelector("a")).toHaveAttribute("href", "/alerts");
   });
@@ -1157,11 +1157,11 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(tile.querySelectorAll('[data-bar="2026-07-28"] [data-contributor]')).toHaveLength(2);
     expect(tile.querySelector("[data-bar-legend]")).toHaveTextContent("Second Site");
     expect(tile).toHaveTextContent(/as of Jul 29/);
-    expect(tile).toHaveTextContent("some sites have missing days");
+    expect(tile).toHaveTextContent("some assets have missing days");
     expect(tile).not.toHaveTextContent("vs a week before");
   });
 
-  it("gives every site one row with its health word, in seed order, that opens its page", () => {
+  it("gives every asset one row with its health word, in seed order, that opens its page", () => {
     withSecondSite();
     payload.attention = [alert({ id: 9, severity: "error" })];
 
@@ -1179,7 +1179,7 @@ describe("Home — the answer, the money and what is broken", () => {
   });
 
   // Archived sites contribute neither rows nor problems, including saved list overrides.
-  it("keeps archived sites out of rows and counts despite saved visibility", () => {
+  it("keeps archived assets out of rows and counts despite saved visibility", () => {
     withSecondSite();
     payload.assets = [...payload.assets, { ...SEEDED_ASSETS[0]!, id: "old.example", displayName: "Old Example", status: "retired", work: null }];
     payload.attention = [alert({ id: 9, severity: "error" }), alert({ id: 10, severity: "error", asset: "old.example", assetDisplayName: "Old Example" })];
@@ -1199,7 +1199,7 @@ describe("Home — the answer, the money and what is broken", () => {
 
   // Hiding a site from Home takes its rows away, never its problems: a source
   // failing on a hidden site is listed, because no grid row draws it.
-  it("leaves a site whose Home and Sites list switch is off out of its rows, and still lists its problems", () => {
+  it("leaves an asset whose Home and Portfolio switch is off out of its rows, and still lists its problems", () => {
     googleAnswers([{ capability: "ga4-daily", state: "failing" }]);
     const ga4: CardDataSource = { id: "ga4", label: "Google Analytics", state: "live", observedAt: "2026-07-29T12:00:00Z", verification: { kind: "collection-success", laneId: "ga4" } };
     withSecondSite();
@@ -1392,7 +1392,7 @@ describe("Home — Decide", () => {
   });
 });
 
-describe("the nav's site dot names its open alerts, never a bare severity", () => {
+describe("the nav's asset dot names its open alerts, never a bare severity", () => {
   it("reads '1 open error alert' and '2 open warning alerts' in its name and hover", () => {
     const saved = payload.assets;
     const [site] = saved;
@@ -1442,7 +1442,7 @@ describe("Home and Wall phase scoping", () => {
   // With nothing saved, the route draws the strip and the loop, then the last
   // 24 hours over the site rows beside revenue over the work, and no header
   // row above it.
-  it("draws the default layout when nothing is saved: the strip and the loop, the last 24 hours over the sites beside revenue over the work", () => {
+  it("draws the default layout when nothing is saved: the strip and the loop, the last 24 hours over the assets beside revenue over the work", () => {
     const { container } = renderWall();
 
     // Each widget sits in its slot, which is no box at the TV's width and

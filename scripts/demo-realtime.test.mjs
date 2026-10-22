@@ -7,7 +7,7 @@ const scenario = generateDemoScenario({ seed: 'realtime-test', cutoff: '2026-10-
 const realtime = createDemoRealtime(scenario);
 const integer = value => Number.isInteger(value) && value >= 0;
 
-test('every site with traffic gets one reading shaped like the GA4 realtime contract', () => {
+test('every asset with traffic gets one reading shaped like the GA4 realtime contract', () => {
   const payload = realtime.read(Date.parse('2026-10-06T14:23:00.000Z'));
   assert.equal(payload.generatedAt, '2026-10-06T14:23:00.000Z');
   assert.deepEqual(payload.assets.map(row => row.asset), scenario.assets.filter(asset => !asset.isOs).map(asset => asset.id));
@@ -25,12 +25,12 @@ test('every site with traffic gets one reading shaped like the GA4 realtime cont
   }
 });
 
-test('readings are deterministic, follow each site\'s daily users and grow within the filling hour', () => {
+test('readings are deterministic, follow each asset\'s daily users and grow within the filling hour', () => {
   const at = Date.parse('2026-10-06T14:23:00.000Z');
   assert.deepEqual(realtime.read(at), createDemoRealtime(scenario).read(at));
   const [light, pin, recipes, trails, fresh] = realtime.read(at).assets;
   const dayTotal = reading => reading.hourlyActiveUsers.reduce((total, row) => total + row.sameDayLastWeek, 0);
-  assert.ok(dayTotal(recipes) > dayTotal(trails) && dayTotal(trails) > dayTotal(light) && dayTotal(light) > dayTotal(pin) && dayTotal(pin) > dayTotal(fresh), 'busier sites read busier');
+  assert.ok(dayTotal(recipes) > dayTotal(trails) && dayTotal(trails) > dayTotal(light) && dayTotal(light) > dayTotal(pin) && dayTotal(pin) > dayTotal(fresh), 'busier assets read busier');
   const seeded = scenario.daily.find(row => row.asset === light.asset && row.date === '2026-09-29');
   assert.ok(dayTotal(light) > seeded.activeUsers * 1.0 && dayTotal(light) < seeded.activeUsers * 1.35, 'hourly sums sit a little above distinct users');
   assert.ok(light.activeUsers30m > 0 && light.activeUsers30m < seeded.activeUsers / 8, 'a live window is a small slice of the day');

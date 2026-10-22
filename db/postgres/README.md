@@ -125,14 +125,14 @@ contract are checked by `scripts/postgres-task-directory.test.mjs`.
 6. **An unknown provider price stays unknown**, never free.
 7. **Revenue coverage is data**, held in `coverage_start`, `coverage_end` and
    `coverage_complete`; missing coverage is never guessed.
-8. **The text site id (`example.com`-style) stays the key.**
-9. **Each site's two newest insight snapshots stay; older ones move** to the
-   analytical store and are never simply deleted. Two, because the site page
+8. **The text asset id (`example.com`-style) stays the key.**
+9. **Each asset's two newest insight snapshots stay; older ones move** to the
+   analytical store and are never simply deleted. Two, because the asset page
    reads the newest and the Wall's feed compares it with the one before. A
    mover, as
    `noticeos_maint`, must record the move in `asset_insight_snapshot_moves` (where
    the snapshot now lives) before the row may leave, and the store refuses to
-   move or remove either of a site's two newest, or to remove one whose move
+   move or remove either of an asset's two newest, or to remove one whose move
    is not recorded.
 10. **New raw-archive objects carry the workspace in their key**; existing keys
     stay, since they are evidence named by their hashes. A writer's rule, not a
@@ -169,7 +169,7 @@ currency, and a change entry freezes the prediction it shipped with; see
    column for lookups and imports. A revenue observation names the run that
    reported it by the collector's own run id (`run_ref`), since each
    collector keeps its runs in its own table. `capability_targets` names each monitored
-   provider, revision, capability, site, target and family once; state and
+   provider, revision, capability, asset, target and family once; state and
    events refer to it by `target_seq`. Connections keep their uuid key (few
    rows, no text key).
 3. **`noticeos_maint`** ([`roles.sql`](roles.sql)): `BYPASSRLS`, `NOLOGIN`,
@@ -182,18 +182,18 @@ currency, and a change entry freezes the prediction it shipped with; see
    ([`tests/rls-denial.sql`](tests/rls-denial.sql) proves it). Creating a
    `BYPASSRLS` role needs a superuser: a constraint on the host choice.
 4. **A bounded operational store:** see [What stays in Postgres](#what-stays-in-postgres).
-5. **Sites are retired, never deleted.** The application has no `DELETE` on
+5. **Assets are retired, never deleted.** The application has no `DELETE` on
    `assets`; `retired` is the only exit, matching the immutable history that
-   references a site. The Tower follows it: Archive is its one way out, with
+   references an asset. The Tower follows it: Archive is its one way out, with
    no Delete card.
-6. **The table is `assets`.** *Site* is the word a person reads; *asset*
+6. **The table is `assets`.** *Asset* is the word a person reads; *asset*
    stays in code, URLs, tables and APIs so that nothing stored or linked
    changes. The APIs (`/api/assets`), task labels (`asset:`), config documents
    and every Worker say *asset*, so renaming only these tables would give one
    concept two names at the store boundary, and collide `site_id` with
    Mediavine's own `site_id`.
-7. **One site per domain.** `UNIQUE (workspace_id, domain) WHERE domain IS
-   NOT NULL`; the edge case "a second site on a domain another has" is
+7. **One asset per domain.** `UNIQUE (workspace_id, domain) WHERE domain IS
+   NOT NULL`; the edge case "a second asset on a domain another has" is
    refused.
 8. **`financial_ledger` is a view, never materialized**, with one edge case
    per branch of its WHERE ([`tests/edge-cases.sql`](tests/edge-cases.sql)),
@@ -211,7 +211,7 @@ currency, and a change entry freezes the prediction it shipped with; see
     take minutes, and renews it. A row lock lasts one transaction and an
     advisory lock one session, and holding either through a provider call
     pins a pooled connection under Hyperdrive's transaction pooling. The table
-    also keeps each provider's cooldown, cached site list and blocked-sign-in
+    also keeps each provider's cooldown, cached asset list and blocked-sign-in
     state; the edge case "a lease has one holder at a time" proves the
     Workers' one-statement take.
 11. **No partitioning.** `signal_observations` stays near 660,000 rows under
@@ -243,7 +243,7 @@ currency, and a change entry freezes the prediction it shipped with; see
   documents are `json` (kept byte for byte); everything the store queries is
   `jsonb`.
 - **New tables** make hidden structure explicit: `workspaces`,
-  `measurement_series` (a site's metric from one provider resource under one
+  `measurement_series` (an asset's metric from one provider resource under one
   reporting zone), `flag_evidence`, `watch_window_readings`
   (one row per evaluated offset, instead of a growing JSON array),
   `archive_objects` (each stored object once, however many runs reuse it),
@@ -253,11 +253,11 @@ currency, and a change entry freezes the prediction it shipped with; see
   unique attribute. Two unique keys look redundant and are not:
   `pulses (workspace_id, asset_id, pulse_id)` and
   `mediavine_runs (workspace_id, run_seq, asset_id, site_id)` are what let a
-  flag or a daily fact name its parent *and* that parent's site, so the two
+  flag or a daily fact name its parent *and* that parent's asset, so the two
   cannot disagree. Do not drop them as duplicates.
-- **A site is never deleted by the application**; it is retired.
-- **Each site stores its place in the list** (`assets.list_position`), and
-  every list of sites is ordered by it
+- **An asset is never deleted by the application**; it is retired.
+- **Each asset stores its place in the list** (`assets.list_position`), and
+  every list of assets is ordered by it
   ([below](#numbers-a-workspace-hands-out)).
 - **Readers show a workspace's own numbers**, never the bigint identities
   ([below](#numbers-a-workspace-hands-out)).
@@ -318,17 +318,17 @@ one is refused, and it cannot change one. Only the owner may supply a
 number during explicit provisioning or recovery; the counter advances past
 the largest by itself, preserving the numbers existing links name.
 
-**A site's place in the list** (`assets.list_position`) comes from the same
+**An asset's place in the list** (`assets.list_position`) comes from the same
 counter. The operator reads the TV by position, so the
-order of sites is a stored fact, never an accident of when or under what id a
-site was written:
+order of assets is a stored fact, never an accident of when or under what id a
+asset was written:
 
-- A new site takes the next place, at the end; two added at once take two
+- A new asset takes the next place, at the end; two added at once take two
   places, one after the other.
-- Retiring or restoring a site keeps its place. A place is unique in its
+- Retiring or restoring an asset keeps its place. A place is unique in its
   workspace and never below 1.
-- The application changes a place only by a move: the site takes the place
-  of the site it is moved onto, and the sites between move one place toward
+- The application changes a place only by a move: the asset takes the place
+  of the asset it is moved onto, and the assets between move one place toward
   the place it left. The move locks the counter row, as a create does, and
   deals the places it spans out again, never a new one.
 
@@ -361,7 +361,7 @@ site was written:
   interval and its method will arrive as an entry superseding the change's,
   through the correction chain below; the lane is not built, so no column
   holds them yet.
-- **A correction is a new entry**, as for money: the same site, month, kind,
+- **A correction is a new entry**, as for money: the same asset, month, kind,
   class and change, the same prediction, and one successor per entry. The
   chain's newest entry is the change's current record; its class, month and
   prediction are fixed when it is booked.
@@ -383,13 +383,13 @@ Every revenue collector writes what its source reports to one table,
 | `display_name` | The name readers show, such as "Mediavine Journey ad revenue" |
 | `time_zone`, `time_zone_label`, `ready_after_minute` | The clock its days are counted on, the name shown for that clock, and the minute after midnight there from which yesterday's report is complete |
 
-- **An observation is one reported figure for one site:** an account's total
+- **An observation is one reported figure for one asset:** an account's total
   for a day (`item_ref` NULL), or one sale or refund on that day (`item_ref`
   is the source's own id for it). It names the account it was earned in
   (`account_ref`) and the run that reported it (`run_ref`).
 - **A figure reported again is a new row.** `current_revenue` shows the newest
-  per site, source, account, day and item; nothing is updated or removed.
-- **One month rule for every source.** `financial_ledger` sums each site's
+  per asset, source, account, day and item; nothing is updated or removed.
+- **One month rule for every source.** `financial_ledger` sums each asset's
   current figures per source, currency and month into one estimate. That
   month replaces an imported estimate from a source of the same provider and
   family when it covers more, and never replaces a reconciled figure; the
@@ -428,9 +428,9 @@ per-workspace keys, the baseline guards:
   row names must be in `noticeos_ref`, and a series or a watch must name a
   metric its integration reports.
 - **Same owner.** Every link carries the workspace. A flag cites only its own
-  site's report; a daily revenue fact belongs to its own site's run; an
+  asset's report; a daily revenue fact belongs to its own asset's run; an
   observation belongs to the series its own successful run measured (same
-  site, provider, property and zone — two parents that exist but disagree are
+  asset, provider, asset and zone — two parents that exist but disagree are
   refused, by trigger).
 - **Non-empty identifiers.** A run, snapshot, window, lease, event or document
   id is never `''`.
@@ -440,7 +440,7 @@ per-workspace keys, the baseline guards:
   count, an account-level capability, a series with no zone), many (a
   hand-booked ledger entry has no external id), excluded (only corrections
   take part in the one-successor rule), or no parent (an alert raised without
-  a report, research about no one site). The model's test compares the list
+  a report, research about no one asset). The model's test compares the list
   with what Postgres built.
 
 Left unconstrained on purpose: references into the task hub
@@ -462,11 +462,11 @@ jobs.
 | Table | Postgres keeps | Past that |
 |---|---|---|
 | `signal_observations`, `signal_runs`, `archive_runs`, `archive_objects`, `hygiene_checks`, `egress_checks` | 13 months | Its analytical dataset |
-| `asset_insight_snapshots` | Each site's two newest | The insight dataset, one recorded move per snapshot |
+| `asset_insight_snapshots` | Each asset's two newest | The insight dataset, one recorded move per snapshot |
 | `job_runs` | 90 days | Dropped; the runner's own log is the record |
 | `task_snapshots` | 2 days | Dropped; the task hub is the authority |
 | `task_daily_counts`, `connection_daily_counts`, `connection_status_daily_counts`, `alert_daily_counts` | 400 days | Dropped, as today |
-| Everything else (reports, alerts, money, settings, sites, notifications, research, watches) | Every row | — |
+| Everything else (reports, alerts, money, settings, assets, notifications, research, watches) | Every row | — |
 
 Moved history is never simply deleted. The export job records, per workspace
 and table, the last day its dataset covers (`analytical_exports`), and the
@@ -492,27 +492,27 @@ by column; retention and maintenance privileges are checked separately.
 <!-- matrix:start (generated by node scripts/postgres-docs.mjs --write) -->
 | Postgres table or view | What the application may do | Rule |
 |---|---|---|
-| `alert_daily_counts` | insert, update, delete | One row per site per day, upserted; swept after 400 days. |
+| `alert_daily_counts` | insert, update, delete | One row per asset per day, upserted; swept after 400 days. |
 | `analytical_exports` | read-only | Read-only for the application: the export job records, as noticeos_maint, the last day each dataset covers. |
 | `annotations` | append-only | Append-only. |
 | `archive_objects` | append-only | Append-only; objects are immutable. |
 | `archive_runs` | append-only | Append-only. |
-| `asset_icons` | append-only | Append-only; each read of a site's home page is a new row, and a site's card shows the newest read that reached the page. |
-| `asset_insight_snapshot_moves` | read-only | Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its site and hash, never one of the site's two newest. |
+| `asset_icons` | append-only | Append-only; each read of an asset's home page is a new row, and an asset's card shows the newest read that reached the page. |
+| `asset_insight_snapshot_moves` | read-only | Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its asset and hash, never one of the asset's two newest. |
 | `asset_insight_snapshots` | append-only | Append-only for the application; republishing identical content is a no-op. Older snapshots move as maintenance. |
-| `assets` | insert; update only status, sense_only, display_name, list_position, updated_at | Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again. |
+| `assets` | insert; update only status, sense_only, display_name, list_position, updated_at | Identity never changes; an asset is retired, never deleted, since history references it. A new asset takes the next place in the list from the workspace's counter; a move deals the places of the assets it spans out again. |
 | `capability_targets` | append-only | A monitored target, once named, is permanent; state and events refer to it by target_seq. |
-| `codebase_reports` | append-only | Append-only; a same-day resend of a site's codebase report is a new revision. |
+| `codebase_reports` | append-only | Append-only; a same-day resend of an asset's codebase report is a new revision. |
 | `config_changes` | append-only | Append-only. |
 | `config_documents` | insert; update only body, version, updated_at, updated_by | Versioned; every change also appends config_changes. |
 | `connection_daily_counts` | insert, update, delete | One row per source per day, upserted; swept after 400 days. |
 | `connection_secrets` | insert, delete | A rotation writes the next version and removes the old one; ciphertext is never rewritten in place. |
 | `connection_status_daily_counts` | insert, update, delete | One row per day, upserted; swept after 400 days. |
 | `counter_readings` | insert, update | Current state, replaced in place. |
-| `current_codebase_reports` (view) | read-only view | The newest revision of each site's codebase report per day, numbered by the day's first revision (day_number). |
+| `current_codebase_reports` (view) | read-only view | The newest revision of each asset's codebase report per day, numbered by the day's first revision (day_number). |
 | `current_flags` (view) | read-only view | Every alert a retry did not replace, with its severity, message and inputs from its newest flag_evidence reading. |
 | `current_pulses` (view) | read-only view | The newest revision of each day's report, numbered by the day's first revision (day_number). |
-| `current_revenue` (view) | read-only view | The newest figure per site, source, account, day and item. |
+| `current_revenue` (view) | read-only view | The newest figure per asset, source, account, day and item. |
 | `egress_checks` | append-only | Append-only. |
 | `financial_ledger` (view) | read-only view | What financial readers read: money only, never a change entry, with a month of a source's daily figures in place of an imported estimate from the same provider that covers less. |
 | `flag_evidence` | append-only | Append-only. |
@@ -530,7 +530,7 @@ by column; retention and maintenance privileges are checked separately.
 | `job_runs` | insert, delete | Written once; swept after 90 days (retention). |
 | `ledger_entries` | append-only | Immutable; a correction is a new entry. Three kinds, each naming its currency: revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction. |
 | `measurement_series` | append-only | A series, once named, is permanent. |
-| `mediavine_current_daily` (view) | read-only view | The newest daily fact per site and day. |
+| `mediavine_current_daily` (view) | read-only view | The newest daily fact per asset and day. |
 | `mediavine_daily` | append-only | Append-only. No current release writes it; a row an older release writes reaches revenue_observations too. |
 | `mediavine_runs` | append-only | Append-only. |
 | `mediavine_sites` | insert, delete | A fixed mapping, replaced by delete and insert. |
@@ -541,7 +541,7 @@ by column; retention and maintenance privileges are checked separately.
 | `pulses` | append-only | A retry is a new revision. |
 | `reclamation_targets` | insert; update only status, status_at, outcome_note, last_verified_at, updated_at | What the research found is fixed; the funnel status moves. |
 | `research_log` | append-only | Append-only. |
-| `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per site, source, account, day and item is current. |
+| `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per asset, source, account, day and item is current. |
 | `signal_observations` | append-only | Append-only; a revised value is a new row under a later run. |
 | `signal_runs` | append-only | Append-only. |
 | `task_daily_counts` | insert, update, delete | One row per project per day, upserted; swept after 400 days. |
@@ -549,7 +549,7 @@ by column; retention and maintenance privileges are checked separately.
 | `task_snapshots` | insert; update only captured_at, payload; delete | An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days. |
 | `watch_window_readings` | append-only | Append-only, one per offset. |
 | `watch_windows` | insert; update only status, outcome, closed_at, outcome_note, last_checked_at, readback_bead, readback_posted_at | The registration is fixed; the close is one-way. |
-| `workspace_counters` | insert; update only last_number | The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back. |
+| `workspace_counters` | insert; update only last_number | The last number each workspace handed out per numbered table, and the last place in its list of assets, started and advanced by the numbering trigger in the inserting transaction; it never moves back. |
 | `workspace_mutation_audit` | append-only | Append-only actor evidence recorded in the same transaction as an asset or finding effect. Historical and standalone authors stay explicitly unknown; no free-form values or notes are copied. |
 | `workspaces` | read-only | Provisioned by the owner role; new hosted workspaces start provisioning, and only platform setup activates or suspends them. Fresh standalone bootstrap creates active. The application only reads its own. |
 <!-- matrix:end -->
@@ -561,7 +561,7 @@ real schema, as the application role unless the case says maintenance:
 
 | Case | Outcome |
 |---|---|
-| A correction of the same site, month, kind, family and currency | Accepted; exactly one current entry per chain |
+| A correction of the same asset, month, kind, family and currency | Accepted; exactly one current entry per chain |
 | A second correction of one entry, or one that changes month | Refused |
 | The same export booked twice | Refused by its external id |
 | Amounts past 2^53 cents, negative adjustments | Exact; accepted |
@@ -583,12 +583,12 @@ real schema, as the application role unless the case says maintenance:
 | Revenue or cost carrying any part of a prediction | Refused |
 | A change entry naming an amount, a booking state or a coverage, or naming no change or no currency; a change under a money family; a cost under a change class; revenue or cost with no amount, currency or booking state | Refused |
 | The same change booked twice; a correction of a change naming another change, class or month, or stating another prediction; a second successor | Refused |
-| A correction of a change entry with the same site, month, class, change and prediction | Accepted; one current entry per change |
+| A correction of a change entry with the same asset, month, class, change and prediction | Accepted; one current entry per change |
 | The application or the owner editing a booked change's class or prediction | Refused |
 | The financial view beside a change entry | Money only: the change is never counted |
 | Taking a held lease, renewing or releasing another holder's | Refused; an expired lease is taken over |
-| Credential rotation for the same property | Same series |
-| A new property or reporting zone, even with equal values | A new series; both values kept |
+| Credential rotation for the same asset | Same series |
+| A new asset or reporting zone, even with equal values | A new series; both values kept |
 | A same-day report retry | Revision 2; the newest is current, under the day's one number |
 | The earlier revision's alerts nobody touched | Replaced by the retry: in no list, count or action; the ones the operator touched stay |
 | Replacing a touched alert; resolving or dispositioning a replaced one; an alert replaced by its own report | Refused |
@@ -599,32 +599,32 @@ real schema, as the application role unless the case says maintenance:
 | A lease flag of 7, an insight payload that is a list, an upper-case hash | Refused |
 | A window that ends before it starts; a provisional day after the window | Refused |
 | A one-day GA4 window whose provisional day precedes its start | Accepted |
-| An observation under another property's series, or under a failed run | Refused |
-| An alert citing another site's report; revenue under another site's run | Refused |
+| An observation under another asset's series, or under a failed run | Refused |
+| An alert citing another asset's report; revenue under another asset's run | Refused |
 | "No page" written as NULL in the reclamation list | Refused; `''` means no page |
 | A reading that was not taken; a quiet night | NULL, never zero |
 | NaN or an infinity (a reading, a provider cost, a median open age), a negative count, more errors than open alerts | Refused |
 | A watch offset read twice | Refused |
-| A site icon read that found a dark icon only, found none, or reached nothing | Accepted |
-| A site icon read naming no icon; an icon on a read that found none; an icon that is not a web address | Refused |
-| Each writer's own change: acknowledging and resolving an alert, a same-day hygiene re-run, closing a watch, saving settings, upserting a day's counts (the whole-workspace row included), upserting an account-level capability, replacing counters, leases and retry state, re-stamping and sweeping task photographs, undoing a mark, retiring a site | Accepted |
+| An asset icon read that found a dark icon only, found none, or reached nothing | Accepted |
+| An asset icon read naming no icon; an icon on a read that found none; an icon that is not a web address | Refused |
+| Each writer's own change: acknowledging and resolving an alert, a same-day hygiene re-run, closing a watch, saving settings, upserting a day's counts (the whole-workspace row included), upserting an account-level capability, replacing counters, leases and retry state, re-stamping and sweeping task photographs, undoing a mark, retiring an asset | Accepted |
 | A metric an integration does not report, an unknown integration, a watch on a metric its integration does not report, an unknown check | Refused by the shared vocabulary |
 | The application adding to the shared vocabulary | Refused |
-| The application deleting a site, even one with no history; a second site on a domain another has | Refused |
+| The application deleting an asset, even one with no history; a second asset on a domain another has | Refused |
 | The application moving or removing an insight snapshot, or removing an observation | Refused |
-| Maintenance moving or removing either of a site's two newest insight snapshots, a move with the wrong hash, removing an unmoved snapshot | Refused |
+| Maintenance moving or removing either of an asset's two newest insight snapshots, a move with the wrong hash, removing an unmoved snapshot | Refused |
 | Maintenance removing the next-older snapshot once its move is recorded; the former second-newest, once a newer one arrives and its move is recorded | Accepted |
 | Maintenance removing an observation inside its 13-month window, even one already exported | Refused |
 | Maintenance removing an old run the export has not covered; the same run once its export is recorded | Refused; then accepted |
-| Maintenance changing any row, adding one, removing a site or money | Refused |
+| Maintenance changing any row, adding one, removing an asset or money | Refused |
 | Each workspace's first row of every numbered table; B's first alert, whose shared identity is not 1 | Number 1 |
 | Rows written in A; B's next number | A's numbers run on; B's is unchanged, and B sees only its own counters |
 | An insert refused after it was numbered | Its number goes to the next insert |
 | The application bringing its own number, changing one, moving a counter back or advancing another workspace's | Refused |
 | The owner supplying a number during recovery; the same number again; the store's next | Accepted; refused; past it |
-| The owner bringing a site's place; the next new site; retiring a site | Accepted; the place after it; the place kept |
-| The application choosing a new site's place; two sites at one place; a place below 1 | Refused |
-| A move: the sites it spans above the counter, then each at its new place | Accepted; the counter unchanged |
+| The owner bringing an asset's place; the next new asset; retiring an asset | Accepted; the place after it; the place kept |
+| The application choosing a new asset's place; two assets at one place; a place below 1 | Refused |
+| A move: the assets it spans above the counter, then each at its new place | Accepted; the counter unchanged |
 
 ## Applying it: the development profile
 
@@ -638,7 +638,7 @@ or update loads it, so a restart never applies schema.
 ```sh
 pnpm db:try-migrations status --dir /tmp/noticeos-dev   # applied, pending or changed; only reads
 pnpm db:try-migrations apply  --dir /tmp/noticeos-dev   # every pending migration, in one transaction
-pnpm db:try-migrations bootstrap --dir /tmp/noticeos-dev --slug main --name "My sites"   # the one workspace, once
+pnpm db:try-migrations bootstrap --dir /tmp/noticeos-dev --slug main --name "My portfolio"   # the one workspace, once
 pnpm db:new-migration add_example_table            # the next numbered file, from a template
 ```
 
@@ -720,7 +720,7 @@ publishes Postgres on, so a port moved with `pnpm os:apply` keeps working;
 ```sh
 pnpm os:migrate                                                  # only reads
 pnpm os:migrate -- --apply                                       # prints the plan, asks for the name, applies
-pnpm os:migrate -- --bootstrap --slug main --name "My sites"     # the one workspace, once
+pnpm os:migrate -- --bootstrap --slug main --name "My portfolio"     # the one workspace, once
 ```
 
 On an existing installation the order is: `pnpm os:status`, a backup you can

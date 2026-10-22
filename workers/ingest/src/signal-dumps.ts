@@ -815,7 +815,7 @@ async function collectBingDumps(
     if (!siteUrl) {
       const error = new SignalError(
         'bwt_site_unverified',
-        `Bing Webmaster does not list a verified site for ${candidate.domain}.`,
+        `Bing Webmaster does not list a verified asset for ${candidate.domain}.`,
       );
       for (const report of plan.get(candidate.asset) ?? []) {
         await recordDumpFailure(env.STORE, {

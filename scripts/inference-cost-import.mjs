@@ -119,7 +119,7 @@ export function parseUsageCsv(text) {
     if (!AMOUNT.test(rawAmount)) fail(index, `amount '${rawAmount}' is not a USD figure of at least 0`);
     const amount = Number(rawAmount.replace(/[$,]/gu, ''));
     const asset = value('asset') || null;
-    if (asset !== null && !ASSET.test(asset)) fail(index, `asset '${asset}' is not a site id`);
+    if (asset !== null && !ASSET.test(asset)) fail(index, `asset '${asset}' is not an asset id`);
     const ref = value('ref') || null;
     if (ref !== null && ref.length > 200) fail(index, 'ref is longer than 200 characters');
     entries.push({ line: index + 1, period, provider, asset, amount, ref });
@@ -231,7 +231,7 @@ export async function main(argv = process.argv.slice(2), {
     if (needsOs) {
       osAsset = (await api(ingest, '/api/os-asset', token, fetchImpl)).asset ?? null;
       if (!osAsset) {
-        error('The store has no OS asset; put a site id in the asset column of every line.');
+        error('The store has no OS asset; put an asset id in the asset column of every line.');
         return 1;
       }
     }

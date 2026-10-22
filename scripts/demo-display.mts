@@ -35,7 +35,7 @@ export function generateDemoDisplay(scenario: DemoScenario) {
   const sites = scenario.assets.filter(asset => !asset.isOs);
   const layout = structuredClone(DEFAULT_WALL_LAYOUT);
   const siteWidget = wallLayoutWidgets(layout).find(widget => widget.type === 'sites');
-  if (!siteWidget) throw new Error('The released Wall has no site region.');
+  if (!siteWidget) throw new Error('The released Wall has no asset region.');
   siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event!]])) };
   // The live feed takes the work tile's place, so a visitor sees the
   // simulator's agents claim and close tasks; the loop above keeps the counts.
@@ -91,16 +91,16 @@ export function demoIntegrationAssets(scenario: DemoScenario) {
       ga4: { status: 'live', since, propertyId: properties.ga4 },
       gsc: { status: 'live', siteUrl: properties.gsc, since },
       'bing-webmaster': properties.bing ? { status: 'live', siteUrl: properties.bing, since } : { status: 'skipped', since, note: 'Reason: little search traffic comes from Bing.' },
-      'ad-network': ads ? { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } : { status: 'not-applicable', since, note: 'No ads are sold on this site.' },
+      'ad-network': ads ? { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } : { status: 'not-applicable', since, note: 'No ads are sold on this asset.' },
       posthog: POSTHOG_PROJECTS[asset.prefix] ? { status: 'live', since, host: 'us', projectId: POSTHOG_PROJECTS[asset.prefix] }
         : ['lb', 'fr'].includes(asset.prefix) ? { status: 'needs-setup', since, note: 'Waiting for its PostHog project.' }
-          : { status: 'skipped', since, note: 'Reason: no product analytics on this site.' },
+          : { status: 'skipped', since, note: 'Reason: no product analytics on this asset.' },
       clarity: asset.prefix === 'wp' ? { status: 'needs-setup', since, note: 'Waiting for a Clarity project.' }
         : { status: 'skipped', since, note: 'Reason: session recordings are not used here.' },
-      dataforseo: { status: 'skipped', since, note: 'Reason: rank tracking is not bought for this site.' },
+      dataforseo: { status: 'skipped', since, note: 'Reason: rank tracking is not bought for this asset.' },
       uptime: { status: 'live', since },
-      'affiliate-cj': { status: 'not-applicable', since, note: 'No affiliate links on this site.' },
-      'affiliate-amazon': { status: 'not-applicable', since, note: 'No affiliate links on this site.' },
+      'affiliate-cj': { status: 'not-applicable', since, note: 'No affiliate links on this asset.' },
+      'affiliate-amazon': { status: 'not-applicable', since, note: 'No affiliate links on this asset.' },
       'deploy-annotations': { status: 'skipped', since, note: 'Reason: changes are recorded when their tasks close.' },
       'github-app': { status: 'skipped', since, note: 'Reason: agent execution is manual in this release.' },
     }];

@@ -22,7 +22,7 @@ const connected = (id: string): IntegrationProviderStatus => ({
 const failing = (patch: Partial<IntegrationHealthItem> = {}) => item({ capability: 'ga4-daily', label: 'Analytics daily reports', failure: 'access', code: 'access', lastSuccessAt: null, ...patch });
 const healthy = (patch: Partial<IntegrationHealthItem> = {}) => item({ capability: 'ga4-daily', label: 'Analytics daily reports', state: 'healthy', failure: null, code: null, lastSuccessAt: AT, ...patch });
 
-it('counts sites failing now, never report dates an outage left behind', () => {
+it('counts assets failing now, never report dates an outage left behind', () => {
   const data = payload([
     ...['a', 'b', 'c'].map((asset) => healthy({ id: asset, asset })),
     failing({ id: 'd', asset: 'd' }),
@@ -46,7 +46,7 @@ it('an empty integration inventory is unconfirmed, while explicit disconnected e
   expect(integrationStatus(payload([]), false, NOW).available).toBe(false);
   expect(integrationStatus(payload([item({ state: 'disconnected' })]), false, NOW)).toMatchObject({ available: true, attention: 0, working: 0, idle: 0 });
 });
-it('groups connections by provider, then site: one row per provider with its one status', () => {
+it('groups connections by provider, then asset: one row per provider with its one status', () => {
   const data = payload([healthy({ id: 'g1', asset: 'a.test' }), healthy({ id: 'g2', asset: 'b.test' }),
     failing({ id: 'b1', provider: 'bing-webmaster', capability: 'bing-daily', label: 'Bing daily reports', asset: 'pt.test' }),
     healthy({ id: 'b2', provider: 'bing-webmaster', capability: 'bing-daily', label: 'Bing daily reports', asset: 'a.test' }),
@@ -57,7 +57,7 @@ it('groups connections by provider, then site: one row per provider with its one
   expect([...rows].map((row) => row.getAttribute('data-connection-row'))).toEqual(['bing-webmaster']);
   const bing = rows[0]!;
   expect(bing.querySelector('[data-status-for="integration:bing-webmaster"][data-connection]')).toHaveAttribute('data-connection', 'working');
-  expect(bing).toHaveTextContent('1 site failing');
+  expect(bing).toHaveTextContent('1 asset failing');
   expect(bing.querySelectorAll('[data-site]')).toHaveLength(1);
   expect(bing.querySelector('[data-site="pt.test"] [data-connection]')).toHaveAttribute('data-connection', 'failing');
   fireEvent.click(screen.getByRole('button', { name: /^All/ }));
@@ -81,16 +81,16 @@ it('states the four connection counts from the one derivation, and declares thei
   const counts = connectionCounts(providers.map((entry) => connectionStatus(entry.provider.id, entry.credential, currentHealth(data, false, NOW).items)));
   expect(counts).toEqual({ sitesFailing: 1, sitesOverdue: 0, reportsMissing: 1, sitesWorking: 3 });
   const kpi = (label: string) => container.querySelector(`[data-connections] [data-kpi="${label}"]`)!;
-  expect(kpi('Sites failing')).toHaveTextContent(String(counts.sitesFailing));
-  expect(kpi('Sites overdue')).toHaveTextContent(String(counts.sitesOverdue));
+  expect(kpi('Assets failing')).toHaveTextContent(String(counts.sitesFailing));
+  expect(kpi('Assets overdue')).toHaveTextContent(String(counts.sitesOverdue));
   expect(kpi('Reports missing')).toHaveTextContent(String(counts.reportsMissing));
-  expect(kpi('Sites working')).toHaveTextContent(String(counts.sitesWorking));
-  for (const label of ['Sites failing', 'Sites overdue', 'Reports missing', 'Sites working']) {
+  expect(kpi('Assets working')).toHaveTextContent(String(counts.sitesWorking));
+  for (const label of ['Assets failing', 'Assets overdue', 'Reports missing', 'Assets working']) {
     expect(kpi(label)).toHaveAttribute('data-series', 'unavailable');
     expect(kpi(label)).toHaveAttribute('data-series-reason', CONNECTION_HISTORY_GAP);
   }
 });
-it('opens a failing site on what failed, what to do and when it last worked', () => {
+it('opens a failing asset on what failed, what to do and when it last worked', () => {
   const { container } = render(<MemoryRouter><IntegrationHealthPanel data={payload([failing({ lastSuccessAt: '2026-09-12T11:55:00Z' })])} nowMs={NOW} provider="google" /></MemoryRouter>);
   const summary = container.querySelector('details summary')!;
   fireEvent.click(summary);

@@ -15,7 +15,7 @@ const figure = (currency = 'EUR') => ({ currency, revenue: 0, cost: 2, net: -2 }
 const unknown = () => ({ currency: null, revenue: null, cost: null, net: null });
 function financials() { return { generatedAt: now.toISOString(), period: '2026-09', currentPeriod: '2026-10', periodIsCurrent: false,
   periods: ['2026-09'], empty: false, months: [{ period: '2026-09', booked: figure(), estimated: figure(), total: figure() }],
-  properties: [{ asset: 'site.example', displayName: 'Site', isOs: false, figure: figure(),
+  properties: [{ asset: 'site.example', displayName: 'Asset', isOs: false, figure: figure(),
     months: [{ period: '2026-09', figure: figure() }], revenueReported: true }], overhead: figure(),
   costLines: [{ family: 'hosting', provenance: 'stated', source: null, rows: 1, amount: 2, currency: 'EUR' }],
   domains: [], recurringCosts: [], domainOrders: [] }; }
@@ -147,7 +147,7 @@ describe('recorded provider money', () => {
     expect(dailyRevenueHistory({ ...history(), days: [{ ...days[0]!, currency: 'EUR' }] })).toBe(false);
   });
   it('checks named coverage without manufacturing missing asset reports', () => {
-    const value = { ...history(), sources: [{ asset: 'site.example', displayName: 'Site', since: '2026-09-30' }],
+    const value = { ...history(), sources: [{ asset: 'site.example', displayName: 'Asset', since: '2026-09-30' }],
       coverage: [{ date: '2026-09-30', reported: 1, missingAssets: [] }] };
     expect(portfolioDailyRevenue(value)).toBe(true);
     expect(portfolioDailyRevenue({ ...value, coverage: [{ date: '2026-09-29', reported: 0, missingAssets: [] }] })).toBe(true);

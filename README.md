@@ -21,14 +21,14 @@ See traffic, revenue, costs, alerts and work in one place, on your laptop, phone
 
 </div>
 
-![The Tower's Home page on a desktop browser and on a phone, with the synthetic demo's sites: October's revenue against its projection, yesterday's revenue and visitors, the data sources by site and the open problems.](docs/images/tower-devices.webp)
+![The Tower's Home page on a desktop browser and on a phone, with the synthetic demo's assets: October's revenue against its projection, yesterday's revenue and visitors, the data sources by asset and the open problems.](docs/images/tower-devices.webp)
 
 - **Know what needs attention.** See collection failures, unusual traffic and missing evidence.
 - **See what makes money.** Compare recorded revenue and costs, with dates and coverage kept visible.
 - **Keep work moving.** Track owners, blockers, approvals and completion evidence across projects.
 - **Check what changed.** Review the follow-up evidence for a change. Completing work is not proof of a better outcome.
 
-The **Tower** is the web app. **Wall** is its TV view.
+The **Tower** is the web app. **Wall** is its TV view. **Portfolio** lists your **Assets**: websites, web apps (SaaS), and mobile apps. Each asset defaults to Website; choose its type when adding it or in Settings → Identity.
 Missing data is shown as unknown, never as zero.
 
 ## How it works
@@ -44,7 +44,7 @@ describes the loop that uses those readings.
 ## The Tower and the Wall
 
 Every screenshot here is the [demo](docs/start/try-the-demo.md): the real app
-with five invented sites and a simulator that keeps adding activity.
+with five invented assets and a simulator that keeps adding activity.
 
 <table>
 <tr>
@@ -52,12 +52,12 @@ with five invented sites and a simulator that keeps adding activity.
 <td width="50%"><img src="docs/images/health-flow.webp" alt="How the System runs on the System health page: providers feed the collectors, the collectors fill the store, the store serves the Tower and Wall; failing parts are outlined in red with their age."><br><b>System health</b>: how the System runs, with each part's state and the broken part outlined.</td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/images/tower-money.webp" alt="The Money page: October's revenue minus cost as the net, the month's days as bars, where the cost goes and each site's revenue, share and net."><br><b>Money</b>: revenue − cost = net for the month, by day and by site.</td>
+<td width="50%"><img src="docs/images/tower-money.webp" alt="The Money page: October's revenue minus cost as the net, the month's days as bars, where the cost goes and each asset's revenue, share and net."><br><b>Money</b>: revenue − cost = net for the month, by day and by asset.</td>
 <td width="50%"><img src="docs/images/tower-agents.webp" alt="The Agents page: tasks closed in seven days, eight weeks of velocity split by who closed them, each worker with its models and the week's ranking."><br><b>Agents</b>: who closed what, with which model, week by week.</td>
 </tr>
 </table>
 
-![The Wall on a TV: the strip with the time and next meeting, the loop's five steps with their counts, the last 24 hours of problems, one row per site, October's revenue and the live feed.](docs/images/wall-tv.webp)
+![The Wall on a TV: the strip with the time and next meeting, the loop's five steps with their counts, the last 24 hours of problems, one row per asset, October's revenue and the live feed.](docs/images/wall-tv.webp)
 
 The **Wall** fits one 1920×1080 screen and updates by itself. More screens are
 in [the Tower's documentation](https://docs.notice.cx/tower/).
@@ -112,8 +112,8 @@ before changing its code or database.
 
 ## Get your first useful view
 
-1. On **Home**, choose **Add your first site**.
-2. Open the site's **Data sources** tab and connect a source.
+1. On **Home**, choose **Add your first asset**.
+2. Open the asset's **Data sources** tab and connect a source.
 3. Open **Overview** to see its first readings. Use **Tasks** for work and **Wall** for the TV view.
 
 Add provider credentials in the product, where they are encrypted in the store.
@@ -130,7 +130,7 @@ add a website. [Connect a task project](docs/guides/connect-a-task-project.md) c
 a project's shared tasks, repository access and agent instructions.
 
 People work on the **Tasks** page. A coding agent such as Claude Code reaches
-the same tasks, and the site reports, through the MCP server the Tower serves
+the same tasks, and the asset reports, through the MCP server the Tower serves
 at `/api/mcp`; [Connect an agent](docs/guides/connect-an-agent.md) shows how to
 set it up with one command. Installable agent skills and hooks, and connections
 to tools such as Jira or Linear, are planned; they are not available yet.

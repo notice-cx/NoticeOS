@@ -11,7 +11,7 @@ This page describes what NoticeOS does, who it is for, and what it does not do y
 
 NoticeOS is a self-hosted web app you run for your own websites and software products. You install it on your own machine or server, connect the services that already hold your data, and see everything in one place.
 
-![The Tower's Home page on a desktop browser and on a phone, with the synthetic demo's sites.](../images/tower-devices.webp)
+![The Tower's Home page on a desktop browser and on a phone, with the synthetic demo's assets.](../images/tower-devices.webp)
 
 It shows four things:
 
@@ -22,11 +22,11 @@ It shows four things:
 
 ## The Tower and the Wall
 
-The **Tower** is the web app you work in, in your browser. Its pages with a sidebar are Home, Workflows, Sites, Alerts, Tasks, Money, System health, Integrations and Settings, and every site you add gets a page of its own. [The Tower](/tower/) describes each one.
+The **Tower** is the web app you work in, in your browser. Its pages with a sidebar are Home, Workflows, Portfolio, Alerts, Tasks, Money, System health, Integrations and Settings, and every asset you add gets a page of its own. [The Tower](/tower/) describes each one.
 
 The **Wall** is a Tower view built for a TV or a second screen. It fits one 1920×1080 screen with nothing to scroll. Open it at `/wall` and lay it out at `/wall/edit`.
 
-![The Wall on a TV, from the synthetic demo: the loop's five steps, the last 24 hours of problems, one row per site, October's revenue and the live feed.](../images/wall-tv.webp)
+![The Wall on a TV, from the synthetic demo: the loop's five steps, the last 24 hours of problems, one row per asset, October's revenue and the live feed.](../images/wall-tv.webp)
 
 Both show the same data. You make changes on the Tower's pages; the Wall only displays data. Terms these docs use without explaining them are defined in the [Glossary](/concepts/glossary).
 
@@ -48,20 +48,20 @@ It is **not** a public hosted service. A standalone installation has no user log
 
 - A **standalone installation**, with its own Postgres database and its own task database, set up with one Docker command or from source. See [Install with Docker](/start/install-with-docker) and [Install from source](/start/install-from-source).
 - An **application container** for an installation you have already prepared. See [Run with Docker](/start/run-with-docker).
-- A **public demo package** with synthetic sites and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
+- A **public demo package** with synthetic assets and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
 - Provider credentials connected **in the product** on the Integrations page, encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
-- A **Tasks** page shared by people and agents, usable before you add your first site.
-- Three **views** of the Tower, **I run the business**, **I build the product** and **Everything**, each with its own sidebar pages, parts of Home, site tabs and TV layout, chosen on the first run or in Settings. See [Choose your view](/guides/choose-your-view).
-- An **MCP server** at the Tower's `/api/mcp`, through which a coding agent on the same machine reads and updates your tasks and reads site reports. See [Connect an agent](/guides/connect-an-agent).
+- A **Tasks** page shared by people and agents, usable before you add your first asset.
+- Three **views** of the Tower, **I run the business**, **I build the product** and **Everything**, each with its own sidebar pages, parts of Home, asset tabs and TV layout, chosen on the first run or in Settings. See [Choose your view](/guides/choose-your-view).
+- An **MCP server** at the Tower's `/api/mcp`, through which a coding agent on the same machine reads and updates your tasks and reads asset reports. See [Connect an agent](/guides/connect-an-agent).
 
 ## What is not available yet
 
 - NoticeOS does not offer **customer account hosting** or invitation-based onboarding in this preview release.
 - NoticeOS does not have installable agent skills and hooks, or connections to tools such as Jira or Linear, yet. Agents use the MCP server; people use the Tasks page.
-- NoticeOS does not run **automated execution on your sites**. Agents that act on your sites are started and stopped by you, outside NoticeOS. See [Budgets and the kill switch](/operate/budgets-and-the-kill-switch).
+- NoticeOS does not run **automated execution on your assets**. Agents that act on your assets are started and stopped by you, outside NoticeOS. See [Budgets and the kill switch](/operate/budgets-and-the-kill-switch).
 
 ## Where to go next
 
-The first useful view is a site's Overview after one data source is connected. [Install in five minutes](/start/quickstart) has the steps to get there; [Install with Docker](/start/install-with-docker) describes what its one command creates.
+The first useful view is an asset's Overview after one data source is connected. [Install in five minutes](/start/quickstart) has the steps to get there; [Install with Docker](/start/install-with-docker) describes what its one command creates.
 
 For the design behind all of this, read the architecture note in [doc 01, Architecture](../01-architecture.md).

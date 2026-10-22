@@ -62,7 +62,7 @@ function closed(title: string, at: string, evidence: string | null, over: Partia
 }
 
 describe("agentsWeek counts", () => {
-  it("adds in-progress and this week's done across the sites with a task project", () => {
+  it("adds in-progress and this week's done across the assets with a task project", () => {
     const week = agentsWeek(
       [card("a.example.com", { work: work(2, weeks(3)) }), card("b.example.com", { work: work(1, weeks(4)) }), card("c.example.com")],
       null,
@@ -79,7 +79,7 @@ describe("agentsWeek counts", () => {
     expect(agentsWeek([card("a.example.com", { work: work(2, weeks(null)) })], null, NOW).shipped).toBeNull();
   });
 
-  it("counts proven sites and the bets still being watched", () => {
+  it("counts proven assets and the bets still being watched", () => {
     const week = agentsWeek(
       [
         card("a.example.com", { watches: watches(1, { outcome: "ship_confirmed", closedAt: "2026-10-17T00:00:00.000Z" }) }),
@@ -122,7 +122,7 @@ describe("agentsWeek lines", () => {
     ]);
   });
 
-  it("lists every site's latest bet when the TV asks for every line", () => {
+  it("lists every asset's latest bet when the TV asks for every line", () => {
     const cards = ["a", "b", "c", "d"].map((id, index) =>
       card(`${id}.example.com`, { displayName: id.toUpperCase(), watches: watches(0, { outcome: "ship_confirmed", closedAt: `2026-10-1${index}T09:00:00.000Z` }) }),
     );

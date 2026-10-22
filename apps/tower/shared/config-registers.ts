@@ -329,7 +329,7 @@ export function collectionOps(
   if (change.kind === "seed" || change.kind === "unseed") {
     const holder = holderOf(register);
     if (holder === null) {
-      throw new Error(`${register.container} is not a per-site list — it has no entry to file first`);
+      throw new Error(`${register.container} is not a per-asset list — it has no entry to file first`);
     }
     if (change.kind === "seed" && change.holderExists === true) {
       if (register.addableContainer !== true) throw new Error("This list cannot be initialized separately");

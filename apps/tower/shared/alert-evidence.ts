@@ -113,7 +113,7 @@ export function deriveAlertEvidence(
   let observed: unknown;
   let evaluated: unknown;
   if (HYGIENE_RULES.has(flag.ruleId)) {
-    source = "Site checks"; cadence = CADENCE_HOURS.hygiene;
+    source = "Asset checks"; cadence = CADENCE_HOURS.hygiene;
     observed = inputs?.lastObservedAt; evaluated = inputs?.evaluatedAt;
   } else if (flag.ruleId === "asset-pull-failed" || flag.ruleId === "os-egress-down") {
     source = flag.ruleId === "os-egress-down" ? "OS connectivity check" : "Nightly collection check";

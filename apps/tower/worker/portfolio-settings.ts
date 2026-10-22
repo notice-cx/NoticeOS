@@ -67,7 +67,7 @@ export function buildPortfolio(
   ];
   return {
     owner: OWNER.constants,
-    note: "Set once in Settings — not specific to this site.",
+    note: "Set once in Settings — not specific to this asset.",
     knobs,
   };
 }

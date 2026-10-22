@@ -663,7 +663,7 @@ describe("a task's status looks the same here as on the board", () => {
 });
 
 describe("the task page", () => {
-  it("draws the project's site icon for the theme, from the card in the Wall read the desk holds", async () => {
+  it("draws the project's asset icon for the theme, from the card in the Wall read the desk holds", async () => {
     const light = "https://www.example.com/brand/icon-32.png";
     const dark = "https://www.example.com/brand/icon-32-dark.png";
     const desk = () => {
@@ -1548,7 +1548,7 @@ describe("the header reads in one look", () => {
     }
   });
 
-  it("keeps the board's filters on the Tasks crumb, and keeps one way back to Home or a site", async () => {
+  it("keeps the board's filters on the Tasks crumb, and keeps one way back to Home or an asset", async () => {
     const { unmount } = renderTask(ID, "", { returnTo: "/tasks?status=open" });
     await screen.findByText("A task has a page");
     expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks?status=open");

@@ -124,7 +124,7 @@ describe("the sidebar is the desk's only navigation", () => {
     const expected: [string, string][] = [
       ["Home", "/"],
       ["Workflows", "/workflows"],
-      ["Sites", "/assets"],
+      ["Portfolio", "/assets"],
       ["Alerts", "/alerts"],
       ["Tasks", "/tasks"],
       ["Agents", "/agents"],
@@ -170,10 +170,10 @@ describe("the sidebar is the desk's only navigation", () => {
     ).toHaveLength(1);
   });
 
-  it("lights Sites on a site page, because a site page IS a site", () => {
+  it("lights Portfolio on an asset page, because an asset page IS an asset", () => {
     renderSidebar("/assets/meadow.example");
 
-    expect(screen.getByRole("link", { name: "Sites" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -206,7 +206,7 @@ function assetNames(scope?: HTMLElement): string[] {
   return assetRows(scope).map((row) => row.dataset.navAsset ?? "");
 }
 
-describe("the sidebar lists the sites under Sites", () => {
+describe("the sidebar lists the assets under Portfolio", () => {
   it("draws one row per asset, pointing at its page", () => {
     renderSidebar("/");
 
@@ -220,11 +220,11 @@ describe("the sidebar lists the sites under Sites", () => {
   // A titled element with no text joins the accessible name of whatever it
   // sits inside (accname step 2I), so the favicon wrapper must carry no title.
   // A long name wraps rather than truncating: a phone has no hover.
-  it("lets a long site name wrap to two lines rather than cutting it off", () => {
-    state.assets = [asset("long.example", "The Very Long Name Of A Recipe And Meal Planning Site")];
+  it("lets a long asset name wrap to two lines rather than cutting it off", () => {
+    state.assets = [asset("long.example", "The Very Long Name Of A Recipe And Meal Planning Asset")];
     renderSidebar("/");
 
-    const name = within(assetRows()[0]!).getByText("The Very Long Name Of A Recipe And Meal Planning Site");
+    const name = within(assetRows()[0]!).getByText("The Very Long Name Of A Recipe And Meal Planning Asset");
     expect(name).toHaveClass("line-clamp-2", "break-words");
     expect(name).not.toHaveClass("truncate");
   });
@@ -269,13 +269,13 @@ describe("the sidebar lists the sites under Sites", () => {
     expect(screen.queryByRole("link", { name: "Gone" })).toBeNull();
   });
 
-  it("lights the row on any tab of that asset, and Sites with it", () => {
+  it("lights the row on any tab of that asset, and Assets with it", () => {
     renderSidebar("/assets/northwind.example/signals");
 
     expect(assetRows()[1]).toHaveAttribute("aria-current", "page");
     expect(assetRows()[0]).not.toHaveAttribute("aria-current");
     // An asset page is an asset, so the entry above lights too.
-    expect(screen.getByRole("link", { name: "Sites" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -283,23 +283,23 @@ describe("the sidebar lists the sites under Sites", () => {
 
   // Before its first number a site's Overview has nothing to show, and its
   // next action is on Data sources.
-  it("opens a site with no number yet on its Data sources, and one that has reported on its Overview", () => {
-    state.assets = [asset("new.example", "New Site", NOTHING_YET), asset("meadow.example", "Meadow Board")];
+  it("opens an asset with no number yet on its Data sources, and one that has reported on its Overview", () => {
+    state.assets = [asset("new.example", "New Asset", NOTHING_YET), asset("meadow.example", "Meadow Board")];
     renderSidebar("/");
 
     expect(assetRows()[0]).toHaveAttribute("href", "/assets/new.example/sources");
     expect(assetRows()[1]).toHaveAttribute("href", "/assets/meadow.example");
   });
 
-  it("still lights a new site's row on its Overview, which is not where the row opens", () => {
-    state.assets = [asset("new.example", "New Site", NOTHING_YET), asset("meadow.example", "Meadow Board")];
+  it("still lights a new asset's row on its Overview, which is not where the row opens", () => {
+    state.assets = [asset("new.example", "New Asset", NOTHING_YET), asset("meadow.example", "Meadow Board")];
     renderSidebar("/assets/new.example");
 
     expect(assetRows()[0]).toHaveAttribute("aria-current", "page");
     expect(assetRows()[1]).not.toHaveAttribute("aria-current");
   });
 
-  it("does not light a site whose id merely starts with the current one's", () => {
+  it("does not light an asset whose id merely starts with the current one's", () => {
     state.assets = [asset("meadow.example", "Meadow Board"), asset("meadow.example.org", "Meadow Board Org")];
     renderSidebar("/assets/meadow.example/growth");
 
@@ -307,10 +307,10 @@ describe("the sidebar lists the sites under Sites", () => {
     expect(assetRows()[1]).not.toHaveAttribute("aria-current");
   });
 
-  it("closes the list with Add a site, which is an address of its own", () => {
+  it("closes the list with Add an asset, which is an address of its own", () => {
     renderSidebar("/assets/new");
 
-    const newAsset = screen.getByRole("link", { name: "Add a site" });
+    const newAsset = screen.getByRole("link", { name: "Add an asset" });
     expect(newAsset).toHaveAttribute("href", "/assets/new");
     expect(newAsset).toHaveAttribute("aria-current", "page");
     // It sits below the last asset: it is what you do after reading the list.
@@ -318,12 +318,12 @@ describe("the sidebar lists the sites under Sites", () => {
     expect(list.lastElementChild).toBe(newAsset.parentElement);
   });
 
-  it("shows only Add a site before the first asset exists", () => {
+  it("shows only Add an asset before the first asset exists", () => {
     state.assets = [];
     renderSidebar("/");
 
     expect(assetRows()).toHaveLength(0);
-    expect(screen.getByRole("link", { name: "Add a site" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add an asset" })).toBeInTheDocument();
     expect(screen.queryByText(/no assets/i)).toBeNull();
   });
 
@@ -333,18 +333,18 @@ describe("the sidebar lists the sites under Sites", () => {
 
     expect(assetRows()).toHaveLength(12);
     expect(assetNames()[11]).toBe("a11.example");
-    expect(screen.getByRole("link", { name: "All sites…" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "All assets…" })).toHaveAttribute(
       "href",
       "/assets",
     );
-    expect(screen.getByRole("link", { name: "All sites…" })).not.toHaveAttribute(
+    expect(screen.getByRole("link", { name: "All assets…" })).not.toHaveAttribute(
       "aria-current",
     );
   });
 
   it("has no overflow row while the portfolio fits", () => {
     renderSidebar("/");
-    expect(screen.queryByRole("link", { name: "All sites…" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "All assets…" })).toBeNull();
   });
 
   it("draws no asset row, and no placeholder name, before the first read lands", () => {
@@ -353,7 +353,7 @@ describe("the sidebar lists the sites under Sites", () => {
 
     expect(assetRows()).toHaveLength(0);
     expect(document.body.textContent).not.toContain("undefined");
-    expect(screen.getByRole("link", { name: "Add a site" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add an asset" })).toBeInTheDocument();
   });
 
   it("reserves the height it drew last time, so the nav below does not jump", () => {
@@ -383,11 +383,11 @@ describe("the asset list remembers whether it is open", () => {
     renderSidebar("/");
     expect(assetRows()).toHaveLength(4);
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse the site list" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse the asset list" }));
 
     expect(assetRows()).toHaveLength(0);
-    expect(screen.queryByRole("link", { name: "Add a site" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Sites" })).toHaveAttribute("href", "/assets");
+    expect(screen.queryByRole("link", { name: "Add an asset" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute("href", "/assets");
     expect(
       JSON.parse(window.localStorage.getItem(NAV_ASSETS_KEY) ?? "{}").open,
     ).toBe(false);
@@ -398,7 +398,7 @@ describe("the asset list remembers whether it is open", () => {
     renderSidebar("/");
 
     expect(assetRows()).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Expand the site list" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand the asset list" }));
     expect(assetRows()).toHaveLength(4);
   });
 
@@ -424,9 +424,9 @@ describe("the asset list remembers whether it is open", () => {
     try {
       renderSidebar("/");
       expect(assetRows()).toHaveLength(4);
-      fireEvent.click(screen.getByRole("button", { name: "Collapse the site list" }));
+      fireEvent.click(screen.getByRole("button", { name: "Collapse the asset list" }));
       expect(assetRows()).toHaveLength(0);
-      fireEvent.click(screen.getByRole("button", { name: "Expand the site list" }));
+      fireEvent.click(screen.getByRole("button", { name: "Expand the asset list" }));
       expect(assetRows()).toHaveLength(4);
     } finally {
       read.mockRestore();
@@ -441,7 +441,7 @@ describe("the asset list remembers whether it is open", () => {
     const drawer = screen.getByRole("dialog", { name: "Navigation" });
     expect(assetRows(drawer)).toHaveLength(0);
     expect(
-      within(drawer).getByRole("button", { name: "Expand the site list" }),
+      within(drawer).getByRole("button", { name: "Expand the asset list" }),
     ).toBeInTheDocument();
     expect(assetRows()).toHaveLength(4);
   });
@@ -518,7 +518,7 @@ describe("the theme toggle", () => {
     expect(document.documentElement.classList.contains("light")).toBe(true);
   });
 
-  it("redraws a site's icon for the new theme in the sidebar", async () => {
+  it("redraws an asset's icon for the new theme in the sidebar", async () => {
     const light = "https://meadow.example/icon.png";
     const dark = "https://meadow.example/icon-dark.png";
     state.assets = [asset("meadow.example", "Meadow Board", { icons: { light, dark, readAt: "2026-09-01T04:00:00.000Z", outcome: "read" } })];
@@ -579,7 +579,7 @@ describe("PageHeader", () => {
         <PageHeader
           title="Financials"
           description="What the portfolio earned."
-          breadcrumb={[{ label: "Sites", to: "/assets" }]}
+          breadcrumb={[{ label: "Portfolio", to: "/assets" }]}
           meta={<span>2026-08</span>}
           actions={<button type="button">Export</button>}
         >
@@ -589,7 +589,7 @@ describe("PageHeader", () => {
     );
 
     expect(screen.getByRole("heading", { level: 1, name: "Financials" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sites" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
       "href",
       "/assets",
     );
@@ -713,11 +713,11 @@ describe("the nav fetches a page's code before it is clicked", () => {
     expect(onPrefetch).toHaveBeenCalledTimes(1);
     expect(onPrefetch).toHaveBeenLastCalledWith("/alerts");
 
-    fireEvent.pointerEnter(nav.getByRole("link", { name: "Sites" }));
+    fireEvent.pointerEnter(nav.getByRole("link", { name: "Portfolio" }));
     expect(onPrefetch).toHaveBeenLastCalledWith("/assets");
     fireEvent.pointerEnter(nav.getByRole("link", { name: "Meadow Board" }));
     expect(onPrefetch).toHaveBeenLastCalledWith("/assets/meadow.example");
-    fireEvent.pointerEnter(nav.getByRole("link", { name: "Add a site" }));
+    fireEvent.pointerEnter(nav.getByRole("link", { name: "Add an asset" }));
     expect(onPrefetch).toHaveBeenLastCalledWith("/assets/new");
     fireEvent.pointerEnter(nav.getByRole("link", { name: "TV dashboard" }));
     expect(onPrefetch).toHaveBeenLastCalledWith("/wall");

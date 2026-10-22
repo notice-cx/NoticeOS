@@ -250,7 +250,7 @@ describe("the Health page is layered", () => {
     expect(headings).toHaveLength(3);
     expect(headings[0]).toContain("The OS itself");
     expect(headings[1]).toContain("Provider accounts");
-    expect(headings[2]).toContain("The site's own wiring");
+    expect(headings[2]).toContain("The asset's own wiring");
     // The order is the argument: the OS first, then accounts, then wiring.
     expect(headings[0]).toBe("The OS itself");
 
@@ -281,7 +281,7 @@ describe("/health — the page leads with what to unblock next", () => {
     const { container, queryByRole } = renderRoute(blocked);
     const strip = container.querySelector("[data-connections] [data-kpi-strip]")!;
     expect([...strip.querySelectorAll("[data-kpi]")].map((kpi) => kpi.getAttribute("data-kpi"))).toEqual([
-      "Sites failing", "Sites overdue", "Reports missing", "Sites working",
+      "Assets failing", "Assets overdue", "Reports missing", "Assets working",
     ]);
     for (const retired of ["Verified working", "Not verified", "Degraded", "Not set up"]) {
       expect(container.querySelector(`[data-kpi="${retired}"]`)).toBeNull();
@@ -332,27 +332,27 @@ describe("/health — the page leads with what to unblock next", () => {
     [lane("uptime", "Uptime monitoring", "shared")],
   );
 
-  it("lists a source nothing connects once a site uses it, and opens it on where it is fixed", () => {
+  it("lists a source nothing connects once an asset uses it, and opens it on where it is fixed", () => {
     const { container } = renderRoute(inUse);
     const list = container.querySelector<HTMLElement>("section[aria-label='Other sources']")!;
     const rows = list.querySelectorAll("li");
     expect(rows).toHaveLength(1);
     const row = rows[0]!;
     // The grid's own status word leads the row; for uptime, what is down: the site.
-    expect(row.textContent).toContain("Site down");
+    expect(row.textContent).toContain("Asset down");
     expect(row.textContent).not.toContain("degradation");
     expect(row.textContent).toContain("Meadow Board");
     expect(row.textContent).not.toContain("Northwind");
     fireEvent.click(row.querySelector("button")!);
     expect(row.querySelector('a[href="/integrations"]')).not.toBeNull();
-    expect(row.textContent).not.toContain("One portfolio account covers every site.");
+    expect(row.textContent).not.toContain("One portfolio account covers every asset.");
     openPanel("audit");
     expect(container.querySelector("table")?.textContent).toContain("Uptime");
   });
 
   /** A site the register holds no status for on a data source reads that
    * source as not applicable; each such site is one row, opening its Data sources. */
-  it("names each site that has no status for a data source, and opens its Data sources", () => {
+  it("names each asset that has no status for a data source, and opens its Data sources", () => {
     const { container } = renderRoute({
       ...inUse,
       undeclared: [
@@ -372,7 +372,7 @@ describe("/health — the page leads with what to unblock next", () => {
     expect(northwind!.querySelector('a[href="/assets/northwind.example/sources"]')).not.toBeNull();
   });
 
-  it("names no site when every site has a status for every source", () => {
+  it("names no asset when every asset has a status for every source", () => {
     const { container } = renderRoute({ ...inUse, undeclared: [] });
     expect(container.querySelector("section[aria-label='Other sources']")?.textContent).not.toContain("Set source status");
   });
@@ -381,7 +381,7 @@ describe("/health — the page leads with what to unblock next", () => {
   it("names the nightly report once, and says a late one is overdue", () => {
     const late = "2026-08-01T06:00:00.000Z";
     const nightly: DerivedLaneRow = {
-      catalog: { ...lane("nightly-report", "Daily site report", "per-property", "property"), derived: true, scope: "both" },
+      catalog: { ...lane("nightly-report", "Daily asset report", "per-property", "property"), derived: true, scope: "both" },
       cells: {
         "meadow.example": {
           assetId: "meadow.example", laneId: "nightly-report", effective: "degraded",
@@ -398,11 +398,11 @@ describe("/health — the page leads with what to unblock next", () => {
     expect(container.textContent).toContain("1 other source not working");
     expect(container.textContent).not.toContain("source failing");
     const evidence = [...container.querySelectorAll<HTMLElement>("span[title]")]
-      .find((label) => label.title.startsWith("Daily site report ·") || label.title.startsWith("Nightly report ·"));
+      .find((label) => label.title.startsWith("Daily asset report ·") || label.title.startsWith("Nightly report ·"));
     expect(evidence?.textContent).toBe("Nightly report");
     openPanel("audit");
     expect(container.querySelector("table")?.textContent).toContain("Nightly report");
-    expect(container.textContent).not.toMatch(/degradation|Daily site report|Daily asset report/);
+    expect(container.textContent).not.toMatch(/degradation|Daily asset report|Daily asset report/);
   });
 
   /** The audit measures the first screen against a block the page names. Not
@@ -498,7 +498,7 @@ describe("/health — the page leads with what to unblock next", () => {
     // lays its contents out.
     expect(closed.hasAttribute("data-panel-open")).toBe(false);
     expect(closed.querySelector("table")).toBeNull();
-    expect(getByText("Every source, site by site")).toBeInTheDocument();
+    expect(getByText("Every source, asset by asset")).toBeInTheDocument();
 
     const audit = openPanel("audit");
     expect(audit.textContent).toContain("Google Search Console");

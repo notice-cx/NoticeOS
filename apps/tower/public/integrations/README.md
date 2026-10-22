@@ -9,9 +9,9 @@ or provider websites to render an integration.
 | --- | --- |
 | Google G | [Google’s gradient G announcement](https://blog.google/company-news/inside-google/company-announcements/gradient-g-logo-design/), the header’s original `super-g-aurora.svg` |
 | Bing | [Bing Webmaster Tools](https://www.bing.com/webmasters/), its published Apple touch icon |
-| DataForSEO | [DataForSEO](https://dataforseo.com/), its published 192px site icon |
+| DataForSEO | [DataForSEO](https://dataforseo.com/), its published 192px asset icon |
 | Microsoft Clarity | [Clarity app icon announcement](https://clarity.microsoft.com/blog/a-behind-the-scenes-look-the-new-clarity-app-icon/), the original 256px `siteIcon.png` |
-| Mediavine | [Mediavine](https://www.mediavine.com/), its published 320px site icon |
+| Mediavine | [Mediavine](https://www.mediavine.com/), its published 320px asset icon |
 | Discord | [Discord brand assets](https://discord.com/branding), the original blurple Clyde symbol |
 | PostHog | [PostHog brand assets](https://posthog.com/handbook/company/brand-assets), the published `posthog-logomark.svg` |
 

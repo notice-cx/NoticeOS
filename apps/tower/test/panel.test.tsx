@@ -5,14 +5,14 @@ import { Panel as AssetPanel } from "@/routes/asset-detail/shared";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
 
 describe("shared panel shell", () => {
-  it("keeps the site-detail import on the shared implementation", () => {
+  it("keeps the asset-detail import on the shared implementation", () => {
     expect(AssetPanel).toBe(Panel);
   });
 
   it("labels each region with its own heading, excluding its caption and action", () => {
     render(<>
       <Panel id="site-collection" title="Collection" count="last 7 days" action={<button>Collect now</button>} data-collection="site">
-        <p>Site settings</p>
+        <p>Asset settings</p>
       </Panel>
       <SettingsPanel id="portfolio-collection" title="Collection" caption="last 28 days" aside={<button>Schedule</button>} data-collection="portfolio">
         <p>Portfolio settings</p>
@@ -45,8 +45,8 @@ describe("shared panel shell", () => {
   });
 
   it("keeps the paused-save lock accessible and forwards its caller's marks", () => {
-    render(<SettingsPanel title="Sites" aside={<PanelLock data-sites-locked />}><button disabled>Save</button></SettingsPanel>);
-    const region = screen.getByRole("region", { name: "Sites" });
+    render(<SettingsPanel title="Assets" aside={<PanelLock data-sites-locked />}><button disabled>Save</button></SettingsPanel>);
+    const region = screen.getByRole("region", { name: "Assets" });
     expect(within(region).getByText("Saves paused")).toHaveClass("sr-only");
     expect(within(region).getByText("Saves paused").parentElement).toHaveAttribute("data-sites-locked", "true");
     expect(within(region).getByRole("button", { name: "Save" })).toBeDisabled();

@@ -1,5 +1,5 @@
 // Which month's money leads, and what to call it: the one rule Home's money
-// tile, the Assets page and the Wall's revenue figure read.
+// tile, the Portfolio page and the Wall's revenue figure read.
 
 import {
   figureHasMoney,

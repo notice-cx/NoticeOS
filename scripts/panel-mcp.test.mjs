@@ -163,7 +163,7 @@ test('the store resolves the latest or a kept version by name, and never stands 
   await assert.rejects(store.resolve(ASSET, '00000001-2026-09-01T13-10-04-637Z-bbbbbb'), /no longer kept: versions are kept 14 days\. The latest is 00000003/u);
   await assert.rejects(store.resolve(ASSET, '../../etc'), /is not a panel version/u);
   await assert.rejects(store.resolve('nothing.example'), /has no published panel/u);
-  await assert.rejects(store.resolve('../x'), /asset must be a site id/u);
+  await assert.rejects(store.resolve('../x'), /asset must be an asset id/u);
 });
 
 test('a version describes its tables and each family\'s age today, and lists only what needs attention', async (t) => {

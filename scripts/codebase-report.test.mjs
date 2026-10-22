@@ -21,7 +21,7 @@ const SOCKET = 'unix:///var/run/docker.sock';
 const APP_ID = 'a'.repeat(12);
 const quiet = { write() {} };
 
-test('arguments: the site and the checkout are required; folders stay inside it; image and build exclude each other', () => {
+test('arguments: the asset and the checkout are required; folders stay inside it; image and build exclude each other', () => {
   assert.deepEqual(parseArgs(['--', '--asset', 'example.com', '--repo', 'site', '--paths', './apps/site/, packages/ui'], { cwd: '/work' }),
     { asset: 'example.com', repo: '/work/site', paths: ['apps/site', 'packages/ui'], image: null, build: false, config: null, measures: [] });
   assert.equal(parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--build']).build, true);
@@ -70,7 +70,7 @@ test('the measurement runs read-only beside the app container, and its token is 
   assert.deepEqual(buildArgs(selector, '/checkout'), ['--host', SOCKET, 'build', '--tag', LOCAL_IMAGE, '/checkout/deploy/codebase-report']);
 });
 
-test("the token is the site's ASSET_TOKENS entry in the installation folder's bootstrap secrets", async (t) => {
+test("the token is the asset's ASSET_TOKENS entry in the installation folder's bootstrap secrets", async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codebase-report-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const envFile = path.join(dir, 'installation.env');

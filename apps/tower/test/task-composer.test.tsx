@@ -108,7 +108,7 @@ it("refuses a project removed from the roster while its task form is open", asyn
   view.rerender(compose(SPOKES.filter(row => row.asset !== "meadow.example")));
   fireEvent.click(fileTask());
   expect(lane.calls).toEqual([]);
-  expect(await screen.findByText("Choose the site whose repo this task belongs to.")).toBeInTheDocument();
+  expect(await screen.findByText("Choose the asset whose repo this task belongs to.")).toBeInTheDocument();
   client.clear();
 });
 
@@ -450,7 +450,7 @@ describe("TaskComposer", () => {
     fireEvent.click(fileTask());
 
     expect(
-      await screen.findByText("Choose the site whose repo this task belongs to."),
+      await screen.findByText("Choose the asset whose repo this task belongs to."),
     ).toBeInTheDocument();
     expect(lane.calls).toHaveLength(0);
   });

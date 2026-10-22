@@ -987,7 +987,7 @@ describe('Google in the connect panel', () => {
     expect(await discoverSites(bare(), 'google', { fetchImpl: refusing, nowMs: NOW })).toMatchObject({ ok: false, reason: 'refused' });
   });
 
-  it('names the credential it listed with, so the panel can say who to grant a missing site', async () => {
+  it('names the credential it listed with, so the panel can say who to grant a missing asset', async () => {
     // `env` (not `bare()`) carries the suite's generated service-account map.
     expect(await discoverSites(env, 'google', { fetchImpl: account(), nowMs: NOW }))
       .toMatchObject({ ok: true, account: 'signals-test@example.test', auth: 'service-account' });
@@ -996,7 +996,7 @@ describe('Google in the connect panel', () => {
       .toMatchObject({ ok: true, account: 'ops@example.test', auth: 'oauth' });
   });
 
-  it("collects only the named site's mapped properties through the quarter-hourly step", async () => {
+  it("collects only the named asset's mapped properties through the quarter-hourly step", async () => {
     await connect();
     const calls: string[] = [];
     const register = { assets: {

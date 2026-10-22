@@ -135,7 +135,7 @@ describe('a saved mapping reaches the collectors without a restart', () => {
     });
   });
 
-  it('asks for the site the Save wrote, on the next run, with no restart', async () => {
+  it('asks for the asset the Save wrote, on the next run, with no restart', async () => {
     await seedConfigDocuments(
       env,
       { documents: { 'config/integrations.json': seedableIntegrations() }, actor: 'config:seed' },

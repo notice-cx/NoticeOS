@@ -19,6 +19,16 @@ export declare const TOWER_CONFIG_FILES: Readonly<{
 }>;
 export declare const ASSET_STATUSES: readonly ["pre-launch", "onboarding", "baselining", "live", "retired"];
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
+/** Product categories; adding a category does not enable or disable features. */
+export declare const ASSET_TYPES: readonly ["website", "web-app", "mobile-app"];
+export type AssetType = (typeof ASSET_TYPES)[number];
+export declare const DEFAULT_ASSET_TYPE: AssetType;
+export declare const ASSET_TYPE_LABEL: Readonly<Record<AssetType, string>>;
+export declare function isAssetType(value: unknown): value is AssetType;
+/** Older configurations and payloads have no category. */
+export declare function assetTypeOf(value: {
+    assetType?: AssetType | null;
+} | null | undefined): AssetType;
 /**
  * A stage move is recorded as a timeline row because `assets.status` holds only
  * where an asset is; Restore reads the previous stage from the timeline. The

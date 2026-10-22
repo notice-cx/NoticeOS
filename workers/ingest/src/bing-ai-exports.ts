@@ -142,7 +142,7 @@ export const BING_AI_FORMATS: readonly BingAiFormat[] = [
     report: 'ai-overview',
     exportName: 'AIPerformanceOverviewStats',
     header: ['Date', 'Citations', 'Cited Pages'],
-    grain: 'one completed day of property-wide AI citations',
+    grain: 'one completed day of asset-wide AI citations',
     row: (cells) => ({
       date: bingAiDay(required(cells[0], 'Date')),
       citations: bingAiCount(required(cells[1], 'Citations'), 'Citations'),

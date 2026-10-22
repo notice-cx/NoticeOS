@@ -1,15 +1,15 @@
 ---
 title: "Connect Google"
-description: "Sign in with Google once to collect Search Console and GA4 data for every site the account can see."
+description: "Sign in with Google once to collect Search Console and GA4 data for every asset the account can see."
 ---
 
 # Connect Google
 
-This page shows how to start collecting Google Search Console and Google Analytics 4 data for your sites with one sign-in.
+This page shows how to start collecting Google Search Console and Google Analytics 4 data for your assets with one sign-in.
 
 ## Before you begin
 
-- A Google account that can read the site's GA4 property and Search Console site.
+- A Google account that can read the asset's GA4 property and Search Console site.
 - On a self-hosted installation, access to the Google Cloud console to register your own sign-in app once.
 
 The sign-in requests two read-only permissions and your email address. The panel shows them as **Analytics · read only** and **Search Console · read only**. Nothing can be written, verified or deleted at Google with them. If a sign-in returns with either permission missing, NoticeOS rejects it and stores nothing.
@@ -21,19 +21,19 @@ Open **Integrations** and select **Connect** on the Google row. What the panel s
 - **Hosted**: the installation already has a Google sign-in app, so the panel has one button, **Continue with Google**.
 - **Self-hosted**: you register your own sign-in app once in the Google Cloud console. The panel shows the steps.
 
-The older method, a service account with a JSON key granted on every property, still works for installations already using it. The panel links to it as **Service account instead**.
+The older method, a service account with a JSON key granted on every asset, still works for installations already using it. The panel links to it as **Service account instead**.
 
 ### What is collected
 
-Search Console: daily clicks, impressions, CTR and average position, plus a daily archive of page, query, country and device reports. GA4: daily active users, sessions, page views and events, live visitors for the TV Wall, and a daily archive of pages, landing pages, acquisition and events. All of it is free; GA4 has a daily token budget per property that the product meters.
+Search Console: daily clicks, impressions, CTR and average position, plus a daily archive of page, query, country and device reports. GA4: daily active users, sessions, page views and events, live visitors for the TV Wall, and a daily archive of pages, landing pages, acquisition and events. All of it is free; GA4 has a daily token budget per asset that the product meters.
 
 How often the archive runs is set on **Integrations** > **Manage** on the Google row, on the **Traffic and search archives** row.
 
 ## Hosted: sign in
 
 1. In the panel, select **Continue with Google**.
-2. On Google's screen, select the account that can read the site's GA4 property and Search Console site, and allow both permissions.
-3. Back in the panel, review each site's row. It lists the GA4 property and the Search Console site matched by domain, already ticked. A Search Console site the account has not verified is listed as **Not verified** and left unticked. When the account cannot read a site's GA4 property or Search Console site, the row reads **GA4: not in this account** or **Search Console: not in this account**, and a line under the list names the account and what to grant (see [Change which property a site uses](#change-which-property-a-site-uses)).
+2. On Google's screen, select the account that can read the asset's GA4 property and Search Console site, and allow both permissions.
+3. Back in the panel, review each asset's row. It lists the GA4 property and the Search Console site matched by domain, already ticked. A Search Console site the account has not verified is listed as **Not verified** and left unticked. When the account cannot read an asset's GA4 property or Search Console site, the row reads **GA4: not in this account** or **Search Console: not in this account**, and a line under the list names the account and what to grant (see [Change which asset an asset uses](#change-which-asset-a-asset-uses)).
 4. Select **Start collecting**.
 
 ## Self-hosted: the one-time console steps
@@ -62,21 +62,21 @@ A new consent screen in the Google Cloud console starts in Testing. While it sta
 1. In the Google Cloud console, open the OAuth consent screen and select **Publish app**.
 2. On the Google row, select **it does not expire**. Google provides no way for NoticeOS to check whether you published, so the row shows the chip until you record that you did. NoticeOS keeps that setting through later sign-ins.
 
-## Change which property a site uses
+## Change which asset an asset uses
 
-You decide which GA4 property and Search Console site belong to each of your sites; Google does not. The panel pre-selects a match by domain.
+You decide which GA4 property and Search Console site belong to each of your assets; Google does not. The panel pre-selects a match by domain.
 
-1. On the site's **Data sources** tab, open the Google row.
-2. Under **Mapping**, set the **Site** (as `sc-domain:example.com` or `https://example.com/`) and the **GA4 property id**. Each choice is saved on its own with **Undo** beside it.
+1. On the asset's **Data sources** tab, open the Google row.
+2. Under **Mapping**, set the **Provider site** (as `sc-domain:example.com` or `https://example.com/`) and the **GA4 property id**. Each choice is saved on its own with **Undo** beside it.
 
 The two lists show only what the connected Google credential can read, and the line under each list names that credential. When a GA4 property or Search Console site is missing:
 
-- **Service account**: in Google Analytics, add the service account's email as **Viewer** on that GA4 property or its account; in Search Console, add it as a **Full user** on that site. Then select **Read again** under the list in the panel, or reload the **Data sources** tab.
+- **Service account**: in Google Analytics, add the service account's email as **Viewer** on that GA4 property or its account; in Search Console, add it as a **Full user** on that Search Console site. Then select **Read again** under the list in the panel, or reload the **Data sources** tab.
 - **Sign-in**: on **Integrations**, sign in with a Google account that can read it.
 
 ## Verify
 
-- Each site's row moves from **Collecting** to **Working** when its first result arrives.
+- Each asset's row moves from **Collecting** to **Working** when its first result arrives.
 - The Google row on **Integrations** shows the email address it is signed in as.
 
 ## If it didn't work

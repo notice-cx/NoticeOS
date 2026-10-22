@@ -55,7 +55,7 @@ export function pageDecisionMarkdown({
   return [
     `# Page decision: ${row.path}`,
     "",
-    `- **Site:** ${propertyIdentity}`,
+    `- **Asset:** ${propertyIdentity}`,
     `- **Page:** ${row.page}`,
     `- **What to do:** ${laneLabel(assessment.lane)}`,
     `- **Decision:** ${assessment.label}`,
@@ -129,8 +129,8 @@ function trackedPanelLabel(row: SearchPageMover): string {
         return `${prefix}${named ? "n" : "N"}o AI Overview on the live result page`;
       }
       return reading.aioCitesUs === true
-        ? `${prefix}AI Overview fires and cites this site — do not wash out the cited content`
-        : `${prefix}AI Overview fires and does not cite this site — the click is largely consumed inline`;
+        ? `${prefix}AI Overview fires and cites this asset — do not wash out the cited content`
+        : `${prefix}AI Overview fires and does not cite this asset — the click is largely consumed inline`;
     })
     .join("; ");
 }

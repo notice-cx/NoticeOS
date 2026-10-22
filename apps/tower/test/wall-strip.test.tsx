@@ -118,7 +118,7 @@ describe("the one system state", () => {
     expect(state({ ...everything, hasPulse: true, scheduledLanes: HEALTHY.scheduledLanes }, 0).kind).toBe("reports-stale");
   });
 
-  it("is never amber by construction: no recorded firing yet, a lane that stood down, a site not yet reporting", () => {
+  it("is never amber by construction: no recorded firing yet, a lane that stood down, an asset not yet reporting", () => {
     // An installation with no OS row owes no OS report: a subject nobody set
     // up is calm, not red.
     expect(state({ ...HEALTHY, assetId: null, hasPulse: false })).toMatchObject({ kind: "healthy", severity: null });
@@ -137,7 +137,7 @@ describe("the one system state", () => {
 
   // The strip and Needs attention read one derivation (`failingSources`), so one
   // screen never states two counts of one fact.
-  it("agrees with Needs attention when one provider fails on two sites", () => {
+  it("agrees with Needs attention when one provider fails on two assets", () => {
     const card = (id: string, uptime: "live" | "degraded" = "live"): AssetCard =>
       ({ ...site(id, uptime), status: "live", pulseReceivedAt: null, panelReview: null, latestPanelDate: null }) as AssetCard;
     const assets = [card("a.example", "degraded"), card("b.example", "degraded"), card("c.example")];
@@ -147,7 +147,7 @@ describe("the one system state", () => {
       issue.key.startsWith("source-"),
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ site: "2 sites", line: "Uptime collection failing", assets: ["a.example", "b.example"] });
+    expect(rows[0]).toMatchObject({ site: "2 assets", line: "Uptime collection failing", assets: ["a.example", "b.example"] });
     expect(failingSources(assets, NO_READS, NOW).size).toBe(rows.length);
   });
 

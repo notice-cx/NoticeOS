@@ -9,7 +9,7 @@ const site = (id: string, series: SignalTrend["series"], provisionalFrom: string
 });
 
 describe("Home's last 28 days of visitors", () => {
-  it("bounds calendar days, fills gaps, includes context and late sites, and excludes provisional readings", () => {
+  it("bounds calendar days, fills gaps, includes context and late assets, and excludes provisional readings", () => {
     const result = peopleInLast28Days([
       site("a.example", [{ t: "2026-10-28", v: 10 }, { t: "2026-10-29", v: 999 }], "2026-10-29", [{ t: "2026-09-30", v: 999 }, { t: "2026-10-01", v: 3 }]),
       site("b.example", [{ t: "2026-10-01", v: 5 }, { t: "2026-10-27", v: 0 }]),

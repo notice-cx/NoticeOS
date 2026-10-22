@@ -101,7 +101,7 @@ describe("the connect panel", () => {
     expect(dialog.textContent).not.toContain(value);
   });
 
-  it("shows Cloudflare database access without calling databases sites or echoing its token", async () => {
+  it("shows Cloudflare database access without calling databases assets or echoing its token", async () => {
     const provider = integrationProvider("cloudflare")!;
     const value = crypto.randomUUID();
     renderPanel(provider, vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: { databases: 2 } }) as ConnectVerdict));
@@ -110,7 +110,7 @@ describe("the connect panel", () => {
     fireEvent.change(within(dialog).getByLabelText("API token"), { target: { value } });
     await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Connect" })));
     expect(dialog.querySelector('[data-connect-fact="databases"]')).toHaveTextContent("2databases");
-    expect(dialog.querySelector('[data-connect-fact="sites"]')).toBeNull();
+    expect(dialog.querySelector('[data-connect-fact="assets"]')).toBeNull();
     expect(dialog.innerHTML).not.toContain(value);
   });
 
@@ -141,7 +141,7 @@ describe("the connect panel", () => {
 
     await act(async () => answer.resolve({ verdict: "accepted", checkedAt: AT, facts: { sites: 2 } }));
     expect(within(dialog).getByText("Key accepted")).toBeInTheDocument();
-    expect(dialog.querySelector('[data-connect-fact="sites"]')).toHaveTextContent("2sites");
+    expect(dialog.querySelector('[data-connect-fact="assets"]')).toHaveTextContent("2assets");
     expect(within(dialog).queryByLabelText("API key")).toBeNull();
     expect(dialog.innerHTML).not.toContain(SECRET);
     expect(within(dialog).getByRole("button", { name: "Done" })).toHaveFocus();

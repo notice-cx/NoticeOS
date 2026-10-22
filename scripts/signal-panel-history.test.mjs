@@ -95,7 +95,8 @@ test('cutover leaves old plain analysis intact and publishes equivalent report, 
   // Frozen before retirement against the old command on this exact fixture.
   // These are actual reader files, not a second derivation of the findings.
   const reference = JSON.parse(await fs.readFile(new URL('./fixture-history-analysis.json', import.meta.url), 'utf8'));
-  for (const [name, hash] of Object.entries(reference.panelFiles)) {
+  for (const [name, originalHash] of Object.entries(reference.panelFiles)) {
+    const hash = reference.panelCopyFiles?.[name] ?? originalHash;
     assert.equal(createHash('sha256').update(await fs.readFile(path.join(f.output, name))).digest('hex'), hash, name);
   }
 });

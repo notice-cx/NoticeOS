@@ -54,7 +54,7 @@ describe("the normal a Poisson rule computed", () => {
     expect(poissonLowerTail(low, 58.2)).toBeGreaterThanOrEqual(0.01);
   });
 
-  it("stays quick at a large site's volume", () => {
+  it("stays quick at a large asset's volume", () => {
     const started = performance.now();
     const { low, high } = poissonNormalRange(250_000, 0.01);
     expect(performance.now() - started).toBeLessThan(200);
@@ -160,8 +160,8 @@ describe("readingNights — the nights behind a condition", () => {
   });
 });
 
-describe("alertBoard — by site, the long-standing apart", () => {
-  it("leads with the site of the worst, newest alert and folds what is over a week old", () => {
+describe("alertBoard — by asset, the long-standing apart", () => {
+  it("leads with the asset of the worst, newest alert and folds what is over a week old", () => {
     const board = alertBoard([
       item({ id: 1, asset: "plume.example", assetDisplayName: "Plume Studio", firstFiredAt: ago(2 * HOUR) }),
       item({ id: 2, asset: "acorn.example", assetDisplayName: "Acorn Atlas", severity: "error", firstFiredAt: ago(25 * 60_000) }),
@@ -177,7 +177,7 @@ describe("alertBoard — by site, the long-standing apart", () => {
     expect(board.longStanding.map((entry) => entry.id)).toEqual([5, 4]);
   });
 
-  it("gives a row that stands for several sites a group of its own", () => {
+  it("gives a row that stands for several assets a group of its own", () => {
     const grouped = item({
       id: 7,
       members: [
@@ -185,12 +185,12 @@ describe("alertBoard — by site, the long-standing apart", () => {
         { id: 8, asset: "acorn.example", assetDisplayName: "Acorn Atlas", firedAt: ago(DAY) },
       ],
     });
-    expect(alertBoard([grouped], NOW).sites).toMatchObject([{ key: SEVERAL_SITES, asset: null, name: "Several sites" }]);
+    expect(alertBoard([grouped], NOW).sites).toMatchObject([{ key: SEVERAL_SITES, asset: null, name: "Several assets" }]);
   });
 });
 
 describe("siteOrder — the week reads in the board's order", () => {
-  it("leads with the site of the worst, newest alert and keeps the rest in the order given", () => {
+  it("leads with the asset of the worst, newest alert and keeps the rest in the order given", () => {
     const order = siteOrder([
       item({ id: 1, asset: "plume.example", assetDisplayName: "Plume Studio", firstFiredAt: ago(2 * HOUR) }),
       item({ id: 2, asset: "acorn.example", assetDisplayName: "Acorn Atlas", severity: "error", firstFiredAt: ago(DAY) }),
@@ -235,7 +235,7 @@ describe("alertTimeline — the week on one axis", () => {
     ]);
   });
 
-  it("draws a grouped row on every site it stands for, each bar opening the one row", () => {
+  it("draws a grouped row on every asset it stands for, each bar opening the one row", () => {
     const { spans } = alertTimeline([item({
       id: 7,
       members: [

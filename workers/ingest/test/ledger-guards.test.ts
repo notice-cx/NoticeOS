@@ -79,7 +79,7 @@ describe('ledger chain guards', () => {
   ])('refuses a correction with a different %s', async (_field, over) => {
     const estimate = await insert();
     await expect(insert({ supersedes_id: estimate.entryId, ...over })).rejects.toThrow(
-      /same site, month, kind, family and currency/,
+      /same asset, month, kind, family and currency/,
     );
     expect(await entries()).toBe(1);
   });

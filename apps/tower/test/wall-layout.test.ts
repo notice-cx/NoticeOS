@@ -89,7 +89,7 @@ const PRE_D28 = {
 };
 
 describe("the default layout", () => {
-  it("is the strip and the loop, then the last 24 hours over the sites beside revenue over the work", () => {
+  it("is the strip and the loop, then the last 24 hours over the assets beside revenue over the work", () => {
     expect(DEFAULT_WALL_LAYOUT.rows.map((r) => [r.id, r.height])).toEqual([
       ["strip", "auto"],
       ["loop", "auto"],
@@ -134,7 +134,7 @@ describe("the default layout", () => {
     }
   });
 
-  it("stacks on a phone as the operator reads: the money, the sites, what is broken, what waits on the operator, the work and who did it, the loop last", () => {
+  it("stacks on a phone as the operator reads: the money, the assets, what is broken, what waits on the operator, the work and who did it, the loop last", () => {
     const order = [...WALL_WIDGET_TYPES].sort((a, b) => WALL_WIDGET_LIBRARY[a].stackOrder - WALL_WIDGET_LIBRARY[b].stackOrder);
     expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "next", "work", "agents", "feed", "loop", "health", "factory", "channels"]);
   });
@@ -158,7 +158,7 @@ describe("the founder views' presets", () => {
     expect(validateWallLayout(WALL_PRESETS[view])).toEqual({ ok: true, layout: WALL_PRESETS[view] });
   });
 
-  it("business: the strip, Next up across the TV, then site health over revenue beside Needs attention over the agents", () => {
+  it("business: the strip, Next up across the TV, then asset health over revenue beside Needs attention over the agents", () => {
     const layout = WALL_PRESETS.business;
     expect(layout.rows.map((r) => [r.id, r.height])).toEqual([["strip", "auto"], ["next", "auto"], ["body", "fill"]]);
     // Alone in its row, at the content's height: the TV's full width is where Next up is shortest.
@@ -170,7 +170,7 @@ describe("the founder views' presets", () => {
     expect(wallLayoutWarnings(layout)).toEqual([]);
   });
 
-  it("product: the strip, then revenue over channels beside the sites over the work", () => {
+  it("product: the strip, then revenue over channels beside the assets over the work", () => {
     const layout = WALL_PRESETS.product;
     expect(layout.rows.map((r) => [r.id, r.height])).toEqual([["strip", "auto"], ["body", "fill"]]);
     const [a, b] = row(layout, 1).widgets as WallColumn[];
@@ -189,13 +189,13 @@ describe("the three widgets the views brought", () => {
     expect(spec.minWidthRem).toBeGreaterThan(0);
   });
 
-  it("filters health and channels by site, and the agents not at all", () => {
+  it("filters health and channels by asset, and the agents not at all", () => {
     expect(WALL_WIDGET_LIBRARY.health.settings).toEqual(["assets"]);
     expect(WALL_WIDGET_LIBRARY.channels.settings).toEqual(["assets"]);
     expect(WALL_WIDGET_LIBRARY.factory.settings).toEqual([]);
   });
 
-  it("counts site health as sites and as alerts on the TV", () => {
+  it("counts asset health as assets and as alerts on the TV", () => {
     const layout: WallLayout = { version: 1, rows: [{ id: "one", height: "fill", widgets: [{ id: "health", type: "health", width: 1 }] }] };
     expect(wallLayoutWarnings(layout)).toEqual([]);
   });
@@ -226,7 +226,7 @@ describe("validateWallLayout refuses, in the operator's words", () => {
         row(l, 0).widgets.push({ id: "sites-2", type: "sites", width: 1 });
       }),
     );
-    expect(check).toMatchObject({ ok: false, reason: "Sites can appear only once on the Wall." });
+    expect(check).toMatchObject({ ok: false, reason: "Portfolio can appear only once on the Wall." });
   });
 
   it("two rows that both take the remaining height", () => {
@@ -271,7 +271,7 @@ describe("validateWallLayout refuses, in the operator's words", () => {
     ).toMatchObject({ ok: false, reason: expect.stringContaining("twice") });
   });
 
-  it("accepts an asset filter on the per-site widgets and keeps its order", () => {
+  it("accepts an asset filter on the per-asset widgets and keeps its order", () => {
     const check = validateWallLayout(
       layoutWith((l) => {
         stacked(l, "business", 0, 0).settings = { assets: ["northwind.example", "meadow.example"] };
@@ -290,7 +290,7 @@ describe("validateWallLayout refuses, in the operator's words", () => {
     ).toMatchObject({ ok: false, reason: 'The loop has no "assets" setting.' });
   });
 
-  it("validates and serializes per-site pulse choices, including none", () => {
+  it("validates and serializes per-asset pulse choices, including none", () => {
     const choices = { "meadow.example": ["leads", "accounts"], "northwind.example": [] };
     const layout = layoutWith((l) => { stacked(l, "business", 1, 0).settings = { assets: ["meadow.example"], pulseMetrics: choices }; });
     const check = validateWallLayout(layout);
@@ -311,17 +311,17 @@ describe("validateWallLayout refuses, in the operator's words", () => {
 });
 
 describe("warnings leave the decision with the operator", () => {
-  it("names an empty bottom, squeezed fill widgets, and a missing Sites or problems widget", () => {
+  it("names an empty bottom, squeezed fill widgets, and a missing Assets or problems widget", () => {
     const noFill = layoutWith((l) => void (row(l, 2).height = "auto"));
     expect(wallLayoutWarnings(noFill)).toEqual([
       "Bottom of the TV left empty",
-      "Sites squeezed into a fixed-height row",
+      "Portfolio squeezed into a fixed-height row",
     ]);
     const bare: WallLayout = {
       version: 1,
       rows: [{ id: "top", height: "fill", widgets: [{ id: "strip", type: "strip", width: 1 }] }],
     };
-    expect(wallLayoutWarnings(bare)).toEqual(["No sites on the TV", "No alerts on the TV"]);
+    expect(wallLayoutWarnings(bare)).toEqual(["No assets on the TV", "No alerts on the TV"]);
     // Either the timeline or Needs attention puts the problems on the TV.
     const withNeeds: WallLayout = {
       version: 1,
@@ -353,7 +353,7 @@ describe("a layout naming retired widgets", () => {
       { savedAt: "2026-09-05T10:00:00.000Z", reason: "Alerts wider", layout: PRE_D28 },
       {
         savedAt: "2026-09-04T10:00:00.000Z",
-        reason: "Sites only",
+        reason: "Assets only",
         layout: { version: 1, rows: [{ id: "only", height: "fill", widgets: [{ id: "sites", type: "sites", width: 1 }] }] },
       },
     ],
@@ -364,7 +364,7 @@ describe("a layout naming retired widgets", () => {
     const config = parseWallConfig(saved);
     expect(config.layout).toEqual(DEFAULT_WALL_LAYOUT);
     // A version naming a retired widget could only be reverted to the default.
-    expect(config.history.map((version) => version.reason)).toEqual(["Sites only"]);
+    expect(config.history.map((version) => version.reason)).toEqual(["Assets only"]);
     expect(config.retired).toEqual({ saved, replaced: true });
     expect(JSON.stringify(saved)).toBe(before);
   });
@@ -513,7 +513,7 @@ describe("a column slot", () => {
       refusal((l) => {
         row(l, 0).widgets.push({ id: "sites-2", type: "sites", width: 1 });
       }),
-    ).toBe("Sites can appear only once on the Wall.");
+    ).toBe("Portfolio can appear only once on the Wall.");
     expect(
       refusal((l) => {
         row(l, 0).widgets.push({ id: "revenue", type: "feed", width: 1 });
@@ -523,7 +523,7 @@ describe("a column slot", () => {
 
   it("warns when a fill widget in a column cannot stretch", () => {
     const squeezed = layoutWith((l) => void (column(l).rows[1]!.height = "auto"));
-    expect(wallLayoutWarnings(squeezed)).toEqual(["Sites squeezed into a fixed-height row"]);
+    expect(wallLayoutWarnings(squeezed)).toEqual(["Portfolio squeezed into a fixed-height row"]);
     const work = layoutWith((l) => void (column(l, "side").rows[1]!.height = "auto"));
     expect(wallLayoutWarnings(work)).toEqual([]);
   });

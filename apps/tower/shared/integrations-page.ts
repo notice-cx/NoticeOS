@@ -251,22 +251,22 @@ function parseUrl(raw: string): FieldParse {
 function parseAssetMap(raw: string): FieldParse {
   const text = raw.trim();
   if (text.length === 0) {
-    return { ok: false, error: "Add a key for at least one site." };
+    return { ok: false, error: "Add a key for at least one asset." };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return { ok: false, error: "That is not a set of per-site keys." };
+    return { ok: false, error: "That is not a set of per-asset keys." };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, error: "That is not a set of per-site keys." };
+    return { ok: false, error: "That is not a set of per-asset keys." };
   }
   const entries = Object.entries(parsed as Record<string, unknown>).filter(
     ([, key]) => typeof key === "string" && key.trim().length > 0,
   );
   if (entries.length === 0) {
-    return { ok: false, error: "Add a key for at least one site." };
+    return { ok: false, error: "Add a key for at least one asset." };
   }
   return {
     ok: true,

@@ -77,7 +77,7 @@ export function queryDecisionMarkdown({
   return [
     `# Query decision: ${row.query}`,
     "",
-    `- **Site:** ${propertyIdentity}`,
+    `- **Asset:** ${propertyIdentity}`,
     `- **What to do:** ${laneLabel(assessment.lane)}`,
     `- **Decision:** ${assessment.label}`,
     `- **Ranking page:** ${rankingPageLabel(row)}`,
@@ -92,7 +92,7 @@ export function queryDecisionMarkdown({
     ...evidence,
     "## Source context and limitations",
     "",
-    "- **Do not combine the units:** Google/Bing impressions are observed site exposure; DataForSEO searches/month are modelled market demand.",
+    "- **Do not combine the units:** Google/Bing impressions are observed asset exposure; DataForSEO searches/month are modelled market demand.",
     ...sourceLimits,
     "- **Decision limit:** This is deterministic triage, not a guaranteed SEO outcome. Inspect the current page, index state, and live search results before editing.",
     "",
@@ -208,8 +208,8 @@ function trackedPanelLabel(row: DataForSeoQueryVisibilityRow): string {
         return `${prefix}${named ? "n" : "N"}o AI Overview on the live result page`;
       }
       return reading.aioCitesUs === true
-        ? `${prefix}AI Overview fires and cites this site — do not wash out the cited content`
-        : `${prefix}AI Overview fires and does not cite this site — the click is largely consumed inline`;
+        ? `${prefix}AI Overview fires and cites this asset — do not wash out the cited content`
+        : `${prefix}AI Overview fires and does not cite this asset — the click is largely consumed inline`;
     })
     .join("; ");
 }
@@ -257,11 +257,11 @@ function rankingPageLabel(row: QueryDecisionMarkdownRow): string {
 function aiOverviewLabel(row: DataForSeoQueryVisibilityRow): string {
   if (row.aiOverview === "cited") {
     return row.aiCitationPosition === null
-      ? "Site cited"
-      : `Site cited at source position #${formatInt(row.aiCitationPosition)}`;
+      ? "Asset cited"
+      : `Asset cited at source position #${formatInt(row.aiCitationPosition)}`;
   }
   if (row.aiOverview === "present") {
-    return "Overview present; site not cited";
+    return "Overview present; asset not cited";
   }
   return "No AI Overview in snapshot";
 }

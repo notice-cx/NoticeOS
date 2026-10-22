@@ -187,7 +187,7 @@ describe('recordSignalSuccess — one series per provider resource and day defin
 
   // On Postgres the series is a row of its own, named once by the values that
   // first need it.
-  it('names one series per site, provider, property, zone and metric; a rotated credential keeps it', async () => {
+  it('names one series per asset, provider, property, zone and metric; a rotated credential keeps it', async () => {
     await record({ '2026-09-01': 25 });
     await record({ '2026-09-01': 26 }, { to: target({ credentialRef: 'account-b' }) });
     await record({ '2026-09-01': 25 }, { to: target({ propertyRef: 'properties/222' }) });

@@ -10,7 +10,7 @@ export const PANEL_FRESHNESS_FILE = 'freshness.json';
 /** Completed DuckDB reports. Legacy plain analysis folders stay untouched. */
 export function panelReportPath(asset, root = PANEL_REPORTS_ROOT) {
     if (typeof asset !== 'string' || !/^[a-z0-9.-]+$/.test(asset)) {
-        throw new Error('asset must be a site id such as example.com.');
+        throw new Error('asset must be an asset id such as example.com.');
     }
     return path.join(root, asset);
 }

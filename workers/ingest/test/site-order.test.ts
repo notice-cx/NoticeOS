@@ -49,8 +49,8 @@ async function created(ids: string[]): Promise<void> {
 /** The listed ids that end in `.test`, in list order. */
 const ours = async (): Promise<string[]> => (await listedSites()).filter((id) => id.endsWith('.test'));
 
-describe('a site keeps its place in the list', () => {
-  it('the clean start lists the seeded sites in fixture order', async () => {
+describe('an asset keeps its place in the list', () => {
+  it('the clean start lists the seeded assets in fixture order', async () => {
     const inserted = TEST_SITES.map((site) => site.id);
     expect(await listedSites()).toEqual(inserted);
     // Their ids and instants do not order them: several share one instant, and
@@ -58,13 +58,13 @@ describe('a site keeps its place in the list', () => {
     expect(inserted).not.toEqual([...inserted].sort());
   });
 
-  it('a new site is added at the end of the list', async () => {
+  it('a new asset is added at the end of the list', async () => {
     await created(['newest.test']);
     expect((await listedSites()).at(-1)).toBe('newest.test');
     expect((await dataForSeoCandidates(env.STORE)).at(-1)?.asset).toBe('newest.test');
   });
 
-  it('two sites added at once take two different places, both after every site before them', async () => {
+  it('two assets added at once take two different places, both after every asset before them', async () => {
     const before = Math.max(...(await places()).values());
     const results = await Promise.all([
       createAsset(env, { id: 'first.test', displayName: 'First', domain: 'first.test' }, NOW),
@@ -79,7 +79,7 @@ describe('a site keeps its place in the list', () => {
     expect((await listedSites()).slice(-2).sort()).toEqual(['first.test', 'second.test']);
   });
 
-  it('retiring and restoring a site keeps its place', async () => {
+  it('retiring and restoring an asset keeps its place', async () => {
     await created(['a.test', 'b.test', 'c.test']);
     const before = await places();
     const order = await listedSites();
@@ -97,7 +97,7 @@ describe('a site keeps its place in the list', () => {
 });
 
 describe('moveAsset — the one write that changes a place', () => {
-  it.each([['a.test', 'd.test'], ['d.test', 'a.test']])('Undo restores the full span, including retired sites: %s to %s', async (asset, to) => {
+  it.each([['a.test', 'd.test'], ['d.test', 'a.test']])('Undo restores the full span, including retired assets: %s to %s', async (asset, to) => {
     await created(['a.test', 'b.test', 'c.test', 'd.test']);
     await writeAssetColumn(env, { asset: 'b.test', column: 'status', value: 'retired' }, NOW);
     const before = await listedSites();
@@ -141,7 +141,7 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(await storeSites()).toEqual(before);
   });
 
-  it('moved down the list, a site takes the place of the site it is moved onto, and each site it passes moves up one', async () => {
+  it('moved down the list, an asset takes the place of the asset it is moved onto, and each asset it passes moves up one', async () => {
     await created(['a.test', 'b.test', 'c.test', 'd.test']);
     const before = await places();
 
@@ -155,7 +155,7 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(after.get('d.test')).toBe(before.get('d.test'));
   });
 
-  it('moved up the list, a site takes the place of the site it is moved onto, and each site it passes moves down one', async () => {
+  it('moved up the list, an asset takes the place of the asset it is moved onto, and each asset it passes moves down one', async () => {
     await created(['a.test', 'b.test', 'c.test', 'd.test']);
     const before = await places();
 
@@ -168,7 +168,7 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(after.get('a.test')).toBe(before.get('a.test'));
   });
 
-  it('changes no other site, keeps the same set of places, and a gap stays where it was', async () => {
+  it('changes no other asset, keeps the same set of places, and a gap stays where it was', async () => {
     await created(['a.test']);
     // A refused create has used a place: the list now has a gap after a.test.
     expect(await createAsset(env, { id: 'a.test', displayName: 'Again' }, NOW)).toEqual({ ok: false, error: 'asset_exists', asset: 'a.test', existingStatus: 'onboarding' });
@@ -186,7 +186,7 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(after.get('b.test')).toBe(before.get('c.test'));
   });
 
-  it('stamps only the sites whose place changed', async () => {
+  it('stamps only the assets whose place changed', async () => {
     await created(['a.test', 'b.test', 'c.test', 'd.test']);
     expect((await moveAsset(env, { asset: 'c.test', to: 'b.test' }, LATER)).ok).toBe(true);
     for (const id of ['a.test', 'b.test', 'c.test', 'd.test']) {
@@ -195,7 +195,7 @@ describe('moveAsset — the one write that changes a place', () => {
     }
   });
 
-  it('a site moved onto its own place changes nothing', async () => {
+  it('an asset moved onto its own place changes nothing', async () => {
     await created(['a.test', 'b.test']);
     const before = await storeSites();
     const order = await listedSites();
@@ -203,7 +203,7 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(await storeSites()).toEqual(before);
   });
 
-  it('an unknown site is refused by its id, and nothing moves', async () => {
+  it('an unknown asset is refused by its id, and nothing moves', async () => {
     await created(['a.test', 'b.test']);
     const order = await listedSites();
     expect(await moveAsset(env, { asset: 'never.test', to: 'a.test' }, LATER)).toEqual({ ok: false, error: 'unknown_asset', asset: 'never.test' });
@@ -211,14 +211,14 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(await listedSites()).toEqual(order);
   });
 
-  it('a body without two site ids is refused, naming each missing one', async () => {
+  it('a body without two asset ids is refused, naming each missing one', async () => {
     const refused = await moveAsset(env, { asset: 'a.test' }, LATER);
     expect(refused).toMatchObject({ ok: false, error: 'validation' });
     expect(refused.ok === false && refused.error === 'validation' ? refused.issues.map((issue) => issue.path) : []).toEqual(['to']);
     expect(await moveAsset(env, 'a.test', LATER)).toMatchObject({ ok: false, error: 'validation' });
   });
 
-  it('a move and a create at once take turns: the move holds and the new site is last', async () => {
+  it('a move and a create at once take turns: the move holds and the new asset is last', async () => {
     await created(['a.test', 'b.test', 'c.test']);
     const [moved, made] = await Promise.all([
       moveAsset(env, { asset: 'a.test', to: 'c.test' }, LATER),
@@ -231,7 +231,7 @@ describe('moveAsset — the one write that changes a place', () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it('two moves at once take turns, and every place stays one site\'s', async () => {
+  it('two moves at once take turns, and every place stays one asset\'s', async () => {
     await created(['a.test', 'b.test', 'c.test', 'd.test']);
     const results = await Promise.all([
       moveAsset(env, { asset: 'a.test', to: 'b.test' }, LATER),

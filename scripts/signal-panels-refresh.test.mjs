@@ -52,7 +52,7 @@ test('parseArgs: defaults point at the loopback ingest door', () => {
 });
 
 test('parseArgs: rejects a malformed asset id and a bad window', () => {
-  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /property id/);
+  assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /asset id/);
   assert.throws(() => parseArgs(['--window-days', 'soon']), /positive number/);
   assert.throws(() => parseArgs(['--window-days', '0']), /positive number/);
 });
@@ -555,7 +555,7 @@ test('refreshAsset: a non-200 from the door fails loudly', async () => {
 });
 
 // One property's broken lane must not cost every other property its refresh.
-test('refreshPanels: keeps going past a property that failed', async () => {
+test('refreshPanels: keeps going past an asset that failed', async () => {
   const { dir, options } = await scratch();
 
   const get = async (url) => {
@@ -592,7 +592,7 @@ function savedRoster(body) {
 
 // The findings name the market each site's saved settings ask DataForSEO in,
 // read from the same stored snapshot as the roster.
-test('refreshPanels: each site’s analysis gets the search market its saved settings name', async (t) => {
+test('refreshPanels: each asset’s analysis gets the search market its saved settings name', async (t) => {
   const { dir, options } = await scratch();
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const markets = {};

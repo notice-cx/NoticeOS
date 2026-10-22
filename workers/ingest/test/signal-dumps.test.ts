@@ -1131,7 +1131,7 @@ describe('analysis-grade signal dumps', () => {
       expect([...result.egress.unmeasuredAssets].sort()).toEqual([...ALL_PROPERTIES].sort());
     });
 
-    it('holds the same line when the uplink dies after the token and the site list', async () => {
+    it('holds the same line when the uplink dies after the token and the asset list', async () => {
       const result = await runSignalDumps(env, {
         nowMs: NOW,
         fetchImpl: cutUplink(providerDumpFetch().fetchImpl, {

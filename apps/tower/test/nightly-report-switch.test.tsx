@@ -91,7 +91,7 @@ describe("NightlyReportSwitch", () => {
 
   // A site that has never sent a report expects none, so the undeclared side
   // is a neutral "Not set up", and No report is still one press away.
-  it("reads a site that has never sent a report as Not set up, neutral, with No report available", async () => {
+  it("reads an asset that has never sent a report as Not set up, neutral, with No report available", async () => {
     const { asset, wiring } = fixture(null);
     mount(asset, { ...wiring, lastPulseReceivedAt: null });
     const notSetUp = screen.getByRole("button", { name: "Not set up" });
@@ -148,7 +148,7 @@ describe("the Data collection card under the switch", () => {
     const { card, id } = mountCard(["meadow.example"]);
     expect(id).toBe("meadow.example");
     expect(card.getByRole("button", { name: "No report" })).toHaveAttribute("aria-pressed", "true");
-    for (const gone of ["The site sends it", "Report endpoint", "Auth source", "Schedule", "Last report"]) {
+    for (const gone of ["The asset sends it", "Report endpoint", "Auth source", "Schedule", "Last report"]) {
       expect(card.queryByText(gone)).toBeNull();
     }
     expect(card.queryByText(/data-freshness/i)).toBeNull();
@@ -157,7 +157,7 @@ describe("the Data collection card under the switch", () => {
   it("restores every row on Expected, with the auth source as a pointer and a short state", () => {
     const { card } = mountCard(null);
     expect(card.getByRole("button", { name: "Expected" })).toHaveAttribute("aria-pressed", "true");
-    for (const shown of ["The site sends it", "Report endpoint", "Auth source", "Schedule", "Last report"]) {
+    for (const shown of ["The asset sends it", "Report endpoint", "Auth source", "Schedule", "Last report"]) {
       expect(card.getByText(shown)).toBeInTheDocument();
     }
     expect(card.getByText("Never shown")).toBeInTheDocument();

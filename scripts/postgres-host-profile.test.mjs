@@ -330,7 +330,7 @@ test('the first start and pg_hba.conf on a throwaway cluster: the logins, what i
     assert.equal(status.code, 0, status.err);
     assert.match(status.out, new RegExp(`^noticeos on 127\\.0\\.0\\.1:${port} \\(from NOTICEOS_OWNER_URL\\): PostgreSQL .*, as noticeos_owner$`, 'mu'));
     assert.equal(command(['apply', ...flags, '--confirm', 'noticeos']).code, 0);
-    const made = command(['bootstrap', ...flags, '--confirm', 'noticeos', '--slug', 'main', '--name', 'My sites']);
+    const made = command(['bootstrap', ...flags, '--confirm', 'noticeos', '--slug', 'main', '--name', 'My assets']);
     assert.equal(made.code, 0, made.err);
 
     // The Workers' login: DATABASE_URL through their store helper.

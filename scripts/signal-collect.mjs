@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// Collect one property's DataForSEO families now, instead of waiting for
+// Collect one asset's DataForSEO families now, instead of waiting for
 // Monday — or its PostHog families, `--families 'posthog-*'`, with an optional
 // fixed `--start/--end` window.
 //
 // The Monday `45 12 * * 1` cron sweeps the whole portfolio, so firing it early
-// to baseline one property re-bills every property. This lane asks for the one
-// property, through `POST /api/signal-collect`.
+// to baseline one asset re-bills every asset. This lane asks for the one
+// asset, through `POST /api/signal-collect`.
 //
 // It does not open the store, and it does not collect anything itself. Every
-// decision — which families the property is due, the $0.25-per-family reserve
+// decision — which families the asset is due, the $0.25-per-family reserve
 // against the monthly cap, the retry budget, the archive and manifest write —
 // belongs to the ingest's collector, the same one the cron runs. This script
 // carries the operator's request to the loopback door and reports what came back
@@ -54,7 +54,7 @@ function usage() {
   pnpm signals:collect -- --asset example.com [--families serp-panel]
   pnpm signals:collect -- --asset example.com --families 'posthog-*' [--start 2026-09-08 --end 2026-09-22]
 
-Collect one property's DataForSEO families now, on the day it needs a baseline,
+Collect one asset's DataForSEO families now, on the day it needs a baseline,
 instead of waiting for the Monday 12:45 UTC sweep. Every call is metered.
 
 Or collect its PostHog product analytics families now, instead of waiting for
@@ -62,9 +62,9 @@ the daily 12:30 UTC archive. PostHog charges nothing per query, but its hourly
 query allowance applies; a refusal stops the run and names what was skipped.
 
 Options:
-  --asset <id>          required property id (must be launched and have a domain)
+  --asset <id>          required asset id (must be launched and have a domain)
   --families <a,b>      only these families; repeatable and comma-separated.
-                        Default: every DataForSEO family the property is due.
+                        Default: every DataForSEO family the asset is due.
                         DataForSEO: ${KNOWN_FAMILIES.join(', ')}
                         PostHog: ${POSTHOG_ALL} or posthog (every one), or ${POSTHOG_FAMILIES.join(', ')}
                         Quote ${POSTHOG_ALL} in zsh, or it is read as a file pattern.
@@ -112,7 +112,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!asset || !/^[a-z0-9.-]+$/.test(asset)) {
-    throw new Error('--asset is required and must be a property id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   // Checked here so a typo costs a sentence rather than a round trip — but the
   // ingest checks it again against the list that actually drives the sweep.
@@ -154,7 +154,7 @@ export function parseArgs(argv) {
 }
 
 /** What `pnpm os:collect` says when its arguments are refused. */
-export const COLLECT_JOB_USAGE = 'Name the site, and the families if not every one it is due: '
+export const COLLECT_JOB_USAGE = 'Name the asset, and the families if not every one it is due: '
   + 'pnpm os:collect -- --asset example.com --families posthog-inp-targets';
 
 /**

@@ -7,8 +7,8 @@ import { handleSiteNameRequest } from "../worker/site-name-route";
 // a door: every refusal and failure answers null with 200, and the only host
 // it will fetch is the public one the operator typed.
 
-describe("the site's own name, out of its home page", () => {
-  it("prefers the name the site declares for itself", () => {
+describe("the asset's own name, out of its home page", () => {
+  it("prefers the name the asset declares for itself", () => {
     const html = `<html><head><title>Hand tools for makers | Example Shop</title>
       <meta property="og:site_name" content="Example Shop"></head></html>`;
     expect(siteNameFromHtml(html, "shop.example.com")).toBe("Example Shop");
@@ -81,7 +81,7 @@ describe("GET /api/site-name", () => {
     expect(inward).toHaveBeenCalledTimes(1);
   });
 
-  it("answers null, not an error, when the site fails, is slow or is not a page", async () => {
+  it("answers null, not an error, when the asset fails, is slow or is not a page", async () => {
     const down = vi.fn(async () => { throw new Error("connect ECONNREFUSED"); });
     expect(await ask("shop.example.com", down as unknown as typeof fetch)).toEqual({ status: 200, body: { name: null } });
     const json = vi.fn(async () => new Response("{}", { headers: { "content-type": "application/json" } }));

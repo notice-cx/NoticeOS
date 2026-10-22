@@ -18,7 +18,7 @@ const FIXTURE_CSV = `tier,segment,domain,referring_page,links_to_dead,replace_wi
 1,extension,county.example.edu,https://county.example.edu/food/meadow,dead.example.gov/,https://asset.example/food-groups,county@example.edu,"VERIFIED both links, anchor ""Visit DeadSite.gov online"""
 1,library,guides.example.edu,https://guides.example.edu/nutrition,dead.example.gov/,https://asset.example/,,No published address; use the reference-desk form
 2,editorial,news.example.com,https://news.example.com/articles/protein,dead.example.gov/protein,https://asset.example/food-groups,,DR92 — reach via the editorial feedback form
-SKIP,federal,one.example.gov / two.example.gov / three.example.gov,n/a,n/a,n/a,n/a,"Do NOT pitch — federal hosts repoint to an official successor, never an independent site"
+SKIP,federal,one.example.gov / two.example.gov / three.example.gov,n/a,n/a,n/a,n/a,"Do NOT pitch — federal hosts repoint to an official successor, never an independent asset"
 `;
 
 const OVERLAY = [

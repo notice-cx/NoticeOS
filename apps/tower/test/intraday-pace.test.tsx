@@ -37,7 +37,7 @@ const SIX_HOURS = hours([450, 450, 450, 450, 450, 450, 90], (hour) => (hour < 6 
 const asset = wallFixturePayload().assets[0]!;
 function snapshotOf(hourly: Ga4HourlyActiveUsers[]): Ga4RealtimePayload["assets"][number] {
   const base = wallFixtureRealtime().assets.find((one) => one.asset === asset.id)!;
-  if (base.status !== "success") throw new Error("the fixture's first site reads successfully");
+  if (base.status !== "success") throw new Error("the fixture's first asset reads successfully");
   return { ...base, hourlyActiveUsers: hourly, timeZone: ZONE };
 }
 

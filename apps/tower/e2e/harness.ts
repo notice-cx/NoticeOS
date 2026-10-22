@@ -417,8 +417,8 @@ function journeySite(night: "healthy" | "regressed"): typeof fetch {
   const pages = [0, 1, 2].map((n) => `${base}/p/${n}`);
   const html = (body: string) => new Response(body, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } });
   const page = (url: string) =>
-    `<!doctype html><html><head><title>Journey page</title><meta name="description" content="A page of the journey site.">` +
-    `<link rel="canonical" href="${url}"></head><body><h1>Journey page</h1><p>Words about the journey site.</p></body></html>`;
+    `<!doctype html><html><head><title>Journey page</title><meta name="description" content="A page of the journey asset.">` +
+    `<link rel="canonical" href="${url}"></head><body><h1>Journey page</h1><p>Words about the journey asset.</p></body></html>`;
   const home = (words: number) =>
     `<!doctype html><html><head><title>Journey Example</title></head><body><p>${Array.from({ length: words }, (_, n) => `word${n}`).join(" ")}</p></body></html>`;
   const blocked = night === "regressed" ? ["GPTBot", "ClaudeBot"] : [];
@@ -448,7 +448,7 @@ const JOURNEY_GOOGLE_ACCESS = "journey-google-access";
 const JOURNEY_GOOGLE_REFRESH = "journey-google-refresh";
 const JOURNEY_GA4_PROPERTIES = [
   { id: "123456789", name: "Journey Example — web", uri: JOURNEY_SITE },
-  { id: "987654321", name: "Another site — web", uri: "https://another.example/" },
+  { id: "987654321", name: "Another asset — web", uri: "https://another.example/" },
 ];
 const JOURNEY_GSC_SITES = [
   { siteUrl: `sc-domain:${JOURNEY_ASSET}`, permissionLevel: "siteOwner" },
@@ -657,14 +657,14 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     // The forecast calendar's save: the register write goes through this
     // fixture's own document store (below), as every Tower save does here.
     async saveMediavineSettings(input) {
-      if (!await connected('mediavine') || input.asset !== JOURNEY_ASSET || input.siteId !== JOURNEY_MEDIAVINE_SITE.id) return { ok: false, message: 'Choose the synthetic site.' };
+      if (!await connected('mediavine') || input.asset !== JOURNEY_ASSET || input.siteId !== JOURNEY_MEDIAVINE_SITE.id) return { ok: false, message: 'Choose the synthetic asset.' };
       const config = documents['config/integrations.json'] as { assets: Record<string, Record<string, Record<string, unknown>>> };
       const lane = config.assets[JOURNEY_ASSET]?.['ad-network'];
       if (!lane) return { ok: false, message: 'Create the asset first.' };
       // As the ingest's own door (workers/ingest/src/mediavine.ts): it starts
       // a sync and never writes a decline, which is the row's Not using with
       // its reason.
-      if (!input.enabled && lane.status !== 'skipped' && lane.status !== 'not-applicable') return { ok: false, message: 'Stop this sync with Not using on the site’s Ad revenue row.' };
+      if (!input.enabled && lane.status !== 'skipped' && lane.status !== 'not-applicable') return { ok: false, message: 'Stop this sync with Not using on the asset’s Ad revenue row.' };
       const values = { mediavineSiteId: input.siteId, mediavineEnabled: input.enabled, ...(input.enabled ? { status: 'needs-setup' } : {}), ...(input.holidayCalendar === undefined ? {} : { revenueHolidayCalendar: input.holidayCalendar }) };
       const result = await ingest.applyConfigOps({ actor: 'journey-fixture', ops: Object.entries(values).map(([field, value]) => ({
         kind: 'file-json-set' as const, file: 'config/integrations.json', pointer: `/assets/${JOURNEY_ASSET}/ad-network/${field}`, value,
@@ -947,7 +947,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     const config = documents["config/integrations.json"] as { assets: Record<string, Record<string, { siteUrl?: string }>> };
     const mapping = config.assets[JOURNEY_ASSET]?.["bing-webmaster"]?.siteUrl;
     if (!await tested("bing-webmaster") || mapping !== JOURNEY_SITE || !await siteStored(JOURNEY_ASSET)) {
-      return Response.json({ error: "Complete the real create, connect, test and site-mapping steps first." }, { status: 409 });
+      return Response.json({ error: "Complete the real create, connect, test and asset-mapping steps first." }, { status: 409 });
     }
     if (!collected) {
       // Fixture boundary: this replaces the external collector, not a read-model.
@@ -1171,7 +1171,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       const tower = { ...(documents["config/tower.json"] as Record<string, unknown>) };
       if (part === "wall") {
         tower.wall = { layout: { version: 1, rows: [] },
-          history: [{ savedAt: new Date(Date.parse(JOURNEY_NOW) - 86_400_000).toISOString(), reason: "Strip and sites", layout: siteRows }] };
+          history: [{ savedAt: new Date(Date.parse(JOURNEY_NOW) - 86_400_000).toISOString(), reason: "Strip and assets", layout: siteRows }] };
       } else if (part === "countdown") {
         tower.wall = { layout: siteRows, history: [] };
         tower.countdown = { emoji: "", label: "Launch", targetAt: new Date(Date.parse(JOURNEY_NOW) + 20 * 86_400_000).toISOString() };
@@ -1363,7 +1363,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       const asset = body.asset ?? JOURNEY_ASSET;
       const months = Object.entries(body.months ?? {});
       if (!await siteStored(asset)) {
-        response = Response.json({ error: "Create the site first." }, { status: 409 });
+        response = Response.json({ error: "Create the asset first." }, { status: 409 });
       } else if (months.length === 0 || months.some(([period, cents]) => !/^\d{4}-\d{2}$/.test(period) || !Number.isInteger(cents) || cents < 0)) {
         response = Response.json({ error: "months maps YYYY-MM to whole cents." }, { status: 400 });
       } else {

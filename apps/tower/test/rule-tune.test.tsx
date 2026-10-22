@@ -344,9 +344,9 @@ describe("RuleTunePanel", () => {
     renderPanel({ state: "ready", backtest: backtest(() => ({ state: "quiet" })) });
     const container = document.body;
     const scope = container.querySelector("[data-rule-tune-scope]")!;
-    expect(scope).toHaveTextContent("Applies to every site");
+    expect(scope).toHaveTextContent("Applies to every asset");
     expect(scope.querySelector("svg")).not.toBeNull();
-    expect(screen.getAllByText("Applies to every site")).toHaveLength(1);
+    expect(screen.getAllByText("Applies to every asset")).toHaveLength(1);
     const panel = container.querySelector("[data-rule-tune]")!;
     expect(panel.children[1]).toBe(scope);
     expect(container.querySelector("[data-rule-tune-replay]")).toHaveTextContent(/Replay · /);

@@ -10,7 +10,7 @@ predictions about what works come true, not only on whether it runs.*
 ## Phase 0 — Ledger + contract on two nodes
 
 Repo, central store, Tower shell behind CF Access, GitHub App. The first
-two sites send contract-compliant reports; revenue & cost ingestion live (even
+two assets send contract-compliant reports; revenue & cost ingestion live (even
 if revenue is "AdSense + CJ exports" initially); `OPERATOR_RATE` set; both
 assets' `AGENTS.md` written dated, with facts separated from rules.
 

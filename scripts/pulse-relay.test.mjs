@@ -25,7 +25,7 @@ const ROSTER = [
   { asset: 'retired.example', url: 'https://retired.example/api/admin/overview', enabled: false, format: 'envelope' },
 ];
 
-test('with no --asset, every enabled envelope site in the roster is relayed, and nothing else', () => {
+test('with no --asset, every enabled envelope asset in the roster is relayed, and nothing else', () => {
   assert.deepEqual(envelopeTargets(ROSTER), [
     { asset: 'orders.example', url: 'https://orders.example/api/admin/overview' },
   ]);
@@ -37,11 +37,11 @@ test('--asset picks that site, and refuses one that does not serve an envelope',
   assert.deepEqual(envelopeTargets(ROSTER, 'orders.example'), [
     { asset: 'orders.example', url: 'https://orders.example/api/admin/overview' },
   ]);
-  assert.throws(() => envelopeTargets(ROSTER, 'shop.example'), /shop\.example is not an enabled pull site that serves an envelope/);
-  assert.throws(() => envelopeTargets(ROSTER, 'retired.example'), /retired\.example is not an enabled pull site/);
+  assert.throws(() => envelopeTargets(ROSTER, 'shop.example'), /shop\.example is not an enabled pull asset that serves an envelope/);
+  assert.throws(() => envelopeTargets(ROSTER, 'retired.example'), /retired\.example is not an enabled pull asset/);
 });
 
-test('the envelope is fetched with the site token and forwarded verbatim with the same token', async () => {
+test('the envelope is fetched with the asset token and forwarded verbatim with the same token', async () => {
   const envelope = {
     asset: 'orders.example',
     generatedAt: '2026-09-23T00:00:00.000Z',
@@ -72,7 +72,7 @@ test('the envelope is fetched with the site token and forwarded verbatim with th
   assert.ok(lines.some((line) => /orders\.example pulse for 2026-09-23 is in the store/.test(line)));
 });
 
-test("a refused token names that site's ASSET_TOKENS entry, and nothing is forwarded", async () => {
+test("a refused token names that asset's ASSET_TOKENS entry, and nothing is forwarded", async () => {
   const calls = [];
   const lines = [];
   const ok = await relayPulse({

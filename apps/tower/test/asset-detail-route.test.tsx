@@ -1,4 +1,4 @@
-import { settingsResponse } from "./critical-response-fixtures";
+import { wallMoneyResponse, settingsResponse } from "./critical-response-fixtures";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -239,7 +239,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       push: {
         endpoint: "POST /api/pulse",
         endpointOwner: "workers/ingest",
-        auth: "Site token",
+        auth: "Asset token",
         authOwner: "workers/ingest/.dev.vars",
       },
       lastPulseReceivedAt: "2026-07-05T02:00:00.000Z",
@@ -1177,7 +1177,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
     await findByText("What matters");
     const bar = container.querySelector('[role="tablist"]')!;
-    expect(bar.getAttribute("aria-label")).toBe("Site sections");
+    expect(bar.getAttribute("aria-label")).toBe("Asset sections");
     const tabs = [...bar.querySelectorAll('[role="tab"]')];
     expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ""))).toEqual([
       "Overview",
@@ -1639,7 +1639,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
         await waitFor(() => expect(writeText).toHaveBeenCalled());
         const copied = String(writeText.mock.calls.at(-1)?.[0]);
         expect(copied).toContain("Analysis saved 2026-08-05T12:00:00.000Z");
-        expect(copied).toContain("Recheck the latest reports, linked work and the site before acting.");
+        expect(copied).toContain("Recheck the latest reports, linked work and the asset before acting.");
         expect(copied).toContain("latest report 2026-09-04 success");
         writeText.mockClear();
       }
@@ -1787,7 +1787,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
         },
         cell: {
           assetId: data.asset.id, laneId: "gsc", declared: "live", effective: state,
-          evidence: [], note: state === "degraded" ? "The latest collection failed." : "Site mapping is configured.",
+          evidence: [], note: state === "degraded" ? "The latest collection failed." : "Asset mapping is configured.",
           ref: "sc-domain:meadow.example", since: "2026-07-06",
         },
         mapping: [{ name: "siteUrl", value: "sc-domain:meadow.example" }],
@@ -2214,7 +2214,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(view.container.textContent).not.toMatch(/Additional connections|Technical details|checks complete|daily report status|config\//iu);
   });
 
-  it("opens a panel provider's connect panel over the site's page from its row", async () => {
+  it("opens a panel provider's connect panel over the asset's page from its row", async () => {
     const bing = {
       ...gscLane,
       catalog: { ...gscLane.catalog, id: "bing-webmaster", label: "Bing Webmaster Tools" },
@@ -2251,7 +2251,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
   it.each([
     ["key-missing", "No encryption key", "openssl rand -base64 32", "CREDENTIALS_KEY"],
     ["key-invalid", "Encryption key unusable", "openssl rand -base64 32", "CREDENTIALS_KEY"],
-  ] as const)("says why Connect is off in the panel a site's row opens, once, with its command: %s", async (blocker, lead, command, binding) => {
+  ] as const)("says why Connect is off in the panel an asset's row opens, once, with its command: %s", async (blocker, lead, command, binding) => {
     const bing = {
       ...gscLane,
       catalog: { ...gscLane.catalog, id: "bing-webmaster", label: "Bing Webmaster Tools" },
@@ -2606,7 +2606,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     );
 
     expect(
-      await within(editor).findByText('GA4 event: verbatim as the site emits it (calculation_complete, never "Calculation complete")'),
+      await within(editor).findByText('GA4 event: verbatim as the asset emits it (calculation_complete, never "Calculation complete")'),
     ).toBeInTheDocument();
     expect(puts).toHaveLength(0);
     expect(input).toHaveAttribute("aria-invalid", "true");
@@ -2800,7 +2800,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     assets: [], spend: null,
   };
 
-  it("picks a PostHog site's project by name and number, and adds a funnel by picking one of the project's saved funnels", async () => {
+  it("picks a PostHog asset's project by name and number, and adds a funnel by picking one of the project's saved funnels", async () => {
     const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
     const { container } = renderRoute("meadow.example", "", "sources");
     await screen.findAllByText("PostHog");
@@ -3153,7 +3153,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     stubEditing(gscLane(), SERVICE_ACCOUNT_LISTING);
     expect(await listingLine("gsc", "Google Search Console")).toBe(
       "Listed for the service account collector@example-project.iam.gserviceaccount.com. Missing a Search Console site? " +
-        "In Search Console, add this account as a Full user on that site, then reload this page.",
+        "In Search Console, add this account as a Full user on that Search Console site, then reload this page.",
     );
   });
 
@@ -3270,7 +3270,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   }
 
   it("declines a source in two presses: Not using, then a reason chip, in one changeset", async () => {
-    const puts = stubEditing(ga4Lane({ note: "No GA4 property for this site" }));
+    const puts = stubEditing(ga4Lane({ note: "No GA4 property for this asset" }));
     const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
@@ -3280,14 +3280,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     expect(within(chips).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Don't use this product",
       "Replaced by another tool",
-      "Not relevant for this site",
+      "Not relevant for this asset",
       "Other…",
       "",
     ]);
     expect(within(chips).queryAllByRole("button", { pressed: true })).toHaveLength(0);
     expect(puts).toHaveLength(0);
 
-    fireEvent.click(within(chips).getByRole("button", { name: "Not relevant for this site" }));
+    fireEvent.click(within(chips).getByRole("button", { name: "Not relevant for this asset" }));
 
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]?.ops).toEqual([
@@ -3295,8 +3295,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
         kind: "file-json-set",
         file: "config/integrations.json",
         pointer: "/assets/meadow.example/ga4/note",
-        expect: "No GA4 property for this site",
-        value: "REASON: Not relevant for this site",
+        expect: "No GA4 property for this asset",
+        value: "REASON: Not relevant for this asset",
       },
       {
         kind: "file-json-set",
@@ -3316,8 +3316,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
         kind: "file-json-set",
         file: "config/integrations.json",
         pointer: "/assets/meadow.example/ga4/note",
-        expect: "REASON: Not relevant for this site",
-        value: "No GA4 property for this site",
+        expect: "REASON: Not relevant for this asset",
+        value: "No GA4 property for this asset",
       },
       {
         kind: "file-json-set",
@@ -3329,7 +3329,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     ]);
   });
 
-  it("declines a new site's source as a first write, and undoes it back to no note at all", async () => {
+  it("declines a new asset's source as a first write, and undoes it back to no note at all", async () => {
     const puts = stubEditing(ga4Lane({ note: null }));
     const { findByText } = renderRoute("meadow.example", "", "sources");
 
@@ -3808,7 +3808,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     ).toEqual(["2026-06-16", "2026-06-16"]);
   });
 
-  it("waits for the nightly sweep: the hourly home-page check alone draws no Site health", async () => {
+  it("waits for the nightly sweep: the hourly home-page check alone draws no Asset health", async () => {
     const reading = { date: "2026-07-05", observedAt: "2026-07-05T11:00:00.000Z", status: "ok" as const, value: 120 };
     stubFetch(200, payload({ hygiene: {
       windowDays: 90,
@@ -3819,7 +3819,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     } }));
     const { findAllByText, queryByText } = renderRoute("meadow.example", "", "sources");
     await findAllByText("Data sources");
-    expect(queryByText("Site health")).toBeNull();
+    expect(queryByText("Asset health")).toBeNull();
   });
 
   describe("Failed fetches — each failed nightly fetch, one line", () => {
@@ -3833,7 +3833,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
           mode: "pull",
           pull: {
             index: 0, url: "https://meadow.example/api/internal/metrics", enabled: true, format: "envelope",
-            metricMap: null, auth: "Site token", authOwner: "workers/ingest/.dev.vars",
+            metricMap: null, auth: "Asset token", authOwner: "workers/ingest/.dev.vars",
           },
           push: null,
         },
@@ -3868,7 +3868,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       expect(view.getByText("No record yet")).toBeInTheDocument();
     });
 
-    it("draws nothing for a site that sends its own report", async () => {
+    it("draws nothing for an asset that sends its own report", async () => {
       stubFetch(200, payload({ fetchFailures: [] }));
       const { findAllByText, queryByText } = renderRoute("meadow.example", "", "sources");
       await findAllByText("Data sources");
@@ -3892,7 +3892,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       bots: [],
     } }));
     const { container, findByText } = renderRoute("meadow.example", "", "sources");
-    await findByText("Site health");
+    await findByText("Asset health");
     const card = container.querySelector<HTMLElement>('[data-hygiene-check="html-depth"]')!;
     const chart = within(card).queryByRole("img");
     if (count === 2) {
@@ -3915,7 +3915,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(screen.getByRole("status")).toHaveTextContent("No report");
   });
 
-  it("renders the nightly site-health history the OS already collects", async () => {
+  it("renders the nightly asset-health history the OS already collects", async () => {
     stubFetch(
       200,
       payload({
@@ -3998,7 +3998,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       }),
     );
     const { container, findByText } = renderRoute("meadow.example", "", "sources");
-    await findByText("Site health");
+    await findByText("Asset health");
 
     expect(container.textContent).toContain("88");
     expect(container.textContent).toContain("words of visible text");
@@ -4052,7 +4052,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       }),
     );
     const { container, findByText } = renderRoute("meadow.example", "", "sources");
-    await findByText("Site health");
+    await findByText("Asset health");
 
     const fresh = container.querySelector('[data-hygiene-check="html-depth"]');
     const stale = container.querySelector('[data-hygiene-check="robots-ai-access"]');
@@ -4065,15 +4065,15 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(staleBadge?.textContent).toContain("3d");
   });
 
-  it("renders no site-health section before the guard's first night", async () => {
+  it("renders no asset-health section before the guard's first night", async () => {
     stubFetch(200, payload({ hygiene: null }));
     const { container, findByText, queryByRole } = renderRoute("meadow.example", "", "sources");
     await findByText("Daily metrics");
-    expect(queryByRole("region", { name: "Site health" })).toBeNull();
+    expect(queryByRole("region", { name: "Asset health" })).toBeNull();
     expect(container.querySelector("[data-hygiene-check]")).toBeNull();
   });
 
-  describe("Site health: security headers and page speed", () => {
+  describe("Asset health: security headers and page speed", () => {
     const at = "2026-07-05T04:00:00.000Z";
     const reading = { date: "2026-07-05", observedAt: at, status: "ok" as const, value: 4 };
     const history = (check: "security-headers" | "crux-vitals", value: number | null) => {
@@ -4102,7 +4102,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         pageSpeed: null,
       } }));
       const { container, findByText } = renderRoute("meadow.example", "", "sources");
-      await findByText("Site health");
+      await findByText("Asset health");
       const tile = container.querySelector<HTMLElement>('[data-hygiene-check="security-headers"]')!;
       expect(tile).toHaveTextContent("Security headers");
       expect(tile).toHaveTextContent("4 of 6");
@@ -4125,7 +4125,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       } }));
       const { container, findByText } = renderRoute("meadow.example", "", "sources");
-      await findByText("Site health");
+      await findByText("Asset health");
       const tile = container.querySelector<HTMLElement>('[data-hygiene-check="crux-vitals"]')!;
       const row = (metric: string) => tile.querySelector<HTMLElement>(`[data-hygiene-vital="${metric}"]`)!;
       expect(row("lcp")).toHaveTextContent("3.1 s");
@@ -4145,7 +4145,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         pageSpeed: { observedAt: at, formFactor: null, vitals: null, collectionPeriod: null },
       } }));
       const { container, findByText } = renderRoute("meadow.example", "", "sources");
-      await findByText("Site health");
+      await findByText("Asset health");
       expect(container.querySelector('[data-hygiene-check="crux-vitals"]')).toHaveTextContent("Too few Chrome visits to measure");
     });
   });
@@ -5053,7 +5053,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
   });
 
-  it("offers the way back when a provider widens a query check to the whole site", async () => {
+  it("offers the way back when a provider widens a query check to the whole asset", async () => {
     const fetchMock = stubFetch(200, withQueryRow());
     const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "search");
 
@@ -5065,7 +5065,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
     const scope = container.querySelector("[data-watch-scope]");
     expect(scope?.getAttribute("data-watch-scope")).toBe("widened");
-    expect(scope?.textContent).toContain("Whole site");
+    expect(scope?.textContent).toContain("Whole asset");
     fireEvent.click(await findByRole("button", { name: "Follow “tornado kit specs”" }));
     expect(container.querySelector("[data-watch-scope]")?.getAttribute("data-watch-scope")).toBe("query");
     fireEvent.click(await findByRole("button", { name: "Register" }));
@@ -5078,7 +5078,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
   });
 
-  it("uses the query's quiet-history floor even when the site moves differently", async () => {
+  it("uses the query's quiet-history floor even when the asset moves differently", async () => {
     const days = 120;
     const base = withQueryRow();
     const noisySite = {
@@ -5323,8 +5323,8 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     data.asset = { ...data.asset, status: "live", storedStatus: "baselining" };
     const fetchMock = stubFetch(200, data);
     const { findByRole, getByRole } = renderRoute("meadow.example", "", "settings");
-    fireEvent.click(await findByRole("button", { name: "Archive site…" }));
-    fireEvent.click(getByRole("button", { name: "Archive site" }));
+    fireEvent.click(await findByRole("button", { name: "Archive asset…" }));
+    fireEvent.click(getByRole("button", { name: "Archive asset" }));
     await waitFor(() => expect(patchBody(fetchMock)?.body).toEqual({ column: "status", value: "retired", expect: "baselining" }));
   });
 
@@ -5345,7 +5345,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       "settings",
     );
 
-    fireEvent.click(await findByRole("button", { name: "Archive site…" }));
+    fireEvent.click(await findByRole("button", { name: "Archive asset…" }));
     const confirm = container.querySelector("[data-archive-confirm]")!;
     expect(confirm.textContent).toContain("Archiving Meadow Board stops:");
     expect(confirm.textContent).toContain("Data collection");
@@ -5353,7 +5353,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(confirm.textContent).toContain("Its card on Home and the TV dashboard");
     expect(patchBody(fetchMock)).toBeUndefined();
 
-    fireEvent.click(getByRole("button", { name: "Archive site" }));
+    fireEvent.click(getByRole("button", { name: "Archive asset" }));
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
         url: "/api/assets/meadow.example",
@@ -5369,7 +5369,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const { findByRole, queryByRole } = renderRoute("meadow.example", "", "settings");
 
     const restore = await findByRole("button", { name: "Restore" });
-    expect(queryByRole("button", { name: "Archive site…" })).toBeNull();
+    expect(queryByRole("button", { name: "Archive asset…" })).toBeNull();
 
     fireEvent.click(restore);
     await waitFor(() => {
@@ -5413,9 +5413,9 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       "settings",
     );
 
-    fireEvent.click(await findByRole("button", { name: "Archive site…" }));
+    fireEvent.click(await findByRole("button", { name: "Archive asset…" }));
     expect(container.querySelector("[data-archive-confirm]")).not.toBeNull();
-    fireEvent.click(getByRole("button", { name: "Archive site" }));
+    fireEvent.click(getByRole("button", { name: "Archive asset" }));
 
     await waitFor(() => {
       expect(annotationBody(fetchMock)).toEqual({
@@ -5527,8 +5527,8 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       a.getAttribute("href"),
     );
     expect(pointers).toContain("/settings#alert-rules");
-    expect(container.textContent).not.toContain("Applies to every site");
-    expect(container.textContent).toContain("All sites' rules →");
+    expect(container.textContent).not.toContain("Applies to every asset");
+    expect(container.textContent).toContain("All assets' rules →");
     expect(container.textContent).not.toContain("Defaults live in Settings");
     // One Save per editable field: display name, automation, nightly report.
     // This fixture pushes, so neither pull knob renders.
@@ -5608,7 +5608,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(container.querySelector("[data-site-icons]")).toBeNull();
   });
 
-  it("puts Icons on the Identity card of a site the daily read covers, and none on one without a domain or retired", async () => {
+  it("puts Icons on the Identity card of an asset the daily read covers, and none on one without a domain or retired", async () => {
     stubFetchWithWall(payload());
     const withDomain = renderRoute("meadow.example", "", "settings");
     const icons = await waitFor(() => {
@@ -5673,7 +5673,7 @@ describe("AssetDetailRoute — failed detail read", () => {
     const { container, findByRole } = renderRoute("northwind.example");
 
     await findByRole("button", { name: /try again/i });
-    expect(container.textContent).toContain("Couldn't load this site");
+    expect(container.textContent).toContain("Couldn't load this asset");
     expect(container.textContent).toContain("northwind.example");
     expect(container.textContent).toContain("HTTP 500");
     expect(container.textContent).not.toContain("Loading…");
@@ -5693,8 +5693,8 @@ describe("AssetDetailRoute — failed detail read", () => {
     stubFetch(404, { error: "asset_not_found" });
     const { container, findByText } = renderRoute("does.not.exist");
 
-    await findByText("No such site");
-    expect(container.textContent).not.toContain("Couldn't load this site");
+    await findByText("No such asset");
+    expect(container.textContent).not.toContain("Couldn't load this asset");
   });
 
   it("shows Loading… while the read is still in flight", () => {
@@ -5837,7 +5837,7 @@ describe("AssetDetailRoute — Tasks tab", () => {
     stubFetchWithWork(payload(), workPayload([]));
     const { container, findByText } = renderRoute("meadow.example", "", "tasks");
 
-    await findByText("No task project for this site");
+    await findByText("No task project for this asset");
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
     const door = [...container.querySelectorAll("a")].find((a) => a.textContent?.startsWith("Add a task project"))!;
     expect(door.getAttribute("href")).toBe("/settings/task-projects");
@@ -5919,7 +5919,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     ],
   };
 
-  it("asks for a search source first when the site has none and tracks nothing", async () => {
+  it("asks for a search source first when the asset has none and tracks nothing", async () => {
     const data = payload({ panelConfig: { trackedQueries: null, roster: null } });
     data.integrations = { ...data.integrations, lanes: [] };
     stubFetch(200, data);
@@ -5980,7 +5980,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
   const collectCalls = (fetchMock: ReturnType<typeof stubPanelLanes>) =>
     fetchMock.mock.calls.filter(([input]) => String(input) === "/api/integrations/dataforseo/collect");
 
-  it("prices Collect now from the panel's last run and collects only this site's panel", async () => {
+  it("prices Collect now from the panel's last run and collects only this asset's panel", async () => {
     const fetchMock = stubCollect(
       payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER }, portfolio: CAPPED }),
       spendWith(3.4, { "meadow.example": { reportDate: "2026-10-05", costUsd: 0.124 }, "other.example": { reportDate: "2026-10-05", costUsd: 0.5 } }),
@@ -7032,7 +7032,7 @@ describe("the Search tab before any tracked term", () => {
   const actions = (panel: HTMLElement) =>
     [...panel.querySelectorAll<HTMLElement>("a, button")].filter((node) => !node.closest("[data-hero-chart]") && !node.closest("[role='tooltip']"));
 
-  it("shows the site's clicks and impressions and one step to tracking terms", async () => {
+  it("shows the asset's clicks and impressions and one step to tracking terms", async () => {
     connections.credentials = new Map();
     connections.items = [];
     stubFetch(200, untracked(true));
@@ -7049,7 +7049,7 @@ describe("the Search tab before any tracked term", () => {
     expect(container.textContent).not.toContain("Not rechecked");
   });
 
-  it("is one empty state leading to Connect when the site has no search numbers", async () => {
+  it("is one empty state leading to Connect when the asset has no search numbers", async () => {
     connections.credentials = new Map();
     connections.items = [];
     stubFetch(200, untracked(false));
@@ -7061,5 +7061,48 @@ describe("the Search tab before any tracked term", () => {
     expect(connect).toHaveAttribute("href", "/integrations?connect=bing-webmaster&asset=meadow.example");
     expect(actions(start)).toEqual([connect]);
     expect(container.querySelector("[data-hero-chart]")).toBeNull();
+  });
+});
+
+
+describe("asset type in Settings Identity", () => {
+  it("saves a guarded type change, preserves other metadata, and undoes it", async () => {
+    toasts.success.mockReset();
+    let type = "web-app";
+    const puts: { ops: ChangesetOp[] }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      if (url === "/api/config" && init?.method === "PUT") {
+        const put = JSON.parse(String(init.body)) as { ops: ChangesetOp[] };
+        validateSchemaAndSafety({ version: 1, createdAt: new Date().toISOString(), slug: "asset-type", ...put });
+        puts.push(put);
+        const op = put.ops[0];
+        if (op?.kind === "file-json-set") type = String(op.value);
+        return json({ applied: 1, archive: null, commit: null });
+      }
+      if (url === "/api/config") return json({ writable: true, reason: null, sources: { "config/tower.json": "store" } });
+      if (url.startsWith("/api/wall")) return json(wallMoneyResponse({ dashboard: { sites: { "meadow.example": { assetType: type, tv: false } } } }));
+      if (url.startsWith("/api/settings")) return json(settingsResponse());
+      return json(payload());
+    }));
+    renderRoute("meadow.example", "", "settings");
+    const select = await screen.findByLabelText("Asset type");
+    await waitFor(() => expect(select).toHaveValue("web-app"));
+    fireEvent.change(select, { target: { value: "mobile-app" } });
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]?.ops).toEqual([
+      { kind: "file-json-set", file: "config/tower.json", pointer: "/sites/meadow.example/assetType", expect: "web-app", value: "mobile-app" },
+    ]);
+    await waitFor(() => expect(select).toHaveValue("mobile-app"));
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith("Saved — Asset type", expect.anything()));
+    const saved = toasts.success.mock.calls.find(([label]) => label === "Saved — Asset type");
+    const options = saved?.[1] as { action: { onClick: () => void } };
+    options.action.onClick();
+    await waitFor(() => expect(puts).toHaveLength(2));
+    expect(puts[1]?.ops).toEqual([
+      { kind: "file-json-set", file: "config/tower.json", pointer: "/sites/meadow.example/assetType", expect: "mobile-app", value: "web-app" },
+    ]);
+    await waitFor(() => expect(select).toHaveValue("web-app"));
   });
 });

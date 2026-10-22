@@ -3,7 +3,7 @@
 *One capability-agnostic contract covering everything the Sense stage
 ingests: asset reports, centrally-pulled external signals, revenue & cost, and
 timeline annotations. Every asset sends data in the same **shapes**, so adding
-a property means pointing NoticeOS at its report, not writing an integration.*
+an asset means pointing NoticeOS at its report, not writing an integration.*
 
 ## Glossary
 
@@ -205,7 +205,7 @@ and these rules: [doc 27](27-codebase-health.md).
   them in.
 - **A resend appends.** A second report on the same UTC day is the next
   revision of that day; `noticeos.current_codebase_reports` is the newest
-  revision of each site and day.
+  revision of each asset and day.
 - **Tool versions travel with the numbers.** `tools` names the versions that
   produced them, so a step on a version change reads as the tools, not the code.
 - **Five rules run on each report**, with the thresholds in
@@ -213,7 +213,7 @@ and these rules: [doc 27](27-codebase-health.md).
   `codebase-duplication` (warn, opportunity), `codebase-unused` (info,
   opportunity), `codebase-complexity` (info, opportunity) and
   `codebase-vulnerabilities` (info, opportunity). Each first
-  resolves its open alert for the site, as the volume-aware rules do.
+  resolves its open alert for the asset, as the volume-aware rules do.
 
 ## Central signals
 
@@ -224,17 +224,17 @@ below.
 The ingest Worker's 15-minute Sense cron
 pulls rolling 97-day daily windows for GA4 (`active_users`, `sessions`,
 `page_views`, `event_count`) and GSC (`clicks`, `impressions`, `ctr`,
-`position`): 90 visible property-detail dates plus seven calculation-only dates
+`position`): 90 visible asset-detail dates plus seven calculation-only dates
 for the first visible day's prior-week comparison. The 02:30 UTC nightly run
-lists the non-retired portfolio sites verified under the central Bing
+lists the non-retired portfolio assets verified under the central Bing
 Webmaster key and pulls their daily `clicks` and `impressions`, including
-read-only collection for Sense-only pre-launch properties. It keeps up to
+read-only collection for Sense-only pre-launch assets. It keeps up to
 the same 97 days of history from the dates Bing actually returns. Every
 attempt appends a run; an observation is appended only when a provider value
 changes.
 The longer request changes neither call cadence nor API request count. Google
 service-account credentials are stored once and tagged with the properties
-they give access to; one Bing user-level key covers all verified sites.
+they give access to; one Bing user-level key covers all verified assets.
 
 The separate 12:15 UTC analysis job archives the previous four completed
 Google dates plus the current Bing Webmaster snapshots through operator-owned
@@ -253,7 +253,7 @@ and the job's mechanics in the
 `js-errors` reads GA4 **event parameters**, which the Data API returns only for
 parameters an operator has registered as custom dimensions and which GA4 never
 backfills. `config/ga4-custom-dimensions.json` records where that registration
-has happened, and a property it does not cover is skipped without a manifest
+has happened, and an asset it does not cover is skipped without a manifest
 row; where the API does reject the field, the attempt is recorded as
 `ga4_custom_dimension_unregistered`, never as an empty success. The analyzer
 reads only the latest Bing query/page snapshot and never adds rows from
@@ -272,7 +272,7 @@ dates with the preceding equal-length window and rank only queries present in
 both; a query missing from the top rows is never counted as zero. The store
 keeps only that compact read model (`asset_insight_snapshots`) for the Tower, never the
 raw rows. A warning-style interpretation is not a flag and
-does not affect property health. Mark/dismiss choices in the Tower are
+does not affect asset health. Mark/dismiss choices in the Tower are
 reversible browser display preferences, not mutations of this evidence.
 Targeted GSC URL Inspection and GA4 raw event/session sequences remain deferred;
 the Data API archive is aggregate reporting, not a substitute for GA4 BigQuery
@@ -282,17 +282,17 @@ operator UI export today and are not inferred from standard API impressions.
 Provider-reported issues are a distinct future signal class, not a substitute
 for OS-derived traffic anomalies:
 
-- Bing Webmaster exposes site crawl issues through
+- Bing Webmaster exposes asset crawl issues through
   [`GetCrawlIssues`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getcrawlissues?view=bing-webmaster-dotnet).
   The daily archive and executive warning are implemented. A future
   first-seen/last-seen materialization can promote them into lifecycle-managed
   Needs Attention events.
-- GSC has no site-wide Recommendations/Issues feed in its
+- GSC has no asset-wide Recommendations/Issues feed in its
   [API surface](https://developers.google.com/webmaster-tools/v1/api_reference_index).
   Its [URL Inspection result](https://developers.google.com/webmaster-tools/v1/urlInspection.index/UrlInspectionResult)
   reports indexing, fetch, robots, canonical, mobile, and rich-result state for
   explicitly selected URLs, so it belongs in a bounded collection of priority
-  URLs rather than being presented as covering the whole property.
+  URLs rather than being presented as covering the whole asset.
 - GA4's [Data API](https://developers.google.com/analytics/devguides/reporting/data/v1/basics)
   is reporting and its [Admin API](https://developers.google.com/analytics/devguides/config/admin/v1)
   is configuration/change history; neither documents a Recommendations or

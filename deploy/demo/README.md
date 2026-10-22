@@ -93,24 +93,24 @@ curl --fail --header 'Host: demo.example.com' http://127.0.0.1:16448/__noticeos_
 ```
 
 A successful health response is `{ "ok": true }`. Connect through the HTTPS
-proxy to explore Sites, Money, Tasks, Workflows and Settings. The demo banner
+proxy to explore Portfolio, Money, Tasks, Workflows and Settings. The demo banner
 marks the data as synthetic and shows its latest successfully completed generation.
 Its three view choices (**I run the business**, **I build the product**,
 **Everything**) redraw every page and the Wall in that view and are kept only
 in the visitor's browser.
 The Wall's live user counts, with their per-minute bars, and its today-by-hour
 chart show synthetic values the demo
-derives from each site's own synthetic daily users; no analytics provider is
+derives from each asset's own synthetic daily users; no analytics provider is
 called. Its meetings come from a fixed synthetic weekly schedule; no calendar
 feed is fetched. The ordinary hosted scheduler runs the demo's scheduled jobs
 under the release's job identities: a quarter-hour refresh writes today's provisional
-synthetic traffic and search counts, the ad-supported sites' daily estimates
+synthetic traffic and search counts, the ad-supported assets' daily estimates
 arrive each morning, an hourly freshness check raises and clears the alert for
-a site whose nightly report has stopped arriving, and the task board refreshes every
-five minutes. Each site's weekly task is claimed and closed as `codex` for a
+an asset whose nightly report has stopped arriving, and the task board refreshes every
+five minutes. Each asset's weekly task is claimed and closed as `codex` for a
 review and as `claude` for a change, with the model and the closer recorded, so
 the Agents page and the Wall keep crediting the named agents after the cutoff. The same hourly job runs the release's home-page check against
-each fictional site's synthetic page, so no site is fetched. Each day one site
+each fictional asset's synthetic page, so no asset is fetched. Each day one asset
 in turn returns HTTP 503 for 25 minutes: the check marks it down and raises its
 alert, and the next hour's check marks it up and closes the alert. System health
 lists these runs as background operations. The Workflows page
@@ -138,9 +138,9 @@ running demo's rejects that demo's stored scenario at startup. Such a release
 needs a fresh setup with a new project name and volumes, which
 [update.sh](update.sh) performs by itself as a fresh generation (see
 [Stop, restart and update](#stop-restart-and-update)). The scenario holds
-five fictional sites, so every Home and Wall view shows data: a subscription
+five fictional assets, so every Home and Wall view shows data: a subscription
 product whose nightly report has stopped, a licensed tool whose saves broke, a
-recipe site whose traffic is rising with its season, an outdoor guide losing
+recipe asset whose traffic is rising with its season, an outdoor guide losing
 traffic after a redesign the outcome check rejected, and a product weeks old;
 two of them have ad income. Last night's synthetic backup failed, open
 decisions range from hours to weeks old, and each project's board has work
@@ -150,9 +150,9 @@ Haiku 5.5 for quick fixes, Sonnet 5.5 for the rest), and closes each task with
 its commit and the page where the change appears, after `codex` checks it;
 `codex` also checks each day's changes. The Agents page shows eight weeks of
 their earlier work, and the last 7 days rank the four agent models within a
-few points of each other. Each site except the weeks-old product sends a
+few points of each other. Each asset except the weeks-old product sends a
 weekly codebase report, and the simulator sends the next one on the same
-weekday: the recipe site's code grew 45% in its last 60 days, much of it
+weekday: the recipe asset's code grew 45% in its last 60 days, much of it
 copied recipe-card and nutrition components; the outdoor guide's redesign
 added 30% to its code in one week and left its old templates unused; the
 licensed tool carried a month of unused packages after a library swap, until a
@@ -173,7 +173,7 @@ workspace its configuration names; any other profile or workspace shows the
 same providers as not connected. Its syncs are
 the collection runs the simulator records: the quarter-hour Google refresh,
 Bing's daily report and the ad network's morning report. A run that fails
-shows that source failing until the next one succeeds; one site's Analytics
+shows that source failing until the next one succeeds; one asset's Analytics
 report is missing for a day every 29 days. The demo keeps no report archive,
 so none is monitored.
 

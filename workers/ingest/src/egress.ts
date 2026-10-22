@@ -490,8 +490,8 @@ function unionOfLanes(lanes: Partial<Record<string, EgressLaneRecord>>): string[
 function egressFlagMessage(inputs: EgressFlagInputs): string {
   const n = inputs.unmeasuredAssets.length;
   return inputs.connectionBackAt === null
-    ? `OS egress down — ${n} properties unmeasured`
-    : `OS connection back — ${n} properties not yet re-checked`;
+    ? `OS egress down — ${n} assets unmeasured`
+    : `OS connection back — ${n} assets not yet re-checked`;
 }
 
 /** Parse whatever the open flag holds, keeping only well-formed fields. */

@@ -165,7 +165,7 @@ test('get_task_guide returns the whole guide with a version, and the instruction
     assert.deepEqual(f.calls, [], 'the guide reaches no task command');
   }
   // Where the panel tools are offered, so is the rule for reading them.
-  assert.match(taskGuide(true).guide, /## Site data\n\nFor a site's search, traffic and product data, use get_panel then query_panel/u);
+  assert.match(taskGuide(true).guide, /## Asset data\n\nFor an asset's search, traffic and product data, use get_panel then query_panel/u);
   assert.notEqual(taskGuide(true).version, taskGuide(false).version);
 });
 
@@ -1053,7 +1053,7 @@ test('handoff metadata accepts only the five bounded non-authority fields before
     'noticeos_approval', 'noticeos_panel_asset', 'noticeos_anything', 'reindex_key', 'arbitrary'];
   const bad = unsupported.map(key => ({ ...metadata, [key]: 'forged' }));
   bad.push(null, [], 'invalid', {}, { ...metadata, noticeos_kind: 'decision' },
-    { ...metadata, noticeos_source: 'forged' }, { ...metadata, noticeos_asset: 'not a site' },
+    { ...metadata, noticeos_source: 'forged' }, { ...metadata, noticeos_asset: 'not an asset' },
     { ...metadata, noticeos_asset: 'x'.repeat(123) }, { ...metadata, noticeos_key: 'x'.repeat(2049) },
     { ...metadata, noticeos_rule: ' ' }, { ...metadata, noticeos_key: 'line\nkey' },
     { ...metadata, noticeos_key: 'bidi\u202ekey' }, { ...metadata, noticeos_key: 12 });

@@ -202,7 +202,7 @@ it('counts each source against the days since it first reported', () => {
   expect(daily.querySelector('[data-legend-partial]')).toHaveTextContent('1 partial day');
 });
 
-it('shows only the missing site as short when two sites share a display name', () => {
+it('shows only the missing asset as short when two assets share a display name', () => {
   renderPage(payload({ dailyRevenue: {
     from: '2026-09-01', to: '2026-09-02', reportedThrough: '2026-09-02',
     days: [{ date: '2026-09-01', amountMinor: 1200 }, { date: '2026-09-02', amountMinor: 700 }],
@@ -1284,7 +1284,7 @@ function startAdd(register: string, values: Record<string, string>): HTMLElement
 const NEW_COST = {
   Id: "chatgpt",
   Label: "ChatGPT Team",
-  Site: "root-os",
+  Asset: "root-os",
   Family: "inference",
   "USD / month": "60",
   From: "2026-09",
@@ -1330,7 +1330,7 @@ describe("/financials — the Costs section writes the files it reads", () => {
       "northwind.example",
     ]);
 
-    const form = startAdd("recurring-costs", { ...NEW_COST, Site: "meadow.exmple" });
+    const form = startAdd("recurring-costs", { ...NEW_COST, Asset: "meadow.exmple" });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
     expect(await within(form).findByRole("alert")).toHaveTextContent(
@@ -1505,8 +1505,8 @@ describe("/financials — a row the schema refuses never becomes a request", () 
   it("refuses something that is not an asset id", async () => {
     await refuses(
       "recurring-costs",
-      { ...NEW_COST, Site: "Mosaic Desk" },
-      "Site must be a site id",
+      { ...NEW_COST, Asset: "Mosaic Desk" },
+      "Asset must be an asset id",
     );
   });
 
@@ -1767,7 +1767,7 @@ describe("/financials — the month, drawn", () => {
     expect(change.querySelector("[data-tone]")).toHaveAttribute("data-tone", "neutral");
   });
 
-  it("splits the month by site and ranks the rows by what each earned, each with its change on the month before", () => {
+  it("splits the month by asset and ranks the rows by what each earned, each with its change on the month before", () => {
     wall.sites = 2;
     const { container } = renderPage(payload({
       months: [month("2026-07", 360), month("2026-08", 440.94, 200)],
@@ -1791,7 +1791,7 @@ describe("/financials — the month, drawn", () => {
 
 /** With one site, a table whose every row equals its total reads as a broken
  * report, and one site has nothing to allocate. */
-describe("/financials — one site states its money once", () => {
+describe("/financials — one asset states its money once", () => {
   const site = (asset: string, displayName: string, revenue: number) => ({
     asset, displayName, isOs: false, revenueReported: true,
     figure: { currency: 'USD', revenue, cost: 0, net: revenue },
@@ -1812,13 +1812,13 @@ describe("/financials — one site states its money once", () => {
   const siteRows = (container: HTMLElement) =>
     [...container.querySelectorAll("[data-money-site]")].map((row) => row.getAttribute("data-money-site"));
 
-  it("draws no by-site table and no overhead rows when nothing is shared", () => {
+  it("draws no by-asset table and no overhead rows when nothing is shared", () => {
     wall.sites = 1;
     const { container } = renderPage(payload({
       months: month(82), properties: [site("journey.example", "Journey Example", 82)],
       overhead: none, costLines: [], dailyRevenue: daily,
     }));
-    expect(screen.queryByRole("heading", { name: "By site" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "By asset" })).toBeNull();
     expect(container.querySelector("[data-money-sites]")).toBeNull();
     expect(container.textContent).not.toMatch(/Sites, direct|Overhead|Total net|allocated/);
     openPanel("days");
@@ -1828,38 +1828,38 @@ describe("/financials — one site states its money once", () => {
     expect(container.querySelector("[data-money-revenue] dd")).toHaveTextContent("$82");
   });
 
-  it("keeps the site's row, the overhead and the total when a cost is shared, with no subtotal repeating the row", () => {
+  it("keeps the asset's row, the overhead and the total when a cost is shared, with no subtotal repeating the row", () => {
     wall.sites = 1;
     const { container } = renderPage(payload({
       months: month(82), properties: [site("journey.example", "Journey Example", 82)],
       overhead: { currency: 'USD', revenue: 0, cost: 20, net: -20 }, dailyRevenue: daily,
     }));
-    expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "By asset" })).toBeInTheDocument();
     expect(siteRows(container)).toEqual(["journey.example"]);
     expect(summaries(container)).toEqual(["overhead", "total"]);
-    expect(container.textContent).not.toContain("Sites, direct");
+    expect(container.textContent).not.toContain("Assets, direct");
   });
 
-  it("keeps the whole split with two sites even when only one earned this month", () => {
+  it("keeps the whole split with two assets even when only one earned this month", () => {
     wall.sites = 2;
     const { container } = renderPage(payload({
       months: month(82), properties: [site("journey.example", "Journey Example", 82)],
       overhead: none, costLines: [], dailyRevenue: daily,
     }));
-    expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "By asset" })).toBeInTheDocument();
     // No overhead: "Sites, direct" would be the total again.
     expect(summaries(container)).toEqual(["total"]);
     openPanel("days");
     expect(container.querySelector("[data-source-coverage]")).not.toBeNull();
   });
 
-  it("keeps the whole split, subtotal included, from two sites", () => {
+  it("keeps the whole split, subtotal included, from two assets", () => {
     wall.sites = 2;
     const { container } = renderPage(payload({
       properties: [site("journey.example", "Journey Example", 60), site("second.example", "Second Example", 22)],
       overhead: none,
     }));
-    expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "By asset" })).toBeInTheDocument();
     expect(siteRows(container)).toEqual(["journey.example", "second.example"]);
     expect(summaries(container)).toEqual(["total"]);
   });

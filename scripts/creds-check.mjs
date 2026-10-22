@@ -335,7 +335,7 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
           state: 'skip',
           label: 'Self-report (pull)',
           detail:
-            'no pullable property yet — every enabled config/pull.json entry needs its own ASSET_TOKENS entry',
+            'no pullable asset yet — every enabled config/pull.json entry needs its own ASSET_TOKENS entry',
         },
       ],
       proofs: [],
@@ -351,7 +351,7 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
         state: 'fail',
         label,
         detail: `could not reach ${t.url} — ${r.networkError}`,
-        sub: ['fix: confirm the property is deployed and reachable.'],
+        sub: ['fix: confirm the asset is deployed and reachable.'],
       });
       continue;
     }
@@ -359,7 +359,7 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
       rows.push({
         state: 'fail',
         label,
-        detail: `HTTP ${r.status} — the property rejected the pull token`,
+        detail: `HTTP ${r.status} — the asset rejected the pull token`,
         sub: [
           `fix: ASSET_TOKENS["${t.asset}"] must equal ${t.asset}'s own` +
             ` ASSET_TOKEN wrangler secret — the one token gating its self-report` +
@@ -484,7 +484,7 @@ export async function probeBing(vars, register) {
       {
         state: 'pass',
         label,
-        detail: `${verifiedHosts.length} verified site${verifiedHosts.length === 1 ? '' : 's'} — ${verifiedHosts.join(', ') || '(none)'}`,
+        detail: `${verifiedHosts.length} verified asset${verifiedHosts.length === 1 ? '' : 's'} — ${verifiedHosts.join(', ') || '(none)'}`,
         sub,
       },
     ],
@@ -547,7 +547,7 @@ async function probeDataForSEO(vars) {
         label,
         detail: `account OK — balance $${bal}`,
         sub: [
-          'note: proves the shared key only; each property turns green from fresh' +
+          'note: proves the shared key only; each asset turns green from fresh' +
             ' stored collector results, not from this credential probe.',
         ],
       },
@@ -658,8 +658,8 @@ export async function probeGA4(vars) {
   const rows = duplicateAssets.map((assetId) => ({
     state: 'fail',
     label: `GA4 · ${assetId}`,
-    detail: `property appears under more than one ${GOOGLE_SIGNAL_SLOT} service account`,
-    sub: ['fix: choose one active service account per property.'],
+    detail: `asset appears under more than one ${GOOGLE_SIGNAL_SLOT} service account`,
+    sub: ['fix: choose one active service account per asset.'],
   }));
   const proved = [];
 
@@ -729,8 +729,8 @@ export async function probeGSC(vars) {
   const rows = duplicateAssets.map((assetId) => ({
     state: 'fail',
     label: `GSC · ${assetId}`,
-    detail: `property appears under more than one ${GOOGLE_SIGNAL_SLOT} service account`,
-    sub: ['fix: choose one active service account per property.'],
+    detail: `asset appears under more than one ${GOOGLE_SIGNAL_SLOT} service account`,
+    sub: ['fix: choose one active service account per asset.'],
   }));
   const proved = [];
 
@@ -783,7 +783,7 @@ export async function probeGSC(vars) {
           label,
           detail:
             `${providerId} readable · service account ${accountId} sees ` +
-            `${visibleSites.length} site${visibleSites.length === 1 ? '' : 's'}`,
+            `${visibleSites.length} asset${visibleSites.length === 1 ? '' : 's'}`,
         });
         proved.push(assetId);
       } else {
@@ -1737,7 +1737,7 @@ async function main() {
   out('');
   out(
     c.dim(
-      '  Only properties the probe actually proved are touched; config:apply previews the diff' +
+      '  Only assets the probe actually proved are touched; config:apply previews the diff' +
         ' and asks y/N before writing.',
     ),
   );

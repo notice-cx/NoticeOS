@@ -368,7 +368,7 @@ describe("the page it opens on", () => {
 describe("a saved layout the Tower refused", () => {
   const BROKEN = {
     layout: { version: 1, rows: [] },
-    history: [{ savedAt: "2026-09-04T12:00:00.000Z", reason: "Sites only", layout: SITES_ONLY.layout }],
+    history: [{ savedAt: "2026-09-04T12:00:00.000Z", reason: "Portfolio only", layout: SITES_ONLY.layout }],
   };
   const REASON = "config/tower.json wall.layout: A layout needs at least one row.";
   /** What the Worker serves for it: the versions that still read under the
@@ -674,7 +674,7 @@ describe("the selected widget's settings", () => {
     renderEditor();
     const panel = document.querySelector('[data-wall-widget-panel="none"]') as HTMLElement;
     expect(within(panel).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Top strip", "The loop", "Last 24 hours", "Sites", "Revenue", "Work",
+      "Top strip", "The loop", "Last 24 hours", "Portfolio", "Revenue", "Work",
     ]);
     expect(panel.querySelector("p")).toBeNull();
     fireEvent.click(within(panel).getByRole("button", { name: "Last 24 hours" }));
@@ -724,7 +724,7 @@ describe("the selected widget's settings", () => {
     expect(drawn()).toEqual(["strip", "loop", "revenue", "timeline", "sites", "work"]);
   });
 
-  it("filters the sites a per-site widget shows", () => {
+  it("filters the assets a per-asset widget shows", () => {
     renderEditor();
     fireEvent.click(widget("sites"));
     fireEvent.click(screen.getByRole("checkbox", { name: "Northwind" }));
@@ -733,7 +733,7 @@ describe("the selected widget's settings", () => {
     expect(sites?.settings).toEqual({ assets: ["meadow.example"] });
   });
 
-  it("draws a site off the TV by its own setting unticked and not tickable, saying why", () => {
+  it("draws an asset off the TV by its own setting unticked and not tickable, saying why", () => {
     renderEditor(null, { "northwind.example": { tv: false } });
     fireEvent.click(widget("sites"));
     const filter = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
@@ -742,10 +742,10 @@ describe("the selected widget's settings", () => {
     expect(northwind).toBeDisabled();
     expect(filter).toHaveTextContent("Off on the TV by its own setting");
     expect(within(filter).getByRole("checkbox", { name: /Meadow Board/u })).toBeChecked();
-    expect(filter).toHaveTextContent("Every site");
+    expect(filter).toHaveTextContent("Every asset");
   });
 
-  it("keeps an archived site disabled in widget lists even with its TV switch on", () => {
+  it("keeps an archived asset disabled in widget lists even with its TV switch on", () => {
     const retired = ASSETS.map((asset) => (asset.id === "northwind.example" ? { ...asset, status: "retired" } : asset));
     const off = renderEditor(null, undefined, retired);
     fireEvent.click(widget("sites"));
@@ -759,7 +759,7 @@ describe("the selected widget's settings", () => {
     expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
   });
 
-  it("draws a site off Work this week by its own setting unticked on the Work widget alone", () => {
+  it("draws an asset off Work this week by its own setting unticked on the Work widget alone", () => {
     renderEditor(null, { "northwind.example": { work: false } });
     fireEvent.click(widget("work"));
     const work = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
@@ -770,13 +770,13 @@ describe("the selected widget's settings", () => {
     expect(within(sites).getByRole("checkbox", { name: /Northwind/u })).toBeEnabled();
   });
 
-  it("offers no site filter on a widget the renderer does not filter", () => {
+  it("offers no asset filter on a widget the renderer does not filter", () => {
     renderEditor();
     fireEvent.click(widget("revenue"));
     expect(document.querySelector("[data-wall-asset-filter]")).toBeNull();
   });
 
-  it("previews and saves per-site pulse choices while retaining the site filter", () => {
+  it("previews and saves per-asset pulse choices while retaining the asset filter", () => {
     renderEditor();
     fireEvent.click(widget("sites"));
     const choices = document.querySelector('[data-wall-pulse-picker="meadow.example"]') as HTMLElement;
@@ -792,7 +792,7 @@ describe("the selected widget's settings", () => {
     expect(saved?.settings).toEqual({ assets: ["meadow.example"], pulseMetrics: { "meadow.example": ["leads"] } });
   });
 
-  it("saves an explicit empty pulse selection without changing another site's defaults", () => {
+  it("saves an explicit empty pulse selection without changing another asset's defaults", () => {
     renderEditor();
     fireEvent.click(widget("sites"));
     const choices = document.querySelector('[data-wall-pulse-picker="meadow.example"]') as HTMLElement;
@@ -821,7 +821,7 @@ describe("the selected widget's settings", () => {
 describe("what the operator is told", () => {
   it("prints the refusal and darkens Save", () => {
     renderEditor();
-    for (const [id, label] of [["strip", "Top strip"], ["loop", "The loop"], ["timeline", "Last 24 hours"], ["sites", "Sites"], ["revenue", "Revenue"], ["work", "Work"]] as const) {
+    for (const [id, label] of [["strip", "Top strip"], ["loop", "The loop"], ["timeline", "Last 24 hours"], ["sites", "Portfolio"], ["revenue", "Revenue"], ["work", "Work"]] as const) {
       removeFromChrome(id, label);
     }
     expect(document.querySelector("[data-wall-refusal]")?.textContent).toBe("A layout needs at least one row.");
@@ -830,9 +830,9 @@ describe("what the operator is told", () => {
 
   it("prints a warning beside a Save that still works", () => {
     renderEditor();
-    removeFromChrome("sites", "Sites");
+    removeFromChrome("sites", "Portfolio");
     expect(document.querySelector("[data-wall-refusal]")).toBeNull();
-    expect(warnings()).toContain("No sites on the TV");
+    expect(warnings()).toContain("No assets on the TV");
     expect(saveButton()).toHaveProperty("disabled", false);
   });
 
@@ -960,7 +960,7 @@ describe("versions", () => {
   const saved: WallConfig = {
     layout: DEFAULT_WALL_LAYOUT,
     history: [
-      { savedAt: "2026-09-04T12:00:00.000Z", reason: "Sites only", layout: earlier },
+      { savedAt: "2026-09-04T12:00:00.000Z", reason: "Portfolio only", layout: earlier },
     ],
   };
 
@@ -969,7 +969,7 @@ describe("versions", () => {
     expect(document.querySelector("[data-wall-version-count]")?.textContent).toBe("1");
     openDrawer("Versions");
     const version = document.querySelector('[data-wall-version="0"]');
-    expect(version?.textContent).toContain("Sites only");
+    expect(version?.textContent).toContain("Portfolio only");
     expect(version?.textContent).toContain("1d ago");
     expect(version?.textContent).toContain("1 row, 1 widget");
   });

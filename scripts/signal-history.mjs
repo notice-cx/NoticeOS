@@ -548,7 +548,7 @@ export async function publishSignalHistory(
   deps = {},
 ) {
   if (typeof asset !== 'string' || !/^[a-z0-9.-]+$/.test(asset)) {
-    throw new Error('asset must be a site id such as example.com.');
+    throw new Error('asset must be an asset id such as example.com.');
   }
   const from = path.resolve(input);
   const to = path.resolve(output);
@@ -793,17 +793,17 @@ function usage() {
   console.log(`Usage:
   pnpm signals:history -- --asset example.com --in <downloads folder> --out <history folder>
 
-Publishes one site's downloaded provider archive as Parquet datasets DuckDB
+Publishes one asset's downloaded provider archive as Parquet datasets DuckDB
 reads, one complete generation at a time. Reads --in and never changes it;
 writes only under --out. A run that finds nothing changed writes nothing.
 Every run then keeps ${RETENTION}
 and removes the rest.
 
 Options:
-  --asset <id>         required site id
+  --asset <id>         required asset id
   --in <folder>        required: the folder signals:download or signals:refresh
-                       wrote for this site (archives and manifest.json)
-  --out <folder>       required: this site's history folder (created)
+                       wrote for this asset (archives and manifest.json)
+  --out <folder>       required: this asset's history folder (created)
 `);
 }
 
@@ -822,7 +822,7 @@ export function parseArgs(argv) {
     index++;
   }
   if (!options.asset || !/^[a-z0-9.-]+$/.test(options.asset)) {
-    throw new Error('--asset is required and must be a site id such as example.com.');
+    throw new Error('--asset is required and must be an asset id such as example.com.');
   }
   if (!options.input || !options.output) throw new Error('--in and --out are both required.');
   return options;
