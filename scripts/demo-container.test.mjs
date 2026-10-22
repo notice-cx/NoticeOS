@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
+import { testFixtureRoot } from './test-fixture-root.mjs';
 import test from 'node:test';
 import http from 'node:http';
 import { demoPreparationConfig, prepareDemo } from '../deploy/demo/prepare.mjs';
 import { demoHealth } from '../deploy/demo/health.mjs';
 const ROOT = path.resolve(import.meta.dirname, '..');
 function fixture(t) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'n-demo-container-'));
+  const base = testFixtureRoot('n-demo-container-');
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const names = ['bootstrap', 'state', 'dolt', 'source', 'artifact'];
   for (const name of names) fs.mkdirSync(path.join(base, name), { mode: 0o700 });

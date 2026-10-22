@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { testFixtureRoot } from './test-fixture-root.mjs';
 import { randomBytes, createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { captureHostedDemoSetupRequest, readHostedDemoSetupRequest, setupHostedDemo } from './hosted-demo-setup.mjs';
@@ -50,7 +51,7 @@ test('fresh setup captures exact explicit configuration and refuses arbitrary in
   ]) assert.throws(() => captureHostedDemoSetupRequest(changed));
 });
 test('foreign/partial/nonprivate state and unsafe request files refuse before tool/database work', async () => {
-  const own = fs.mkdtempSync(path.join(os.tmpdir(), 'n-setup-refusal-'));
+  const own = testFixtureRoot('n-setup-refusal-');
   try {
     const artifactRoot = artifact(own);
     const configured = home => ({ ...request(home), artifactRoot });
@@ -67,7 +68,7 @@ test('foreign/partial/nonprivate state and unsafe request files refuse before to
 });
 
 test('artifact preflight and sanitized phase diagnostics refuse before database acquisition', async () => {
-  const own = fs.mkdtempSync(path.join(os.tmpdir(), 'n-setup-phase-'));
+  const own = testFixtureRoot('n-setup-phase-');
   try {
     const artifactRoot = artifact(own), home = path.join(own, 'state'), input = { ...request(home), artifactRoot };
     fs.writeFileSync(path.join(artifactRoot, 'client/index.html'), 'changed bytes');
@@ -85,7 +86,7 @@ test('artifact preflight and sanitized phase diagnostics refuse before database 
 });
 
 test('durable task receipt lets the ordinary workflow writer proceed and cannot be overwritten', async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'n-demo-receipt-'));
+  const home = testFixtureRoot('n-demo-receipt-');
   try {
     const receipt = { synthetic: true, scenarioHash: 'a'.repeat(64), workspaceId: '11111111-1111-4111-8111-111111111111', release: 'b'.repeat(40) };
     const history = { ...receipt, cutoff: '2026-10-03T12:00:00.000Z', records: [], traces: [], runs: [], links: {} };
@@ -107,7 +108,7 @@ test('fresh PostgreSQL18 and Dolt create the complete scoped demo, reuse without
 }, async t => {
   const evidence = process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE;
   assert.ok(path.isAbsolute(evidence ?? ''));
-  const base = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'n-demo-setup-'));
+  const base = testFixtureRoot('n-demo-setup-');
   fs.chmodSync(base, 0o700);
   const disk = fs.statfsSync(base); assert.ok(disk.bavail * disk.bsize >= 8 * 1024 ** 3 + 1024 ** 3);
   const home = path.join(base, 'state'), hub = path.join(base, 'hub');
