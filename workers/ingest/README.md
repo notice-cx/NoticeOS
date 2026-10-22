@@ -2140,6 +2140,9 @@ quota. Shared cache hits retain that timestamp and do not append a duplicate.
 The collector refuses minute placement when the request crosses a minute
 boundary; the window counters can still be retained. Failed minute reports
 remain absent. A successful minute report with an omitted minute records zero.
+Rows older than the pulse's 30 minutes are left out. Any other malformed row
+refuses the minute report and logs `ga4_minutes_refused` with a code naming the
+failed check, such as `ga4_minutes_malformed_count`.
 
 `IngestWorker.ga4Realtime()` reads these saved observations through the private
 Service Binding. Browser polling never contacts Google. It returns normalized

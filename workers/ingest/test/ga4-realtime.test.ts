@@ -256,6 +256,11 @@ describe('the per-minute realtime rows', () => {
     metricValues: [{ value }],
   });
 
+  const refusal = (record: Record<string, unknown> | null) => {
+    try { parseGa4MinuteRows(record); } catch (error) { return (error as { code?: string }).code; }
+    return null;
+  };
+
   it('reads each minute GA4 reports, oldest last, and nothing it does not', () => {
     expect(parseGa4MinuteRows(report([row('12', '1'), row('00', '3'), row('29', '40')]))).toEqual([
       { minutesAgo: 0, activeUsers: 3 },
@@ -265,28 +270,44 @@ describe('the per-minute realtime rows', () => {
     expect(parseGa4MinuteRows(report([]))).toEqual([]);
   });
 
+  it('keeps every shown minute of a busy site whose answer reaches past the 30', () => {
+    const rows = Array.from({ length: 32 }, (_, minute) => row(String(minute).padStart(2, '0'), String(minute + 1)));
+    const minutes = parseGa4MinuteRows(report(rows));
+    expect(minutes).toHaveLength(30);
+    expect(minutes.at(0)).toEqual({ minutesAgo: 0, activeUsers: 1 });
+    expect(minutes.at(-1)).toEqual({ minutesAgo: 29, activeUsers: 30 });
+  });
+
   it.each([
-    ['a minute past the 30', [row('30', '1')]],
-    ['a one-digit minute', [row('5', '1')]],
-    ['a minute that is not a number', [row('ab', '1')]],
-    ['the same minute twice', [row('03', '1'), row('03', '2')]],
-    ['a negative count', [row('03', '-1')]],
-    ['a fractional count', [row('03', '1.5')]],
-    ['a missing count', [{ dimensionValues: [{ value: '03' }], metricValues: [] }]],
-    ['a missing minute', [{ dimensionValues: [], metricValues: [{ value: '1' }] }]],
-    ['a row with an extra dimension', [{ dimensionValues: [{ value: '03' }, { value: 'x' }], metricValues: [{ value: '1' }] }]],
-  ])('refuses %s', (_case, rows) => {
-    expect(() => parseGa4MinuteRows(report(rows))).toThrow(/malformed per-minute report row/);
+    ['a one-digit minute', [row('5', '1')], 'ga4_minutes_malformed_minute'],
+    ['a minute that is not a number', [row('ab', '1')], 'ga4_minutes_malformed_minute'],
+    ['the same minute twice', [row('03', '1'), row('03', '2')], 'ga4_minutes_malformed_duplicate_minute'],
+    ['a negative count', [row('03', '-1')], 'ga4_minutes_malformed_count'],
+    ['a fractional count', [row('03', '1.5')], 'ga4_minutes_malformed_count'],
+    ['a missing count', [{ dimensionValues: [{ value: '03' }], metricValues: [] }], 'ga4_minutes_malformed_row'],
+    ['a missing minute', [{ dimensionValues: [], metricValues: [{ value: '1' }] }], 'ga4_minutes_malformed_row'],
+    ['a row with an extra dimension', [{ dimensionValues: [{ value: '03' }, { value: 'x' }], metricValues: [{ value: '1' }] }], 'ga4_minutes_malformed_row'],
+  ])('refuses %s under its own code', (_case, rows, code) => {
+    expect(refusal(report(rows))).toBe(code);
   });
 
   it('refuses a report of anything but minutes', () => {
-    expect(() => parseGa4MinuteRows(report([], 'dateRange'))).toThrow(/unexpected per-minute report headers/);
-    expect(() => parseGa4MinuteRows({ ...report([]), metricHeaders: [{ name: 'eventCount' }] })).toThrow(/unexpected per-minute report headers/);
-    expect(() => parseGa4MinuteRows(null)).toThrow(/unexpected per-minute report headers/);
+    expect(refusal(report([], 'dateRange'))).toBe('ga4_minutes_malformed_headers');
+    expect(refusal({ ...report([]), metricHeaders: [{ name: 'eventCount' }] })).toBe('ga4_minutes_malformed_headers');
+    expect(refusal(null)).toBe('ga4_minutes_malformed_headers');
+  });
+
+  it('retains the shown minutes of a busy site from a live read', async () => {
+    const rows = Array.from({ length: 31 }, (_, minute): [string, string] => [String(minute).padStart(2, '0'), '2']);
+    const { fetchImpl } = realtimeFetch(200, {}, {}, { rows });
+    const result = await runGa4Realtime(env, { nowMs: NOW, fetchImpl, tokenCache: new Map() });
+    const reading = result.assets[0];
+    if (reading?.status !== 'success') throw new Error('expected a successful reading');
+    expect(reading.activeUsersByMinute?.filter(value => value === 2)).toHaveLength(30);
   });
 
   it('keeps the live figure when the minutes are refused: no pulse, never a guessed one', async () => {
-    for (const minutes of [{ body: report([row('31', '2')]) }, { status: 500 }] satisfies MinutesFixture[]) {
+    for (const minutes of [{ body: report([row('03', '-2')]) }, { status: 500 }] satisfies MinutesFixture[]) {
       await reset();
       const { fetchImpl } = realtimeFetch(200, {}, {}, minutes);
       const result = await runGa4Realtime(env, { nowMs: NOW, fetchImpl, tokenCache: new Map() });

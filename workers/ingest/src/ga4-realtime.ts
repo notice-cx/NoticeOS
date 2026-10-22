@@ -461,7 +461,9 @@ function logMinutesRefused(propertyId: string, error: unknown): void {
 
 /**
  * GA4's per-minute realtime rows, parsed as strictly as the windows are.
- * Anything else is refused whole: a pulse with a guessed bar is worse than none.
+ * A malformed row refuses the whole pulse, under a code naming the check: a
+ * pulse with a guessed bar is worse than none. A well-formed row older than
+ * the pulse's minutes draws no bar, so it is left out rather than refused.
  */
 export function parseGa4MinuteRows(record: Record<string, unknown> | null): Ga4MinuteRow[] {
   const dimensionHeaders = arrayField(record, 'dimensionHeaders');
@@ -473,10 +475,11 @@ export function parseGa4MinuteRows(record: Record<string, unknown> | null): Ga4M
     stringField(asRecord(metricHeaders[0]), 'name') !== 'activeUsers'
   ) {
     throw new SignalError(
-      'ga4_realtime_invalid_response',
+      'ga4_minutes_malformed_headers',
       'GA4 returned unexpected per-minute report headers.',
     );
   }
+  const malformed = (check: string) => new SignalError(`ga4_minutes_malformed_${check}`, 'GA4 returned a malformed per-minute report row.');
   const rows = new Map<number, number>();
   for (const rowValue of arrayField(record, 'rows')) {
     const row = asRecord(rowValue);
@@ -484,22 +487,12 @@ export function parseGa4MinuteRows(record: Record<string, unknown> | null): Ga4M
     const metrics = arrayField(row, 'metricValues');
     const minute = stringField(asRecord(dimensions[0]), 'value');
     const rawValue = stringField(asRecord(metrics[0]), 'value');
-    const minutesAgo = minute !== null && MINUTES_AGO_PATTERN.test(minute) ? Number(minute) : Number.NaN;
-    if (
-      dimensions.length !== 1 ||
-      metrics.length !== 1 ||
-      !Number.isInteger(minutesAgo) ||
-      minutesAgo >= GA4_PULSE_MINUTES ||
-      rows.has(minutesAgo) ||
-      rawValue === null ||
-      !METRIC_COUNT_PATTERN.test(rawValue) ||
-      !Number.isSafeInteger(Number(rawValue))
-    ) {
-      throw new SignalError(
-        'ga4_realtime_invalid_response',
-        'GA4 returned a malformed per-minute report row.',
-      );
-    }
+    if (dimensions.length !== 1 || metrics.length !== 1) throw malformed('row');
+    if (minute === null || !MINUTES_AGO_PATTERN.test(minute)) throw malformed('minute');
+    if (rawValue === null || !METRIC_COUNT_PATTERN.test(rawValue) || !Number.isSafeInteger(Number(rawValue))) throw malformed('count');
+    const minutesAgo = Number(minute);
+    if (rows.has(minutesAgo)) throw malformed('duplicate_minute');
+    if (minutesAgo >= GA4_PULSE_MINUTES) continue;
     rows.set(minutesAgo, Number(rawValue));
   }
   return [...rows.entries()]
