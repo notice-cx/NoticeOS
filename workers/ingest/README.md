@@ -2130,8 +2130,9 @@ The **Realtime traffic** job collects every configured GA4 property once a
 minute, whether a Wall is open or closed. It uses the saved Google connection
 (service account or sign-in), reuses access tokens for at most 50 minutes, and
 makes two `runRealtimeReport` calls: one for the distinct 0–4 and 0–29 minute
-windows, and one for `activeUsers` grouped by `minutesAgo`. It makes no hourly
-Core reporting request.
+windows, and one for `activeUsers` grouped by `minutesAgo`. Once per hour it
+also reads a bounded Core `dateHourMinute` report for today and the same
+weekday last week. All assets sharing a property reuse that backfill.
 
 `realtime_traffic_readings` retains each successful reading, with its workspace,
 asset, property, original provider-read timestamp, minute counts and Realtime
@@ -2147,13 +2148,30 @@ minutes and the same weekday last week on the saved installation clock. Later
 observations replace overlapping minute values in the read model, including
 downward corrections; stored observations remain immutable. Property remapping
 selects a different history, and a saved timezone change rebuckets UTC evidence.
-Different-length daylight-saving comparison days have no prior line.
+Comparison minutes align by the local clock across daylight-saving changes;
+ambiguous repeated minutes remain unknown.
 
-The Wall draws completed minutes only, with recent minutes in lower contrast.
-Missing minutes break the line. The API can recover only the latest 30 minutes;
-a longer collection outage leaves a gap. Per-minute users are not additive
-hourly or daily unique users, and this series supplies no anomaly verdict.
-The daily reports remain the source of daily totals.
+`traffic_comparison_reports` retains successful backfills and safe failure
+states, scoped to the workspace, asset, property, date and installation clock.
+The last successful comparison survives a failed refresh. Processed minutes
+replace older provisional activity; retained realtime minutes fill the recent
+portion. Last week's line is available on the first successful Core report,
+without waiting a week. The Core report stops today's data before its newest
+nonzero minute; trailing missing rows do not imply zero activity. Reports with
+sampling, thresholding, row loss or truncation supply no backfill.
+
+The Wall draws hourly averages of completed minute activity and a dashed
+comparison for the same weekday last week. Live pace compares only matching
+observed minutes, requires at least 15 paired minutes and 100 prior user-minutes,
+and remains provisional. It never sums minute counts into hourly or daily
+unique users. A gap between processed history and retained realtime remains
+blank and is excluded from pace. Daily reports remain the source of daily totals.
+
+The [Core API schema](https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema)
+defines `dateHourMinute` and `activeUsers`; the
+[Realtime schema](https://developers.google.com/analytics/devguides/reporting/data/v1/realtime-api-schema)
+defines the recent minute observations. Processing and attribution can revise
+these readings; the chart shows activity pace, not an exact unique-user forecast.
 
 The Tower polls saved readings every 30 seconds and stops in a hidden tab.
 Normal refreshes keep the figures and five-minute label visible; only a reading
@@ -2165,7 +2183,9 @@ Every provider call requests `returnPropertyQuota`. Realtime and Core budgets
 remain separate. The realtime collector reduces its cadence to five minutes,
 fifteen minutes or one hour as remaining headroom falls; the next attempt is
 reported with the retained reading. Daily headroom is reconsidered at the
-provider's midnight-PST reset. No browser independently retries Google.
+provider's midnight-PST reset. The Core backfill slows from hourly to every
+four hours when its own reported quota crosses a reserve. Core and Realtime
+failures and cadence are monitored separately. No browser independently retries Google.
 
 ## GA4 quota — what the heavy lanes are spending
 

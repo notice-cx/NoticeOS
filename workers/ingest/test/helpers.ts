@@ -29,6 +29,7 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'workspace_mutation_audit',
   'counter_readings',
   'realtime_traffic_readings',
+  'traffic_comparison_reports',
   'egress_checks',
   'integration_health_events',
   'integration_capability_state',

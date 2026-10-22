@@ -73,7 +73,8 @@ describe('retained realtime activity', () => {
   it.each([['2026-03-08T20:00:00Z', 1380], ['2026-11-01T20:00:00Z', 1500]])('uses the actual local day length at %s', async (iso, minutes) => {
     const day = await readRealtimeDay(env.STORE, 'meadow.example', '123456', Date.parse(iso), 'America/Los_Angeles');
     expect(day.minutes).toHaveLength(minutes);
-    expect(day.sameDayLastWeek).toBeNull();
+    expect(day.sameDayLastWeek).toHaveLength(minutes);
+    expect(day.sameDayLastWeek?.every(value => value === null)).toBe(true);
   });
 });
 
