@@ -19,12 +19,14 @@ import { EmptyState } from "@/components/EmptyState";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
+import { ReadFailed } from "@/components/ReadFailed";
 import { SavesPaused } from "@/components/SavesPaused";
 import { SegmentBar } from "@/components/SegmentBar";
 import { StateChip } from "@/components/StateChip";
 import { HeroChart, type HeroSeries } from "@/components/surface/HeroChart";
 import { SectionLabel, eyebrowClass } from "@/components/surface/SectionLabel";
 import { Sparkline } from "@/components/surface/Sparkline";
+import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useStructuralSave } from "@/hooks/useConfigSave";
@@ -51,6 +53,7 @@ import {
   formatPeriodMonthYear,
   formatSeriesDate,
   formatSignedMoney,
+  formatTimestamp,
   formatUsd,
 } from "@/lib/format";
 import { lastMonthRevenue, monthDays, monthEquation, monthsThrough, revenueBySite, siteMoneyRows } from "@/lib/money-page";
@@ -86,7 +89,17 @@ const SERIES = {
 export default function FinancialsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedPeriod = searchParams.get("period");
-  const { data, isPending, error, isPlaceholderData } = useFinancials(requestedPeriod);
+  const { data, isPending, isError, error, isPlaceholderData, isFetching, dataUpdatedAt, refetch } = useFinancials(requestedPeriod);
+  const retryInFlight = useRef(false);
+  const retryRead = async () => {
+    if (isFetching || retryInFlight.current) return;
+    retryInFlight.current = true;
+    try {
+      await refetch({ cancelRefetch: false });
+    } finally {
+      retryInFlight.current = false;
+    }
+  };
   /** The month being read while the previous one stays on screen. */
   const loadingPeriod = isPlaceholderData && requestedPeriod !== null && requestedPeriod !== data?.period ? requestedPeriod : null;
 
@@ -110,6 +123,11 @@ export default function FinancialsRoute() {
      is the chart's own mark for an unfinished period. */
   const monthToDate =
     !missingPeriod && data && !data.empty && data.period >= data.currentPeriod;
+
+  // Placeholder data belongs to another query, whose successful read time is
+  // not this query's dataUpdatedAt. Only an actual retained read qualifies.
+  const refreshFailed = data && isError && !isPlaceholderData && !missingPeriod;
+  const lastRead = dataUpdatedAt > 0 ? new Date(dataUpdatedAt).toISOString() : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
@@ -145,27 +163,32 @@ export default function FinancialsRoute() {
         }
       />
 
+      {refreshFailed ? (
+        <StatusBanner lead="Refresh failed" subject={`period:${data.period}`} severity="warn">
+          <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span>
+              Showing {formatPeriodMonthYear(data.period)} · Last successful read{" "}
+              {lastRead ? <time dateTime={lastRead}>{formatTimestamp(lastRead)}</time> : "time unavailable"}
+            </span>
+            <Button type="button" variant="outline" size="sm" disabled={isFetching} onClick={() => void retryRead()}>
+              {isFetching ? "Retrying…" : "Try again"}
+            </Button>
+          </span>
+        </StatusBanner>
+      ) : null}
+
       {isPending ? (
         <EmptyState title="Loading the ledger…" />
       ) : missingPeriod ? (
         <MissingPeriod period={requestedPeriod ?? ""} periods={missingPeriod.periods} />
       ) : !data ? (
-        /* Only a ledger that never answered: a failed refresh keeps the
-           last-good figures on screen. The way out is the button. */
-        <EmptyState
+        <ReadFailed
           title="The ledger could not be read"
-          hint={
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className={cn(
-                "rounded-md border border-border px-2 py-1 text-sm text-foreground hover:bg-muted",
-                pillControlClass,
-              )}
-            >
-              Reload
-            </button>
-          }
+          subject="financials:read"
+          detail={requestedPeriod ? requestedPeriodLabel(requestedPeriod) : undefined}
+          error={error}
+          retrying={isFetching}
+          onRetry={() => void retryRead()}
         />
       ) : data.empty ? (
         <FirstRun data={data} />

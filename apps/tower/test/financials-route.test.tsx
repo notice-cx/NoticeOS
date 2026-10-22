@@ -20,6 +20,10 @@ const state = vi.hoisted(() => ({
   asked: [] as (string | null | undefined)[],
   /** The shown payload is the previous month's, kept while the asked month loads. */
   placeholder: false,
+  fetching: false,
+  updatedAt: Date.parse("2026-09-04T12:01:00.000Z"),
+  refetch: vi.fn(async () => ({})),
+  realQuery: false,
 }));
 
 // Sonner is mocked rather than mounted: the Undo is a callback, and calling it
@@ -27,18 +31,25 @@ const state = vi.hoisted(() => ({
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
-vi.mock("@/hooks/useFinancials", () => ({
-  useFinancials: (period?: string | null) => {
-    state.asked.push(period);
-    return {
-      data: state.data,
-      isPending: false,
-      isError: state.error !== null,
-      error: state.error,
-      isPlaceholderData: state.placeholder,
-    };
-  },
-}));
+vi.mock("@/hooks/useFinancials", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useFinancials")>();
+  return {
+    useFinancials: (period?: string | null) => {
+      if (state.realQuery) return actual.useFinancials(period);
+      state.asked.push(period);
+      return {
+        data: state.data,
+        isPending: false,
+        isError: state.error !== null,
+        error: state.error,
+        isPlaceholderData: state.placeholder,
+        isFetching: state.fetching,
+        dataUpdatedAt: state.updatedAt,
+        refetch: state.refetch,
+      };
+    },
+  };
+});
 
 // How many sites the installation has (the sidebar's read): unknown unless a
 // case says, which leaves the page to count the month's rows.
@@ -270,12 +281,18 @@ function stubLane(
 beforeEach(() => {
   toasts.success.mockReset();
   toasts.error.mockReset();
+  state.refetch.mockReset();
 });
 
 afterEach(() => {
   state.data = undefined;
   state.error = null;
   state.asked = [];
+  state.placeholder = false;
+  state.fetching = false;
+  state.updatedAt = Date.parse("2026-09-04T12:01:00.000Z");
+  state.realQuery = false;
+  client?.clear();
   wall.sites = null;
   wall.data = null;
   vi.unstubAllGlobals();
@@ -415,7 +432,8 @@ describe("/financials — a month the ledger cannot answer", () => {
     renderRefusal(new Error("GET /api/financials failed: 500"), "/financials");
 
     expect(screen.getByText("The ledger could not be read")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByText(/Last successful read/)).toBeNull();
     expect(screen.queryByText(/Nothing recorded for/)).toBeNull();
   });
 
@@ -425,6 +443,113 @@ describe("/financials — a month the ledger cannot answer", () => {
 
     expect(container.querySelector("[data-money-answer]")).not.toBeNull();
     expect(screen.queryByText("The ledger could not be read")).toBeNull();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Refresh failed");
+    expect(status).toHaveTextContent("Showing August 2026");
+    expect(status.querySelector("time")).toHaveAttribute("datetime", "2026-09-04T12:01:00.000Z");
+    expect(picker()).toHaveValue("2026-08");
+  });
+});
+
+describe("Money read status", () => {
+  it("does not call a pending refresh a failed refresh", () => {
+    state.fetching = true;
+    renderPage(payload());
+    expect(screen.queryByText("Refresh failed")).toBeNull();
+    expect(picker()).toHaveValue("2026-08");
+  });
+
+  it("never gives a month-switch placeholder the new month or a failed-refresh status", () => {
+    state.fetching = true;
+    state.placeholder = true;
+    state.updatedAt = 0;
+    const { container } = renderPage(payload(), "/financials?period=2026-07");
+    expect(screen.queryByText("Refresh failed")).toBeNull();
+    expect(screen.queryByText(/Last successful read/)).toBeNull();
+    expect(picker()).toHaveValue("2026-08");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading July 2026");
+    expect(container.querySelector('[aria-busy="true"] [data-money-ledger]')).not.toBeNull();
+  });
+
+  it("keeps missing-month recovery distinct even with cached figures", () => {
+    state.error = new FinancialsPeriodError("period_not_found", 404, ["2026-07"]);
+    renderPage(payload(), "/financials?period=2026-08");
+    expect(screen.getByText("Nothing recorded for August 2026")).toBeInTheDocument();
+    expect(screen.queryByText("Refresh failed")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+    expect(screen.getByRole("link", { name: "July 2026" })).toHaveAttribute("href", "/financials");
+  });
+
+  it("does not invent a successful timestamp when none is available", () => {
+    state.error = new Error("offline");
+    state.updatedAt = 0;
+    renderPage(payload());
+    expect(screen.getByRole("status")).toHaveTextContent("Last successful read time unavailable");
+    expect(screen.getByRole("status").querySelector("time")).toBeNull();
+  });
+
+  it("guards same-turn retry clicks before the query observer rerenders", async () => {
+    state.error = new Error("offline");
+    let finish!: () => void;
+    state.refetch.mockImplementation(() => new Promise((resolve) => { finish = () => resolve({}); }));
+    renderPage(payload());
+    const retry = screen.getByRole("button", { name: "Try again" });
+    fireEvent.click(retry);
+    fireEvent.click(retry);
+    expect(state.refetch).toHaveBeenCalledExactlyOnceWith({ cancelRefetch: false });
+    await act(async () => finish());
+  });
+
+  it("keeps a retry disabled while the query is fetching", () => {
+    state.error = new Error("offline");
+    state.fetching = true;
+    renderPage(payload());
+    const retry = screen.getByRole("button", { name: "Retrying…" });
+    expect(retry).toBeDisabled();
+    fireEvent.click(retry);
+    expect(state.refetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Refresh failed");
+  });
+
+  it("drives the real query through success, pending refresh, failure, retry and recovery", async () => {
+    state.realQuery = true;
+    const initial = payload();
+    let settleRefresh!: (response: Response) => void;
+    let settleRetry!: (response: Response) => void;
+    const read = vi.fn()
+      .mockResolvedValueOnce(Response.json(initial))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { settleRefresh = resolve; }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { settleRetry = resolve; }));
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input).startsWith("/api/financials")
+      ? read(input) : Promise.resolve(Response.json({ integrations: [], icons: {} }))));
+    const { container } = renderPage(undefined, "/financials?period=2026-08");
+    await waitFor(() => expect(container.querySelector("[data-money-answer]")).not.toBeNull());
+    const query = client.getQueryCache().find({ queryKey: ["financials", "2026-08"] })!;
+    // Drive one final failure without spending the production backoff delay.
+    query.setOptions({ ...query.options, retry: false });
+    const successfulAt = query.state.dataUpdatedAt;
+    let refreshing!: Promise<void>;
+    act(() => { refreshing = client.refetchQueries({ queryKey: ["financials", "2026-08"] }); });
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    const figures = container.querySelector("[data-money-answer]")!.textContent;
+    expect(screen.queryByText("Refresh failed")).toBeNull();
+    await act(async () => { settleRefresh(Response.json({ error: "unavailable" }, { status: 503 })); await refreshing; });
+    await waitFor(() => expect(screen.getByText("Refresh failed")).toBeInTheDocument());
+    expect(query.state.errorUpdatedAt).toBeGreaterThanOrEqual(successfulAt);
+    expect(screen.getByRole("status").querySelector("time")).toHaveAttribute("datetime", new Date(successfulAt).toISOString());
+    expect(container.querySelector("[data-money-answer]")!.textContent).toBe(figures);
+    expect(picker()).toHaveValue("2026-08");
+    expect(screen.getByTestId("search")).toHaveTextContent("?period=2026-08");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retrying…" })).toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Retrying…" }));
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole("status").querySelector("time")).toHaveAttribute("datetime", new Date(successfulAt).toISOString());
+    await act(async () => settleRetry(Response.json(initial)));
+    await waitFor(() => expect(screen.queryByText("Refresh failed")).toBeNull());
+    expect(container.querySelector("[data-money-answer]")!.textContent).toBe(figures);
+    expect(picker()).toHaveValue("2026-08");
+    expect(read).toHaveBeenCalledTimes(3);
   });
 });
 
