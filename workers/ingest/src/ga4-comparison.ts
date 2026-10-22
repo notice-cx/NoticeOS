@@ -67,7 +67,8 @@ export async function collectComparison(property: string, accessToken: string, f
     arrayField(record, 'metricHeaders').length !== 1 || stringField(asRecord(arrayField(record, 'metricHeaders')[0]), 'name') !== 'activeUsers' ||
     metadata?.dataLossFromOtherRow === true || metadata?.subjectToThresholding === true || arrayField(metadata, 'samplingMetadatas').length > 0) throw invalid();
   const rows = arrayField(record, 'rows');
-  if (typeof record?.rowCount !== 'number' || record.rowCount !== rows.length || rows.length > 10_000) throw invalid();
+  const rowCount = record?.rowCount ?? 0;
+  if (typeof rowCount !== 'number' || rowCount !== rows.length || rows.length > 10_000) throw invalid();
   const start = Date.parse(day.startAt), priorStart = zonedHourStartMs(priorDate, 0, zone);
   const priorEnd = zonedHourStartMs(shiftCalendarDate(priorDate, 1), 0, zone);
   const prior = Array<number | null>((priorEnd - priorStart) / MINUTE).fill(0);

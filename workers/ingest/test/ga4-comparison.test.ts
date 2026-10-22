@@ -27,7 +27,8 @@ describe('GA4 activity comparison backfill', () => {
   });
 
   it('keeps an all-zero current report unknown while a completed prior day can be zero', async () => {
-    const result = await collectComparison('123456', 'synthetic', fetchReport(report([])), NOW, 'UTC');
+    const empty = { ...report([]), rowCount: undefined };
+    const result = await collectComparison('123456', 'synthetic', vi.fn<typeof fetch>(async () => Response.json(empty)), NOW, 'UTC');
     expect(result.day.minutes.every(value => value === null)).toBe(true);
     expect(result.day.sameDayLastWeek?.every(value => value === 0)).toBe(true);
   });
