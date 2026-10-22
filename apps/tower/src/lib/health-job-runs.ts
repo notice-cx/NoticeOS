@@ -1,9 +1,4 @@
-// System health's week of scheduled runs, read from the workflows read: one
-// row per System job, one cell per day on the reader's own clock, each the
-// day's runs by outcome. The read carries each job's newest thirty runs from
-// the last thirty days (scripts/workflow-history-view.mts), so a job that runs
-// more often than daily has only its latest hours on the page: the days
-// before its oldest kept run say so, and are never read as days it did not run.
+// Scheduled runs use explicit UTC calendar days, independent of rich detail.
 import { cronIntervalMinutes, scheduleLabel, scheduleTimezone } from "@shared/scheduled-jobs";
 import { installedWorkflows, workflowBasePath, type WorkflowsPayload } from "@shared/workflows";
 
@@ -23,10 +18,11 @@ export type RunDayState =
    * part of today still ahead, or a day before the job first ran. */
   | "none"
   /** Before the oldest run the read kept: not known either way. */
-  | "not-kept";
+  | "not-kept"
+  | "unknown";
 
 export interface RunDay {
-  /** `YYYY-MM-DD` on the reader's clock. */
+  /** `YYYY-MM-DD` in UTC. */
   date: string;
   state: RunDayState;
   ran: number;
@@ -58,16 +54,16 @@ export interface JobRunWeek {
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-/** A calendar day on the reader's clock. */
+/** A calendar day in UTC. */
 export function localDate(ms: number): string {
   const at = new Date(ms);
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+  return `${at.getUTCFullYear()}-${pad(at.getUTCMonth() + 1)}-${pad(at.getUTCDate())}`;
 }
 
-/** The reader's midnight `offset` days from the day `ms` falls on. */
+/** The UTC midnight `offset` days from the day `ms` falls on. */
 function midnight(ms: number, offset = 0): number {
   const at = new Date(ms);
-  return new Date(at.getFullYear(), at.getMonth(), at.getDate() + offset).getTime();
+  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate() + offset);
 }
 
 export function jobRunWeek(data: WorkflowsPayload, nowMs: number, span = 7): JobRunWeek {
@@ -83,8 +79,9 @@ export function jobRunWeek(data: WorkflowsPayload, nowMs: number, span = 7): Job
       const paused = job ? !job.enabled : false;
       const interval = cronIntervalMinutes(cron);
       const owesDaily = !paused && interval !== null && interval <= 24 * 60;
-      const truncated = runs.length >= KEPT_RUNS;
-      const oldest = runs.length > 0 ? Math.min(...runs.map((run) => Date.parse(run.startedAt))) : null;
+      const daily = summary?.dailyHistory;
+      const truncated = !daily && runs.length >= KEPT_RUNS;
+      const oldest = daily ? (daily.firstRunAt ? Date.parse(daily.firstRunAt) : null) : runs.length > 0 ? Math.min(...runs.map((run) => Date.parse(run.startedAt))) : null;
       return {
         id: definition.id,
         label: definition.label,
@@ -96,6 +93,19 @@ export function jobRunWeek(data: WorkflowsPayload, nowMs: number, span = 7): Job
           const end = starts[index + 1] ?? midnight(nowMs, 1);
           const date = days[index]!;
           const today = index === span - 1;
+          if (daily || !data.historyAvailable) {
+            const bucket = daily?.buckets.find(bucket => Date.parse(bucket.at) === start);
+            const covered = data.historyAvailable && daily?.timeZone === 'UTC' && bucket !== undefined
+              && Date.parse(daily.from) <= start && Date.parse(daily.through) >= Math.min(end, Date.parse(data.generatedAt));
+            const ran = bucket?.succeeded ?? 0, failed = bucket?.failed ?? 0, skipped = bucket?.skipped ?? 0;
+            const base = { date, ran, failed, skipped, runId: bucket?.runId ?? null, today, partial: !covered };
+            if (failed > 0) return { ...base, state: 'failed' };
+            if (!covered || (bucket?.unknown ?? 0) > 0) return { ...base, state: 'unknown' };
+            if (ran > 0) return { ...base, state: 'ran' };
+            if (skipped > 0) return { ...base, state: 'skipped' };
+            const owed = owesDaily && !today && oldest !== null && start > oldest;
+            return { ...base, state: owed ? 'missed' : 'none' };
+          }
           const own = runs.filter((run) => {
             const at = Date.parse(run.startedAt);
             return at >= start && at < end;
@@ -129,6 +139,7 @@ export interface RunWeekTally {
   /** Job-days with at least one failure. */
   failedDays: number;
   missed: number;
+  unknownDays: number;
   /** The newest failed day, the one the header names first. */
   latestFailure: { row: JobRunRow; day: RunDay } | null;
 }
@@ -138,15 +149,17 @@ export function runWeekTally(week: JobRunWeek): RunWeekTally {
   let failed = 0;
   let failedDays = 0;
   let missed = 0;
+  let unknownDays = 0;
   let latestFailure: RunWeekTally["latestFailure"] = null;
   for (const row of week.rows) {
     for (const day of row.days) {
       runs += day.ran + day.failed + day.skipped;
       failed += day.failed;
+      if (day.partial || day.state === "unknown" || day.state === "not-kept") unknownDays += 1;
       if (day.state === "missed") missed += 1;
       if (day.state === "failed") failedDays += 1;
       if (day.state === "failed" && (latestFailure === null || day.date > latestFailure.day.date)) latestFailure = { row, day };
     }
   }
-  return { runs, failed, failedDays, missed, latestFailure };
+  return { runs, failed, failedDays, missed, unknownDays, latestFailure };
 }

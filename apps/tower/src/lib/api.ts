@@ -1660,16 +1660,18 @@ async function fetchDemoPresentationRequest(fetch: ApiTransport, signal?: AbortS
   if (!response.ok) throw new ApiError('Demo generation unavailable.', response.status);
   return decodeDemoPresentation(await responseJson(response, 'Demo generation'));
 }
-export function createApi(fetch: ApiTransport, assertActive: () => void = () => {}, entryOrigin?: string) {
+export function createApi(fetch: ApiTransport, assertActive: () => void | (() => void) = () => {}, entryOrigin?: string) {
   const bind = <Args extends unknown[], Result>(work: (fetch: ApiTransport, ...args: Args) => Promise<Result>) =>
     async (...args: Args): Promise<Result> => {
-      assertActive();
+      const completion = assertActive();
       try {
         const result = await work(fetch, ...args);
         assertActive();
+        completion?.();
         return result;
       } catch (error) {
         assertActive();
+        completion?.();
         throw error;
       }
     };

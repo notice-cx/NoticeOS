@@ -5,7 +5,7 @@
 // non-2xx as "not shipped, keep it queued", and a duplicate is shipped.
 
 import { authenticateOperator } from '../auth.js';
-import { type JobRunsInput, readManualJobRuns, writeJobRuns } from '../job-runs.js';
+import { type JobRunsInput, readManualJobRuns, readManualJobRunHistory, writeJobRuns } from '../job-runs.js';
 import { json } from '../responses.js';
 import { readJsonObject } from './validate.js';
 
@@ -51,6 +51,12 @@ export async function handleManualJobRuns(request: Request, env: IngestEnv): Pro
   }
   if (new URL(request.url).searchParams.get('trigger') !== 'manual') {
     return json({ error: 'bad_request', detail: 'trigger=manual is the one read this route answers' }, 400);
+  }
+  const params = new URL(request.url).searchParams;
+  if (params.get('history') === 'days') {
+    const job = params.get('job'), at = params.get('at');
+    if ((job === null) !== (at === null) || job !== null && (job.length > 200 || !at || !Number.isFinite(Date.parse(at)))) return json({ error: 'bad_request' }, 400);
+    return json(await readManualJobRunHistory(env, job && at ? { job, at } : undefined), 200);
   }
   return json({ runs: await readManualJobRuns(env) }, 200);
 }

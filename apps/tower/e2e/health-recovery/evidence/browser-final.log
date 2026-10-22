@@ -1,0 +1,19 @@
+
+Running 10 tests using 1 worker
+
+(node:7663) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop] › apps/tower/e2e/health-recovery/journeys.spec.ts:42:1 › System health shows an hourly job failure five days ago at 1440px (3.1s)
+  ✓   2 [desktop] › apps/tower/e2e/health-recovery/journeys.spec.ts:59:1 › same-release Wall recovery resumes reads in place after a headerless outage (3.1s)
+  ✓   3 [desktop] › apps/tower/e2e/health-recovery/journeys.spec.ts:90:3 › same-release recovery leaves the update prompt on /health (4.2s)
+  ✓   4 [desktop] › apps/tower/e2e/health-recovery/journeys.spec.ts:90:3 › same-release recovery leaves the update prompt on /wall/edit (4.0s)
+  ✓   5 [desktop] › apps/tower/e2e/health-recovery/journeys.spec.ts:103:1 › a different-release Wall recovery reloads once (979ms)
+(node:7873) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   6 [mobile] › apps/tower/e2e/health-recovery/journeys.spec.ts:42:1 › System health shows an hourly job failure five days ago at 1440px (3.2s)
+  ✓   7 [mobile] › apps/tower/e2e/health-recovery/journeys.spec.ts:59:1 › same-release Wall recovery resumes reads in place after a headerless outage (2.3s)
+  ✓   8 [mobile] › apps/tower/e2e/health-recovery/journeys.spec.ts:90:3 › same-release recovery leaves the update prompt on /health (3.9s)
+  ✓   9 [mobile] › apps/tower/e2e/health-recovery/journeys.spec.ts:90:3 › same-release recovery leaves the update prompt on /wall/edit (3.6s)
+  ✓  10 [mobile] › apps/tower/e2e/health-recovery/journeys.spec.ts:103:1 › a different-release Wall recovery reloads once (977ms)
+
+  10 passed (38.5s)

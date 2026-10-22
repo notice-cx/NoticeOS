@@ -15,7 +15,7 @@
 import { owesNightlyReport } from "@noticeos/contract/reporting";
 import { isRetired } from "@shared/asset-setup";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
-import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
+import { sourceReadings, type ConnectionReads, type SourceReading } from "@shared/connection-status";
 import { isAmber } from "@shared/freshness";
 import type { CalendarReadState } from "@/lib/meetings";
 import {
@@ -128,6 +128,23 @@ function siteLabel(names: readonly string[]): string {
   return names.length === 1 ? names[0]! : `${names.length} sites`;
 }
 
+/** Failure onset is a stored transition, never the most recent retry or the
+ * last successful collection. A retained recovery closes an older failure. */
+export function sourceProblemSince(reading: SourceReading, connections: ConnectionReads, nowMs: number): string | null {
+  if (reading.kind === "overdue") return reading.site?.lastSuccessAt ?? reading.observedAt;
+  const failure = reading.site?.failure;
+  if (reading.kind !== "failing" || !failure) return null;
+  const events = (connections.events ?? []).filter(event => event.itemId === failure.id
+    && Number.isFinite(Date.parse(event.at)) && Date.parse(event.at) <= nowMs);
+  const success = Date.parse(failure.lastSuccessAt ?? "");
+  const closed = Math.max(
+    Number.isFinite(success) ? success : -Infinity,
+    ...events.filter(event => event.kind === "recovered").map(event => Date.parse(event.at)),
+  );
+  return events.filter(event => event.kind === "failed" && Date.parse(event.at) > closed)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0]?.at ?? null;
+}
+
 /** One failing source kind: the sites it fails on, and its oldest onset. */
 export interface FailingSource {
   assets: AssetCard[];
@@ -150,7 +167,7 @@ export function failingSources(
   for (const asset of assets) {
     for (const reading of sourceReadings(asset.id, asset.dataSources, connections, nowMs)) {
       if (reading.kind !== "failing" || reading.id === NIGHTLY_SLOT) continue;
-      const since = reading.site?.lastSuccessAt ?? reading.site?.failure?.lastAttemptAt ?? reading.observedAt;
+      const since = sourceProblemSince(reading, connections, nowMs);
       const entry = failing.get(reading.id) ?? { assets: [], since: null };
       entry.assets.push(asset);
       // The group is as old as its oldest onset.

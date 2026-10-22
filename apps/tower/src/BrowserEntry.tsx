@@ -39,7 +39,7 @@ export function BrowserEntry({ createEntry }: { createEntry: () => Entry }) {
   return entry ? <EntryContent entry={entry} /> : null;
 }
 function EntryContent({ entry }: { entry: Entry }) {
-  return <><AppUpdateNotice release={entry.appRelease} /><EntryView entry={entry} /></>;
+  return <><AppUpdateNotice release={entry.appRelease} onReadRecovery={() => { void entry.snapshot().runtime?.queries.invalidateQueries(); }} /><EntryView entry={entry} /></>;
 }
 const reloadPage = () => window.location.reload();
 const DISPLAY_RELOAD_KEY = 'noticeos:display-reload';
@@ -62,13 +62,19 @@ function allowDisplayReload(): boolean {
   }
 }
 
-export function AppUpdateNotice({ release, reload = reloadPage }: {
-  release: Entry['appRelease']; reload?: () => void;
+export function AppUpdateNotice({ release, reload = reloadPage, onReadRecovery }: {
+  release: Entry['appRelease']; reload?: () => void; onReadRecovery?: () => void;
 }) {
   const state = useSyncExternalStore(release.subscribe, release.snapshot, release.snapshot);
   const reloading = useRef(false);
+  const recoveryNotified = useRef(false);
   useEffect(() => {
     // Only the display route is disposable; /wall/edit and desk drafts stay open.
+    if (state === 'read-only') {
+      if (!recoveryNotified.current) { recoveryNotified.current = true; onReadRecovery?.(); }
+      return;
+    }
+    recoveryNotified.current = false;
     if (state === 'current' || window.location.pathname !== '/wall') return;
     let controller: AbortController | null = null;
     let closed = false;
@@ -79,15 +85,15 @@ export function AppUpdateNotice({ release, reload = reloadPage }: {
       const attempt = new AbortController();
       controller = attempt;
       const timeout = window.setTimeout(() => attempt.abort(), 10_000);
-      void release.displayReadyToReload(attempt.signal).then(ready => {
-        if (ready && !closed && !attempt.signal.aborted && !reloading.current && allowDisplayReload()) { reloading.current = true; reload(); }
+      void release.displayRecovery(attempt.signal).then(result => {
+        if (result === 'reload' && !closed && !attempt.signal.aborted && !reloading.current && allowDisplayReload()) { reloading.current = true; reload(); }
       }).catch(() => {}).finally(() => { window.clearTimeout(timeout); checking = false; });
     };
     if (state === 'changed') check();
     const interval = window.setInterval(check, 30_000);
     return () => { closed = true; window.clearInterval(interval); controller?.abort(); };
-  }, [state, release, reload]);
-  if (state === 'current') return null;
+  }, [state, release, reload, onReadRecovery]);
+  if (state === 'current' || state === 'read-only') return null;
   return <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl shadow-lg" data-app-update>
     <StatusBanner subject="app:release" lead={state === 'changed' ? 'NoticeOS updated' : 'App version unavailable'}>
       <a className="font-medium text-foreground underline underline-offset-4" href={window.location.href}

@@ -68,7 +68,7 @@ export function buildWorkflowHistory(records, traces, active, now, selectedId, d
         const at = Date.parse(record.at);
         if (!workflowId || !Number.isFinite(at) || at > now || at < now - 30 * 24 * HOUR)
             return [];
-        const id = `${workflowId}@${new Date(at).toISOString()}`;
+        const id = `${workflowId}@${record.trigger === 'manual' ? 'manual/' : ''}${new Date(at).toISOString()}`;
         const trace = byTrace.get(id);
         return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
                 finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',
@@ -84,6 +84,31 @@ export function buildWorkflowHistory(records, traces, active, now, selectedId, d
             runs.push(trace);
     }
     return summarizeWorkflowHistory(runs, active.flatMap(value => readTrace(value, definitions)), now, selectedId, definitions);
+}
+/** UTC calendar counts stay complete independently of the rich-detail cap.
+ * The first bucket may be partial; explicit coverage prevents treating it as
+ * a complete day. Unknown outcomes never turn into successful empty days. */
+export function workflowDailyHistory(records, now) {
+    const day = 24 * HOUR;
+    const from = now - 30 * day;
+    const firstDay = Math.floor(from / day) * day;
+    const buckets = Array.from({ length: 31 }, (_, index) => ({
+        at: new Date(firstDay + index * day).toISOString(), succeeded: 0, failed: 0, skipped: 0, unknown: 0, runId: null,
+    }));
+    let firstRunAt = null;
+    for (const run of [...records].sort((a, b) => b.startedAt.localeCompare(a.startedAt))) {
+        const at = Date.parse(run.startedAt);
+        if (!Number.isFinite(at) || at < from || at > now)
+            continue;
+        if (firstRunAt === null || run.startedAt < firstRunAt)
+            firstRunAt = run.startedAt;
+        const bucket = buckets[Math.floor((at - firstDay) / day)];
+        const outcome = run.state === 'succeeded' || run.state === 'failed' || run.state === 'skipped' ? run.state : 'unknown';
+        bucket[outcome]++;
+        if (bucket.runId === null || outcome === 'failed' && bucket.failed === 1)
+            bucket.runId = run.id;
+    }
+    return { timeZone: 'UTC', from: new Date(from).toISOString(), through: new Date(now).toISOString(), firstRunAt, buckets };
 }
 /** Callers validate their source and can replace bucket counts with complete
  * database aggregates when the retained detail page is deliberately bounded. */
@@ -104,7 +129,7 @@ export function summarizeWorkflowHistory(records, active, now, selectedId, defin
                 bucket.runId = run.id;
         }
         return { id: workflow.id, latest: own[0] ?? null, active: activeRuns.find((r) => r.workflowId === workflow.id) ?? null,
-            history, runs: own.slice(0, WORKFLOW_RECENT_RUN_LIMIT).map((run) => ({ ...run, steps: null })) };
+            history, dailyHistory: workflowDailyHistory([...own, ...activeRuns.filter(run => run.workflowId === workflow.id)], now), runs: own.slice(0, WORKFLOW_RECENT_RUN_LIMIT).map((run) => ({ ...run, steps: null })) };
     });
     return { workflows, selectedRun: selectedId ? runs.find((r) => r.id === selectedId) ?? activeRuns.find((r) => r.id === selectedId) ?? null : null };
 }

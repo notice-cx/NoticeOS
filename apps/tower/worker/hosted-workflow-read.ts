@@ -91,8 +91,8 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
       SELECT job_run_id,job,started_at,finished_at,outcome,row_number() OVER(PARTITION BY job ORDER BY started_at DESC,job_run_id DESC) AS position
       FROM noticeos.job_runs WHERE workspace_id=$1::uuid AND detail=$2 AND job=ANY($3::text[])
         AND started_at>=$4::timestamptz AND started_at<=$5::timestamptz AND finished_at>=started_at)
-      SELECT job_run_id::text,job,started_at,finished_at,outcome FROM ranked WHERE position<=30 ORDER BY started_at DESC,job_run_id DESC`,
-    [tx.workspaceId, MANUAL_RUN_DETAIL, WORKFLOW_DEFINITIONS.map(jobRunName), ...bounds]);
+      SELECT job_run_id::text,job,started_at,finished_at,outcome FROM ranked WHERE position<=30 OR ($6::text IS NOT NULL AND job_run_id::text=$6) ORDER BY started_at DESC,job_run_id DESC`,
+    [tx.workspaceId, MANUAL_RUN_DETAIL, WORKFLOW_DEFINITIONS.map(jobRunName), ...bounds, selected?.split('@manual/')[1] ?? null]);
     const definitions = WORKFLOW_DEFINITIONS.filter(definition => runtime?.registeredJobs?.includes(definition.id)
       || manual.some(row => row.job === jobRunName(definition)));
     const lanes = definitions.map(definition => definition.id);
@@ -107,8 +107,8 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
         a.state='succeeded' AND j.steps<>'{}'::jsonb AND NOT EXISTS
           (SELECT 1 FROM jsonb_each(j.steps) s WHERE s.value->>'state'<>'skipped') AS skipped
       FROM ranked a JOIN noticeos.hosted_job_occurrences j USING(workspace_id,lane,occurrence)
-      WHERE a.position<=30 ORDER BY a.started_at DESC,a.attempt DESC`,
-    [tx.workspaceId, lanes, ...bounds]);
+      WHERE a.position<=30 OR ($5::text IS NOT NULL AND a.lane || '@' || a.occurrence || '/' || a.attempt::text=$5) ORDER BY a.started_at DESC,a.attempt DESC`,
+    [tx.workspaceId, lanes, ...bounds, selected ?? null]);
     const manualRuns: WorkflowRun[] = manual.map(row => {
       const workflowId = definitions.find(definition => jobRunName(definition) === row.job)!.id;
       return { id: `${workflowId}@manual/${String(row.job_run_id)}`, workflowId, definitionVersion: null,
@@ -129,8 +129,12 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
       [tx.workspaceId, String(row.lane), String(row.occurrence), Number(row.attempt)]);
       if (detail[0]) view.selectedRun.steps = steps(detail[0].steps, Number(row.attempt));
     }
-    const firstHour = Math.floor(now / HOUR) * HOUR - 23 * HOUR;
-    const buckets = await tx.query(`SELECT a.lane,date_trunc('hour',a.started_at) AS hour,
+    const historyFrom = new Date(now - 30 * 24 * HOUR).toISOString();
+    const buckets = await tx.query(`SELECT a.lane,
+      min(a.started_at) AS first_run_at,
+      count(*) FILTER(WHERE a.state IN ('running','uncertain'))::int AS unknown,
+      coalesce(max(a.lane || '@' || a.occurrence || '/' || a.attempt::text) FILTER(WHERE a.state IN ('retryable','exhausted')),
+        max(a.lane || '@' || a.occurrence || '/' || a.attempt::text)) AS run_id,(date_trunc('hour',a.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AS hour,
       count(*) FILTER(WHERE a.state='succeeded' AND NOT
         (j.steps<>'{}'::jsonb AND NOT EXISTS(SELECT 1 FROM jsonb_each(j.steps) s WHERE s.value->>'state'<>'skipped')))::int AS succeeded,
       count(*) FILTER(WHERE a.state IN ('retryable','exhausted'))::int AS failed,
@@ -138,23 +142,44 @@ export async function handleHostedWorkflowRead(request: Request, store: Workspac
         AND NOT EXISTS(SELECT 1 FROM jsonb_each(j.steps) s WHERE s.value->>'state'<>'skipped')))::int AS skipped
       FROM noticeos.hosted_job_attempts a JOIN noticeos.hosted_job_occurrences j USING(workspace_id,lane,occurrence)
       WHERE a.workspace_id=$1::uuid AND a.lane=ANY($2::text[]) AND a.started_at>=$3::timestamptz
-        AND a.started_at<=$4::timestamptz GROUP BY a.lane,date_trunc('hour',a.started_at)`,
-    [tx.workspaceId, lanes, new Date(firstHour).toISOString(), new Date(now).toISOString()]);
-    const manualBuckets = await tx.query(`SELECT job,date_trunc('hour',started_at) AS hour,
+        AND a.started_at<=$4::timestamptz GROUP BY a.lane,(date_trunc('hour',a.started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`,
+    [tx.workspaceId, lanes, historyFrom, new Date(now).toISOString()]);
+    const manualBuckets = await tx.query(`SELECT job,
+      min(started_at) AS first_run_at,
+      coalesce(max(job_run_id::text) FILTER(WHERE outcome='failed'),max(job_run_id::text)) AS run_id,(date_trunc('hour',started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AS hour,
       count(*) FILTER(WHERE outcome='ran')::int AS succeeded,
       count(*) FILTER(WHERE outcome='failed')::int AS failed,
       count(*) FILTER(WHERE outcome='skipped')::int AS skipped
       FROM noticeos.job_runs WHERE workspace_id=$1::uuid AND detail=$2 AND job=ANY($3::text[])
         AND started_at>=$4::timestamptz AND started_at<=$5::timestamptz AND finished_at>=started_at
-      GROUP BY job,date_trunc('hour',started_at)`,
-    [tx.workspaceId, MANUAL_RUN_DETAIL, definitions.map(jobRunName), new Date(firstHour).toISOString(), new Date(now).toISOString()]);
-    for (const workflow of view.workflows) for (const bucket of workflow.history) {
-      const full = buckets.find(row => row.lane === workflow.id && Date.parse(String(row.hour)) === Date.parse(bucket.at));
+      GROUP BY job,(date_trunc('hour',started_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')`,
+    [tx.workspaceId, MANUAL_RUN_DETAIL, definitions.map(jobRunName), historyFrom, new Date(now).toISOString()]);
+    for (const workflow of view.workflows) {
+      const daily = workflow.dailyHistory!;
+      // Rich detail cannot establish the first execution or an older failure.
+      daily.firstRunAt = null;
+      for (const bucket of daily.buckets) Object.assign(bucket, { succeeded: 0, failed: 0, skipped: 0, unknown: 0, runId: null });
       const job = jobRunName(definitions.find(definition => definition.id === workflow.id)!);
-      const manualFull = manualBuckets.find(row => row.job === job && Date.parse(String(row.hour)) === Date.parse(bucket.at));
-      bucket.succeeded = Number(full?.succeeded ?? 0) + Number(manualFull?.succeeded ?? 0);
-      bucket.failed = Number(full?.failed ?? 0) + Number(manualFull?.failed ?? 0);
-      bucket.skipped = Number(full?.skipped ?? 0) + Number(manualFull?.skipped ?? 0);
+      const aggregates: Row[] = [
+        ...buckets.filter(row => row.lane === workflow.id),
+        ...manualBuckets.filter(row => row.job === job).map(row => ({ ...row, run_id: `${workflow.id}@manual/${String(row.run_id)}` })),
+      ];
+      for (const full of aggregates) {
+        const first = String(full.first_run_at);
+        if (daily.firstRunAt === null || Date.parse(first) < Date.parse(daily.firstRunAt)) daily.firstRunAt = first;
+        const dayAt = new Date(String(full.hour)).toISOString().slice(0, 10);
+        const bucket = daily.buckets.find(bucket => bucket.at.startsWith(dayAt));
+        if (!bucket) continue;
+        if (bucket.runId === null || Number(full.failed) > 0 && bucket.failed === 0) bucket.runId = String(full.run_id);
+        for (const outcome of ['succeeded', 'failed', 'skipped', 'unknown'] as const) bucket[outcome] += Number(full[outcome] ?? 0);
+      }
+      for (const bucket of workflow.history) {
+        const own = aggregates.filter(row => Date.parse(String(row.hour)) === Date.parse(bucket.at));
+        bucket.succeeded = own.reduce((sum, row) => sum + Number(row.succeeded), 0);
+        bucket.failed = own.reduce((sum, row) => sum + Number(row.failed), 0);
+        bucket.skipped = own.reduce((sum, row) => sum + Number(row.skipped), 0);
+        bucket.runId = String(own.find(row => Number(row.failed) > 0)?.run_id ?? own[0]?.run_id ?? '') || null;
+      }
     }
     return { ...summary, ...view, historyAvailable: true, observationsFresh: fresh, generatedAt: new Date(now).toISOString() };
   });

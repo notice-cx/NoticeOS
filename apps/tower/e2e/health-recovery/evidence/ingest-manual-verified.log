@@ -1,0 +1,9 @@
+ RUN  v4.1.9 /workspace/NoticeOS/workers/ingest
+
+Found a non-empty CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES variable for binding. Hyperdrive will connect to this database during local development.
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  00:22:47
+   Duration  12.97s (transform 3.81s, setup 9.27s, import 20ms, tests 891ms, environment 0ms)
+

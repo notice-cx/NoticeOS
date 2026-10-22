@@ -1,0 +1,11 @@
+✔ local complete daily counts survive rich-detail retention and resolve the old failed run (15.459942ms)
+✔ local manual failure links distinguish a simultaneous scheduled success (2.171675ms)
+✔ hosted daily counts and old failure links remain complete and workspace isolated (2210.835384ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2437.996329
