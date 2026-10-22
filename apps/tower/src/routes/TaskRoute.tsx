@@ -931,6 +931,8 @@ function Activity({
       // "Closed", or "Closed as Won't do" when nothing shipped; a duplicate names the other task.
       const closedAs = resolution === "done" ? "Closed"
         : `Closed as ${TASK_RESOLUTION_LABELS[resolution]}${task.duplicateOf ? ` of ${task.duplicateOf}` : ""}`;
+      const closedLabel = resolution === "done" || !task.duplicateOf ? closedAs
+        : <>Closed as {TASK_RESOLUTION_LABELS[resolution]} of <TaskIdLink id={task.duplicateOf} /></>;
       // The reason's sentence is the body; its commits and links are chips.
       const note = closeNote(task.closeReason, resolution, task.duplicateOf ?? null);
       const sentence = note ? evidenceParts(note).filter((part) => part.kind === "text").map((part) => part.text).join(" · ") : "";
@@ -939,7 +941,7 @@ function Activity({
         at: task.closedAt,
         kind: "closed",
         who: name ? { name, model: closer?.model ?? null } : null,
-        label: name ? <>{closedAs} by <b className="font-semibold">{name}</b>{closer?.model ? <span className="text-muted-foreground"> · {closer.model}</span> : null}</> : closedAs,
+        label: name ? <>{closedLabel} by <b className="font-semibold">{name}</b>{closer?.model ? <span className="text-muted-foreground"> · {closer.model}</span> : null}</> : closedLabel,
         said: name ? `${closedAs} by ${name}${closer?.model ? ` · ${closer.model}` : ""}` : closedAs,
         body: sentence ? <MarkdownText source={sentence} /> : undefined,
         evidence: note,
@@ -1469,6 +1471,7 @@ function ReadOnly({
   epicView: EpicView | null;
 }) {
   const parent = row?.parent ? project?.epics?.find((epic) => epic.id === row.parent) ?? null : null;
+  const taskHref = useTaskHref();
   return (
     <div className="flex flex-col gap-4" data-task-readonly>
       <div id={READ_ONLY_REASON_ID}>
@@ -1499,11 +1502,17 @@ function ReadOnly({
                   <dt className="text-muted-foreground">Parent</dt>
                   {parent ? (
                     <dd className="flex flex-col gap-1">
-                      <span>{parent.title}</span>
+                      <Link to={taskHref(parent.id)} className="self-start text-foreground underline-offset-4 hover:underline" data-task-parent={parent.id}>
+                        {parent.title}
+                      </Link>
                       {parent.total > 0 ? <EpicProgress closed={parent.closed} total={parent.total} /> : null}
                     </dd>
                   ) : (
-                    <dd className="font-mono text-xs">{row.parent}</dd>
+                    <dd>
+                      <Link to={taskHref(row.parent)} className="font-mono text-xs text-foreground underline underline-offset-4 hover:text-primary" data-task-parent={row.parent}>
+                        {row.parent}
+                      </Link>
+                    </dd>
                   )}
                 </>
               ) : null}
