@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Cron } from 'croner';
 import { InfoTooltip } from './InfoTooltip';
 import { cn } from '@/lib/utils';
+import { OUTCOME_WORDS } from '@/lib/agents-week';
 import { WORKFLOW_STATE_LABEL, type WorkflowState, type WorkflowBucket, type WorkflowDefinition, type WorkflowRun } from '@shared/workflows';
 import { formatClock, formatNextRun, utcRunReference, localTimezoneLabel } from '@shared/scheduled-jobs';
 import type { WorkflowStepOutput, WorkflowOutputValue } from '@noticeos/contract';
@@ -111,6 +112,7 @@ export function WorkflowStages({ definition, run, fresh = true }: { definition: 
 function outputValue(field: WorkflowOutputValue): string {
   if (typeof field.value === 'boolean') return field.value ? 'Yes' : 'No';
   if (typeof field.value === 'number') return new Intl.NumberFormat('en', field.unit === 'USD' ? { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 } : { maximumFractionDigits: 6 }).format(field.value);
+  if (field.key === 'verdict' && Object.hasOwn(OUTCOME_WORDS, field.value)) return OUTCOME_WORDS[field.value as keyof typeof OUTCOME_WORDS];
   return field.value;
 }
 

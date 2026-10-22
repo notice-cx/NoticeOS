@@ -81,3 +81,16 @@ test('records output without changing returns and isolates projection failures',
   assert.equal(trace.steps[1].state, 'succeeded');
   assert.equal(trace.steps[1].output, undefined);
 });
+
+test('supported verdicts remain stored codes and unsupported verdicts stay excluded', () => {
+  for (const verdict of ['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable']) {
+    const output = captureWorkflowOutput({ outcome: verdict, closed: [{ id: 'window-1', outcome: verdict }] });
+    assert.ok(isWorkflowStepOutput(output));
+    assert.equal(output.fields.find(field => field.key === 'verdict').value, verdict);
+    assert.equal(output.items[0].fields.find(field => field.key === 'verdict').value, verdict);
+    const invalid = structuredClone(output);
+    invalid.fields[0].value = 'future-verdict';
+    assert.equal(isWorkflowStepOutput(invalid), false);
+  }
+  assert.equal(captureWorkflowOutput({ outcome: 'future-verdict' }), undefined);
+});
