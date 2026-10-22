@@ -137,7 +137,7 @@ import { handleSignalCollect } from './routes/signal-collect.js';
 import { handleWatchReadbacks } from './routes/watch-readbacks.js';
 import { handleWatchWindows, writeWatchWindow } from './routes/watch-windows.js';
 import { json } from './responses.js';
-import { runGa4Realtime } from './ga4-realtime.js';
+import { readGa4Realtime } from './ga4-realtime.js';
 import { calendarUpcoming as readCalendarUpcoming } from './calendar.js';
 import { readWatchQueryHistory } from './watch-windows.js';
 // The cron dispatch table and cron constants are not here: workerd requires
@@ -289,10 +289,10 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
   async ga4Realtime(proof?: Request): Promise<Ga4RealtimePayload> {
     if (workspaceProfile(this.env) !== 'standalone') {
       return withLiveProviderReadEntry(this.env, 'ga4Realtime', proof,
-        call => call.withStore(this.ctx, store => runGa4Realtime({ ...this.env, STORE: store })));
+        call => call.withStore(this.ctx, store => readGa4Realtime({ ...this.env, STORE: store })));
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
-    return withCallStore(this.env, this.ctx, env => runGa4Realtime(env));
+    return withCallStore(this.env, this.ctx, env => readGa4Realtime(env));
   }
 
   /**

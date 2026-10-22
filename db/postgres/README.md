@@ -539,6 +539,7 @@ by column; retention and maintenance privileges are checked separately.
 | `notifications` | append-only | Append-only; the unique key is the dedupe. |
 | `person_preferences` | append-only | Append-only; each save of a person's own preference is a new row, the newest per person and name is the current value, and a reset saves the default. |
 | `pulses` | append-only | A retry is a new revision. |
+| `realtime_traffic_readings` | append-only | Append-only realtime readings; overlapping minutes use the newest provider observation. |
 | `reclamation_targets` | insert; update only status, status_at, outcome_note, last_verified_at, updated_at | What the research found is fixed; the funnel status moves. |
 | `research_log` | append-only | Append-only. |
 | `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per asset, source, account, day and item is current. |

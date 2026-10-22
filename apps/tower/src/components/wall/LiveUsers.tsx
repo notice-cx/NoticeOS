@@ -2,7 +2,7 @@ import type { Ga4RealtimeAsset } from "@noticeos/contract";
 import { ClockAlert } from "lucide-react";
 import { useState } from "react";
 import { ageMs, formatAge } from "@shared/freshness";
-import { liveTrafficCardIssue } from "@shared/live-traffic-health";
+import { liveTrafficCardIssue, liveTrafficIsRecent } from "@shared/live-traffic-health";
 import type { AssetCard } from "@shared/wall";
 import { MinutePulse, type MinutePulseSize } from "@/components/surface/MinutePulse";
 import { formatInt } from "@/lib/format";
@@ -17,9 +17,8 @@ import { useTweenedNumber } from "@/lib/use-tweened-number";
 //   fresh     the reading as it is;
 //   stale     older than three minutes (`liveTrafficCardIssue`): the figures
 //             and the pulse drop to neutral ink beside a clock and the age;
-//   failed    the last read was refused: the last pulse this cell drew stays,
-//             dimmed the same way with its age — the failure's label is the
-//             clock's name;
+//   failed    keep the last good numbers and pulse; show age only once the
+//             retained observation is older than three minutes;
 //   none      no GA4 on the site, or no reading yet: a dash.
 
 type Reading = Extract<Ga4RealtimeAsset, { status: "success" }>;
@@ -76,7 +75,9 @@ export function LiveUsers({ asset, snapshot, reconnecting, nowMs, cell = true, f
       </span>
     );
   }
-  const dimmed = state !== "fresh";
+  // Polling, an in-progress response and a transient failure keep the last
+  // usable figures in place. Only genuinely old evidence changes the display.
+  const dimmed = !liveTrafficIsRecent(shown.observedAt, nowMs);
   const pulse = size ?? (face === "text-wall-hero-sm" ? "roomy" : "row");
   // The words beside a figure: a compact row's are the Wall's smallest step.
   const unit = pulse === "row" ? "text-wall-micro" : "text-wall-body";

@@ -2126,46 +2126,46 @@ contain zero changed observations.
 
 ### GA4 realtime RPC
 
-The Tower's active-user glance is an on-demand path, not another scheduled
-collector. `IngestWorker.ga4Realtime()` is callable only through Tower's private
-Service Binding. It parses the same account-centric
-`GOOGLE_SIGNAL_ACCOUNTS`, reuses each read-only Google access token for at most
-50 minutes, and makes these bounded reads per configured property
-(`src/ga4-realtime.ts`):
+The **Realtime traffic** job collects every configured GA4 property once a
+minute, whether a Wall is open or closed. It uses the saved Google connection
+(service account or sign-in), reuses access tokens for at most 50 minutes, and
+makes two `runRealtimeReport` calls: one for the distinct 0–4 and 0–29 minute
+windows, and one for `activeUsers` grouped by `minutesAgo`. It makes no hourly
+Core reporting request.
 
-- two `runRealtimeReport` requests: one with the overlapping 0–29-minute and
-  0–4-minute windows, and one grouped by `minutesAgo` over the last 30 minutes
-  (the Wall's minute pulse, placed on the clock by `ga4MinuteBuckets`: a minute
-  with no row is 0, a minute the reading did not cover is `null`). The pair is
-  one reading, shared by every open display for one minute;
-- one Core `runReport` grouped by `dateHour` over `yesterday…today` and
-  `8daysAgo…6daysAgo`, cached for 15 minutes and re-bucketed from the property's
-  reporting time zone into `OS_TIME_ZONE`, so every property's today-line
-  shares one x-axis. Each row converts with the zone in effect on its own date,
-  read from the `reporting-time-zone-changed` annotations, because GA4 does not
-  reprocess history.
+`realtime_traffic_readings` retains each successful reading, with its workspace,
+asset, property, original provider-read timestamp, minute counts and Realtime
+quota. Shared cache hits retain that timestamp and do not append a duplicate.
+The collector refuses minute placement when the request crosses a minute
+boundary; the window counters can still be retained. Failed minute reports
+remain absent. A successful minute report with an omitted minute records zero.
 
-The method returns normalized values/error codes only; it never exposes a
-credential, raw provider body, or access token.
+`IngestWorker.ga4Realtime()` reads these saved observations through the private
+Service Binding. Browser polling never contacts Google. It returns normalized
+counts, the 30-minute pulse, and `realtimeDay`: today's actual local-calendar
+minutes and the same weekday last week on the saved installation clock. Later
+observations replace overlapping minute values in the read model, including
+downward corrections; stored observations remain immutable. Property remapping
+selects a different history, and a saved timezone change rebuckets UTC evidence.
+Different-length daylight-saving comparison days have no prior line.
 
-This path writes no `signal_runs`, observations, Postgres rows, or R2 objects.
-Realtime values are current display state and must not become anomaly evidence.
-Account/property failures are isolated. An empty valid window report becomes
-two legitimate zeroes; HTTP, timeout, authentication, and malformed-response
-failures become null-valued errors so the UI cannot report a false zero. The
-hourly response always preserves the prior day's 24-hour shape, but today
-becomes null after the newest reported non-zero hour so provider-supplied future
-zero rows cannot look like a forecast. The Tower polls every 30 seconds, stops
-in a hidden tab, and keeps its last-good snapshot during a later failure.
+The Wall draws completed minutes only, with recent minutes in lower contrast.
+Missing minutes break the line. The API can recover only the latest 30 minutes;
+a longer collection outage leaves a gap. Per-minute users are not additive
+hourly or daily unique users, and this series supplies no anomaly verdict.
+The daily reports remain the source of daily totals.
 
-Every provider request sets `returnPropertyQuota`, and each response's
-`propertyQuota` is parsed onto the successful asset result as
-`quota: { realtime, core }` — `tokensPerDay` and `tokensPerHour` per pool, the
-two budgets that bound this poll rate. Realtime and Core requests draw on
-**separate** GA4 budgets, so the two are reported separately and never summed.
-A bucket the provider omits or reports unusably stays `null`; nothing is read
-as a reassuring zero. The field is optional on the shared payload type and the
-Tower may ignore it.
+The Tower polls saved readings every 30 seconds and stops in a hidden tab.
+Normal refreshes keep the figures and five-minute label visible; only a reading
+older than three minutes gains an age indicator. Account and property failures
+are isolated and recorded in integration health. Pausing the saved realtime
+schedule stops collection without making a browser poll restart it.
+
+Every provider call requests `returnPropertyQuota`. Realtime and Core budgets
+remain separate. The realtime collector reduces its cadence to five minutes,
+fifteen minutes or one hour as remaining headroom falls; the next attempt is
+reported with the retained reading. Daily headroom is reconsidered at the
+provider's midnight-PST reset. No browser independently retries Google.
 
 ## GA4 quota — what the heavy lanes are spending
 
@@ -2183,7 +2183,8 @@ outage or a bad credential.
 |---|---|
 | `providerQuota` on the archived envelope in R2 | 12:15 signal dumps |
 | A `ga4_quota` structured log line, every run | both |
-| A `ga4-quota-pressure` flag on the asset, while a bucket is under 20% | both |
+| A `ga4-quota-pressure` flag while a Core reserve is low | both |
+| A separate `ga4-realtime-quota-pressure` flag while a Realtime reserve is low | realtime collector |
 | `error_code = ga4_quota_exhausted` on the manifest / run row | both |
 
 - **The quota is lifted out of the archived response body**, into the envelope
@@ -2204,10 +2205,13 @@ outage or a bad credential.
   that reported no usable quota resolves **nothing** — not asking is never
   evidence that the pressure lifted.
 
-The 20% line is a working margin, not a cliff: at 15-minute cadence it leaves
-roughly three hours of collection to act in. This module never sums buckets,
-estimates a burn rate, or predicts exhaustion — it reports what the provider
-said about the call we just made.
+Warnings show absolute remaining tokens. The response's `consumed` is the
+latest request's cost, not cumulative usage, so adding it to `remaining` does
+not establish the bucket's capacity. The reserves are 40,000 daily tokens and
+8,000 hourly tokens, one fifth of Google's documented standard-property
+allowances. They are absolute reserves for 360 properties too, without a
+percentage claim. A missing remaining value stays unknown. An existing warning
+resolves only after its previously low buckets are measured above their reserves.
 
 ## Analysis-grade provider signal dumps
 
@@ -2682,7 +2686,7 @@ feed is reported as `{"event":"calendar_feed_failed","calendar":"<label>","code"
 never copied into ours, because workerd puts the request URL inside some
 transport errors.
 
-Like [`ga4Realtime()`](#ga4-realtime-rpc) this path writes **nothing** — no
+This calendar display path writes **nothing** — no
 `signal_runs`, no observation, no flag, no R2 object. A meeting that was on the
 calendar this morning and is gone this afternoon is not an anomaly, and the store
 must never be asked to remember it as one.

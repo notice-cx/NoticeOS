@@ -115,6 +115,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     collectNow: [{ provider: 'posthog', step: 'product' }], connections: ['posthog'] },
   { id: 'dataforseo', surface: 'system', label: 'Search rankings and backlinks', group: 'Business signals', cron: '45 12 * * 1', source: 'DataForSEO',
     collectNow: [{ provider: 'dataforseo', step: 'search', metered: true }], connections: ['dataforseo'] },
+  { id: 'ga4-realtime', surface: 'system', label: 'Realtime traffic', group: 'Business signals', cron: '* * * * *', source: 'Google Analytics', connections: ['google'] },
   { id: 'counters', surface: 'system', label: 'Live traffic and counters', group: 'Business signals', cron: '*/15 * * * *',
     collectNow: [{ provider: 'google', step: 'google' }] },
   { id: 'beads-hub', surface: 'system', label: 'Task service health', group: 'System maintenance', cron: '*/15 * * * *', local: true },

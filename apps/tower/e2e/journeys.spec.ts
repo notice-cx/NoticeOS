@@ -3878,3 +3878,47 @@ for (const theme of ['dark', 'light'] as const) {
     } finally { finish(); }
   });
 }
+
+test('Wall realtime history refresh keeps live numbers and layout stable', async ({ page }) => {
+  await page.clock.install({ time: new Date(WALL_FIXTURE_NOW) });
+  await wallScene(page, 'six');
+  const realtime = wallFixtureRealtime(20, 'six');
+  const date = WALL_FIXTURE_NOW.slice(0, 10);
+  const start = Date.parse(`${date}T00:00:00Z`);
+  const minute = Math.floor((Date.parse(WALL_FIXTURE_NOW) - start) / 60_000);
+  const payload = { ...realtime, assets: realtime.assets.map(asset => asset.status !== 'success' ? asset : ({ ...asset,
+    observedAt: WALL_FIXTURE_NOW, timeZone: 'UTC', hourlyActiveUsers: null, hourlyErrorCode: 'ga4_realtime_history', realtimeDay: {
+      date, timeZone: 'UTC', startAt: new Date(start).toISOString(), endAt: new Date(start + 86_400_000).toISOString(),
+      minutes: Array.from({ length: 1440 }, (_, index) => index < minute ? 3 + index % 9 : null),
+      sameDayLastWeek: Array.from({ length: 1440 }, (_, index) => 2 + index % 7),
+    },
+  })) };
+  let requests = 0;
+  let complete: (() => Promise<void>) | undefined;
+  await page.route('**/api/ga4/realtime', async route => {
+    requests += 1;
+    if (requests === 1) return route.fulfill({ json: payload });
+    await new Promise<void>(resolve => {
+      complete = async () => { await route.fulfill({ json: payload }); resolve(); };
+    });
+  });
+  await page.goto('/wall');
+  const asset = payload.assets.find(reading => reading.status === 'success')!.asset;
+  const live = page.locator(`[data-site-row="${asset}"] [data-live]`);
+  await expect(live.locator('[data-live-count]')).toBeVisible();
+  await expect(page.locator('[data-realtime-today]').first()).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const before = await live.locator('[data-live-count]').boundingBox();
+  const label = await live.locator('[data-live-recent-count]').textContent();
+  const number = await live.locator('[data-live-count]').textContent();
+  try {
+    await page.clock.fastForward(30_000);
+    await expect.poll(() => requests).toBe(2);
+    await expect(live.locator('[data-live-age]')).toHaveCount(0);
+    await expect(live.locator('[data-live-count]')).toHaveText(number!);
+    await expect(live.locator('[data-live-recent-count]')).toHaveText(label!);
+    expect(await live.locator('[data-live-count]').boundingBox()).toEqual(before);
+  } finally { if (complete) await complete(); }
+  await expect(live.locator('[data-live-age]')).toHaveCount(0);
+  expect(await live.locator('[data-live-count]').boundingBox()).toEqual(before);
+});

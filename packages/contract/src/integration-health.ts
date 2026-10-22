@@ -29,10 +29,7 @@ export const INTEGRATION_MONITORS = {
     monitor('ga4-daily', 'Analytics daily reports', ['ga4'], 'google-signals', 'property', 'scheduled', 'signal_runs', 'Review the property connection or the failed collection.'),
     // Saved Google collection schedule.
     monitor('gsc-daily', 'Search Console daily reports', ['gsc'], 'google-signals', 'property', 'scheduled', 'signal_runs', 'Review the Search Console property connection.'),
-    // Shared 30-second reads while a display is visible; refusal cooldown applies.
-    monitor('ga4-realtime', 'Live active users', ['ga4'], 'ga4-realtime', 'property', 'demand', 'live-only', 'Wait for the displayed retry, or review Google access when requested.'),
-    // Shared 15-minute reads while a display is visible; refusal cooldown applies.
-    monitor('ga4-hourly', 'Hourly traffic comparison', ['ga4'], 'ga4-realtime', 'property', 'demand', 'live-only', 'Review the hourly report failure; live counts can keep working.'),
+    monitor('ga4-realtime', 'Realtime traffic', ['ga4'], 'ga4-realtime', 'property', 'scheduled', 'live-only', 'Review Google access or the realtime collection schedule.'),
     // One obligation per due family and report date from the collector plan.
     monitor('ga4-archive', 'Analytics report archive', ['ga4'], 'signal-dumps', 'family', 'scheduled', 'signal_dump_runs', 'Review the failed report family and its quota or access guidance.'),
     // One obligation per due family and report date from the collector plan.

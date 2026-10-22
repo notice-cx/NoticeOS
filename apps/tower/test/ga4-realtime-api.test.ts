@@ -158,3 +158,23 @@ describe("GA4 realtime browser contract", () => {
     await expect(fetchGa4Realtime()).rejects.toThrow("invalid payload");
   });
 });
+
+describe('retained realtime history validation', () => {
+  const day = { date: '2026-09-11', timeZone: 'UTC', startAt: '2026-09-11T00:00:00Z', endAt: '2026-09-12T00:00:00Z',
+    minutes: Array<number | null>(1440).fill(null), sameDayLastWeek: null };
+  const response = (realtimeDay: unknown) => vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+    generatedAt: '2026-09-11T12:00:00Z', assets: [{ asset: 'example.com', status: 'success', activeUsers5m: 7, activeUsers30m: 26,
+      hourlyActiveUsers: null, hourlyErrorCode: 'ga4_realtime_history', observedAt: '2026-09-11T12:00:00Z', errorCode: null, realtimeDay }],
+  })));
+  it('accepts a retained day with genuine zeros and gaps', async () => {
+    response({ ...day, minutes: [0, ...day.minutes.slice(1)] });
+    await expect(fetchGa4Realtime()).resolves.toMatchObject({ assets: [{ realtimeDay: { minutes: [0, ...day.minutes.slice(1)] } }] });
+  });
+  it.each([
+    { ...day, minutes: [3] }, { ...day, minutes: [-1, ...day.minutes.slice(1)] },
+    { ...day, sameDayLastWeek: [3] }, { ...day, startAt: 'invalid' }, { ...day, endAt: '2026-09-13T00:00:00Z' },
+  ])('rejects malformed minute history', async invalid => {
+    response(invalid);
+    await expect(fetchGa4Realtime()).rejects.toThrow('invalid payload');
+  });
+});

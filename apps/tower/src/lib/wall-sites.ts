@@ -4,7 +4,7 @@
 // each read from data every site already carries; a tile whose data this site
 // does not have is `null`, and the region leaves it out.
 
-import type { Ga4RealtimeAsset } from "@noticeos/contract";
+import type { Ga4RealtimeAsset, Ga4RealtimeDay } from "@noticeos/contract";
 import { revenueCalendarDate, type DailyRevenueSummary } from "@shared/daily-revenue";
 import type { RevenueProjection } from "@shared/revenue-projection";
 import {
@@ -17,6 +17,8 @@ import {
 import { intradayUsersPace, type IntradayUsersPace } from "@/lib/intraday-pace";
 import { performanceTone, type PerformanceTone } from "@/components/DeltaChip";
 import { rollingDailyAverage, rollingWeeklyChange, shiftDate, spannedTimeZoneChange } from "@/lib/series";
+
+import { currentRealtimeDay } from "@/lib/realtime-day";
 
 export type HourlyActiveUsers = NonNullable<Extract<Ga4RealtimeAsset, { status: "success" }>["hourlyActiveUsers"]>;
 
@@ -123,7 +125,8 @@ export function revenueByDay(
  * snapshot, the pace, and today's users when the daily series has today. */
 export interface TodayTile {
   snapshot: Extract<Ga4RealtimeAsset, { status: "success" }>;
-  hourly: HourlyActiveUsers;
+  hourly: HourlyActiveUsers | null;
+  realtimeDay?: Ga4RealtimeDay;
   pace: IntradayUsersPace | null;
   /** Today's distinct users from the daily series, never a sum of hours,
    * which counts a person once per hour. */
@@ -196,6 +199,8 @@ export function latestFinishedUsers(trend: SignalTrend): SeriesPoint | null {
 }
 
 export function todayTile(asset: AssetCard, snapshot: Ga4RealtimeAsset | undefined, nowMs: number): TodayTile | null {
+  const retained = currentRealtimeDay(snapshot, nowMs);
+  if (retained && snapshot?.status === "success") return { snapshot, hourly: null, pace: null, todayUsers: null, realtimeDay: retained };
   snapshot = currentHourlyReading(snapshot, nowMs) ?? undefined;
   if (snapshot?.status !== "success" || snapshot.hourlyActiveUsers === null) return null;
   const pace = intradayUsersPace(asset, snapshot);

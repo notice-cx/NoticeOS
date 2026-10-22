@@ -24,6 +24,7 @@ const workerSteps = {
     'signal-dumps': [action('archives', 'Archive traffic and search', 'Stores the available Google and Bing reporting archives.', 'collection'), action('search-recovery', 'Recover missed search intelligence', 'Re-collects reports an internet outage skipped.', 'collection')],
     posthog: [action('product', 'Archive product analytics', 'Stores each connected asset’s PostHog report families.', 'collection')],
     dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
+    'ga4-realtime': [action('traffic', 'Retain realtime traffic', 'Records per-minute activity and live user counts for connected properties.', 'collection')],
     counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
 };
 // What a local job's one stage does, where a hosted service runs it too and

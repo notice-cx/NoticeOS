@@ -1,7 +1,8 @@
-import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
+import type { Ga4RealtimeAsset, Ga4RealtimePayload, Ga4RealtimeDay } from "@noticeos/contract";
 import type { CSSProperties, ReactNode } from "react";
 import { Globe } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
+import { currentRealtimeDay, completedRealtimeMinutes } from "@/lib/realtime-day";
 import { clockHourNow, intradayUsersPace, paceWindowLabel, type IntradayUsersPace } from "@/lib/intraday-pace";
 import { DeltaChip, paceDirectionLabel, paceTone, performanceToneClass } from "@/components/DeltaChip";
 import { AgeBadge } from "@/components/AgeBadge";
@@ -161,7 +162,8 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
   const lastWeekday = lastWeekdayLabel(ga4Realtime, nowMs);
   const density = siteRowDensity(assets.length);
   const snapshotOf = (asset: AssetCard) => ga4Realtime?.assets.find((snapshot) => snapshot.asset === asset.id);
-  const hasDatedHistory = assets.some((asset) => !currentHourlyReading(snapshotOf(asset), nowMs) && latestFinishedUsers(asset.activeUsers) !== null);
+  const hasRealtimeHistory = assets.some(asset => currentRealtimeDay(snapshotOf(asset), nowMs) !== null);
+  const hasDatedHistory = assets.some((asset) => !currentRealtimeDay(snapshotOf(asset), nowMs) && !currentHourlyReading(snapshotOf(asset), nowMs) && latestFinishedUsers(asset.activeUsers) !== null);
 
   // A new installation: no headings over nothing. A TV has no controls, so
   // the way forward is the desk's Add a site, not a prompt here.
@@ -215,7 +217,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
           <span role="columnheader" className={`${eyebrow} whitespace-nowrap`}>{LIVE_HEADING}</span>
           {/* Scaled, today's column may narrow under its heading, which then
               takes two lines. */}
-          <span role="columnheader" className={`${eyebrow} whitespace-nowrap scaled:whitespace-normal scaled:text-balance`}>{hasDatedHistory ? "Today / latest day" : `Today vs ${lastWeekday}`}</span>
+          <span role="columnheader" className={`${eyebrow} whitespace-nowrap scaled:whitespace-normal scaled:text-balance`}>{hasDatedHistory ? "Today / latest day" : hasRealtimeHistory ? "Today · users/min" : `Today vs ${lastWeekday}`}</span>
           <span role="columnheader" className={eyebrow}>4 weeks</span>
         </div>
         {assets.map((asset) => (
@@ -302,7 +304,7 @@ function SiteRow({
     <div role="row" className={row} data-site-row={asset.id} data-site-density={size}>
       {name}
       <LiveUsers asset={asset} snapshot={snapshot} reconnecting={reconnecting} nowMs={nowMs} face={style.live} size={size === "compact" ? "row" : "roomy"} />
-      <TodayCell asset={asset} snapshot={current ?? undefined} pace={pace} size={size} totals={hasTotals} nowMs={nowMs} />
+      <TodayCell asset={asset} snapshot={currentRealtimeDay(snapshot, nowMs) ? snapshot : current ?? undefined} pace={pace} size={size} totals={hasTotals} nowMs={nowMs} />
       <TrendCell asset={asset} size={size} totals={hasTotals} />
       {!inlineTotals && <PulseTotals asset={asset} choices={pulseMetrics} nowMs={nowMs} cell />}
     </div>
@@ -374,10 +376,19 @@ function TodayCell({
   totals: boolean;
   nowMs: number;
 }) {
+  const retained = currentRealtimeDay(snapshot, nowMs);
+  const style = rowStyle(size, totals);
+  if (retained) return (
+    <span role="cell" className={cn(CHART_CELL, "pb-5")} data-site-today data-realtime-day={retained.date}>
+      <span className={cn("text-traffic block", style.charts === "filling" ? FILLING_CHART : style.today)} data-site-chart={style.charts}>
+        <RealtimeTodayChart day={retained} nowMs={nowMs} weight={style.weight} />
+      </span>
+      <span className="absolute bottom-0 right-0 text-wall-micro text-muted-foreground" data-realtime-unit>users/min{retained.sameDayLastWeek?.some(value => value !== null) ? ` · vs last ${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: retained.timeZone }).format(new Date(nowMs))}` : ""}</span>
+    </span>
+  );
   const hourly = snapshot?.status === "success" ? snapshot.hourlyActiveUsers : null;
   const nowHour = snapshot?.status === "success" ? clockHourNow(nowMs, snapshot.timeZone) : null;
   const tone = paceStep(pace);
-  const style = rowStyle(size, totals);
   const saved = hourly === null ? latestFinishedUsers(asset.activeUsers) : null;
   if (saved) {
     return (
@@ -412,6 +423,33 @@ function TodayCell({
       {chart(style.charts === "filling" ? FILLING_CHART : style.today)}
       {pace ? <PaceWindow pace={pace} className="absolute bottom-0 right-0" /> : null}
     </span>
+  );
+}
+
+/** Retained realtime counts share one scale with their own prior-week
+ * observations. The metric stays per minute; no sum claims unique visitors. */
+function RealtimeTodayChart({ day, nowMs, weight }: { day: Ga4RealtimeDay; nowMs: number; weight: ChartWeight }) {
+  const style = WEIGHT[weight];
+  const minutes = completedRealtimeMinutes(day, nowMs);
+  const prior = day.sameDayLastWeek;
+  const all = [...minutes, ...(prior ?? [])].filter((value): value is number => value !== null);
+  const max = Math.max(1, ...all);
+  const at = (index: number, value: number): ChartPoint => ({ x: 20 + index / Math.max(1, minutes.length - 1) * 960, y: 100 - value / max * 86 });
+  const runs = (values: (number | null)[]) => readingRuns(values).map(run => run.map(point => at(point.index, point.value)));
+  const today = runs(minutes);
+  const provisionalFrom = Math.max(0, Math.floor((nowMs - Date.parse(day.startAt)) / 60_000) - 3);
+  const settled = runs(minutes.map((value, index) => index < provisionalFrom ? value : null));
+  const recent = runs(minutes.map((value, index) => index >= provisionalFrom - 1 ? value : null));
+  const last = today.at(-1)?.at(-1);
+  const lastIndex = minutes.findLastIndex(value => value !== null);
+  const fresh = lastIndex >= 0 && nowMs - (Date.parse(day.startAt) + lastIndex * 60_000) < 180_000;
+  return (
+    <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" role="img"
+      aria-label={`Active users per minute today, ${day.timeZone}; missing minutes are gaps; recent minutes may change${prior?.some(value => value !== null) ? "; dashed line is the same weekday last week" : ""}`}>
+      {prior ? <ChartLine runs={runs(prior)} kind="ghost" width={style.ghost} data-realtime-prior /> : null}
+      <g data-realtime-today><ChartLine runs={settled} width={style.line} /><ChartLine runs={recent} width={style.line} className="opacity-55" data-realtime-provisional /></g>
+      {last ? <ChartDot at={last} size={style.dot} halo={fresh} /> : null}
+    </svg>
   );
 }
 
@@ -758,6 +796,13 @@ function TodayFocusTile({
   lastWeekday: string;
 }) {
   const tone = paceStep(today.pace);
+  if (today.realtimeDay) return (
+    <FocusTile kind="today" label="Today · users/min" weight="sites:flex-[5_1_0%]"
+      figures={<LiveUsers asset={asset} snapshot={today.snapshot} reconnecting={reconnecting} nowMs={nowMs} cell={false} face="text-wall-hero-sm" size="focus" />}
+      axis={<><span>12 AM</span><span>{today.realtimeDay.timeZone}</span><span>12 AM</span></>}>
+      <span className="text-traffic absolute inset-0"><RealtimeTodayChart day={today.realtimeDay} nowMs={nowMs} weight="focus" /></span>
+    </FocusTile>
+  );
   return (
     <FocusTile
       kind="today"
@@ -794,7 +839,7 @@ function TodayFocusTile({
       }
     >
       <span className={`${performanceToneClass(tone)} absolute inset-0`} data-tone={tone}>
-        <TodayVsLastWeek hourly={today.hourly} weight="focus" nowHour={clockHourNow(nowMs, today.snapshot.timeZone)} />
+        {today.hourly ? <TodayVsLastWeek hourly={today.hourly} weight="focus" nowHour={clockHourNow(nowMs, today.snapshot.timeZone)} /> : null}
       </span>
     </FocusTile>
   );
