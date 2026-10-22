@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from 'node:fs';
+import { testFixtureRoot } from './test-fixture-root.mjs';
 import path from 'node:path';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
@@ -17,7 +17,7 @@ import { REPO_ROOT } from './test-config-isolation.mjs';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const origin = 'https://demo.example.com', release = 'a'.repeat(64);
 function fixture(input = { seed: 'gateway-fixture', cutoff: '2026-10-04T00:00:00.000Z' }) {
-  const root = mkdtempSync(path.join(tmpdir(), 'demo-gateway-'));
+  const root = testFixtureRoot('demo-gateway-');
   for (const folder of ['client', 'tower', 'ingest', 'worker']) mkdirSync(path.join(root, folder));
   const bodies = { 'client/index.html': '<link rel="canonical" href="__NOTICEOS_PUBLIC_ORIGIN__/"><main>Compiled preview</main>', 'client/brand.zip': 'synthetic-design-system',
     'tower/main.js': `export default {async fetch(request,env){if(new URL(request.url).pathname==='/api/outside'){const refused=await fetch('https://example.invalid/');return new Response('denied:'+refused.status)}return new Response(await env.INGEST.echo(request.url))}}`,
