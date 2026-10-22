@@ -112,16 +112,15 @@ describe("alertNormal — a reading against its rule's own normal", () => {
     expect(alertNormal(item({ ruleId: "ingest-freshness", ruleInputs: { state: "never-reported", thresholdHours: 48 } }))).toBeNull();
   });
 
-  it("reads a late report against the hours the rule allows, and a quota against the share it fires below", () => {
+  it("reads a late report against the hours the rule allows, and quota against its token reserve", () => {
     expect(alertNormal(item({ ruleId: "ingest-freshness", ruleInputs: { state: "stale", ageHours: 62, thresholdHours: 48 } })))
       .toMatchObject({ value: 62, low: 0, high: 48, bad: "above" });
     const quota = alertNormal(item({
       ruleId: "ga4-quota-pressure",
-      ruleInputs: { pressured: [{ share: 0.3 }, { share: 0.12 }], threshold_ratio: 0.2 },
+      ruleInputs: { pressured: [{ remaining: 30_000, threshold: 40_000 }, { remaining: 3_000, threshold: 8_000 }] },
     }));
-    expect(quota).toMatchObject({ low: 20, high: 100, bad: "below" });
-    expect(quota!.value).toBeCloseTo(12);
-    expect(quota!.format!(12)).toBe("12%");
+    expect(quota).toMatchObject({ low: 8_000, high: 40_000, bad: "below" });
+    expect(quota!.value).toBe(3_000);
   });
 });
 

@@ -833,6 +833,7 @@ function egressDown(facts: AlertFacts): AlertLanguage {
 const OWED_COLLECTOR_LABELS: Record<string, string> = {
   pull: "nightly reports",
   hygiene: "search checks",
+  "ga4-realtime": "Realtime traffic",
   "google-signals": "Google",
   "bing-signals": "Bing",
   "signal-dumps": "traffic archives",
@@ -1113,29 +1114,28 @@ function ga4Quota(facts: AlertFacts): AlertLanguage {
     ? i.pressured.map(record).filter((bucket): bucket is Record<string, unknown> => bucket !== null)
     : [];
   const tightest = buckets.reduce<Record<string, unknown> | null>(
-    (low, bucket) => (low === null || (num(bucket.share) ?? 1) < (num(low.share) ?? 1) ? bucket : low),
+    (low, bucket) => (low === null || (num(bucket.remaining) ?? Infinity) / (num(bucket.threshold) ?? 1) < (num(low.remaining) ?? Infinity) / (num(low.threshold) ?? 1) ? bucket : low),
     null,
   );
-  const share = num(tightest?.share);
   const remaining = num(tightest?.remaining);
-  const consumed = num(tightest?.consumed);
+  const reserve = num(tightest?.threshold);
   const period = str(tightest?.bucket) === "tokensPerHour" ? "hourly" : "daily";
   const lane = str(i.lane);
   const property = str(i.propertyRef);
-  const threshold = num(i.threshold_ratio);
   const at = str(i.lastObservedAt);
 
   const evidence: AlertEvidence[] = [];
-  if (remaining !== null && consumed !== null) {
-    evidence.push({ polarity: "supporting", source: "Tokens left", detail: `${count(remaining)} of ${count(remaining + consumed)}`, at });
+  if (remaining !== null) {
+    evidence.push({ polarity: "supporting", source: "Tokens left", detail: count(remaining), at });
   }
-  if (threshold !== null) evidence.push({ polarity: "supporting", source: "Fires below", detail: percent(threshold), at: null });
+  if (reserve !== null) evidence.push({ polarity: "supporting", source: "Warns at", detail: `${count(reserve)} tokens`, at: null });
+  if (str(i.pool)) evidence.push({ polarity: "supporting", source: "Quota", detail: str(i.pool) === "realtime" ? "Realtime" : "Core", at });
   if (lane) evidence.push({ polarity: "supporting", source: "Spent by", detail: OWED_COLLECTOR_LABELS[lane] ?? lane, at: null });
   if (property) evidence.push({ polarity: "supporting", source: "GA4 property", detail: property, at: null });
 
-  if (share === null) return { headline: rawFallback(facts), evidence };
+  if (remaining === null) return { headline: rawFallback(facts), evidence };
   return {
-    headline: `GA4 ${period} quota low — ${percent(share)} left`,
+    headline: `GA4 ${period} quota low — ${count(remaining)} tokens left`,
     hint: "collections may fail until it refills",
     evidence,
   };
@@ -1156,6 +1156,7 @@ const TRANSLATORS: Record<string, (facts: AlertFacts) => AlertLanguage> = {
   "hygiene-page-structure": pageStructure,
   "hygiene-security-headers": securityHeaders,
   "ga4-quota-pressure": ga4Quota,
+  "ga4-realtime-quota-pressure": ga4Quota,
   "os-egress-down": egressDown,
   "watch-window-closed": watchWindowClosed,
 };

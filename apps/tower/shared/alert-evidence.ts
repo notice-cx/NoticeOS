@@ -119,10 +119,10 @@ export function deriveAlertEvidence(
     source = flag.ruleId === "os-egress-down" ? "OS connectivity check" : "Nightly collection check";
     cadence = flag.ruleId === "os-egress-down" ? CADENCE_HOURS.signals : CADENCE_HOURS.pulse;
     observed = inputs?.lastFailedAt; evaluated = inputs?.evaluatedAt;
-  } else if (flag.ruleId === "ga4-quota-pressure") {
+  } else if ((flag.ruleId === "ga4-quota-pressure" || flag.ruleId === "ga4-realtime-quota-pressure")) {
     source = "Provider quota";
     cadence = inputs?.lane === "google-signals" ? CADENCE_HOURS.signals
-      : inputs?.lane === "signal-dumps" ? CADENCE_HOURS.pulse : null;
+      : inputs?.lane === "signal-dumps" ? CADENCE_HOURS.pulse : inputs?.lane === "ga4-realtime" ? 1 / 60 : null;
     observed = inputs?.lastObservedAt; evaluated = observed;
   } else if (flag.ruleId === "ingest-freshness") {
     source = "Report freshness check"; cadence = CADENCE_HOURS.pulse;

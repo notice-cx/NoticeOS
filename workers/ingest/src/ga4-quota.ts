@@ -3,7 +3,7 @@
 // never answers "how close are we to the ceiling"; `returnPropertyQuota: true`
 // on the request body does. Not a meter of its own: it reports what the
 // provider said about the call just made, and raises one flag when the
-// remaining share of a bucket crosses a line.
+// remaining tokens cross a reserve.
 
 import type { Ga4PropertyQuota, Ga4QuotaStatus } from '@noticeos/contract';
 import { appendReadingToOpen, holdCondition, raiseAlertUnlessOpen, readOpenAlert, resolveOpen } from './alert-store.js';
@@ -22,16 +22,13 @@ export const GA4_QUOTA_RULE_ID = 'ga4-quota-pressure';
  */
 export const GA4_QUOTA_EXHAUSTED_CODE = 'ga4_quota_exhausted';
 
-/**
- * Below this share of a bucket still remaining, the lane raises the flag. A
- * working margin, not a cliff: at 15-minute cadence a property has roughly
- * three hours of collection left at 20% of a daily bucket. The flag exists to
- * be seen before the failures.
- */
-export const QUOTA_PRESSURE_RATIO = 0.2;
+/** Minimum token reserves, one fifth of Google's documented standard-property
+ * allowances. The response omits capacity; never infer it from request cost.
+ * These absolute reserves also apply to 360 without claiming a percent left. */
+export const GA4_QUOTA_RESERVE = { tokensPerDay: 40_000, tokensPerHour: 8_000 } as const;
 
 /** Which lane spent the tokens, carried into the flag so the fix is obvious. */
-export type Ga4QuotaLane = 'signal-dumps' | 'google-signals';
+export type Ga4QuotaLane = 'signal-dumps' | 'google-signals' | 'ga4-realtime';
 
 /**
  * The buckets a request reports back. A missing or unusable field stays
@@ -63,29 +60,23 @@ function quotaCount(value: unknown): number | null {
 /** One bucket's headroom, as the flag and the log report it. */
 export interface QuotaBucketPressure {
   bucket: 'tokensPerDay' | 'tokensPerHour';
-  consumed: number;
+  consumed: number | null;
   remaining: number;
-  /** `remaining / (consumed + remaining)`, rounded to three places. */
-  share: number;
+  threshold: number;
 }
 
 /**
- * The buckets whose remaining share has crossed {@link QUOTA_PRESSURE_RATIO}. A
- * bucket reported only partially is skipped: the share would be a number we
- * made up. An empty result means "nothing we could measure is under pressure".
+ * The buckets whose remaining tokens have crossed their reserve. A
+ * missing remaining value stays unknown, even when request cost is present. An empty result means "nothing we could measure is under pressure".
  */
 export function quotaPressure(quota: Ga4PropertyQuota | null): QuotaBucketPressure[] {
   if (!quota) return [];
   const pressured: QuotaBucketPressure[] = [];
   for (const bucket of ['tokensPerDay', 'tokensPerHour'] as const) {
     const status = quota[bucket];
-    if (!status || status.consumed === null || status.remaining === null) continue;
-    const total = status.consumed + status.remaining;
-    if (total <= 0) continue;
-    const share = Math.round((status.remaining / total) * 1000) / 1000;
-    if (share <= QUOTA_PRESSURE_RATIO) {
-      pressured.push({ bucket, consumed: status.consumed, remaining: status.remaining, share });
-    }
+    if (!status || status.remaining === null) continue;
+    const threshold = GA4_QUOTA_RESERVE[bucket];
+    if (status.remaining <= threshold) pressured.push({ bucket, consumed: status.consumed, remaining: status.remaining, threshold });
   }
   return pressured;
 }
@@ -134,6 +125,7 @@ export async function recordGa4Quota(
 ): Promise<Ga4QuotaWrite> {
   const { asset, lane, propertyRef, quota, at } = input;
   const pressured = quotaPressure(quota);
+  const ruleId = lane === 'ga4-realtime' ? 'ga4-realtime-quota-pressure' : GA4_QUOTA_RULE_ID;
 
   console.log(
     JSON.stringify({
@@ -151,36 +143,49 @@ export async function recordGa4Quota(
   if (pressured.length === 0) {
     // Only a measured healthy reading retracts.
     if (quota === null) return { fired: 0, refreshed: 0, resolved: 0 };
-    const resolved = await env.STORE.write((tx) => resolveOpen(tx, asset, GA4_QUOTA_RULE_ID, at));
+    const resolved = await env.STORE.write(async tx => {
+      const open = await readOpenAlert(tx, asset, ruleId);
+      if (!open) return 0;
+      let buckets: string[] = [];
+      try { buckets = (JSON.parse(open.ruleInputs ?? '{}') as { pressured?: { bucket: string }[] }).pressured?.map(item => item.bucket) ?? []; }
+      catch { return 0; }
+      if (!buckets.length || !buckets.every(bucket => {
+        if (bucket !== 'tokensPerDay' && bucket !== 'tokensPerHour') return false;
+        const remaining = quota[bucket]?.remaining;
+        return remaining != null && remaining > GA4_QUOTA_RESERVE[bucket];
+      })) return 0;
+      return resolveOpen(tx, asset, ruleId, at);
+    });
     return { fired: 0, refreshed: 0, resolved };
   }
 
-  const tightest = pressured.reduce((low, entry) => (entry.share < low.share ? entry : low));
+  const tightest = pressured.reduce((low, entry) => (entry.remaining / entry.threshold < low.remaining / low.threshold ? entry : low));
   // The headline with its values; the inputs below carry the rest.
   const message =
-    `GA4 ${tightest.bucket === 'tokensPerHour' ? 'hourly' : 'daily'} quota at ` +
-    `${Math.round(tightest.share * 100)}% for ${propertyRef}`;
+    `GA4 ${tightest.bucket === 'tokensPerHour' ? 'hourly' : 'daily'} quota low: ` +
+    `${tightest.remaining} tokens remaining for ${propertyRef}`;
 
   // One transaction holds the condition: read the open alert as its newest
   // reading states it, then raise one or append this reading.
   return env.STORE.write(async (tx) => {
-    await holdCondition(tx, asset, GA4_QUOTA_RULE_ID);
-    const open = await readOpenAlert(tx, asset, GA4_QUOTA_RULE_ID);
+    await holdCondition(tx, asset, ruleId);
+    const open = await readOpenAlert(tx, asset, ruleId);
 
     const inputs = JSON.stringify({
-      rule: GA4_QUOTA_RULE_ID,
+      rule: ruleId,
       lane,
       propertyRef,
       observations: priorObservations(open?.ruleInputs) + 1,
       lastObservedAt: at,
-      threshold_ratio: QUOTA_PRESSURE_RATIO,
+      pool: lane === 'ga4-realtime' ? 'realtime' : 'core',
+      reserves: GA4_QUOTA_RESERVE,
       tokensPerDay: quota?.tokensPerDay ?? null,
       tokensPerHour: quota?.tokensPerHour ?? null,
       pressured,
     });
 
     if (open) {
-      const refreshed = await appendReadingToOpen(tx, asset, GA4_QUOTA_RULE_ID, {
+      const refreshed = await appendReadingToOpen(tx, asset, ruleId, {
         observedAt: null,
         severity: 'warn',
         message,
@@ -196,7 +201,7 @@ export async function recordGa4Quota(
       kind: 'anomaly',
       metric: 'ga4-quota',
       message,
-      ruleId: GA4_QUOTA_RULE_ID,
+      ruleId,
       ruleInputs: inputs,
     });
     return { fired: flagId === null ? 0 : 1, refreshed: 0, resolved: 0 };

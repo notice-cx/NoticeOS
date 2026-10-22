@@ -36,7 +36,6 @@ function metricWords(inputs: Record<string, unknown>, metric: string | null): st
 }
 
 const limitLabel = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 6 });
-const percentLabel = (value: number) => `${Math.round(value)}%`;
 
 /** A reading against its rule's normal, in NormalBand's terms, with the
  * usual level the readings strip draws as its dashed line. */
@@ -171,23 +170,16 @@ export function alertNormal(facts: Pick<AttentionItem, "ruleId" | "ruleInputs" |
       level: { value: threshold, label: `fires after ${threshold}h` },
     };
   }
-  if (facts.ruleId === "ga4-quota-pressure") {
+  if (facts.ruleId === "ga4-quota-pressure" || facts.ruleId === "ga4-realtime-quota-pressure") {
     const buckets = Array.isArray(inputs.pressured) ? inputs.pressured : [];
-    const shares = buckets
-      .map((bucket) => (typeof bucket === "object" && bucket !== null ? num((bucket as Record<string, unknown>).share) : null))
-      .filter((share): share is number => share !== null);
-    const threshold = num(inputs.threshold_ratio);
-    if (shares.length === 0 || threshold === null) return null;
-    return {
-      value: Math.min(...shares) * 100,
-      low: threshold * 100,
-      high: 100,
-      label: "GA4 quota left",
-      unit: "left",
-      bad: "below",
-      format: percentLabel,
-      level: { value: threshold * 100, label: `fires below ${percentLabel(threshold * 100)}` },
-    };
+    const known = buckets.map(bucket => typeof bucket === "object" && bucket !== null ? bucket as Record<string, unknown> : {})
+      .filter(bucket => num(bucket.remaining) !== null && num(bucket.threshold) !== null);
+    const tightest = known.sort((a, b) => Number(a.remaining) / Number(a.threshold) - Number(b.remaining) / Number(b.threshold))[0];
+    if (!tightest) return null;
+    const threshold = Number(tightest.threshold);
+    return { value: Number(tightest.remaining), low: threshold, high: threshold * 5,
+      label: "GA4 tokens left", unit: "tokens", bad: "below",
+      level: { value: threshold, label: `warns at ${threshold.toLocaleString("en-US")} tokens` } };
   }
   return null;
 }

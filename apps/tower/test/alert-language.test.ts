@@ -717,24 +717,25 @@ describe("asset checks and quota — a headline and its values, never the rule's
     expect(structure.evidence.map((row) => [row.source, row.detail])).toEqual([["/guide", "title-missing"]]);
   });
 
-  it("ga4-quota-pressure: the share left, with the tokens and the lane as rows", () => {
+  it("ga4-quota-pressure: remaining tokens, reserve and pool without an inferred percentage", () => {
     const a = translateAlert({
       ruleId: "ga4-quota-pressure",
       metric: "ga4-quota",
       message: "GA4 daily quota at 5% for properties/123",
       ruleInputs: {
         rule: "ga4-quota-pressure", lane: "google-signals", propertyRef: "properties/123", lastObservedAt: AT,
-        threshold_ratio: 0.2,
+        pool: "core",
         pressured: [
-          { bucket: "tokensPerDay", consumed: 190_000, remaining: 10_000, share: 0.05 },
-          { bucket: "tokensPerHour", consumed: 30_000, remaining: 6_000, share: 0.167 },
+          { bucket: "tokensPerDay", consumed: 10, remaining: 10_000, threshold: 40_000 },
+          { bucket: "tokensPerHour", consumed: 10, remaining: 6_000, threshold: 8_000 },
         ],
       },
     });
-    expect(a.headline).toBe("GA4 daily quota low — 5% left");
+    expect(a.headline).toBe("GA4 daily quota low — 10,000 tokens left");
     expect(a.evidence.map((row) => [row.source, row.detail])).toEqual([
-      ["Tokens left", "10,000 of 200,000"],
-      ["Fires below", "20%"],
+      ["Tokens left", "10,000"],
+      ["Warns at", "40,000 tokens"],
+      ["Quota", "Core"],
       ["Spent by", "Google"],
       ["GA4 property", "properties/123"],
     ]);

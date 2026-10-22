@@ -477,8 +477,8 @@ describe('analysis-grade signal dumps', () => {
     it('raises ONE flag per property while the budget is thin, however many families spend it', async () => {
       await runSignalDumps(env, {
         nowMs: NOW,
-        // 5% of the day's tokens left, well under the 20% line.
-        fetchImpl: providerDumpFetch({ ga4Quota: { consumed: 190_000, remaining: 10_000 } })
+        // Ten thousand tokens remain; consumed is only this request's cost.
+        fetchImpl: providerDumpFetch({ ga4Quota: { consumed: 10, remaining: 10_000 } })
           .fetchImpl,
         revisionDays: 1,
       });
@@ -490,25 +490,24 @@ describe('analysis-grade signal dumps', () => {
       );
       expect(flagged.map((row) => row.asset)).toEqual([...GOOGLE_PROPERTIES]);
       const flag = await quotaFlag();
-      // The headline with its share; the tokens are the inputs the Alerts row
-      // draws as "Tokens left · 10,000 of 200,000".
-      expect(flag!.message).toBe('GA4 daily quota at 5% for 123456');
+      // Headroom is an absolute count; request cost is not daily usage.
+      expect(flag!.message).toBe('GA4 daily quota low: 10000 tokens remaining for 123456');
       const inputs = JSON.parse(flag!.ruleInputs) as Record<string, unknown>;
       expect(inputs).toMatchObject({
         lane: 'signal-dumps',
-        threshold_ratio: 0.2,
-        tokensPerDay: { consumed: 190_000, remaining: 10_000 },
+        pool: 'core',
+        tokensPerDay: { consumed: 10, remaining: 10_000 },
       });
       expect(inputs.observations).toBeGreaterThan(1); // refreshed, not re-fired
       expect(
-        (inputs.pressured as { bucket: string; share: number }[])[0],
-      ).toMatchObject({ bucket: 'tokensPerDay', share: 0.05 });
+        (inputs.pressured as { bucket: string; threshold: number }[])[0],
+      ).toMatchObject({ bucket: 'tokensPerDay', threshold: 40_000, remaining: 10_000 });
     });
 
     it('retracts the flag once the buckets refill, but never on silence', async () => {
       await runSignalDumps(env, {
         nowMs: NOW,
-        fetchImpl: providerDumpFetch({ ga4Quota: { consumed: 190_000, remaining: 10_000 } })
+        fetchImpl: providerDumpFetch({ ga4Quota: { consumed: 10, remaining: 10_000 } })
           .fetchImpl,
         revisionDays: 1,
       });

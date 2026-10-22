@@ -517,7 +517,7 @@ describe('Google signal collector', () => {
     it('flags a thin budget on the property spending it, then retracts when it refills', async () => {
       await runGoogleSignals(env, {
         nowMs: NOW,
-        fetchImpl: googleFetch({ ga4Quota: { consumed: 190_000, remaining: 10_000 } }).fetchImpl,
+        fetchImpl: googleFetch({ ga4Quota: { consumed: 10, remaining: 10_000 } }).fetchImpl,
       });
 
       // The budget is per property, so the flag is too — one on each, not one
@@ -529,10 +529,10 @@ describe('Google signal collector', () => {
 
       const flag = await quotaFlag();
       // A headline with its value; the tokens and the lane are the inputs.
-      expect(flag!.message).toMatch(/^GA4 daily quota at 5% for /);
+      expect(flag!.message).toMatch(/^GA4 daily quota low: 10000 tokens remaining for /);
       expect(JSON.parse(flag!.ruleInputs) as Record<string, unknown>).toMatchObject({
         lane: 'google-signals',
-        tokensPerDay: { consumed: 190_000, remaining: 10_000 },
+        tokensPerDay: { consumed: 10, remaining: 10_000 },
       });
 
       await runGoogleSignals(env, {
