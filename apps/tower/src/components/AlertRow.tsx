@@ -84,8 +84,6 @@ export interface AlertRowProps {
   /** The reading behind the alert, drawn under the row whether or not it is
    * open (a `NormalBand` against the rule's own normal). */
   evidence?: ReactNode;
-  /** The closed row's caption wraps rather than being cut short. */
-  wrapCaption?: boolean;
   className?: string;
 }
 
@@ -151,7 +149,6 @@ export function AlertRow({
   snoozed = false,
   asset = null,
   evidence,
-  wrapCaption = false,
   className,
 }: AlertRowProps) {
   const alert = translateAlert(flag);
@@ -180,9 +177,6 @@ export function AlertRow({
               }`,
             }),
       }}
-      /* Inline content, not a flex row: `ListRow` truncates a closed row's
-         title with `nowrap`, and a flex child inside that cannot break, so a
-         long headline would run off a phone with no ellipsis. */
       title={
         <>
           {asset ? (
@@ -211,7 +205,6 @@ export function AlertRow({
           alert.hint
         )}
       </>}
-      captionWrap={wrapCaption}
       below={evidence ? <div className="pb-2 pe-2 ps-9" data-alert-evidence="">{evidence}</div> : undefined}
       /* A settled row's value is its open span; an open row's is its age from
          onset, not from the latest re-reading. */

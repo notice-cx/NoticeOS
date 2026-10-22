@@ -979,6 +979,23 @@ describe("SmallMultiple", () => {
 });
 
 describe("ListPanel", () => {
+  it("keeps complete long titles and captions in closed and expanded rows", () => {
+    const title = "A complete condition including its final qualifier ".repeat(8);
+    const caption = "Evidence and dates https://example.com/" + "unbroken".repeat(35);
+    const { container } = inRouter(<ul><ListRow title={title} caption={caption}>Full evidence</ListRow></ul>);
+    const button = screen.getByRole("button", { name: `${title.trim()}${caption}` });
+    for (const expanded of [false, true, false]) {
+      expect(button).toHaveAttribute("aria-expanded", String(expanded));
+      for (const text of [title, caption]) {
+        const element = screen.getByText(text.trim());
+        expect(element.className).not.toMatch(/line-clamp|truncate/);
+        expect(element).toHaveClass("whitespace-normal", "wrap-anywhere");
+      }
+      expect(Boolean(container.querySelector("[data-list-row-body]"))).toBe(expanded);
+      fireEvent.click(button);
+    }
+  });
+
   function panel() {
     return inRouter(
       <ListPanel title="Needs attention" count="10 urgent · 67 open" action={{ label: "All tasks", to: "/work" }}>
