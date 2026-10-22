@@ -66,13 +66,19 @@ export async function collectComparison(property: string, accessToken: string, f
   const dimensions = arrayField(record, 'dimensionHeaders').map(v => stringField(asRecord(v), 'name'));
   const timeIndex = dimensions.indexOf('dateHourMinute'), rangeIndex = dimensions.indexOf('dateRange');
   const propertyZone = stringField(metadata, 'timeZone');
-  const invalid = () => new SignalError('ga4_comparison_invalid_response', 'GA4 returned an incomplete activity comparison.');
-  if (dimensions.length !== 2 || timeIndex < 0 || rangeIndex < 0 || !propertyZone || !isValidTimeZone(propertyZone) ||
-    arrayField(record, 'metricHeaders').length !== 1 || stringField(asRecord(arrayField(record, 'metricHeaders')[0]), 'name') !== 'activeUsers' ||
-    metadata?.dataLossFromOtherRow === true || metadata?.subjectToThresholding === true || arrayField(metadata, 'samplingMetadatas').length > 0) throw invalid();
+  // One code per check, so a refused report names what it failed. `malformed`
+  // and `incomplete` keep each code in its health failure kind.
+  const refused = (check: string) => new SignalError(`ga4_comparison_${check}`, 'GA4 returned an incomplete activity comparison.');
+  const metricHeaders = arrayField(record, 'metricHeaders');
+  if (dimensions.length !== 2 || timeIndex < 0 || rangeIndex < 0 ||
+    metricHeaders.length !== 1 || stringField(asRecord(metricHeaders[0]), 'name') !== 'activeUsers') throw refused('malformed_headers');
+  if (!propertyZone || !isValidTimeZone(propertyZone)) throw refused('malformed_time_zone');
+  if (metadata?.dataLossFromOtherRow === true) throw refused('incomplete_other_row');
+  if (metadata?.subjectToThresholding === true) throw refused('incomplete_thresholded');
+  if (arrayField(metadata, 'samplingMetadatas').length > 0) throw refused('incomplete_sampled');
   const rows = arrayField(record, 'rows');
   const rowCount = record?.rowCount ?? 0;
-  if (typeof rowCount !== 'number' || rowCount !== rows.length || rows.length > ROW_LIMIT) throw invalid();
+  if (typeof rowCount !== 'number' || rowCount !== rows.length || rows.length > ROW_LIMIT) throw refused('incomplete_row_count');
   const start = Date.parse(day.startAt), priorStart = zonedHourStartMs(priorDate, 0, zone);
   const priorEnd = zonedHourStartMs(shiftCalendarDate(priorDate, 1), 0, zone);
   const prior = Array<number | null>((priorEnd - priorStart) / MINUTE).fill(0);
@@ -84,18 +90,21 @@ export async function collectComparison(property: string, accessToken: string, f
     const row = asRecord(rawRow), dims = arrayField(row, 'dimensionValues'), metrics = arrayField(row, 'metricValues');
     const stamp = stringField(asRecord(dims[timeIndex]), 'value'), range = stringField(asRecord(dims[rangeIndex]), 'value');
     const count = stringField(asRecord(metrics[0]), 'value');
-    if (!stamp || !/^\d{12}$/.test(stamp) || !count || !/^\d+$/.test(count) || !Number.isSafeInteger(Number(count)) ||
-      dims.length !== 2 || metrics.length !== 1 || !['today', 'last_week'].includes(range ?? '') || seen.has(`${range}:${stamp}`)) throw invalid();
+    if (dims.length !== 2 || metrics.length !== 1) throw refused('malformed_row');
+    if (!stamp || !/^\d{12}$/.test(stamp)) throw refused('malformed_stamp');
+    if (!count || !/^\d+$/.test(count) || !Number.isSafeInteger(Number(count))) throw refused('malformed_count');
+    if (!['today', 'last_week'].includes(range ?? '')) throw refused('malformed_range');
+    if (seen.has(`${range}:${stamp}`)) throw refused('malformed_duplicate_row');
     seen.add(`${range}:${stamp}`);
     const date = `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`;
     const hour = Number(stamp.slice(8, 10)), minute = Number(stamp.slice(10));
-    if (hour > 23 || minute > 59) throw invalid();
+    if (hour > 23 || minute > 59) throw refused('malformed_minute');
     const reportZone = reportingTimeZoneOn(changes, date, propertyZone, providerToday);
     const hourKey = `${reportZone}:${date}:${hour}`;
     let hourStart = hours.get(hourKey);
     if (hourStart === undefined) {
       hourStart = zonedHourStartMs(date, hour, reportZone);
-      if (dateInTimeZone(hourStart, reportZone) !== date) throw invalid();
+      if (dateInTimeZone(hourStart, reportZone) !== date) throw refused('malformed_hour_date');
       hours.set(hourKey, hourStart);
     }
     const at = hourStart + minute * MINUTE;
@@ -107,7 +116,7 @@ export async function collectComparison(property: string, accessToken: string, f
     const key = `${stamp.slice(8, 10)}:${stamp.slice(10)}`;
     const repeated = [-HOUR, -HOUR / 2, HOUR / 2, HOUR].map(offset => at + offset).filter(candidate => formatter.format(candidate) === key);
     const ambiguous = repeated.length > 0;
-    if (formatter.format(at) !== key) throw invalid();
+    if (formatter.format(at) !== key) throw refused('malformed_clock');
     const index = (at - start) / MINUTE, previous = (at - priorStart) / MINUTE;
     if (index >= 0 && index < day.minutes.length) {
       today.set(index, ambiguous ? null : Number(count));
@@ -155,6 +164,7 @@ export async function updateComparison(env: IngestEnv, input: { asset: string; p
     if (normalized.code === 'ga4_read_in_progress') return null;
     code = normalized.code;
     if (error instanceof Ga4ReadError) nextAttemptAt = new Date(Math.max(Date.parse(nextAttemptAt), Date.parse(error.nextAttemptAt))).toISOString();
+    console.warn(JSON.stringify({ event: 'ga4_comparison_refused', asset, propertyRef: property, code }));
   }
   await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.traffic_comparison_reports
     (workspace_id,asset_id,property_ref,comparison_day,time_zone,observed_at,next_attempt_at,payload,error_code)

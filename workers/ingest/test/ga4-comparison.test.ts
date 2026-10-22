@@ -50,13 +50,39 @@ describe('GA4 activity comparison backfill', () => {
     expect(result.day.sameDayLastWeek?.every(value => value === 1)).toBe(true);
   });
 
-  it.each([{ dataLossFromOtherRow: true }, { subjectToThresholding: true }, { samplingMetadatas: [{}] }, { timeZone: 'invalid' }])('rejects incomplete or unplaceable reports %j', async metadata => {
-    await expect(collectComparison('123456', 'synthetic', fetchReport(report([], metadata)), NOW, 'UTC')).rejects.toThrow('incomplete activity comparison');
+  const row = (stamp: string, range = 'today', value = '1') => ({ dimensionValues: [{ value: stamp }, { value: range }], metricValues: [{ value }] });
+  const withRows = (rows: unknown[], metadata = {}) => ({ ...report([], metadata), rows, rowCount: rows.length });
+  it.each([
+    ['a missing time header', { ...report(), dimensionHeaders: [{ name: 'dateHourMinute' }] }, 'malformed_headers'],
+    ['another metric', { ...report(), metricHeaders: [{ name: 'sessions' }] }, 'malformed_headers'],
+    ['no property time zone', report([], { timeZone: undefined }), 'malformed_time_zone'],
+    ['an unknown property time zone', report([], { timeZone: 'invalid' }), 'malformed_time_zone'],
+    ['an (other) row', report([], { dataLossFromOtherRow: true }), 'incomplete_other_row'],
+    ['thresholded counts', report([], { subjectToThresholding: true }), 'incomplete_thresholded'],
+    ['sampled counts', report([], { samplingMetadatas: [{}] }), 'incomplete_sampled'],
+    ['more rows than were sent', { ...report(), rowCount: 10_001 }, 'incomplete_row_count'],
+    ['a row without its range', withRows([{ dimensionValues: [{ value: '202607290000' }], metricValues: [{ value: '1' }] }]), 'malformed_row'],
+    ['a short time stamp', withRows([row('2026072900')]), 'malformed_stamp'],
+    ['a negative count', withRows([row('202607290000', 'today', '-1')]), 'malformed_count'],
+    ['an unknown range', withRows([row('202607290000', 'yesterday')]), 'malformed_range'],
+    ['the same minute twice', withRows([row('202607290000'), row('202607290000')]), 'malformed_duplicate_row'],
+    ['an hour past 23', withRows([row('202607292400')]), 'malformed_minute'],
+    ['an hour that begins on another day', withRows([row('202609060000')], { timeZone: 'America/Santiago' }), 'malformed_hour_date'],
+    ['a minute the clock skips', withRows([row('202603080230')], { timeZone: 'America/Los_Angeles' }), 'malformed_clock'],
+  ])('refuses %s under its own code', async (_case, body, check) => {
+    await expect(collectComparison('123456', 'synthetic', fetchReport(body as ReturnType<typeof report>), NOW, 'UTC'))
+      .rejects.toMatchObject({ code: `ga4_comparison_${check}` });
   });
 
-  it('refuses a truncated response rather than inventing zero minutes for omitted rows', async () => {
-    const body = { ...report(), rowCount: 10_001 };
-    await expect(collectComparison('123456', 'synthetic', fetchReport(body), NOW, 'UTC')).rejects.toThrow();
+  it('logs the refusal code with the attempt it stored', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const result = await updateComparison(env, { asset: 'meadow.example', property: '123456', token: 'synthetic', zone: 'UTC', nowMs: NOW,
+        fetchImpl: fetchReport(report([], { subjectToThresholding: true })), cache: null, shared: new Map() });
+      expect(result).toMatchObject({ ok: false, code: 'ga4_comparison_incomplete_thresholded' });
+      expect(warn).toHaveBeenCalledWith(JSON.stringify(
+        { event: 'ga4_comparison_refused', asset: 'meadow.example', propertyRef: '123456', code: 'ga4_comparison_incomplete_thresholded' }));
+    } finally { warn.mockRestore(); }
   });
 
   it('converts the property clock to the installation clock', async () => {

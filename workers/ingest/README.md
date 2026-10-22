@@ -2158,7 +2158,11 @@ replace older provisional activity; retained realtime minutes fill the recent
 portion. Last week's line is available on the first successful Core report,
 without waiting a week. The Core report stops today's data before its newest
 nonzero minute; trailing missing rows do not imply zero activity. Reports with
-sampling, thresholding, row loss or truncation supply no backfill.
+sampling, thresholding, row loss or truncation supply no backfill. Each failed
+attempt stores and logs (`ga4_comparison_refused`) a code naming the failed
+check, such as `ga4_comparison_incomplete_thresholded` or
+`ga4_comparison_malformed_headers`. The report is read up to 3 MB, the size of
+its 10,000-row limit as Google sends it.
 
 The Wall draws hourly averages of completed minute activity and a dashed
 comparison for the same weekday last week. Live pace compares only matching
