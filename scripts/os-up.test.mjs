@@ -53,6 +53,7 @@ import {
 } from './runner/lifecycle.mjs';
 import { rotateLogFile } from './runner/log.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
+import { PANEL_REVIEW_VERSION_KEY } from './panel-review-summary.mjs';
 import {
   COLLECTION_REVIEW_ACCEPTANCE,
   INVALID_PANEL_REVIEW_LABEL,
@@ -3178,6 +3179,8 @@ test('the created id is read back for the log, and its absence is not a failure'
   assert.equal(panelReviewCreatedId(''), null);
 });
 
+const FILER_PANEL_VERSION = '00000004-2026-08-03T13-10-04-637Z-4f83dc';
+
 /** A filer pass with everything stubbed: no spawn, no socket, no network — and
  * so no `bd create` has ever run against a real property tracker. */
 function filerDeps(overrides = {}) {
@@ -3213,9 +3216,11 @@ function filerDeps(overrides = {}) {
       },
       // Every collection here is already in its property's published panel;
       // runner-panel-review.test.mjs covers the wait.
-      readVersion: async () => null,
-      readPublished: (asset) =>
-        Promise.resolve({ asset, sources: [{ key: 'dataforseo', collected: true, newestReportDate: '2026-08-03' }] }),
+      readVersion: async () => FILER_PANEL_VERSION,
+      readPublished: async (asset, version) => {
+        assert.equal(version, FILER_PANEL_VERSION);
+        return { asset, sources: [{ key: 'dataforseo', collected: true, newestReportDate: '2026-08-03' }] };
+      },
       state: { skipping: null, unmapped: new Set() },
       emit: (level, text) => lines.push(`${level} ${text}`),
       stopped: () => false,
@@ -3242,6 +3247,7 @@ test('a landed panel with no review becomes one bead in the property’s tracker
   assert.equal(ran[1][4], 'create');
   // Bounded by the property's repo, never by the runner's cwd.
   assert.equal(ran[1][1], path.resolve(REPO_ROOT, '../nw'));
+  assert.equal(JSON.parse(ran[1][ran[1].indexOf('--metadata') + 1])[PANEL_REVIEW_VERSION_KEY], FILER_PANEL_VERSION);
   assert.match(lines[0], /^INFO panel review filed — nw-4q2 in \.\.\/nw/);
 });
 
