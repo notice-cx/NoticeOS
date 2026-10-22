@@ -1,0 +1,7 @@
+{
+  "name": "unit",
+  "command": "pnpm --filter @noticeos/tower exec vitest run test/wall-editor.test.ts test/wall-layout.test.ts test/wall-canvas.test.tsx test/wall-edit-route.test.tsx test/wall-presets.test.tsx",
+  "exit_code": 0,
+  "elapsed_seconds": 18.358,
+  "candidate": "e8bf6b98e4e5b986255603b2d5cee79afe63c810"
+}

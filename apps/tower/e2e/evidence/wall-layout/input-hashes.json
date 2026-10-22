@@ -1,0 +1,15 @@
+{
+  "candidate": "e8bf6b98e4e5b986255603b2d5cee79afe63c810",
+  "sha256": {
+    "pnpm-lock.yaml": "4ba97abdb1f6b93e06be7c54329a360697a00abce1ac90183dd96ac6aa4389d2",
+    "AGENTS.md": "102c151f72570a69e4f3a3dd41729bf99a0f0c346a553d9ca581fea1757f851f",
+    "apps/tower/e2e/wall-fixture.ts": "5ea51b56b44e8249d787bc83fc4b5592b6dc1b615b1a46d7818c0838c2feed49",
+    "apps/tower/e2e/playwright.config.ts": "1ac1d5a0dad23b3b07b4e92424d5f5e63934eed04255b0fa6e8971b5e7b728cb",
+    "apps/tower/e2e/journey-test.ts": "cc130b1c984f8009e369ac36a28eb3b4bb80b7233436b22e42ce8997d3b0e91c",
+    "apps/tower/e2e/wall-layout/journeys.spec.ts": "d1fd428676b9ed1176f91a8392d451cec8bc5c612596415648a050bef51d109a",
+    "apps/tower/src/lib/wall-editor.ts": "07705ff0f27306a307f6d64b9152ef1c2c80b81e2459fc182ffbb3c106d3e0ed",
+    "apps/tower/src/components/wall/WallPreview.tsx": "1037eac2409186de9faa3511fcd0992111683c84237ed8a00e9e4567e5fd087c",
+    "scripts/wall-fit-measure.mts": "11a2e3b5dfd2bc459ff92c6e5401273018937643f5026a6d06e1ca293468c3de",
+    "scripts/wall-layout.mts": "4012e4e8698b9ed691686c2df0f8fc8cec3568902d684e5e01ea5a722032f887"
+  }
+}
