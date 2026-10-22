@@ -20,7 +20,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("DailyMeasureChart presentation", () => {
   it("draws caller-supplied evidence with distinct bands, complete-day labels and day states", () => {
     const { container } = chart();
-    expect(container.querySelector("[data-overview-normal]")).toHaveStyle({ bottom: "37.5%", height: "calc(62.5% - 37.5%)" });
+    expect(container.querySelector("[data-overview-normal]")).toHaveStyle({ bottom: "37.5%", height: "25%" });
     expect(container.querySelector('[data-overview-span="watch"]')).toHaveStyle({ left: "0%", width: `${9 / 14 * 100}%` });
     expect(container.querySelector('[data-overview-span="alert"]')).toHaveClass("text-warn");
     expect(container.querySelector('[data-overview-span="partial"]')).toHaveClass("viz-hatch");
