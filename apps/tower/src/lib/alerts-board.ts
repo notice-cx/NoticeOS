@@ -35,14 +35,15 @@ function metricWords(inputs: Record<string, unknown>, metric: string | null): st
   return words ? sentence(words) : "This metric";
 }
 
+const limitLabel = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 6 });
 const percentLabel = (value: number) => `${Math.round(value)}%`;
 
 /** A reading against its rule's normal, in NormalBand's terms, with the
  * usual level the readings strip draws as its dashed line. */
 export interface AlertNormal {
   value: number;
-  low: number;
-  high: number;
+  low?: number;
+  high?: number;
   /** What is measured and over what window: "Plans saved in 24 hours". */
   label: string;
   unit?: string;
@@ -137,6 +138,24 @@ export function alertNormal(facts: Pick<AttentionItem, "ruleId" | "ruleInputs" |
       bad: "below",
       level: { value: poisson.lambda, label: `usual ${Math.round(poisson.lambda).toLocaleString("en-US")}` },
     };
+  }
+  if (facts.ruleId === "flow-pct-drop") {
+    const value = num(inputs.observed);
+    const baseline = num(inputs.baselinePerDay);
+    const fraction = num(inputs.minDropFraction);
+    if (value === null || value < 0 || baseline === null || baseline <= 0 || fraction === null || fraction < 0 || fraction > 1) return null;
+    const low = baseline * (1 - fraction);
+    return { value, low, bad: "below", label: `${metricWords(inputs, facts.metric)} in 24 hours`, unit: "in 24h", format: limitLabel,
+      level: { value: low, label: `limit ${limitLabel(low)}` } };
+  }
+  if (facts.ruleId === "hygiene-html-depth") {
+    const value = num(inputs.words);
+    const median = num(inputs.baseline_median);
+    const ratio = num(inputs.threshold_ratio);
+    if (value === null || value < 0 || median === null || median <= 0 || ratio === null || ratio < 0 || ratio > 1) return null;
+    const low = median * ratio;
+    return { value, low, bad: "below", label: "Words served in home page HTML", unit: "words", format: limitLabel,
+      level: { value: low, label: `limit ${limitLabel(low)} words` } };
   }
   if (facts.ruleId === "ingest-freshness" && str(inputs.state) !== "never-reported") {
     const age = num(inputs.ageHours);

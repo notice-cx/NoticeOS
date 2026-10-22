@@ -64,6 +64,22 @@ describe("the normal a Poisson rule computed", () => {
 });
 
 describe("alertNormal — a reading against its rule's own normal", () => {
+  it("uses stored inputs for percentage-drop and HTML-depth lower limits without an upper bound", () => {
+    const drop = item({ ruleId: "flow-pct-drop", ruleInputs: { observed: 19, baselinePerDay: 100, minDropFraction: 0.3 } });
+    expect(alertNormal(drop)).toMatchObject({ value: 19, low: 70, bad: "below" });
+    expect(alertNormal(drop)).not.toHaveProperty("high");
+    const fractional = alertNormal({ ...drop, ruleInputs: { observed: 19, baselinePerDay: 42.6, minDropFraction: 0.3 } })!;
+    expect(fractional.low).toBeCloseTo(29.82);
+    expect(fractional.format!(fractional.low!)).toBe("29.82");
+    const depth = item({ ruleId: "hygiene-html-depth", ruleInputs: { words: 80, baseline_median: 800, threshold_ratio: 0.5 } });
+    expect(alertNormal(depth)).toMatchObject({ value: 80, low: 400, bad: "below" });
+    expect(alertNormal(depth)).not.toHaveProperty("high");
+    for (const facts of [drop, depth]) {
+      expect(alertNormal({ ...facts, ruleInputs: {} })).toBeNull();
+      expect(alertNormal({ ...facts, ruleInputs: { ...facts.ruleInputs, minDropFraction: null, threshold_ratio: null } })).toBeNull();
+    }
+  });
+
   it("reads a single-day drop as its count against the rule's range", () => {
     const normal = alertNormal(item({
       ruleId: "flow-poisson-low",
