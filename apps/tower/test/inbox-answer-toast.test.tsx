@@ -6,22 +6,30 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { useInboxAnswer } from '@/hooks/useTasks';
 import { flushAnswers, resetAnswerQueue } from '@/lib/answer-queue';
 
-const respond = vi.hoisted(() => vi.fn<() => Promise<void>>().mockResolvedValue(undefined));
-vi.mock('@/lib/api', async (original) => ({ ...await original<typeof import('@/lib/api')>(), respondToTask: respond }));
+const { respond, choose } = vi.hoisted(() => ({
+  respond: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  choose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+}));
+vi.mock('@/lib/api', async (original) => ({ ...await original<typeof import('@/lib/api')>(), respondToTask: respond, chooseOnTask: choose }));
 
-function Answer() {
+function Answer({ choice = false }: { choice?: boolean }) {
   const answer = useInboxAnswer();
-  return <button onClick={() => answer({ kind: 'answer', id: 'ex-question', title: 'Choose a day', text: 'Tuesday' })}>Send answer</button>;
+  return <button onClick={() => answer(choice
+    ? { kind: 'choose', id: 'ex-question', title: 'Choose a day', option: 'a', label: 'Tuesday' }
+    : { kind: 'answer', id: 'ex-question', title: 'Choose a day', text: 'Tuesday' })}>Send answer</button>;
 }
 
 afterEach(() => {
   toast.dismiss();
   resetAnswerQueue();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
-it('shows a fresh toast with working Undo when the same task is answered during the previous toast exit', async () => {
+it('shows a fresh toast with working Undo on plain HTTP when the same task is answered during the previous toast exit', async () => {
+  vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
   vi.useFakeTimers();
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false } } });
   const { container, unmount } = render(<QueryClientProvider client={client}><MemoryRouter><Answer /><Toaster /></MemoryRouter></QueryClientProvider>);
@@ -44,6 +52,23 @@ it('shows a fresh toast with working Undo when the same task is answered during 
   fireEvent.click(within(second).getByRole('button', { name: 'Undo' }));
   await act(async () => { flushAnswers(); await vi.advanceTimersByTimeAsync(5_001); });
   expect(respond).not.toHaveBeenCalled();
+  unmount();
+  client.clear();
+});
+
+it.each([false, true])('sends an answer on plain HTTP after the Undo window (choice: %s)', async (choice) => {
+  vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+  vi.useFakeTimers();
+  const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false } } });
+  const { unmount } = render(<QueryClientProvider client={client}><MemoryRouter><Answer choice={choice} /><Toaster /></MemoryRouter></QueryClientProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Send answer' }));
+  expect(respond).not.toHaveBeenCalled();
+  expect(choose).not.toHaveBeenCalled();
+  await act(async () => { await vi.advanceTimersByTimeAsync(5_001); });
+  expect(choice ? choose : respond).toHaveBeenCalledExactlyOnceWith(
+    'ex-question', choice ? 'a' : 'Tuesday', ...(choice ? [undefined] : []),
+  );
+  expect(choice ? respond : choose).not.toHaveBeenCalled();
   unmount();
   client.clear();
 });
