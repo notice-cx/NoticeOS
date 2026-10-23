@@ -136,6 +136,10 @@ export interface TestCluster extends TestClusterOperations {
    * clears or changes rows the application role may not. Only the starting
    * process can. Resolves the rows of its last statement. */
   asOwner(database: string, sql: string): Promise<OwnerRow[]>;
+  /** Empty these tables of one copy as its owner (`emptyingTablesStatement`),
+   * on a connection kept open for that copy: what a suite runs between every
+   * two tests. Each is a noticeos table the template leaves empty. */
+  emptyTables(database: string, tables: readonly string[]): Promise<void>;
   /** Resolves once no copy given back is still being emptied and no spare is
    * being made (a copy given back waits as a spare only after that). */
   settled(): Promise<void>;
@@ -243,6 +247,7 @@ export async function openOnLoopbackPort(
 /** The owner's operations on the cluster, over its private socket, in this process alone. */
 interface Owner extends TestClusterOperations {
   asOwner(database: string, sql: string): Promise<OwnerRow[]>;
+  emptyTables(database: string, tables: readonly string[]): Promise<void>;
   /** Resolves once no copy given back is still being emptied and no spare is being made. */
   settled(): Promise<void>;
   /** End the owner's connections; the server stops them anyway. */
@@ -319,6 +324,37 @@ BEGIN
     SELECT relation FROM unnest(ARRAY[${tables}]::regclass[]) AS relation
     UNION ALL SELECT indexrelid FROM pg_catalog.pg_index WHERE indrelid = ANY (ARRAY[${tables}]::regclass[]));
 ${sequences}
+END $empty$`;
+}
+
+/** One statement, run as the owner in a copy, that empties those of `tables`
+ * holding a row, with each of `tables` whose foreign key reaches one of them:
+ * Postgres truncates a table only together with every table that references
+ * it, even an empty one. A table outside `tables` that references one still
+ * fails the statement. Truncating only what holds rows keeps it cheap where a
+ * test wrote to a few tables of many. */
+function emptyingTablesStatement(tables: readonly string[]): string {
+  const named = tables.map((table) => `'noticeos.${table}'`).join(', ');
+  return `DO $empty$
+DECLARE
+  named regclass[] := ARRAY[${named}]::regclass[];
+  one regclass;
+  held boolean;
+  emptied regclass[] := '{}';
+BEGIN
+  FOREACH one IN ARRAY named LOOP
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %s)', one) INTO held;
+    IF held THEN emptied := emptied || one; END IF;
+  END LOOP;
+  IF cardinality(emptied) = 0 THEN RETURN; END IF;
+  WITH RECURSIVE reached(relation) AS (
+    SELECT unnest(emptied)
+    UNION
+    SELECT fk.conrelid::regclass FROM reached JOIN pg_catalog.pg_constraint fk ON fk.contype = 'f' AND fk.confrelid = reached.relation
+     WHERE fk.conrelid = ANY (named)
+  )
+  SELECT array_agg(relation) INTO emptied FROM reached;
+  EXECUTE 'TRUNCATE ' || array_to_string(emptied, ', ');
 END $empty$`;
 }
 
@@ -412,6 +448,26 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       await client.end().catch(() => undefined);
     }
   };
+  // One connection per copy for `emptyTables`, which runs nothing else on it,
+  // so no session state carries from one emptying to the next. Idle, it lets
+  // this process exit.
+  const kept = new Map<string, OwnerConnection>();
+  const keptFor = (database: string): OwnerConnection => {
+    let connection = kept.get(database);
+    if (connection === undefined) {
+      connection = new pg.Pool({ ...ownerLogin(socketDir, port, database), max: 1, idleTimeoutMillis: 0, allowExitOnIdle: true });
+      connection.on('error', () => undefined);
+      kept.set(database, connection);
+    }
+    return connection;
+  };
+  /** End the kept connection to `database`, before its sessions are ended or its name changes. */
+  const letGo = async (database: string): Promise<void> => {
+    const connection = kept.get(database);
+    kept.delete(database);
+    await connection?.end().catch(() => undefined);
+  };
+  const emptyable = new Set(contents.emptyTables);
   return {
     workspaceId,
     url: (database) => copyUrl(appUrl, database),
@@ -427,7 +483,8 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       return made;
     },
     async resetDatabase(name) {
-      await run(drop(checkCopyName(name)), ...copy(name));
+      await letGo(checkCopyName(name));
+      await run(drop(name), ...copy(name));
       analyzed.delete(name);
       return name;
     },
@@ -437,11 +494,13 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       await asOwner(given, 'ANALYZE');
     },
     async dropDatabase(name) {
-      await run(drop(checkCopyName(name)));
+      await letGo(checkCopyName(name));
+      await run(drop(name));
       analyzed.delete(name);
     },
     async releaseDatabase(name) {
       const given = checkCopyName(name);
+      await letGo(given);
       if (analyzed.has(given)) {
         await run(drop(given));
         analyzed.delete(given);
@@ -472,8 +531,28 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       });
     },
     asOwner,
+    async emptyTables(database, tables) {
+      const given = checkCopyName(database);
+      for (const table of tables) {
+        if (!/^[a-z][a-z0-9_]*$/u.test(table) || !emptyable.has(`noticeos.${table}`)) {
+          throw new TypeError(`not a noticeos table the template leaves empty: ${table}`);
+        }
+      }
+      if (tables.length === 0) return;
+      const statement = emptyingTablesStatement(tables);
+      try {
+        await keptFor(given).query(statement);
+      } catch {
+        // The kept connection can have been ended since its last use (a test
+        // ending sessions as the owner). Emptying twice is emptying once, and
+        // an error of the statement's own comes back from the second try.
+        await letGo(given);
+        await keptFor(given).query(statement);
+      }
+    },
     settled: () => idle,
     close() {
+      for (const database of [...kept.keys()]) void letGo(database);
       void pool.end().catch(() => undefined);
     },
   };

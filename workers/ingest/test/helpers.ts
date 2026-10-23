@@ -18,7 +18,7 @@ export async function call(request: Request): Promise<Response> {
 export async function reset(): Promise<void> {
   await clearRawSignals(env.RAW_SIGNALS);
   await forgetCredentials();
-  await emptyTablesHoldingRows(EMPTIED_BEFORE_EACH_TEST);
+  await emptyTables(EMPTIED_BEFORE_EACH_TEST);
 }
 
 /**
@@ -66,24 +66,6 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'research_log',
   'asset_insight_snapshots',
 ];
-
-/** Empty these tables, as the owner, once any of them holds a row. One read
- * asks, so a test that wrote none costs no owner statement: each is a
- * connection of its own on the cluster's private socket, from Vitest's own
- * process (vitest.config.ts, scripts/postgres-test-cluster.mts). They are emptied together, in
- * one statement, because Postgres truncates a table only with every table
- * whose foreign key references it (a Mediavine run with its daily facts),
- * even an empty one. */
-export async function emptyTablesHoldingRows(tables: readonly string[]): Promise<void> {
-  for (const table of tables) if (!/^[a-z][a-z0-9_]*$/u.test(table)) throw new TypeError(`not a table name: ${table}`);
-  if (tables.length === 0) return;
-  const [found] = await env.STORE.read((tx) =>
-    tx.query<{ holding: boolean }>(
-      `SELECT ${tables.map((table) => `EXISTS (SELECT 1 FROM noticeos.${table})`).join(' OR ')} AS holding`,
-    ),
-  );
-  if (found?.holding) await emptyTables([...tables]);
-}
 
 /** Each monitored target's stored latest attempt, as the health read gets it,
  * in the order the targets were named. */
@@ -327,10 +309,16 @@ export async function asOwner(sql: string, { other = false }: { other?: boolean 
   if (!ran.ok) throw new Error(`the owner could not run ${sql}: ${ran.status} ${await ran.text()}`);
 }
 
-/** Empty these tables of the noticeos schema, as the owner. */
-export async function emptyTables(tables: string[], { other = false }: { other?: boolean } = {}): Promise<void> {
+/** Empty these tables of the noticeos schema, as the owner: those holding a
+ * row, with each of them whose foreign key references one, since Postgres
+ * truncates a table only with every table that references it (a Mediavine run
+ * with its daily facts). One statement on a connection the run keeps for this
+ * copy (vitest.config.ts, scripts/postgres-test-cluster.mts). */
+export async function emptyTables(tables: readonly string[], { other = false }: { other?: boolean } = {}): Promise<void> {
   for (const table of tables) if (!/^[a-z][a-z0-9_]*$/u.test(table)) throw new TypeError(`not a table name: ${table}`);
-  await asOwner(`TRUNCATE ${tables.map((table) => `noticeos.${table}`).join(', ')};`, { other });
+  noteReached(other ? 'env.POSTGRES_OTHER' : 'env.POSTGRES');
+  const emptied = await env.TEST_POSTGRES.fetch('http://test-postgres/empty', { method: 'POST', body: JSON.stringify({ tables, other }) });
+  if (!emptied.ok) throw new Error(`the owner could not empty ${tables.join(', ')}: ${emptied.status} ${await emptied.text()}`);
 }
 
 /** Remove these settings documents and their changes, as the owner: a store
