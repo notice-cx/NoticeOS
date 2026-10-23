@@ -803,8 +803,10 @@ FLOWS["arrange-wall"] = {
     const tile = (id) => w.page.locator(`[data-wall-preview] [data-wall-edit-widget="${id}"]`);
     if (!w.mobile) {
       // The drag path: Work onto the top edge of Sites stacks it above them.
+      // Work's tile is about as short as the resize handle above it, whose
+      // hit area covers the tile's top half: a press there resizes Revenue.
       await w.drag(tile("work"), tile("sites"), "drag Work onto the top of Assets",
-        { at: { x: 0.5, y: 0.06 }, landing: w.page.locator('[data-wall-preview] [data-wall-drop-line="top"]') });
+        { grab: { x: 0.5, y: 0.85 }, at: { x: 0.5, y: 0.06 }, landing: w.page.locator('[data-wall-preview] [data-wall-drop-line="top"]') });
       await tile("work").locator("xpath=ancestor::*[@data-wall-column='business']").waitFor({ timeout: 10_000 });
     }
     // The Move menu path, the one a keyboard or a phone takes: the strip,
