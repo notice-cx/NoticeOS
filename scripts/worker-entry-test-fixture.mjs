@@ -13,10 +13,11 @@ import path from 'node:path';
 import { WORKER_BUNDLES } from './script-tests-global.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const wranglerRequire = createRequire(createRequire(path.join(REPO_ROOT, 'workers/ingest/package.json')).resolve('wrangler/package.json'));
 const { build } = wranglerRequire('esbuild');
-export const { Miniflare } = wranglerRequire('miniflare');
+export const { Miniflare } = v4Miniflare(wranglerRequire);
 const wranglerPackage = wranglerRequire.resolve('wrangler/package.json');
 const wranglerMetadata = JSON.parse(readFileSync(wranglerPackage, 'utf8'));
 const fixtureDir = path.join(REPO_ROOT, 'workers/ingest/test/fixture-config');

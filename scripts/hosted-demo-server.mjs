@@ -17,6 +17,7 @@ import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-
 import { CHANGE_STREAM_PATH } from './change-topics.mjs';
 import { createChangeWatch, topicReader } from './change-watch.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 const RELEASE_HEADER = 'x-noticeos-release';
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const HASH = /^[a-f0-9]{64}$/u;
@@ -326,10 +327,9 @@ export async function startHostedDemoServer(input, adapters, presentation = {}) 
     const open = adapters ?? (() => {
         const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
         const wrangler = createRequire(require.resolve('wrangler/package.json'));
-        const { Miniflare, Log } = wrangler('miniflare');
+        const { Miniflare, Log } = v4Miniflare(wrangler);
         return { openTasks: openHostedTaskRuntime, startActivity: startHostedDemo,
-            openWorkers: options => new Miniflare({ ...options, log: new Log(0),
-                handleRuntimeStdio: (stdout, stderr) => { stdout.resume(); stderr.resume(); } }) };
+            openWorkers: options => new Miniflare({ ...options, log: new Log(0), handleStructuredLogs: () => undefined }) };
     })();
     const binding = { [PRODUCT_ENV.workspaceProfile.name]: 'demo', [PRODUCT_ENV.workspaceOrigin.name]: configuration.publicOrigin,
         [PRODUCT_ENV.workspaceDatabase.name]: configuration.workspaceDatabaseUrl,
@@ -338,9 +338,13 @@ export async function startHostedDemoServer(input, adapters, presentation = {}) 
         [PRODUCT_ENV.demoWorkspace.name]: configuration.tasks.demoWorkspaceId,
         [PRODUCT_ENV.demoActivityService.name]: configuration.activity.serviceId,
         [PRODUCT_ENV.demoScenarioHash.name]: demoScenarioHash(configuration.activity.scenario) };
-    const worker = (name, entry) => ({ name, modules: true,
-        modulesRules: [{ type: 'ESModule', include: ['**/*.js', '**/*.mjs'] }],
-        modulesRoot: path.join(configuration.artifactRoot, entry.modulesRoot), scriptPath: path.join(configuration.artifactRoot, entry.main),
+    // Every JavaScript module of the Worker's build, its entry first: Miniflare
+    // loads the modules it is given and does not follow the entry's imports.
+    const modules = (entry) => [entry.main, ...Object.keys(artifact.files)
+            .filter(name => name !== entry.main && name.startsWith(entry.modulesRoot + '/') && /\.m?js$/u.test(name))]
+        .map(name => ({ type: 'ESModule', path: path.join(configuration.artifactRoot, name) }));
+    const worker = (name, entry) => ({ name, modules: modules(entry),
+        modulesRoot: path.join(configuration.artifactRoot, entry.modulesRoot),
         compatibilityDate: entry.compatibilityDate, compatibilityFlags: [...entry.compatibilityFlags], bindings: binding,
         outboundService: async () => new Response('Demo external fetch refused.', { status: 403 }) });
     let tasks, activity, workers;
@@ -512,7 +516,7 @@ export async function startHostedDemoServer(input, adapters, presentation = {}) 
         // The one MCP endpoint forwards read-model calls straight to the Workers.
         tasks = await open.openTasks(configuration.tasks, { readModels: dispatch });
         workers = open.openWorkers({ host: '127.0.0.1', port: 0, cf: false, inspectorPort: undefined,
-            defaultPersistRoot: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
+            resourcePersistencePath: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
                 { ...worker('tower', artifact.tower), serviceBindings: { INGEST: 'ingest' } }, worker('ingest', artifact.ingest),
             ] });
         await workers.getWorker('tower');

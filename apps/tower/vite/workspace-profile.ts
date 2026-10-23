@@ -31,8 +31,10 @@ export function serverWorkspaceProfile(configs: readonly unknown[], env: Readonl
 /** Public Wrangler API, pinned by the fixture against the plugin's actual
  * final bindings. Only currently resolved key names become dev-only required
  * secrets; previously optional legacy bindings remain optional. The reserved
- * profile is excluded even if an identical local declaration exists. On a
- * later secret-file reload it therefore cannot acquire authority. */
+ * profile is excluded even if an identical local declaration exists. Wrangler
+ * lets a local secret replace a plain variable of the same name, so a local
+ * profile that differs is refused here; the plugin restarts the dev server
+ * when a local secret file changes, which runs this check again. */
 export function workspaceDevSecretKeys(configPath: string | undefined, profile: WorkspaceProfile, environment?: string): string[] {
   const local = unstable_getVarsForDev(configPath, undefined, {}, environment, true);
   if (local[selector] !== undefined && local[selector].value !== profile) refused();

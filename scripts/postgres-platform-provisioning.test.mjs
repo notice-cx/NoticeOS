@@ -17,6 +17,7 @@ import { releasedDefaultDocuments } from './released-defaults.mjs';
 import { openPlatformProvisioning } from '../packages/postgres/src/platform-provisioning.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/email-code.mjs';
 import { openIdentity } from '../packages/postgres/src/identity.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const require = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'));
 const { Pool } = require('pg');
@@ -51,7 +52,7 @@ async function workerPreparation(root, options, admin) {
   const compiled = spawnSync(process.execPath, [path.join(path.dirname(wranglerPath), metadata.bin.wrangler), 'deploy', '--dry-run', '--config', config, '--outdir', build],
     { cwd: root, env, encoding: 'utf8', timeout: 30000 });
   assert.equal(compiled.error, undefined); assert.equal(compiled.status, 0, compiled.stderr);
-  const { Miniflare } = workerRequire('miniflare'); let outside = 0, verification = 0;
+  const { Miniflare } = v4Miniflare(workerRequire); let outside = 0, verification = 0;
   const runtime = new Miniflare({ modules: true, modulesRoot: build, scriptPath: path.join(build, 'platform-provisioning-worker.fixture.js'),
     compatibilityDate: '2026-07-06', compatibilityFlags: ['nodejs_compat'], bindings: {
       FIXTURE_PLATFORM_CONNECTION: options.platformConnectionString, FIXTURE_IDENTITY_CONNECTION: options.identityConnectionString,

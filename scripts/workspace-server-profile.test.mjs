@@ -6,11 +6,17 @@ import path from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { serverWorkspaceProfile, workspaceWorkerConfig } from '../apps/tower/vite/workspace-profile.ts';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const towerRequire = createRequire(new URL('../apps/tower/package.json', import.meta.url));
 const { unstable_readConfig, unstable_getMiniflareWorkerOptions } = towerRequire('wrangler');
+/** A Worker's options as the plugin passes them on: without the module rules, as it supplies the modules itself. */
+const pluginWorkerOptions = (resolved, environment) => {
+  const { modulesRules, ...options } = unstable_getMiniflareWorkerOptions(resolved, environment).workerOptions;
+  return options;
+};
 const wranglerRequire = createRequire(towerRequire.resolve('wrangler/package.json'));
-const { Miniflare } = wranglerRequire('miniflare');
+const { Miniflare } = v4Miniflare(wranglerRequire);
 const { build } = wranglerRequire('esbuild');
 const selector = 'NOTICEOS_WORKSPACE_PROFILE';
 const config = profile => ({ vars: { [selector]: profile } });
@@ -110,11 +116,13 @@ test('actual production Vite composition omits host lanes and pins both final Wo
   }
 });
 
-test('pinned plugin conversion keeps reserved binding sealed across local sources and later reload', async () => {
-  // This is the public conversion API used by vite-plugin 1.43.0 after its
-  // config callback. A dependency upgrade must review this compatibility pin.
-  assert.equal(JSON.parse(readFileSync(new URL('../apps/tower/node_modules/@cloudflare/vite-plugin/package.json', import.meta.url), 'utf8')).version, '1.43.0');
-  assert.equal(JSON.parse(readFileSync(towerRequire.resolve('wrangler/package.json'), 'utf8')).version, '4.107.0');
+test('pinned plugin conversion keeps the reserved binding across local sources and refuses a changed one', async () => {
+  // This is the public conversion API used by vite-plugin 1.64.0 after its
+  // config callback, and that plugin restarts the dev server, running the
+  // callback again, when a local secret file changes. A dependency upgrade
+  // must review this compatibility pin.
+  assert.equal(JSON.parse(readFileSync(new URL('../apps/tower/node_modules/@cloudflare/vite-plugin/package.json', import.meta.url), 'utf8')).version, '1.64.0');
+  assert.equal(JSON.parse(readFileSync(towerRequire.resolve('wrangler/package.json'), 'utf8')).version, '4.151.2');
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-profile-'));
   const keys = ['CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV', 'CLOUDFLARE_INCLUDE_PROCESS_ENV', 'CLOUDFLARE_ENV', selector];
   const before = Object.fromEntries(keys.map(key => [key, process.env[key]]));
@@ -135,19 +143,15 @@ test('pinned plugin conversion keeps reserved binding sealed across local source
       const override = workspaceWorkerConfig(resolved, 'hosted', 'serve', environment);
       Object.assign(resolved, override);
       assert.equal(resolved.secrets.required.includes(selector), false);
-      const options = unstable_getMiniflareWorkerOptions(resolved, environment).workerOptions;
+      const options = pluginWorkerOptions(resolved, environment);
       assert.equal(options.bindings[selector], 'hosted');
       const runtimeOptions = { ...options, modules: true, script, outboundService: async () => { throw new Error('No outside traffic in profile fixture'); } };
       if (runtime) await runtime.setOptions(runtimeOptions); else runtime = new Miniflare(runtimeOptions);
       assert.equal((await (await runtime.dispatchFetch('https://fixture.example.test')).json()).profile, 'hosted');
       if (source === 'process') process.env[selector] = 'demo';
       else writeFileSync(path.join(root, source), `${selector}=demo\nOPTIONAL_FIXTURE=synthetic\n`);
-      // The plugin's secret reload reuses the sealed config, not secret-selected
-      // authority. Even a later different profile cannot replace plain vars.
-      const reload = unstable_getMiniflareWorkerOptions(resolved, environment).workerOptions;
-      assert.equal(reload.bindings[selector], 'hosted');
-      await runtime.setOptions({ ...runtimeOptions, ...reload });
-      assert.equal((await (await runtime.dispatchFetch('https://fixture.example.test')).json()).profile, 'hosted');
+      // The plugin's restart runs the callback again, which refuses a
+      // different local profile rather than serve it.
       assert.throws(() => workspaceWorkerConfig(unstable_readConfig({ config: file }), 'hosted', 'serve', environment));
     }
     for (const name of ['.dev.vars', '.env', '.dev.vars.fixture']) rmSync(path.join(root, name), { force: true });

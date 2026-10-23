@@ -19,6 +19,7 @@ import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const require=createRequire(path.join(REPO_ROOT,'packages/postgres/package.json'));
 const { Pool }=require('pg');
@@ -298,7 +299,7 @@ test('maintained roles and native membership transactions preserve fresh authori
         'deploy','--dry-run','--config',config,'--outdir',build],{cwd:root,env,encoding:'utf8',timeout:60000});
       assert.equal(compiled.error,undefined);assert.equal(compiled.status,0,compiled.stderr);
       const bundle=path.join(build,'membership-worker.fixture.js');assert.ok(!readFileSync(bundle,'utf8').includes('node:sqlite'));
-      const {Miniflare}=wranglerRequire('miniflare');
+      const {Miniflare}=v4Miniflare(wranglerRequire);
       const runtimes=[],messages=[];let outside=0;
       try {
         for(let i=0;i<2;i++)runtimes.push(new Miniflare({modules:true,modulesRoot:build,scriptPath:bundle,
