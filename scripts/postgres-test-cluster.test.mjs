@@ -24,7 +24,9 @@ import { attachTestCluster } from './postgres-test-copies.mjs';
 //     server listens on 127.0.0.1 alone; the password is in no file of the
 //     cluster's folder; the template takes no connection; each copy starts as
 //     a new installation's store, a copy made again forgets what was written
-//     to it, and one copy never sees another's rows; a copy's tables are
+//     to it, and one copy never sees another's rows; a copy reset under its
+//     name is emptied where it is when only rows changed and made again when
+//     more did; a copy's tables are
 //     emptied as the owner on a connection kept for it, which a test ending
 //     every session does not break; a test process gets its
 //     copies from the starting process's copy service, which refuses anything
@@ -225,6 +227,51 @@ test('each copy starts as a new installation\'s store; a copy made again forgets
     await copies.dropDatabase(first);
     await copies.dropDatabase(second);
     await assert.rejects(login(cluster.url(first)).then((answer) => (answer.ok ? null : Promise.reject(new Error(answer.why)))), /does not exist/u);
+  });
+});
+
+// A copy reset under its name is the same database when emptying it leaves it
+// holding what a new copy holds, and a new one otherwise.
+test('a copy reset under its name is emptied where it is when only rows changed, and made again when more did', async (t) => {
+  await live(t, async (cluster) => {
+    const name = await cluster.createDatabase('noticeos_reset_in_place_dev');
+    const fresh = await cluster.createDatabase('noticeos_reset_fresh_dev');
+    const identity = async () => (await cluster.asOwner(name, 'SELECT oid::text AS oid FROM pg_database WHERE datname = current_database()'))[0].oid;
+    const contents = async (database) => ({
+      sites: await cluster.asOwner(database, 'SELECT count(*)::int AS n FROM noticeos.assets'),
+      counters: await cluster.asOwner(database, 'SELECT count(*)::int AS n FROM noticeos.workspace_counters'),
+      sequences: await cluster.asOwner(database, "SELECT sequencename, last_value::text FROM pg_sequences WHERE schemaname = 'noticeos' ORDER BY 1"),
+      functions: await cluster.asOwner(database, "SELECT count(*)::int AS n FROM pg_proc WHERE proname = 'left_behind'"),
+    });
+    try {
+      const before = await identity();
+      const store = openStore(cluster.url(name));
+      try {
+        await store.inWorkspace(cluster.workspaceId, (tx) =>
+          tx.execute("INSERT INTO noticeos.assets (workspace_id, asset_id, display_name, status) VALUES ($1, 'one.example.com', 'Site', 'live')", [tx.workspaceId]),
+        );
+      } finally {
+        await store.close();
+      }
+      await cluster.asOwner(name, "INSERT INTO noticeos.egress_checks (workspace_id, observed_at, up) SELECT workspace_id, now(), true FROM noticeos.workspaces");
+      const held = new Client({ connectionString: cluster.url(name) });
+      held.on('error', () => undefined);
+      await held.connect();
+
+      await cluster.resetDatabase(name);
+      await assert.rejects(held.query('SELECT 1'), 'a connection still open is ended');
+      await held.end().catch(() => undefined);
+      assert.equal(await identity(), before, 'emptied where it is');
+      assert.deepEqual(await contents(name), await contents(fresh));
+
+      await cluster.asOwner(name, "CREATE FUNCTION noticeos.left_behind() RETURNS int LANGUAGE sql AS 'SELECT 1'");
+      await cluster.resetDatabase(name);
+      assert.notEqual(await identity(), before, 'made again');
+      assert.deepEqual(await contents(name), await contents(fresh));
+    } finally {
+      await cluster.dropDatabase(name);
+      await cluster.dropDatabase(fresh);
+    }
   });
 });
 

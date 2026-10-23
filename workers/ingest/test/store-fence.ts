@@ -14,7 +14,7 @@
 // store. test/isolation-probe.ts proves it.
 //
 // The fence also records which Postgres bindings a file reached, so the next
-// file's clean start makes again only the copies that can have changed: every
+// file's clean start puts back only the copies that can have changed: every
 // file reaches `POSTGRES`, and only a few the second copy.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { WorkspaceStore } from '@noticeos/postgres';
@@ -96,9 +96,9 @@ function fence(target: object, label: string, methods: Record<string, After>): o
  * A Postgres binding (Hyperdrive): what an ended test would reach it by — its
  * connection string, read to open a store, and `connect()` — refused. Work
  * already inside a transaction when its test ended is not fenced here: the
- * next file's clean start copies the database again and ends every
- * connection to it (vitest.config.ts, TEST_POSTGRES), so its writes fail
- * rather than land.
+ * next file's clean start ends every connection to the database and waits
+ * them out before emptying or copying it again (vitest.config.ts,
+ * TEST_POSTGRES), so its writes fail rather than land.
  */
 function fenceHyperdrive(binding: Record<string | symbol, unknown>, label: string): void {
   if (binding[FENCED]) return;

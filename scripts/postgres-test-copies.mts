@@ -47,8 +47,8 @@ export interface TestClusterOperations {
   url(database: string): string;
   /** A new copy of the template; returns its name (a fresh one unless `name` is given). */
   createDatabase(name?: string): Promise<string>;
-  /** The copy made again from the template, under the same name: every
-   * connection to it is ended and everything written to it is gone. */
+  /** The copy back to what a new copy of the template holds, under the same
+   * name: every connection to it is ended and everything written to it is gone. */
   resetDatabase(name: string): Promise<string>;
   /** Refresh planner statistics for this copy through its owner's service. */
   analyzeDatabase(name: string): Promise<void>;
