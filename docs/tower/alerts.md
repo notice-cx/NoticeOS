@@ -17,7 +17,7 @@ The page starts with a one-line summary and a severity dot: **2 open alerts, bot
 
 Under the summary, **Last 7 days** draws the same alerts on a time axis that ends at **Now**: one row per asset, every open alert a bar from when it was first detected to now, and what settled this week a pale closed bar with a green tick. A bar that started more than a week ago is cut at the left edge with its age on it (**since 37d**). The newest open error has a faint red glow. Press an open bar to jump to its row below, expanded; press a closed bar to see that asset's settled alerts. Like the summary, the chart covers every asset: the filters narrow the list, not the chart.
 
-**Daily open-alert snapshots** charts the stored portfolio totals by UTC date. These are unresolved counts at each daily observation, rather than newly fired alerts. Missing days remain gaps; an observed zero means no alerts were open. **View data** lists every date, its count and the recorded observation time. An empty history and a failed read have separate messages. The chart covers every asset, independently of the list filters.
+**Daily open-alert snapshots** charts the stored warning and error counts by UTC date. It excludes informational notices. **Now** repeats the current total and its observation time from the page heading. Each historical count records the individual alerts open at that daily observation; the current total groups repeats and includes later resolutions. Missing days remain gaps; an observed zero means no warnings or errors were open. **View data** lists every date, its count and the recorded observation time. An empty history and a failed read have separate messages. The chart covers every asset, independently of the list filters.
 
 Two tabs follow: **Open** and **History**. Open lists the alerts still open; History lists every settled alert.
 
@@ -30,6 +30,8 @@ Percentage-drop and home-page HTML-depth alerts show one lower limit derived fro
 Alerts open for over a week are collapsed under **Open for over a week**, one line naming each and its asset, so an old fault is never shown as prominently as a new one. When they are all that is open, they are listed under that heading, not collapsed.
 
 The list ends with **That's every open alert.** and the age of the data. Under it, a **Snoozed** panel lists alerts you snoozed, each with when it comes back.
+
+Repeated alerts for the same recurring condition that settled together share one bar in **Last 7 days**. The bar shows their count and earliest detection time. **Settled this week** counts these groups once. Separate settlement times remain separate, and History retains every recorded alert.
 
 History lists settled alerts, newest first, each with its asset, what was decided (**Acknowledged**, **resolved 2d ago**) and how long it stayed open, 25 to a page with **Newer** and **Older**.
 

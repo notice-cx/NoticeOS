@@ -13,6 +13,7 @@ import {
   type AlertHistoryPayload,
   type AlertHistoryQuery,
   parseAlertHistoryQuery,
+  groupSettledAlerts,
 } from "@shared/alert-history";
 import { ageMs, formatAge } from "@shared/freshness";
 import { AlertList, AlertRow } from "@/components/AlertRow";
@@ -201,7 +202,7 @@ export function AlertsRoute() {
           <AlertsAnswer items={data.attention} settled={settled.data} settledFailed={settled.isError} nowMs={now} />
           <AlertWeek open={data.attention} settled={settled.data?.rows ?? []} assets={data.assets} nowMs={now} openHref={openHref} />
 
-          <AlertDaily />
+          <AlertDaily current={data} />
 
           <Tabs
             label="Alert views"
@@ -249,7 +250,7 @@ const WEEK_MS = 7 * DAY_MS;
  * back past the week's start makes the count a floor. */
 export function settledThisWeek(payload: AlertHistoryPayload | undefined, nowMs: number): { count: number; exact: boolean } | null {
   if (!payload) return null;
-  const closed = payload.rows.map(closedAtMs).filter((at): at is number => at !== null);
+  const closed = groupSettledAlerts(payload.rows).map(closedAtMs).filter((at): at is number => at !== null);
   const oldest = closed.length === 0 ? null : Math.min(...closed);
   const weekStart = nowMs - WEEK_MS;
   return {

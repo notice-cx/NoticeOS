@@ -3,7 +3,7 @@
 // the long-standing folded apart, and the week's timeline. Every number comes
 // from the stored rule inputs; a rule that kept no normal draws none.
 import { lnPoissonPmf } from "@noticeos/contract/poisson";
-import type { AlertHistoryRow } from "@shared/alert-history";
+import { groupSettledAlerts, type AlertHistoryRow } from "@shared/alert-history";
 import { humanizeMetric, translateAlert, type FlagReading } from "@shared/alert-language";
 import type { AttentionItem } from "@shared/wall";
 import type { BarStripPoint } from "@/components/viz/BarStrip";
@@ -309,7 +309,7 @@ export function alertTimeline(
     }
   }
   const weekStart = options.nowMs - ALERT_WEEK_MS;
-  for (const row of settled) {
+  for (const row of groupSettledAlerts(settled)) {
     const closed = row.flag.resolvedAt ?? row.flag.dispositionAt;
     if (closed === null || Date.parse(closed) < weekStart) continue;
     // A milestone is news, not a problem that ran from onset to a fix.
@@ -321,7 +321,8 @@ export function alertTimeline(
       from: row.flag.firstFiredAt,
       to: closed,
       severity: row.flag.severity === "error" ? "error" : "warn",
-      label: shortHeadline(translateAlert(row.flag).headline),
+      label: shortHeadline(translateAlert(row.flag).headline)
+        + (row.flag.occurrences > 1 ? ` · ${row.flag.occurrences.toLocaleString("en-US")} alerts` : ""),
       href: options.settledHref(row),
     });
   }
