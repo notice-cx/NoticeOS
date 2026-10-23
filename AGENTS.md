@@ -170,12 +170,14 @@ scope is inferred.
 Six parallel jobs (`.github/workflows/ci.yml`) on push to `main` and every
 PR, each after `pnpm install --frozen-lockfile`: the Tower's typecheck and unit
 tests; the other workspaces'; `pnpm test:scripts`; `pnpm -r build` then the
-isolated browser journeys; the journey harness then the UX flow walker (a
+isolated browser journeys, split test by test across three shards of one
+matrix job; the journey harness then the UX flow walker (a
 report; it fails only when a flow cannot be walked); and `pnpm test:task-store`
 against a real Dolt server in Docker. Each job installs only what its suites
 start: PostgreSQL 18, Chromium in the two browser jobs, the pinned task and
 Dolt tools in the task-store job. The `build` job is the required verdict.
-A PR that changes only documentation no runtime suite reads (`docs/` and root
+A newer push to a PR cancels that PR's running CI; a push to `main` is never
+cancelled. A PR that changes only documentation no runtime suite reads (`docs/` and root
 Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
 `docs` workflow builds the asset whenever `docs/` changes; a push to `main` runs
 everything and publishes the asset. Once CI passes on a `main` commit, the

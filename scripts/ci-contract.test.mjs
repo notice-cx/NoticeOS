@@ -49,11 +49,13 @@ function jobBlock(workflow, name) {
 const INSTALL = 'pnpm install --frozen-lockfile';
 const BROWSER_INSTALL = 'pnpm --filter @noticeos/tower run journey:install --with-deps';
 const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"';
+// The journeys run as one matrix job of shards; each runs its share.
+const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
 const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, 'pnpm --filter @noticeos/tower run test'],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
   scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
-  browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journeys'],
+  browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journey-harness',
     'pnpm --filter @noticeos/tower run test:ux-flows'],
   // The opt-in real task store suites get their pinned inputs first.
@@ -63,7 +65,7 @@ const JOBS = {
 const RUNTIME_JOBS = ['tower-unit', 'ingest-unit', 'browser', 'flow-gate', 'task-store'];
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
-  'pnpm --filter @noticeos/tower run test:journeys', 'pnpm --filter @noticeos/tower run test:journey-harness',
+  JOURNEYS, 'pnpm --filter @noticeos/tower run test:journey-harness',
   'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
 
 test('required CI runs every gate exactly once, each in its job, in gate order', () => {
@@ -116,7 +118,7 @@ test('CI runs every step of pnpm test:journeys', () => {
   const ci = Object.keys(JOBS).flatMap((name) => runCommands(jobBlock(workflow, name)));
   for (const step of steps) {
     const ran = step === 'pnpm --filter @noticeos/tower run typecheck:journeys' ? 'pnpm --filter @noticeos/tower run typecheck' : step;
-    assert.ok(ci.includes(ran), `${step} never runs in CI`);
+    assert.ok(ci.some((command) => command === ran || command.startsWith(`${ran} -- `)), `${step} never runs in CI`);
   }
 });
 
@@ -164,7 +166,7 @@ test('CI runs the isolated user journeys and the flow walker and keeps their evi
     for (const folder of evidence) assert.match(job, new RegExp(`apps/tower/e2e/${folder}/`, 'u'), `${name} keeps ${folder}`);
     // The journeys' workers and the flow gate's lanes on the runner: unset, a
     // small runner would run them all on one.
-    assert.match(job, new RegExp(`- run: pnpm --filter @noticeos/tower run ${step}\\n\\s+env:\\n(?:\\s+#.*\\n)*\\s+JOURNEY_WORKERS: \\d+\\n`, 'u'),
+    assert.match(job, new RegExp(`- run: pnpm --filter @noticeos/tower run ${step}(?: -- [^\\n]+)?\\n\\s+env:\\n(?:\\s+#.*\\n)*\\s+JOURNEY_WORKERS: \\d+\\n`, 'u'),
       `${name} sets JOURNEY_WORKERS`);
   }
 
@@ -179,6 +181,28 @@ test('CI runs the isolated user journeys and the flow walker and keeps their evi
   assert.equal(tower.scripts?.['test:ux-flows'], 'node e2e/flow-gate.mjs');
   assert.equal(manifest.scripts?.['audit:flows'], 'node apps/tower/e2e/flow-gate.mjs');
   assert.equal(manifest.scripts?.['audit:flows:baseline'], undefined, 'the walker keeps no budget to lower');
+});
+
+// Each shard runs its share of the journeys and keeps its own evidence; a
+// failed shard leaves the others running, and `build` fails on any of them.
+test('the journey shards together run every journey once', () => {
+  const browser = jobBlock(readFileSync(WORKFLOW, 'utf8'), 'browser');
+  const matrix = /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[([\d, ]+)\]\n/mu.exec(browser);
+  assert.ok(matrix, 'the browser job is a matrix of shards, and one failing shard does not stop the rest');
+  const shards = matrix[1].split(',').map(Number);
+  assert.deepEqual(shards, shards.map((_, index) => index + 1), 'the shards are numbered from 1 with none missing');
+  assert.ok(runCommands(browser).includes(`pnpm --filter @noticeos/tower run test:journeys -- --shard=\${{ matrix.shard }}/${shards.length}`),
+    'each shard runs its own share of all the shards');
+  assert.match(browser, /name: user-journey-browser-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each shard keeps its own evidence');
+});
+
+// A cancelled run must not leave a skipped required check, which GitHub
+// counts as passing.
+test('a newer push cancels only the pull request run it replaces', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  assert.match(workflow, /^concurrency:\n {2}group: ci-\$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.number \|\| github\.run_id \}\}\n {2}cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}\n/mu,
+    'pull request runs share a group per pull request; every other run has its own');
+  assert.match(jobBlock(workflow, 'build'), /^ {4}if: always\(\)\n/mu, 'build runs, and fails, on a cancelled run');
 });
 
 test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites on the whole runner', () => {

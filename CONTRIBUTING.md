@@ -118,9 +118,10 @@ recursive workspace test does not run `scripts/*.test.mjs`.
 
 CI runs these gates across six parallel jobs (`.github/workflows/ci.yml`: the
 Tower's typecheck and unit tests; the other workspaces'; the root script
-suite; the build and browser journeys; the journey harness and UX flow report;
-and the task store against a real Dolt server). The `build` job is the required
-check; it combines the results of all six. A pull request that changes only
+suite; the build and browser journeys, in three shards; the journey harness
+and UX flow report; and the task store against a real Dolt server). The
+`build` job is the required check; it combines the results of all six. A newer
+push to a pull request cancels the run it replaces. A pull request that changes only
 documentation runs only the root script suite (`scripts/ci-scope.mjs`). Release
 acceptance still requires passing CI:
 

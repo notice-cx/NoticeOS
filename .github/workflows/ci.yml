@@ -5,6 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to a pull request cancels the run it replaces. Every push to
+# main gets its own group and runs to the end: each main commit's result
+# decides its release image. `build` runs on a cancelled run too (if:
+# always()) and fails there, so a cancelled run never reports a skipped,
+# passing required check.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Six jobs side by side (issue #2): the Tower's unit suite, the other
 # workspaces' (ingest, contract, mediavine, postgres), the root script suite,
 # the build with the browser journeys, the UX flow walker, and the task store
@@ -89,10 +98,16 @@ jobs:
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
 
+  # The journeys are fully parallel, so Playwright splits them test by test
+  # across three runners; every journey still runs once, on one shard.
   browser:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -109,7 +124,7 @@ jobs:
       # here, the journey harness and the UX flow gate there. The journeys'
       # types are checked in tower-unit.
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
-      - run: pnpm --filter @noticeos/tower run test:journeys
+      - run: pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3
         env:
           # Browser workers, each with its own fixture server. Unset, a run
           # takes half the machine's cores, which on a small runner is 1.
@@ -117,7 +132,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: user-journey-browser-evidence
+          name: user-journey-browser-evidence-${{ matrix.shard }}
           path: |
             apps/tower/e2e/playwright-report/
             apps/tower/e2e/test-results/
