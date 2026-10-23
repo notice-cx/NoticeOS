@@ -170,7 +170,7 @@ export interface ListRowProps {
   actions?: ReactNode;
   /**
    * The row's one decision, on the row itself: visible without expanding it,
-   * beside the value on a desk and on its own line under the title on a phone.
+   * beside the value in a wide row and on its own line in a narrow row.
    * The evidence and the rarer verbs stay in the expansion.
    */
   rowActions?: ReactNode;
@@ -236,7 +236,7 @@ export function ListRow({
       >
         {glyph ?? TONE_GLYPH[tone]}
       </span>
-      <span className="grid min-w-0 gap-0.5">
+      <span className="col-start-2 row-start-1 grid min-w-0 gap-0.5">
         <span className="text-sm text-foreground whitespace-normal wrap-anywhere">{title}</span>
         {caption ? (
           <span className="text-xs text-muted-foreground whitespace-normal wrap-anywhere">
@@ -245,12 +245,12 @@ export function ListRow({
         ) : null}
       </span>
       {value !== undefined && value !== null ? (
-        <span className="grid justify-items-end gap-0.5 text-end">
+        <span className="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
           <span className="text-[13px] font-semibold tabular-nums text-foreground">
             {value}
           </span>
           {valueLabel ? (
-            <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+            <span className="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">
               {valueLabel}
             </span>
           ) : null}
@@ -258,15 +258,15 @@ export function ListRow({
       ) : null}
       {/* The last mark says what a press does: › opens a page, ⌄ opens the
           row in place, and a row with neither does nothing and has no hover. */}
-      {to ? <ChevronRight className="size-4 text-muted-foreground" aria-hidden data-row-affordance="open" /> : expandable ? (
-        <ChevronDown className={cn("size-4 text-muted-foreground motion-safe:transition-transform", open && "rotate-180")} aria-hidden data-row-affordance="expand" />
+      {to ? <ChevronRight className="col-start-3 row-start-1 size-4 text-muted-foreground @lg/list-row:col-start-4" aria-hidden data-row-affordance="open" /> : expandable ? (
+        <ChevronDown className={cn("col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4", open && "rotate-180")} aria-hidden data-row-affordance="expand" />
       ) : null}
     </>
   );
 
   const shell = cn(
-    "grid w-full items-center gap-2.5 rounded-md p-2 text-start",
-    to || expandable ? "grid-cols-[auto_minmax(0,1fr)_auto_auto]" : "grid-cols-[auto_minmax(0,1fr)_auto]",
+    "grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start",
+    to || expandable ? "@lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto]" : "@lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto]",
     open && !rowActions && "bg-muted/40",
   );
 
@@ -304,16 +304,16 @@ export function ListRow({
   ) : main;
 
   return (
-    <li className={cn("m-0", className)} {...marks}>
+    <li className={cn("@container/list-row m-0 min-w-0", className)} {...marks}>
       {/* A sibling of the row's own button, never inside it: a button in a
           button is unreachable by keyboard and screen reader. */}
       {rowActions ? (
-        <div className={cn("flex items-center gap-x-2 rounded-md", !rowActionsInline && "max-sm:flex-wrap", open && "bg-muted/40")}>
+        <div className={cn("flex items-center gap-x-2 rounded-md", !rowActionsInline && "@max-2xl/list-row:flex-wrap", open && "bg-muted/40")}>
           <div className="min-w-0 flex-1">{row}</div>
           <span
             className={cn(
               "flex shrink-0 flex-wrap items-center gap-2 pe-2",
-              !rowActionsInline && "max-sm:w-full max-sm:ps-9 max-sm:pb-2",
+              !rowActionsInline && "@max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2",
             )}
             data-list-row-actions
           >
@@ -325,10 +325,10 @@ export function ListRow({
       )}
       {below}
       {/* `minmax(0,1fr)` holds the body to the row's width: an implicit column
-          would size to an unbreakable URL's min-content and widen the page. On
-          a phone `wrap-anywhere` lets such a string break. */}
+          would size to an unbreakable URL's min-content and widen the page.
+          `wrap-anywhere` lets such a string break in a narrow panel. */}
       {open ? (
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-2 rounded-b-md bg-muted/40 px-2 pb-2.5 ps-9 text-xs leading-relaxed text-muted-foreground max-sm:wrap-anywhere" data-list-row-body>
+        <div className="@container/list-row-body grid grid-cols-[minmax(0,1fr)] gap-2 rounded-b-md bg-muted/40 px-2 pb-2.5 ps-9 text-xs leading-relaxed text-muted-foreground wrap-anywhere" data-list-row-body>
           {children}
           {actions ? <span className="flex flex-wrap gap-2">{actions}</span> : null}
         </div>

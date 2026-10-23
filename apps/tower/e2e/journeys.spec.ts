@@ -2,7 +2,7 @@ import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
+import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE, journeyFindingSnapshot } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { WALL_PRESETS, wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -241,6 +241,75 @@ function tileHealth(tile: Locator) {
 function siteRow(page: Page, provider: string, site: string) {
   return page.locator(`[data-provider-sites="${provider}"] [data-site="${site}"]`);
 }
+
+test("findings reflow to their panel width on desktop and phone", desktopOnly("walks desktop, tablet and phone sizes plus narrow panels on a wide desktop"), async ({ page }, testInfo) => {
+  await createAsset(page);
+  expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
+  const title = "Move “example nutrition calculator” up from #15";
+  const rankingPage = `/calculators/${"nutrition".repeat(16)}/calorie-calculator`;
+  await page.route(`**/api/assets/${JOURNEY_ASSET}?view=overview`, async (route) => {
+    const { response, headers } = await fetchToRewrite(route);
+    const actual = await response.json();
+    const snapshot = journeyFindingSnapshot();
+    await route.fulfill({ response, headers, json: { ...actual, executive: {
+      ...snapshot,
+      items: Array.from({ length: 4 }, (_, index) => ({
+        ...snapshot.items[0], key: `journey-layout-${index}`, kind: "recommendation", title,
+        primary: { value: "18,100", label: "Estimated searches / month" },
+        evidence: [
+          { label: "Rank at analysis", value: "#15" },
+          { label: "Ranking page", value: rankingPage },
+          { label: "Keyword difficulty", value: "2" },
+          { label: "Estimated CPC", value: "$6.28" },
+        ],
+      })),
+    } } });
+  });
+  for (const width of [1440, 1280, 1024, 768, 390]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(`/assets/${JOURNEY_ASSET}`);
+    const panel = page.getByRole("region", { name: "What matters", exact: true });
+    const row = panel.locator('[data-finding-row="journey-layout-0"]');
+    await expect(row.getByText(title, { exact: true })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    const checkLayout = async () => {
+      const rowBox = (await row.boundingBox())!;
+      const titleBox = (await row.getByText(title, { exact: true }).boundingBox())!;
+      expect(titleBox.width, `readable title at viewport ${width}, row ${rowBox.width}`).toBeGreaterThanOrEqual(Math.min(240, rowBox.width * 0.55));
+      for (const element of [row.getByText(title, { exact: true }), row.getByText("18,100", { exact: true }), row.locator("[data-list-row-actions]"), row.locator("dl")]) {
+        const box = (await element.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(rowBox.x - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+      }
+      await expect(row.getByText(rankingPage, { exact: true })).toBeVisible();
+      const evidence = await row.locator("dl").evaluate(element => ({ width: element.clientWidth, scroll: element.scrollWidth }));
+      expect(evidence.scroll).toBeLessThanOrEqual(evidence.width + 1);
+      await assertNoPageOverflow(page);
+    };
+    await checkLayout();
+    if (width === 1440) {
+      // Keep the desktop viewport fixed: the component must respond to the
+      // panel itself, including when another column limits its space.
+      await panel.evaluate(element => { element.parentElement!.parentElement!.style.gridTemplateColumns = "minmax(0, 1fr)"; });
+      for (const panelWidth of [360, 440, 560, 720]) {
+        await panel.evaluate((element, size) => { element.style.width = `${size}px`; }, panelWidth);
+        await checkLayout();
+        const actionBox = (await row.locator("[data-list-row-actions]").boundingBox())!;
+        const titleBox = (await row.getByText(title, { exact: true }).boundingBox())!;
+        if (panelWidth < 672) expect(actionBox.y).toBeGreaterThan(titleBox.y + titleBox.height);
+        else expect(actionBox.y).toBeLessThan(titleBox.y + titleBox.height);
+        if (panelWidth === 440) await testInfo.attach("findings-narrow-desktop", { body: await panel.screenshot(), contentType: "image/png" });
+      }
+    }
+    if (width === 390) await testInfo.attach("findings-phone", { body: await panel.screenshot(), contentType: "image/png" });
+    const toggle = row.getByRole("button", { name: /^Move/ });
+    await toggle.click();
+    await expect(row.locator("[data-list-row-body]")).toHaveCount(0);
+    await row.getByRole("button", { name: /^File task for/ }).click();
+    await expect(page.getByRole("dialog", { name: "File a task" }).getByLabel("Title", { exact: true })).toHaveValue(title);
+    await page.keyboard.press("Escape");
+  }
+});
 
 test("KPI trends remain inside their cells on desk, tablet and phone", async ({ page }, testInfo) => {
   await createAsset(page);
