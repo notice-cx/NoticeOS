@@ -622,6 +622,7 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
   }
   // One site added, nothing connected yet: still nothing broke.
   await addAssetByApi(page);
+  // Loaded again: the Wall already open would only be resized.
   await openWall(page, [1920, 1080]);
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
     await wallAt(page, [width, height]);
