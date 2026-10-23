@@ -312,7 +312,7 @@ describe("the strip", () => {
   it("groups the clock/date, next meeting and countdown within a bounded TV header", () => {
     const view = strip();
     const el = view.container.querySelector("[data-wall-strip]")!;
-    expect(el).toHaveClass("tv:min-h-24", "wall-strip", "grid", "py-4");
+    expect(el).toHaveClass("wall-strip", "grid", "py-2");
     expect(el).toHaveAttribute("aria-label", "Time, meetings and countdown");
     const clock = stripClock(NOW);
     const period = clock.dayPeriod ?? "";
@@ -320,7 +320,7 @@ describe("the strip", () => {
     expect(el.querySelector("[data-strip-clock-group] [data-strip-date]")?.textContent).not.toBe("");
     expect(el.querySelector("[data-strip-meeting-title]")?.textContent).toBe("Partner sync");
     expect(el.querySelector("[data-strip-countdown-value]")?.textContent).toBe("12");
-    expect(el.querySelector("[data-strip-countdown-unit]")?.textContent).toBe("days remaining");
+    expect(el.querySelector("[data-strip-countdown-unit]")?.textContent).toBe("days");
     expect(el.querySelector("[data-strip-countdown-label]")?.textContent).toBe("Team offsite");
     expect(el.querySelectorAll("a")).toHaveLength(1);
     expect(el.querySelector("[data-strip-home]")).toHaveAttribute("href", "/");
@@ -386,8 +386,8 @@ describe("the strip", () => {
   });
 
   it.each([
-    [5 * HOUR, "5", "hours remaining"],
-    [MINUTE, "1", "min remaining"],
+    [5 * HOUR, "5", "hours"],
+    [MINUTE, "1", "min"],
     [0, "Reached", null],
     [-HOUR, "Reached", null],
   ])("keeps countdown meaning before and after the target (%s)", (offset, value, unit) => {
@@ -431,7 +431,7 @@ describe("the strip", () => {
     const view = strip();
     const tile = view.container.querySelector("[data-strip-countdown] [data-strip-countdown-emoji]")!;
     expect(tile.textContent).toBe("🌁");
-    expect(tile).toHaveClass("min-h-wall-strip-mark", "min-w-wall-strip-mark", "text-wall-strip-emoji");
+    expect(tile).toHaveClass("shrink-0", "text-wall-strip-emoji");
     expect(tile.getAttribute("aria-hidden")).toBe("true");
     view.unmount();
     for (const emoji of ["", "  "]) {

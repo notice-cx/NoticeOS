@@ -168,7 +168,7 @@ export const WALL_WIDGET_LIBRARY = {
     sites: {
         type: 'sites',
         label: 'Portfolio',
-        shows: ['Live users', 'Today vs last week', '30 days', 'Money', 'Issues'],
+        shows: ['Live users', 'Today vs last week', '4 weeks', 'Work', 'Product counts'],
         defaultWidth: 1,
         minWidthRem: 0,
         maxWidthRem: null,
@@ -289,13 +289,9 @@ export function wallLayoutWidgets(layout) {
     return layout.rows.flatMap((row) => row.widgets.flatMap((slot) => (isWallColumn(slot) ? slot.rows.flatMap((inner) => inner.widgets) : [slot])));
 }
 /**
- * The default Wall: the strip, then the loop across the TV; below them two
- * columns — the last 24 hours over the site rows, beside revenue over the
- * work. Work fits its project rows; revenue's month chart takes the remaining
- * height. Revenue sits beside the sites rather than over them because
- * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
- * way (`pnpm audit:wall-fit`). Needs attention and the live feed stay in the library
- * for a Wall that wants them.
+ * The default Wall: header, work above portfolio rows, and a narrower column
+ * containing revenue, attention and the live feed. Existing saved layouts
+ * keep their arrangement; this is also available in the editor's presets.
  */
 export const DEFAULT_WALL_LAYOUT = {
     version: WALL_LAYOUT_VERSION,
@@ -306,23 +302,18 @@ export const DEFAULT_WALL_LAYOUT = {
             widgets: [{ id: 'strip', type: 'strip', width: 1 }],
         },
         {
-            id: 'loop',
-            height: 'auto',
-            widgets: [{ id: 'loop', type: 'loop', width: 1 }],
-        },
-        {
             id: 'body',
             height: 'fill',
             widgets: [
                 {
                     id: 'business',
                     type: 'column',
-                    width: 1.4,
+                    width: 3.25,
                     rows: [
                         {
-                            id: 'timeline',
+                            id: 'work',
                             height: 'auto',
-                            widgets: [{ id: 'timeline', type: 'timeline', width: 1 }],
+                            widgets: [{ id: 'work', type: 'work', width: 1 }],
                         },
                         {
                             id: 'sites',
@@ -338,13 +329,18 @@ export const DEFAULT_WALL_LAYOUT = {
                     rows: [
                         {
                             id: 'money',
-                            height: 'fill',
+                            height: 'auto',
                             widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }],
                         },
                         {
-                            id: 'work',
+                            id: 'needs',
                             height: 'auto',
-                            widgets: [{ id: 'work', type: 'work', width: 1 }],
+                            widgets: [{ id: 'needs', type: 'needs', width: 1 }],
+                        },
+                        {
+                            id: 'feed',
+                            height: 'fill',
+                            widgets: [{ id: 'feed', type: 'feed', width: 1 }],
                         },
                     ],
                 },

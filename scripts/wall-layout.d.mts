@@ -175,13 +175,9 @@ export declare function wallRowPlaces(layout: WallLayout): WallRowPlace[];
 /** Every widget on the Wall, columns' included, in reading order. */
 export declare function wallLayoutWidgets(layout: WallLayout): WallWidget[];
 /**
- * The default Wall: the strip, then the loop across the TV; below them two
- * columns — the last 24 hours over the site rows, beside revenue over the
- * work. Work fits its project rows; revenue's month chart takes the remaining
- * height. Revenue sits beside the sites rather than over them because
- * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
- * way (`pnpm audit:wall-fit`). Needs attention and the live feed stay in the library
- * for a Wall that wants them.
+ * The default Wall: header, work above portfolio rows, and a narrower column
+ * containing revenue, attention and the live feed. Existing saved layouts
+ * keep their arrangement; this is also available in the editor's presets.
  */
 export declare const DEFAULT_WALL_LAYOUT: WallLayout;
 /**

@@ -1,3 +1,4 @@
+import { SAVED_COLUMN_LAYOUT } from "../../test/saved-wall-layout";
 import { BUILT_APP, test, expect } from "../journey-test";
 import { openWall, wallScene } from "../wall-scene";
 import { WALL_FIXTURE_VARIANTS } from "../wall-fixture";
@@ -16,47 +17,38 @@ for (const variant of WALL_FIXTURE_VARIANTS) {
   test(`Wall default fills both columns with whole asset rows: ${variant}`, { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
     await wallScene(page, variant);
     await openWall(page, [1920, 1080]);
-    await expect(page.locator("[data-wall-sites] [data-site-name]").first()).toBeVisible();
-    await expect(page.locator("[data-wall-column]")).toHaveCount(2);
-    await expect(page.locator("#boot-splash")).toHaveCount(0);
-    const measured = await page.evaluate(measureWallFit);
-    if ("error" in measured) throw new Error(measured.error);
-    const gaps = await page.locator("[data-wall-column]").evaluateAll(columns => columns.map(column => {
-      const box = column.getBoundingClientRect();
-      const intervals: [number, number][] = [];
-      const walker = document.createTreeWalker(column, NodeFilter.SHOW_TEXT);
-      const range = document.createRange();
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (!node.nodeValue?.trim() || node.parentElement?.closest("svg, .sr-only") || getComputedStyle(node.parentElement!).visibility === "hidden") continue;
-        range.selectNodeContents(node);
-        for (const rect of range.getClientRects()) if (rect.width && rect.height) intervals.push([rect.top, rect.bottom]);
-      }
-      for (const svg of column.querySelectorAll("svg")) {
-        const rect = svg.getBoundingClientRect();
-        if (rect.width && rect.height) intervals.push([rect.top, rect.bottom]);
-      }
-      let end = box.top, largest = 0;
-      for (const [top, bottom] of intervals.sort((a, b) => a[0] - b[0])) {
-        largest = Math.max(largest, Math.min(top, box.bottom) - end);
-        end = Math.max(end, Math.min(bottom, box.bottom));
-      }
-      return { column: column.getAttribute("data-wall-column"), gap: Math.max(largest, box.bottom - end) };
-    }));
-    await testInfo.attach(`fit-${variant}`, { body: JSON.stringify({ measured, gaps }, null, 2), contentType: "application/json" });
+    const rows = page.locator('[data-site-row]');
+    await expect(rows.first().locator('[data-site-name]')).toBeVisible();
+    await expect(page.locator('[data-wall-column]')).toHaveCount(2);
+    await expect(page.locator('#boot-splash')).toHaveCount(0);
+    const count = await rows.count();
     await page.screenshot({ path: testInfo.outputPath(`wall-${variant}.png`) });
+    const measured = await page.evaluate(measureWallFit);
+    if ('error' in measured) throw new Error(measured.error);
+    await testInfo.attach(`fit-${variant}`, { body: JSON.stringify(measured, null, 2), contentType: 'application/json' });
     expect(wallFitVerdict(measured).fits).toBe(true);
     expect(measured.ink).toEqual([]);
     expect(measured.clipped).toEqual([]);
-    for (const gap of gaps) expect(gap.gap, `${variant} ${gap.column}: empty block`).toBeLessThanOrEqual(100);
-    if (variant !== "one") {
-      const table = page.locator('[data-wall-sites] [role="table"]');
-      for (const row of await page.locator("[data-site-row]").all()) {
-        await row.scrollIntoViewIfNeeded();
-        const bounds = (await row.boundingBox())!;
-        const frame = (await table.boundingBox())!;
-        expect(bounds.y).toBeGreaterThanOrEqual(frame.y - 1);
-        expect(bounds.y + bounds.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
+    const list = page.locator('.wall-portfolio-list');
+    const frame = (await list.boundingBox())!;
+    for (let index = 0; index < Math.min(count, 4); index++) {
+      const bounds = (await rows.nth(index).boundingBox())!;
+      expect(bounds.y).toBeGreaterThanOrEqual(frame.y - 1);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
+      const tiles = rows.nth(index).locator('.wall-metric');
+      for (const tile of await tiles.all()) {
+        expect((await tile.boundingBox())!.height).toBeCloseTo(156, 0);
+        await expect(tile.locator('h3 svg')).toBeAttached();
       }
+    }
+    const scroll = await list.evaluate(element => ({ height: element.clientHeight, content: element.scrollHeight }));
+    if (count > 4) expect(scroll.content).toBeGreaterThan(scroll.height);
+    else expect(scroll.content).toBeLessThanOrEqual(scroll.height + 1);
+    if (count > 4) {
+      await rows.last().scrollIntoViewIfNeeded();
+      const end = (await rows.last().boundingBox())!;
+      expect(end.y).toBeGreaterThanOrEqual(frame.y - 1);
+      expect(end.y + end.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
     }
   });
 }
@@ -113,7 +105,7 @@ test("Wall full-width divider snaps, keeps minimums and records one Undo", { tag
 });
 
 test("Wall short full-width rows resize without jumping above a large fill row", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
-  await wallScene(page, "one");
+  await wallScene(page, "one", { layout: SAVED_COLUMN_LAYOUT });
   await page.goto("/wall/edit");
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   const preview = page.locator("[data-wall-preview]");
@@ -140,7 +132,7 @@ test("Wall short full-width rows resize without jumping above a large fill row",
   await preview.screenshot({ path: testInfo.outputPath("wall-short-rows-undo.png") });
 });
 
-test("Wall fit warnings follow one and eight assets at the same size", async ({ page }, testInfo) => {
+test("Wall portfolio scrolling stays stable with one and eight assets at the same size", async ({ page }, testInfo) => {
   const resizeErrors: string[] = [];
   page.on("pageerror", error => { if (error.message.includes("ResizeObserver")) resizeErrors.push(error.message); });
   const layout = structuredClone(TWO_ROWS);
@@ -149,7 +141,7 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   await page.goto("/wall/edit");
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   const sites = page.locator('[data-wall-edit-widget="sites"]');
-  await expect(sites.locator("[data-focus-tile]").first()).toBeVisible();
+  await expect(sites.locator("[data-site-row]").first()).toBeVisible();
   await expect(sites).not.toHaveAttribute("data-too-small");
   await page.locator("[data-wall-preview]").screenshot({ path: testInfo.outputPath("wall-fit-one.png") });
   const oneHeight = await sites.evaluate(el => el.clientHeight);
@@ -159,7 +151,9 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   await expect(sites.locator("[data-site-row]")).toHaveCount(8);
   expect(await sites.evaluate(el => el.clientHeight)).toBe(oneHeight);
-  await expect(sites).toHaveAttribute("data-too-small", "short");
+  const scroll = sites.locator(".wall-portfolio-list");
+  expect(await scroll.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  await sites.locator("[data-site-row]").last().scrollIntoViewIfNeeded();
   const noteChanges = await sites.evaluate(async element => {
     let changes = 0;
     const observer = new MutationObserver(records => { changes += records.length; });
@@ -170,7 +164,6 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   });
   expect(noteChanges).toBe(0);
   expect(resizeErrors).toEqual([]);
-  await expect(sites.locator("[data-wall-too-small-note]")).toContainText("Too short for Portfolio");
   await page.locator("[data-wall-preview]").screenshot({ path: testInfo.outputPath("wall-fit-eight.png") });
 
   // Narrow the content without changing the row's geometry.
@@ -178,7 +171,7 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   const checkboxes = page.locator('[data-wall-asset-filter] li > label input[type="checkbox"]');
   await expect(checkboxes).toHaveCount(8);
   for (let index = 7; index > 0; index--) await checkboxes.nth(index).uncheck();
-  await expect(sites.locator("[data-focus-tile]").first()).toBeVisible();
+  await expect(sites.locator("[data-site-row]").first()).toBeVisible();
   await expect(sites).not.toHaveAttribute("data-too-small");
   expect(await sites.evaluate(el => el.clientHeight)).toBe(oneHeight);
   await page.screenshot({ path: testInfo.outputPath(`wall-editor-${testInfo.project.name}.png`), fullPage: true });

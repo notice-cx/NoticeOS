@@ -181,7 +181,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
     <header
       data-wall-strip
       aria-label="Time, meetings and countdown"
-      className="wall-strip grid min-w-0 rounded-xl bg-muted/40 px-3 py-4 tv:min-h-24 tv:px-6"
+      className="wall-strip grid min-w-0 py-2"
       data-strip-has-agenda={hasAgenda || undefined}
     >
       <a
@@ -254,16 +254,15 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
           data-countdown-state={reached ? "reached" : "remaining"}
         >
           <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
+          {emoji ? <span aria-hidden className="shrink-0 select-none text-wall-strip-emoji" data-strip-countdown-emoji>{emoji}</span> : null}
+          <span className="min-w-0 truncate text-muted-foreground" title={countdown.label} data-strip-countdown-label>{countdown.label}</span>
           <span
-            className={cn("row-start-2 whitespace-nowrap text-wall-strip-time font-medium tracking-tight tabular-nums", reached && "text-muted-foreground")}
+            className={cn("shrink-0 whitespace-nowrap font-semibold tabular-nums", reached && "text-muted-foreground")}
             data-strip-countdown-days
             data-strip-primary
           >
-            <span data-strip-countdown-value>{count}</span>{unit ? <span className="sr-only"> {unit}</span> : null}
+            <span data-strip-countdown-value>{count}</span>{unit ? <> <span data-strip-countdown-unit>{unit}</span></> : null}
           </span>
-          {!reached ? <span className="col-start-2 row-start-2 whitespace-nowrap text-wall-strip-label text-muted-foreground" aria-hidden data-strip-countdown-unit data-strip-meta>{unit} remaining</span> : null}
-          {emoji ? <span aria-hidden className="col-start-1 row-start-1 grid min-h-wall-strip-mark min-w-wall-strip-mark select-none place-items-center justify-self-center text-wall-strip-emoji" data-strip-countdown-emoji>{emoji}</span> : null}
-          <span className="col-start-2 row-start-1 min-w-0 truncate font-medium" title={countdown.label} data-strip-countdown-label>{countdown.label}</span>
         </div>
       ) : null}
     </header>

@@ -4,7 +4,7 @@ import type { Locator, Page } from "@playwright/test";
 import { BUILT_APP, test, expect } from "./journey-test";
 import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, DEV_SERVER, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, REFUSED_GATE, journeyFindingSnapshot } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
-import { WALL_PRESETS, wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
+import { WALL_PRESETS, wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
 import { WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFixturePayload, wallFixtureRealtime } from "./wall-fixture";
 import { WALL_FEED_OS } from "./wall-feed-fixture";
@@ -604,7 +604,7 @@ function expectedProjection(seed: SeededRevenue) {
   const ratio = projected / previousMonth - 1;
   const change = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(Math.abs(ratio));
   const previousLabel = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' }).format(new Date(`${previous}-15T12:00:00Z`));
-  return { headline: usd(projected, 0), reported: `${usd(earned, 2)} reported through ${seed.through}`, versus: `${change} ${ratio > 0 ? 'above' : ratio < 0 ? 'below' : 'level with'} ${previousLabel}` };
+  return { change, comparisonDirection: ratio > 0 ? 'above' : ratio < 0 ? 'below' : 'level with', previousLabel, tone: ratio > 0 ? 'positive' : ratio < 0 ? 'negative' : 'neutral', headline: usd(projected, 0), reported: `${usd(earned, 2)} reported through ${seed.through}`, versus: `${change} ${ratio > 0 ? 'above' : ratio < 0 ? 'below' : 'level with'} ${previousLabel}` };
 }
 
 // The store's projection is the month's pace beside the revenue figure, and
@@ -649,14 +649,19 @@ test('the Wall states the month on pace from the store\'s projection, and draws 
   // This site is the only one with money, so its projection is the month's pace.
   const revenue = page.locator('[data-wall-revenue]');
   await expect(revenue).toHaveAttribute('data-wall-revenue', 'pace');
-  await expect(revenue.locator('[data-revenue-pace]')).toContainText(`on pace for ${expected.headline}`);
-  await expect(revenue.locator('[data-revenue-change]')).toContainText(expected.versus);
-  await expect(revenue.locator('[data-revenue-change] [data-tone]')).toHaveAttribute('data-tone', 'neutral');
+  await expect(revenue.locator('[data-revenue-pace]')).toContainText(expected.headline);
+  await expect(revenue.getByText('Projected month', { exact: true })).toBeVisible();
+  const comparison = revenue.locator('[data-metric-movement]');
+  await expect(comparison).toContainText(expected.change);
+  await expect(comparison).toContainText(expected.comparisonDirection);
+  await expect(comparison).toContainText(`projected vs ${expected.previousLabel} total`);
+  await expect(comparison).toHaveAttribute('data-tone', expected.tone);
   // At 05:00 Pacific the 06:10 reporting cutoff has not passed. Yesterday
   // stays unknown; a retained Sep4 estimate cannot masquerade as Sep5.
   const yesterday = new Date(Date.parse(`${seed.reportingToday}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   expect(seed.through).not.toBe(yesterday);
-  await expect(revenue.locator('[data-revenue-yesterday="none"]')).toHaveText(`${formatSeriesDate(yesterday)} · Pacific not reported yet`);
+  await expect(revenue.locator('[data-revenue-yesterday="none"]')).toHaveText('Not reported yet');
+  await expect(revenue.locator('[data-metric-fact="Yesterday"]')).toContainText(`${formatSeriesDate(yesterday)} · Pacific`);
   await expect(revenue.locator('[data-revenue-yesterday-figure]')).toHaveCount(0);
   await expect(revenue).not.toContainText(' a day');
   await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();
@@ -685,7 +690,8 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
     await expect(page.locator("[data-system-state]")).toHaveCount(0);
     await expect(page.locator('[data-wall-sites="none"]')).toHaveText("No assets yet");
     await expect(page.locator("[data-wall-work]")).toContainText("Tasks unknown");
-    await expect(page.locator("[data-wall-timeline]")).toContainText("Nothing broken");
+    await expect(page.locator("[data-wall-needs]")).toContainText("Tasks unknown");
+    await expect(page.locator("[data-wall-needs]")).toContainText("Nothing broken");
     expect(await page.evaluate(attentionTones), `the empty Wall at ${width}×${height}`).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`wall-empty-${width}.png`) });
   }
@@ -860,9 +866,8 @@ function expectStackedInOrder(stack: ReturnType<typeof wallStack>, at: string) {
 test.describe(() => {
   // The fixture's own zone: its clock below reads 12:30 PM PT.
   test.use({ timezoneId: WALL_FIXTURE_TIME_ZONE });
-  // The Wall the fixture draws with nothing saved is the strip and the loop,
-  // the last 24 hours over the site rows, beside revenue over the work: every
-  // region's text and the site rows' one-line headings are checked.
+  // The default groups work over asset rows beside revenue, attention and
+  // the feed; every region's text and the asset names remain readable.
   test("the Wall cuts off no text in any region, and marks only the first asset's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     await wallScene(page);
     for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
@@ -882,11 +887,11 @@ test.describe(() => {
       await expect(page.locator('[data-site-row="mosaic.example"] [data-live="stale"]')).toHaveCount(0);
       // Each live figure over its minute pulse: thirty bars on a fresh
       // reading, the old one dimmed.
-      await expect(page.locator('[data-site-row="mosaic.example"] [data-minute-pulse="live"] [data-minute-bar]')).toHaveCount(30);
-      await expect(page.locator('[data-site-row="plume.example"] [data-minute-pulse="dimmed"]')).toBeVisible();
+      await expect(page.locator('[data-site-row="mosaic.example"] [data-metric-bar]')).toHaveCount(30);
+      await expect(page.locator('[data-site-row="plume.example"] [data-metric-bar="recent"]')).toHaveCount(0);
       // Measure the type the TV shows: Inter swaps in, and a fallback face is wider.
       await page.evaluate(() => document.fonts.ready);
-      const found = await page.evaluate(wallLegibility, "[data-wall-sites] [role='columnheader']:not(.sr-only)");
+      const found = await page.evaluate(wallLegibility, "[data-wall-sites] .wall-portfolio-heading");
       expect(found.clipped, `text cut off at ${width}×${height}`).toEqual([]);
       expect(found.wrapped, `asset headings off their line at ${width}×${height}`).toEqual([]);
       // A site that has sent nothing says so in full: that line is the one
@@ -896,7 +901,7 @@ test.describe(() => {
         text: (cell.textContent ?? "").trim(), cut: cell.scrollWidth - cell.clientWidth,
       })));
       expect(waiting, `the waiting asset's line at ${width}×${height}`).toEqual([{ text: "No data yet", cut: 0 }]);
-      await page.locator('[data-site-state="waiting"]').screenshot({ path: testInfo.outputPath(`wall-waiting-site-${width}.png`) });
+      await page.locator('[data-site-row]').filter({ has: page.locator('[data-site-waiting]') }).screenshot({ path: testInfo.outputPath(`wall-waiting-site-${width}.png`) });
       await page.locator('[data-site-row="plume.example"]').screenshot({ path: testInfo.outputPath(`wall-first-site-stale-${width}.png`) });
       await page.screenshot({ path: testInfo.outputPath(`wall-${width}.png`) });
     }
@@ -907,7 +912,7 @@ test.describe(() => {
   // site is a card whose charts span it with the live figure at its right
   // edge, the feed is as tall as its rows (the TV's twelve at most, newest
   // first) and nothing scrolls sideways.
-  test("the Wall reads on a phone and a tablet: the strip wraps, each asset's charts span its card, the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
+  test("the Wall reads on a phone and a tablet: the strip wraps, metric tiles keep their height and the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
     await wallScene(page, "fire", { layout: WALL_FEED_LAYOUT });
@@ -943,13 +948,11 @@ test.describe(() => {
             meetingBelow: box(strip.querySelector("[data-strip-meeting]"))!.top > box(strip.querySelector("[data-strip-time]"))!.bottom - 1,
           },
           cards: rows.map((row) => {
-            const card = row.getBoundingClientRect();
-            const chart = (cell: string) => box(row.querySelector(`[${cell}] [data-site-chart]`))!.width / card.width;
+            const tiles = [...row.querySelectorAll<HTMLElement>(".wall-metric")];
+            const charts = [...row.querySelectorAll<HTMLElement>(".wall-site-chart")];
             return {
-              live: Math.round(box(row.querySelector("[data-live]"))!.right),
-              right: Math.round(card.right),
-              today: chart("data-site-today"),
-              trend: chart("data-site-trend"),
+              tileHeights: tiles.map(tile => Math.round(tile.getBoundingClientRect().height)),
+              charts: charts.map(chart => ({ width: chart.getBoundingClientRect().width, tile: chart.closest(".wall-metric")!.getBoundingClientRect().width })),
             };
           }),
           feed: {
@@ -963,202 +966,72 @@ test.describe(() => {
       });
       expect(found.cards.length).toBeGreaterThan(3);
       for (const card of found.cards) {
-        // The live figure at the card's right edge (the row's own padding in).
-        expect(card.right - card.live, `${width}: live figure off the card's edge`).toBeLessThanOrEqual(24);
-        expect(card.today, `${width}: today's chart spans the card`).toBeGreaterThan(0.6);
-        expect(card.trend, `${width}: the 4-week line spans the card`).toBeGreaterThan(0.6);
+        expect(new Set(card.tileHeights).size, `${width}: one height for every metric tile`).toBe(1);
+        for (const chart of card.charts) expect(chart.width, `${width}: chart uses its tile width`).toBeGreaterThan(chart.tile * .6);
       }
-      expect(new Set(found.cards.map((card) => card.live)).size, `${width}: one right edge for every live figure`).toBe(1);
       expect(found.feed, `${width}: the feed as tall as its rows`).toEqual({ cut: 0, spare: 0 });
       expectStackedInOrder(await page.evaluate(wallStack), `${width}`);
       await page.screenshot({ path: testInfo.outputPath(`wall-phone-${width}.png`), fullPage: true });
     }
   });
 
-  // The revenue tile beside Needs attention, both at Fit content: on the TV
-  // the month's chart is a layer behind the figures, so the tile is no taller
-  // than Needs attention's three rows and the row is Needs attention's own
-  // height; the crossing and last month's total are written where the
-  // figures leave room. On a phone the chart is drawn under the figures.
-  test("the Wall's revenue tile on the TV is as tall as Needs attention beside it, its month chart behind the figures", desktopOnly("measures the TV and walks the phone width itself"), async ({ page, request }, testInfo) => {
+  test("the Wall's revenue comparison keeps facts beside the chart and the forecast distinct from last month's total", desktopOnly("measures the TV and phone comparison"), async ({ page, request }, testInfo) => {
     expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
-    await wallScene(page, "fire", { layout: WALL_FEED_LAYOUT });
-    await wallAt(page, [1920, 1080]);
-    const revenue = page.locator('[data-wall-revenue="pace"]');
-    await expect(revenue).toBeVisible();
-    await expect(page.locator("[data-wall-needs] [data-needs-row]")).toHaveCount(3);
-    // The screenshots below are of the tile, not of the boot splash over it.
-    await expect(page.locator("#boot-splash")).toHaveCount(0);
-    await page.evaluate(() => document.fonts.ready);
-    const tv = await page.evaluate(() => {
-      const section = document.querySelector<HTMLElement>("[data-wall-revenue]")!;
-      const needs = document.querySelector<HTMLElement>("[data-wall-needs]")!;
-      const plot = section.querySelector<HTMLElement>("[data-month-chart] [role='img']")!;
-      const figures = section.querySelector("[data-revenue-figure]")!.parentElement!.getBoundingClientRect();
-      const box = (el: Element) => el.getBoundingClientRect();
-      const text: DOMRect[] = [];
-      const walker = document.createTreeWalker(section, NodeFilter.SHOW_TEXT);
-      const range = document.createRange();
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (!node.nodeValue?.trim() || node.parentElement!.closest("[data-month-chart]")) continue;
-        range.selectNodeContents(node);
-        text.push(...[...range.getClientRects()].filter((rect) => rect.width > 0));
-      }
-      const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
-      const label = (selector: string) => {
-        const el = section.querySelector<HTMLElement>(selector)!;
-        return { hidden: getComputedStyle(el).visibility === "hidden", clear: text.every((rect) => apart(box(el), rect)) };
-      };
-      const needsContent = box(needs.lastElementChild!).bottom - box(needs).top;
-      return {
-        revenue: Math.round(box(section).height),
-        needs: Math.round(box(needs).height),
-        needsContent: Math.round(needsContent),
-        plot: { position: getComputedStyle(plot).position, z: getComputedStyle(plot).zIndex, top: Math.round(box(plot).top - box(section).top), height: Math.round(box(plot).height) },
-        figuresHeight: Math.round(figures.height),
-        crossing: section.querySelector("[data-month-crossing-label]")!.getAttribute("data-month-crossing-place"),
-        previous: section.querySelector("[data-previous-total-label]")!.getAttribute("data-previous-total-place"),
-        crossingLabel: label("[data-month-crossing-label]"),
-        previousLabel: label("[data-previous-total-label]"),
-        readings: ["[data-month-actual]", "[data-month-pace]", "[data-previous-total]", "[data-month-crossing]", "[data-month-today]"].filter((s) => !section.querySelector(s)),
-      };
-    });
-    // No taller than Needs attention: the row is Needs attention's own
-    // height, which the revenue tile takes too.
-    expect(Math.abs(tv.revenue - tv.needs), `revenue ${tv.revenue} px beside Needs attention ${tv.needs} px`).toBeLessThanOrEqual(1);
-    expect(Math.abs(tv.needsContent - tv.needs), "Needs attention's own rows set the row's height").toBeLessThanOrEqual(1);
-    // The chart is a layer filling the tile from its top, behind the text.
-    expect(tv.plot).toMatchObject({ position: "absolute", z: "-10", top: 0 });
-    expect(tv.plot.height).toBeGreaterThan(tv.figuresHeight);
-    // Every reading is drawn, both labels where the figures leave room.
-    expect(tv.readings).toEqual([]);
-    expect(tv.crossing).toBe("end-above");
-    expect(tv.previous).not.toBe("none");
-    expect(tv.crossingLabel).toEqual({ hidden: false, clear: true });
-    expect(tv.previousLabel).toEqual({ hidden: false, clear: true });
-    const measured = await page.evaluate(measureWallFit);
-    if ("error" in measured) throw new Error(measured.error);
-    expect(wallFitVerdict(measured).fits).toBe(true);
-    expect(measured.ink, "painting outside its own box").toEqual([]);
-    expect(measured.clipped, "text cut off").toEqual([]);
-    await revenue.screenshot({ path: testInfo.outputPath("wall-revenue-behind-1920.png") });
-
-    // A phone: the tile is its text, too short for the chart behind it.
-    await wallAt(page, [390, 844]);
-    const phone = await page.evaluate(() => {
-      const section = document.querySelector<HTMLElement>("[data-wall-revenue]")!;
-      const plot = section.querySelector<HTMLElement>("[data-month-chart] [role='img']")!;
-      const figures = section.querySelector("[data-revenue-figure]")!.parentElement!.getBoundingClientRect();
-      return { position: getComputedStyle(plot).position, under: plot.getBoundingClientRect().top >= figures.bottom - 1 };
-    });
-    expect(phone).toEqual({ position: "relative", under: true });
-    await assertNoPageOverflow(page);
-    await revenue.screenshot({ path: testInfo.outputPath("wall-revenue-under-390.png") });
+    await wallScene(page, "fire");
+    for (const size of [[1920, 1080], [390, 844]] as const) {
+      await wallAt(page, size);
+      const revenue = page.locator('[data-wall-revenue="pace"]');
+      await expect(revenue).toBeVisible();
+      await expect(page.locator("#boot-splash")).toHaveCount(0);
+      await page.evaluate(() => document.fonts.ready);
+      const found = await revenue.evaluate(section => {
+        const facts = section.querySelector(".wall-metric-summary")!.getBoundingClientRect();
+        const chart = section.querySelector(".wall-metric-plot")!.getBoundingClientRect();
+        const scale = (section as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
+        return { height: section.getBoundingClientRect().height / scale, apart: facts.right <= chart.left, chartWidth: chart.width, factsWidth: facts.width,
+          actual: Boolean(section.querySelector("[data-chart-line='solid']")), forecast: Boolean(section.querySelector("[data-chart-line='projection']")), reference: Boolean(section.querySelector("[data-metric-previous-total]")) };
+      });
+      expect(found).toMatchObject({ height: 324, apart: true, actual: true, forecast: true, reference: true });
+      expect(found.chartWidth).toBeGreaterThan(80);
+      expect(found.factsWidth).toBeGreaterThan(80);
+      await assertNoPageOverflow(page);
+      await revenue.screenshot({ path: testInfo.outputPath(`wall-revenue-split-${size[0]}.png`) });
+    }
   });
 
-  // Work this week under the site rows: at Fit content it is as tall as its
-  // content, which is one band for the heading and the four figures, the two
-  // weeks' bar with its words beside it, and one row per project as tall as
-  // its bar. Given a share of its column too short for every project, it
-  // draws the rows that fit whole and counts the rest on one line.
-  test("the Wall's Work this week tile on the TV takes only the height its rows need, and counts the projects a short box leaves out", desktopOnly("the TV's fixed height"), async ({ page, request }, testInfo) => {
-    expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
-    const column = (work: { height: "auto" | "fill"; size?: number }, sites: { height: "auto" | "fill"; size?: number }): WallLayout => ({
-      version: 1,
-      rows: [
-        { id: "strip", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] },
-        {
-          id: "body",
-          height: "fill",
-          widgets: [
-            {
-              id: "business",
-              type: "column",
-              width: 3.1,
-              rows: [
-                { id: "money", height: "auto", widgets: [{ id: "revenue", type: "revenue", width: 1.55 }, { id: "needs", type: "needs", width: 1 }] },
-                { id: "sites", ...sites, widgets: [{ id: "sites", type: "sites", width: 1 }] },
-                { id: "work", ...work, widgets: [{ id: "work", type: "work", width: 1 }] },
-              ],
-            },
-            { id: "feed", type: "feed", width: 1 },
-          ],
-        },
-      ],
-    });
-    const scene = await wallScene(page, "fire", { layout: column({ height: "auto" }, { height: "fill" }) });
-    const projects = wallFixturePayload(scene.variant).assets.filter((asset) => asset.work).length;
+  test("the Wall's work metrics share one fixed height and keep observed history distinct from missing history", desktopOnly("the TV's fixed height"), async ({ page }, testInfo) => {
+    const scene = await wallScene(page, "fire");
     await wallAt(page, [1920, 1080]);
-    const tile = page.locator("[data-wall-work]");
-    await expect(tile.locator("[data-work-row]")).toHaveCount(projects);
-    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    const work = page.locator("[data-wall-work]");
+    const tiles = work.locator(".wall-metric");
+    await expect(tiles).toHaveCount(4);
+    await expect(work.locator("[data-work-row], [data-work-more]")).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);
-    const fit = await tile.evaluate((element) => {
-      const box = (el: Element) => el.getBoundingClientRect();
-      const flow = element.querySelector("[data-work-flow]")!;
-      const heading = element.querySelector("header")!;
-      const figures = [...element.querySelectorAll("[data-work-figure]")];
-      const rows = [...element.querySelectorAll<HTMLElement>("[data-work-row]")].map((row) => {
-        const bar = row.querySelector("[role='cell']:last-child > span")!;
-        return { row: Math.round(box(row).height), bar: Math.round(box(bar).height), border: parseFloat(getComputedStyle(row).borderTopWidth) };
-      });
-      return {
-        tile: Math.round(box(element).height),
-        content: Math.round(box(flow).height),
-        scrolls: element.scrollHeight > element.clientHeight + 1,
-        more: element.querySelector("[data-work-more]") !== null,
-        band: figures.map((figure) => Math.round(box(figure).top - box(heading).top)),
-        values: figures.map((figure) => {
-          const value = figure.querySelector("[data-work-figure-value]")!;
-          return Math.round(box(value).height) <= Math.round(box(value.firstElementChild!).height) + 1;
-        }),
-        weeks: Math.round(box(element.querySelector("[data-work-weeks] [data-pace-bar]")!).height),
-        rows,
-      };
-    });
-    // As tall as its content, and well under the 415 px the same six
-    // projects took before the rows lost their padding: two thirds is 277.
-    expect(Math.abs(fit.tile - fit.content), `the tile ${fit.tile} px around ${fit.content} px of content`).toBeLessThanOrEqual(1);
-    expect(fit.tile).toBeLessThanOrEqual(277);
-    expect(fit).toMatchObject({ scrolls: false, more: false });
-    // The heading and the four figures on one band, each move on its figure's line.
-    expect(fit.band.every((offset) => Math.abs(offset) <= 2), `figures' tops against the heading's: ${fit.band}`).toBe(true);
-    expect(fit.values).toEqual([true, true, true, true]);
-    // The two weeks' words beside their bar: one line, the bar's 28 px.
-    expect(fit.weeks).toBeLessThanOrEqual(29);
-    // Each project one row as tall as its bar, its border the only gap.
-    for (const row of fit.rows) expect(row.row, `a row of ${row.row} px around a ${row.bar} px bar`).toBe(row.bar + row.border);
-    let measured = await page.evaluate(measureWallFit);
-    if ("error" in measured) throw new Error(measured.error);
-    expect(measured.ink, "painting outside its own box").toEqual([]);
-    expect(measured.clipped, "text cut off").toEqual([]);
-    await tile.screenshot({ path: testInfo.outputPath("wall-work-fit-1920.png") });
-
-    // A third of what the column leaves: too short for six rows.
-    await wallScene(page, "fire", { layout: column({ height: "auto", size: 1 }, { height: "fill", size: 2 }) });
-    await openWall(page, [1920, 1080]);
-    await expect(tile.locator("[data-work-more]")).toBeVisible();
-    await expect(page.locator("#boot-splash")).toHaveCount(0);
-    await page.evaluate(() => document.fonts.ready);
-    const short = await tile.evaluate((element) => {
-      const bottom = element.getBoundingClientRect().bottom;
-      const rows = [...element.querySelectorAll("[data-work-row]")];
-      const more = element.querySelector("[data-work-more]")!;
-      return {
-        shown: rows.length,
-        more: more.textContent,
-        whole: [...rows, more].every((row) => row.getBoundingClientRect().bottom <= bottom + 0.5),
-        scrollbar: getComputedStyle(element).overflowY !== "hidden" && element.scrollHeight > element.clientHeight,
-      };
-    });
-    expect(short.shown).toBeGreaterThan(0);
-    expect(short.shown).toBeLessThan(projects);
-    expect(short.more).toBe(`+${projects - short.shown} more ${projects - short.shown === 1 ? "project" : "projects"}`);
-    expect(short).toMatchObject({ whole: true, scrollbar: false });
-    measured = await page.evaluate(measureWallFit);
-    if ("error" in measured) throw new Error(measured.error);
-    expect(measured.clipped, "text cut off").toEqual([]);
-    await tile.screenshot({ path: testInfo.outputPath("wall-work-short-1920.png") });
+    const geometry = await tiles.evaluateAll(elements => elements.map(element => {
+      const scale = (element as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
+      return { height: element.getBoundingClientRect().height / scale, top: element.getBoundingClientRect().top };
+    }));
+    for (const tile of geometry) expect(tile.height).toBeCloseTo(156, 0);
+    expect(Math.max(...geometry.map(tile => tile.top)) - Math.min(...geometry.map(tile => tile.top))).toBeLessThanOrEqual(1);
+    const done = work.getByRole("region", { name: "Done this week", exact: true });
+    await expect(done).toContainText("Last week ·");
+    const hasHistory = wallFixturePayload(scene.variant).assets.some(asset => asset.work?.weeks?.done.history?.some(point => point.v !== null));
+    if (hasHistory) {
+      await expect(done.locator("[data-chart-line='solid']")).toBeVisible();
+      await expect(done.locator("[data-metric-previous-total]")).toBeAttached();
+      await expect(done.locator("svg[role='img']")).toBeVisible();
+      const reference = await done.locator("[data-metric-previous-total] line").evaluate(line => ({
+        x1: Number(line.getAttribute("x1")), x2: Number(line.getAttribute("x2")),
+        y1: Number(line.getAttribute("y1")), y2: Number(line.getAttribute("y2")),
+      }));
+      expect(reference.x2).toBeGreaterThan(reference.x1);
+      expect(reference.y2).toBe(reference.y1);
+      expect(Number.isFinite(reference.y1)).toBe(true);
+    } else await expect(done).toContainText("History unavailable");
+    await expect(done).toContainText("Monday");
+    await expect(done).toContainText("Sunday");
+    await assertNoPageOverflow(page);
+    await work.screenshot({ path: testInfo.outputPath("wall-work-metrics-1920.png") });
   });
 
   // The Wall on a laptop and a landscape tablet, under a saved layout that
@@ -1204,7 +1077,7 @@ test.describe(() => {
             listLabel: drawn("[data-feed-label]"),
             listMeta: drawn("[data-feed-time]"),
             listLine: drawn("[data-feed-text]"),
-            eyebrow: drawn("[data-wall-sites] [role='columnheader']:not(.sr-only)"),
+            eyebrow: drawn("[data-wall-sites] .wall-portfolio-heading"),
           },
         };
       });
@@ -1252,7 +1125,7 @@ test.describe(() => {
       }
       // Charts use the width and height left by their figure and axis.
       const charts = await page.evaluate(() => [...document.querySelectorAll("[data-site-row]")]
-        .flatMap((row) => [...row.querySelectorAll("[data-site-chart]")].map((chart) => {
+        .flatMap((row) => [...row.querySelectorAll(".wall-site-chart")].filter(chart => chart.querySelector("svg")).map((chart) => {
           const r = chart.getBoundingClientRect();
           const svg = chart.querySelector("svg")!.getBoundingClientRect();
           return { width: r.width, height: r.height, widthSpare: r.width - svg.width, heightSpare: r.height - svg.height };
@@ -1275,7 +1148,7 @@ test.describe(() => {
       const strip = page.locator("[data-wall-strip]");
       await expect(strip.locator("[data-strip-countdown-emoji]")).toBeVisible();
       await expect(strip.locator("[data-strip-meeting]")).toBeVisible();
-      await expect(strip.locator("[data-strip-countdown-unit]")).toHaveText("days remaining");
+      await expect(strip.locator("[data-strip-countdown-unit]")).toHaveText("days");
       await expect(strip.locator("[data-strip-countdown-value]")).toHaveText(/^\d+$/);
       await expect(strip.locator("[data-system-state], [data-strip-glyph]")).toHaveCount(0);
       await page.evaluate(() => document.fonts.ready);
@@ -1294,19 +1167,26 @@ test.describe(() => {
           && Math.min(group.bottom, other.bottom) - Math.max(group.top, other.top) > 1;
         expect(overlap, `${at}: ${group.selector} overlaps ${other.selector}`).toBe(false);
       }
-      expect(found.date.top, `${at}: the date follows the clock`).toBeGreaterThanOrEqual(found.time.bottom - 1);
+      if (width > height) expect(found.date.right, `${at}: wide date sits to the clock's left`).toBeLessThanOrEqual(found.time.left + 1);
+      else expect(found.date.top, `${at}: portrait date follows the clock`).toBeGreaterThanOrEqual(found.time.bottom - 1);
       expect(new Set(found.labels.map((label) => label.family)).size, `${at}: one font family`).toBe(1);
-      expect(new Set(found.labels.map((label) => label.size)).size, `${at}: secondary labels share a type step`).toBe(1);
-      expect(found.valueSize, `${at}: the countdown figure reads larger than its unit`).toBeGreaterThan(found.labels[0]!.size);
+      const labelSize = (selector: string) => found.labels.find(label => label.selector === selector)!.size;
+      const versionSize = labelSize("[data-strip-version]");
+      const dateSize = labelSize("[data-strip-date]");
+      const unitSize = labelSize("[data-strip-countdown-unit]");
+      expect(dateSize, `${at}: the date is at least as prominent as build metadata`).toBeGreaterThanOrEqual(versionSize);
+      expect(unitSize, `${at}: the countdown label is at least as prominent as build metadata`).toBeGreaterThanOrEqual(versionSize);
+      expect(found.valueSize, `${at}: the countdown figure is no smaller than its unit`).toBeGreaterThanOrEqual(unitSize);
+      const physicalScale = width > height ? Math.min(1, width / 1920, height / 1080) : 1;
+      for (const label of found.labels) expect(label.size * physicalScale, `${at}: ${label.selector} meets its 11px readable floor`).toBeGreaterThanOrEqual(10.95);
       if (width > height) {
         const scale = Math.min(1, width / 1920, height / 1080);
-        expect(found.height, `${at}: at least the TV's 96px header, scaled`).toBeGreaterThanOrEqual(96 * scale - 1);
-        const expectedHeight = Math.max(96 * scale, Math.max(...found.groups.map((group) => group.height)) + 32 * scale);
+        expect(found.height, `${at}: at least the TV's 72px header, scaled`).toBeGreaterThanOrEqual(72 * scale - 1);
+        const expectedHeight = Math.max(72 * scale, Math.max(...found.groups.map((group) => group.height)) + 16 * scale);
         expect(Math.abs(found.height - expectedHeight), `${at}: readable groups plus real padding determine height`).toBeLessThanOrEqual(1);
-        for (const label of found.labels) expect(label.size * scale, `${at}: ${label.selector} meets the 11px physical floor`).toBeGreaterThanOrEqual(10.95);
         for (const group of found.groups) {
-          expect(group.top - found.box.top, `${at}: ${group.selector} has real top padding`).toBeGreaterThanOrEqual(16 * scale - 1);
-          expect(found.box.bottom - group.bottom, `${at}: ${group.selector} has real bottom padding`).toBeGreaterThanOrEqual(16 * scale - 1);
+          expect(group.top - found.box.top, `${at}: ${group.selector} has real top padding`).toBeGreaterThanOrEqual(8 * scale - 1);
+          expect(found.box.bottom - group.bottom, `${at}: ${group.selector} has real bottom padding`).toBeGreaterThanOrEqual(8 * scale - 1);
         }
       }
       const legibility = await page.evaluate(wallLegibility, "[data-strip-date], [data-strip-countdown-unit]");
@@ -1327,8 +1207,6 @@ test.describe(() => {
     test(`the Wall fits the TV ${fitCase}, cutting off no text`, desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
       // The source-health reads included: a failing source is read from them (`fire`).
       await wallScene(page, variant);
-      const tvCharts = new Map<string, { width: number; height: number; availableHeight: number }>();
-      const tvType = new Map<string, { font: number; region: number }>();
       // The TV first: the laptop's Wall is compared with it.
       const sizes = ["one", "three", "six", "seven"].includes(variant)
         ? [[1920, 1080], [1440, 900], [390, 844]] as const : [[1920, 1080]] as const;
@@ -1339,24 +1217,12 @@ test.describe(() => {
         await openWall(page, [width, height]);
         // Every site's live users landed: the heights are the finished Wall's.
         const region = page.locator("[data-wall-sites]");
-        if (sites.length === 1) await expect(region.locator('[data-focus-tile="today"]')).toBeVisible();
-        else await expect(region.locator('[data-site-row] [data-live]:not([data-live="none"])')).toHaveCount(wallFixtureRealtime(20, variant).assets.length);
-        await expect(page.locator("[data-wall-loop] [data-flow-node]")).toHaveCount(5);
-        const timeline = page.locator("[data-wall-timeline]");
-        if (variant === "six") {
-          // A specific warning is a bar on its site's row, with no aggregate badge.
-          await expect(page.locator("[data-wall-strip] [data-system-state]")).toHaveCount(0);
-          await expect(timeline.locator("[data-span]")).toHaveCount(1);
-          await expect(timeline.locator("[data-span]")).toHaveAttribute("data-severity", "warn");
-        }
+        await expect(region.locator('[data-site-row] [data-live]:not([data-live="none"])')).toHaveCount(wallFixtureRealtime(20, variant).assets.length);
+        await expect(page.locator("[data-wall-loop], [data-wall-timeline]")).toHaveCount(0);
+        await expect(page.locator("[data-wall-work]")).toBeVisible();
+        await expect(page.locator("[data-wall-needs]")).toBeVisible();
         if (variant === "fire") {
-          // The timeline leads with the failure, errors before warnings; the
-          // site's health bar carries its state without an aggregate strip badge.
           const [, , , down, silent] = sites;
-          await expect(page.locator("[data-wall-strip] [data-system-state]")).toHaveCount(0);
-          await expect(timeline.locator("[data-lane]").first()).toHaveAttribute("data-lane", down!.id);
-          await expect(timeline.locator("[data-lane]").first()).toHaveAttribute("data-state", "error");
-          await expect(timeline.locator("[data-lane]").first()).toContainText(down!.displayName);
           await expect(page.locator(`[data-site-row="${down!.id}"] [data-site-health]`)).toHaveAttribute("data-site-health", "error");
           await expect(page.locator(`[data-site-row="${silent!.id}"] [data-site-health]`)).toHaveAttribute("data-site-health", "warn");
         }
@@ -1367,91 +1233,29 @@ test.describe(() => {
         if (width > height) expect(verdict.fits, `${variant}: past the TV by ${verdict.overWidth}×${verdict.overHeight} px: ${JSON.stringify(measured.worst)}`).toBe(true);
         expect(measured.ink, `${variant}: painting outside its own box`).toEqual([]);
         expect(measured.clipped, `${variant}: text cut off`).toEqual([]);
-        const heights = measured.sites.rows.map((row) => row.height);
-        if (variant === "one") expect(measured.sites.density).toBe("focus");
-        else if (width > height) {
-          expect(measured.sites.density).toBe(variant === "two" || variant === "three" ? "comfortable" : "compact");
-          expect(heights).toHaveLength(sites.length);
-          for (const rowHeight of heights) expect(rowHeight).toBeGreaterThan(0);
-          if (variant === "eight") {
-            // Beyond the visible budget, preserve readable content floors
-            // and scroll inside the site region, leaving the page bounded.
-            const table = region.getByRole("table");
-            await expect(table).toHaveCSS("overflow-y", "auto");
-            const frame = await table.boundingBox();
-            for (const asset of sites) {
-              const row = region.locator(`[data-site-row="${asset.id}"]`);
-              await row.scrollIntoViewIfNeeded();
-              const bounds = await row.boundingBox();
-              expect(bounds!.y, `${asset.id}: reachable inside its region`).toBeGreaterThanOrEqual(frame!.y - 1);
-              expect(bounds!.y + bounds!.height, `${asset.id}: fully visible after scrolling`).toBeLessThanOrEqual(frame!.y + frame!.height + 1);
-            }
-          } else {
-            expect(Math.abs(measured.sites.spare!), `${variant}: rows fill their region`).toBeLessThan(2);
-            const hidden = await region.evaluate((el) => {
-              const box = el.getBoundingClientRect();
-              return [...el.querySelectorAll("[data-site-row]")].filter((row) => {
-                const r = row.getBoundingClientRect();
-                return r.top < box.top - 1 || r.bottom > box.bottom + 1;
-              }).map((row) => row.getAttribute("data-site-row"));
-            });
-            expect(hidden, `${variant}: every row fully visible, including its totals`).toEqual([]);
+        await expect(region.locator("[data-site-row]")).toHaveCount(sites.length);
+        const tiles = await region.locator("[data-site-row] .wall-metric").evaluateAll(elements => elements.map(element => {
+          const scale = (element as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
+          return element.getBoundingClientRect().height / scale;
+        }));
+        for (const tileHeight of tiles) expect(tileHeight, `${variant}: consistent metric height at ${width}`).toBeCloseTo(156, 0);
+        const list = region.locator(".wall-portfolio-list");
+        if (width > height && sites.length > 3) {
+          await expect(list).toHaveCSS("overflow-y", "auto");
+          for (const asset of sites) {
+            const row = region.locator(`[data-site-row="${asset.id}"]`);
+            await row.scrollIntoViewIfNeeded();
+            await expect(row).toBeInViewport();
           }
         }
-        const totals = page.locator('[data-site-total="accounts"] dd');
+        const totals = page.locator('[data-site-total="accounts"]');
         await expect(totals).toHaveText("6,267");
-        if (variant !== "one") await expect(page.locator('[data-site-total="itemsRated"] dd')).toHaveText("13,904");
-        if (width === 1920 && (variant === "three" || variant === "six" || variant === "seven")) {
-          const figure = await totals.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-          expect(figure, `${variant}: totals meet the documented TV type floor`).toBeGreaterThanOrEqual(18);
-        }
-        await assertNoPageOverflow(page);
-        const plot = region.locator("[data-site-chart], [data-focus-chart]").first();
+        if (variant !== "one") await expect(page.locator('[data-site-total="itemsRated"]')).toHaveText("13,904");
+        const plot = region.locator(".wall-site-chart").first();
         const plotBox = await plot.boundingBox();
-        const availableHeight = await plot.evaluate((el) => {
-          const parent = el.parentElement!;
-          const style = getComputedStyle(parent);
-          const zoom = (parent as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
-          const px = (value: string) => (parseFloat(value) || 0) * zoom;
-          // Overlays (today's pace and its window) float over the plot and take none of its room.
-          const siblings = [...parent.children].filter((child) => child !== el && getComputedStyle(child).position !== "absolute");
-          const beside = style.display === "flex" && (style.flexDirection === "row" || style.flexDirection === "row-reverse");
-          return parent.getBoundingClientRect().height
-            - px(style.paddingTop) - px(style.paddingBottom) - px(style.borderTopWidth) - px(style.borderBottomWidth)
-            - (beside ? 0 : siblings.reduce((height, sibling) => height + sibling.getBoundingClientRect().height, 0))
-            - (beside ? 0 : px(style.rowGap) * siblings.length);
-        });
-        expect(plotBox?.width, `${width}/${variant}: a visible chart`).toBeGreaterThan(32);
-        expect(plotBox?.height, `${width}/${variant}: a readable chart`).toBeGreaterThan(20);
-        if (width > height && (variant === "one" || variant === "three")) {
-          expect(Math.abs(plotBox!.height - availableHeight), `${variant}: plot fills height after figures, labels and padding`).toBeLessThan(2);
-        }
-        // Heights in the Wall's own pixels: a laptop draws the TV's layout
-        // zoomed, so a taller box can draw a plot no taller on the screen.
-        const ownHeight = plotBox!.height / measured.scale;
-        const ownAvailable = availableHeight / measured.scale;
-        if (width === 1920) tvCharts.set(variant, { width: plotBox!.width, height: ownHeight, availableHeight: ownAvailable });
-        if (variant === "six" || variant === "seven") {
-          const font = await totals.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-          const regionHeight = measured.regions.sites!.height / measured.scale;
-          if (width === 1920) tvType.set(variant, { font, region: regionHeight });
-          if (width === 1440) {
-            const previous = tvType.get(variant)!;
-            expect(Math.abs(regionHeight - previous.region), `${variant}: fixture changes the region height`).toBeGreaterThan(10);
-            expect(Math.abs(font - previous.font), `${variant}: type responds to its region, not the viewport`).toBeGreaterThan(0.5);
-            expect((font - previous.font) * (regionHeight - previous.region), `${variant}: more room gives larger type`).toBeGreaterThan(0);
-          }
-        }
-        if (width === 1440) {
-          const previous = tvCharts.get(variant)!;
-          expect(plotBox!.width, `${variant}: charts respond to narrower region`).toBeLessThan(previous.width);
-          if (variant === "one" || variant === "three") {
-            // Figure wrapping and padding also change; compare the room the
-            // plot actually has, after those siblings, not viewport height.
-            expect(Math.abs(ownHeight - previous.height), `${variant}: charts respond to changed region height`).toBeGreaterThan(2);
-            expect((ownHeight - previous.height) * (ownAvailable - previous.availableHeight), `${variant}: plot height follows its available room`).toBeGreaterThan(0);
-          }
-        }
+        expect(plotBox?.width, `${width}/${variant}: visible chart`).toBeGreaterThan(32);
+        expect(plotBox?.height, `${width}/${variant}: readable chart`).toBeGreaterThan(20);
+        await assertNoPageOverflow(page);
         await page.screenshot({ path: testInfo.outputPath(`wall-budget-${width}-${variant}.png`), fullPage: width === 390 });
       }
     });
@@ -1597,10 +1401,10 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(layoutState("saved")).toHaveText("On the TV");
   // A widget alone in its row goes down with its row: the keyboard's and the
   // phone's way, through the widget panel's Move menu.
-  const moveDown = async (id: string, label: string) => {
+  const moveVertical = async (id: string, label: string, direction: "down" | "up") => {
     await page.locator(`[data-wall-edit-widget="${id}"]`).click();
     await page.locator(`[data-wall-widget-panel="${id}"]`).getByRole("button", { name: `Move ${label}`, exact: true }).click();
-    await page.getByRole("menuitem", { name: /^Move down/ }).click();
+    await page.getByRole("menuitem", { name: direction === "down" ? /^Move down/ : /^Move up/ }).click();
   };
   const versions = page.locator("[data-wall-version-count]");
 
@@ -1615,13 +1419,13 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   const chosen = { assets: ["plume.example", "mosaic.example"], pulseMetrics: { "plume.example": ["leads", "plansSaved"], "mosaic.example": ["itemsRated"] } };
   const preview = page.locator('[data-wall-preview]');
   await expect(preview.locator('[data-site-total="accounts"]')).toHaveCount(0);
-  await expect(preview.locator('[data-site-total="plansSaved"] dd')).toHaveText("41,280");
-  await expect(preview.locator('[data-site-total="leads"] dd')).toHaveText("0");
-  await expect(preview.locator('[data-site-total="itemsRated"] dd')).toHaveText("13,904");
+  await expect(preview.locator('[data-site-total="plansSaved"]')).toHaveText("41,280");
+  await expect(preview.locator('[data-site-total="leads"]')).toHaveText("0");
+  await expect(preview.locator('[data-site-total="itemsRated"]')).toHaveText("13,904");
   await expect(preview.locator('[data-site-row="lantern.example"]')).toHaveCount(0);
 
   // Create: the first Save of a layout nobody has saved.
-  await moveDown("strip", "Top strip");
+  await moveVertical("strip", "Top strip", "down");
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await bar.getByRole("button", { name: "Save", exact: true }).click();
   await expect(saved).toBeVisible();
@@ -1630,7 +1434,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.screenshot({ path: testInfo.outputPath("wall-layout-created.png") });
   const created = (await wall())!;
   expect(settings(created)).toEqual(chosen);
-  expect(created.layout.rows.map((row: { id: string }) => row.id)).toEqual(["loop", "strip", "body"]);
+  expect(created.layout.rows.map((row: { id: string }) => row.id)).toEqual(["body", "strip"]);
   expect(created.history).toHaveLength(1);
   await expect(versions).toHaveText("1");
 
@@ -1643,7 +1447,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(menu.getByRole("checkbox", { name: /Items rated/ })).not.toBeChecked();
   await expect(menu.getByRole("checkbox", { name: /Restaurants/ })).not.toBeChecked();
   await expect(preview.locator('[data-site-totals="mosaic.example"]')).toHaveCount(0);
-  await moveDown("loop", "The loop");
+  await moveVertical("strip", "Top strip", "up");
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await bar.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(async () => (await wall())!.history.length, { message: "the second Save reaches the store" }).toBe(2);
@@ -1651,9 +1455,9 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(refusal).toHaveCount(0);
   const updated = (await wall())!;
   expect(settings(updated)).toEqual({ ...chosen, pulseMetrics: { ...chosen.pulseMetrics, "mosaic.example": [] } });
-  expect(updated.layout.rows.map((row: { id: string }) => row.id)).toEqual(["strip", "loop", "body"]);
+  expect(updated.layout.rows.map((row: { id: string }) => row.id)).toEqual(["strip", "body"]);
   expect(updated.history.map((version: { layout: { rows: { id: string }[] } }) => version.layout.rows.map((row) => row.id)))
-    .toEqual([["loop", "strip", "body"], ["strip", "loop", "body"]]);
+    .toEqual([["body", "strip"], ["strip", "body"]]);
   await expect(versions).toHaveText("2");
   await page.screenshot({ path: testInfo.outputPath("wall-layout-updated.png") });
 
@@ -1661,7 +1465,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.reload();
   await expect(layoutState("saved")).toHaveText("On the TV");
   await expect(versions).toHaveText("2");
-  await expect(preview.locator('[data-site-total="plansSaved"] dd')).toHaveText("41,280");
+  await expect(preview.locator('[data-site-total="plansSaved"]')).toHaveText("41,280");
   await expect(preview.locator('[data-site-totals="mosaic.example"]')).toHaveCount(0);
 
   // The newest history entry is the previous saved layout, including choices.
@@ -1670,9 +1474,9 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.locator('[data-wall-version]').first().getByRole("button", { name: "Revert", exact: true }).click();
   await expect.poll(async () => settings((await wall())!), { message: "Revert restores saved pulse choices and filter" }).toEqual(chosen);
   await expect(layoutState("saved")).toHaveText("On the TV");
-  await expect(preview.locator('[data-site-total="itemsRated"] dd')).toHaveText("13,904");
+  await expect(preview.locator('[data-site-total="itemsRated"]')).toHaveText("13,904");
   await page.reload();
-  await expect(preview.locator('[data-site-total="itemsRated"] dd')).toHaveText("13,904");
+  await expect(preview.locator('[data-site-total="itemsRated"]')).toHaveText("13,904");
   await page.screenshot({ path: testInfo.outputPath("wall-layout-pulse-reverted.png") });
   // A selected metric that no longer arrives remains editable; no reading
   // disappears from the TV rather than being invented as zero.
@@ -1681,7 +1485,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.locator('[data-wall-edit-widget="sites"]').click();
   await expect(plume.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toBeChecked();
   await expect(preview.locator('[data-site-total="plansSaved"]')).toHaveCount(0);
-  await expect(preview.locator('[data-site-total="leads"] dd')).toHaveText("0");
+  await expect(preview.locator('[data-site-total="leads"]')).toHaveText("0");
   // Clicking removes the now-unselected placeholder itself; an uncheck()
   // verification cannot reread a control deliberately removed by the action.
   await plume.getByRole("checkbox", { name: /plansSaved.*No reading/ }).click();
@@ -1731,24 +1535,24 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
     return { x: box.x + box.width * fx, y: box.y + box.height * fy };
   };
 
-  // Stack: Work onto the top edge of Sites joins the left column, above it.
-  await drag(await at(tile("work"), 0.5, 0.6), await at(tile("sites"), 0.5, 0.06), async () => {
+  // Stack: Revenue above Sites joins the left column between Work and Sites.
+  await drag(await at(tile("revenue"), 0.5, 0.6), await at(tile("sites"), 0.5, 0.06), async () => {
     await expect(preview.locator('[data-wall-drop-line="top"]')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("wall-drag-stack-line.png") });
   });
-  await expect(inColumn("business", "work")).toBeVisible();
-  await expect(announced).toHaveText("Work moved to row 3 of 3, column 1 of 2, 2 of 3 in its column");
+  await expect(inColumn("business", "revenue")).toBeVisible();
+  await expect(announced).toHaveText("Revenue moved to row 2 of 2, column 1 of 2, 2 of 3 in its column");
   await expect(bar.locator('[data-save-state="unsaved"]')).toBeVisible();
 
-  // Split: Last 24 hours onto the left edge of Sites becomes a column of its own.
-  await drag(await at(tile("timeline"), 0.5, 0.5), await at(tile("sites"), 0.03, 0.5), async () => {
+  // Split: Work onto the left edge of Sites becomes a column of its own.
+  await drag(await at(tile("work"), 0.5, 0.5), await at(tile("sites"), 0.03, 0.5), async () => {
     await expect(preview.locator('[data-wall-drop-line="left"]')).toBeVisible();
   });
-  await expect(preview.locator('[data-wall-column] [data-wall-edit-widget="timeline"]')).toHaveCount(0);
-  await expect(tile("timeline")).toBeVisible();
+  await expect(preview.locator('[data-wall-column] [data-wall-edit-widget="work"]')).toHaveCount(0);
+  await expect(tile("work")).toBeVisible();
 
-  // Resize: the divider after Last 24 hours, dragged right; it says the shares as it moves.
-  const columns = preview.locator('[data-wall-divider^="x:timeline:"]');
+  // Resize the divider after Work; it shows the shares as it moves.
+  const columns = preview.locator('[data-wall-divider^="x:work:"]');
   const handle = await at(columns, 0.5, 0.5);
   await drag(handle, { x: handle.x + 40, y: handle.y }, async () => {
     await expect(preview.locator("[data-wall-divider-readout]")).toBeVisible();
@@ -1771,21 +1575,21 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   await tile("revenue").click();
   await tile("revenue").getByRole("button", { name: "Move Revenue", exact: true }).click();
   await page.getByRole("menuitem", { name: /^Into a new row below/ }).click();
-  await expect(announced).toHaveText("Revenue moved to row 4 of 4, column 1 of 1");
+  await expect(announced).toHaveText("Revenue moved to row 3 of 3, column 1 of 1");
   await expect(tile("revenue")).toBeFocused();
   await bar.getByRole("button", { name: "Undo" }).click();
-  await expect(preview.locator("[data-wall-canvas] > [data-wall-row]")).toHaveCount(3);
+  await expect(preview.locator("[data-wall-canvas] > [data-wall-row]")).toHaveCount(2);
 
   await bar.getByRole("button", { name: "Save", exact: true }).click();
   await expect(bar.locator('[data-save-state="saved"] [data-status-for="wall:layout"]')).toHaveText("On the TV");
   await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
   const saved = (await wall())!;
-  const body = saved.layout.rows[2]!;
-  expect(body.widgets.map((slot) => slot.id)).toEqual(["timeline", "business", "revenue"]);
+  const body = saved.layout.rows[1]!;
+  expect(body.widgets.map((slot) => slot.id)).toEqual(["work", "business", "side"]);
   const business = body.widgets[1]!;
-  expect(business.type === "column" ? business.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["work"], ["sites"]]);
+  expect(business.type === "column" ? business.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["revenue"], ["sites"]]);
   expect(business.type === "column" ? business.rows.every((row) => typeof row.size === "number") : false).toBe(true);
-  expect(body.widgets[0]!.width).toBeGreaterThan(0.7);
+  expect(body.widgets[0]!.width).toBeGreaterThan(1.625);
   await page.screenshot({ path: testInfo.outputPath("wall-arranged-saved.png") });
 });
 
@@ -1860,7 +1664,7 @@ test("a saved TV layout the Tower cannot read is named as refused, and a Save or
   await expect(saved).toBeVisible();
   await expect(layoutState("saved")).toHaveText("On the TV");
   await expect(refusal).toHaveCount(0);
-  expect((await wall()).layout.rows.map((row: { id: string }) => row.id)).toEqual(["strip", "loop", "body"]);
+  expect((await wall()).layout.rows.map((row: { id: string }) => row.id)).toEqual(["strip", "body"]);
 
   // And the version that still read is offered back, and a Revert lands too.
   await expect(page.locator("[data-wall-version]")).toHaveCount(1);
@@ -1954,11 +1758,11 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
     const found = await page.evaluate(() => {
       const brand = document.querySelector('[data-strip-home] .brand-mark')!.getBoundingClientRect();
       const clock = document.querySelector('[data-strip-clock-group]')!.getBoundingClientRect();
-      const today = document.querySelector('[data-site-row="mosaic.example"] [data-site-today]')!;
+      const today = document.querySelector('[data-site-row="mosaic.example"] [data-site-today]')!.closest(".wall-metric")!;
       const cutoff = today.querySelector('[data-pace-window]')!;
       const chip = today.querySelector('[aria-label*="completed hours"]')!;
       const cell = today.getBoundingClientRect();
-      const chart = today.querySelector('[data-site-chart]')!.getBoundingClientRect();
+      const chart = today.querySelector('[data-site-today-chart]')!.getBoundingClientRect();
       const caption = cutoff.getBoundingClientRect();
       return {
         brandHeight: brand.height, clockHeight: clock.height,
@@ -1972,9 +1776,9 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
     expect(found.brandHeight).toBeGreaterThan(found.clockHeight * 0.55);
     expect(found.pace).toBe("6.9%");
     expect(found.meaning).toContain("6.9% ahead; completed hours today vs last Tue");
-    expect(found.cutoffPosition).toBe("absolute");
-    expect(Math.abs(found.cutoffRight)).toBeLessThan(1);
-    expect(Math.abs(found.cutoffBottom)).toBeLessThan(1);
+    expect(found.cutoffPosition).not.toBe("absolute");
+    expect(found.cutoffRight).toBeGreaterThanOrEqual(0);
+    expect(found.cutoffBottom).toBeGreaterThanOrEqual(0);
     expect(found.cutoffBelowChart).toBe(true);
     expect(found.chartWidth).toBeGreaterThan(found.cellWidth * 0.5);
     const measured = await page.evaluate(measureWallFit);
@@ -2457,19 +2261,18 @@ test("a filtered backlog is closed as Already handled in one action from All tas
   await assertNoPageOverflow(page);
 });
 
-test("partial Wall decisions and loop counts use lower-bound words without comparison chips", async ({ page }, testInfo) => {
+test("partial Wall decisions use lower-bound words without comparison chips", async ({ page }, testInfo) => {
   await wallScene(page);
   const partial = wallFixturePayload();
   partial.operator = { ...partial.operator!, waiting: 12, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1 };
   await page.route("**/api/wall", (route) => route.fulfill({ json: partial }));
   await page.goto("/wall");
-  const decisions = page.locator('[data-work-figure="Your decisions"]');
-  await expect(decisions).toContainText("at least 12");
+  const decisions = page.locator('[data-wall-work] [data-material-condition~="human-gates"]');
+  await expect(decisions.locator('.wall-metric-qualifier')).toHaveText('At least');
+  await expect(decisions.locator('.wall-metric-value')).toHaveText('12');
   await expect(decisions).toContainText("at least 1 urgent");
-  await expect(decisions.locator("[data-week-move]")).toHaveCount(0);
-  const decide = page.locator('[data-flow-node="decide"]');
-  await expect(decide).toContainText("at least 12");
-  await expect(decide).toContainText("for you to decide · at least 1 urgent");
+  await expect(decisions.locator(".wall-metric-movement")).toHaveCount(0);
+  await expect(page.locator("[data-wall-needs]")).toContainText("at least 1 urgent");
   await assertNoPageOverflow(page);
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("wall-partial-counts.png"), fullPage: true });
@@ -4002,9 +3805,9 @@ test('Wall hourly activity compares last week, shows pace and refreshes without 
   await expect(live.locator('[data-live-count]')).toBeVisible();
   await expect(page.locator('[data-realtime-today]').first()).toBeVisible();
   await expect(page.locator('[data-realtime-prior]').first()).toBeVisible();
-  await expect(page.locator('[data-realtime-pace]').first()).toContainText('%');
-  await expect(page.locator('[data-realtime-pace]').first()).toContainText('day so far');
-  await expect(page.locator('[data-realtime-unit]').first()).toHaveText('hourly avg users/min');
+  await expect(page.locator('[data-site-today]').first()).toContainText('%');
+  await expect(page.locator('[data-site-today]').first()).toContainText('day so far');
+  await expect(page.locator('[data-site-today]').first().locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " wall-metric ")][1]').locator('.wall-site-axis')).toContainText('avg users/min');
   await page.evaluate(() => document.fonts.ready);
   await page.clock.runFor(3_000);
   await expect(page.locator("#boot-splash")).toHaveCount(0);

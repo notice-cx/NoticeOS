@@ -3,6 +3,7 @@
 // default arrangement, and the version history a Save and a Revert produce.
 
 import { describe, expect, it } from "vitest";
+import { SAVED_COLUMN_LAYOUT } from "./saved-wall-layout";
 import {
   DEFAULT_WALL_LAYOUT,
   EMPTY_WALL_CONFIG,
@@ -41,15 +42,14 @@ function widget(layout: WallLayout, rowIndex: number, index: number): WallWidget
   return found;
 }
 
-/** One of the default body's two columns: the business (the last 24 hours
- * over the site rows) or the side (revenue over the work). */
+/** A body's column, independent of the number of rows above it. */
 function column(layout: WallLayout, id: "business" | "side" = "business"): WallColumn {
-  const found = row(layout, 2).widgets.find((slot) => slot.id === id);
+  const found = layout.rows.find(r => r.id === "body")?.widgets.find((slot) => slot.id === id);
   if (!found || !isWallColumn(found)) throw new Error(`no column ${id}`);
   return found;
 }
 
-/** A widget inside one of the default's columns, by its row there and its place. */
+/** A widget inside a column, by its row there and its place. */
 function stacked(layout: WallLayout, id: "business" | "side", rowIndex: number, index: number): WallWidget {
   const found = column(layout, id).rows[rowIndex]?.widgets[index];
   if (!found) throw new Error(`no stacked widget ${id} ${rowIndex}/${index}`);
@@ -57,7 +57,7 @@ function stacked(layout: WallLayout, id: "business" | "side", rowIndex: number, 
 }
 
 function layoutWith(mutate: (layout: WallLayout) => void): WallLayout {
-  const copy = JSON.parse(JSON.stringify(DEFAULT_WALL_LAYOUT)) as WallLayout;
+  const copy = JSON.parse(JSON.stringify(SAVED_COLUMN_LAYOUT)) as WallLayout;
   mutate(copy);
   return copy;
 }
@@ -89,29 +89,13 @@ const PRE_D28 = {
 };
 
 describe("the default layout", () => {
-  it("is the strip and the loop, then the last 24 hours over the assets beside revenue over the work", () => {
-    expect(DEFAULT_WALL_LAYOUT.rows.map((r) => [r.id, r.height])).toEqual([
-      ["strip", "auto"],
-      ["loop", "auto"],
-      ["body", "fill"],
-    ]);
-    expect(row(DEFAULT_WALL_LAYOUT, 0).widgets.map((w) => [w.type, w.width])).toEqual([["strip", 1]]);
-    expect(row(DEFAULT_WALL_LAYOUT, 1).widgets.map((w) => [w.type, w.width])).toEqual([["loop", 1]]);
-    // The body: the business column at 1.4 beside the side column at 1.
-    expect(row(DEFAULT_WALL_LAYOUT, 2).widgets.map((w) => [w.id, w.type, w.width])).toEqual([
-      ["business", "column", 1.4],
-      ["side", "column", 1],
-    ]);
-    const shape = (id: "business" | "side") =>
-      column(DEFAULT_WALL_LAYOUT, id).rows.map((r) => [r.id, r.height, r.widgets.map((w) => [w.type, w.width])]);
-    expect(shape("business")).toEqual([
-      ["timeline", "auto", [["timeline", 1]]],
-      ["sites", "fill", [["sites", 1]]],
-    ]);
-    expect(shape("side")).toEqual([
-      ["money", "fill", [["revenue", 1.55]]],
-      ["work", "auto", [["work", 1]]],
-    ]);
+  it("places work over assets beside revenue, attention and the feed", () => {
+    expect(DEFAULT_WALL_LAYOUT.rows.map(r => [r.id, r.height])).toEqual([["strip", "auto"], ["body", "fill"]]);
+    expect(row(DEFAULT_WALL_LAYOUT, 0).widgets.map(w => [w.type, w.width])).toEqual([["strip", 1]]);
+    expect(row(DEFAULT_WALL_LAYOUT, 1).widgets.map(w => [w.id, w.type, w.width])).toEqual([["business", "column", 3.25], ["side", "column", 1]]);
+    const shape = (id: "business" | "side") => column(DEFAULT_WALL_LAYOUT, id).rows.map(r => [r.id, r.height, r.widgets.map(w => [w.type, w.width])]);
+    expect(shape("business")).toEqual([["work", "auto", [["work", 1]]], ["sites", "fill", [["sites", 1]]]]);
+    expect(shape("side")).toEqual([["money", "auto", [["revenue", 1.55]]], ["needs", "auto", [["needs", 1]]], ["feed", "fill", [["feed", 1]]]]);
   });
 
   it("validates, normalises to itself and raises no warning", () => {
@@ -120,15 +104,15 @@ describe("the default layout", () => {
     expect(wallLayoutWarnings(DEFAULT_WALL_LAYOUT)).toEqual([]);
   });
 
-  it("places each of its widgets once, at the weight a fresh one gets, and leaves Needs attention and the feed in the library", () => {
+  it("places each widget once at its library weight and leaves optional widgets in the library", () => {
     const placed = wallLayoutWidgets(DEFAULT_WALL_LAYOUT);
-    expect(placed.map((w) => w.type)).toEqual(["strip", "loop", "timeline", "sites", "revenue", "work"]);
+    expect(placed.map((w) => w.type)).toEqual(["strip", "work", "sites", "revenue", "needs", "feed"]);
     for (const widget of placed) {
       expect(WALL_WIDGET_LIBRARY[widget.type].unique).toBe(true);
       // Taking a widget off and adding it back puts back the same weight.
       expect(WALL_WIDGET_LIBRARY[widget.type].defaultWidth).toBe(widget.width);
     }
-    for (const type of ["needs", "feed", "agents"] as const) {
+    for (const type of ["loop", "timeline", "agents"] as const) {
       expect(placed.some((w) => w.type === type)).toBe(false);
       expect(WALL_WIDGET_TYPES).toContain(type);
     }
@@ -477,11 +461,11 @@ describe("a column slot", () => {
   it("holds rows of widgets, and lists them in reading order", () => {
     expect(wallLayoutWidgets(DEFAULT_WALL_LAYOUT).map((w) => w.id)).toEqual([
       "strip",
-      "loop",
-      "timeline",
+      "work",
       "sites",
       "revenue",
-      "work",
+      "needs",
+      "feed",
     ]);
   });
 

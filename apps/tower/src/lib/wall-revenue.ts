@@ -49,8 +49,8 @@ export interface MonthPace {
   /** The covered sites' whole previous month, in dollars; null when any of
    * them has no complete previous month to add. */
   previousTotal: number | null;
-  /** The covered sites' projection against their own previous month. A
-   * projection is not a completed comparison, so it is drawn in neutral ink. */
+  /** The covered sites' projection against their own previous month.
+   * The display names the projected basis beside the comparison. */
   changePercent: number | null;
   points: MonthRevenuePoint[];
   crossing: MonthCrossing | null;

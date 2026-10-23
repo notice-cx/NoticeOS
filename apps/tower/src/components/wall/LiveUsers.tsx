@@ -1,9 +1,10 @@
 import type { Ga4RealtimeAsset } from "@noticeos/contract";
-import { ClockAlert } from "lucide-react";
+import { Activity, ClockAlert } from "lucide-react";
 import { useState } from "react";
 import { ageMs, formatAge } from "@shared/freshness";
 import { liveTrafficCardIssue, liveTrafficIsRecent } from "@shared/live-traffic-health";
 import type { AssetCard } from "@shared/wall";
+import { MomentumMetric } from "@/components/wall/MetricWidgets";
 import { MinutePulse, type MinutePulseSize } from "@/components/surface/MinutePulse";
 import { formatInt } from "@/lib/format";
 import { useTweenedNumber } from "@/lib/use-tweened-number";
@@ -53,13 +54,14 @@ export interface LiveUsersProps {
   nowMs: number;
   /** Off where it is not in the table. */
   cell?: boolean;
+  metric?: boolean;
   /** The figure's type step. */
   face?: string;
   /** The pulse's size; follows the face unless the caller says. */
   size?: MinutePulseSize;
 }
 
-export function LiveUsers({ asset, snapshot, reconnecting, nowMs, cell = true, face = "text-wall-stat", size }: LiveUsersProps) {
+export function LiveUsers({ asset, snapshot, reconnecting, nowMs, cell = true, face = "text-wall-stat", size, metric = false }: LiveUsersProps) {
   const role = cell ? "cell" : undefined;
   const collects = asset.dataSources.some(
     (source) => source.id === "ga4" && (source.state === "live" || source.state === "degraded"),
@@ -69,6 +71,7 @@ export function LiveUsers({ asset, snapshot, reconnecting, nowMs, cell = true, f
   const issue = liveTrafficCardIssue(snapshot, reconnecting, nowMs);
   const state = liveState(snapshot, shown, issue);
   if (!shown) {
+    if (metric) return <div data-live="none"><MomentumMetric title="Momentum" icon={Activity} context="30 min" value={null} bars={[]} startLabel="30m ago" endLabel="now" /></div>;
     return (
       <span role={role} className="text-wall-stat text-muted-foreground" title={issue ?? undefined} data-live="none">
         —
@@ -98,6 +101,13 @@ export function LiveUsers({ asset, snapshot, reconnecting, nowMs, cell = true, f
     // it and the cell stays as narrow as its figures.
     <RecentCount value={shown.activeUsers5m} unit={unit} space={stacked ? "" : cell ? "pl-2 sites:pl-0" : "pl-3"} />
   );
+  if (metric) return <div data-live={state} title={issue ?? undefined}>
+    <MomentumMetric title="Momentum" icon={Activity} context="30 min"
+      value={<LiveCount value={shown.activeUsers30m} face="wall-metric-value" dimmed={dimmed} />}
+      recent={dimmed ? { value: end, label: "" } : { value: <RecentCount value={shown.activeUsers5m} unit="text-wall-micro" space="" />, label: "" }}
+      bars={minutes ?? []} highlightLast={dimmed ? 0 : 5} tone={dimmed ? "neutral" : "traffic"}
+      startLabel="30m ago" endLabel={dimmed ? "last read" : "now"} />
+  </div>;
   return (
     <span
       role={role}

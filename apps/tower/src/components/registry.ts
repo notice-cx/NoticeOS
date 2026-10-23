@@ -964,10 +964,16 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     ],
   },
   {
+    name: "MetricTile / NumberMetric / MultiMetric / MomentumMetric / MetricComparisonChart / SparklineCompareMetric / CumulativeCompareMetric",
+    file: "components/wall/MetricWidgets.tsx",
+    purpose: "The Wall's shared neutral metric tiles: narrow, standard and wide widths at one row height, with an expanded cumulative comparison. Facts preserve unavailable values, movement tone is explicit, bars highlight the latest window, and current, reference and forecast lines share a date scale. Chart slots reuse richer existing charts.",
+    variants: ["narrow/standard/wide at one height", "expanded cumulative compare", "missing and zero facts", "two observed points", "current/reference/forecast", "latest bars highlighted"],
+  },
+  {
     name: "RevenueHero",
     file: "components/wall/RevenueHero.tsx",
     purpose:
-      "The Wall's revenue widget: the month's revenue so far as the largest type on the screen, 'on pace for $X' from the assets' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. On the TV the chart is a lower-contrast layer behind the figures filling the tile, so the tile is as tall as its text and its labels are placed clear of the figures; on a phone it is drawn under them. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
+      "The Wall's expanded CumulativeCompareMetric: month-to-date revenue and projection facts on the left, the existing cumulative revenue chart on the right. The chart keeps last month's horizontal total distinct from the future forecast. The arithmetic remains in lib/wall-revenue and the headline uses portfolioHeadline.",
     variants: [
       "on pace to pass last month",
       "passed last month",
@@ -982,8 +988,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteRows",
     file: "components/wall/SiteRows.tsx",
     purpose:
-      "The Wall's asset region: asset name and favicon with four-bar health, LiveUsers over the minute pulse, today's comparable-hours chart and pace, the four-week trend, and selected pulse totals on a second line. The rows fill the region: four or more assets keep figures beside charts, two or three put larger figures above them, one asset uses up to three focus tiles.",
-    variants: ["default pulse totals", "per-asset selection", "explicit none", "missing/zero/stale totals", "healthy/warn/error/unknown health bars", "fresh/stale live reading", "no data", "four or more filling rows", "two or three larger rows", "one asset focus tiles"],
+      "Each asset occupies the same fixed-height row of shared metric tiles, ordered Identity, Momentum, Today, 4 weeks, Work, then Product counts when selected counts exist. Row height and metric forms remain the same at every asset count; available width determines wrapping. Missing readings remain unavailable and observed zeros remain zero.",
+    variants: ["one or many assets", "selected product counts", "explicit none", "missing/zero/stale totals", "healthy/warn/error/unknown health", "fresh/stale live reading", "no data"],
   },
   {
     name: "LiveUsers",
@@ -1024,8 +1030,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallWork",
     file: "components/wall/WallWork.tsx",
     purpose:
-      "The Wall's work chart: a compact WorkFlow under the Wall's own eyebrow, with how many days into the week today is, what waits on the operator (operatorWaiting: unread, a lower bound, or stale, never a false zero), in progress, done this week and blocked, each with its move over the week (the cards' weeks summed with sumWorkWeeks), done this week against last week on a PaceBar, then one row per project. As tall as its content; given less height than every project needs, it draws the rows that fit whole and counts the rest on one line (+2 more projects). No links. With nothing read at all it is one quiet line, Tasks unknown.",
-    variants: ["counted", "partial inbox", "nothing read (one line)", "short box: rows that fit and +N more projects"],
+      "The Wall's fixed-height row of shared metric tiles: cumulative Done this week against last week's total, operator decisions, work in progress and blocked counts. Actual available observations supply each count's history; movement direction and business tone remain separate. Partial operator coverage is a lower bound, and missing readings remain unavailable.",
+    variants: ["counted", "partial inbox", "nothing read", "two observed snapshots", "cumulative week with missing days"],
   },
   {
     name: "AppShell / Sidebar",

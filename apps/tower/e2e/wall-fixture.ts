@@ -70,11 +70,13 @@ function weeks(doing: number, blocked: number, closed: number): WorkWeeks {
   const before = Math.round(closed / 4);
   const lastWeek = closed + Math.ceil(closed / 8);
   const state = (count: number, earlier: number, metric: "waiting" | "urgent" | "inProgress" | "blocked") =>
-    ({ now: count, before: earlier, added: Math.max(0, count - earlier), move: weekMove(metric, count, earlier) });
+    ({ now: count, before: earlier, added: Math.max(0, count - earlier), move: weekMove(metric, count, earlier),
+      history: days([earlier, earlier, earlier, earlier, count, count, count, count]) });
   return {
+    timeZone: TZ,
     weekStart: "2026-09-21",
     daysIn: 2,
-    done: { now, notDone: 0, before, lastWeek, move: weekMove("done", now, before) },
+    done: { now, notDone: 0, before, lastWeek, move: weekMove("done", now, before), observedAt: iso(MINUTE), history: days([Math.floor(now / 2), now]) },
     waiting: state(1, 0, "waiting"),
     urgent: state(0, 0, "urgent"),
     inProgress: state(doing, doing, "inProgress"),
@@ -83,7 +85,7 @@ function weeks(doing: number, blocked: number, closed: number): WorkWeeks {
 }
 
 const work = (open: number, high: number, doing: number, blocked: number, closed: number, p: number[]): WorkSummary => ({
-  open, highPriority: high, inProgress: doing, blocked, closedRecent: closed, priorities: p, capturedAt: iso(9 * MINUTE),
+  open, highPriority: high, inProgress: doing, blocked, closedRecent: closed, priorities: p, capturedAt: iso(MINUTE),
   weeks: weeks(doing, blocked, closed),
 });
 const ZERO = { currency: 'USD', revenue: 0, cost: 0, net: 0 };
@@ -111,7 +113,7 @@ const projection = (projected: number, earned: number): NonNullable<AssetCard["r
 const ASSETS: AssetCard[] = [
   card("plume.example", "Plume Studio", {
     counters: {
-      heading: "All-time totals", cadenceHours: 0.25, defaultMetrics: ["accounts", "leads"],
+      heading: "All-time totals", cadenceHours: 0.25, defaultMetrics: ["accounts", "leads", "plansSaved"],
       cards: [
         { metric: "accounts", label: "Accounts", value: 6267, observedAt: iso(8 * MINUTE), source: "counters" },
         { metric: "leads", label: "Leads", value: 1316, observedAt: iso(8 * MINUTE), source: "counters" },
@@ -202,14 +204,14 @@ function nextFor(ids: ReadonlySet<string>): WallNextUp {
 /**
  * The Wall at every size the contract budgets for, all from the six sites above:
  *
- *   one, two, three  the first one, two or three sites (the focus and roomier tiers)
+ *   one to four      the first one, two, three or four sites
  *   six              the fixture as it is: healthy, one warning, one site still waiting
  *   seven, eight     the six plus invented seventh and eighth sites, the room test
  *   fire             the six with a site down, a failing source and an overdue report
  */
-export type WallFixtureVariant = "one" | "two" | "three" | "six" | "seven" | "eight" | "fire";
-export const WALL_FIXTURE_VARIANTS: readonly WallFixtureVariant[] = ["one", "two", "three", "six", "seven", "eight", "fire"];
-const FIRST_SITES: Partial<Record<WallFixtureVariant, number>> = { one: 1, two: 2, three: 3 };
+export type WallFixtureVariant = "one" | "two" | "three" | "four" | "six" | "seven" | "eight" | "fire";
+export const WALL_FIXTURE_VARIANTS: readonly WallFixtureVariant[] = ["one", "two", "three", "four", "six", "seven", "eight", "fire"];
+const FIRST_SITES: Partial<Record<WallFixtureVariant, number>> = { one: 1, two: 2, three: 3, four: 4 };
 
 function scaledTrend(trend: AssetCard["activeUsers"], factor: number): AssetCard["activeUsers"] {
   const scale = (points: SeriesPoint[]) => points.map((p) => ({ t: p.t, v: Math.max(1, Math.round(p.v * factor)) }));
