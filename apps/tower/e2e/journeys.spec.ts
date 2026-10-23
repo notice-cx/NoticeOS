@@ -1235,16 +1235,17 @@ test.describe(() => {
   // Nothing reaches past the screen, nothing paints outside its own box, no
   // text is cut off, and rows and plots use the region while remaining
   // readable at each supported density.
-  test("the Wall fits the TV with one, two, three, six, seven or eight assets and on fire, cutting off no text", desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
-    test.setTimeout(120_000);
-    // The source-health reads included: a failing source is read from them (`fire`).
-    const scene = await wallScene(page);
-    const tvCharts = new Map<string, { width: number; height: number; availableHeight: number }>();
-    const tvType = new Map<string, { font: number; region: number }>();
-    for (const [width, height] of [[1920, 1080], [1440, 900], [390, 844]] as const) {
-      const variants = width === 1920 ? WALL_FIXTURE_VARIANTS : ["one", "three", "six", "seven"] as const;
-      for (const variant of variants) {
-        scene.variant = variant;
+  for (const variant of WALL_FIXTURE_VARIANTS) {
+    const fitCase = variant === "fire" ? "on fire" : `with ${variant} asset${variant === "one" ? "" : "s"}`;
+    test(`the Wall fits the TV ${fitCase}, cutting off no text`, desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
+      // The source-health reads included: a failing source is read from them (`fire`).
+      await wallScene(page, variant);
+      const tvCharts = new Map<string, { width: number; height: number; availableHeight: number }>();
+      const tvType = new Map<string, { font: number; region: number }>();
+      // The TV first: the laptop's Wall is compared with it.
+      const sizes = ["one", "three", "six", "seven"].includes(variant)
+        ? [[1920, 1080], [1440, 900], [390, 844]] as const : [[1920, 1080]] as const;
+      for (const [width, height] of sizes) {
         const sites = wallFixturePayload(variant).assets;
         // Each variant is another installation's Wall, so it loads cold, as a
         // new tab would; this journey keeps the cold load at every size.
@@ -1366,8 +1367,8 @@ test.describe(() => {
         }
         await page.screenshot({ path: testInfo.outputPath(`wall-budget-${width}-${variant}.png`), fullPage: width === 390 });
       }
-    }
-  });
+    });
+  }
 
   // The business view's preset, drawn with nothing saved: Next up across the
   // TV under the strip, then Site health over revenue beside Needs attention
@@ -1375,12 +1376,11 @@ test.describe(() => {
   // audit:wall-fit -- --viewports laptops` measures, by that tool's own
   // function, with the fixture's longest task titles, healthy, on fire and
   // with eight sites; on the TV every widget keeps its editor floor.
-  test("the business view's Wall fits the TV and every laptop with Next up across the top, cutting off no text", desktopOnly("walks the TV and laptop sizes itself"), async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
-    const preset = WALL_PRESETS.business;
-    const widgets = wallLayoutWidgets(preset);
-    const scene = await wallScene(page, "six", { view: "business" });
-    for (const [width, height] of [[1920, 1080], [1280, 720], [1366, 768], [1440, 900], [1470, 830], [1512, 860], [1728, 1000]] as const) {
+  for (const [width, height] of [[1920, 1080], [1280, 720], [1366, 768], [1440, 900], [1470, 830], [1512, 860], [1728, 1000]] as const) {
+    test(`the business view's Wall fits ${width}×${height} with Next up across the top, cutting off no text`, desktopOnly("a TV or laptop size of its own"), async ({ page }, testInfo) => {
+      const preset = WALL_PRESETS.business;
+      const widgets = wallLayoutWidgets(preset);
+      const scene = await wallScene(page, "six", { view: "business" });
       for (const variant of ["six", "fire", "eight"] as const) {
         scene.variant = variant;
         const at = `${variant} at ${width}×${height}`;
@@ -1421,8 +1421,8 @@ test.describe(() => {
         expect(measured.clipped, `${at}: text cut off`).toEqual([]);
         if (variant === "six") await page.screenshot({ path: testInfo.outputPath(`wall-business-${width}.png`) });
       }
-    }
-  });
+    });
+  }
 
   // Next up in a box exactly its editor floor on the TV: the five decisions
   // and the three held tasks with the fixture's longest titles all drawn, in
