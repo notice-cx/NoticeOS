@@ -1,7 +1,7 @@
 import { test, expect } from "../journey-test";
 import { openWall, wallScene } from "../wall-scene";
 import { WALL_FIXTURE_VARIANTS } from "../wall-fixture";
-import { DESKTOP_ONLY } from "../fixtures";
+import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
 import type { WallLayout } from "../../shared/wall-layout";
 import { WALL_WIDGET_MIN_PX } from "../../src/lib/wall-editor";
 import { measureWallFit, wallFitVerdict } from "../../../../scripts/wall-fit-measure.mjs";
@@ -186,7 +186,7 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   await page.screenshot({ path: testInfo.outputPath(`wall-editor-${testInfo.project.name}.png`), fullPage: true });
 });
 
-test("Wall default remains readable on desktop and phone", async ({ page }, testInfo) => {
+test("Wall default remains readable on desktop and phone", { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   await wallScene(page, "three");
   await page.goto("/wall");
   await expect(page.locator("[data-site-row]")).toHaveCount(3);

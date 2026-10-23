@@ -6,11 +6,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { main, needsRuntime, unreadByRuntime } from './ci-scope.mjs';
+import { JOBS, laneOf, main, neededJobs, needsRuntime, unreadByRuntime } from './ci-scope.mjs';
 
-// A documentation-only pull request skips the unit and journey jobs (issue
-// #4). These tests pin which files count as documentation, and check the rule
-// against what those jobs run: no code they run may read a file it skips.
+// A pull request runs the PR lane and every other run the full lane; a
+// documentation-only pull request skips the unit and journey jobs (issue #4).
+// These tests pin both, and check the documentation rule against what those
+// jobs run: no code they run may read a file it skips.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -32,6 +33,31 @@ test('a change needs the runtime suites unless every file it touches is document
   assert.equal(needsRuntime([]), true, 'a change that lists no file runs everything');
 });
 
+const EVERY_JOB_BUT_SMOKE = Object.fromEntries(JOBS.map((job) => [job, job !== 'smoke']));
+const DOCS_ONLY = Object.fromEntries(JOBS.map((job) => [job, job === 'scripts']));
+
+test('a pull request runs the PR lane; the merge queue, main, the nightly run and a hand-started run run the full lane', () => {
+  assert.equal(laneOf('pull_request'), 'pr');
+  for (const event of ['push', 'merge_group', 'schedule', 'workflow_dispatch', 'local']) {
+    assert.equal(laneOf(event), 'full', event);
+    assert.deepEqual(neededJobs(event, ['docs/14-design.md']), EVERY_JOB_BUT_SMOKE, `${event} runs every job, whatever it changes`);
+  }
+  assert.deepEqual(neededJobs('pull_request', ['apps/tower/src/routes/WallRoute.tsx']), {
+    'tower-unit': true, 'ingest-unit': true, scripts: true, smoke: true, browser: false, 'flow-gate': false, 'task-store': false,
+  });
+  assert.deepEqual(neededJobs('pull_request', ['docs/14-design.md', 'AGENTS.md']), DOCS_ONLY);
+});
+
+test('every job a lane can skip is one the full lane runs, and the root script suite runs in every run', () => {
+  const full = neededJobs('push');
+  for (const files of [['docs/14-design.md'], ['apps/tower/src/routes/WallRoute.tsx'], []]) {
+    const pr = neededJobs('pull_request', files);
+    assert.deepEqual(Object.keys(pr), [...JOBS]);
+    assert.equal(pr.scripts, true);
+    for (const job of JOBS) if (pr[job] && job !== 'smoke') assert.equal(full[job], true, `${job} runs in the full lane`);
+  }
+});
+
 test('a push runs every suite; a pull request is judged on the files its merge commit changes, a rename on both paths', (t) => {
   const repo = mkdtempSync(path.join(os.tmpdir(), 'ci-scope-'));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
@@ -45,7 +71,7 @@ test('a push runs every suite; a pull request is judged on the files its merge c
     const stdout = process.stdout.write;
     process.stdout.write = () => true;
     try {
-      return { runtime: main({ ...env, GITHUB_OUTPUT: output }, repo), written: readFileSync(output, 'utf8') };
+      return { ...main({ ...env, GITHUB_OUTPUT: output }, repo), written: readFileSync(output, 'utf8') };
     } finally {
       process.stdout.write = stdout;
     }
@@ -60,8 +86,8 @@ test('a push runs every suite; a pull request is judged on the files its merge c
   git('commit', '-q', '-am', 'docs');
   git('checkout', '-q', 'main');
   git('merge', '-q', '--no-ff', '-m', 'merge', 'docs');
-  assert.deepEqual(judge({ GITHUB_EVENT_NAME: 'pull_request' }), { runtime: false, written: 'runtime=false\n' });
-  assert.deepEqual(judge({ GITHUB_EVENT_NAME: 'push' }), { runtime: true, written: 'runtime=true\n' });
+  assert.deepEqual(judge({ GITHUB_EVENT_NAME: 'pull_request' }), { lane: 'pr', needed: DOCS_ONLY, written: `lane=pr\nneeded=${JSON.stringify(DOCS_ONLY)}\n` });
+  assert.deepEqual(judge({ GITHUB_EVENT_NAME: 'push' }), { lane: 'full', needed: EVERY_JOB_BUT_SMOKE, written: `lane=full\nneeded=${JSON.stringify(EVERY_JOB_BUT_SMOKE)}\n` });
 
   git('checkout', '-q', '-b', 'rename', 'HEAD^1');
   git('mv', 'code.ts', 'AGENTS.md');
@@ -69,7 +95,7 @@ test('a push runs every suite; a pull request is judged on the files its merge c
   git('checkout', '-q', 'main');
   git('reset', '-q', '--hard', 'HEAD^1');
   git('merge', '-q', '--no-ff', '-m', 'merge', 'rename');
-  assert.equal(judge({ GITHUB_EVENT_NAME: 'pull_request' }).runtime, true, 'code renamed into documentation still runs everything');
+  assert.equal(judge({ GITHUB_EVENT_NAME: 'pull_request' }).needed['tower-unit'], true, 'code renamed into documentation still runs the unit suites');
 });
 
 /** Tracked files under `folders`. */

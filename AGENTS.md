@@ -167,22 +167,29 @@ scope is inferred.
 
 ## The CI bar
 
-Six parallel jobs (`.github/workflows/ci.yml`) on push to `main` and every
-PR, each after `pnpm install --frozen-lockfile`: the Tower's typecheck and unit
-tests; the other workspaces'; `pnpm test:scripts`; `pnpm -r build` then the
-isolated browser journeys, split test by test across three shards of one
-matrix job; the journey harness then the UX flow walker (a
-report; it fails only when a flow cannot be walked); and `pnpm test:task-store`
-against a real Dolt server in Docker. Each job installs only what its suites
-start: PostgreSQL 18, Chromium in the two browser jobs, the pinned task and
-Dolt tools in the task-store job. The `build` job is the required verdict.
-A newer push to a PR cancels that PR's running CI; a push to `main` is never
-cancelled. A PR that changes only documentation no runtime suite reads (`docs/` and root
-Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
-`docs` workflow builds the asset whenever `docs/` changes; a push to `main` runs
-everything and publishes the asset. Once CI passes on a `main` commit, the
-`Release image` workflow publishes it as the app image `os:setup` and
-`os:update` fetch (`RELEASE_REPOSITORY` in `scripts/published-image.mjs`).
+CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
+`scripts/ci-scope.mjs`; every job starts with `pnpm install --frozen-lockfile`.
+A PR runs the PR lane: the Tower's typecheck and unit tests; the other
+workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey harness and
+the browser journeys tagged `@pull-request`, on desktop and phone. The merge
+queue, a push to `main`, the nightly run and a run started by hand
+(`gh workflow run ci.yml --ref <branch>`) run the full lane: the same suites,
+every browser journey split test by test across three shards, the journey
+harness then the UX flow walker (a report; it fails only when a flow cannot be
+walked), and `pnpm test:task-store` against a real Dolt server in Docker. Each
+job installs only what its suites start: PostgreSQL 18, Chromium in the
+browser jobs, the pinned task and Dolt tools in the task-store job. The
+`build` job is the required verdict in both lanes; it fails when a job the
+scope needed did not pass. Until the merge queue is on for `main`, a change
+that breaks only a full-lane test shows on `main` after it merges; start the
+full lane by hand on a PR that changes what those tests cover. A newer push to
+a PR cancels that PR's running CI; no other run is cancelled. A PR that
+changes only documentation no runtime suite reads (`docs/` and root Markdown)
+runs the root suite alone, and the `docs` workflow builds the asset whenever
+`docs/` changes; a push to `main` publishes it. Once CI passes on a push to
+`main`, the `Release image` workflow publishes that commit as the app image
+`os:setup` and `os:update` fetch (`RELEASE_REPOSITORY` in
+`scripts/published-image.mjs`).
 
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
@@ -321,7 +328,7 @@ branch someone else has.
 ## State (dated facts; an expired entry is unknown, not true)
 
 - Toolchain: Node 24.21.0 LTS and pnpm 12.8.1, declared in `package.json` and CI.
-- CI: the six jobs above; PostgreSQL 18 server binaries and
+- CI: the two lanes above; PostgreSQL 18 server binaries and
   `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory. PostgreSQL 18
   is the only supported major; no other major is installed or qualified.
 - Installation paths: `pnpm os:setup` provisions a new installation as the

@@ -2,7 +2,7 @@ import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
+import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, REFUSED_GATE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { WALL_PRESETS, wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -24,8 +24,8 @@ import { emptyWorkHistory, type WorkPayload } from "@shared/work";
 const BUILT_APP = Boolean(process.env.JOURNEY_BUILT_CLIENT);
 const NAMES_SOURCE_MODULES = "names the source modules a page loads; a built app serves bundles";
 
-function desktopOnly(reason: string) {
-  return { tag: DESKTOP_ONLY, annotation: { type: "desktop only", description: reason } };
+function desktopOnly(reason: string, ...tags: string[]) {
+  return { tag: [DESKTOP_ONLY, ...tags], annotation: { type: "desktop only", description: reason } };
 }
 
 test.beforeEach(async ({ request, baseURL }) => {
@@ -350,7 +350,7 @@ test('asset order moves in the Wall editor, persists across every list, and supp
   expect((await (await request.get('/api/wall')).json()).assets.map((asset: { id: string }) => asset.id)).toEqual(latest);
 });
 
-test('Arrange on the Assets page drags an asset to the top and switches one off the TV, and Home, Assets and the Wall follow', async ({ page, request }, testInfo) => {
+test('Arrange on the Assets page drags an asset to the top and switches one off the TV, and Home, Assets and the Wall follow', { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
   expect((await request.post('/__journey/wall-feed')).ok()).toBe(true);
   const wall = await (await request.get('/api/wall')).json();
   const sites = wall.assets as { id: string; displayName: string }[];
@@ -416,7 +416,7 @@ test('Arrange on the Assets page drags an asset to the top and switches one off 
   await expect.poll(() => ids('[data-wall-sites] [data-site-row]', 'data-site-row')).toEqual(reordered.filter((id) => id !== first.id));
 });
 
-test('Mediavine signs in in the panel, its asset is matched by domain and synced on Start, and it disconnects', async ({ page }, testInfo) => {
+test('Mediavine signs in in the panel, its asset is matched by domain and synced on Start, and it disconnects', { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   await createAsset(page);
   await page.goto('/integrations');
   // Mediavine connects in the panel over the list: the login is shown to
@@ -1819,7 +1819,7 @@ test("a saved countdown the Tower cannot read leaves the layout standing, and it
 // A setting shown from the built-in copy: the fixture's stored settings lack
 // the monthly cap, so Settings shows the compiled value. The first Save
 // creates the key, and the next is guarded by it.
-test("a setting the saved settings lack saves from the value shown, then saves on top of it", desktopOnly("the write lane's rule is the same on a phone; this pins the lane, not the layout"), async ({ page, request }, testInfo) => {
+test("a setting the saved settings lack saves from the value shown, then saves on top of it", desktopOnly("the write lane's rule is the same on a phone; this pins the lane, not the layout", PR_SMOKE), async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/older-settings")).ok()).toBe(true);
   const constants = async () => (await (await request.get("/__journey/status")).json()).documents["config/constants.json"];
   expect((await constants()).monthly_caps).toBeUndefined();
@@ -1973,7 +1973,7 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-os-deploy.png") });
 });
 
-test("empty install → saved asset → fake connection and mapping → real metric reads → exact task and approval", async ({ page }, testInfo) => {
+test("empty install → saved asset → fake connection and mapping → real metric reads → exact task and approval", { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   // The longest journey (37–47 s on a free runner), so a loaded one needs room.
   test.setTimeout(120_000);
   const pageErrors: string[] = [];
@@ -2861,7 +2861,7 @@ function googleClientFile(redirectUris: string[], type: "web" | "installed" = "w
   return { name: "client_secret_journey.json", mimeType: "application/json", buffer: Buffer.from(json) };
 }
 
-test("Google connects in the panel: the client file dropped, signed in, GA4 and Search Console matched on one row and collected", async ({ page, baseURL }) => {
+test("Google connects in the panel: the client file dropped, signed in, GA4 and Search Console matched on one row and collected", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await installGoogleConsent(page.context(), baseURL!);
@@ -2928,7 +2928,7 @@ test("Google, hosted: the installation's own client makes the panel one button",
   await expect(row.locator("[data-connection]")).toHaveAttribute("data-connection", "working", { timeout: 60_000 });
 });
 
-test("a press the Tower answers with a redirect to another asset never leaves the fixture, and the test names the URL", async ({ page, offlineGuard }) => {
+test("a press the Tower answers with a redirect to another asset never leaves the fixture, and the test names the URL", { tag: PR_SMOKE }, async ({ page, offlineGuard }) => {
   const failed = await page.goto("/__journey/redirect-away").then(() => null, (error: Error) => error);
   expect(failed, "the proxy refused the foreign redirect before returning it").toBeInstanceOf(Error);
   expect(page.url()).not.toContain("example.com");
@@ -3271,7 +3271,7 @@ test("a new asset's Settings fits a tablet, a laptop and a phone, and names its 
   }
 });
 
-test("a failed setup save is recoverable without duplicate creation or false success", async ({ page }, testInfo) => {
+test("a failed setup save is recoverable without duplicate creation or false success", { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   await createAsset(page, true);
   await assertNoPageOverflow(page);
   const state = await (await page.request.get("/__journey/status")).json();
@@ -3770,7 +3770,7 @@ test("the nav fetches a screen's code when the pointer rests on its link", deskt
 
 // Core work is usable before the first managed site and independent of a
 // delayed snapshot-health request.
-test("core Tasks creates, opens and completes work before any user asset", async ({ page, request }, testInfo) => {
+test("core Tasks creates, opens and completes work before any user asset", { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto("/tasks");

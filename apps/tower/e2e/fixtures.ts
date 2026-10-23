@@ -1,6 +1,9 @@
 // Synthetic, public test data. Never import the owner's config into this harness.
 /** The tag of a journey only the desktop project runs (playwright.config.ts). */
 export const DESKTOP_ONLY = "@desktop-only";
+/** The tag of a journey every pull request runs: the PR lane's browser smoke
+ * (.github/workflows/ci.yml, scripts/ci-scope.mjs). The full lane runs it too. */
+export const PR_SMOKE = "@pull-request";
 export const JOURNEY_NOW = "2026-09-06T12:00:00.000Z";
 export const JOURNEY_ASSET = "journey.example";
 export const JOURNEY_KEY = "journey-only-not-a-real-key";

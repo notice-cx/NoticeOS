@@ -116,14 +116,16 @@ NOTICEOS_REQUIRE_POSTGRES=1 node --import ./scripts/script-tests-setup.mjs --tes
 Keep the root suite's `--import` preload when running one script test. A
 recursive workspace test does not run `scripts/*.test.mjs`.
 
-CI runs these gates across six parallel jobs (`.github/workflows/ci.yml`: the
-Tower's typecheck and unit tests; the other workspaces'; the root script
-suite; the build and browser journeys, in three shards; the journey harness
-and UX flow report; and the task store against a real Dolt server). The
-`build` job is the required check; it combines the results of all six. A newer
-push to a pull request cancels the run it replaces. A pull request that changes only
-documentation runs only the root script suite (`scripts/ci-scope.mjs`). Release
-acceptance still requires passing CI:
+A pull request's CI runs the PR lane (`.github/workflows/ci.yml`,
+`scripts/ci-scope.mjs`): the Tower's typecheck and unit tests; the other
+workspaces'; the root script suite; and the build with the journey harness
+and the browser journeys tagged `@pull-request`. The merge queue, a push to
+`main`, a nightly run and a run started by hand run the full lane: those
+suites, every browser journey in three shards, the UX flow report, and the
+task store against a real Dolt server. The `build` job is the required check
+in both lanes. A newer push to a pull request cancels the run it replaces. A
+pull request that changes only documentation runs only the root script suite.
+Release acceptance still requires passing CI:
 
 ```sh
 pnpm -r typecheck

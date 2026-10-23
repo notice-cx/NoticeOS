@@ -1,25 +1,35 @@
 #!/usr/bin/env node
-// Which suites a change needs.
+// Which CI jobs a run needs.
 //
-// AGENTS.md, The CI bar: documentation and image changes need their own
-// checks, not runtime suites. So a pull request that changes only
-// documentation skips the Tower and ingest unit jobs and the browser
-// journeys; the docs workflow builds the site instead. The root script suite
-// still runs: it reads every tracked Markdown file (product-name.test.mjs,
-// grep-visible.test.mjs, docs-index.test.mjs), and a change to a file a test reads runs that test.
-// A push to main runs everything.
+// AGENTS.md, The CI bar. A pull request runs the PR lane: the typechecks, the
+// unit suites, the root script suite and the browser smoke journeys (those
+// tagged @pull-request, apps/tower/e2e/fixtures.ts). The merge queue, a push
+// to main, the nightly run and a run started by hand run the full lane: every
+// job, every journey, the UX flow walker and the task store against Dolt. So
+// every test still runs before a change is released, and before it lands once
+// the merge queue is on.
 //
-// Documentation here is what those three jobs never read: docs/ and a
+// A pull request that changes only documentation skips the unit and smoke
+// jobs too; the docs workflow builds the site instead. The root script suite
+// always runs: it reads every tracked Markdown file (product-name.test.mjs,
+// grep-visible.test.mjs, docs-index.test.mjs), and a change to a file a test
+// reads runs that test.
+//
+// Documentation here is what the skipped jobs never read: docs/ and a
 // Markdown file at the repository root. scripts/ci-scope.test.mjs refuses a
 // read of any of it from the code those jobs run; a folder under docs/ that
 // product code or a runtime suite comes to read is listed in READ_DOCS.
 //
-//   node scripts/ci-scope.mjs     in GitHub Actions: writes runtime=true|false to $GITHUB_OUTPUT
+//   node scripts/ci-scope.mjs     in GitHub Actions: writes lane=pr|full and
+//                                 needed=<job: true|false, as JSON> to $GITHUB_OUTPUT
 
 import { spawnSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/** Every job the scope decides, in the workflow's order. */
+export const JOBS = Object.freeze(['tower-unit', 'ingest-unit', 'scripts', 'smoke', 'browser', 'flow-gate', 'task-store']);
 
 /** Folders under docs/ that runtime suites or product code read. */
 export const READ_DOCS = Object.freeze([]);
@@ -36,6 +46,20 @@ export function needsRuntime(files) {
   return files.length === 0 || !files.every(unreadByRuntime);
 }
 
+/** The lane an event runs: pull requests the PR lane, everything else the full lane. */
+export function laneOf(event) {
+  return event === 'pull_request' ? 'pr' : 'full';
+}
+
+/** Which jobs a run needs, by job name. `files` is what a pull request
+ * changes; other events ignore it. */
+export function neededJobs(event, files = []) {
+  if (laneOf(event) === 'full') return Object.fromEntries(JOBS.map((job) => [job, job !== 'smoke']));
+  const runtime = needsRuntime(files);
+  const pr = { 'tower-unit': runtime, 'ingest-unit': runtime, scripts: true, smoke: runtime, browser: false, 'flow-gate': false, 'task-store': false };
+  return Object.fromEntries(JOBS.map((job) => [job, pr[job]]));
+}
+
 /** The files a pull request changes, on the merge commit Actions checks out:
  * its first parent is the base branch. Renames count as both paths. */
 function pullRequestFiles(cwd) {
@@ -45,18 +69,19 @@ function pullRequestFiles(cwd) {
 }
 
 export function main(env = process.env, cwd = process.cwd()) {
-  let runtime = true;
-  let reason = `a ${env.GITHUB_EVENT_NAME ?? 'local'} run runs every suite`;
-  if (env.GITHUB_EVENT_NAME === 'pull_request') {
-    const files = pullRequestFiles(cwd);
-    runtime = needsRuntime(files);
-    reason = runtime
+  const event = env.GITHUB_EVENT_NAME ?? 'local';
+  const lane = laneOf(event);
+  const files = lane === 'pr' ? pullRequestFiles(cwd) : [];
+  const needed = neededJobs(event, files);
+  const reason = lane === 'full'
+    ? `a ${event} run runs the full lane`
+    : needsRuntime(files)
       ? `${files.filter((file) => !unreadByRuntime(file)).length} of ${files.length} changed file(s) are read by a runtime suite`
       : `all ${files.length} changed file(s) are documentation no runtime suite reads`;
-  }
-  process.stdout.write(`runtime=${runtime}: ${reason}\n`);
-  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `runtime=${runtime}\n`);
-  return runtime;
+  const runs = JOBS.filter((job) => needed[job]);
+  process.stdout.write(`lane=${lane}: ${reason}; runs ${runs.join(', ')}\n`);
+  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `lane=${lane}\nneeded=${JSON.stringify(needed)}\n`);
+  return { lane, needed };
 }
 
 const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

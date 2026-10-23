@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+import { PR_SMOKE } from '../apps/tower/e2e/fixtures.ts';
+import { JOBS as SCOPED_JOBS, neededJobs } from './ci-scope.mjs';
 
 // The root is intentionally not a pnpm workspace. That keeps the recursive
 // workspace commands valid when there are zero workspaces, but it also means
@@ -43,43 +47,60 @@ function jobBlock(workflow, name) {
 // Each gate in one job, in order (issue #2): the Tower's unit suite, the other
 // workspaces' (the two filters split `pnpm -r` between them, so every
 // workspace is typechecked and tested once), the root script suite (the root
-// is not a workspace, so no `pnpm -r` reaches it), the build with
-// the browser journeys, and the journey harness with the UX flow gate. Every
-// job that starts Postgres puts the server binaries on PATH first.
+// is not a workspace, so no `pnpm -r` reaches it), the build with the browser
+// smoke journeys and the journey harness (PR lane), the build with every
+// browser journey, the journey harness with the UX flow gate, and the task
+// store (full lane). Every job that starts Postgres puts the server binaries
+// on PATH first.
 const INSTALL = 'pnpm install --frozen-lockfile';
 const BROWSER_INSTALL = 'pnpm --filter @noticeos/tower run journey:install --with-deps';
 const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"';
+const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 // The journeys run as one matrix job of shards; each runs its share.
 const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
+const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE}`;
 const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, 'pnpm --filter @noticeos/tower run test'],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
   scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
+  smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, SMOKE],
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
-  'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journey-harness',
-    'pnpm --filter @noticeos/tower run test:ux-flows'],
+  'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows'],
   // The opt-in real task store suites get their pinned inputs first.
   'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, 'pnpm test:task-store'],
 };
-/** The jobs a documentation-only pull request skips (scripts/ci-scope.mjs). */
-const RUNTIME_JOBS = ['tower-unit', 'ingest-unit', 'browser', 'flow-gate', 'task-store'];
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
-  JOURNEYS, 'pnpm --filter @noticeos/tower run test:journey-harness',
-  'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
+  JOURNEYS, SMOKE, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
+/** A suite's command without the arguments that pick its share of tests. */
+const suiteOf = (command) => command.replace(/ -- .*$/u, '');
+/** The lanes: a pull request that changes code, and every other run. */
+const LANES = { 'pull request': neededJobs('pull_request', ['apps/tower/src/App.tsx']), full: neededJobs('push') };
 
-test('required CI runs every gate exactly once, each in its job, in gate order', () => {
+test('the workflow declares every job the scope decides, with the gates pinned here', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  const gates = new Map();
+  assert.deepEqual(Object.keys(JOBS), [...SCOPED_JOBS]);
   for (const [name, expected] of Object.entries(JOBS)) {
-    const commands = runCommands(jobBlock(workflow, name));
-    assert.deepEqual(commands, expected, `the ${name} job's gates`);
-    for (const command of commands) gates.set(command, (gates.get(command) ?? 0) + 1);
+    assert.deepEqual(runCommands(jobBlock(workflow, name)), expected, `the ${name} job's gates`);
   }
-  for (const [command, count] of gates) {
-    if (command === INSTALL || command === POSTGRES_STEP || command === BROWSER_INSTALL) continue;
-    assert.equal(count, 1, `${command} runs in more than one job`);
+});
+
+test('each lane runs every one of its gates exactly once, and the full lane runs every suite any lane runs', () => {
+  const ran = {};
+  for (const [lane, needed] of Object.entries(LANES)) {
+    const gates = new Map();
+    for (const name of Object.keys(JOBS).filter((job) => needed[job])) {
+      for (const command of JOBS[name]) gates.set(command, (gates.get(command) ?? 0) + 1);
+    }
+    for (const [command, count] of gates) {
+      if (command === INSTALL || command === POSTGRES_STEP || command === BROWSER_INSTALL) continue;
+      assert.equal(count, 1, `the ${lane} lane runs ${command} in more than one job`);
+    }
+    ran[lane] = new Set([...gates.keys()].map(suiteOf));
   }
+  for (const suite of ran['pull request']) assert.ok(ran.full.has(suite), `${suite} runs on a pull request but not in the full lane`);
+  const every = new Set(Object.values(JOBS).flat().map(suiteOf));
+  assert.deepEqual([...every].filter((suite) => !ran.full.has(suite)), [], 'the full lane runs every suite');
 });
 
 test('a Postgres suite never runs before its job puts the server binaries on PATH', () => {
@@ -97,7 +118,7 @@ test('a Postgres suite never runs before its job puts the server binaries on PAT
 // one supported major: no job installs, or points a suite at, another.
 test('each job installs only its own prerequisites, on PostgreSQL 18 alone', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  for (const [step, owners] of [[BROWSER_INSTALL, ['browser', 'flow-gate']], [TASK_TOOLS, ['task-store']]]) {
+  for (const [step, owners] of [[BROWSER_INSTALL, ['smoke', 'browser', 'flow-gate']], [TASK_TOOLS, ['task-store']]]) {
     const jobs = Object.keys(JOBS).filter((name) => runCommands(jobBlock(workflow, name)).includes(step));
     assert.deepEqual(jobs, owners, `${step} runs only in the jobs whose suites use it`);
   }
@@ -108,42 +129,61 @@ test('each job installs only its own prerequisites, on PostgreSQL 18 alone', () 
 
 // `pnpm test:journeys` is one command for an agent at a checkout, and two
 // jobs in CI so the journeys and the flow gate run side by side. Every step of
-// it still runs: the journeys' types in the Tower typecheck (pinned below),
-// the rest as the same commands.
+// it still runs in the full lane: the journeys' types in the Tower typecheck
+// (pinned below), the rest as the same commands.
 test('CI runs every step of pnpm test:journeys', () => {
-  const workflow = readFileSync(WORKFLOW, 'utf8');
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
   const steps = [...manifest.scripts['test:journeys'].matchAll(/pnpm --filter @noticeos\/tower run [\w:-]+/gu)].map((match) => match[0]);
   assert.equal(steps.length, 4, `the steps of pnpm test:journeys: ${steps.join(', ')}`);
-  const ci = Object.keys(JOBS).flatMap((name) => runCommands(jobBlock(workflow, name)));
+  const full = Object.keys(JOBS).filter((name) => LANES.full[name]).flatMap((name) => JOBS[name].map(suiteOf));
   for (const step of steps) {
     const ran = step === 'pnpm --filter @noticeos/tower run typecheck:journeys' ? 'pnpm --filter @noticeos/tower run typecheck' : step;
-    assert.ok(ci.some((command) => command === ran || command.startsWith(`${ran} -- `)), `${step} never runs in CI`);
+    assert.ok(full.includes(ran), `${step} never runs in the full lane`);
   }
 });
 
-test('documentation-only pull requests skip the unit, browser and flow-gate jobs; the script suite and every push run everything', () => {
+// GitHub counts a skipped required check as passing, so the verdict itself
+// must refuse a job that skipped although the scope needed it.
+test('the scope decides every job but the script suite, and the verdict judges each against it', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  assert.match(workflow, /^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n/mu);
+  assert.match(workflow, /^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {2}merge_group:\n(?: {2}#.*\n)* {2}schedule:\n {4}- cron: '[\d* ]+'\n {2}workflow_dispatch:\n/mu,
+    'pull requests, the merge queue, main, a nightly run and a hand-started run');
   const scope = jobBlock(workflow, 'scope');
   assert.deepEqual(runCommands(scope), ['node scripts/ci-scope.mjs']);
   assert.match(scope, /fetch-depth: 2\n/u, "the merge commit's base parent is fetched");
-  assert.match(scope, /runtime: \$\{\{ steps\.scope\.outputs\.runtime \}\}/u);
-  for (const name of RUNTIME_JOBS) {
-    const job = jobBlock(workflow, name);
-    assert.match(job, /^ {4}needs: scope\n {4}if: needs\.scope\.outputs\.runtime == 'true'\n/mu, `${name} runs unless the change is documentation only`);
+  assert.match(scope, /needed: \$\{\{ steps\.scope\.outputs\.needed \}\}/u);
+  for (const name of SCOPED_JOBS.filter((job) => job !== 'scripts')) {
+    assert.match(jobBlock(workflow, name), new RegExp(`^ {4}needs: scope\\n {4}if: fromJSON\\(needs\\.scope\\.outputs\\.needed\\)\\['${name}'\\]\\n`, 'mu'),
+      `${name} runs when the scope needs it`);
   }
   // The root suite reads every tracked Markdown file, so it always runs.
   assert.doesNotMatch(jobBlock(workflow, 'scripts'), /^ {4}if:/mu);
   const build = jobBlock(workflow, 'build');
-  assert.match(build, /^ {4}needs: \[scope, tower-unit, ingest-unit, scripts, browser, flow-gate, task-store\]\n {4}if: always\(\)\n/mu, 'the required check judges every job');
+  assert.match(build, new RegExp(`^ {4}needs: \\[scope, ${SCOPED_JOBS.join(', ')}\\]\\n {4}if: always\\(\\)\\n`, 'mu'), 'the required check judges every job');
+  assert.match(build, /NEEDS: \$\{\{ toJSON\(needs\) \}\}\n\s+NEEDED: \$\{\{ needs\.scope\.outputs\.needed \}\}/u);
+
   const [verdict] = runCommands(build);
-  assert.ok(verdict.includes(`[${RUNTIME_JOBS.map((name) => (name.includes('-') ? `."${name}"` : `.${name}`)).join(', ')}] | map(.result)`),
-    'the verdict judges every job a documentation-only change may skip');
-  assert.match(verdict, /^jq -e --arg runtime "\$RUNTIME" '/u);
-  assert.match(verdict, /\.scope\.result == "success" and \.scripts\.result == "success"/u, 'the scope job and the script suite always pass');
-  assert.match(verdict, /\(\. == "skipped" and \$runtime == "false"\)/u, 'a runtime job may skip only on a documentation-only change');
-  assert.match(build, /NEEDS: \$\{\{ toJSON\(needs\) \}\}\n\s+RUNTIME: \$\{\{ needs\.scope\.outputs\.runtime \}\}/u);
+  const program = /^jq -e --argjson needed "\$NEEDED" '(.+)' <<< "\$NEEDS"$/u.exec(verdict)?.[1];
+  assert.ok(program, 'the verdict is one jq program over the jobs and the scope');
+  const judge = (results, needed) => {
+    const needs = Object.fromEntries(Object.entries({ scope: 'success', ...results }).map(([job, result]) => [job, { result }]));
+    const run = spawnSync('jq', ['-e', '--argjson', 'needed', JSON.stringify(needed), program], { input: JSON.stringify(needs), encoding: 'utf8' });
+    assert.equal(run.error, undefined, 'jq runs, as it does on the runner');
+    return run.status === 0;
+  };
+  for (const [lane, needed] of Object.entries(LANES)) {
+    const passed = Object.fromEntries(SCOPED_JOBS.map((job) => [job, needed[job] ? 'success' : 'skipped']));
+    assert.equal(judge(passed, needed), true, `the ${lane} lane passes when each needed job passed`);
+    for (const job of SCOPED_JOBS.filter((name) => needed[name])) {
+      assert.equal(judge({ ...passed, [job]: 'skipped' }, needed), false, `${lane}: a needed ${job} that skipped fails`);
+      assert.equal(judge({ ...passed, [job]: 'cancelled' }, needed), false, `${lane}: a cancelled ${job} fails`);
+    }
+    for (const job of SCOPED_JOBS.filter((name) => !needed[name])) {
+      assert.equal(judge({ ...passed, [job]: 'failure' }, needed), false, `${lane}: an unneeded ${job} that ran and failed still fails`);
+    }
+    assert.equal(judge({ ...passed, unnamed: 'skipped' }, needed), false, `${lane}: a job the scope does not name may not skip`);
+    assert.equal(judge({ ...passed, scope: 'failure' }, needed), false, `${lane}: a failed scope fails`);
+  }
 });
 
 test('job extraction cannot borrow a missing gate from a sibling job', () => {
