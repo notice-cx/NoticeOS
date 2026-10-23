@@ -282,9 +282,10 @@ export default defineConfig(({ command }) => {
     },
   },
   define: {
-    // A journey build (JOURNEY_BUILD=1) leaves the release out, as source
-    // serving does: the journeys answer reads from stubs that carry none.
-    __NOTICEOS_RELEASE__: JSON.stringify(process.env.JOURNEY_BUILD === "1" ? null : appRelease),
+    // A journey build (JOURNEY_BUILD=1) leaves the release undefined, as
+    // source serving does: the journeys answer reads from stubs that carry
+    // none, and a journey that needs one sets the global itself.
+    ...(process.env.JOURNEY_BUILD === "1" ? {} : { __NOTICEOS_RELEASE__: JSON.stringify(appRelease) }),
     __NOTICEOS_SOURCE_VERSION__: JSON.stringify(appSourceVersion),
     __NOTICEOS_LIVE_SOURCE__: JSON.stringify(Boolean(liveSourceRoot)),
     __DEMO_VIEWER__: JSON.stringify(demoLaunch?.installation.viewer ?? null),
