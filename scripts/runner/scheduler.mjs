@@ -30,7 +30,7 @@ import { stepResult } from '../workflow-trace.mjs';
 import { CONFIG, HOME_ROOT, INGEST_WRANGLER } from './config.mjs';
 import { cronFireDecision, runtimeDoorOwnership } from './door-ownership.mjs';
 import { REGULAR_LANE_HELD, runJobLane } from './job-record.mjs';
-import { isShuttingDown } from './lifecycle.mjs';
+import { isShuttingDown, shutdownSignal } from './lifecycle.mjs';
 import { log } from './log.mjs';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -135,7 +135,7 @@ async function fireScheduled(expr, runtime) {
   if (decision.level) log(decision.level, decision.text);
   if (!decision.fire) return { outcome: decision.outcome, detail: decision.detail };
 
-  return fireScheduledTrigger(MANAGED_DOOR_URL, expr, { emit: log });
+  return fireScheduledTrigger(MANAGED_DOOR_URL, expr, { emit: log, shutdownSignal });
 }
 
 let scheduledJobRunner = null;

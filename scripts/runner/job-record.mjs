@@ -23,6 +23,18 @@ import { operatorToken } from './operator-token.mjs';
 // it is and why the file comes first: scripts/job-runs.mjs.
 
 export const JOB_RUNS_FILE = path.join(LOGS_DIR, 'job-runs.jsonl');
+const pendingRuns = new Set();
+
+/** Give cancelled requests time to persist their outcome before process exit. */
+export async function finishJobRuns(timeoutMs = 5_000) {
+  let timer;
+  try {
+    await Promise.race([
+      Promise.allSettled([...pendingRuns]),
+      new Promise((resolve) => { timer = setTimeout(resolve, timeoutMs); }),
+    ]);
+  } finally { clearTimeout(timer); }
+}
 
 /**
  * What the record says about each lane: when it last fired, what that firing
@@ -109,7 +121,7 @@ export async function runJobLane(
 ) {
   const { file = JOB_RUNS_FILE, emit = log, now = Date.now, ship = shipJobRuns } = deps;
   const begin = deps.begin ?? (file === JOB_RUNS_FILE ? beginWorkflowRun : null);
-  return runRecordedLane(job, fn, outcomeOf, {
+  const pending = runRecordedLane(job, fn, outcomeOf, {
     file,
     emit,
     now,
@@ -120,6 +132,9 @@ export async function runJobLane(
     begin: begin ? (name, at) => begin(name, at, deps.trigger) : null,
     stepOf: (value) => (value === REGULAR_LANE_HELD ? stepResult(null) : stepResult(value)),
   });
+  pendingRuns.add(pending);
+  try { return await pending; }
+  finally { pendingRuns.delete(pending); }
 }
 
 /** Read the record back, prune it to the retention window, and say what it says.

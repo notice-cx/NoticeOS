@@ -68,6 +68,7 @@ export function localDoorFetch(input, init = {}) {
         headers: init.headers,
       },
       (response) => {
+        response.on('error', (error) => finish(reject, error));
         const chunks = [];
         let bytes = 0;
         response.on('data', (chunk) => {
@@ -148,14 +149,22 @@ export function doorErrorCode(body) {
  * Fire one cron at a door and say what it amounted to: the dispatch's own
  * `ran` / `skipped` / `failed` (with its workflow steps) when it names one,
  * `ran` for any other 2xx, `failed` for a non-2xx or no answer, named by the
- * door's error code when it gave one. Never throws. Over the long-request
+ * door's error code when it gave one. A confirmed reload or runner shutdown
+ * is skipped with an interruption reason. Never throws. Over the long-request
  * transport, since a weekly collection answers after minutes.
  */
-export async function fireScheduledTrigger(door, expr, { fetchImpl = localDoorFetch, emit = () => {}, trigger, signal } = {}) {
+export async function fireScheduledTrigger(door, expr, { fetchImpl = localDoorFetch, emit = () => {}, trigger, signal, shutdownSignal } = {}) {
+  const interrupted = (reason) => {
+    const detail = `interrupted: ${reason}`;
+    emit('INFO', `cron "${expr}" ${detail}`);
+    return { outcome: 'skipped', detail };
+  };
+  if (shutdownSignal?.aborted) return interrupted('runner shutting down');
+  const requestSignal = shutdownSignal ? AbortSignal.any([shutdownSignal, ...(signal ? [signal] : [])]) : signal;
   try {
     const target = new URL(scheduledTriggerUrl(door, expr));
     if (trigger) target.searchParams.set('trigger', trigger);
-    const res = await fetchImpl(target.toString(), { method: 'GET', ...(signal ? { signal } : {}) });
+    const res = await fetchImpl(target.toString(), { method: 'GET', ...(requestSignal ? { signal: requestSignal } : {}) });
     if (res.ok) {
       emit('INFO', `cron "${expr}" fired → HTTP ${res.status}`);
       const result = await res.json().catch(() => null);
@@ -165,10 +174,12 @@ export async function fireScheduledTrigger(door, expr, { fetchImpl = localDoorFe
       return { outcome: 'ran', detail: `HTTP ${res.status}` };
     }
     const code = doorErrorCode(await res.text().catch(() => ''));
+    if (res.status === 503 && code === 'runtime_reloading') return interrupted('server reloading');
     const detail = code ? `HTTP ${res.status} · ${code}` : `HTTP ${res.status}`;
     emit('ERROR', `cron "${expr}" fired → ${detail} (non-200)`);
     return { outcome: 'failed', detail };
   } catch (err) {
+    if (shutdownSignal?.aborted) return interrupted('runner shutting down');
     emit('ERROR', `cron "${expr}" fire failed: ${err.message}`);
     return { outcome: 'failed', detail: err.message };
   }

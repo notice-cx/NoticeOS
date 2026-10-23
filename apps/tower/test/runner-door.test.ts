@@ -6,7 +6,13 @@
 // request could try to look like a door request has a case here.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import http from "node:http";
+import { EventEmitter, once } from "node:events";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import net, { type AddressInfo } from "node:net";
+import { createServer, type ViteDevServer } from "vite";
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_DOOR_HOST,
@@ -16,6 +22,7 @@ import {
   ingestDoor,
   runnerGuard,
   serveDoorRequest,
+  scheduledReloads,
 } from "../vite/runner-door";
 import {
   RUNNER_DOOR_HEADER,
@@ -325,6 +332,8 @@ describe("the door's bind", () => {
       middlewares: Object.assign(() => undefined, { use: () => undefined }),
       config: { logger: { info: (line: string) => logged.info.push(line), error: (line: string) => logged.error.push(line) } },
       httpServer: null,
+      restart: async () => {},
+      close: async () => {},
     };
     (ingestDoor().configureServer as unknown as (s: typeof server) => void)(server);
     const closers = process.listeners("exit").filter((listener) => !before.includes(listener));
@@ -365,4 +374,106 @@ describe("the door's bind", () => {
       await held.release();
     }
   });
+});
+
+describe("scheduled requests during server reloads", () => {
+  it.each(["restart", "close"] as const)("marks an in-flight request before %s tears down the runtime", async (action) => {
+    let finish!: () => void;
+    const teardown = () => new Promise<void>(resolve => { finish = resolve; });
+    const server = { restart: vi.fn(teardown), close: vi.fn(teardown) };
+    const middleware = scheduledReloads(server);
+    const door = http.createServer((request, response) => {
+      middleware(request, response, () => {});
+    });
+    door.listen(0, "127.0.0.1");
+    await once(door, "listening");
+    try {
+      const arrived = once(door, "request");
+      const firing = fetch(`http://127.0.0.1:${(door.address() as AddressInfo).port}${RUNNER_SCHEDULED_PATH}`);
+      await arrived;
+      const stopping = server[action]();
+      const response = await firing;
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "runtime_reloading" });
+      // A request arriving during teardown must not enter the old runtime.
+      expect((await fetch(`http://127.0.0.1:${(door.address() as AddressInfo).port}${RUNNER_SCHEDULED_PATH}`)).status).toBe(503);
+      finish();
+      await stopping;
+    } finally {
+      door.closeAllConnections();
+      await new Promise<void>(resolve => door.close(() => resolve()));
+    }
+  });
+
+  it("does not keep skipping jobs after an unsuccessful restart attempt", async () => {
+    const server = { restart: async () => { throw new Error("invalid fixture config"); }, close: async () => {} };
+    const middleware = scheduledReloads(server);
+    await expect(server.restart()).rejects.toThrow("invalid fixture config");
+    const next = vi.fn();
+    middleware(req(RUNNER_SCHEDULED_PATH) as IncomingMessage, Object.assign(new EventEmitter(), res()) as unknown as ServerResponse, next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("leaves ordinary responses and completed failures alone", async () => {
+    const server = { restart: async () => {}, close: async () => {} };
+    const middleware = scheduledReloads(server);
+    const next = vi.fn();
+    middleware(req("/api/wall") as IncomingMessage, res() as unknown as ServerResponse, next);
+    expect(next).toHaveBeenCalledOnce();
+    const response = Object.assign(new EventEmitter(), res());
+    middleware(req(RUNNER_SCHEDULED_PATH) as IncomingMessage, response as unknown as ServerResponse, () => {
+      response.statusCode = 500;
+      response.end("failure");
+      response.emit("close");
+    });
+    await server.restart();
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toBe("failure");
+  });
+
+  it.each(["restart", "close"] as const)("handles a real Vite %s before tearing down the door", async (action) => {
+    const root = await mkdtemp(path.join(tmpdir(), "scheduled-reload-"));
+    const holder = net.createServer();
+    holder.listen(0, "127.0.0.1");
+    await once(holder, "listening");
+    const port = (holder.address() as AddressInfo).port;
+    await new Promise<void>(resolve => holder.close(() => resolve()));
+    vi.stubEnv("OS_UP_INGEST_DOOR_HOST", "127.0.0.1");
+    vi.stubEnv("OS_UP_INGEST_DOOR_PORT", String(port));
+    let arrived!: () => void;
+    const pending = new Promise<void>(resolve => { arrived = resolve; });
+    let first = true;
+    let server: ViteDevServer | undefined;
+    try {
+      server = await createServer({
+        configFile: false, root, logLevel: "silent", server: { port: 0, host: "127.0.0.1" },
+        plugins: [ingestDoor(), { name: "synthetic-scheduled-job", configureServer(vite) {
+          vite.middlewares.use((request, response, next) => {
+            if (!request.url?.startsWith(RUNNER_SCHEDULED_PATH)) return next();
+            if (first) { first = false; arrived(); return; }
+            response.setHeader("content-type", "application/json");
+            response.end(JSON.stringify({ outcome: "ran", detail: "fixture completed" }));
+          });
+        } }],
+      });
+      await server.listen();
+      const url = `http://127.0.0.1:${port}/cdn-cgi/handler/scheduled?cron=*%20*%20*%20*%20*`;
+      const firing = fetch(url);
+      await pending;
+      const stopping = server[action]();
+      const response = await firing;
+      expect(response.status).toBe(503);
+      expect(await response.json()).toEqual({ error: "runtime_reloading" });
+      await stopping;
+      if (action === "restart") {
+        const next = await fetch(url);
+        expect(next.status).toBe(200);
+        expect(await next.json()).toEqual({ outcome: "ran", detail: "fixture completed" });
+      }
+    } finally {
+      await server?.close();
+      vi.unstubAllEnvs();
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 20_000);
 });
