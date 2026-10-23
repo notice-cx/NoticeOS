@@ -12,11 +12,9 @@ test.beforeEach(async ({ request }) => {
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
 });
 
-test("Wall default fills both columns with whole asset rows", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
-  test.setTimeout(120_000);
-  const scene = await wallScene(page);
-  for (const variant of WALL_FIXTURE_VARIANTS) {
-    scene.variant = variant;
+for (const variant of WALL_FIXTURE_VARIANTS) {
+  test(`Wall default fills both columns with whole asset rows: ${variant}`, { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
+    await wallScene(page, variant);
     await openWall(page, [1920, 1080]);
     await expect(page.locator("[data-wall-sites] [data-site-name]").first()).toBeVisible();
     await expect(page.locator("[data-wall-column]")).toHaveCount(2);
@@ -60,8 +58,8 @@ test("Wall default fills both columns with whole asset rows", { tag: DESKTOP_ONL
         expect(bounds.y + bounds.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
       }
     }
-  }
-});
+  });
+}
 
 const TWO_ROWS: WallLayout = {
   version: 1,
