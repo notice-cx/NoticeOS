@@ -51,6 +51,8 @@ export function rankIncidents<T extends Pick<Incident, "severity" | "since">>(it
 const GROUP_TITLE: Record<IncidentGroup, string> = { new: "New since you last looked", open: "Still open", "long-standing": "Open for over a week" };
 
 export interface IncidentListProps {
+  id?: string;
+  tabIndex?: number;
   items: Incident[];
   nowMs: number;
   /** When the operator last looked; problems after it are "new". */
@@ -64,7 +66,7 @@ export interface IncidentListProps {
   className?: string;
 }
 
-export function IncidentList({ items, nowMs, marker = null, title = "Problems", action, empty = "Nothing is broken.", compact = false, className }: IncidentListProps) {
+export function IncidentList({ id, tabIndex, items, nowMs, marker = null, title = "Problems", action, empty = "Nothing is broken.", compact = false, className }: IncidentListProps) {
   const [showOld, setShowOld] = useState(false);
   const ranked = rankIncidents(items);
   const groups = (["new", "open", "long-standing"] as const).map((group) => ({
@@ -75,7 +77,7 @@ export function IncidentList({ items, nowMs, marker = null, title = "Problems", 
   const warnings = items.length - errors;
 
   return (
-    <section aria-label={title} data-incident-list="" className={cn("flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
+    <section id={id} tabIndex={tabIndex} aria-label={title} data-incident-list="" className={cn("flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-5 pb-3 pt-4">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className={cn("m-0 whitespace-nowrap", eyebrowClass)}>{title}</h2>
