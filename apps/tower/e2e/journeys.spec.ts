@@ -15,6 +15,8 @@ import { buildWorkflowHistory } from "../vite/workflow-history";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
 import { READ_ONLY_DEPLOYMENT } from "@shared/tasks";
+import { planWrites, siteDraft } from "@shared/asset-wizard";
+import type { SettingsPayload } from "@shared/settings";
 import { emptyWorkHistory, type WorkPayload } from "@shared/work";
 
 const NAMES_SOURCE_MODULES = "names the source modules a page loads; a built app serves bundles";
@@ -156,7 +158,7 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
 });
 
 test("desk pages share the same content edges", async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   const widths = testInfo.project.name === "mobile" ? [390] : [1440, 1920];
   for (const width of widths) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
@@ -240,7 +242,7 @@ function siteRow(page: Page, provider: string, site: string) {
 }
 
 test("KPI trends remain inside their cells on desk, tablet and phone", async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   expect((await page.request.post("/__journey/revenue-history")).ok()).toBe(true);
   const viewports = testInfo.project.name === "mobile"
     ? [{ width: 390, height: 844 }]
@@ -301,6 +303,20 @@ async function createAsset(page: Page, failSetup = false) {
   const state = await (await page.request.get("/__journey/status")).json();
   expect(state.assets).toHaveLength(1);
   expect(state.requests.filter((row: { method: string; path: string }) => row.method === "POST" && row.path === "/api/assets")).toHaveLength(1);
+}
+
+/** The site `createAsset` adds, for a journey whose subject comes after the
+ * add: the two writes Add sends, from the plan it builds, without the sheet.
+ * The page stays where it is. */
+async function addAssetByApi(page: Page) {
+  const settings = await page.request.get("/api/settings");
+  expect(settings.ok()).toBe(true);
+  const { sources, entities } = (await settings.json()) as SettingsPayload;
+  const plan = planWrites(siteDraft({ domain: JOURNEY_ASSET, displayName: "Journey Example", prelaunch: false }),
+    sources.rows, entities?.rows ?? [], new Date(JOURNEY_NOW));
+  const headers = { origin: new URL(settings.url()).origin };
+  expect((await page.request.post("/api/assets", { headers, data: plan.row })).status()).toBe(201);
+  expect((await page.request.put("/api/config", { headers, data: { ops: plan.ops, slug: plan.slug } })).ok()).toBe(true);
 }
 
 test('asset order moves in the Wall editor, persists across every list, and supports guarded Undo', async ({ page, request }, testInfo) => {
@@ -550,7 +566,7 @@ test("a Wall whose app fails to arrive reloads by itself and draws, and a drawn 
 });
 
 test('the Wall states the month on pace from the store\'s projection, and draws no asset card', async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   const seeded = await page.request.post('/__journey/revenue-history');
   expect(seeded.ok()).toBe(true);
   const seed = (await seeded.json()) as SeededRevenue;
@@ -605,7 +621,8 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
     await page.screenshot({ path: testInfo.outputPath(`wall-empty-${width}.png`) });
   }
   // One site added, nothing connected yet: still nothing broke.
-  await createAsset(page);
+  await addAssetByApi(page);
+  await openWall(page, [1920, 1080]);
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
     await wallAt(page, [width, height]);
     await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();
@@ -1483,7 +1500,7 @@ test.describe(() => {
 // store seeded without the key does. The first Save creates it, and the next
 // Save, straight after and before the payload catches up, saves on top of it.
 test("the TV layout saves on a fresh install, then saves again on top of it", desktopOnly("the layout's save is the same on a phone; the arrange-wall walk covers the phone"), async ({ page, request }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   let missingSelectedMetric = false;
   await page.route("**/api/wall", async (route) => {
@@ -1609,7 +1626,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
 // resize them, every step undoes and redoes, and the Move menu reaches what
 // the drag does. The Save writes what the picture shows.
 test("the TV layout is arranged by dragging, resizing and the Move menu, each step undone and redone, then saved", desktopOnly("the drag needs a pointer and the TV's picture at a desk size; the phone moves widgets through the same Move menu, covered by the arrange-wall walk"), async ({ page, request }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   await page.route("**/api/wall", async (route) => {
     const { response, headers } = await fetchToRewrite(route);
@@ -1706,7 +1723,7 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
 // and ink the preview draws with must equal the TV's own, even on a light desk.
 test("the TV layout's preview draws the TV dark on a light desk, exactly as the TV draws itself", desktopOnly("the preview's tokens do not depend on the screen's width"), async ({ page }, testInfo) => {
   await page.addInitScript(() => window.localStorage.setItem("noticeos:theme", "light"));
-  await createAsset(page);
+  await addAssetByApi(page);
 
   /** What the TV box draws with: its tokens, the clock's and a site name's
    * ink, and the strip's panel behind the clock. */
@@ -1749,7 +1766,7 @@ test("the TV layout's preview draws the TV dark on a light desk, exactly as the 
 // TV", and a Save and a Revert from that state both land, guarded by what the
 // store really holds.
 test("a saved TV layout the Tower cannot read is named as refused, and a Save or a Revert replaces it", desktopOnly("the layout's save is the same on a phone"), async ({ page, request }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   expect((await request.post("/__journey/refused-tower?part=wall")).ok()).toBe(true);
   const wall = async () => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
 
@@ -1788,7 +1805,7 @@ test("a saved TV layout the Tower cannot read is named as refused, and a Save or
 // stays standing, the countdown is named as refused, and its form saves over
 // the stored value.
 test("a saved countdown the Tower cannot read leaves the layout standing, and its form saves over it", desktopOnly("the countdown's form is the same on a phone"), async ({ page, request }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   expect((await request.post("/__journey/refused-tower?part=countdown")).ok()).toBe(true);
   const tower = async () => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"];
 
@@ -2285,7 +2302,7 @@ async function assertSourcesFit(page: Page, context: string) {
 // first number turns Home into the dashboard, Home's System does not count the
 // site either.
 test("several approvals are decided in one action: one Undo, each reaches the task client in turn, and a refused one is named and stays", async ({ page }) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
   await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
@@ -2320,7 +2337,7 @@ test("several approvals are decided in one action: one Undo, each reaches the ta
 // client one task at a time once its window closes, each with the resolution
 // beside its closer and the note as its reason.
 test("a filtered backlog is closed as Already handled in one action from All tasks: undone, closed again, and the task closed already is named and kept", async ({ page }) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/backlog"]) expect((await page.request.post(route)).ok()).toBe(true);
   await page.goto(`/tasks?project=${JOURNEY_ASSET}&label=${BACKLOG_LABEL}`);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
@@ -2389,7 +2406,7 @@ test("partial Wall decisions and loop counts use lower-bound words without compa
 });
 
 test("decision filters keep their whole count and restore the hidden decisions when cleared", async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
   await page.goto(`/tasks/all?project=${JOURNEY_ASSET}`);
   const row = page.locator(`[data-inbox-row="${CHOICE_TASK}"]`);
@@ -2418,7 +2435,7 @@ test("decision filters keep their whole count and restore the hidden decisions w
 // to ready work with the human label off), and the task's page then shows the
 // pick as a fact with the options inert.
 test("a question with choices is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
   await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
@@ -2571,7 +2588,7 @@ for (const theme of ["dark", "light"] as const) {
 }
 
 test("Home and Tasks draw once from all their reads: no saved rows before the live ones, and no read sent twice", async ({ page }) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
   // The saved snapshot names a task the live read no longer has, and the live
   // read and the integration health answer late: a page that drew as reads
@@ -2617,7 +2634,7 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
 });
 
 test("an open page hears of a changed task list and new feed events through the change stream, and reads only what changed", async ({ page }) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
   const reads: string[] = [];
   page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/") && url.pathname !== "/api/changes") reads.push(`${url.pathname}${url.search}`); });
@@ -2652,7 +2669,7 @@ test("an open page hears of a changed task list and new feed events through the 
 });
 
 test("a page without the change stream polls while it is shown and sends nothing while its tab is hidden", async ({ page }) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   // As a hosted workspace: no stream, so the page polls.
   await page.route("**/api/changes", (route) => route.fulfill({ status: 404, json: { error: "not_found" } }));
   await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
@@ -2821,7 +2838,7 @@ test("PostHog connects with one key: the region found, the project matched by do
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.goto("/integrations");
   // One field, the access it needs as chips, no region or project to type.
   await page.locator('[data-integration-tile="posthog"]').getByRole("button", { name: "Connect PostHog", exact: true }).click();
@@ -2909,7 +2926,7 @@ test("Google, hosted: the installation's own client makes the panel one button",
   await installGoogleConsent(page.context(), baseURL!);
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   expect((await page.request.post("/__journey/google-hosted")).ok()).toBe(true);
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.goto("/integrations");
   await page.locator('[data-integration-tile="google"]').getByRole("button", { name: "Connect Google", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "Google" });
@@ -2939,7 +2956,7 @@ test("a revoked Google sign-in says so on Integrations in one short line, the in
   await installGoogleConsent(page.context(), baseURL!);
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   expect((await page.request.post("/__journey/google-hosted")).ok()).toBe(true);
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.goto("/integrations");
   await page.locator('[data-integration-tile="google"]').getByRole("button", { name: "Connect Google", exact: true }).click();
   await page.getByRole("dialog", { name: "Google" }).locator("[data-google-continue]").click();
@@ -2960,7 +2977,8 @@ test("a revoked Google sign-in says so on Integrations in one short line, the in
 
 test("a refused property id shows the format to enter", async ({ page }, testInfo) => {
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
-  await createAsset(page);
+  await addAssetByApi(page);
+  await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
   const sources = page.getByRole("region", { name: "Data sources", exact: true });
   await sources.getByRole("button", { name: /^Google Analytics/ }).click();
   const mapping = page.locator('[data-lane-config="ga4"]');
@@ -2980,7 +2998,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
-  await createAsset(page);
+  await addAssetByApi(page);
   // External boundary: what a connected Google account lists. Synthetic, and as
   // long as real property names get.
   await page.route("**/api/integrations/google/properties", (route) => route.fulfill({ json: {
@@ -3061,7 +3079,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
 // Real stored counters, their read age and absent values.
 for (const minutesAgo of [10, 40]) {
   test(`stored counters show all-time totals and their ${minutesAgo}-minute age`, async ({ page }, testInfo) => {
-    await createAsset(page);
+    await addAssetByApi(page);
     const seeded = await page.request.post(`/__journey/counters?minutesAgo=${minutesAgo}`);
     expect(seeded.ok()).toBe(true);
     await page.goto(`/assets/${JOURNEY_ASSET}`);
@@ -3088,7 +3106,7 @@ for (const minutesAgo of [10, 40]) {
 // A site's Codebase tab, from reports stored as the ingest stores them, and
 // before its first report the ways to send one, filled in for this site.
 test("the Codebase tab answers how the code changed, and before a first report shows how to send one", async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.goto(`/assets/${JOURNEY_ASSET}/codebase`);
   const answer = page.locator("[data-codebase-answer] h2");
   await expect(answer).toHaveText("The code has not been measured yet.");
@@ -3134,7 +3152,8 @@ test("the Codebase tab answers how the code changed, and before a first report s
 // that is down is an error alert.
 test("an asset's uptime row reads Up, stays Up after one failed try, then Down with an error alert when the retry fails too", async ({ page }) => {
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
-  await createAsset(page);
+  await addAssetByApi(page);
+  await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
   // Before its first check a site has no uptime row: nothing to set up.
   await expect(page.locator('[data-status-for="source:journey.example:uptime"]')).toHaveCount(0);
 
@@ -3173,7 +3192,7 @@ test("an asset's uptime row reads Up, stays Up after one failed try, then Down w
 test("an asset whose nightly fetch fails lists each failed night on Data sources and in the alert's Evidence", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await createAsset(page);
+  await addAssetByApi(page);
   const run = await page.request.post("/__journey/fetch-failures?nights=3");
   expect(run.ok()).toBe(true);
   expect((await run.json()).outcomes).toMatchObject([
@@ -3204,7 +3223,9 @@ test("an asset whose nightly fetch fails lists each failed night on Data sources
 });
 
 test("settings panel shells preserve content and fit both settings surfaces", async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
+  // The theme below is stored by the app's own page, as after Add's landing.
+  await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
   const captures = [
     { path: "/settings", name: "general", heading: "Clock" },
     { path: "/settings/tv-dashboard", name: "tv", heading: "Layout" },
@@ -3248,7 +3269,7 @@ test("settings panel shells preserve content and fit both settings surfaces", as
 // shown"), never the environment binding as one unbreakable line, and the
 // page fits at every width.
 test("a new asset's Settings fits a tablet, a laptop and a phone, and names its token without the binding", desktopOnly("walks the tablet, laptop and phone widths itself"), async ({ page }) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   for (const [width, height] of [[768, 1024], [1440, 900], [390, 844]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`/assets/${JOURNEY_ASSET}/settings`);
@@ -3392,7 +3413,7 @@ test("a one-asset install uses singular copy and hides filters with one choice",
   // One connect flow and eleven page loads: close to the default minute on a
   // shared runner.
   test.setTimeout(120_000);
-  await createAsset(page);
+  await addAssetByApi(page);
   await page.goto(`/integrations?connect=bing-webmaster&asset=${JOURNEY_ASSET}`);
   const panel = page.locator('[data-connect-panel="bing-webmaster"]');
   await panel.getByLabel("API key", { exact: true }).fill(JOURNEY_KEY);
@@ -3617,7 +3638,7 @@ test("an asset's tabs fetch their code when opened, and the palette on its first
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await createAsset(page);
+  await addAssetByApi(page);
 
   const first = await openAndList(page, `/assets/${JOURNEY_ASSET}`, async (p) => {
     await expect(p.getByRole("tab", { name: "Overview", exact: true })).toHaveAttribute("aria-selected", "true");
@@ -3663,7 +3684,7 @@ test("an asset's tabs fetch their code when opened, and the palette on its first
 
 test("an asset tab whose code cannot be fetched preserves its panel and recovers explicitly in a new tab", async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
-  await createAsset(page);
+  await addAssetByApi(page);
   // A tab opened before a rebuild asks for a file the server no longer has.
   let refused = 0;
   const missing = "**/src/routes/asset-detail/GrowthTab.tsx*";
