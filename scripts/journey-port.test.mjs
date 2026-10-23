@@ -70,7 +70,7 @@ test('every runner starts its server through fixture-server.mjs, each worker its
   assert.match(fixture, /baseURL: async \(\{ fixtureServer \}, use\) => \{\s*await use\(fixtureServer\.origin\);/);
   assert.match(fixture, /fixtureServer\.violations\(from\)/, 'a test fails on an isolation violation during it');
   const spec = read('journeys.spec.ts');
-  assert.match(spec, /import \{ test, expect \} from "\.\/journey-test";/, 'the spec runs on the worker-owned server');
+  assert.match(spec, /import \{(?=[^}]*\btest\b)(?=[^}]*\bexpect\b)[^}]*\} from "\.\/journey-test";/, 'the spec runs on the worker-owned server');
   assert.doesNotMatch(spec, /import \{[^}]*\btest\b[^}]*\} from "@playwright\/test"/, 'no test on a server nobody started');
   // The offline guard keeps every test's context on the
   // worker's own origin, and the flow gate's walks on theirs.
