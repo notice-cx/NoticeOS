@@ -57,8 +57,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-  # Two runners each take half the Tower's test files; the first also runs
-  # the typecheck.
+  # Three runners: the typecheck on one, half the Tower's test files on each
+  # of the other two.
   tower-unit:
     needs: scope
     if: fromJSON(needs.scope.outputs.needed)['tower-unit']
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        part: [typecheck, 1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -77,7 +77,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @noticeos/tower run typecheck
-        if: matrix.shard == 1
+        if: matrix.part == 'typecheck'
       # The Postgres proofs never skip: PostgreSQL 18's server binaries go on
       # PATH before the first suite that starts a server (installed from PGDG
       # if the runner lacks them; the PGDG script refreshes the package lists
@@ -85,11 +85,13 @@ jobs:
       # start into a failure. 18 is the only supported major. Every job that
       # starts Postgres repeats this step.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: pnpm --filter @noticeos/tower run test --shard=${{ matrix.shard }}/2
+        if: matrix.part != 'typecheck'
+      - run: pnpm --filter @noticeos/tower run test --shard=${{ matrix.part }}/2
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           # The suite has the runner to itself (scripts/unit-test-workers.mts).
           UNIT_TEST_WORKERS: 100%
+        if: matrix.part != 'typecheck'
 
   ingest-unit:
     needs: scope
@@ -139,12 +141,17 @@ jobs:
 
   # The PR lane's browser check: the build, the journey harness, and the
   # journeys tagged @pull-request on desktop and phone
-  # (apps/tower/e2e/fixtures.ts). The full lane runs them among all the others.
+  # (apps/tower/e2e/fixtures.ts), split across two runners. The full lane runs
+  # them among all the others.
   smoke:
     needs: scope
     if: fromJSON(needs.scope.outputs.needed)['smoke']
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -159,14 +166,15 @@ jobs:
           JOURNEY_BUILD: '1'
       - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journey-harness
-      - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @pull-request
+        if: matrix.shard == 1
+      - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @pull-request --shard=${{ matrix.shard }}/2
         env:
           JOURNEY_WORKERS: 3
           JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: smoke-journey-browser-evidence
+          name: smoke-journey-browser-evidence-${{ matrix.shard }}
           path: |
             apps/tower/e2e/playwright-report/
             apps/tower/e2e/test-results/

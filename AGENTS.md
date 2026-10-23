@@ -171,9 +171,10 @@ CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
 `scripts/ci-scope.mjs`; every job starts with `pnpm install --frozen-lockfile`.
 A PR runs the PR lane: the Tower's typecheck and unit tests; the other
 workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey harness and
-the browser journeys tagged `@pull-request`, on desktop and phone; the Tower's
-unit tests split across two runners, the root suite across three, and the
-task store, where it runs, across two. The browser journeys run against the built Tower;
+the browser journeys tagged `@pull-request`, on desktop and phone. Suites
+split across runners: the Tower's typecheck on its own and its unit tests on
+two, the smoke journeys on two, the root suite on three, and the task store,
+where it runs, on two. The browser journeys run against the built Tower;
 those tagged `@dev-server` need Vite's dev server and run on it in the full
 lane's flow-gate job. The merge
 queue, a push to `main`, the nightly run and a run started by hand

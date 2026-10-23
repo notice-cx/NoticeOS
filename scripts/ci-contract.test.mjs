@@ -60,8 +60,8 @@ const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/t
 const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 // The journeys run as one matrix job of shards; each runs its share.
 const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
-const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE}`;
-const TOWER_TESTS = 'pnpm --filter @noticeos/tower run test --shard=${{ matrix.shard }}/2';
+const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE} --shard=\${{ matrix.shard }}/2`;
+const TOWER_TESTS = 'pnpm --filter @noticeos/tower run test --shard=${{ matrix.part }}/2';
 const DEV_JOURNEYS = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${DEV_SERVER}`;
 const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, TOWER_TESTS],
@@ -250,7 +250,7 @@ test('every job stops after at most 30 minutes', () => {
 
 // A sharded suite runs every one of its files once, across its matrix: vitest
 // and Node each take one share per runner, of as many shares as runners.
-test('the Tower unit suite, the root suite and the task store run in shards that together run every file', () => {
+test('the Tower unit suite, the smoke journeys, the root suite and the task store run in shards that together run every file', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
   const shards = (name) => {
     const matrix = /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[([\d, ]+)\]\n/mu.exec(jobBlock(workflow, name));
@@ -260,8 +260,15 @@ test('the Tower unit suite, the root suite and the task store run in shards that
     return numbers.length;
   };
   const tower = jobBlock(workflow, 'tower-unit');
-  assert.ok(runCommands(tower).includes(`pnpm --filter @noticeos/tower run test --shard=\${{ matrix.shard }}/${shards('tower-unit')}`), 'each Tower shard runs its own share');
-  assert.match(tower, /- run: pnpm --filter @noticeos\/tower run typecheck\n {8}if: matrix\.shard == 1\n/u, 'the typecheck runs once');
+  assert.match(tower, /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}part: \[typecheck, 1, 2\]\n/mu, 'the typecheck on one runner, the tests in two shards');
+  assert.ok(runCommands(tower).includes(TOWER_TESTS), 'each Tower test shard runs its own share of 2');
+  assert.match(tower, /- run: pnpm --filter @noticeos\/tower run typecheck\n {8}if: matrix\.part == 'typecheck'\n/u, 'the typecheck runs once');
+  assert.match(tower, /\n {8}if: matrix\.part != 'typecheck'\n(?:.*\n)*? {6}- run: pnpm --filter @noticeos\/tower run test --shard/u, 'the typecheck runner starts no Postgres');
+  assert.match(tower, /UNIT_TEST_WORKERS: 100%\n {8}if: matrix\.part != 'typecheck'\n/u, 'the typecheck runner runs no tests');
+  const smoke = jobBlock(workflow, 'smoke');
+  assert.equal(shards('smoke'), 2);
+  assert.match(smoke, /- run: pnpm --filter @noticeos\/tower run test:journey-harness\n {8}if: matrix\.shard == 1\n/u, 'the harness runs once');
+  assert.match(smoke, /name: smoke-journey-browser-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each smoke shard keeps its own evidence');
   for (const [name, suite] of [['scripts', 'pnpm test:scripts'], ['task-store', 'pnpm test:task-store']]) {
     const count = shards(name);
     assert.match(jobBlock(workflow, name), new RegExp(`- run: ${suite}\\n {8}env:\\n(?: {10}.*\\n)*? {10}NODE_OPTIONS: --test-shard=\\$\\{\\{ matrix\\.shard \\}\\}\\/${count}\\n`, 'u'),
