@@ -92,7 +92,9 @@ JOURNEY_BUILD=1 pnpm --filter @noticeos/tower exec vite build --outDir /tmp/jour
 JOURNEY_BUILT_CLIENT=/tmp/journey-build/client pnpm --filter @noticeos/tower run test:journeys
 ```
 
-The journeys that name the source modules a page loads skip in that run.
+The journeys that name the source modules a page loads, or open the dev
+server's `/dev/kitchen-sink`, skip in that run (`BUILT_APP` in
+`journey-test.ts`).
 
 ## The UX flow walker
 

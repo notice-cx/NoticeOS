@@ -1,5 +1,5 @@
 import type { Locator, Page, TestInfo } from "@playwright/test";
-import { test, expect } from "./journey-test";
+import { BUILT_APP, test, expect } from "./journey-test";
 import { everyTabPayload, viewOf } from "../test/asset-detail-fixture";
 import { isAssetDetailView } from "../shared/asset-detail-views";
 import { shiftLabel } from "../shared/surface";
@@ -114,6 +114,13 @@ for (const mode of ["dark", "light"] as const) {
     const connect = await bannerGeometry(panel.locator("[data-connect-blocked] [role=status]"));
     await capture(page, info, `site-connect-${mode}`);
     await fits(page);
+    await info.attach("banner geometry", { body: JSON.stringify({ integrations, connect }, null, 2), contentType: "application/json" });
+  });
+
+  test(`setup polish: the gallery's status banners keep their mark beside their lead in ${mode}`, async ({ page }, info) => {
+    test.skip(BUILT_APP, "/dev/kitchen-sink is a dev-server page; a built app has none");
+    await theme(page, mode);
+    await syntheticSite(page);
     // Ring + link, warning + button, neutral dot without action, and closed.
     await page.goto("/dev/kitchen-sink");
     const gallery = page.getByRole("heading", { name: "StatusBanner — only while its state is open", exact: true }).locator("..");
@@ -124,7 +131,7 @@ for (const mode of ["dark", "light"] as const) {
     const variantsPath = info.outputPath(`status-variants-${mode}.png`);
     await gallery.screenshot({ path: variantsPath });
     await info.attach(`status variants ${mode}`, { path: variantsPath, contentType: "image/png" });
-    await info.attach("banner geometry", { body: JSON.stringify({ integrations, connect, others }, null, 2), contentType: "application/json" });
+    await info.attach("banner geometry", { body: JSON.stringify({ others }, null, 2), contentType: "application/json" });
   });
 
   test(`setup polish: paused Sources and Tune state their reason once in ${mode}`, async ({ page }, info) => {
