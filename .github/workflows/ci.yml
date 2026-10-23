@@ -156,7 +156,7 @@ jobs:
       - run: pnpm -r build
         env:
           JOURNEY_BUILD: '1'
-      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
+      - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journey-harness
       - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @pull-request
         env:
@@ -201,7 +201,7 @@ jobs:
       # next so neither waits on the other: the isolated browser journeys
       # here, the journey harness and the UX flow gate there. The journeys'
       # types are checked in tower-unit.
-      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
+      - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3
         env:
           # Browser workers, each with its own fixture server. Unset, a run
@@ -236,7 +236,7 @@ jobs:
       # The harness and each flow-gate lane start their own fixture server on
       # a throwaway Postgres.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
+      - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journey-harness
       # The journeys that need Vite's dev server (tagged @dev-server), which
       # the browser shards skip against the built Tower.

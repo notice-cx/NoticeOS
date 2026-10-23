@@ -27,8 +27,9 @@ const MANIFEST = path.join(REPO_ROOT, 'package.json');
 const POSTGRES_STEP =
   '(test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"';
 
+/** A job's gates: each `run` command, and each action of this repository it uses. */
 function runCommands(workflow) {
-  return [...workflow.matchAll(/^\s*-\s+run:\s*(.+?)\s*$/gmu)].map((match) => match[1]);
+  return [...workflow.matchAll(/^\s*-\s+(?:run:\s*(.+?)|uses:\s*(\.\/\S+))\s*$/gmu)].map((match) => match[1] ?? match[2]);
 }
 
 // Keep the checked-in two-space job layout explicit. Looking through the whole
@@ -53,7 +54,8 @@ function jobBlock(workflow, name) {
 // store (full lane). Every job that starts Postgres puts the server binaries
 // on PATH first.
 const INSTALL = 'pnpm install --frozen-lockfile';
-const BROWSER_INSTALL = 'pnpm --filter @noticeos/tower run journey:install --with-deps';
+const BROWSER_INSTALL = './.github/actions/journey-browser';
+const BROWSER_ACTION = path.join(REPO_ROOT, '.github', 'actions', 'journey-browser', 'action.yml');
 const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"';
 const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 // The journeys run as one matrix job of shards; each runs its share.
@@ -274,6 +276,18 @@ test('the journeys run against the built Tower, and those that need the dev serv
   assert.doesNotMatch(flow, /JOURNEY_BUILT_CLIENT|JOURNEY_BUILD/u, 'the flow gate runs on the dev server');
   assert.ok(runCommands(flow).includes(DEV_JOURNEYS), 'the dev-server journeys run in the flow gate');
   assert.equal(LANES.full['flow-gate'], true, 'the flow gate is in the full lane');
+});
+
+// A runner that lacks Chromium's libraries takes them from the cache; a run
+// that downloaded none saves nothing, so an empty folder never claims the key.
+test('the journey browser action installs Chromium and keeps the libraries it downloads', () => {
+  const action = readFileSync(BROWSER_ACTION, 'utf8');
+  assert.match(action, /^ {6}run: pnpm --filter @noticeos\/tower run journey:install --with-deps\n/mu, 'it installs the browser and its libraries');
+  assert.match(action, /uses: actions\/cache\/restore@v\d+\n {6}with:\n {8}path: ~\/chromium-libraries\n {8}key: chromium-libraries-\$\{\{ runner\.os \}\}-\$\{\{ steps\.playwright\.outputs\.version \}\}\n/u);
+  assert.match(action, /Dir::Cache::Archives "%s\/chromium-libraries\/"/u, 'apt keeps its downloads in the cached folder');
+  assert.match(action, /- if: steps\.libraries\.outputs\.cache-hit != 'true' && steps\.downloaded\.outputs\.packages != '0'\n {6}uses: actions\/cache\/save@v\d+\n/u,
+    'it saves only a new download');
+  assert.ok(action.indexOf('journey:install --with-deps') < action.indexOf('actions/cache/save'), 'it saves after the install');
 });
 
 // A cancelled run must not leave a skipped required check, which GitHub
