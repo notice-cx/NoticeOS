@@ -242,7 +242,7 @@ function siteRow(page: Page, provider: string, site: string) {
 }
 
 test("findings reflow to their panel width on desktop and phone", desktopOnly("walks desktop, tablet and phone sizes plus narrow panels on a wide desktop"), async ({ page }, testInfo) => {
-  await createAsset(page);
+  await addAssetByApi(page);
   expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
   const title = "Move “example nutrition calculator” up from #15";
   const rankingPage = `/calculators/${"nutrition".repeat(16)}/calorie-calculator`;
