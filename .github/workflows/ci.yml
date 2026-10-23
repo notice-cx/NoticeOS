@@ -111,7 +111,8 @@ jobs:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           UNIT_TEST_WORKERS: 100%
 
-  # Two runners each take half the root suite's files.
+  # Three runners each take a third of the root suite's files; Node deals
+  # them out by position, and three shards even out its slow files.
   scripts:
     needs: scope
     if: fromJSON(needs.scope.outputs.needed)['scripts']
@@ -120,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -134,7 +135,7 @@ jobs:
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           # Node's test runner takes this shard's share of the files.
-          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/2
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/3
 
   # The PR lane's browser check: the build, the journey harness, and the
   # journeys tagged @pull-request on desktop and phone

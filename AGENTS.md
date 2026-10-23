@@ -172,8 +172,8 @@ CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
 A PR runs the PR lane: the Tower's typecheck and unit tests; the other
 workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey harness and
 the browser journeys tagged `@pull-request`, on desktop and phone; the Tower's
-unit tests and the root suite each split across two runners, as does the
-task store where it runs. The browser journeys run against the built Tower;
+unit tests split across two runners, the root suite across three, and the
+task store, where it runs, across two. The browser journeys run against the built Tower;
 those tagged `@dev-server` need Vite's dev server and run on it in the full
 lane's flow-gate job. The merge
 queue, a push to `main`, the nightly run and a run started by hand

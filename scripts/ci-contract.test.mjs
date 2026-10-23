@@ -249,15 +249,22 @@ test('every job stops after at most 30 minutes', () => {
 });
 
 // A sharded suite runs every one of its files once, across its matrix: vitest
-// and Node each take one share per runner.
-test('the Tower unit suite, the root suite and the task store run in two shards that together run every file', () => {
+// and Node each take one share per runner, of as many shares as runners.
+test('the Tower unit suite, the root suite and the task store run in shards that together run every file', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  for (const name of ['tower-unit', 'scripts', 'task-store']) {
-    assert.match(jobBlock(workflow, name), /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[1, 2\]\n/mu, `${name} is a matrix of two shards`);
-  }
-  assert.match(jobBlock(workflow, 'tower-unit'), /- run: pnpm --filter @noticeos\/tower run typecheck\n {8}if: matrix\.shard == 1\n/u, 'the typecheck runs once');
+  const shards = (name) => {
+    const matrix = /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[([\d, ]+)\]\n/mu.exec(jobBlock(workflow, name));
+    assert.ok(matrix, `${name} is a matrix of shards`);
+    const numbers = matrix[1].split(',').map(Number);
+    assert.deepEqual(numbers, numbers.map((_, index) => index + 1), `${name}'s shards are numbered from 1 with none missing`);
+    return numbers.length;
+  };
+  const tower = jobBlock(workflow, 'tower-unit');
+  assert.ok(runCommands(tower).includes(`pnpm --filter @noticeos/tower run test --shard=\${{ matrix.shard }}/${shards('tower-unit')}`), 'each Tower shard runs its own share');
+  assert.match(tower, /- run: pnpm --filter @noticeos\/tower run typecheck\n {8}if: matrix\.shard == 1\n/u, 'the typecheck runs once');
   for (const [name, suite] of [['scripts', 'pnpm test:scripts'], ['task-store', 'pnpm test:task-store']]) {
-    assert.match(jobBlock(workflow, name), new RegExp(`- run: ${suite}\\n {8}env:\\n(?: {10}.*\\n)*? {10}NODE_OPTIONS: --test-shard=\\$\\{\\{ matrix\\.shard \\}\\}\\/2\\n`, 'u'),
+    const count = shards(name);
+    assert.match(jobBlock(workflow, name), new RegExp(`- run: ${suite}\\n {8}env:\\n(?: {10}.*\\n)*? {10}NODE_OPTIONS: --test-shard=\\$\\{\\{ matrix\\.shard \\}\\}\\/${count}\\n`, 'u'),
       `${name} takes its share of the files`);
   }
   assert.match(jobBlock(workflow, 'task-store'), /name: task-store-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each task-store shard keeps its own evidence');
