@@ -618,7 +618,7 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
       },
     });
     expect(collapsed.headline).toBe("Sitemap shrank to 12 URLs — was 4,200");
-    expect(collapsed.hint).toBe("pages may have dropped out of the sitemap");
+    expect(collapsed.hint).toBe("Resolve accepts this size if the reduction was intentional");
 
     const children = translateAlert({
       ruleId: "hygiene-sitemap",

@@ -41,7 +41,7 @@ Each action is on the row it applies to. On a computer with a mouse, **Snooze** 
 
 - **Snooze** moves the alert to the Snoozed panel for a few days or until a date (**Snooze until date**). It returns to the Open list automatically.
 - **Unsnooze**, in the Snoozed panel, returns a snoozed alert to the Open list early.
-- **Resolve** closes it.
+- **Resolve** closes it. For a sitemap URL-count reduction, it also accepts the displayed count for future comparisons. A further large reduction or a failed sitemap check can raise a new alert.
 - **Mark read**, after opening the row for the evidence, acknowledges it without closing it.
 - **Tune** adjusts the rule that fired it. Tuning opens the same two settings as **Settings** > **Alert rules** (**Anomaly sensitivity** and **Longest window**), with a replay of what the new value would have fired.
 - **File task**, in the opened row, files a task about the condition; the alert stays open until the condition clears.

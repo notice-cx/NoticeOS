@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { applyFlagAction } from '../../../apps/tower/worker/flag-actions';
 import { EGRESS_BEACONS, EGRESS_DOWN_RULE_ID, EGRESS_USER_AGENT } from '../src/egress.js';
 import {
   blockingDirectives,
@@ -1422,6 +1423,15 @@ describe('hygiene: page directives', () => {
 // --- sitemap ----------------------------------------------------------------
 
 describe('hygiene: sitemap', () => {
+  async function actOnSitemap(action: 'resolve' | 'acknowledge' | 'snooze', at: number): Promise<void> {
+    const [flag] = await flagRows('rule_id = $1 AND resolved_at IS NULL', [SITEMAP_RULE_ID]);
+    expect(flag).toBeDefined();
+    expect(await applyFlagAction(
+      env.STORE, flag!.id, action, new Date(at).toISOString(),
+      action === 'snooze' ? new Date(at + DAY_MS).toISOString() : null,
+    )).toMatchObject({ action });
+  }
+
   it('resolves the sitemap from robots.txt and counts its URLs', async () => {
     const declared = `https://${DOMAIN}/sitemap-index.xml`;
     const { fetchImpl } = origin({
@@ -1453,6 +1463,111 @@ describe('hygiene: sitemap', () => {
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'sitemap' });
     expect(inputsOf(flag)).toMatchObject({ previous_urls: 4000, reason: 'count-collapse' });
     expect(await readingFor('sitemap')).toMatchObject({ status: 'warn', value_num: 40 });
+  });
+
+  it('accepts the latest displayed size on Resolve, including same-day retries, and still detects a further collapse', async () => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    let urls = 900;
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(urls)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW });
+
+    urls = 800;
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + DAY_MS });
+    expect(inputsOf(await flagFor(SITEMAP_RULE_ID))).toMatchObject({ urls: 800, previous_urls: 3000 });
+    await actOnSitemap('resolve', NOW + DAY_MS + 1000);
+
+    for (const nowMs of [NOW + DAY_MS + 2000, NOW + 2 * DAY_MS, NOW + 3 * DAY_MS]) {
+      await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs });
+      const day = new Date(nowMs).toISOString().slice(0, 10);
+      expect(await readingFor('sitemap', day)).toMatchObject({ status: 'ok', value_num: 800 });
+      expect(detailOf(await readingFor('sitemap', day))).toMatchObject({ previous_urls: 800 });
+      expect(await flagCount(SITEMAP_RULE_ID, true)).toBe(0);
+    }
+
+    urls = 400;
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + 4 * DAY_MS });
+    expect(await flagCount(SITEMAP_RULE_ID, true)).toBe(1);
+    const flags = await flagRows('rule_id = $1', [SITEMAP_RULE_ID]);
+    expect(JSON.parse(flags[1]!.rule_inputs!)).toMatchObject({ urls: 400, previous_urls: 800 });
+    expect(JSON.parse(flags[0]!.rule_inputs!)).toMatchObject({ urls: 800, previous_urls: 3000 });
+  });
+
+  it.each(['none', 'acknowledge', 'snooze'] as const)('does not accept a persistent reduction after %s', async (action) => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(900)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW });
+    if (action !== 'none') await actOnSitemap(action, NOW + 1000);
+
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + DAY_MS });
+    expect(await readingFor('sitemap', TOMORROW)).toMatchObject({ status: 'warn', value_num: 900 });
+    expect(detailOf(await readingFor('sitemap', TOMORROW))).toMatchObject({ previous_urls: 3000 });
+  });
+
+  it('uses a newer healthy size after recovery instead of an older accepted reduction', async () => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    let urls = 900;
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(urls)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW });
+    await actOnSitemap('resolve', NOW + 1000);
+    urls = 3000;
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + DAY_MS });
+    urls = 900;
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + 2 * DAY_MS });
+
+    expect(await flagCount(SITEMAP_RULE_ID, true)).toBe(1);
+    expect(detailOf(await readingFor('sitemap', '2026-07-22'))).toMatchObject({ previous_urls: 3000 });
+  });
+
+  it('does not treat automatic recovery as acceptance of the reduced count', async () => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    let urls = 900;
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(urls)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW });
+    urls = 3000;
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + 1000 });
+    expect(await flagCount(SITEMAP_RULE_ID, true)).toBe(0);
+    urls = 900;
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + 2000 });
+    expect(await flagCount(SITEMAP_RULE_ID, true)).toBe(1);
+  });
+
+  it.each(['unreachable', 'unparseable'] as const)('still flags an %s sitemap after accepting its size', async (failure) => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(900)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW });
+    await actOnSitemap('resolve', NOW + 1000);
+
+    const broken = origin({ [SITEMAP]: () => failure === 'unreachable' ? status(404) : html('<html></html>') });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl: broken.fetchImpl, nowMs: NOW + DAY_MS });
+    const [flag] = await flagRows('rule_id = $1 AND resolved_at IS NULL', [SITEMAP_RULE_ID]);
+    expect(JSON.parse(flag!.rule_inputs!)).toMatchObject({ reason: failure });
+  });
+
+  it('does not accept a reduction resolved for another asset', async () => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    const id = await insertFlag({
+      asset: 'northwind.example', firedAt: new Date(NOW).toISOString(), severity: 'warn', kind: 'anomaly',
+      ruleId: SITEMAP_RULE_ID, metric: 'sitemap', ruleInputs: JSON.stringify({ reason: 'count-collapse', urls: 900 }),
+    });
+    expect(await applyFlagAction(env.STORE, id, 'resolve', new Date(NOW + 1000).toISOString())).not.toBeNull();
+
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(900)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + DAY_MS });
+    expect(await readingFor('sitemap', TOMORROW)).toMatchObject({ status: 'warn', value_num: 900 });
+    expect(detailOf(await readingFor('sitemap', TOMORROW))).toMatchObject({ previous_urls: 3000 });
+  });
+
+  it.each([null, -1, '900'])('ignores an invalid resolved URL count of %s', async (urls) => {
+    await seedReading('sitemap', daysBefore(TODAY, 1), 'ok', 3000);
+    const id = await insertFlag({
+      asset: DOMAIN, firedAt: new Date(NOW).toISOString(), severity: 'warn', kind: 'anomaly',
+      ruleId: SITEMAP_RULE_ID, metric: 'sitemap', ruleInputs: JSON.stringify({ reason: 'count-collapse', urls }),
+    });
+    expect(await applyFlagAction(env.STORE, id, 'resolve', new Date(NOW + 1000).toISOString())).not.toBeNull();
+
+    const { fetchImpl } = origin({ [SITEMAP]: () => xml(urlset(900)) });
+    await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW + DAY_MS });
+    expect(await readingFor('sitemap', TOMORROW)).toMatchObject({ status: 'warn', value_num: 900 });
   });
 
   it('leaves small sitemaps out of the collapse rule entirely', async () => {
