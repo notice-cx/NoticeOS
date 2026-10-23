@@ -538,27 +538,35 @@ export class Walk {
     await this.step(confirm ? "confirm" : "click", role, label, target, () => target.click());
   }
   /**
-   * A drag from `target` to a point on `onto` (fractions of its box): one
-   * gesture, so it counts as one click. The pointer travels in steps, as a
-   * hand does, so the page's own drag and drop sees every move.
+   * A drag from `target` to a point on `onto` (`at`, fractions of its box):
+   * one gesture, so it counts as one click. The pointer travels in steps, as
+   * a hand does, so the page's own drag and drop sees every move, and aims at
+   * where `onto` is drawn at each step: starting a drag can move the page
+   * under the pointer. With `landing`, the pointer lets go only once the
+   * screen marks where it will land, as a hand waits for the drop line,
+   * re-aiming until then.
    */
-  /** A drag released only once the screen marks where it will land
-   * (`landing`), as a hand waits for the drop line: on a loaded runner the
-   * pointer can otherwise let go before the screen has taken in the move. */
   async drag(target, onto, label, { role = "choose", at = { x: 0.5, y: 0.5 }, landing } = {}) {
     this.m.clicks += 1;
     await this.step("drag", role, label, target, async () => {
       const from = await target.boundingBox();
-      const to = await onto.boundingBox();
-      if (!from || !to) throw new Error(`nothing to drag for ${label}`);
+      if (!from) throw new Error(`nothing to drag for ${label}`);
       const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
-      const end = { x: to.x + to.width * at.x, y: to.y + to.height * at.y };
+      const aim = async (share) => {
+        const to = await onto.boundingBox();
+        if (!to) throw new Error(`nowhere to drop for ${label}`);
+        const end = { x: to.x + to.width * at.x, y: to.y + to.height * at.y };
+        await this.page.mouse.move(start.x + (end.x - start.x) * share, start.y + (end.y - start.y) * share);
+      };
       await this.page.mouse.move(start.x, start.y);
       await this.page.mouse.down();
-      for (let i = 1; i <= 10; i += 1) {
-        await this.page.mouse.move(start.x + ((end.x - start.x) * i) / 10, start.y + ((end.y - start.y) * i) / 10);
+      for (let i = 1; i <= 10; i += 1) await aim(i / 10);
+      const deadline = Date.now() + 10_000;
+      while (landing && !(await landing.isVisible())) {
+        if (Date.now() > deadline) throw new Error(`no drop line shown for ${label}`);
+        await this.page.waitForTimeout(100);
+        await aim(1);
       }
-      if (landing) await landing.waitFor({ timeout: 10_000 });
       await this.page.mouse.up();
     });
   }

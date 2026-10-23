@@ -101,8 +101,9 @@ the bundle its `pnpm -r build` step makes with `JOURNEY_BUILD=1`.
 
 `pnpm test:journeys` ends with the flow walker (`flow-gate.mjs`, also
 `pnpm audit:flows`), which runs even when a journey has failed, so one red run
-reports both; the step fails if either does. CI runs the journeys and the
-walker as two parallel jobs. The walker drives every operator flow declared
+reports both; the step fails if either does. CI's full lane runs the
+journeys and the walker side by side, the walker in two shards
+(`--shard 1/2`, `--shard 2/2`). The walker drives every operator flow declared
 in `ux-flows.mjs` with the recorder in `ux-walk.mjs`, at 1440×900 and
 390×844, on its own fixture servers (this directory's `server.mjs`, started
 by `fixture-server.mjs` on a free port, one per lane, each reset before every

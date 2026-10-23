@@ -1214,6 +1214,7 @@ changes its script in the same commit.
 pnpm audit:flows                                  # walk every flow
 pnpm audit:flows -- --flows connect-bing,inbox    # just these
 pnpm audit:flows -- --viewports phone             # one viewport
+pnpm audit:flows -- --shard 1/2                   # every second walk, from the first (CI's shards)
 pnpm audit:flows -- --json                        # machine-readable
 ```
 

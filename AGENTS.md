@@ -191,7 +191,8 @@ browser jobs, the pinned task and Dolt tools in the task-store job).
 
 The browser journeys run against the built Tower. Suites split across
 runners: the Tower's typecheck on its own and its unit tests on two, the
-smoke journeys on two, the root suite on three, and the task store on two.
+smoke journeys on two, the root suite on three, the task store on two, and
+the flow walker on two beside the dev-server journeys on a third.
 The `build` job is the required verdict in both lanes; it fails when a job
 the scope needed did not pass. Until the merge queue is on for `main`, a
 change that breaks only a full-lane test shows on `main` after it merges;
