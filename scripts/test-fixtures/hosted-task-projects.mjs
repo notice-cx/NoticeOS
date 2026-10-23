@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import childProcess from 'node:child_process';
@@ -25,6 +26,16 @@ const C = '77777777-7777-4777-8777-777777777777';
 const OTHER_CREDENTIAL = '99999999-9999-4999-8999-999999999999';
 const headers = { origin: 'https://tower.example.com', 'sec-fetch-site': 'same-origin', [WORKSPACE_SESSION_HEADER]: SESSION };
 const request = workspace => new Request('https://tower.example.com/api/tasks', { method: 'POST', headers: { ...headers, [WORKSPACE_SELECTION_HEADER]: workspace } });
+
+/** A loopback port the kernel has just reported free. Each fixture's Dolt
+ * server listens on its own, so the task-store test files can run side by side. */
+async function freeLoopbackPort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const { port } = server.address();
+  await new Promise(resolve => server.close(resolve));
+  return port;
+}
 
 /** A task initializer may commit connection files when it discovers Git above
  * its working directory. Synthetic task stores must be outside every checkout. */
@@ -67,6 +78,7 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
   assert.match(imageId ?? '', /^sha256:[0-9a-f]{64}$/u);
   const free = fs.statfsSync(os.tmpdir());
   assert.ok(free.bavail * free.bsize >= 8 * 1024 ** 3 + 128 * 1024 ** 2);
+  const port = await freeLoopbackPort();
   const suppliedBase = process.env.NOTICEOS_TEST_HOSTED_TASK_OWNED_BASE;
   assertTaskFixtureOutsideGit(suppliedBase ?? os.tmpdir());
   const base = suppliedBase ?? fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'noticeos-task-executor-'));
@@ -75,13 +87,14 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     && !(fs.statSync(base).mode & 0o077));
   assert.deepEqual(fs.readdirSync(base), [], 'Only a newly prepared empty owned fixture is accepted');
   for (const name of ['hub', 'home', 'tmp', 'config', 'cache', 'scratch', 'cleanup']) fs.mkdirSync(path.join(base, name), { mode: 0o700 });
-  const home = path.join(base, 'hub'), profile = startDoltPlan({ root, home, port: 13380 });
-  assert.equal(profile.port, 13383);
+  // The plan names the installation's base port; its task server listens 3 above it.
+  const home = path.join(base, 'hub'), plan = { root, home, port: port - 3 }, profile = startDoltPlan(plan);
+  assert.equal(profile.port, port);
   const compose = doltComposeArgs(profile);
   const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: path.join(base, 'home'), TMPDIR: path.join(base, 'tmp'),
     XDG_CONFIG_HOME: path.join(base, 'config'), XDG_CACHE_HOME: path.join(base, 'cache'), DOCKER_CONFIG: process.env.DOCKER_CONFIG,
     ...(process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}),
-    NOTICEOS_DOLT_PORT: '13383', NOTICEOS_DOLT_SECRETS: profile.secretsDir,
+    NOTICEOS_DOLT_PORT: String(port), NOTICEOS_DOLT_SECRETS: profile.secretsDir,
     GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1', BD_DISABLE_METRICS: '1', BD_DISABLE_ERROR_REPORTING: '1',
     DO_NOT_TRACK: '1', DOLT_DISABLE_EVENT_FLUSH: '1' };
   assert.ok(path.isAbsolute(env.DOCKER_CONFIG ?? ''));
@@ -110,7 +123,7 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     clientProfile: path.join(base, `client-${i}.json`) }));
   const bd = (client, args, provision = false) => capture(`bd-${client.user}`, ['bd', ...args], () => runCommand(binary, args, {
     cwd: client.cwd, timeoutMs: 30_000, env: provision ? { ...doltEnvironment(profile, env), BEADS_DOLT_PASSWORD: readDoltCredentials(profile).noticeos.trim() }
-      : { ...taskClientEnvironment({ host: '127.0.0.1', port: 13383, user: client.user, credentialsFile: client.credentialsFile, clientHome: client.clientHome }, env), BEADS_DOLT_DATABASE: client.databaseKey },
+      : { ...taskClientEnvironment({ host: '127.0.0.1', port, user: client.user, credentialsFile: client.credentialsFile, clientHome: client.clientHome }, env), BEADS_DOLT_DATABASE: client.databaseKey },
   }));
   const roots = async () => Object.fromEntries(await Promise.all(clients.map(async c => [c.workspaceId,
     rows(await ownerSql(`USE ${c.databaseKey}; SELECT DOLT_HASHOF_DB('HEAD') AS head,DOLT_HASHOF_DB('STAGED') AS staged,DOLT_HASHOF_DB('WORKING') AS working;`))])));
@@ -135,19 +148,19 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     // timed-out test that never settles) still removes the project it started.
     teardownOnExit = () => { childProcess.spawnSync('docker', [...compose, 'down', '--volumes'], { env, stdio: 'ignore', timeout: 90_000 }); };
     process.once('exit', teardownOnExit);
-    fs.writeFileSync(path.join(evidence, 'planned-config.json'), JSON.stringify({ profile, compose, image: DOLT_IMAGE, listener: '127.0.0.1:13383', base }, null, 2));
-    const started = await prepareFreshDolt({ root, home, port: 13380 }, { fresh: true, env, run: (_bin, args, opts) => exec(args, opts) });
+    fs.writeFileSync(path.join(evidence, 'planned-config.json'), JSON.stringify({ profile, compose, image: DOLT_IMAGE, listener: `127.0.0.1:${port}`, base }, null, 2));
+    const started = await prepareFreshDolt(plan, { fresh: true, env, run: (_bin, args, opts) => exec(args, opts) });
     assert.equal(started.ok, true, started.line);
     secrets = [...clients.map(c => c.password), ...Object.values(readDoltCredentials(profile)).map(x => x.trim())];
     record = commandEvidence(path.join(evidence, 'commands'), { secrets });
     assert.deepEqual(rows(await ownerSql('SELECT DOLT_VERSION() AS version')), [{ version: '2.4.0' }]);
     for (const client of clients) {
       fs.mkdirSync(client.cwd, { mode: 0o700 }); fs.mkdirSync(client.clientHome, { mode: 0o700 });
-      fs.writeFileSync(client.credentialsFile, `[127.0.0.1:13383]\npassword=${client.password}\n`, { mode: 0o600 });
-      fs.writeFileSync(client.clientProfile, JSON.stringify({ host: '127.0.0.1', port: 13383, user: client.user,
+      fs.writeFileSync(client.credentialsFile, `[127.0.0.1:${port}]\npassword=${client.password}\n`, { mode: 0o600 });
+      fs.writeFileSync(client.clientProfile, JSON.stringify({ host: '127.0.0.1', port, user: client.user,
         clientHome: client.clientHome, credentialsFile: client.credentialsFile }), { mode: 0o600 });
       okay(await ownerSql(`CREATE DATABASE ${client.databaseKey}; CREATE USER '${client.user}'@'%' IDENTIFIED BY '${client.password}';`), 'owned provisioning');
-      okay(await bd(client, ['init', '--server', '--external', '--server-host', '127.0.0.1', '--server-port', '13383', '--server-user', 'noticeos',
+      okay(await bd(client, ['init', '--server', '--external', '--server-host', '127.0.0.1', '--server-port', String(port), '--server-user', 'noticeos',
         '--database', client.databaseKey, '--prefix', client.prefix, '--non-interactive', '--skip-hooks', '--skip-agents'], true), 'privileged initialization');
       fs.appendFileSync(path.join(client.cwd, '.beads/config.yaml'), '\nno-git-ops: true\nimport.auto: false\n');
       okay(await bd(client, ['--sandbox', '--json', 'create', `--id=${client.prefix}-collision`, '--', `Private ${client.user}`], true), 'colliding fixture');
@@ -168,13 +181,13 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
       const password = randomBytes(32).toString('hex'); secrets.push(password);
       okay(await ownerSql(`CREATE USER 'grant_inspector'@'%' IDENTIFIED BY '${password}'; GRANT SELECT ON mysql.* TO 'grant_inspector'@'%';`), 'owned least privilege inspector');
       const inspect = sql => capture('inspector-fixed-sql', ['dolt', 'fixed-inspector-sql'], () => runCommand(doltBinary,
-        ['--host=127.0.0.1', '--port=13383', '--user=grant_inspector', '--use-db=mysql', '--no-tls', 'sql', '--result-format=json', `--query=${sql}`],
+        ['--host=127.0.0.1', `--port=${port}`, '--user=grant_inspector', '--use-db=mysql', '--no-tls', 'sql', '--result-format=json', `--query=${sql}`],
         { cwd: clients[0].clientHome, env: { PATH: '/usr/bin:/bin', HOME: clients[0].clientHome, TMPDIR: path.join(base, 'tmp'), DOLT_CLI_PASSWORD: password,
           DOLT_DISABLE_EVENT_FLUSH: '1', DO_NOT_TRACK: '1', GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1' }, timeoutMs: 5000 }));
       const query = 'SHOW GRANTS FOR \`task0\`@\`%\`';
       const inspectorCredentials = path.join(base, 'inspection-credentials');
-      fs.writeFileSync(inspectorCredentials, `[127.0.0.1:13383]\npassword=${password}\n`, { mode: 0o600 });
-      fs.writeFileSync(inspectorProfile, JSON.stringify({ host: '127.0.0.1', port: 13383, user: 'grant_inspector',
+      fs.writeFileSync(inspectorCredentials, `[127.0.0.1:${port}]\npassword=${password}\n`, { mode: 0o600 });
+      fs.writeFileSync(inspectorProfile, JSON.stringify({ host: '127.0.0.1', port, user: 'grant_inspector',
         credentialsFile: inspectorCredentials, clientHome: clients[0].clientHome }), { mode: 0o600 });
       summary.inspectorQualification = { controls: [] };
       const actual = await inspect(query); okay(actual, 'inspector reads exact user grants');
@@ -284,7 +297,7 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
         const foreign = await bd(client, ['--sandbox', '--readonly', '--json', 'sql', `SELECT id FROM ${clients.find(c => c !== client).databaseKey}.issues`]);
         assert.notEqual(foreign.code, 0); assert.match(foreign.stdout + foreign.stderr, /denied|access/iu);
         const foreignWrite = await capture('restricted-cross-database-write', ['dolt', 'fixed-foreign-UPDATE'], () => runCommand(doltBinary,
-          ['--host=127.0.0.1', '--port=13383', `--user=${client.user}`, `--use-db=${client.databaseKey}`, '--no-tls', 'sql', '--result-format=json',
+          ['--host=127.0.0.1', `--port=${port}`, `--user=${client.user}`, `--use-db=${client.databaseKey}`, '--no-tls', 'sql', '--result-format=json',
             `--query=UPDATE ${clients.find(c => c !== client).databaseKey}.issues SET title='Forbidden cross-database write' WHERE id='tt-collision'`],
           { cwd: client.clientHome, env: { PATH: '/usr/bin:/bin', HOME: client.clientHome, TMPDIR: path.join(base, 'tmp'), DOLT_CLI_PASSWORD: client.password,
             DOLT_DISABLE_EVENT_FLUSH: '1', DO_NOT_TRACK: '1', GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1' }, timeoutMs: 5000 }));
@@ -404,8 +417,8 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     restoreSpawn?.();
     summary.uncertainProcess = uncertain;
     // The project's name was proven unused before this run created it, so a
-    // failed or uncertain run still removes it: left running, it holds the
-    // fixed task port and every later run refuses to start.
+    // failed or uncertain run still removes it: left running, its server and
+    // volume would outlive the run.
     if (cleanup && fresh) {
       summary.cleanup = await cleanup.finish([() => exec([...compose, 'down', '--volumes'], { timeoutMs: 90_000 })]);
       assert.equal(summary.cleanup.complete, true);
