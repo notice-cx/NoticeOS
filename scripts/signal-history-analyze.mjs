@@ -220,12 +220,12 @@ function csvCell(value) {
 }
 
 function toCsv(rows, emptyHeaders = null) {
-  if (rows.length === 0) return emptyHeaders ? `${emptyHeaders.join(',')}\n` : '';
+  if (rows.length === 0) return emptyHeaders ? `${emptyHeaders.map(csvCell).join(',')}\n` : '';
   const base = PROVENANCE_COLUMNS;
   const discovered = new Set(rows.flatMap((row) => Object.keys(row)));
   const headers = [...base, ...[...discovered].filter((header) => !base.includes(header)).sort()];
   return [
-    headers.join(','),
+    headers.map(csvCell).join(','),
     ...rows.map((row) => headers.map((header) => csvCell(row[header])).join(',')),
     '',
   ].join('\n');
