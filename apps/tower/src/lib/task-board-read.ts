@@ -384,6 +384,8 @@ export interface ProjectTaskRead {
   isError: boolean;
   error: unknown;
 }
+/** The snapshot's projects, read through here because a snapshot that came
+ * over the network may lack its list. */
 export function taskBoardProjects(snapshot: WorkPayload | null | undefined, scope: string | null): WorkProject[] {
   return (snapshot?.projects ?? []).filter(project => scope === null || project.asset === scope);
 }
@@ -401,7 +403,7 @@ export function taskProjectsWithoutArchives<T extends { prefix: string }>(projec
  * logical key as `asset`, because that is what the hosted read is addressed by. */
 export function taskCatalogProjects(catalog: readonly TaskProject[], snapshot: WorkPayload | null | undefined): WorkProject[] {
   return taskProjectsWithoutArchives(catalog, snapshot).map(project => {
-    const stored = snapshot?.projects.find(row => row.prefix === project.prefix);
+    const stored = taskBoardProjects(snapshot, null).find(row => row.prefix === project.prefix);
     if (stored) return { ...stored, asset: project.logicalKey, name: project.displayName };
     return { asset: project.logicalKey, prefix: project.prefix, name: project.displayName,
       ok: false, error: null, counts: { open: 0, highPriority: null, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: null, waiting: null },
@@ -416,7 +418,7 @@ export function taskCatalogProjects(catalog: readonly TaskProject[], snapshot: W
  * know stays as given, so an already-logical key passes through unchanged. */
 export function catalogScope(catalog: readonly TaskProject[], snapshot: WorkPayload | null | undefined, scope: string | null): string | null {
   if (scope === null) return null;
-  const stored = snapshot?.projects.find(row => row.asset === scope);
+  const stored = taskBoardProjects(snapshot, null).find(row => row.asset === scope);
   const project = stored ? catalog.find(row => row.prefix === stored.prefix) : undefined;
   return project?.logicalKey ?? scope;
 }
@@ -434,7 +436,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
 }) {
   const availableSpokes = roster === undefined ? taskBoardProjects(snapshot, scope) : roster.filter(row => scope === null || row.asset === scope);
   const requestedProject = scope ?? filters.project;
-  const stored = snapshot?.projects.find(row => row.asset === requestedProject);
+  const stored = taskBoardProjects(snapshot, null).find(row => row.asset === requestedProject);
   // Links from asset pages may name the site while catalog requests use its logical key.
   const projectFilter = roster === undefined ? requestedProject
     : availableSpokes.find(row => row.asset === requestedProject)?.asset
