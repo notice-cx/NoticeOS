@@ -432,8 +432,16 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   filters: TaskBoardFilters;
   roster?: readonly WorkProject[];
 }) {
-  const spokes = roster === undefined ? taskBoardProjects(snapshot, scope) : roster.filter(row => scope === null || row.asset === scope);
-  const projects = spokes.map(project => {
+  const availableSpokes = roster === undefined ? taskBoardProjects(snapshot, scope) : roster.filter(row => scope === null || row.asset === scope);
+  const requestedProject = scope ?? filters.project;
+  const stored = snapshot?.projects.find(row => row.asset === requestedProject);
+  // Links from asset pages may name the site while catalog requests use its logical key.
+  const projectFilter = roster === undefined ? requestedProject
+    : availableSpokes.find(row => row.asset === requestedProject)?.asset
+      ?? availableSpokes.find(row => stored !== undefined && row.prefix === stored.prefix)?.asset
+      ?? requestedProject;
+  const spokes = availableSpokes.filter(row => projectFilter === "all" || row.asset === projectFilter);
+  const availableProjects = availableSpokes.map(project => {
     const query = capabilities.live ? reads.get(project.asset) : undefined;
     const mismatched = query?.data !== undefined && query.data.project !== project.asset;
     const laneError = mismatched ? "The local read answered for a different project."
@@ -446,8 +454,8 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
     const read = buildProject(project, payload, laneError, snapshot?.capturedAt ?? null);
     return capabilities.writable === false || laneError !== null ? { ...read, actionable: false } : read;
   });
+  const projects = availableProjects.filter(project => projectFilter === "all" || project.asset === projectFilter);
   const allTasks = projects.flatMap(project => project.tasks);
-  const projectFilter = scope ?? filters.project;
   const matchesSearch = taskSearch(filters.q ?? "");
   const matches = (task: BoardTask): boolean =>
     matchesSearch(task) &&
@@ -492,7 +500,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   // Done so far from the projects that have a reading, for a board missing one.
   const doneRead = spokes.flatMap(project => project.weeks?.done.now ?? []);
   return {
-    spokes, projects, allTasks, totals, complete, pendingProjects, shownAt, closedSince,
+    spokes, projects, availableSpokes, availableProjects, selectedProject: projectFilter, allTasks, totals, complete, pendingProjects, shownAt, closedSince,
     countsComplete, missingProjects, weeks,
     doneRead: doneRead.length === 0 ? null : doneRead.reduce((sum, count) => sum + count, 0),
     counts: {
@@ -506,7 +514,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
     live: capabilities.live, reason: capabilities.reason,
     rows: allTasks.filter(task => isWork(task) && matches(task) && !waitingIds.has(task.id)).sort(boardOrder), inbox,
     statusCounts, priorityCounts, assigneeCounts,
-    projectCounts: new Map(projects.map(project => [project.asset, project.tasks.filter(isWork).length])),
+    projectCounts: new Map(availableProjects.map(project => [project.asset, project.tasks.filter(isWork).length])),
     byId: new Map(projects.map(project => [project.asset, project])),
     broken: projects.filter(project => !project.ok || project.laneError !== null),
     closedHistoryState: complete ? "complete" as const : pendingProjects.length > 0 ? "loading" as const : "sample" as const,

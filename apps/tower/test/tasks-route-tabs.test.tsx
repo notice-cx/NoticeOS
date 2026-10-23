@@ -29,12 +29,16 @@ vi.mock("@/hooks/useTasks", async (importOriginal) => ({
 
 import { deskRoutes } from "@/App";
 import { resetAnswerQueue } from "@/lib/answer-queue";
-import { scenarioBoards, scenarioPayload } from "./tasks-next-fixtures";
+import { board, liveTask, project, scenarioBoards, scenarioPayload } from "./tasks-next-fixtures";
 
 /** The Tasks routes from the app's table, and a stand-in for one task's page. */
-function renderAt(entry: string) {
+function renderAt(entry: string, multiple = false) {
   state.work = scenarioPayload();
   state.boards = scenarioBoards();
+  if (multiple) {
+    state.work.projects.push(project({ asset: "northwind.example", prefix: "nw", name: "Northwind" }));
+    state.boards["northwind.example"] = board([liveTask({ id: "nw-1", title: "Northwind work" })], "northwind.example");
+  }
   const table = deskRoutes
     .filter((route) => route.path?.startsWith("/tasks") || route.path === "/work")
     .map((route) => (route.path === "/tasks/:id" ? { ...route, lazy: undefined, element: <output data-testid="task-page" /> } : route));
@@ -97,6 +101,28 @@ describe("the Tasks page's tabs", () => {
     fireEvent.click(await screen.findByRole("tab", { name: /^All tasks/u }));
     await vi.waitFor(() => expect(screen.getByRole("tab", { name: /^All tasks/u })).toHaveAttribute("aria-selected", "true"));
     expect(at(router)).toBe("/tasks/all");
+  });
+
+  it("keeps project scope and counts when moving between All tasks and Projects", async () => {
+    const router = renderAt("/tasks/all?project=northwind.example", true);
+    const all = await screen.findByRole("tab", { name: /^All tasks/u });
+    expect(all).toHaveTextContent("All tasks1");
+    expect(screen.queryByText("Newsletter launch")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Projects" }));
+    await vi.waitFor(() => expect(document.querySelector("[data-tasks-projects]")).toHaveAttribute("data-tasks-projects", "northwind.example"));
+    expect(at(router)).toBe("/tasks/projects?project=northwind.example");
+    expect(screen.queryByText("Newsletter launch")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /^All tasks/u }));
+    await vi.waitFor(() => expect(document.querySelector("[data-tasks-board]")).not.toBeNull());
+    expect(at(router)).toBe("/tasks/all?project=northwind.example");
+    expect(screen.queryByText("Newsletter launch")).toBeNull();
+  });
+
+  it("honors project scope on a direct Projects link", async () => {
+    renderAt("/tasks/projects?project=northwind.example", true);
+    await vi.waitFor(() => expect(document.querySelector("[data-tasks-projects]")).toHaveAttribute("data-tasks-projects", "northwind.example"));
+    expect(screen.queryByText("Newsletter launch")).toBeNull();
+    expect(screen.getByRole("tab", { name: /^All tasks/u })).toHaveTextContent("All tasks1");
   });
 
   it("forwards a filtered /tasks link to All tasks with the same query, in place", async () => {
