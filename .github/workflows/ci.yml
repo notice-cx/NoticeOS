@@ -228,11 +228,17 @@ jobs:
             apps/tower/e2e/test-results/
           retention-days: 14
 
+  # Three runners on Vite's dev server: the harness and the dev-server
+  # journeys on one, half the flow walker's walks on each of the other two.
   flow-gate:
     needs: scope
     if: fromJSON(needs.scope.outputs.needed)['flow-gate']
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [journeys, 1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -246,22 +252,25 @@ jobs:
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journey-harness
+        if: matrix.part == 'journeys'
       # The journeys that need Vite's dev server (tagged @dev-server), which
       # the browser shards skip against the built Tower.
       - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @dev-server
         env:
           JOURNEY_WORKERS: 3
+        if: matrix.part == 'journeys'
       # The UX flow walker walks every declared operator flow in a browser and
       # reports what each costs (results.json in the artifact below); it fails
       # only when a flow cannot be walked to its end.
-      - run: pnpm --filter @noticeos/tower run test:ux-flows
+      - run: pnpm --filter @noticeos/tower run test:ux-flows -- --shard ${{ matrix.part }}/2
         env:
           # Walker lanes, each with its own fixture server.
           JOURNEY_WORKERS: 3
+        if: matrix.part != 'journeys'
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: ux-flow-walker-report
+          name: ux-flow-walker-report-${{ matrix.part }}
           path: |
             apps/tower/e2e/ux-flows-results/
             apps/tower/e2e/playwright-report/

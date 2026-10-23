@@ -13,6 +13,7 @@
 //   node apps/tower/e2e/flow-gate.mjs                    every flow, both viewports (pnpm test:journeys runs this)
 //   node apps/tower/e2e/flow-gate.mjs --flows a,b        just these flows
 //   node apps/tower/e2e/flow-gate.mjs --viewports phone  just this viewport
+//   node apps/tower/e2e/flow-gate.mjs --shard 1/2        this runner's share of the walks (CI)
 //   --port <n>      pin the first lane's port (default: free ports, journey-port.mjs)
 //   --parallel <n>  lanes walked at once, each with its own fixture (default: as many
 //                   as the journeys' workers, JOURNEY_WORKERS or half the cores, 1 to 4)
@@ -49,12 +50,17 @@ export const RESULTS_DIR = path.join(HERE, "ux-flows-results");
 process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
 
 function parseArgs(argv) {
-  const args = { flows: null, viewports: Object.keys(VIEWPORTS), json: false, port: null, parallel: Math.min(4, parallelServers()), help: false };
+  const args = { flows: null, viewports: Object.keys(VIEWPORTS), shard: null, json: false, port: null, parallel: Math.min(4, parallelServers()), help: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === "--") continue;
     if (arg === "--flows") args.flows = argv[++index].split(",").filter(Boolean);
     else if (arg === "--viewports") args.viewports = argv[++index].split(",").filter(Boolean);
+    else if (arg === "--shard") {
+      const [, index_, count] = /^(\d+)\/(\d+)$/u.exec(argv[++index] ?? "") ?? [];
+      args.shard = { index: Number(index_), count: Number(count) };
+      if (!(args.shard.index >= 1 && args.shard.index <= args.shard.count)) throw new Error("flow-gate: --shard takes <i>/<n> with 1 <= i <= n");
+    }
     else if (arg === "--json") args.json = true;
     else if (arg === "--port") args.port = Number(argv[++index]);
     else if (arg === "--parallel") args.parallel = Number(argv[++index]);
@@ -217,11 +223,23 @@ async function walkOne({ browser, base, id, viewport }) {
 }
 
 /**
- * Walk the flows across `lanes.length` fixture servers (each started once and
- * reset before every flow, so no two flows ever share a store); returns the
- * ux-walk/1 results object, flows in registry order.
+ * The walks a run makes, one per flow and viewport. The survey is the longest
+ * walk: it goes first so the lanes finish together. A shard takes every n-th
+ * walk from its own position, so the survey's viewports go to different
+ * runners and the shards together make every walk once.
  */
-async function walkFlows({ ids, viewports, lanes, log }) {
+export function plannedWalks(ids, viewports, shard = null) {
+  const ordered = [...ids].sort((a, b) => Number(FLOWS[b].kind === "survey") - Number(FLOWS[a].kind === "survey"));
+  const walks = ordered.flatMap((id) => viewports.map((viewport) => ({ id, viewport })));
+  return shard ? walks.filter((_, index) => index % shard.count === shard.index - 1) : walks;
+}
+
+/**
+ * Make the `walks` across `lanes.length` fixture servers (each started once
+ * and reset before every flow, so no two flows ever share a store); returns
+ * the ux-walk/1 results object, flows in registry order.
+ */
+async function walkFlows({ ids, viewports, walks, lanes, log }) {
   const { chromium } = await import("@playwright/test");
   for (const base of lanes) {
     const status = await (await fetch(`${base}/__journey/status`)).json();
@@ -229,10 +247,10 @@ async function walkFlows({ ids, viewports, lanes, log }) {
   }
   const status = await (await fetch(`${lanes[0]}/__journey/status`)).json();
   const results = { schema: "ux-walk/1", measuredAt: new Date().toISOString(), servers: lanes, fixtureNow: status.now, flows: {} };
-  for (const id of ids) results.flows[id] = { title: FLOWS[id].title, kind: FLOWS[id].kind ?? "flow", runs: {} };
-  // The survey is the longest walk: start it first so the lanes finish together.
-  const ordered = [...ids].sort((a, b) => Number(FLOWS[b].kind === "survey") - Number(FLOWS[a].kind === "survey"));
-  const jobs = ordered.flatMap((id) => viewports.map((viewport) => ({ id, viewport })));
+  for (const id of ids.filter((id) => walks.some((walk) => walk.id === id))) {
+    results.flows[id] = { title: FLOWS[id].title, kind: FLOWS[id].kind ?? "flow", runs: {} };
+  }
+  const jobs = [...walks];
   const browser = await chromium.launch({ headless: true });
   try {
     results.probeProblems = await probeSelfTest(browser);
@@ -249,8 +267,9 @@ async function walkFlows({ ids, viewports, lanes, log }) {
   } finally {
     await browser.close();
   }
-  for (const id of ids) {
-    results.flows[id].runs = Object.fromEntries(viewports.map((viewport) => [viewport, results.flows[id].runs[viewport]]));
+  for (const [id, flow] of Object.entries(results.flows)) {
+    const walked = viewports.filter((viewport) => walks.some((walk) => walk.id === id && walk.viewport === viewport));
+    flow.runs = Object.fromEntries(walked.map((viewport) => [viewport, flow.runs[viewport]]));
   }
   return results;
 }
@@ -265,21 +284,22 @@ export async function main(argv = process.argv.slice(2)) {
   const started = Date.now();
   const ids = args.flows ?? Object.keys(FLOWS);
   const full = !args.flows && args.viewports.length === Object.keys(VIEWPORTS).length;
+  const walks = plannedWalks(ids, args.viewports, args.shard);
+  const share = args.shard ? ` (shard ${args.shard.index}/${args.shard.count}: ${walks.length} walk(s))` : "";
 
   if (full) await rm(RESULTS_DIR, { recursive: true, force: true });
   await mkdir(RESULTS_DIR, { recursive: true });
-  const jobs = ids.length * args.viewports.length;
   // Each lane's server takes a free loopback port (fixture-server.mjs), so
   // two runs on one machine never collide; --port pins them.
-  const laneCount = Math.max(1, Math.min(args.parallel, jobs));
+  const laneCount = Math.max(1, Math.min(args.parallel, walks.length));
   const fixtures = [];
   let results;
   let stopFailure;
   try {
     for (let lane = 0; lane < laneCount; lane += 1) fixtures.push(await startFixture(args.port === null ? null : args.port + lane));
     const lanes = fixtures.map((fixture) => fixture.origin);
-    out(`UX flow walker: walking ${ids.length} flow(s) × ${args.viewports.join(", ")} on ${lanes.length} isolated fixture(s) ${lanes.join(", ")}`);
-    results = await walkFlows({ ids, viewports: args.viewports, lanes, log: out });
+    out(`UX flow walker: walking ${ids.length} flow(s) × ${args.viewports.join(", ")}${share} on ${lanes.length} isolated fixture(s) ${lanes.join(", ")}`);
+    results = await walkFlows({ ids, viewports: args.viewports, walks, lanes, log: out });
   } finally {
     // Every fixture is stopped; one that did not exit cleanly fails the run.
     const stops = await Promise.allSettled(fixtures.map((fixture) => fixture.stop()));
@@ -308,7 +328,7 @@ export async function main(argv = process.argv.slice(2)) {
     process.stderr.write(`\n${problems}\n`);
     return 1;
   }
-  out(`UX flow walker: ${ids.length} flow(s) × ${args.viewports.length} viewport(s) walked in ${seconds}s; ` +
+  out(`UX flow walker: ${ids.length} flow(s) × ${args.viewports.length} viewport(s)${share} walked in ${seconds}s; ` +
     `the measurements are in ${path.relative(REPO_ROOT, RESULTS_DIR)}/results.json. ` + totalsLine(totals));
   return 0;
 }
@@ -340,6 +360,7 @@ function readUsage() {
     "  node apps/tower/e2e/flow-gate.mjs                    every flow, desktop and phone",
     "  node apps/tower/e2e/flow-gate.mjs --flows a,b        just these flows",
     "  node apps/tower/e2e/flow-gate.mjs --viewports phone  just this viewport",
+    "  --shard <i>/<n>  every n-th walk from the i-th: n runners make every walk once between them",
     "  --port <n>      pin the first lane's port; the others take the next ones (default: free ports)",
     "  --parallel <n>  fixture lanes walked at once, 1-4 (default JOURNEY_WORKERS, or half the cores up to 4)",
     "  --json          machine-readable output",

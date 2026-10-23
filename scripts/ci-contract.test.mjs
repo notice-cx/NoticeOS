@@ -63,19 +63,20 @@ const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{
 const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE} --shard=\${{ matrix.shard }}/2`;
 const TOWER_TESTS = 'pnpm --filter @noticeos/tower run test --shard=${{ matrix.part }}/2';
 const DEV_JOURNEYS = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${DEV_SERVER}`;
+const WALKER = 'pnpm --filter @noticeos/tower run test:ux-flows -- --shard ${{ matrix.part }}/2';
 const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, TOWER_TESTS],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
   scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
   smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, SMOKE],
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
-  'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, DEV_JOURNEYS, 'pnpm --filter @noticeos/tower run test:ux-flows'],
+  'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, DEV_JOURNEYS, WALKER],
   // The opt-in real task store suites get their pinned inputs first.
   'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, 'pnpm test:task-store'],
 };
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = [TOWER_TESTS, "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
-  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
+  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, WALKER, 'pnpm test:task-store'];
 /** A suite's command without the arguments that pick its share of tests. */
 const suiteOf = (command) => command.replace(/ (?:-- .*|--shard=\S+)$/u, '');
 /** The lanes: a pull request whose change reaches every job it can run, and every other run. */
@@ -250,7 +251,7 @@ test('every job stops after at most 30 minutes', () => {
 
 // A sharded suite runs every one of its files once, across its matrix: vitest
 // and Node each take one share per runner, of as many shares as runners.
-test('the Tower unit suite, the smoke journeys, the root suite and the task store run in shards that together run every file', () => {
+test('the Tower unit suite, the smoke journeys, the root suite, the task store and the flow walker run in shards that together run every file', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
   const shards = (name) => {
     const matrix = /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[([\d, ]+)\]\n/mu.exec(jobBlock(workflow, name));
@@ -275,6 +276,13 @@ test('the Tower unit suite, the smoke journeys, the root suite and the task stor
       `${name} takes its share of the files`);
   }
   assert.match(jobBlock(workflow, 'task-store'), /name: task-store-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each task-store shard keeps its own evidence');
+  const flow = jobBlock(workflow, 'flow-gate');
+  assert.match(flow, /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}part: \[journeys, 1, 2\]\n/mu, 'the dev-server journeys on one runner, the walker in two shards');
+  assert.ok(runCommands(flow).includes(WALKER), 'each walker shard makes its own share of 2');
+  assert.match(flow, /- run: pnpm --filter @noticeos\/tower run test:journey-harness\n {8}if: matrix\.part == 'journeys'\n/u, 'the harness runs once');
+  assert.match(flow, /--grep @dev-server\n {8}env:\n(?: {10}.*\n)*? {8}if: matrix\.part == 'journeys'\n/u, 'the dev-server journeys run once');
+  assert.match(flow, /--shard \$\{\{ matrix\.part \}\}\/2\n {8}env:\n(?: {10}.*\n)*? {8}if: matrix\.part != 'journeys'\n/u, 'the journeys runner walks no flows');
+  assert.match(flow, /name: ux-flow-walker-report-\$\{\{ matrix\.part \}\}\n/u, 'each flow-gate runner keeps its own evidence');
 });
 
 // The journeys run against the built Tower; the few that need the dev server
