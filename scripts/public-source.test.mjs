@@ -63,7 +63,7 @@ function fixture(t) {
     fs.writeFileSync(target, text);
   }
   git('init', '--quiet');
-  for (const file of ['.gitignore', '.githooks/pre-commit', '.github/workflows/ci.yml', '.github/workflows/docs.yml',
+  for (const file of ['.gitignore', '.githooks/pre-commit', '.github/actions/journey-browser/action.yml', '.github/workflows/ci.yml', '.github/workflows/docs.yml',
     'AGENTS.md', 'CLAUDE.md', 'CONTEXT.md', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'SECURITY.md',
     'THIRD_PARTY_NOTICES.md', 'db/README.md',
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json',

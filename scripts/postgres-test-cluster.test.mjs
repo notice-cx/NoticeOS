@@ -24,7 +24,10 @@ import { attachTestCluster } from './postgres-test-copies.mjs';
 //     server listens on 127.0.0.1 alone; the password is in no file of the
 //     cluster's folder; the template takes no connection; each copy starts as
 //     a new installation's store, a copy made again forgets what was written
-//     to it, and one copy never sees another's rows; a test process gets its
+//     to it, and one copy never sees another's rows; a copy reset under its
+//     name takes a new copy made ahead; a copy's tables are
+//     emptied as the owner on a connection kept for it, which a test ending
+//     every session does not break; a test process gets its
 //     copies from the starting process's copy service, which refuses anything
 //     but a copy's name; the owner's operations never block the process that
 //     holds them; a copy given back is handed out again under a new name, as
@@ -223,6 +226,79 @@ test('each copy starts as a new installation\'s store; a copy made again forgets
     await copies.dropDatabase(first);
     await copies.dropDatabase(second);
     await assert.rejects(login(cluster.url(first)).then((answer) => (answer.ok ? null : Promise.reject(new Error(answer.why)))), /does not exist/u);
+  });
+});
+
+// A copy reset under its name takes a new copy made ahead, so the file
+// waiting on the reset waits for no copy to be made.
+test('a copy reset under its name takes a new copy made ahead, which forgets what was written and ends every connection', async (t) => {
+  await live(t, async (cluster) => {
+    const name = await cluster.createDatabase('noticeos_renewed_dev');
+    const identity = async () => (await cluster.asOwner(name, 'SELECT oid::text AS oid FROM pg_database WHERE datname = current_database()'))[0].oid;
+    const databases = async () => (await cluster.asOwner(name, 'SELECT datname FROM pg_database ORDER BY 1')).map((row) => row.datname);
+    const sites = async () => (await cluster.asOwner(name, 'SELECT count(*)::int AS n FROM noticeos.assets'))[0].n;
+    try {
+      await cluster.resetDatabase(name);
+      await cluster.settled();
+      const before = await identity();
+      const ready = await databases();
+      const store = openStore(cluster.url(name));
+      try {
+        await store.inWorkspace(cluster.workspaceId, (tx) =>
+          tx.execute("INSERT INTO noticeos.assets (workspace_id, asset_id, display_name, status) VALUES ($1, 'one.example.com', 'Site', 'live')", [tx.workspaceId]),
+        );
+      } finally {
+        await store.close();
+      }
+      const held = new Client({ connectionString: cluster.url(name) });
+      held.on('error', () => undefined);
+      await held.connect();
+
+      await cluster.resetDatabase(name);
+      await assert.rejects(held.query('SELECT 1'), 'a connection still open is ended');
+      await held.end().catch(() => undefined);
+      assert.notEqual(await identity(), before, 'a new copy took the name');
+      assert.equal(await sites(), 0);
+      // The copy it replaced is dropped and another is made ahead in its place.
+      await cluster.settled();
+      assert.equal((await databases()).length, ready.length);
+    } finally {
+      await cluster.dropDatabase(name);
+    }
+  });
+});
+
+// Between two tests a suite empties what they wrote, as the owner, on a
+// connection the cluster keeps for that copy.
+test('a copy\'s tables are emptied as the owner on a kept connection, which survives a test ending every session', async (t) => {
+  await live(t, async (cluster) => {
+    const database = await cluster.createDatabase('noticeos_emptied_dev');
+    const check = async () => {
+      const store = openStore(cluster.url(database));
+      try {
+        await store.inWorkspace(cluster.workspaceId, (tx) =>
+          tx.execute('INSERT INTO noticeos.egress_checks (workspace_id, observed_at, up) VALUES ($1, now(), true)', [tx.workspaceId]),
+        );
+      } finally {
+        await store.close();
+      }
+    };
+    const checks = async () => (await cluster.asOwner(database, 'SELECT count(*)::int AS n FROM noticeos.egress_checks'))[0].n;
+    try {
+      await check();
+      assert.equal(await checks(), 1);
+      await cluster.emptyTables(database, ['egress_checks']);
+      assert.equal(await checks(), 0);
+      // A table the template holds rows in is not one to empty between tests.
+      await assert.rejects(cluster.emptyTables(database, ['workspaces']), TypeError);
+      await assert.rejects(cluster.emptyTables(TEMPLATE_DATABASE, ['egress_checks']), TypeError);
+      await cluster.asOwner(database, 'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()');
+      await check();
+      await cluster.emptyTables(database, ['egress_checks']);
+      assert.equal(await checks(), 0);
+    } finally {
+      await cluster.dropDatabase(database);
+    }
   });
 });
 

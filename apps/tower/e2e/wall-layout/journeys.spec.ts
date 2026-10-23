@@ -1,7 +1,7 @@
-import { test, expect } from "../journey-test";
+import { BUILT_APP, test, expect } from "../journey-test";
 import { openWall, wallScene } from "../wall-scene";
 import { WALL_FIXTURE_VARIANTS } from "../wall-fixture";
-import { DESKTOP_ONLY } from "../fixtures";
+import { DESKTOP_ONLY, DEV_SERVER, PR_SMOKE } from "../fixtures";
 import type { WallLayout } from "../../shared/wall-layout";
 import { WALL_WIDGET_MIN_PX } from "../../src/lib/wall-editor";
 import { measureWallFit, wallFitVerdict } from "../../../../scripts/wall-fit-measure.mjs";
@@ -12,11 +12,9 @@ test.beforeEach(async ({ request }) => {
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
 });
 
-test("Wall default fills both columns with whole asset rows", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
-  test.setTimeout(120_000);
-  const scene = await wallScene(page);
-  for (const variant of WALL_FIXTURE_VARIANTS) {
-    scene.variant = variant;
+for (const variant of WALL_FIXTURE_VARIANTS) {
+  test(`Wall default fills both columns with whole asset rows: ${variant}`, { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
+    await wallScene(page, variant);
     await openWall(page, [1920, 1080]);
     await expect(page.locator("[data-wall-sites] [data-site-name]").first()).toBeVisible();
     await expect(page.locator("[data-wall-column]")).toHaveCount(2);
@@ -60,8 +58,8 @@ test("Wall default fills both columns with whole asset rows", { tag: DESKTOP_ONL
         expect(bounds.y + bounds.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
       }
     }
-  }
-});
+  });
+}
 
 const TWO_ROWS: WallLayout = {
   version: 1,
@@ -186,7 +184,7 @@ test("Wall fit warnings follow one and eight assets at the same size", async ({ 
   await page.screenshot({ path: testInfo.outputPath(`wall-editor-${testInfo.project.name}.png`), fullPage: true });
 });
 
-test("Wall default remains readable on desktop and phone", async ({ page }, testInfo) => {
+test("Wall default remains readable on desktop and phone", { tag: PR_SMOKE }, async ({ page }, testInfo) => {
   await wallScene(page, "three");
   await page.goto("/wall");
   await expect(page.locator("[data-site-row]")).toHaveCount(3);
@@ -201,7 +199,8 @@ test("Wall default remains readable on desktop and phone", async ({ page }, test
   await page.screenshot({ path: testInfo.outputPath(`wall-default-${testInfo.project.name}.png`), fullPage: true });
 });
 
-test("Wall gallery specimens use TV tokens in light and dark themes", async ({ page }, testInfo) => {
+test("Wall gallery specimens use TV tokens in light and dark themes", { tag: DEV_SERVER }, async ({ page }, testInfo) => {
+  test.skip(BUILT_APP, "/dev/kitchen-sink is a dev-server page; a built app has none");
   await wallScene(page);
   const readings: unknown[] = [];
   for (const theme of ["light", "dark"]) {

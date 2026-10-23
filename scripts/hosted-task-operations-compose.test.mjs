@@ -29,8 +29,10 @@ const PROJECTS = Object.freeze([
 const ACTIVE = ['open', 'in_progress', 'blocked', 'deferred'];
 const first = value => Array.isArray(value) ? value[0] : value;
 
+// About three minutes alone in CI, and about four beside the other task-store
+// files (pnpm test:task-store runs three at a time).
 test('two servers racing one claim have one winner; a lost reply after a real create or comment is not repeated', {
-  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 240_000,
+  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 480_000,
 }, async () => {
   // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
   // runs another suite over the same folder first: this file keeps its own

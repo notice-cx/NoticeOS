@@ -4,35 +4,69 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+  # The nightly full lane on main finds a test that a date, a runner image or a
+  # package mirror broke while nothing merged.
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
 
-# Six jobs side by side (issue #2): the Tower's unit suite, the other
-# workspaces' (ingest, contract, mediavine, postgres), the root script suite,
-# the build with the browser journeys, the UX flow walker, and the task store
-# suites against a real Dolt server. Each gate runs once, in one job; `build`
-# is the verdict branch protection requires. A job installs only what its own
+# A newer push to a pull request cancels the run it replaces. Every push to
+# main gets its own group and runs to the end: each main commit's result
+# decides its release image. `build` runs on a cancelled run too (if:
+# always()) and fails there, so a cancelled run never reports a skipped,
+# passing required check.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Two lanes (scripts/ci-scope.mjs). A pull request runs the PR lane: the
+# Tower's typecheck and unit suite, the other workspaces' (ingest, contract,
+# mediavine, postgres), the root script suite, and the build with the browser
+# smoke journeys and the journey harness. The merge queue, a push to main, the
+# nightly run and a run started by hand run the full lane: those suites, every
+# browser journey in three shards, the harness with the UX flow walker, and
+# the task store suites against a real Dolt server. Each gate runs once per
+# lane, in one job; `build` is the verdict branch protection requires. A job installs only what its own
 # suites start: PostgreSQL 18, Chromium in the two browser jobs, and the pinned
 # task client, Dolt client and Dolt server image in the task-store job
-# (scripts/ci-contract.test.mjs).
+# (scripts/ci-contract.test.mjs). Each job stops after 30 minutes: an install
+# stuck on a package mirror once held a runner for six hours.
 jobs:
-  # A pull request that changes only documentation no runtime suite reads
-  # skips the unit, browser and flow-gate jobs (issue #4,
-  # scripts/ci-scope.mjs). The root script suite reads every tracked Markdown
-  # file, so it always runs. A push to main runs everything.
+  # Which jobs this run needs, as JSON by job name. The full lane needs every
+  # job; a pull request needs the PR-lane jobs its changed files reach, and
+  # for documentation alone the root script suite (issue #4). The root script suite reads every
+  # tracked Markdown file, so it runs in every lane. A push to main whose
+  # commit passed the full lane in the merge queue needs no job.
   scope:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     outputs:
-      runtime: ${{ steps.scope.outputs.runtime }}
+      lane: ${{ steps.scope.outputs.lane }}
+      needed: ${{ steps.scope.outputs.needed }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
       - run: node scripts/ci-scope.mjs
         id: scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
+  # Three runners: the typecheck on one, half the Tower's test files on each
+  # of the other two.
   tower-unit:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: fromJSON(needs.scope.outputs.needed)['tower-unit']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [typecheck, 1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -42,6 +76,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @noticeos/tower run typecheck
+        if: matrix.part == 'typecheck'
       # The Postgres proofs never skip: PostgreSQL 18's server binaries go on
       # PATH before the first suite that starts a server (installed from PGDG
       # if the runner lacks them; the PGDG script refreshes the package lists
@@ -49,16 +84,19 @@ jobs:
       # start into a failure. 18 is the only supported major. Every job that
       # starts Postgres repeats this step.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: pnpm --filter @noticeos/tower run test
+        if: matrix.part != 'typecheck'
+      - run: pnpm --filter @noticeos/tower run test --shard=${{ matrix.part }}/2
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           # The suite has the runner to itself (scripts/unit-test-workers.mts).
           UNIT_TEST_WORKERS: 100%
+        if: matrix.part != 'typecheck'
 
   ingest-unit:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: fromJSON(needs.scope.outputs.needed)['ingest-unit']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -74,8 +112,17 @@ jobs:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           UNIT_TEST_WORKERS: 100%
 
+  # Three runners each take a third of the root suite's files; Node deals
+  # them out by position, and three shards even out its slow files.
   scripts:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.needed)['scripts']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -88,11 +135,61 @@ jobs:
       - run: pnpm test:scripts
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
+          # Node's test runner takes this shard's share of the files.
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/3
 
+  # The PR lane's browser check: the build, the journey harness, and the
+  # journeys tagged @pull-request on desktop and phone
+  # (apps/tower/e2e/fixtures.ts), split across two runners. The full lane runs
+  # them among all the others.
+  smoke:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.needed)['smoke']
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: pnpm -r build
+        env:
+          JOURNEY_BUILD: '1'
+      - uses: ./.github/actions/journey-browser
+      - run: pnpm --filter @noticeos/tower run test:journey-harness
+        if: matrix.shard == 1
+      - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @pull-request --shard=${{ matrix.shard }}/2
+        env:
+          JOURNEY_WORKERS: 3
+          JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: smoke-journey-browser-evidence-${{ matrix.shard }}
+          path: |
+            apps/tower/e2e/playwright-report/
+            apps/tower/e2e/test-results/
+          retention-days: 14
+
+  # The journeys are fully parallel, so Playwright splits them test by test
+  # across three runners; every journey still runs once, on one shard.
   browser:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: fromJSON(needs.scope.outputs.needed)['browser']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -104,20 +201,28 @@ jobs:
       # The journeys' run starts one throwaway Postgres for its fixture servers.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r build
+        env:
+          # The Tower is built as the journeys below run it: without its
+          # release, which their stubbed reads do not carry (e2e/README.md).
+          JOURNEY_BUILD: '1'
       # The fifth gate is `pnpm test:journeys`, split across this job and the
       # next so neither waits on the other: the isolated browser journeys
       # here, the journey harness and the UX flow gate there. The journeys'
       # types are checked in tower-unit.
-      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
-      - run: pnpm --filter @noticeos/tower run test:journeys
+      - uses: ./.github/actions/journey-browser
+      - run: pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3
         env:
           # Browser workers, each with its own fixture server. Unset, a run
           # takes half the machine's cores, which on a small runner is 1.
           JOURNEY_WORKERS: 3
+          # Against that build: a few bundles per page instead of every source
+          # module through Vite. The journeys tagged @dev-server skip here and
+          # run in the flow-gate job, on the dev server.
+          JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: user-journey-browser-evidence
+          name: user-journey-browser-evidence-${{ matrix.shard }}
           path: |
             apps/tower/e2e/playwright-report/
             apps/tower/e2e/test-results/
@@ -125,8 +230,9 @@ jobs:
 
   flow-gate:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: fromJSON(needs.scope.outputs.needed)['flow-gate']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -138,8 +244,13 @@ jobs:
       # The harness and each flow-gate lane start their own fixture server on
       # a throwaway Postgres.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
+      - uses: ./.github/actions/journey-browser
       - run: pnpm --filter @noticeos/tower run test:journey-harness
+      # The journeys that need Vite's dev server (tagged @dev-server), which
+      # the browser shards skip against the built Tower.
+      - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @dev-server
+        env:
+          JOURNEY_WORKERS: 3
       # The UX flow walker walks every declared operator flow in a browser and
       # reports what each costs (results.json in the artifact below); it fails
       # only when a flow cannot be walked to its end.
@@ -151,7 +262,10 @@ jobs:
         if: always()
         with:
           name: ux-flow-walker-report
-          path: apps/tower/e2e/ux-flows-results/
+          path: |
+            apps/tower/e2e/ux-flows-results/
+            apps/tower/e2e/playwright-report/
+            apps/tower/e2e/test-results/
           retention-days: 14
 
   # The real task store: the task client and Dolt server the
@@ -159,11 +273,17 @@ jobs:
   # a change retried after a lost reply is not repeated; task summaries, the
   # task HTTP routes and the demo simulator's days run against Postgres too.
   # The root suite skips these tests; this job supplies their opt-in inputs
-  # (db/dolt/host/README.md).
+  # (db/dolt/host/README.md). Two runners each take half the files, which
+  # puts the two longest (the persistent demo and the claim race) apart.
   task-store:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: fromJSON(needs.scope.outputs.needed)['task-store']
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -177,23 +297,27 @@ jobs:
       - run: pnpm test:task-store
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/2
       # Each suite's redacted receipt: every task and Dolt client command it
       # ran, with its exit code and output, and the fixture's cleanup.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: task-store-evidence
+          name: task-store-evidence-${{ matrix.shard }}
           path: ${{ runner.temp }}/task-store/evidence/
           retention-days: 14
 
-  # The one check branch protection requires: every job passed, or the scope
-  # job skipped the runtime jobs for a documentation-only pull request.
+  # The one check branch protection requires, on pull requests and in the
+  # merge queue alike: the scope job passed, and every other job passed or was
+  # skipped because the scope named it not needed for this run. A job the
+  # scope does not name fails the verdict.
   build:
-    needs: [scope, tower-unit, ingest-unit, scripts, browser, flow-gate, task-store]
+    needs: [scope, tower-unit, ingest-unit, scripts, smoke, browser, flow-gate, task-store]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser, ."flow-gate", ."task-store"] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
+      - run: jq -e --argjson needed "$NEEDED" '.scope.result == "success" and (del(.scope) | to_entries | all(.key as $job | .value.result == "success" or (.value.result == "skipped" and ($needed | has($job)) and $needed[$job] == false)))' <<< "$NEEDS"
         env:
           NEEDS: ${{ toJSON(needs) }}
-          RUNTIME: ${{ needs.scope.outputs.runtime }}
+          NEEDED: ${{ needs.scope.outputs.needed }}
