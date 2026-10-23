@@ -9,6 +9,50 @@ import { WALL_FIXTURE_NOW, wallFixturePayload } from "../wall-fixture";
 const longCondition = "The complete condition includes a long explanation of the affected request path and the final qualifier operators need to read. ".repeat(4) + "End of condition.";
 const note = "Stored operator evidence remains available in the expanded row.";
 
+test("Alerts combine settled repeats and distinguish daily counts from now", async ({ page, request }, testInfo) => {
+  expect((await request.post("/__journey/reset")).ok()).toBe(true);
+  expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
+  await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
+  const wall = wallFixturePayload("one");
+  const asset = wall.assets[0]!;
+  const base: AttentionItem = {
+    id: 901, asset: asset.id, assetDisplayName: asset.displayName, severity: "warn", kind: "anomaly",
+    message: "API requests well below normal", firedAt: WALL_FIXTURE_NOW, firstFiredAt: WALL_FIXTURE_NOW,
+    metric: "apiRequests", ruleId: "asset-declared", ruleInputs: null, occurrences: 1, correlatedChanges: [],
+  };
+  wall.attention = [{ ...base, ruleId: "hygiene-sitemap", metric: "sitemap",
+    ruleInputs: { reason: "count-collapse", urls: 900, previous_urls: 3000 } }];
+  wall.snoozed = [];
+  const history: AlertHistoryPayload = {
+    generatedAt: WALL_FIXTURE_NOW, total: 30, offset: 0, limit: 100, hasMore: false,
+    rows: Array.from({ length: 30 }, (_, i) => ({ asset: { id: asset.id, displayName: asset.displayName, domain: asset.id },
+      flag: { ...base, id: 902 + i,
+        firedAt: new Date(Date.parse(WALL_FIXTURE_NOW) - (i + 1) * 86_400_000).toISOString(),
+        firstFiredAt: new Date(Date.parse(WALL_FIXTURE_NOW) - (i + 1) * 86_400_000).toISOString(),
+        disposition: null, dispositionAt: null, dispositionNote: null, snoozeUntil: null,
+        ackExpiry: null, resolvedAt: WALL_FIXTURE_NOW, liveness: { state: "historical" },
+      } })),
+  };
+  const day = WALL_FIXTURE_NOW.slice(0, 10);
+  const daily: AlertDailyPayload = { generatedAt: WALL_FIXTURE_NOW,
+    days: [{ day, open: 12, errors: 1, warnings: 1, observedAt: `${day}T03:00:00Z` }] };
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wall }));
+  await page.route("**/api/alerts/history**", (route) => route.fulfill({ json: history }));
+  await page.route("**/api/alerts/daily", (route) => route.fulfill({ json: daily }));
+  await page.goto("/alerts");
+  await expect(page.locator("[data-alerts-answer]")).toContainText("1 open alert, a warning");
+  await expect(page.locator('[data-alert-week] [data-span^="settled:"]')).toHaveCount(1);
+  await expect(page.locator('[data-alert-week] [data-span^="settled:"]')).toContainText("30 alerts");
+  await expect(page.locator("[data-alerts-settled] dd")).toHaveText("1");
+  const snapshots = page.getByRole("region", { name: "Daily open-alert snapshots", exact: true });
+  await expect(snapshots.locator("[data-alert-daily-current]")).toContainText("Now: 1 open alert, a warning");
+  await snapshots.getByText(/^View data/).click();
+  await expect(snapshots.getByRole("cell", { name: "2", exact: true })).toBeVisible();
+  await expect(snapshots.getByRole("cell", { name: "12", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await testInfo.attach("alerts-counts", { body: await page.screenshot({ fullPage: true, path: testInfo.outputPath("alerts-counts.png") }), contentType: "image/png" });
+});
+
 async function tabTo(page: Page, target: Locator) {
   for (let i = 0; i < 100; i += 1) {
     if (await target.evaluate((element) => element === document.activeElement)) return;

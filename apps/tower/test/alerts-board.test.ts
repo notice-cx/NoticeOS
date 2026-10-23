@@ -249,6 +249,31 @@ describe("alertTimeline — the week on one axis", () => {
     ]);
   });
 
+  it("draws dozens of recurring alerts settled together as one counted bar", () => {
+    const repeats = Array.from({ length: 30 }, (_, i) => settled(100 + i, 1, {
+      ruleId: "asset-declared", metric: "apiRequests", firstFiredAt: ago((i + 2) * DAY),
+      firedAt: ago((i + 2) * DAY), message: "API requests well below normal",
+    }));
+    const { spans } = alertTimeline([], repeats, options);
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({ from: ago(31 * DAY), to: ago(DAY),
+      label: "API requests well below normal · 30 alerts", href: "/alerts/history?asset=acorn.example" });
+    expect(repeats[0]!.flag.occurrences).toBe(1);
+  });
+
+  it("keeps distinct recurrences, assets, metrics and event subjects separate", () => {
+    const base = { ruleId: "asset-declared", metric: "apiRequests" };
+    const elsewhere = settled(4, 1, base);
+    elsewhere.asset = { id: "plume.example", domain: "plume.example", displayName: "Plume" };
+    const { spans } = alertTimeline([], [
+      settled(1, 1, base), settled(2, 2, base), settled(3, 1, { ...base, metric: "signups" }), elsewhere,
+      settled(5, 1, { ruleId: "watch-window-closed", metric: "apiRequests" }),
+      settled(6, 1, { ruleId: "watch-window-closed", metric: "apiRequests" }),
+      settled(7, 1, { ...base, ruleId: "flow-poisson-low" }),
+    ], options);
+    expect(spans).toHaveLength(7);
+  });
+
   it("names a bar by what happened, leaving the figures to the row", () => {
     expect(shortHeadline("Plans saved well below normal — 19 vs ~58/day")).toBe("Plans saved well below normal");
     expect(shortHeadline("No nightly report has EVER arrived")).toBe("No nightly report has EVER arrived");

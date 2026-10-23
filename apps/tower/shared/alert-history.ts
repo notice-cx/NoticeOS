@@ -2,7 +2,7 @@
 // than part of the wall payload, which a television polls every minute.
 
 import type { FlagRecord } from "./asset-detail";
-import type { Severity } from "./wall";
+import { groupConditionFirings, type Severity } from "./wall";
 
 /** Which asset a settled alert belongs to. The row needs the identity, not the
  * asset card: a favicon, a name, and the link to that asset's Alerts tab. */
@@ -18,6 +18,28 @@ export interface AlertHistoryAsset {
 export interface AlertHistoryRow {
   flag: FlagRecord;
   asset: AlertHistoryAsset;
+}
+
+/** Repeated firings closed together are one settled condition. Different
+ * settlement times preserve separate recurrences; event rules stay separate. */
+export function groupSettledAlerts(rows: readonly AlertHistoryRow[]): AlertHistoryRow[] {
+  const bySettlement = new Map<string, { row: AlertHistoryRow; id: number; asset: string; ruleId: string; metric: string | null; firedAt: string }[]>();
+  for (const row of rows) {
+    const closed = row.flag.resolvedAt ?? row.flag.dispositionAt;
+    const at = closed === null ? NaN : Date.parse(closed);
+    const key = Number.isFinite(at) ? `${at}\u0000${row.flag.kind}` : `#${row.flag.id}`;
+    const bucket = bySettlement.get(key) ?? [];
+    bucket.push({ row, id: row.flag.id, asset: row.asset.id, ruleId: row.flag.ruleId,
+      metric: row.flag.metric, firedAt: row.flag.firstFiredAt });
+    bySettlement.set(key, bucket);
+  }
+  return [...bySettlement.values()].flatMap((bucket) => groupConditionFirings(bucket).map((group) => {
+    const latest = group.firings.reduce((newest, firing) =>
+      firing.row.flag.firedAt > newest.row.flag.firedAt ? firing : newest).row;
+    return { ...latest, flag: { ...latest.flag, firstFiredAt: group.firstFiredAt,
+      severity: group.firings.some(({ row }) => row.flag.severity === "error") ? "error" : latest.flag.severity,
+      occurrences: group.firings.reduce((count, { row }) => count + row.flag.occurrences, 0) } };
+  }));
 }
 
 /**

@@ -592,6 +592,19 @@ describe("/alerts — the portfolio's open exceptions", () => {
       const floor = renderAlerts([alert()]);
       expect(figure(floor.container, "alerts-settled")).toBe("1+");
     });
+
+    it("counts repeated alerts settled together as one problem in the summary and timeline", () => {
+      const rows = Array.from({ length: 30 }, (_, i) => {
+        const row = settledRow(i + 1, "2026-07-30T12:00:00.000Z");
+        row.flag.ruleId = "asset-declared";
+        row.flag.metric = "apiRequests";
+        return row;
+      });
+      history.data = { rows, total: 30, offset: 0, limit: 100, hasMore: false, generatedAt: "2026-08-01T12:00:00.000Z" };
+      const { container } = renderAlerts([alert()]);
+      expect(figure(container, "alerts-settled")).toBe("1");
+      expect(container.querySelectorAll('[data-alert-week] [data-span^="settled:"]')).toHaveLength(1);
+    });
   });
 
   it("keeps the recurrence chip on the row's own line", () => {

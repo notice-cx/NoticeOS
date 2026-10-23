@@ -773,6 +773,45 @@ async function priorReadings(
   return rows.map((row) => ({ ...row, observed_at: javascriptInstant(row.observed_at) }));
 }
 
+/** An operator's Resolve accepts the displayed count; automatic recovery does
+ * not. A newer healthy reading supersedes that acceptance. */
+async function sitemapBaseline(
+  env: IngestEnv,
+  asset: string,
+  today: string,
+  at: string,
+): Promise<{ urls: number; observedOn: string } | null> {
+  const [healthy] = await priorReadings(env, asset, 'sitemap', today, 1, true);
+  const [accepted] = await env.STORE.read((tx) =>
+    tx.query<{ urls_json: string | null; observed_at: string }>(
+      `SELECT f.rule_inputs -> 'urls' AS urls_json,
+              coalesce((SELECT max(e.observed_at) FROM noticeos.flag_evidence e
+                         WHERE e.workspace_id = f.workspace_id AND e.flag_id = f.flag_id),
+                       f.fired_at) AS observed_at
+         FROM noticeos.current_flags f
+        WHERE f.asset_id = $1 AND f.rule_id = $2
+          AND f.rule_inputs ->> 'reason' = 'count-collapse'
+          AND f.resolved_at <= $3::timestamptz
+          AND ($4::timestamptz IS NULL OR f.resolved_at > $4::timestamptz)
+          AND EXISTS (SELECT 1 FROM noticeos.workspace_mutation_audit a
+                       WHERE a.workspace_id = f.workspace_id AND a.asset_id = f.asset_id
+                         AND a.event = 'flag.resolve'
+                         AND a.subject ->> 'flagNumber' = f.flag_number::text)
+        ORDER BY f.resolved_at DESC, f.flag_number DESC
+        LIMIT 1`,
+      [asset, SITEMAP_RULE_ID, at, healthy?.observed_at ?? null],
+    ),
+  );
+  const urls: unknown = accepted?.urls_json === undefined || accepted.urls_json === null
+    ? null : JSON.parse(accepted.urls_json);
+  if (accepted && typeof urls === 'number' && Number.isSafeInteger(urls) && urls >= 0) {
+    return { urls, observedOn: javascriptInstant(accepted.observed_at).slice(0, 10) };
+  }
+  return typeof healthy?.value_num === 'number'
+    ? { urls: healthy.value_num, observedOn: healthy.observed_on }
+    : null;
+}
+
 /** The open flag's stored inputs for one guard, so an ongoing condition can be
  * told apart from a fresh one. */
 async function openFlagInputs(
@@ -1687,10 +1726,10 @@ async function checkSitemap(
     );
   }
 
-  // The comparator is the last healthy count, not yesterday's row: a sitemap
-  // that stayed collapsed would otherwise match itself and resolve the flag.
-  const [previous] = await priorReadings(env, entry.asset, 'sitemap', today, 1, true);
-  const previousCount = typeof previous?.value_num === 'number' ? previous.value_num : null;
+  // A standing collapse cannot normalize itself. Only recovery or an explicit
+  // operator resolution changes the count subsequent checks compare against.
+  const previous = await sitemapBaseline(env, entry.asset, today, at);
+  const previousCount = previous?.urls ?? null;
   const comparable = previousCount !== null && previousCount >= SITEMAP_MIN_PREV_URLS;
   const collapsed = comparable && counted.urls <= previousCount * SITEMAP_COLLAPSE_RATIO;
 
@@ -1698,7 +1737,7 @@ async function checkSitemap(
     ...base,
     ...counted,
     previous_urls: previousCount,
-    previous_observed_on: previous?.observed_on ?? null,
+    previous_observed_on: previous?.observedOn ?? null,
     min_previous_urls: SITEMAP_MIN_PREV_URLS,
   };
   await writeReading(env, entry.asset, 'sitemap', at, collapsed ? 'warn' : 'ok', counted.urls, detail);
@@ -1713,7 +1752,7 @@ async function checkSitemap(
     entry.asset,
     SITEMAP_RULE_ID,
     'sitemap',
-    `sitemap URL count collapsed: ${counted.urls} URLs vs ${previousCount} on ${previous?.observed_on}`,
+    `sitemap URL count collapsed: ${counted.urls} URLs vs ${previousCount} on ${previous?.observedOn}`,
     { ...detail, threshold_ratio: SITEMAP_COLLAPSE_RATIO, reason: 'count-collapse' },
     at,
   );

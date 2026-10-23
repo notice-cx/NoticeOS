@@ -699,8 +699,8 @@ function hygieneFailure(
       ? "the URL may be serving a page instead of XML"
       : subject === "Sitemap" && reason === "child-unreachable"
         ? "the index is there but its child sitemaps are not"
-        : subject === "Sitemap" && reason === "count-collapse"
-          ? "pages may have dropped out of the sitemap"
+        : subject === "Sitemap" && reason === "count-collapse" && num(inputs.urls) !== null
+          ? "Resolve accepts this size if the reduction was intentional"
           : subject === "Sitemap" && status === 404
             ? "the sitemap may be missing or moved"
             : subject === "Home page" && (status === 401 || status === 403)
