@@ -3,10 +3,11 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
 const wrangler = createRequire(require.resolve('wrangler/package.json'));
-const { Miniflare, Log } = wrangler('miniflare');
+const { Miniflare, Log } = v4Miniflare(wrangler);
 const { buildSync } = wrangler('esbuild');
 const account = 'a'.repeat(32), database = '11111111-1111-4111-8111-111111111111';
 const endpoint = `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database?page=1&per_page=100`;
@@ -33,7 +34,7 @@ async function fixture(t, respond) {
   const runtime = new Miniflare({
     modules: true, script, compatibilityDate: '2026-07-06', compatibilityFlags: ['nodejs_compat'],
     cf: false, log: new Log(0), bindings: { ACCOUNT: account, TOKEN: token },
-    handleRuntimeStdio: (stdout, stderr) => { stdout.resume(); stderr.resume(); },
+    handleStructuredLogs: () => {},
     outboundService: async request => {
       calls.push({ url: request.url, method: request.method });
       assert.equal(request.headers.get('authorization'), `Bearer ${token}`);

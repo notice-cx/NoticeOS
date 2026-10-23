@@ -16,6 +16,7 @@ import { checkDatabase } from './database-address.mjs';
 import { applyMigrations, bootstrapWorkspace, readMigrations } from './postgres-migrate.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const requireIdentity = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'));
 const { Pool } = requireIdentity('pg');
@@ -227,7 +228,7 @@ test('owned identity migration, fresh session/membership and Worker lifecycle pr
       assert.equal(result.error, undefined); assert.equal(result.status, 0, result.stderr);
       const bundle = path.join(build, 'identity-worker.fixture.js');
       assert.ok(!readFileSync(bundle, 'utf8').includes('node:sqlite'));
-      const { Miniflare } = wranglerRequire('miniflare');
+      const { Miniflare } = v4Miniflare(wranglerRequire);
       let outside = 0;
       mf = new Miniflare({ modules: true, modulesRoot: build, scriptPath: bundle, compatibilityDate: '2026-07-06', compatibilityFlags: ['nodejs_compat'], bindings: { FIXTURE_CONNECTION: connectionString, FIXTURE_ORIGIN: origin, FIXTURE_SECRET: secret }, outboundService: async () => { outside++; throw new Error('No outside HTTP in identity fixture'); } });
       let workerCookie = cookie;

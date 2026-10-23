@@ -16,7 +16,7 @@ import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-
 import { CHANGE_STREAM_PATH } from './change-topics.mjs';
 import { createChangeWatch, topicReader } from './change-watch.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
-import type { Readable } from 'node:stream';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 export interface HostedDemoServerOptions {
   readonly version: 1;
@@ -301,10 +301,9 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
   const open = adapters ?? (() => {
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
     const wrangler = createRequire(require.resolve('wrangler/package.json'));
-    const { Miniflare, Log } = wrangler('miniflare') as { Miniflare: new (options: Record<string, unknown>) => Workers; Log: new (level: number) => unknown };
+    const { Miniflare, Log } = v4Miniflare<Workers>(wrangler);
     return { openTasks: openHostedTaskRuntime, startActivity: startHostedDemo,
-      openWorkers: options => new Miniflare({ ...options, log: new Log(0),
-        handleRuntimeStdio: (stdout: Readable, stderr: Readable) => { stdout.resume(); stderr.resume(); } }) } satisfies HostedDemoServerAdapters;
+      openWorkers: options => new Miniflare({ ...options, log: new Log(0), handleStructuredLogs: () => undefined }) } satisfies HostedDemoServerAdapters;
   })();
   const binding = { [PRODUCT_ENV.workspaceProfile.name]: 'demo', [PRODUCT_ENV.workspaceOrigin.name]: configuration.publicOrigin,
     [PRODUCT_ENV.workspaceDatabase.name]: configuration.workspaceDatabaseUrl,
@@ -313,9 +312,13 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
     [PRODUCT_ENV.demoWorkspace.name]: configuration.tasks.demoWorkspaceId,
     [PRODUCT_ENV.demoActivityService.name]: configuration.activity.serviceId,
     [PRODUCT_ENV.demoScenarioHash.name]: demoScenarioHash(configuration.activity.scenario) };
-  const worker = (name: string, entry: DemoWorkerArtifact) => ({ name, modules: true,
-    modulesRules: [{ type: 'ESModule', include: ['**/*.js', '**/*.mjs'] }],
-    modulesRoot: path.join(configuration.artifactRoot, entry.modulesRoot), scriptPath: path.join(configuration.artifactRoot, entry.main),
+  // Every JavaScript module of the Worker's build, its entry first: Miniflare
+  // loads the modules it is given and does not follow the entry's imports.
+  const modules = (entry: DemoWorkerArtifact) => [entry.main, ...Object.keys(artifact.files)
+    .filter(name => name !== entry.main && name.startsWith(entry.modulesRoot + '/') && /\.m?js$/u.test(name))]
+    .map(name => ({ type: 'ESModule', path: path.join(configuration.artifactRoot, name) }));
+  const worker = (name: string, entry: DemoWorkerArtifact) => ({ name, modules: modules(entry),
+    modulesRoot: path.join(configuration.artifactRoot, entry.modulesRoot),
     compatibilityDate: entry.compatibilityDate, compatibilityFlags: [...entry.compatibilityFlags], bindings: binding,
     outboundService: async () => new Response('Demo external fetch refused.', { status: 403 }) });
   let tasks: Runtime | undefined, activity: Activity | undefined, workers: Workers | undefined;
@@ -440,7 +443,7 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
     // The one MCP endpoint forwards read-model calls straight to the Workers.
     tasks = await open.openTasks(configuration.tasks, { readModels: dispatch });
     workers = open.openWorkers({ host: '127.0.0.1', port: 0, cf: false, inspectorPort: undefined,
-      defaultPersistRoot: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
+      resourcePersistencePath: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
         { ...worker('tower', artifact.tower), serviceBindings: { INGEST: 'ingest' } }, worker('ingest', artifact.ingest),
       ] });
     await workers.getWorker('tower');

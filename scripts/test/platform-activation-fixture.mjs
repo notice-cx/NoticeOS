@@ -18,6 +18,7 @@ import { openTaskDirectory } from '../../packages/postgres/src/task-directory.mj
 import { openPlatformProvisioning, PlatformProvisioningRefused } from '../../packages/postgres/src/platform-provisioning.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../../packages/postgres/src/email-code.mjs';
 import { openIdentity } from '../../packages/postgres/src/identity.mjs';
+import { v4Miniflare } from '../miniflare-v4.mjs';
 
 const require = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'));
 const { Pool } = require('pg');
@@ -115,7 +116,7 @@ export async function provePlatformActivation(t, physical) {
     const compiled = spawnSync(process.execPath, [path.join(path.dirname(wranglerPath), metadata.bin.wrangler), 'deploy', '--dry-run', '--config', config, '--outdir', build],
       { cwd: root, env, encoding: 'utf8', timeout: 30000 });
     assert.equal(compiled.error, undefined); assert.equal(compiled.status, 0, compiled.stderr);
-    const { Miniflare } = workerRequire('miniflare');
+    const { Miniflare } = v4Miniflare(workerRequire);
     const messages = []; let outside = 0, entered, release;
     const verificationEntered = new Promise(resolve => { entered = resolve; });
     const continueActivation = new Promise(resolve => { release = resolve; });

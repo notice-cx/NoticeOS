@@ -16,6 +16,7 @@ import {applyMigrations} from './postgres-migrate.mjs';
 import {REPO_ROOT} from './test-config-isolation.mjs';
 import {openTaskDirectory} from '../packages/postgres/src/task-directory.mjs';
 import {openTaskCatalogSetup} from '../packages/postgres/src/task-catalog.mjs';
+import {v4Miniflare} from './miniflare-v4.mjs';
 
 const require=createRequire(path.join(REPO_ROOT,'packages/postgres/package.json'));
 const {Pool}=require('pg');
@@ -79,7 +80,7 @@ async function workerProof(root,connectionString,facts,revoke){
   stopLocalSecretReads(env);
   const compiled=spawnSync(process.execPath,[path.join(path.dirname(wranglerPath),metadata.bin.wrangler),'deploy','--dry-run','--config',config,'--outdir',build],{cwd:root,env,encoding:'utf8',timeout:30000});
   assert.equal(compiled.error,undefined);assert.equal(compiled.status,0,compiled.stderr);
-  const {Miniflare}=wranglerRequire('miniflare');let outside=0;
+  const {Miniflare}=v4Miniflare(wranglerRequire);let outside=0;
   const runtime=new Miniflare({modules:true,modulesRoot:build,scriptPath:path.join(build,'task-directory-worker.fixture.js'),
     compatibilityDate:'2026-07-06',compatibilityFlags:['nodejs_compat'],bindings:{FIXTURE_CONNECTION:connectionString},
     outboundService:async()=>{outside++;throw new Error('No outside HTTP');}});

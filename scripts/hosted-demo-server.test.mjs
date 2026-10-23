@@ -13,6 +13,7 @@ import { CHANGE_CHECK_MS, CHANGE_TOPICS } from './change-topics.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { captureHostedDemoServerOptions, hostedDemoRuntimeFileContent, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, statcounterTag, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const origin = 'https://demo.example.com', release = 'a'.repeat(64);
@@ -259,7 +260,7 @@ test('actual HTTP gateway preserves original proof, refuses hostile Host/release
     assert.equal((await request('/__noticeos_health')).status, 200);
     const config = a.calls.find(call => call.lane === 'configuration').options;
     assert.equal(config.host, '127.0.0.1'); assert.equal(config.cf, false); assert.equal(config.logRequests, false);
-    assert.equal(config.defaultPersistRoot, f.options.workerStateRoot);
+    assert.equal(config.resourcePersistencePath, f.options.workerStateRoot);
     assert.equal((await config.workers[0].outboundService(new Request('https://example.invalid/'))).status, 403);
   } finally { await server?.close(); assert.deepEqual(a.closed.sort(), ['activity', 'tasks', 'workers']); f.close(); }
 });
@@ -289,7 +290,7 @@ test('oversized request never reaches a capability and oversized response closes
 
 test('pinned actual workerd receives canonical public URL through private Worker RPC and denies external HTTP', async () => {
   const f = fixture(); const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
-  const wrangler = createRequire(require.resolve('wrangler/package.json')), { Miniflare, Log } = wrangler('miniflare');
+  const wrangler = createRequire(require.resolve('wrangler/package.json')), { Miniflare, Log } = v4Miniflare(wrangler);
   const a = adapters({ openWorkers: options => new Miniflare({ ...options, log: new Log(0) }) }); let server;
   try {
     server = await startHostedDemoServer(f.options, a.composed);
@@ -348,11 +349,12 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
     import { spawn } from 'node:child_process';
     import { runHostedDemoWorker } from ${JSON.stringify(url('hosted-demo-worker.mjs'))};
     import { startHostedDemoServer } from ${JSON.stringify(url('hosted-demo-server.mjs'))};
+    import { v4Miniflare } from ${JSON.stringify(url('miniflare-v4.mjs'))};
     const mode=${JSON.stringify(mode)}, trace=${JSON.stringify(trace)};
     const note=event=>appendFileSync(trace,JSON.stringify({event,pid:process.pid})+'\\n');
     const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const require=createRequire(${JSON.stringify(pathToFileURL(path.resolve('workers/ingest/package.json')).href)});
-    const wrangler=createRequire(require.resolve('wrangler/package.json')); const {Miniflare,Log}=wrangler('miniflare');
+    const wrangler=createRequire(require.resolve('wrangler/package.json')); const {Miniflare,Log}=v4Miniflare(wrangler);
     if(mode==='immediate-stop')await delay(150);
     try {
       await runHostedDemoWorker(process.argv[3], async file=>{
@@ -370,7 +372,7 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
             return {handle:async()=>Response.json({projects:[]}),close:async()=>{if(command){process.kill(-command.pid,'SIGTERM');await closed}await delay(50);note('tasks-closed')}};
           },
           openWorkers:opts=>{
-            const mf=new Miniflare({...opts,log:new Log(0),handleRuntimeStdio:(out,err)=>{out.resume();err.resume()}});
+            const mf=new Miniflare({...opts,log:new Log(0),handleStructuredLogs:()=>{}});
             return {getWorker:name=>mf.getWorker(name),dispatchFetch:(...args)=>mf.dispatchFetch(...args),dispose:async()=>{await mf.dispose();note('workers-closed')}};
           },
           startActivity:async()=>{
