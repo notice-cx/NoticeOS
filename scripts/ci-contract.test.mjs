@@ -59,8 +59,9 @@ const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 // The journeys run as one matrix job of shards; each runs its share.
 const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
 const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE}`;
+const TOWER_TESTS = 'pnpm --filter @noticeos/tower run test --shard=${{ matrix.shard }}/2';
 const JOBS = {
-  'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, 'pnpm --filter @noticeos/tower run test'],
+  'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, TOWER_TESTS],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
   scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
   smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, SMOKE],
@@ -70,10 +71,10 @@ const JOBS = {
   'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, 'pnpm test:task-store'],
 };
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
-const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
+const POSTGRES_SUITES = [TOWER_TESTS, "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
   JOURNEYS, SMOKE, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
 /** A suite's command without the arguments that pick its share of tests. */
-const suiteOf = (command) => command.replace(/ -- .*$/u, '');
+const suiteOf = (command) => command.replace(/ (?:-- .*|--shard=\S+)$/u, '');
 /** The lanes: a pull request whose change reaches every job it can run, and every other run. */
 const LANES = { 'pull request': neededJobs('pull_request', ['pnpm-lock.yaml']), full: neededJobs('push') };
 
@@ -244,6 +245,17 @@ test('every job stops after at most 30 minutes', () => {
   }
 });
 
+// A sharded suite runs every one of its files once, across its matrix: vitest
+// and Node each take one share per runner.
+test('the Tower unit suite and the root suite run in two shards that together run every file', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  for (const name of ['tower-unit', 'scripts']) {
+    assert.match(jobBlock(workflow, name), /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[1, 2\]\n/mu, `${name} is a matrix of two shards`);
+  }
+  assert.match(jobBlock(workflow, 'tower-unit'), /- run: pnpm --filter @noticeos\/tower run typecheck\n {8}if: matrix\.shard == 1\n/u, 'the typecheck runs once');
+  assert.match(jobBlock(workflow, 'scripts'), /- run: pnpm test:scripts\n {8}env:\n(?: {10}.*\n)*? {10}NODE_OPTIONS: --test-shard=\$\{\{ matrix\.shard \}\}\/2\n/u, 'the root suite takes its share');
+});
+
 // A cancelled run must not leave a skipped required check, which GitHub
 // counts as passing.
 test('a newer push cancels only the pull request run it replaces', () => {
@@ -259,7 +271,7 @@ test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites 
   assert.equal(Number(/postgresql\/(\d+)\/bin/u.exec(POSTGRES_STEP)[1]), 18);
   // Ubuntu's runner removes PGDG after preparing its bundled PostgreSQL 16.
   assert.match(POSTGRES_STEP, /apt\.postgresql\.org\.sh -y/u);
-  for (const [name, suite] of [['tower-unit', 'pnpm --filter @noticeos/tower run test'], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts'],
+  for (const [name, suite] of [['tower-unit', TOWER_TESTS], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts'],
     ['task-store', 'pnpm test:task-store']]) {
     const step = new RegExp(`- run: ${suite.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n\\s+env:\\n\\s+NOTICEOS_REQUIRE_POSTGRES: '1'\\n`, 'u');
     assert.match(jobBlock(workflow, name), step, `${suite} must run with NOTICEOS_REQUIRE_POSTGRES=1, so a server that cannot start fails the build`);
