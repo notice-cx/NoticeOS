@@ -1,19 +1,25 @@
 import { countLabel } from "@/lib/count-label";
 import { CircleCheck, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
 import type { AssetCard, OperatorPosture, WallDecision, WallDecisionAsk, WallNextUp, WallWorking } from "@shared/wall";
 import { sumWorkWeeks } from "@shared/work";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { LAST_WEEK_BY_TODAY, WorkWeekChip } from "@/components/viz/WorkFlow";
 import { formatInt } from "@/lib/format";
 import { operatorState } from "@/lib/operator-posture";
+import { taskPath } from "@/lib/task-path";
 import { cn } from "@/lib/utils";
 
 // Next up on the TV: how many decisions wait on the operator, the top one by
 // name, the four after it as site marks with their ages, and beside them what
-// is held now and the week's done. Read-only. A count the snapshot did not
-// measure is a word, never a zero, by the rule Needs attention reads.
+// is held now and the week's done. Each task it names opens its task page; it
+// has no buttons. A count the snapshot did not measure is a word, never a
+// zero, by the rule Needs attention reads.
 
 const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-muted-foreground";
+
+/** A named task's link: no mark of its own on the TV, a hover and a ring at a desk. */
+const taskLink = "rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring";
 
 /** The Tasks page's words for each ask, read out to a screen reader. */
 const ASK_WORDS: Record<WallDecisionAsk, string> = {
@@ -129,7 +135,9 @@ export function NextUp({ next, operator, assets, workAssets, hidden, nowMs }: Ne
               <div className="flex min-w-0 flex-col gap-1">
                 <p className="m-0 text-wall-strip font-semibold text-foreground [overflow-wrap:anywhere]" data-next-top-title="">
                   <span className="sr-only">{ASK_WORDS[top.ask]}: </span>
-                  {top.title}
+                  <Link to={taskPath(top.id)} className="rounded-md outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                    {top.title}
+                  </Link>
                 </p>
                 <p className="m-0 text-wall-detail text-muted-foreground tabular-nums" data-next-top-line="">
                   {decisionLine(top, siteOf(top.asset))}
@@ -142,18 +150,20 @@ export function NextUp({ next, operator, assets, workAssets, hidden, nowMs }: Ne
                     {rest.map((decision) => {
                       const card = cards.get(decision.asset);
                       return (
-                        <li key={decision.id} className="inline-flex items-center gap-1.5" data-next-then-item={decision.id}>
-                          <PropertyFavicon
-                            domain={decision.asset}
-                            icons={card?.icons}
-                            scheme="dark"
-                            displayName={siteOf(decision.asset)}
-                            className="size-6 font-bold text-foreground"
-                          />
-                          <span className="sr-only">{`${decision.title}, ${siteOf(decision.asset)}`}</span>
-                          {decision.ageDays === null ? null : (
-                            <span className="text-wall-detail tabular-nums text-muted-foreground">{formatInt(decision.ageDays)}d</span>
-                          )}
+                        <li key={decision.id} data-next-then-item={decision.id}>
+                          <Link to={taskPath(decision.id)} className={cn("inline-flex items-center gap-1.5", taskLink)}>
+                            <PropertyFavicon
+                              domain={decision.asset}
+                              icons={card?.icons}
+                              scheme="dark"
+                              displayName={siteOf(decision.asset)}
+                              className="size-6 font-bold text-foreground"
+                            />
+                            <span className="sr-only">{`${decision.title}, ${siteOf(decision.asset)}`}</span>
+                            {decision.ageDays === null ? null : (
+                              <span className="text-wall-detail tabular-nums text-muted-foreground">{formatInt(decision.ageDays)}d</span>
+                            )}
+                          </Link>
                         </li>
                       );
                     })}
@@ -181,21 +191,18 @@ export function NextUp({ next, operator, assets, workAssets, hidden, nowMs }: Ne
           ) : (
             <ol className="m-0 flex min-w-0 list-none flex-col gap-3 p-0">
               {working.map((row) => (
-                <li
-                  key={row.id}
-                  className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3"
-                  data-next-working={row.id}
-                  data-next-urgent={row.urgent ? "" : undefined}
-                >
-                  {row.urgent ? (
-                    <Zap className="size-5 shrink-0 text-urgent" role="img" aria-label="Urgent" />
-                  ) : (
-                    <span aria-hidden className="mt-2 size-2.5 shrink-0 rounded-full bg-healthy" data-next-dot="" />
-                  )}
-                  <div className="flex min-w-0 flex-col">
-                    <span className="text-wall-body font-medium text-foreground [overflow-wrap:anywhere]">{row.title}</span>
-                    <span className="text-wall-micro text-muted-foreground tabular-nums">{workingLine(row, siteOf(row.asset))}</span>
-                  </div>
+                <li key={row.id} data-next-working={row.id} data-next-urgent={row.urgent ? "" : undefined}>
+                  <Link to={taskPath(row.id)} className={cn("grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3", taskLink)}>
+                    {row.urgent ? (
+                      <Zap className="size-5 shrink-0 text-urgent" role="img" aria-label="Urgent" />
+                    ) : (
+                      <span aria-hidden className="mt-2 size-2.5 shrink-0 rounded-full bg-healthy" data-next-dot="" />
+                    )}
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-wall-body font-medium text-foreground [overflow-wrap:anywhere]">{row.title}</span>
+                      <span className="text-wall-micro text-muted-foreground tabular-nums">{workingLine(row, siteOf(row.asset))}</span>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ol>

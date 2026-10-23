@@ -96,6 +96,8 @@ describe("Read it as a brief", () => {
     fireEvent.click(toggle());
     const line = container.querySelector<HTMLElement>('[data-brief-line="decision"]')!;
     expect(line).toHaveTextContent("Meadow Board has waited 1 day for your call: Approve the spend.");
+    // The task is named as the link to its page, to be read before Approve.
+    expect(within(line).getByRole("link", { name: "Approve the spend" })).toHaveAttribute("href", "/tasks/md-g1");
     fireEvent.click(within(line).getByRole("button", { name: "Approve" }));
     act(() => flushAnswers());
     await waitFor(() => expect(api.resolveGate).toHaveBeenCalledOnce());

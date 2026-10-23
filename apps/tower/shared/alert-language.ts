@@ -11,6 +11,7 @@ import { WATCH_SERIES } from "@noticeos/contract/create-watch-window";
 import { ageMs, formatAge } from "./freshness";
 import type { AnnotationItem, AnnotationKind } from "./annotations";
 import { siteNoun } from "./site-noun";
+import { isTaskId } from "./tasks";
 
 /** How far before an alert fired a change still counts as correlated: two
  * nights, wide enough to catch the deploy that shipped the evening before the
@@ -28,6 +29,8 @@ export interface AlertEvidence {
   source: string;
   detail: string;
   at: string | null;
+  /** A task id `detail` ends with, which the evidence panel links to its page. */
+  task?: string;
 }
 
 /** The rendered alert: a sentence, an optional next step, and the numbers. */
@@ -906,6 +909,8 @@ function watchWindowClosed(facts: AlertFacts): AlertLanguage {
       source: "Watched change",
       detail: `${refKind ? `${humanizeMetric(refKind)} ` : ""}${ref}`,
       at: str(inputs.registeredAt),
+      // An annotation ref is the change's own id, never a task's.
+      ...(refKind !== "annotation" && isTaskId(ref) ? { task: ref } : {}),
     });
   }
   if (metric || integration) {

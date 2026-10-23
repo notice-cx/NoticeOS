@@ -1,7 +1,8 @@
 import type { AssetCard, OperatorPosture, WallNextUp } from "@shared/wall";
 
 // Next up's invented decisions and held work, spread over the gallery's own
-// sites so each row draws a site the gallery has a card for.
+// sites so each row draws a site the gallery has a card for. Each id is the
+// task id its row links to, so it is shaped like one.
 
 /** Five decisions, the top one holding work, and three held tasks, one urgent. */
 export function nextUpDemo(assets: readonly Pick<AssetCard, "id">[], capturedAt: string): WallNextUp {

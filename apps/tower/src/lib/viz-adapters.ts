@@ -12,6 +12,7 @@ import { healthStateOf, type HealthCell, type HealthColumn, type HealthRow } fro
 import type { Incident } from "@/components/viz/IncidentList";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
 import { backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
+import { taskPath } from "@/lib/task-path";
 import { sourceProblemSince, type WallIssue } from "@/lib/wall-issues";
 
 /** What a source column prints above its cells. */
@@ -153,8 +154,9 @@ const FEED_EVENT: Partial<Record<WallFeedItem["kind"], TimelineEventKind>> = {
 
 /** The timeline's rows, spans and marks: one row per site and one for the
  * System, every open problem as a span from its onset to now, and the feed's
- * stored events as marks on their site's row. Housekeeping (collections,
- * reports, saved settings) is not an event worth a mark. */
+ * stored events as marks on their site's row, a task's mark opening its page.
+ * Housekeeping (collections, reports, saved settings) is not an event worth a
+ * mark. */
 export function timelineFromWall(
   assets: readonly AssetCard[],
   issues: readonly WallIssue[],
@@ -188,6 +190,7 @@ export function timelineFromWall(
       kind,
       severity: kind === "problem" ? (item.tone === "warn" ? "warn" : "error") : undefined,
       label: item.site ? `${item.text}` : item.text,
+      ...(item.task ? { href: taskPath(item.task) } : {}),
     }];
   });
   return { lanes, spans, events };

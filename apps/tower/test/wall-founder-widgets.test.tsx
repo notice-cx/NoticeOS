@@ -3,6 +3,7 @@
 // by channel with its largest funnel drop. Each is drawn from the cards alone.
 
 import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { AssetCard, CardProduct, WallPayload } from "@shared/wall";
 import { WALL_PRESETS } from "@shared/wall-layout";
@@ -144,6 +145,24 @@ describe("WallFactory", () => {
     expect(figures).toEqual(["Building4", "Finished9", "Proven1"]);
     expect(screen.getByText("2 being watched")).toBeInTheDocument();
     expect(screen.getByRole("listitem")).toHaveTextContent("Latest bet · Fine AssetWorked");
+  });
+
+  it("opens a finished task's page from its title, and leaves a bet's line as text", () => {
+    render(
+      <MemoryRouter>
+        <WallFactory
+          week={{
+            building: 1, shipped: 1, proven: 0, watching: 0,
+            latest: [
+              { title: "Faster sign-up page", site: "Fine Asset", line: "Sign-up loads in half the time", task: "fa-1w2" },
+              { title: "Latest bet", site: "Fine Asset", line: "Worked" },
+            ],
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Faster sign-up page" })).toHaveAttribute("href", "/tasks/fa-1w2");
+    expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 
   it("starts the figures under the heading and the lines under them, each at its own height", () => {

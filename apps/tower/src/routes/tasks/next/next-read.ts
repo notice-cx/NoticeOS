@@ -200,6 +200,7 @@ export function heldSince(task: BoardTask): string | null {
 
 /** The epic a decision sits in, with its progress when the read carries it. */
 export interface EpicFacts {
+  id: string;
   title: string;
   closed: number | null;
   total: number | null;
@@ -212,5 +213,5 @@ export function epicOf(read: { byId: ReadonlyMap<string, BoardProject>; spokes: 
   const title = read.byId.get(task.project)?.epicNames.get(task.parent);
   if (!title) return null;
   const counted = read.spokes.find((spoke) => spoke.asset === task.project)?.epics?.find((epic) => epic.id === task.parent);
-  return { title, closed: counted?.closed ?? null, total: counted?.total ?? null };
+  return { id: task.parent, title, closed: counted?.closed ?? null, total: counted?.total ?? null };
 }

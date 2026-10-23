@@ -77,7 +77,7 @@ export function NextDecision({ row, project, epic, of }: {
         <SiteMark site={task.project} name={siteName} showName />
         {epic ? (
           <span className="inline-flex flex-wrap items-baseline gap-x-1.5 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground" data-next-epic="">
-            <span className="text-foreground [overflow-wrap:anywhere]">{epic.title}</span>
+            <TaskTitleLink task={{ id: epic.id, title: epic.title, project: task.project }} />
             {epic.closed !== null && epic.total !== null ? <span className="tabular-nums">{epic.closed} of {epic.total}</span> : null}
           </span>
         ) : null}

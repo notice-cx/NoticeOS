@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, CardChannels, CardDataSource, CardProduct, SeriesPoint, SignalTrend, WallPayload } from "@shared/wall";
-import type { WorkPayload } from "@shared/work";
+import { emptyWorkHistory, type WorkPayload } from "@shared/work";
 import type { RevenueProjection } from "@shared/revenue-projection";
 
 // Home's four business modules (site health, the agents' week, where visitors
@@ -454,6 +454,22 @@ describe("the agents' week", () => {
     expect(container.querySelector('[data-factory-figure="proven"]')).toHaveTextContent("1");
     expect(screen.getByText("2 being watched")).toBeInTheDocument();
     expect(container.querySelector("[data-factory-latest]")).toHaveTextContent("Latest betFirst Asset · Worked");
+  });
+
+  it("opens a finished task's page from its line", () => {
+    const work: WorkPayload = {
+      generatedAt: "2026-10-19T12:00:00.000Z", capturedAt: "2026-10-19T11:00:00.000Z", pollCadenceHours: 1 / 60, owner: "config/beads.json", historyDays: 30,
+      projects: [{
+        asset: "first.example.com", prefix: "fa", name: "First Asset", ok: true, error: null,
+        counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
+        history: emptyWorkHistory(), priorities: null, epics: null, ready: [], inProgress: [], recentlyClosed: [], deferred: [], waiting: [],
+        recentWork: [{ kind: "closed", taskId: "fa-1w2", title: "Faster sign-up page", by: "agent", model: null, at: "2026-10-19T08:00:00.000Z", evidence: "Sign-up loads in half the time" }],
+      }],
+    };
+    const { container } = render(tree(<FactoryModule cards={[card("first.example.com")]} work={work} nowMs={Date.parse("2026-10-19T12:00:00.000Z")} />));
+
+    const line = container.querySelector<HTMLElement>('[data-factory-task="fa-1w2"]')!;
+    expect(within(line).getByRole("link", { name: "Faster sign-up page" })).toHaveAttribute("href", "/tasks/fa-1w2");
   });
 });
 

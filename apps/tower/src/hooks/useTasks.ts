@@ -8,7 +8,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
 import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
@@ -19,6 +19,7 @@ import { chooseOnTask, closeTask, dismissTask, resolveGate, respondToTask, type 
 type NotDone = Exclude<TaskResolution, "done">;
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { closeAsReason } from "@/lib/close-as";
+import { taskPath } from "@/lib/task-path";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
 
@@ -307,6 +308,13 @@ function nameIds(ids: readonly string[]): string {
   return `${ids.slice(0, NAMED).join(", ")}${more}`;
 }
 
+/** A toast's Open: the page of the one task it names. A toast that already
+ * carries Undo keeps that as its one action. */
+export function useOpenTaskAction(): (id: string, project?: string) => { label: string; onClick: () => void } {
+  const navigate = useNavigate();
+  return useCallback((id: string, project?: string) => ({ label: "Open", onClick: () => navigate(taskPath(id, project)) }), [navigate]);
+}
+
 /** The batch toast's heading: what was done and to how many, a close naming
  * its one resolution ("Closed as Won't do · 4"). */
 function answeredMany(answers: readonly InboxAnswer[]): string {
@@ -330,6 +338,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
   const refresh = useTaskRefresh();
   const api = useTowerApi();
   const selected = useTaskSelection();
+  const open = useOpenTaskAction();
   return useCallback(
     (answers: readonly InboxAnswer[], { closedAlready = [] }: { closedAlready?: readonly string[] } = {}) => {
       const kinds = new Set(answers.map((answer) => answer.kind));
@@ -344,7 +353,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
         duration: UNDO_WINDOW_MS,
         action: { label: "Undo", onClick: () => undoGroup(group) },
       });
-      const failed: { id: string; error: unknown }[] = [];
+      const failed: { id: string; project: string | undefined; error: unknown }[] = [];
       let settled = 0;
       let undone = false;
       const settle = () => {
@@ -354,7 +363,10 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
         void refresh();
         if (failed.length === 0) return;
         const reason = failed[0]!.error instanceof Error && failed[0]!.error.message !== "" ? failed[0]!.error.message : undefined;
-        toast.error(`Not sent: ${nameIds(failed.map((entry) => entry.id))}`, reason === undefined ? undefined : { description: reason });
+        toast.error(`Not sent: ${nameIds(failed.map((entry) => entry.id))}`, {
+          ...(reason === undefined ? {} : { description: reason }),
+          ...(failed.length === 1 ? { action: open(failed[0]!.id, failed[0]!.project) } : {}),
+        });
       };
       for (const answer of answers) {
         const captured: InboxAnswer = Object.freeze({ ...answer, project: selected(answer.project) });
@@ -363,7 +375,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
           group,
           send: (keepalive) => sendInboxAnswer(captured, keepalive, api),
           onSent: settle,
-          onFailed: (error) => { failed.push({ id: answer.id, error }); settle(); },
+          onFailed: (error) => { failed.push({ id: answer.id, project: captured.project, error }); settle(); },
           onUndo: () => {
             if (undone) return;
             undone = true;
@@ -372,7 +384,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
         });
       }
     },
-    [refresh, api, selected, toast, scheduleAnswer, undoGroup],
+    [refresh, api, selected, toast, scheduleAnswer, undoGroup, open],
   );
 }
 
@@ -387,6 +399,7 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
   const refresh = useTaskRefresh();
   const api = useTowerApi();
   const selected = useTaskSelection();
+  const open = useOpenTaskAction();
   return useCallback(
     (answer: InboxAnswer) => {
       // Capture the logical project before Undo/navigation can change selection.
@@ -413,11 +426,11 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
         },
         onFailed: (error) => {
           toast.dismiss(toastId);
-          toast.error(error instanceof Error && error.message !== "" ? error.message : `Could not send ${answer.id}`);
+          toast.error(error instanceof Error && error.message !== "" ? error.message : `Could not send ${answer.id}`, { action: open(answer.id, project) });
         },
         onUndo: () => toast.dismiss(toastId),
       });
     },
-    [refresh, api, selected, toast, scheduleAnswer, undoGroup],
+    [refresh, api, selected, toast, scheduleAnswer, undoGroup, open],
   );
 }

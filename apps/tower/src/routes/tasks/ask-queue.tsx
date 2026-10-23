@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { taskOperationAvailable, type TasksCapabilities } from "@shared/tasks";
 import { SelectBox, SelectToggle, useSelection } from "@/components/SelectionBar";
 import { ListRow } from "@/components/surface/ListPanel";
@@ -9,6 +10,7 @@ import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAskActions } from "./ask-actions";
 import { AskSelection } from "./ask-selection";
+import { TaskTitleLink } from "./next/parts";
 import { OpenTaskLink } from "./open-task-link";
 import { askFace } from "./task-face";
 
@@ -134,7 +136,9 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
         <span className="block pb-2 pe-2 ps-9 text-xs text-muted-foreground" data-inbox-proceeds>
           <span className="font-medium text-foreground">After your answer: </span>
           {proceeds.length
-            ? <>{proceeds.slice(0, 2).map(row => row.title).join("; ")}{proceeds.length > 2 ? `; ${formatInt(proceeds.length - 2)} more ${proceeds.length === 3 ? "task" : "tasks"}` : ""}</>
+            ? <>{proceeds.slice(0, 2).map((row, index) => (
+              <Fragment key={row.id}>{index > 0 ? "; " : null}<TaskTitleLink task={{ ...row, project: task.project }} /></Fragment>
+            ))}{proceeds.length > 2 ? `; ${formatInt(proceeds.length - 2)} more ${proceeds.length === 3 ? "task" : "tasks"}` : ""}</>
             : isGate(task) ? "Only the stated action is approved."
               : task.issueType === "decision" ? "The decision is recorded."
                 : "An agent can continue this task."}

@@ -206,7 +206,7 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
         <SiteMark site={task.project} name={project?.name ?? task.project} showName />
         {epic ? (
           <span className="inline-flex flex-wrap items-baseline gap-x-1.5 rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground" data-focus-epic="">
-            <span className="text-foreground [overflow-wrap:anywhere]">{epic.title}</span>
+            <TaskTitleLink task={{ id: epic.id, title: epic.title, project: task.project }} />
             {epic.closed !== null && epic.total !== null ? <span className="tabular-nums">{epic.closed} of {epic.total}</span> : null}
           </span>
         ) : null}
@@ -309,7 +309,7 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
         <Button type="button" variant="ghost" onClick={onSkip} data-focus-skip="">Not now</Button>
         {after ? (
           <span className="min-w-0 text-sm text-muted-foreground [overflow-wrap:anywhere]" data-focus-after="">
-            After this: {after.task.title}{afterSite ? ` · ${afterSite}` : ""}{after.card ? ` · ${formatInt(after.card.reviewMinutes)} min` : ""}
+            After this: <TaskTitleLink task={after.task} />{afterSite ? ` · ${afterSite}` : ""}{after.card ? ` · ${formatInt(after.card.reviewMinutes)} min` : ""}
           </span>
         ) : null}
         <span className="ms-auto text-xs text-muted-foreground max-sm:hidden" data-focus-keys="">{hint}</span>

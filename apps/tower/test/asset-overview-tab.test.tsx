@@ -536,6 +536,20 @@ describe("Asset Overview — the asset's numbers over one chart", () => {
     fireEvent.click(measure(container, "search"));
     expect(chartOf(container).querySelector('[data-overview-span="watch"]')).toBeNull();
   });
+
+  it("opens a closed bet's readback task and the task it watched from its row, as Activity does", async () => {
+    stubJsonFetch(payload({ watches: { open: [], closed: [{
+      id: "watch-2", metricIntegration: "gsc", metric: "clicks", scope: null, refKind: "decision", ref: "md-9k1",
+      registeredAt: "2026-06-02T12:00:00.000Z", nextCheckDate: null, readings: 2, checks: 2, status: "closed",
+      outcome: "inconclusive", outcomeNote: null, closedAt: "2026-07-01T04:00:00.000Z", note: "June title batch", readbackTaskId: "md-r4.1",
+    }], history: [] } }));
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const bet = container.querySelector<HTMLElement>('[data-subject="watch:watch-2"]')!;
+    fireEvent.click(within(bet).getByRole("button", { name: /June title batch/ }));
+    expect(within(bet).getByRole("link", { name: "Readback md-r4.1" })).toHaveAttribute("href", "/tasks/md-r4.1");
+    expect(within(bet).getByRole("link", { name: "md-9k1" })).toHaveAttribute("href", "/tasks/md-9k1");
+  });
 });
 
 describe("Asset Overview — an alert drawn on the series it is about", () => {

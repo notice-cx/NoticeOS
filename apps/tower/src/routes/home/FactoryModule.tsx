@@ -1,17 +1,20 @@
 import { Fragment } from "react";
+import { Link } from "react-router-dom";
 import type { AssetCard } from "@shared/wall";
 import type { WorkPayload } from "@shared/work";
 import { AGENTS_ROUTE } from "@/components/nav-items";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { agentsWeek } from "@/lib/agents-week";
 import { formatInt } from "@/lib/format";
+import { taskPath } from "@/lib/task-path";
 
 const NOT_COUNTED = "not counted yet";
 
 /**
  * The agents' week as a line from work started to work proven: what they are
  * building, what they finished this week, and the sites whose newest bet
- * worked, then the newest few things they did, one line each.
+ * worked, then the newest few things they did, one line each; a finished
+ * task's title opens its page.
  */
 export function FactoryModule({ cards, work, nowMs }: { cards: readonly AssetCard[]; work: WorkPayload | null; nowMs: number }) {
   const week = agentsWeek(cards, work, nowMs);
@@ -47,8 +50,12 @@ export function FactoryModule({ cards, work, nowMs }: { cards: readonly AssetCar
       {week.latest.length > 0 ? (
         <ul className="m-0 flex list-none flex-col gap-1.5 p-0" data-factory-latest="">
           {week.latest.map((line, index) => (
-            <li key={`${line.title}-${index}`} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-              <span className="text-foreground">{line.title}</span>
+            <li key={`${line.title}-${index}`} className="flex flex-wrap items-baseline gap-x-2 text-sm" data-factory-task={line.task}>
+              {line.task ? (
+                <Link to={taskPath(line.task)} className="text-foreground underline-offset-4 hover:underline">{line.title}</Link>
+              ) : (
+                <span className="text-foreground">{line.title}</span>
+              )}
               <span className="text-xs text-muted-foreground">
                 {line.site ? `${line.site} · ` : ""}
                 {line.line}

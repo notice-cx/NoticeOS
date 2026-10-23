@@ -6,6 +6,7 @@ import {
 } from "@shared/wall";
 import { formatCalendarDate } from "@/lib/format";
 import { PanelReviewBadge } from "@/components/PanelReviewBadge";
+import { TaskIdLink } from "@/components/TaskIdLink";
 import { cn } from "@/lib/utils";
 
 export interface PanelReviewLineProps {
@@ -67,10 +68,7 @@ export function PanelReviewLine({
           due {formatCalendarDate(due.slice(0, 10))}
         </span>
       ) : null}
-      {/* The task id, ready to paste into the task CLI. */}
-      <code className="ml-auto rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-        {review.beadId}
-      </code>
+      <TaskIdLink id={review.beadId} className="ml-auto text-[11px]" />
     </div>
   );
 }

@@ -271,18 +271,18 @@ function storeView(view: string, focus: string[] = []) {
 
 /** Home with the query client Decide's verbs need: an answer goes through the
  * Tasks board's own path, which refreshes the task reads (useTaskRefresh). */
-function homeTree() {
+function homeTree(entry = "/") {
   return (
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <HomeRoute />
       </MemoryRouter>
     </QueryClientProvider>
   );
 }
 
-function renderHome() {
-  return render(homeTree());
+function renderHome(entry = "/") {
+  return render(homeTree(entry));
 }
 
 function renderWall() {
@@ -991,12 +991,13 @@ describe("Home — the answer, the money and what is broken", () => {
     const { container } = renderHome();
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
-    expect(container.querySelector("[data-portfolio-census]")!.textContent).toContain("2 assets · updated");
+    expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
     expect(container.querySelector("[data-portfolio-census]")!.textContent).not.toMatch(/portfolio/i);
 
     const answer = container.querySelector<HTMLElement>("[data-home-answer]")!;
     expect(answer.querySelector("[data-brief-since]")).toHaveTextContent(/^Good (morning|afternoon|evening) · since .+ · nothing changed$/);
     expect(answerLine(container)).toHaveTextContent("July so far $45 est. Nothing is broken.");
+    expect(within(answer).queryByRole("link")).toBeNull();
 
     // The audit measures the lead's bottom edge against 900px.
     const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
@@ -1022,6 +1023,50 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
     expect(screen.getByRole("link", { name: "All assets →" })).toHaveAttribute("href", "/assets");
+  });
+
+  it("opens every counted problem from the summary, preserving the Home query", () => {
+    payload.attention = Array.from({ length: 5 }, (_, index) => alert({ id: index + 1, severity: "error" }));
+    const { container } = renderHome("/?period=2026-07");
+    expect(incidentKeys(container)).toHaveLength(3);
+    const link = screen.getByRole("link", { name: "5 things are broken." });
+    expect(link).toHaveAttribute("href", "/?period=2026-07#home-problems");
+    fireEvent.click(link);
+    expect(incidentKeys(container)).toHaveLength(5);
+    expect(document.activeElement).toBe(container.querySelector("#home-problems"));
+  });
+
+  it.each(["everything", "business", "product"])("opens summary destinations in the %s view without changing its preferences", (view) => {
+    storeView(view);
+    payload.attention = [alert({ severity: "error" })];
+    const { container } = renderHome();
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+    fireEvent.click(screen.getByRole("link", { name: "1 thing is broken." }));
+    const problems = container.querySelector("#home-problems");
+    expect(problems).not.toBeNull();
+    expect(document.activeElement).toBe(problems);
+    const changed = screen.getByRole("link", { name: "1 thing changed" });
+    expect(changed).toHaveAttribute("href", "/#home-timeline");
+    fireEvent.click(changed);
+    const timeline = screen.getByRole("region", { name: "Problems and activity" });
+    expect(document.activeElement).toBe(timeline);
+    expect(timeline.querySelector('[data-span^="alert-1:"]')).not.toBeNull();
+    expect(scroll).toHaveBeenCalledTimes(2);
+    scroll.mockRestore();
+    expect(JSON.parse(window.localStorage.getItem(storageKey("view"))!)).toEqual({ view, focus: [] });
+  });
+
+  it("includes a hidden asset's counted change at the linked activity destination", () => {
+    withSecondSite();
+    payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "meadow.example": { list: false } } };
+    payload.attention = [alert({ severity: "error" })];
+    const { container } = renderHome("/?period=2026-07");
+    const changed = screen.getByRole("link", { name: "1 thing changed" });
+    expect(changed).toHaveAttribute("href", "/?period=2026-07#home-timeline");
+    fireEvent.click(changed);
+    expect(container.querySelector('[data-home-timeline] [data-span="alert-1:meadow.example"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-portfolio-row]")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: "1 thing changed" })).toBeInTheDocument();
   });
 
   // On the first days of a month the payload falls back to the latest month
@@ -1100,6 +1145,14 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(incidentKeys(container)).toEqual(["source-ga4", "alert-5"]);
     expect(container.querySelector('[data-incident="source-ga4"] a')).toHaveAttribute("href", "/assets/meadow.example/sources");
     expect(answerLine(container)).toHaveTextContent("1 thing is broken, 1 at risk.");
+  });
+
+  it("opens an overdue review's task from its problem row", () => {
+    payload.assets = [{ ...SEEDED_ASSETS[0]!, latestPanelDate: "2026-07-20",
+      panelReview: { beadId: "md-4a2", panelDate: "2026-07-20", dueAt: "2026-07-22T00:00:00.000Z", status: "open", closedAt: null, panel: true } }];
+    payload.attention = [];
+    const { container } = renderHome();
+    expect(container.querySelector('[data-incident="review-meadow.example"] a')).toHaveAttribute("href", "/tasks/md-4a2");
   });
 
   /** A site with no number yet opens on its Data sources, as the sidebar sends it. */
@@ -1213,6 +1266,7 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(container.querySelector('[data-lane="meadow.example"]')).toBeNull();
     expect(incidentKeys(container)).toEqual(expect.arrayContaining(["alert-9", expect.stringMatching(/^source-/u)]));
     expect(answerLine(container)).toHaveTextContent("2 things are broken.");
+    expect(container.querySelector("[data-portfolio-census]")).toHaveTextContent(/^updated 5m ago$/);
   });
 });
 

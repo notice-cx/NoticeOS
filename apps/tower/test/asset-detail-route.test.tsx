@@ -5270,6 +5270,27 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     expect(container.textContent).not.toMatch(/it worked|confirmed|resolved/i);
   });
 
+  it("opens a recorded event's task the asset's tasks do not list, and leaves a ref that is no task id as text", async () => {
+    stubFetch(200, {
+      ...payload(),
+      annotations: {
+        items: [
+          { id: 41, at: new Date(changeMs).toISOString(), kind: "deploy", ref: "md-7zz", note: "rewrote the tornado kit opener" },
+          { id: 42, at: new Date(changeMs - 3_600_000).toISOString(), kind: "config", ref: "cache rule v2", note: "moved the cache rule" },
+        ],
+        olderCount: 0,
+      },
+    });
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
+
+    await findByText("Timeline");
+    openRow("rewrote the tornado kit opener");
+    openRow("moved the cache rule");
+    expect(container.querySelector('[data-task-id-link="md-7zz"]')).toHaveAttribute("href", "/tasks/md-7zz");
+    expect(container.textContent).toContain("cache rule v2");
+    expect(container.querySelectorAll("[data-task-id-link]")).toHaveLength(1);
+  });
+
   it("re-derives when the operator changes which number is watched", async () => {
     const fetchMock = stubFetch(200, withFlatClicks());
     const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");

@@ -1,11 +1,10 @@
 import { Activity, Cable, Check, Plus } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRunStepKey } from "@shared/first-run";
 import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
-import { siteCount } from "@shared/site-noun";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
 import type { HomeModuleId, WordLevel } from "@shared/views";
@@ -62,6 +61,7 @@ import { HealthModule } from "@/routes/home/HealthModule";
 import { HomeModules } from "@/routes/home/modules";
 import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
+import { taskPath } from "@/lib/task-path";
 
 /**
  * Home answers how the business is doing, what is broken and what needs the
@@ -92,9 +92,7 @@ export function HomeRoute() {
       <PageHeader
         title="Home"
         documentTitle={null}
-        // The census is a fact about the page, not a control: how old the
-        // reading is, in one quiet line at the end of the header row.
-        actions={data && drawn && !guide ? <Census assetCount={data.assets.length} generatedAt={data.generatedAt} nowMs={now} /> : null}
+        actions={data && drawn && !guide ? <Census generatedAt={data.generatedAt} nowMs={now} /> : null}
       />
 
       {!data || !drawn ? (
@@ -126,6 +124,17 @@ const DAY_MS = 86_400_000;
 
 function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
   const { modules, view } = useView();
+  const location = useLocation();
+  const linkedModule = location.hash === "#home-problems" ? "problems" : location.hash === "#home-timeline" ? "timeline" : null;
+  // A summary link can reveal a section omitted by the saved view without
+  // changing the person's preferences.
+  const shownModules: HomeModuleId[] = linkedModule && !modules.includes(linkedModule) ? [...modules, linkedModule] : modules;
+  useEffect(() => {
+    if (!linkedModule) return;
+    const target = document.getElementById(location.hash.slice(1));
+    target?.scrollIntoView({ block: "start" });
+    target?.focus({ preventScroll: true });
+  }, [linkedModule, location.hash, location.key]);
   // Everything keeps its twelve-column grid; every other view stacks its
   // modules in columns, each at its own content's height.
   const stacks = view.id !== "everything";
@@ -139,13 +148,17 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const aboutHidden = (ids: readonly string[]) => ids.length > 0 && ids.every((id) => hiddenIds.has(id));
   const oneSite = data.assets.length === 1 && listed.length === 1 ? listed[0]! : null;
   const since = feed?.since ?? null;
+  const recentIssues = issues.filter((issue) => since !== null && issue.since !== null && issue.since >= since);
+  const timelineSites = linkedModule === "timeline"
+    ? data.assets.filter((asset) => listed.includes(asset) || recentIssues.some((issue) => issue.assets.includes(asset.id)))
+    : listed;
   const timeline = timelineFromWall(
-    listed,
-    issues.filter((issue) => !aboutHidden(issue.assets)),
+    timelineSites,
+    issues.filter((issue) => !aboutHidden(issue.assets) || (linkedModule === "timeline" && recentIssues.includes(issue))),
     (feed?.items ?? []).filter((item) => item.asset === null || !aboutHidden([item.asset])),
     sitePath,
   );
-  const changed = issues.filter((issue) => since !== null && issue.since !== null && issue.since >= since).length + timeline.events.length;
+  const changed = recentIssues.length + timeline.events.length;
   // What the materiality suite reads: every open condition Home stands for, so
   // a problem the Wall lists is drawn here too.
   const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
@@ -165,10 +178,13 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     ),
     problems: () => (
       <IncidentList
+        id="home-problems"
+        tabIndex={-1}
+        className="scroll-mt-6 outline-none"
         items={incidentsFromIssues(issues, { to: (issue) => issueLink(issue, data.assets) })}
         nowMs={nowMs}
         marker={since}
-        compact
+        compact={linkedModule !== "problems"}
         action={{ label: "All alerts →", to: "/alerts" }}
         empty="Nothing is broken."
       />
@@ -185,7 +201,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     channels: () => <ChannelsModule cards={listed} />,
     gaps: () => <GapsModule cards={listed} />,
     timeline: () => (
-      <section aria-labelledby="home-timeline-title" className="flex flex-col gap-4 rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+      <section id="home-timeline" tabIndex={-1} aria-labelledby="home-timeline-title" className="flex scroll-mt-6 flex-col gap-4 rounded-xl bg-card px-5 py-4 outline-none ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
         <SectionLabel id="home-timeline-title" title="Problems and activity" caption="Last 24 hours" />
         <EventTimeline
           lanes={timeline.lanes}
@@ -214,13 +230,15 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
         wordLevel={view.wordLevel}
       />
-      <HomeModules modules={modules} draw={draw} layout={stacks ? "stacks" : "grid"} />
+      <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
     </div>
   );
 }
 
-/** Where a problem's row opens: its site, the System, or the alerts. */
+/** Where a problem's row opens: the task that closes it, its site, the
+ * System, or the alerts. */
 function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
+  if (issue.task) return taskPath(issue.task);
   const asset = issue.assets.length === 1 ? assets.find((candidate) => candidate.id === issue.assets[0]) : undefined;
   if (asset) return issue.key.startsWith("source-") ? `/assets/${encodeURIComponent(asset.id)}/sources` : sitePath(asset);
   return issue.key.startsWith("system-") || issue.key.startsWith("source-") ? "/health" : "/alerts";
@@ -252,6 +270,7 @@ export function healthWords(cards: readonly AssetCard[], issues: readonly WallIs
  * drawn only when there is one.
  */
 function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel = "technical" }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; health?: { words: string; tone: "error" | "warn" | null } | null; wordLevel?: WordLevel }) {
+  const { search } = useLocation();
   const errors = issues.filter((issue) => issue.severity === "error").length;
   const warnings = issues.length - errors;
   const month = money ? formatPeriodMonthLong(money.period) : null;
@@ -266,6 +285,8 @@ function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel
   const problemWords = errors === 0 && warnings === 0
     ? "Nothing is broken."
     : `${errors > 0 ? `${formatInt(errors)} ${errors === 1 ? "thing is" : "things are"} broken` : ""}${errors > 0 && warnings > 0 ? ", " : ""}${warnings > 0 ? `${formatInt(warnings)} at risk` : ""}.`;
+  const summaryLinkClass = "underline decoration-current/30 underline-offset-4 outline-none hover:decoration-current focus-visible:ring-2 focus-visible:ring-ring";
+  const problems = issues.length > 0 ? <Link to={{ search, hash: "#home-problems" }} className={summaryLinkClass}>{problemWords}</Link> : problemWords;
   return (
     <header className="flex flex-col gap-1" data-home-answer="">
       <span className="text-sm text-muted-foreground" data-brief-since="">
@@ -277,18 +298,18 @@ function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel
           </>
         ) : null}
         {" · "}
-        {changed === 0 ? "nothing changed" : `${formatInt(changed)} ${changed === 1 ? "thing" : "things"} changed`}
+        {changed === 0 ? "nothing changed" : <Link to={{ search, hash: "#home-timeline" }} className={summaryLinkClass}>{`${formatInt(changed)} ${changed === 1 ? "thing" : "things"} changed`}</Link>}
       </span>
       {health ? (
         <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]" data-home-answer-health="">
           <span className={health.tone === "error" ? "text-error" : health.tone === "warn" ? "text-warn" : undefined}>{health.words}</span>
           {moneyWords ? <span> {moneyWords}</span> : null}
-          {errors > 0 || warnings > 0 ? <span className={errors > 0 ? "text-error" : "text-warn"}> {problemWords}</span> : null}
+          {errors > 0 || warnings > 0 ? <span className={errors > 0 ? "text-error" : "text-warn"}> {problems}</span> : null}
         </h2>
       ) : (
         <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]">
           {moneyWords ? <span>{moneyWords} </span> : null}
-          <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problemWords}</span>
+          <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problems}</span>
         </h2>
       )}
     </header>
@@ -561,11 +582,10 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
 
 /** How old the reading is. The age is the payload's own `generatedAt` rather
  * than a per-source freshness: the question is "am I looking at a stale tab". */
-function Census({ assetCount, generatedAt, nowMs }: { assetCount: number; generatedAt: string; nowMs: number }) {
+function Census({ generatedAt, nowMs }: { generatedAt: string; nowMs: number }) {
   return (
     <span className="text-xs text-muted-foreground" data-portfolio-census>
-      {/* One site is named on its lead; "1 site" would count nothing. */}
-      {assetCount === 1 ? "updated" : `${siteCount(assetCount)} · updated`} {formatAge(ageMs(nowMs, generatedAt))} ago
+      updated {formatAge(ageMs(nowMs, generatedAt))} ago
     </span>
   );
 }

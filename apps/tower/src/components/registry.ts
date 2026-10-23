@@ -231,6 +231,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["open", "closed", "closed undated", "not filed (renders nothing)"],
   },
   {
+    name: "TaskIdLink",
+    file: "components/TaskIdLink.tsx",
+    purpose:
+      "A task named by its id, as the link to /tasks/<id>, in mono at the surrounding text's size: an asset's review task, a ref the snapshot does not hold, a bet's readback task, an alert's watched change, the task the Task projects check filed. It carries no state; a task the snapshot holds is HandoffBeadBadge, with its open or closed glyph.",
+    variants: ["in a line of text", "in a small caption"],
+  },
+  {
     name: "PriorityBar",
     file: "components/PriorityBar.tsx",
     purpose:
@@ -1452,14 +1459,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallFactory",
     file: "components/wall/WallFactory.tsx",
     purpose:
-      "The TV's agents widget: building, finished this week and proven as three figures joined by chevrons, read from agentsWeek, how many changes are still being watched, and plain lines about the newest work under the figures, as many whole lines as fit the widget's height. A count nobody can read is a dash, never a zero.",
+      "The TV's agents widget: building, finished this week and proven as three figures joined by chevrons, read from agentsWeek, how many changes are still being watched, and plain lines about the newest work under the figures, as many whole lines as fit the widget's height, a finished task's title linking to /tasks/<id>. A count nobody can read is a dash, never a zero.",
     variants: ["counted with lines", "unknown counts, nothing finished"],
   },
   {
     name: "NextUp",
     file: "components/wall/NextUp.tsx",
     purpose:
-      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its asset, age and what it holds, the next four as asset marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
+      "The TV's Next up widget, read across a room: the decisions waiting on the operator as one large figure in warn with the oldest one's age, the top decision by name with its asset, age and what it holds, the next four as asset marks with their ages, and beside them the agents' work now (urgent with the bolt in the urgent colour, the rest with a green dot) and the week's done with its change chip. The top decision's title, each later mark and each agent row link to /tasks/<id>; it has no buttons. A count the snapshot did not measure is a word in the words Needs attention uses, never a zero.",
     variants: ["decisions with the agents now", "nothing waits, nothing in progress", "tasks unknown"],
   },
   {

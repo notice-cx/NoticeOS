@@ -1353,6 +1353,8 @@ describe("/settings — the task-hub project map", () => {
     const note = document.querySelector("[data-database-not-found]") as HTMLElement;
     expect(note.textContent).toContain("meadow.example is not being backed up");
     expect(note.textContent).toContain("No database named md");
+    // The task the hourly check filed opens its page.
+    expect(within(note).getByRole("link", { name: "ro-14" })).toHaveAttribute("href", "/tasks/ro-14");
     expect(note.textContent).not.toMatch(/Tasks board keeps working/u);
     fireEvent.click(within(note).getByRole("button", { name: "Edit name" }));
     expect(document.activeElement).toBe(within(projectRow("meadow.example")).getByLabelText("Database"));
