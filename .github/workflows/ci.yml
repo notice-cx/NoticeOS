@@ -37,10 +37,14 @@ jobs:
   # job; a pull request needs the PR-lane jobs its changed files reach, the
   # task store only when they reach its own code, and for documentation alone
   # the root script suite (issue #4). The root script suite reads every
-  # tracked Markdown file, so it always runs.
+  # tracked Markdown file, so it runs in every lane. A push to main whose
+  # commit passed the full lane in the merge queue needs no job.
   scope:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     outputs:
       lane: ${{ steps.scope.outputs.lane }}
       needed: ${{ steps.scope.outputs.needed }}
@@ -50,6 +54,8 @@ jobs:
           fetch-depth: 2
       - run: node scripts/ci-scope.mjs
         id: scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
   tower-unit:
     needs: scope
@@ -99,6 +105,8 @@ jobs:
           UNIT_TEST_WORKERS: 100%
 
   scripts:
+    needs: scope
+    if: fromJSON(needs.scope.outputs.needed)['scripts']
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { JOBS, laneOf, main, neededJobs, needsRuntime, scopeGraph, unreadByRuntime } from './ci-scope.mjs';
+import { JOBS, laneOf, main, NONE, neededJobs, needsRuntime, queuedRun, scopeGraph, unreadByRuntime } from './ci-scope.mjs';
 
 // A pull request runs the PR lane and every other run the full lane; a
 // documentation-only pull request skips the unit and journey jobs (issue #4).
@@ -109,7 +109,7 @@ test('every job a lane can skip is one the full lane runs, and the root script s
   }
 });
 
-test('a push runs every suite; a pull request is judged on the files its merge commit changes, a rename on both paths', (t) => {
+test('a push runs every suite; a pull request is judged on the files its merge commit changes, a rename on both paths', async (t) => {
   const repo = mkdtempSync(path.join(os.tmpdir(), 'ci-scope-'));
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   const git = (...args) => {
@@ -117,12 +117,12 @@ test('a push runs every suite; a pull request is judged on the files its merge c
     assert.equal(run.status, 0, run.stderr);
   };
   const output = path.join(repo, '.output');
-  const judge = (env) => {
+  const judge = async (env) => {
     writeFileSync(output, '');
     const stdout = process.stdout.write;
     process.stdout.write = () => true;
     try {
-      return { ...main({ ...env, GITHUB_OUTPUT: output }, repo), written: readFileSync(output, 'utf8') };
+      return { ...(await main({ ...env, GITHUB_OUTPUT: output }, repo)), written: readFileSync(output, 'utf8') };
     } finally {
       process.stdout.write = stdout;
     }
@@ -137,8 +137,8 @@ test('a push runs every suite; a pull request is judged on the files its merge c
   git('commit', '-q', '-am', 'docs');
   git('checkout', '-q', 'main');
   git('merge', '-q', '--no-ff', '-m', 'merge', 'docs');
-  assert.deepEqual(judge({ GITHUB_EVENT_NAME: 'pull_request' }), { lane: 'pr', needed: DOCS_ONLY, written: `lane=pr\nneeded=${JSON.stringify(DOCS_ONLY)}\n` });
-  assert.deepEqual(judge({ GITHUB_EVENT_NAME: 'push' }), { lane: 'full', needed: EVERY_JOB_BUT_SMOKE, written: `lane=full\nneeded=${JSON.stringify(EVERY_JOB_BUT_SMOKE)}\n` });
+  assert.deepEqual(await judge({ GITHUB_EVENT_NAME: 'pull_request' }), { lane: 'pr', needed: DOCS_ONLY, written: `lane=pr\nneeded=${JSON.stringify(DOCS_ONLY)}\n` });
+  assert.deepEqual(await judge({ GITHUB_EVENT_NAME: 'push' }), { lane: 'full', needed: EVERY_JOB_BUT_SMOKE, written: `lane=full\nneeded=${JSON.stringify(EVERY_JOB_BUT_SMOKE)}\n` });
 
   git('checkout', '-q', '-b', 'rename', 'HEAD^1');
   git('mv', 'code.ts', 'AGENTS.md');
@@ -146,7 +146,39 @@ test('a push runs every suite; a pull request is judged on the files its merge c
   git('checkout', '-q', 'main');
   git('reset', '-q', '--hard', 'HEAD^1');
   git('merge', '-q', '--no-ff', '-m', 'merge', 'rename');
-  assert.equal(judge({ GITHUB_EVENT_NAME: 'pull_request' }).needed['tower-unit'], true, 'code renamed into documentation still runs the unit suites');
+  assert.equal((await judge({ GITHUB_EVENT_NAME: 'pull_request' })).needed['tower-unit'], true, 'code renamed into documentation still runs the unit suites');
+});
+
+test('a push whose commit passed the full lane in the merge queue needs no job; any doubt runs the full lane', async () => {
+  const sha = 'a'.repeat(40);
+  const push = { GITHUB_EVENT_NAME: 'push', GITHUB_TOKEN: 'token', GITHUB_SHA: sha, GITHUB_REPOSITORY: 'owner/repo', GITHUB_API_URL: 'https://api.example.test' };
+  const asked = [];
+  const answer = (runs, ok = true) => async (url, init) => {
+    asked.push({ url, authorization: init.headers.authorization });
+    return { ok, json: async () => ({ workflow_runs: runs }) };
+  };
+  const passed = { head_sha: sha, event: 'merge_group', conclusion: 'success', html_url: 'https://example.test/run/1' };
+  assert.equal(await queuedRun(push, answer([passed])), 'https://example.test/run/1');
+  assert.deepEqual(asked, [{ url: `https://api.example.test/repos/owner/repo/actions/workflows/ci.yml/runs?event=merge_group&head_sha=${sha}&status=success&per_page=5`, authorization: 'Bearer token' }]);
+  for (const [why, env, request] of [
+    ['a pull request', { ...push, GITHUB_EVENT_NAME: 'pull_request' }, answer([passed])],
+    ['no token', { ...push, GITHUB_TOKEN: '' }, answer([passed])],
+    ['another commit', push, answer([{ ...passed, head_sha: 'b'.repeat(40) }])],
+    ['a failed queue run', push, answer([{ ...passed, conclusion: 'failure' }])],
+    ['an API error', push, answer([passed], false)],
+    ['an unreachable API', push, async () => { throw new Error('offline'); }],
+  ]) {
+    assert.equal(await queuedRun(env, request), null, why);
+  }
+  const stdout = process.stdout.write;
+  process.stdout.write = () => true;
+  try {
+    assert.deepEqual(await main(push, REPO_ROOT, answer([passed])), { lane: 'queued', needed: NONE });
+    assert.deepEqual(await main(push, REPO_ROOT, answer([], false)), { lane: 'full', needed: EVERY_JOB_BUT_SMOKE });
+  } finally {
+    process.stdout.write = stdout;
+  }
+  assert.deepEqual(Object.values(NONE), JOBS.map(() => false));
 });
 
 /** Tracked files under `folders`. */

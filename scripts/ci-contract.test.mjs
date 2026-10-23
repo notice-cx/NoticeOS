@@ -6,7 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { PR_SMOKE } from '../apps/tower/e2e/fixtures.ts';
-import { JOBS as SCOPED_JOBS, neededJobs } from './ci-scope.mjs';
+import { JOBS as SCOPED_JOBS, NONE, neededJobs } from './ci-scope.mjs';
 
 // The root is intentionally not a pnpm workspace. That keeps the recursive
 // workspace commands valid when there are zero workspaces, but it also means
@@ -144,7 +144,7 @@ test('CI runs every step of pnpm test:journeys', () => {
 
 // GitHub counts a skipped required check as passing, so the verdict itself
 // must refuse a job that skipped although the scope needed it.
-test('the scope decides every job but the script suite, and the verdict judges each against it', () => {
+test('the scope decides every job, and the verdict judges each against it', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
   assert.match(workflow, /^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {2}merge_group:\n(?: {2}#.*\n)* {2}schedule:\n {4}- cron: '[\d* ]+'\n {2}workflow_dispatch:\n/mu,
     'pull requests, the merge queue, main, a nightly run and a hand-started run');
@@ -152,12 +152,12 @@ test('the scope decides every job but the script suite, and the verdict judges e
   assert.deepEqual(runCommands(scope), ['node scripts/ci-scope.mjs']);
   assert.match(scope, /fetch-depth: 2\n/u, "the merge commit's base parent is fetched");
   assert.match(scope, /needed: \$\{\{ steps\.scope\.outputs\.needed \}\}/u);
-  for (const name of SCOPED_JOBS.filter((job) => job !== 'scripts')) {
+  assert.match(scope, /^ {4}permissions:\n {6}contents: read\n {6}actions: read\n/mu, 'the scope reads the merge queue runs, and nothing more');
+  assert.match(scope, /- run: node scripts\/ci-scope\.mjs\n {8}id: scope\n {8}env:\n {10}GITHUB_TOKEN: \$\{\{ github\.token \}\}\n/u);
+  for (const name of SCOPED_JOBS) {
     assert.match(jobBlock(workflow, name), new RegExp(`^ {4}needs: scope\\n {4}if: fromJSON\\(needs\\.scope\\.outputs\\.needed\\)\\['${name}'\\]\\n`, 'mu'),
       `${name} runs when the scope needs it`);
   }
-  // The root suite reads every tracked Markdown file, so it always runs.
-  assert.doesNotMatch(jobBlock(workflow, 'scripts'), /^ {4}if:/mu);
   const build = jobBlock(workflow, 'build');
   assert.match(build, new RegExp(`^ {4}needs: \\[scope, ${SCOPED_JOBS.join(', ')}\\]\\n {4}if: always\\(\\)\\n`, 'mu'), 'the required check judges every job');
   assert.match(build, /NEEDS: \$\{\{ toJSON\(needs\) \}\}\n\s+NEEDED: \$\{\{ needs\.scope\.outputs\.needed \}\}/u);
@@ -171,7 +171,7 @@ test('the scope decides every job but the script suite, and the verdict judges e
     assert.equal(run.error, undefined, 'jq runs, as it does on the runner');
     return run.status === 0;
   };
-  for (const [lane, needed] of Object.entries(LANES)) {
+  for (const [lane, needed] of Object.entries({ ...LANES, 'queued push': NONE })) {
     const passed = Object.fromEntries(SCOPED_JOBS.map((job) => [job, needed[job] ? 'success' : 'skipped']));
     assert.equal(judge(passed, needed), true, `the ${lane} lane passes when each needed job passed`);
     for (const job of SCOPED_JOBS.filter((name) => needed[name])) {

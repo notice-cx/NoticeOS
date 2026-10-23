@@ -21,6 +21,11 @@
 // So a pull request that changes only documentation runs it alone; the docs
 // workflow builds the site.
 //
+// A push to main whose commit already passed the full lane in the merge queue
+// needs no job again: the queue tested that exact commit. The scope finds the
+// queue's passing run through the GitHub API; when it cannot, the push runs
+// the full lane.
+//
 // Documentation here is what the skipped jobs never read: docs/ and a
 // Markdown file at the repository root. scripts/ci-scope.test.mjs refuses a
 // read of any of it from the code those jobs run; a folder under docs/ that
@@ -51,6 +56,9 @@ export function unreadByRuntime(file) {
 export function needsRuntime(files) {
   return files.length === 0 || !files.every(unreadByRuntime);
 }
+
+/** No job: a push whose commit passed the full lane in the merge queue. */
+export const NONE = Object.freeze(Object.fromEntries(JOBS.map((job) => [job, false])));
 
 /** The lane an event runs: pull requests the PR lane, everything else the full lane. */
 export function laneOf(event) {
@@ -210,21 +218,40 @@ function pullRequestFiles(cwd) {
   return listed.stdout.split('\n').filter(Boolean);
 }
 
-export function main(env = process.env, cwd = process.cwd()) {
+/** The merge-queue run of this workflow that passed on the pushed commit, as
+ * its URL, or null: on any other event, without a token, on an API error or
+ * when the queue never ran that commit. */
+export async function queuedRun(env, request = fetch) {
+  const { GITHUB_EVENT_NAME: event, GITHUB_TOKEN: token, GITHUB_SHA: sha, GITHUB_REPOSITORY: repository } = env;
+  if (event !== 'push' || !token || !sha || !repository) return null;
+  const api = env.GITHUB_API_URL ?? 'https://api.github.com';
+  const url = `${api}/repos/${repository}/actions/workflows/ci.yml/runs?event=merge_group&head_sha=${sha}&status=success&per_page=5`;
+  try {
+    const response = await request(url, { headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json' } });
+    if (!response.ok) return null;
+    const { workflow_runs: runs = [] } = await response.json();
+    const run = runs.find((candidate) => candidate.head_sha === sha && candidate.event === 'merge_group' && candidate.conclusion === 'success');
+    return run?.html_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function main(env = process.env, cwd = process.cwd(), request = fetch) {
   const event = env.GITHUB_EVENT_NAME ?? 'local';
-  const lane = laneOf(event);
+  const queued = await queuedRun(env, request);
+  const lane = queued ? 'queued' : laneOf(event);
   const files = lane === 'pr' ? pullRequestFiles(cwd) : [];
-  const needed = neededJobs(event, files, scopeGraph(cwd), files.includes('package.json') ? manifestChange(cwd) : null);
-  const reason = lane === 'full'
-    ? `a ${event} run runs the full lane`
-    : needsRuntime(files)
-      ? `${files.filter((file) => !unreadByRuntime(file)).length} of ${files.length} changed file(s) are read by a runtime suite`
-      : `all ${files.length} changed file(s) are documentation no runtime suite reads`;
+  const needed = queued ? NONE : neededJobs(event, files, scopeGraph(cwd), files.includes('package.json') ? manifestChange(cwd) : null);
+  const reason = queued ? `this commit passed the full lane in the merge queue (${queued})`
+    : lane === 'full' ? `a ${event} run runs the full lane`
+    : needsRuntime(files) ? `${files.filter((file) => !unreadByRuntime(file)).length} of ${files.length} changed file(s) are read by a runtime suite`
+    : `all ${files.length} changed file(s) are documentation no runtime suite reads`;
   const runs = JOBS.filter((job) => needed[job]);
-  process.stdout.write(`lane=${lane}: ${reason}; runs ${runs.join(', ')}\n`);
+  process.stdout.write(`lane=${lane}: ${reason}; runs ${runs.join(', ') || 'no job'}\n`);
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `lane=${lane}\nneeded=${JSON.stringify(needed)}\n`);
   return { lane, needed };
 }
 
 const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (invoked) main();
+if (invoked) await main();

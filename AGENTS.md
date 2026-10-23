@@ -176,7 +176,9 @@ queue, a push to `main`, the nightly run and a run started by hand
 (`gh workflow run ci.yml --ref <branch>`) run the full lane: the same suites,
 every browser journey split test by test across three shards, the journey
 harness then the UX flow walker (a report; it fails only when a flow cannot be
-walked), and `pnpm test:task-store` against a real Dolt server in Docker. Each
+walked), and `pnpm test:task-store` against a real Dolt server in Docker; a
+push to `main` whose commit already passed the full lane in the merge queue
+runs no job again. Each
 job installs only what its suites start: PostgreSQL 18, Chromium in the
 browser jobs, the pinned task and Dolt tools in the task-store job. In the
 PR lane a job runs only when a changed file reaches its code: a folder it
