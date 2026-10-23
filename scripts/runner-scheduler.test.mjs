@@ -110,6 +110,7 @@ test('a failed weekly DataForSEO firing is fired once more ten minutes later, an
 test('only a failed firing of a lane that earns a retry schedules one', () => {
   const schedule = () => assert.fail('nothing should be scheduled');
   assert.equal(retryFailedFiring('cron 45 12 * * 1', { outcome: 'ran' }, { retry: () => {}, schedule }), null);
+  assert.equal(retryFailedFiring('cron 45 12 * * 1', { outcome: 'skipped', detail: 'interrupted: server reloading' }, { retry: () => {}, schedule }), null);
   assert.equal(retryFailedFiring('cron 45 12 * * 1', null, { retry: () => {}, schedule }), null);
   // A daily lane's failure waits for its next regular tick.
   assert.equal(retryFailedFiring('cron 15 12 * * *', { outcome: 'failed' }, { retry: () => {}, schedule }), null);

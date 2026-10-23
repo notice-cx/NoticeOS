@@ -372,6 +372,21 @@ needsPostgres("buildWallFeed", () => {
 
   const lines = (items: WallFeedItem[]) => items.map((item) => `${item.at.slice(11, 16)} ${item.kind} ${item.site ?? "-"} · ${item.text}`);
 
+  it("omits reload and shutdown interruptions while retaining genuine failed jobs", async () => {
+    await pg.call.write(tx => tx.execute(
+      `INSERT INTO noticeos.job_runs (workspace_id, job, started_at, finished_at, outcome, detail, recorded_at)
+       VALUES ($1::uuid, 'cron * * * * *', $2::timestamptz, $2::timestamptz, 'skipped', 'interrupted: server reloading', $2::timestamptz),
+              ($1::uuid, 'cron * * * * *', $3::timestamptz, $3::timestamptz, 'skipped', 'interrupted: runner shutting down', $3::timestamptz),
+              ($1::uuid, 'cron * * * * *', $4::timestamptz, $4::timestamptz, 'failed', 'HTTP 500', $4::timestamptz)`,
+      [tx.workspaceId, at("13:00"), at("13:01"), at("13:02")],
+    ));
+    const feed = await buildWallFeed(pg.call, DEPS);
+    const realtime = feed.items.filter(item => item.kind === "job-failed" && item.text.includes("Realtime traffic"));
+    expect(realtime).toHaveLength(1);
+    expect(realtime[0]?.at).toBe(at("13:02"));
+    expect(realtime[0]?.text).toBe("Realtime traffic failed");
+  });
+
   it("excludes archived noise before small source caps, including task and money reads", async () => {
     await pg.call.write(tx => tx.execute("UPDATE noticeos.assets SET status = 'retired' WHERE asset_id = $1", ["recipes.example.com"]));
     await storeAlerts(pg.call, [flag("codes.example.com", at("17:00"), "Active alert")]);

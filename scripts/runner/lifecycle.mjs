@@ -8,6 +8,8 @@ import path from 'node:path';
 import { ensureSharedStateLinks, linkConflictLines, samePath } from '../os-runtime.mjs';
 
 let shuttingDown = false;
+const shutdownController = new AbortController();
+export const shutdownSignal = shutdownController.signal;
 
 /** Whether this runner has begun its clean shutdown (SIGINT/SIGTERM). Lanes,
  * the scheduler and the child supervisor read it; only the shutdown sets it. */
@@ -17,6 +19,7 @@ export function isShuttingDown() {
 
 export function beginShutdown() {
   shuttingDown = true;
+  shutdownController.abort(new Error('runner shutting down'));
 }
 
 /**

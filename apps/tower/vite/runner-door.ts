@@ -17,6 +17,7 @@ import {
   RUNNER_DOOR_HEADER,
   RUNNER_DOOR_HEADER_VALUE,
   RUNNER_PATH_PREFIX,
+  RUNNER_SCHEDULED_PATH,
   isLoopbackAddress,
   runnerDoorTarget,
 } from "../shared/runner-lane";
@@ -126,6 +127,49 @@ export function serveDoorRequest(
   middlewares(req, res);
 }
 
+/** Finish scheduled requests before Vite replaces their Worker runtime. */
+export function scheduledReloads(server: Pick<ViteDevServer, "restart" | "close">): Connect.NextHandleFunction {
+  let reloading = false;
+  const pending = new Set<ServerResponse>();
+  const respond = (res: ServerResponse): Promise<void> => {
+    if (res.headersSent || res.writableEnded || res.destroyed) return Promise.resolve();
+    return new Promise(resolve => {
+      const done = () => {
+        res.off("finish", done);
+        res.off("close", done);
+        resolve();
+      };
+      res.once("finish", done);
+      res.once("close", done);
+      res.statusCode = 503;
+      res.setHeader("content-type", "application/json; charset=utf-8");
+      res.end(JSON.stringify({ error: "runtime_reloading" }));
+    });
+  };
+  const interrupt = () => {
+    reloading = true;
+    const flushed = Promise.all([...pending].map(respond));
+    pending.clear();
+    return flushed;
+  };
+  const restart = server.restart.bind(server);
+  server.restart = async (...args) => {
+    const flushed = interrupt();
+    try { await flushed; await restart(...args); }
+    // A failed config reload can leave the original server serving requests.
+    finally { reloading = false; }
+  };
+  const close = server.close.bind(server);
+  server.close = async () => { await interrupt(); await close(); };
+  return (req, res, next) => {
+    if ((req.url ?? "").split("?")[0] !== RUNNER_SCHEDULED_PATH) return next();
+    if (reloading) { void respond(res); return; }
+    pending.add(res);
+    res.once("close", () => pending.delete(res));
+    next();
+  };
+}
+
 /**
  * A failed bind is fatal on purpose: the door port is the single-runtime
  * interlock, and a second dev server would run duplicate scheduled lanes for
@@ -138,11 +182,12 @@ export function ingestDoor(): Plugin {
     apply: "serve",
     configureServer(viteDevServer: ViteDevServer) {
       viteDevServer.middlewares.use(runnerGuard());
+      const scheduled = scheduledReloads(viteDevServer);
 
       const host = doorHostFromEnv(process.env);
       const port = doorPortFromEnv(process.env);
       const door = http.createServer((req, res) =>
-        serveDoorRequest(req, res, (r, s) => viteDevServer.middlewares(r, s)),
+        serveDoorRequest(req, res, (r, s) => scheduled(r, s, () => viteDevServer.middlewares(r, s))),
       );
 
       // One retry, then fatal: when vite restarts itself the outgoing server's
@@ -165,6 +210,7 @@ export function ingestDoor(): Plugin {
       });
 
       const close = () => {
+        process.removeListener("exit", close);
         door.closeAllConnections?.();
         door.close();
       };

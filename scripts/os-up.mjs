@@ -41,7 +41,7 @@ import {
 import { runnerDatabase } from './runner/database.mjs';
 import { towerDependenciesReady, towerLaunch } from './runner/tower-launch.mjs';
 import { bdBin, gitBin, probeTcp } from './runner/host-tools.mjs';
-import { armJobRunShipping, jobRunsUrl, reportJobRuns, runJobLane } from './runner/job-record.mjs';
+import { armJobRunShipping, finishJobRuns, jobRunsUrl, reportJobRuns, runJobLane } from './runner/job-record.mjs';
 import {
   EXIT_ALREADY_RUNNING,
   EXIT_NO_DATABASE,
@@ -51,6 +51,7 @@ import {
   isShuttingDown,
   runnerArmDecision,
   runtimeCopyRefusal,
+  shutdownSignal,
 } from './runner/lifecycle.mjs';
 import { closeLog, log, openLog, ts, writeLine } from './runner/log.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
@@ -454,6 +455,7 @@ async function supervise({ exposeTowerToLan }) {
     stopScheduler();
     await jobControl?.close();
     await notificationEvents?.close();
+    await finishJobRuns();
     for (const c of children) killChild(c, 'SIGTERM');
     await waitForExit(children, 5000);
     for (const c of children) if (c.running) killChild(c, 'SIGKILL');
@@ -511,7 +513,7 @@ async function supervise({ exposeTowerToLan }) {
         if (isShuttingDown() || !tower.running || !tower.ready || (await runtimeDoorOwnership(tower)).owns !== true) return false;
         const result = await runJobLane(jobRunName(notificationJob), () => fireScheduledTrigger(
           `http://${CONFIG.ingestHost}:${CONFIG.ingestPort}`, notificationJob.cron,
-          { trigger, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]), emit: log }), value => value.outcome, { trigger: { kind: trigger } });
+          { trigger, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]), shutdownSignal, emit: log }), value => value.outcome, { trigger: { kind: trigger } });
         return result?.steps?.some(step => step.id === 'notify' && step.state === 'succeeded') ?? false;
       },
       unavailable: () => log('WARN', 'notification event delivery unavailable; durable queue retained for recovery'),

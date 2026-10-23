@@ -13,6 +13,7 @@ import {
   isShuttingDown,
   runnerArmDecision,
   runtimeCopyRefusal,
+  shutdownSignal,
 } from './runner/lifecycle.mjs';
 
 // scripts/runner/lifecycle.mjs: whether this runner may
@@ -61,8 +62,10 @@ test('live source needs the same checkout and shared state inodes before startup
 // Last, because it cannot be undone inside this process.
 test('one shutdown flag stops every lane that did not name its own stop signal', async () => {
   assert.equal(isShuttingDown(), false);
+  assert.equal(shutdownSignal.aborted, false);
   beginShutdown();
   assert.equal(isShuttingDown(), true);
+  assert.equal(shutdownSignal.aborted, true);
   const refused = await runPanelRefresh({ running: true, ready: true }, {
     run: () => assert.fail('a lane ran after shutdown began'),
     emit: () => {},
