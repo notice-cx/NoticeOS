@@ -232,6 +232,13 @@ have no `clarity-url-3d.csv`; that file exists only where a Clarity project
 token is provisioned. **A missing family is unknown, not zero** — check
 `summary.json` before concluding anything from a missing file.
 
+Every CSV is comma-separated with a header row. A value or column name that
+holds a comma, a double quote or a line break is wrapped in double quotes, and
+a double quote inside it is written twice. DuckDB's `read_csv` guesses the
+format from a file's first rows, so a file whose first quoted value comes later
+fails to load; read the files with `delim = ','`, `quote = '"'` and
+`escape = '"'`, as `query_panel` does.
+
 ## The `bing-ai` family: the one nobody collects
 
 The three `bing-webmaster-ai-*.csv` files are the only families in this
