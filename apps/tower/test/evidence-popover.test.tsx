@@ -2,7 +2,8 @@
 // focus into the panel; Escape and a press outside close it and give focus
 // back to the trigger; a scroll neither closes it nor strands focus. It is
 // built on the desk's Radix popover (components/ui).
-import { act, fireEvent, render, screen, waitFor } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { IntegrationEvidence } from "@shared/integrations";
 import { EvidencePopover } from "@/components/EvidencePopover";
@@ -99,5 +100,22 @@ describe("EvidencePopover focus", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Why this fired/ }));
     await screen.findByRole("dialog");
     expect(rowOpened).toBe(0);
+  });
+});
+
+describe("EvidencePopover rows", () => {
+  it("opens the task a row names, keeping the words before it", async () => {
+    render(
+      <MemoryRouter>
+        <EvidencePopover
+          evidence={[{ source: "Watched change", polarity: "supporting", detail: "decision md-123", at: null, task: "md-123" }]}
+          question="Why this fired"
+        />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Why this fired/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("decision md-123");
+    expect(within(dialog).getByRole("link", { name: "md-123" })).toHaveAttribute("href", "/tasks/md-123");
   });
 });

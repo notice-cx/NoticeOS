@@ -47,6 +47,7 @@ import { isRetired } from "@shared/asset-setup";
 import {
   useClaimTask,
   useCloseTask,
+  useOpenTaskAction,
   useTasksLive,
   useUpdateTask,
 } from "@/hooks/useTasks";
@@ -1000,6 +1001,8 @@ function RowDetail({
   const busy = claim.isPending || close.isPending || update.isPending;
   const band = priorityLabel(task.priority);
   const done = task.status === "closed";
+  const openAction = useOpenTaskAction();
+  const open = { action: openAction(task.id, capabilities.projectSelection ? task.project : undefined) };
 
   async function act(what: "claim" | "close" | "defer") {
     if (!actionable) return;
@@ -1008,7 +1011,7 @@ function RowDetail({
       else if (what === "close") await close.mutateAsync({ id: task.id, reason, project: task.project });
       else await update.mutateAsync({ id: task.id, edit: { defer: until }, project: task.project });
     } catch (err) {
-      toast.error(errorText(err, `Could not ${what} ${task.id}`));
+      toast.error(errorText(err, `Could not ${what} ${task.id}`), open);
       return;
     }
     toast.success(
@@ -1017,6 +1020,7 @@ function RowDetail({
         : what === "close"
           ? `Closed ${task.id}`
           : `Parked ${task.id} until ${until}`,
+      open,
     );
     setReason("");
     setUntil("");

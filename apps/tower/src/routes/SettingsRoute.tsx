@@ -53,6 +53,7 @@ import {
   useRulePreview,
 } from "@/components/RuleTune";
 import { StateChip } from "@/components/StateChip";
+import { TaskIdLink } from "@/components/TaskIdLink";
 import { TabPanel } from "@/components/Tabs";
 import { CommandBlock, NO_HUB_CONNECTION, TaskProjectSteps, TaskSourceSection, taskProjectInitCommand } from "@/components/TaskSourceSection";
 import { TuneRate } from "@/components/TuneRate";
@@ -1344,7 +1345,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
             commit="auto"
           />
         )}
-        {taskHub.hub !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} hub={taskHub.hub} /> : null}
+        {taskHub.hub !== null && drifting !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} tasks={drifting} hub={taskHub.hub} /> : null}
         {taskHub.hub !== null && added ? (
           <div className="mt-4">
             <TaskProjectSteps
@@ -1366,7 +1367,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
  * rows are marked: `/api/work` carries a bounded head of each list, so blank
  * means "nothing here says otherwise", which is all that can be claimed.
  */
-function FOUND_COLUMN(drifting: ReadonlySet<string>): DerivedColumn {
+function FOUND_COLUMN(drifting: ReadonlyMap<string, string>): DerivedColumn {
   // A blank cell or a warn dot whose own hover names the missing database.
   return {
     name: "found",
@@ -1400,13 +1401,16 @@ const FOUND_UNKNOWN: DerivedColumn = {
  * What was found, and the two ways out of it: the same two fixes the filed
  * task names, offered on the field the value was typed into. The consequence
  * is the headline and the fixes are side by side; a command is copied, not
- * read.
+ * read. The task the check filed is named, as the link to its page.
  */
 function DatabaseNotFound({
   spokes,
+  tasks,
   hub,
 }: {
   spokes: TaskHubSpoke[];
+  /** Each drifting project's open task, by asset. */
+  tasks: ReadonlyMap<string, string>;
   hub: TaskHubConnection | null;
 }) {
   return (
@@ -1424,6 +1428,7 @@ function DatabaseNotFound({
               </h4>
               <span className="text-xs text-muted-foreground">
                 No database named <span className="font-mono">{spoke.database}</span>
+                {tasks.get(spoke.asset) ? <> · task <TaskIdLink id={tasks.get(spoke.asset)!} /></> : null}
               </span>
             </div>
           </div>

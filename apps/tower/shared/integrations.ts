@@ -211,6 +211,8 @@ export interface IntegrationEvidence {
   /** Store timestamp so the client can age it ("2d ago"); null when the time
    * context lives in the sentence (e.g. a ledger period). */
   at: string | null;
+  /** A task id `detail` ends with, which the panel links to its page. */
+  task?: string;
   /** Explicit outcome from a stored successful collector run. Optional for
    * older payloads; prose, polarity, and configured health are never proof.
    * The source id prevents one connection's success verifying another one. */

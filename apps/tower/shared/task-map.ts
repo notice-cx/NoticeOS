@@ -23,20 +23,20 @@ export function driftingAssetOf(title: string): string | null {
 }
 
 /**
- * Every project the OS currently has an open task about, or null when nothing
- * could be read.
+ * Every project the OS currently has an open task about, each with that
+ * task's id, or null when nothing could be read.
  *
- * Null and empty differ, and decide whether the column is drawn: an empty set
+ * Null and empty differ, and decide whether the column is drawn: an empty map
  * means the board answered and named nobody; null means nothing answered.
  * Closed tasks are not read: the runner closes its own once the two agree.
  */
 export function driftingTaskDatabases(
   projects: readonly WorkProject[] | undefined,
-): Set<string> | null {
+): Map<string, string> | null {
   if (projects === undefined) return null;
   const readable = projects.filter((project) => project.ok);
   if (readable.length === 0) return null;
-  const drifting = new Set<string>();
+  const drifting = new Map<string, string>();
   for (const project of readable) {
     // Every open list: which one a task lands in does not matter here.
     for (const item of [
@@ -47,7 +47,7 @@ export function driftingTaskDatabases(
       ...project.deferred,
     ]) {
       const asset = driftingAssetOf(item.title);
-      if (asset !== null) drifting.add(asset);
+      if (asset !== null && !drifting.has(asset)) drifting.set(asset, item.id);
     }
   }
   return drifting;

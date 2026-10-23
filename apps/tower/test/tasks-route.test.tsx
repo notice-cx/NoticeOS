@@ -1101,8 +1101,9 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
     closeAs(container, container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement, "Won't do");
     act(() => flushAnswers());
 
+    // The refusal names the task, and offers Open on it.
     await waitFor(() =>
-      expect(toasts.error).toHaveBeenCalledWith("bd: no such issue md-9k1"),
+      expect(toasts.error).toHaveBeenCalledWith("bd: no such issue md-9k1", { action: { label: "Open", onClick: expect.any(Function) } }),
     );
     expect(container.querySelector('[data-inbox-row="md-9k1"]')).not.toBeNull();
   });
@@ -1124,7 +1125,11 @@ describe("/tasks — claim, close and defer in place", () => {
     fireEvent.click(open(container, "md-1w2").querySelector<HTMLElement>('[data-task-action="claim"]')!);
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
     expect(api.updateTask).toHaveBeenCalledWith("md-1w2", { claim: true });
-    expect(toasts.success).toHaveBeenCalledWith("Claimed md-1w2");
+    expect(toasts.success).toHaveBeenCalledWith("Claimed md-1w2", { action: { label: "Open", onClick: expect.any(Function) } });
+    // The toast names the task, and its Open opens the task's page.
+    const options = toasts.success.mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    act(() => options.action.onClick());
+    expect(screen.getByTestId("task-destination")).toHaveTextContent("/tasks/md-1w2");
   });
 
   it("will not close a task without the evidence that closes it", async () => {
@@ -2028,7 +2033,9 @@ describe("/tasks — several decisions taken in one action", () => {
     pick(container, "md-g1", "md-g2");
     fireEvent.click(selection(container).getByRole("button", { name: "Approve 2" }));
     act(() => flushAnswers());
-    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-g2", { description: "bd: md-g2 is not open" }));
+    // One task not sent: the toast offers Open on it.
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-g2", {
+      description: "bd: md-g2 is not open", action: { label: "Open", onClick: expect.any(Function) } }));
     expect(api.resolveGate).toHaveBeenCalledWith("md-g1");
     expect(rowOf(container, "md-g2")).not.toBeNull();
     expect(rowOf(container, "md-g1")).toBeNull();
@@ -2343,7 +2350,8 @@ describe("/tasks — Select on All tasks closes many tasks with one resolution a
       fireEvent.click(bar(container).getByRole("button", { name: "Close 2 as" }));
       closeAsPicked(container, "Won't do");
       act(() => flushAnswers());
-      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-b2", { description: "md-b2 is held by dana." }));
+      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-b2", {
+        description: "md-b2 is held by dana.", action: { label: "Open", onClick: expect.any(Function) } }));
       expect(rowGone(container, "md-b2")).toBe(false);
       expect(rowGone(container, "md-b1")).toBe(true);
     } finally {

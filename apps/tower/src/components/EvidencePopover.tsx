@@ -1,6 +1,7 @@
 import { Info, TriangleAlert } from "lucide-react";
 import type { IntegrationEvidence } from "@shared/integrations";
 import { ageMs, formatAge } from "@shared/freshness";
+import { TaskIdLink } from "@/components/TaskIdLink";
 import { pillControlClass } from "@/components/ui/pill";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,7 @@ export interface EvidencePopoverProps {
  * The glyph is amber when any evidence is against, else the info mark. An
  * alert passes `question` ("Why this fired") and keeps its statistics here,
  * one press from the headline; its evidence is all supporting, since the
- * severity dot already says how bad it is.
+ * severity dot already says how bad it is. A row naming a task links it.
  */
 export function EvidencePopover({
   evidence,
@@ -90,7 +91,11 @@ export function EvidencePopover({
                   ) : null}
                 </span>
                 {e.detail ? (
-                  <span className="text-xs leading-snug tabular-nums text-muted-foreground">{e.detail}</span>
+                  <span className="text-xs leading-snug tabular-nums text-muted-foreground">
+                    {e.task && e.detail.endsWith(e.task) ? (
+                      <>{e.detail.slice(0, -e.task.length)}<TaskIdLink id={e.task} /></>
+                    ) : e.detail}
+                  </span>
                 ) : null}
               </div>
             </li>

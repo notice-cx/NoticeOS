@@ -1472,7 +1472,8 @@ describe("a task with choices is answered with one press", () => {
     renderTask();
     fireEvent.click(await header().findByRole("button", { name: "(c) Remove it" }));
     act(() => flushAnswers());
-    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(`${ID} already has a choice: (b) Redirect to the new page.`));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(`${ID} already has a choice: (b) Redirect to the new page.`,
+      { action: { label: "Open", onClick: expect.any(Function) } }));
     expect(await header().findByRole("button", { name: "(c) Remove it" })).toBeEnabled();
   });
 
