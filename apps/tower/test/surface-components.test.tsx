@@ -1142,7 +1142,7 @@ describe("ListPanel", () => {
     const body = container.querySelector("[data-list-row-body]")!;
     expect(body.textContent).toContain("The evidence for the fifth row.");
     expect(body.className).toContain("grid-cols-[minmax(0,1fr)]");
-    expect(body.className.split(" ")).toContain("max-sm:wrap-anywhere");
+    expect(body.className.split(" ")).toContain("wrap-anywhere");
   });
 
   it("carries the mark in a glyph as well as a colour", () => {

@@ -754,11 +754,11 @@ function WhatMatters({
             {/* Evidence, not prose: `summary` and `whyItMatters` are free
                 paragraphs, one press away in All findings with the sources and
                 the limitation. */}
-            <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            <dl className="grid min-w-0 gap-x-6 gap-y-1 @xl/list-row-body:grid-cols-2">
               {findingEvidence(insight).map((row) => (
-                <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3">
-                  <dt className="min-w-0 break-words text-muted-foreground">{savedEvidenceLabel(row.label)}</dt>
-                  <dd className="max-w-[16ch] break-words text-end font-medium tabular-nums">
+                <div key={`${row.label}-${row.value}`} className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-3">
+                  <dt className="min-w-0 text-muted-foreground">{savedEvidenceLabel(row.label)}</dt>
+                  <dd className="min-w-0 text-end font-medium tabular-nums wrap-anywhere">
                     {row.value}
                   </dd>
                 </div>
