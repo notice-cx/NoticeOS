@@ -920,6 +920,8 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
         source: "Watched change",
         detail: "bead md-123",
         at: "2026-07-01T03:30:00.000Z",
+        // The task the evidence names, which the panel links.
+        task: "md-123",
       },
       {
         polarity: "supporting",
@@ -928,6 +930,12 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
         at: "2026-07-08T03:30:00.000Z",
       },
     ]);
+  });
+
+  it("names no task for a watched change that is an annotation, whose ref is the change's own id", () => {
+    const evidence = translateAlert({ ...watch, ruleInputs: { ...watch.ruleInputs, refKind: "annotation", ref: "md-2" } }).evidence;
+    expect(evidence[0]).toMatchObject({ source: "Watched change", detail: "annotation md-2" });
+    expect(evidence[0]).not.toHaveProperty("task");
   });
 
   it("keeps the other registered outcomes visually distinct", () => {

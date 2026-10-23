@@ -2222,6 +2222,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
   ) =>
     render(
       <PanelReviewLine review={review} latestPanelDate={latestPanelDate} nowMs={NOW} />,
+      { wrapper: MemoryRouter },
     );
 
   it("draws nothing whatsoever for an asset with nothing to review", () => {
@@ -2251,6 +2252,8 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.textContent).toContain("Jul 1, 2026");
     expect(line.textContent).toContain("Jul 9, 2026");
     expect(line.textContent).toContain("md-4a2");
+    // The task to close opens its page.
+    expect(within(line as HTMLElement).getByRole("link", { name: "md-4a2" })).toHaveAttribute("href", "/tasks/md-4a2");
     expect(line.querySelector("[data-panel-review]")!.textContent).toBe("4d");
     expect(line.textContent).not.toMatch(/pending|overdue|reviewed/i);
   });

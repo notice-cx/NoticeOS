@@ -37,7 +37,7 @@ vi.mock("@/hooks/useTasks", async (importOriginal) => ({
 
 import { flushAnswers, resetAnswerQueue } from "@/lib/answer-queue";
 import { FocusRoute } from "@/routes/tasks/FocusRoute";
-import { board, scenario, scenarioPayload } from "./tasks-next-fixtures";
+import { EPIC, board, scenario, scenarioPayload } from "./tasks-next-fixtures";
 
 /** The scenario's two questions, without its gate: two decisions to step through. */
 function twoDecisions() {
@@ -64,12 +64,23 @@ const decision = (container: HTMLElement) => container.querySelector("[data-focu
 const position = () => screen.getByText(/^Focus/u).textContent;
 
 describe("Focus", () => {
+  it("names the decision's epic as the link to its page", () => {
+    const { container } = renderFocus("/tasks/focus", {
+      "meadow.example": board(scenario().filter((task) => task.id !== "md-g1"), "meadow.example", [{ ...EPIC, eligibleForClose: false }]),
+    });
+    const chip = container.querySelector<HTMLElement>("[data-focus-epic]")!;
+    expect(chip).toHaveTextContent("Newsletter launch2 of 6");
+    expect(within(chip).getByRole("link", { name: "Newsletter launch" })).toHaveAttribute("href", "/tasks/md-e");
+  });
+
   it("steps through the decisions with the arrow key and ends on the finish line", () => {
     const { container } = renderFocus();
     expect(position()).toBe("Focus · 1 of 2 for you");
     expect(decision(container)).toBe("md-c1");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Pick the newsletter day");
     expect(container.querySelector("[data-focus-after]")).toHaveTextContent("After this: Name the newsletter · Meadow Board");
+    expect(within(container.querySelector<HTMLElement>("[data-focus-after]")!).getByRole("link", { name: "Name the newsletter" }))
+      .toHaveAttribute("href", "/tasks/md-a1");
     expect(container.querySelector("[data-focus-keys]")).toHaveTextContent("B A C choose · → skip");
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(position()).toBe("Focus · 2 of 2 for you");

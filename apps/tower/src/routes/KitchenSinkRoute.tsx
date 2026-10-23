@@ -208,6 +208,7 @@ import { ApiError, type NewTask } from "@/lib/api";
 import { taskHandoffPrefill } from "@/lib/task-handoff";
 import { TimeZoneCaveat } from "@/components/TimeZoneCaveat";
 import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
+import { TaskIdLink } from "@/components/TaskIdLink";
 import { PanelReviewBadge } from "@/components/PanelReviewBadge";
 import { PanelReviewLine } from "@/components/PanelReviewLine";
 import { SerpPanelBoard } from "@/components/SerpPanelBoard";
@@ -4213,6 +4214,11 @@ export function KitchenSinkRoute() {
               }}
             />
             <HandoffBeadBadge bead={null} />
+          </Section>
+
+          <Section title="TaskIdLink (in a line of text / in a small caption)">
+            <span className="text-sm text-muted-foreground">Readback <TaskIdLink id="md-1w2.3" /></span>
+            <span className="text-xs text-muted-foreground">Review task <TaskIdLink id="mon-7bd" className="text-[11px]" /></span>
           </Section>
 
           {/* The Wall's one top line: the same OS report in four states, the

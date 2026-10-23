@@ -3,6 +3,7 @@
 // payload. A count the snapshot did not measure is a word, never a zero.
 
 import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { AssetCard, OperatorPosture, WallNextUp, WallPayload } from "@shared/wall";
 import type { WorkItem, WorkWeeks } from "@shared/work";
@@ -82,9 +83,11 @@ const NEXT: WallNextUp = {
 
 function draw(props: Partial<Parameters<typeof NextUp>[0]> = {}) {
   return render(
-    <div className="wall-root">
-      <NextUp next={NEXT} operator={OPERATOR} assets={[MEADOW, ORCHARD]} workAssets={[MEADOW]} nowMs={NOW} {...props} />
-    </div>,
+    <MemoryRouter>
+      <div className="wall-root">
+        <NextUp next={NEXT} operator={OPERATOR} assets={[MEADOW, ORCHARD]} workAssets={[MEADOW]} nowMs={NOW} {...props} />
+      </div>
+    </MemoryRouter>,
   );
 }
 
@@ -135,6 +138,21 @@ describe("NextUp", () => {
     expect(done.getAttribute("data-next-done")).toBe("7");
     expect(done.textContent).toContain("7 done this week");
     expect(done.textContent).toContain("vs last week by today");
+  });
+
+  it("opens each task it names: the top decision, each one after it and each agent row, and draws no button", () => {
+    draw();
+    const section = screen.getByRole("region", { name: "Next up" });
+    const top = section.querySelector<HTMLElement>("[data-next-top-title]")!;
+    expect(within(top).getByRole("link", { name: "Pick which recipe page keeps the canonical address" })).toHaveAttribute("href", "/tasks/md-1");
+    const then = [...section.querySelectorAll<HTMLElement>("[data-next-then-item]")];
+    expect(then.map((item) => within(item).getByRole("link").getAttribute("href"))).toEqual(["/tasks/or-2", "/tasks/md-3", "/tasks/or-4"]);
+    // A mark's link is named by the decision's title and site.
+    expect(within(then[0]!).getByRole("link")).toHaveAccessibleName(/^Approve the new pricing copy, Orchard Notes/);
+    const rows = [...section.querySelectorAll<HTMLElement>("[data-next-working]")];
+    expect(rows.map((row) => within(row).getByRole("link").getAttribute("href"))).toEqual(["/tasks/or-9", "/tasks/md-8", "/tasks/md-7"]);
+    expect(section.querySelectorAll("a")).toHaveLength(7);
+    expect(section.querySelector("button")).toBeNull();
   });
 
   it("words an unmeasured count as the Wall does, never as zero", () => {
@@ -235,7 +253,7 @@ describe("Next up in the widget catalogue", () => {
       next: NEXT,
       ledgerRecordedAt: null,
     } as unknown as WallPayload;
-    render(<WallCanvas layout={layout} data={payload} nowMs={NOW} />);
+    render(<MemoryRouter><WallCanvas layout={layout} data={payload} nowMs={NOW} /></MemoryRouter>);
     const slot = document.querySelector('[data-wall-slot="next"]') as HTMLElement;
     expect(within(slot).getByRole("region", { name: "Next up" })).toBeInTheDocument();
     expect(slot.querySelector("[data-next-count]")!.textContent).toBe("4");

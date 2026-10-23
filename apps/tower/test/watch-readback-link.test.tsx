@@ -47,6 +47,13 @@ describe("a closed watch's recorded readback", () => {
     expect(screen.getByRole("heading", { name: "Recorded readback task" })).toBeInTheDocument();
   });
 
+  it("opens the task a decision's watch names when the asset's tasks do not hold it", () => {
+    show({ ...closed, refKind: "decision", ref: "task-a3" });
+    const ref = document.querySelector<HTMLElement>("[data-watch-ref-unresolved]")!;
+    expect(ref).toHaveTextContent("decision task-a3");
+    expect(screen.getByRole("link", { name: "task-a3" })).toHaveAttribute("href", "/tasks/task-a3");
+  });
+
   it.each([undefined, "", "../tasks", "--help"])("does not invent a link for %s", (readbackTaskId) => {
     show({ ...closed, readbackTaskId });
     expect(screen.queryByRole("link")).toBeNull();

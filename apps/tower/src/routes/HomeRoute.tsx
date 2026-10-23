@@ -62,6 +62,7 @@ import { HealthModule } from "@/routes/home/HealthModule";
 import { HomeModules } from "@/routes/home/modules";
 import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
+import { taskPath } from "@/lib/task-path";
 
 /**
  * Home answers how the business is doing, what is broken and what needs the
@@ -219,8 +220,10 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   );
 }
 
-/** Where a problem's row opens: its site, the System, or the alerts. */
+/** Where a problem's row opens: the task that closes it, its site, the
+ * System, or the alerts. */
 function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
+  if (issue.task) return taskPath(issue.task);
   const asset = issue.assets.length === 1 ? assets.find((candidate) => candidate.id === issue.assets[0]) : undefined;
   if (asset) return issue.key.startsWith("source-") ? `/assets/${encodeURIComponent(asset.id)}/sources` : sitePath(asset);
   return issue.key.startsWith("system-") || issue.key.startsWith("source-") ? "/health" : "/alerts";

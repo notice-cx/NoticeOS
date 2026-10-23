@@ -37,6 +37,7 @@ import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { Meter } from "@/components/Meter";
 import { ProgressRing } from "@/components/ProgressRing";
 import { StateChip, type StateTone } from "@/components/StateChip";
+import { TaskIdLink } from "@/components/TaskIdLink";
 import { ListPanel, ListRow } from "@/components/surface/ListPanel";
 import { ANNOTATION_KIND } from "@/components/annotation-kind";
 import { WATCH_OUTCOME } from "@/components/watch-outcome";
@@ -44,6 +45,7 @@ import { useWatchQueryHistory } from "@/hooks/useWatchQueryHistory";
 import { useWatchWindowWriter } from "@/hooks/useWatchWindowWriter";
 import { Button } from "@/components/ui/button";
 import { formatCalendarDate, formatCalendarRange, formatInt, formatSeriesDate } from "@/lib/format";
+import { taskPath } from "@/lib/task-path";
 
 // --- the outcome check an operator opens on a change -----------------------
 // The Activity tab's composer and the strip of checks it files.
@@ -627,19 +629,15 @@ function watchSubject(
 
 /**
  * The ref a watch was registered against: the task badge when it resolves, the
- * raw id when it does not (never both).
+ * raw id when it does not (never both), linked when it is a task id. An
+ * annotation ref is the change's own id, never a task's.
  */
-function watchRef(
+export function watchRef(
   watch: Pick<WatchSlice["open"][number], "ref" | "refKind">,
   byId: Map<string, HandoffBead>,
 ): ReactNode {
   const bead = byId.get(watch.ref);
-  const unresolvedLabel =
-    watch.refKind === "annotation"
-      ? `event ${watch.ref}`
-      : watch.refKind === "decision"
-        ? `decision ${watch.ref}`
-        : `ref ${watch.ref}`;
+  const word = watch.refKind === "annotation" ? "event" : watch.refKind === "decision" ? "decision" : "ref";
   return bead ? (
     <HandoffBeadBadge bead={bead} />
   ) : (
@@ -647,8 +645,18 @@ function watchRef(
       className="break-all font-mono text-[11px] text-muted-foreground"
       data-watch-ref-unresolved
     >
-      {unresolvedLabel}
+      {word} {watch.refKind !== "annotation" && isTaskId(watch.ref) ? <TaskIdLink id={watch.ref} /> : watch.ref}
     </span>
+  );
+}
+
+/** A closed bet's readback task: the next step once its verdict is in. */
+export function ReadbackLink({ id }: { id: string | null | undefined }) {
+  if (!isTaskId(id)) return null;
+  return (
+    <Button asChild variant="ghost" className="h-11 justify-start">
+      <Link to={taskPath(id)}>Readback {id}</Link>
+    </Button>
   );
 }
 
@@ -742,13 +750,7 @@ export function WatchesStrip({
             {/* The evaluator's own figure for the verdict — the evidence behind
                 the chip. */}
             {watch.outcomeNote ? <span className="tabular-nums">{watch.outcomeNote}</span> : null}
-            {isTaskId(watch.readbackTaskId) ? (
-              <Button asChild variant="ghost" className="h-11 justify-start">
-                <Link to={`/tasks/${encodeURIComponent(watch.readbackTaskId)}`}>
-                  Readback {watch.readbackTaskId}
-                </Link>
-              </Button>
-            ) : null}
+            <ReadbackLink id={watch.readbackTaskId} />
           </ListRow>
         );
       })}

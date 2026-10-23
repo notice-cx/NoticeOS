@@ -947,8 +947,9 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
         liveTask({ id: "md-plain", title: "Choose the heading", labels: ["human"], ready: true }),
       ]),
     } });
-    expect(container.querySelector('[data-inbox-row="md-decision"] [data-inbox-proceeds]'))
-      .toHaveTextContent("After your answer: Build the digest sender");
+    const proceeds = container.querySelector<HTMLElement>('[data-inbox-row="md-decision"] [data-inbox-proceeds]')!;
+    expect(proceeds).toHaveTextContent("After your answer: Build the digest sender");
+    expect(within(proceeds).getByRole("link", { name: "Build the digest sender" })).toHaveAttribute("href", "/tasks/md-build");
     expect(container.querySelector('[data-inbox-row="md-plain"] [data-inbox-proceeds]'))
       .toHaveTextContent("After your answer: An agent can continue this task.");
   });
@@ -961,9 +962,10 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
           dependencies: [{ id: "md-decision", type: "blocks", title: null, status: null }] })),
       ]),
     } });
-    const consequence = container.querySelector('[data-inbox-row="md-decision"] [data-inbox-proceeds]');
+    const consequence = container.querySelector<HTMLElement>('[data-inbox-row="md-decision"] [data-inbox-proceeds]')!;
     expect(consequence).toHaveTextContent("After your answer: Sender step 0; Sender step 1; 6 more tasks");
     expect(consequence).not.toHaveTextContent("Sender step 2");
+    expect(within(consequence).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/tasks/md-build-0", "/tasks/md-build-1"]);
   });
 
   it("says nothing else is queued when every task is for you to decide", () => {
@@ -1099,8 +1101,9 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
     closeAs(container, container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement, "Won't do");
     act(() => flushAnswers());
 
+    // The refusal names the task, and offers Open on it.
     await waitFor(() =>
-      expect(toasts.error).toHaveBeenCalledWith("bd: no such issue md-9k1"),
+      expect(toasts.error).toHaveBeenCalledWith("bd: no such issue md-9k1", { action: { label: "Open", onClick: expect.any(Function) } }),
     );
     expect(container.querySelector('[data-inbox-row="md-9k1"]')).not.toBeNull();
   });
@@ -1122,7 +1125,11 @@ describe("/tasks — claim, close and defer in place", () => {
     fireEvent.click(open(container, "md-1w2").querySelector<HTMLElement>('[data-task-action="claim"]')!);
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
     expect(api.updateTask).toHaveBeenCalledWith("md-1w2", { claim: true });
-    expect(toasts.success).toHaveBeenCalledWith("Claimed md-1w2");
+    expect(toasts.success).toHaveBeenCalledWith("Claimed md-1w2", { action: { label: "Open", onClick: expect.any(Function) } });
+    // The toast names the task, and its Open opens the task's page.
+    const options = toasts.success.mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    act(() => options.action.onClick());
+    expect(screen.getByTestId("task-destination")).toHaveTextContent("/tasks/md-1w2");
   });
 
   it("will not close a task without the evidence that closes it", async () => {
@@ -1344,6 +1351,8 @@ describe("/tasks — the shape of the work, drawn", () => {
     // The most stuck epic leads: a blocked task holds the next one.
     expect(graph).toHaveAttribute("data-tasks-epic", "md-e");
     expect(graph).toHaveTextContent("1 stuck");
+    // The header names the epic as the link to its page.
+    expect(graph.querySelector("header a")).toHaveAttribute("href", "/tasks/md-e");
     expect(graph.querySelector('[data-flow-edge="md-e.2->md-e.3"]')).toHaveAttribute("data-state", "broken");
     expect(graph.querySelector('[data-flow-node="md-e.2"]')).toHaveAttribute("data-state", "warn");
     expect(graph.querySelector('[data-flow-node="md-e.3"]')).toHaveAttribute("href", "/tasks/md-e.3");
@@ -1879,7 +1888,7 @@ describe("Task reasons support focus and tap", () => {
     expect(api.createTask).not.toHaveBeenCalled();
   });
 
-  it("exposes a project's refused read and the expanded task's parent meaning", () => {
+  it("exposes a project's refused read and opens the expanded task's parent epic", () => {
     const first = renderBoard({ data: payload({ projects: [project({ ok: false, error: "Task refresh unavailable" })] }) });
     fireEvent.focus(screen.getByRole("button", { name: "Meadow Board: task read failed" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Task refresh unavailable");
@@ -1890,8 +1899,9 @@ describe("Task reasons support focus and tap", () => {
       ready: [item({ parent: "md-epic" })],
     })] }) });
     fireEvent.click(rowFold(container, "md-1w2"));
-    fireEvent.click(screen.getByRole("button", { name: "Parent epic" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("The epic this task hangs off");
+    const part = container.querySelector<HTMLElement>('[data-task-epic="md-epic"]')!;
+    expect(part).toHaveTextContent("Part of Recipe schema overhaul");
+    expect(within(part).getByRole("link", { name: "Recipe schema overhaul" })).toHaveAttribute("href", "/tasks/md-epic");
   });
 });
 
@@ -2023,7 +2033,9 @@ describe("/tasks — several decisions taken in one action", () => {
     pick(container, "md-g1", "md-g2");
     fireEvent.click(selection(container).getByRole("button", { name: "Approve 2" }));
     act(() => flushAnswers());
-    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-g2", { description: "bd: md-g2 is not open" }));
+    // One task not sent: the toast offers Open on it.
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-g2", {
+      description: "bd: md-g2 is not open", action: { label: "Open", onClick: expect.any(Function) } }));
     expect(api.resolveGate).toHaveBeenCalledWith("md-g1");
     expect(rowOf(container, "md-g2")).not.toBeNull();
     expect(rowOf(container, "md-g1")).toBeNull();
@@ -2338,7 +2350,8 @@ describe("/tasks — Select on All tasks closes many tasks with one resolution a
       fireEvent.click(bar(container).getByRole("button", { name: "Close 2 as" }));
       closeAsPicked(container, "Won't do");
       act(() => flushAnswers());
-      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-b2", { description: "md-b2 is held by dana." }));
+      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-b2", {
+        description: "md-b2 is held by dana.", action: { label: "Open", onClick: expect.any(Function) } }));
       expect(rowGone(container, "md-b2")).toBe(false);
       expect(rowGone(container, "md-b1")).toBe(true);
     } finally {

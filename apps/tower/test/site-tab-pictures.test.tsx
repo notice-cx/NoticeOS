@@ -190,6 +190,32 @@ describe("Activity's last ninety days", () => {
     expect(events[0]!.label).toBe("Trail page redesign");
     expect(events.at(-1)!.label).toBe("Trail page redesign · decline confirmed");
   });
+
+  it("opens the task a mark names: a change's ref, the task a bet watches, a verdict's readback task", () => {
+    const events = activityEvents(
+      [
+        { id: 1, at: ago(36), kind: "deploy", ref: "md-1w2", note: "Trail page redesign" },
+        { id: 2, at: ago(30), kind: "config", ref: "cache rule", note: "Cache rule" },
+      ],
+      {
+        open: [watch({ id: "w2", status: "open", outcome: null, closedAt: null, registeredAt: ago(3), refKind: "decision", ref: "md-9k1" })],
+        closed: [
+          watch({ readbackTaskId: "md-r4.1" }),
+          // An annotation ref is the change's own id, never a task's.
+          watch({ id: "w3", refKind: "annotation", ref: "md-2" }),
+        ],
+      },
+      NOW,
+    );
+    const href = (id: string) => events.find((event) => event.id === id)?.href ?? null;
+    expect(href("change:1")).toBe("/tasks/md-1w2");
+    expect(href("change:2")).toBeNull();
+    expect(href("watch:w2:start")).toBe("/tasks/md-9k1");
+    expect(href("watch:w1:start")).toBeNull();
+    expect(href("watch:w1:verdict")).toBe("/tasks/md-r4.1");
+    expect(href("watch:w3:start")).toBeNull();
+    expect(href("watch:w3:verdict")).toBeNull();
+  });
 });
 
 describe("Data sources' graph", () => {

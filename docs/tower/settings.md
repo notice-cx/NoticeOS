@@ -47,7 +47,7 @@ Under the schedules are the search panels' history window (**Each pass requests*
 
 ### Task projects
 
-The map from an asset to the project its tasks are stored in: the **Task database** status, the **Projects** table (**Asset**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line.
+The map from an asset to the project its tasks are stored in: the **Task database** status, the **Projects** table (**Asset**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line. Under a marked project, the note **No database named md · task sys-4f2** names the task the hourly check filed, as a link to its page.
 
 ### Installation
 

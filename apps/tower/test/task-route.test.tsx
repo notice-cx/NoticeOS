@@ -1175,6 +1175,10 @@ describe("the task page", () => {
     const heading = await screen.findByText((_, node) => node?.getAttribute("data-task-resolution-fact") === "" && node.textContent === "Closed as Duplicate of ro-l1ed.4");
     expect(within(heading).getByRole("link", { name: "ro-l1ed.4" })).toHaveAttribute("href", "/tasks/ro-l1ed.4");
     expect(within(headerBand().querySelector("[data-task-closed]") as HTMLElement).queryByText("Duplicate of ro-l1ed.4")).toBeNull();
+    // The activity line names the same task, and opens it.
+    const line = document.querySelector('[data-task-activity] [data-entry="closed"] [data-entry-label]') as HTMLElement;
+    expect(line).toHaveTextContent("Closed as Duplicate of ro-l1ed.4 by Dana");
+    expect(within(line).getByRole("link", { name: "ro-l1ed.4" })).toHaveAttribute("href", "/tasks/ro-l1ed.4");
   });
 
   it("reads the saved snapshot's resolution where there is no live read", async () => {
@@ -1266,6 +1270,25 @@ describe("the task page", () => {
 
     expect(api.fetchTask).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Add a comment")).toBeNull();
+  });
+
+  it("opens the snapshot row's parent by its title, or by its id when the snapshot lists no such epic", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work([snapshotItem()]);
+    snapshot.projects[0]!.epics = [{ id: "ro-l1ed", title: "Tasks are managed in the Tower", status: "open", priority: 1,
+      total: 5, closed: 2, counts: { open: 3, inProgress: 0, blocked: 0, deferred: 0 }, priorities: [] }];
+    state.work = snapshot;
+    const { unmount } = renderTask();
+    await screen.findByText("A task has a page");
+    const readOnly = document.querySelector<HTMLElement>("[data-task-readonly] dl")!;
+    expect(within(readOnly).getByRole("link", { name: "Tasks are managed in the Tower" })).toHaveAttribute("href", "/tasks/ro-l1ed");
+    unmount();
+
+    state.work = work([snapshotItem()]);
+    renderTask();
+    await screen.findByText("A task has a page");
+    const plain = document.querySelector<HTMLElement>("[data-task-readonly] dl")!;
+    expect(within(plain).getByRole("link", { name: "ro-l1ed" })).toHaveAttribute("href", "/tasks/ro-l1ed");
   });
 
   it("says the snapshot does not carry the id, and opens the board that could", async () => {
@@ -1449,7 +1472,8 @@ describe("a task with choices is answered with one press", () => {
     renderTask();
     fireEvent.click(await header().findByRole("button", { name: "(c) Remove it" }));
     act(() => flushAnswers());
-    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(`${ID} already has a choice: (b) Redirect to the new page.`));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(`${ID} already has a choice: (b) Redirect to the new page.`,
+      { action: { label: "Open", onClick: expect.any(Function) } }));
     expect(await header().findByRole("button", { name: "(c) Remove it" })).toBeEnabled();
   });
 

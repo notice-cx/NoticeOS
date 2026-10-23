@@ -23,9 +23,11 @@ import type {
 import { lifecycleMoveSentence, parseLifecycleMoveRef } from "@shared/asset-detail";
 import { ANNOTATION_NOTE_MAX } from "@shared/annotations";
 import { ageMs, formatAge } from "@shared/freshness";
+import { isTaskId } from "@shared/tasks";
 import { type WatchSeed } from "@shared/watch-windows";
 import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { PanelReviewLine } from "@/components/PanelReviewLine";
+import { TaskIdLink } from "@/components/TaskIdLink";
 import { SegmentBar } from "@/components/SegmentBar";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { EventTimeline } from "@/components/viz/EventTimeline";
@@ -343,6 +345,8 @@ function TimelineRow({
             <span className="text-foreground">{lifecycleMoveSentence(move)}</span>
           ) : task ? (
             <HandoffBeadBadge bead={task} />
+          ) : isTaskId(item.ref) ? (
+            <TaskIdLink id={item.ref} />
           ) : (
             <span className="break-all font-mono">{item.ref}</span>
           )}

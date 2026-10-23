@@ -1,13 +1,16 @@
 import { Bot, ChevronRight } from "lucide-react";
 import { Fragment, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useWholeRows } from "@/hooks/useWholeRows";
 import type { AgentsWeek } from "@/lib/agents-week";
 import { formatInt } from "@/lib/format";
+import { taskPath } from "@/lib/task-path";
 import { cn } from "@/lib/utils";
 
 // The agents widget: what they are building, what they finished this week and
 // what a measured outcome proved, as three figures read left to right, then
-// plain lines about the newest work. A count nobody can read is a dash, never
+// plain lines about the newest work, a finished task's title opening its
+// page. A count nobody can read is a dash, never
 // a zero. On the TV the figures sit under the heading and the lines under
 // them, each at its own height and one gap apart; the list takes the height
 // left below and draws as many whole lines as fit there. The labels match
@@ -69,7 +72,11 @@ export function WallFactory({ week }: { week: AgentsWeek }) {
                   data-wall-factory-cut={cut ? "" : undefined}
                 >
                   <span className="text-wall-list-line font-semibold [overflow-wrap:anywhere]">
-                    {line.title}
+                    {line.task ? (
+                      <Link to={taskPath(line.task)} className="rounded-sm outline-none underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                        {line.title}
+                      </Link>
+                    ) : line.title}
                     {line.site ? <span className="font-normal text-muted-foreground"> · {line.site}</span> : null}
                   </span>
                   <span className="text-wall-list-meta text-muted-foreground [overflow-wrap:anywhere]">{line.line}</span>

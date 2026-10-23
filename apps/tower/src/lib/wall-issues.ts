@@ -48,6 +48,8 @@ export interface WallIssue {
   conditions: WallIssueCondition[];
   /** The alert id behind an alert row, for a stable React key. */
   flagId?: number;
+  /** The task that closes this problem, such as an overdue review's. */
+  task?: string;
 }
 
 /** Source ids as the TV names them: the provider's own short name. */
@@ -305,6 +307,7 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
         mark: "Review overdue",
         since: asset.panelReview?.dueAt ?? null,
         conditions: [],
+        ...(asset.panelReview?.beadId ? { task: asset.panelReview.beadId } : {}),
       });
     }
   }
