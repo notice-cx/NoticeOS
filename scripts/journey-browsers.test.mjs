@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { installSteps } from '../apps/tower/e2e/install-browser.mjs';
 import { JOURNEY_BROWSERS } from '../apps/tower/e2e/journey-browsers.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
@@ -56,4 +57,15 @@ test('the install, the browser suite and the UX flow gate take the folder from t
     assert.match(code, /^import \{ JOURNEY_BROWSERS \} from "\.\/journey-browsers\.mjs";$/mu, file);
     assert.equal(code.includes('journey-playwright'), false, `${file} spells the folder itself`);
   }
+});
+
+// Ubuntu's mirrors made the library install take minutes on CI runners that
+// already had every library, so it runs only after the offline check fails.
+test('--with-deps installs the system libraries only when the offline check finds one missing', () => {
+  assert.deepEqual(installSteps(['--with-deps']), {
+    browser: ['install', 'chromium'], check: ['install-deps', '--dry-run', 'chromium'], deps: ['install-deps', 'chromium'],
+  });
+  assert.deepEqual(installSteps([]), { browser: ['install', 'chromium'], check: null, deps: null });
+  assert.deepEqual(installSteps(['--with-deps', '--dry-run']), { browser: ['install', 'chromium', '--with-deps', '--dry-run'], check: null, deps: null },
+    'a dry run prints what it would install and installs nothing');
 });
