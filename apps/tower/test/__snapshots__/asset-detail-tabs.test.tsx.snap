@@ -132,8 +132,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <button type="button" class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors">Log a change →</button>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0">
-<button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
+<li class="@container/list-row m-0 min-w-0">
+<button type="button" aria-expanded="false" class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-commit-horizontal lucide-git-commit size-2.5" aria-hidden="true">
 <circle cx="12" cy="12" r="3">
@@ -144,15 +144,15 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </line>
 </svg>
 </span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">July title batch</span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Deploy</span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">1d</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">ago</span>
+<span class="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">ago</span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform" aria-hidden="true" data-row-affordance="expand">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
 </path>
 </svg>
@@ -322,12 +322,12 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">1 error · 1 in all</span>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-flag-kind="anomaly" data-flag-severity="error" data-visual-state="error" data-material-condition="open-flags">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-flag-kind="anomaly" data-flag-severity="error" data-visual-state="error" data-material-condition="open-flags">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
+<button type="button" aria-expanded="false" class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-error">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">Signups — 22 in last24h (avg7d 39.3) </span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">
 <span class="tabular-nums text-muted-foreground" data-alert-verification="unverified">
@@ -353,17 +353,17 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">11h</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">first detected</span>
+<span class="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">first detected</span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform" aria-hidden="true" data-row-affordance="expand">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
 </path>
 </svg>
 </button>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <div class="flex flex-wrap items-center gap-1 sm:flex-nowrap sm:shrink-0">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 hover:bg-muted h-8 px-3 text-xs max-sm:min-h-11" type="button" aria-label="Snooze alert">Snooze</button>
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted h-8 px-3 text-xs max-sm:min-h-11" type="button" title="The issue is fixed" aria-label="Resolve alert">Resolve</button>
@@ -898,26 +898,26 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">2 of 37</span>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-codebase-duplicate="0">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-duplicate="0">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
+<button type="button" aria-expanded="false" class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">src/a.ts and src/b.ts</span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">line 10 · line 88</span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">48</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">lines</span>
+<span class="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">lines</span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform" aria-hidden="true" data-row-affordance="expand">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
 </path>
 </svg>
 </button>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for src/a.ts and src/b.ts" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -934,26 +934,26 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </li>
-<li class="m-0" data-codebase-duplicate="1">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-duplicate="1">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
+<button type="button" aria-expanded="false" class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">src/c.ts and 2 other files</span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">line 4 · line 61 · line 9</span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">22</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">lines</span>
+<span class="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">lines</span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform" aria-hidden="true" data-row-affordance="expand">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
 </path>
 </svg>
 </button>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for src/c.ts and 2 other files" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -990,23 +990,23 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-codebase-complex="0">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-complex="0">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
+<div class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">render</span>
 </span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">src/x.ts:120 · 210 lines</span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">complexity 41</span>
 </span>
 </div>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for render" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -1031,12 +1031,12 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">3</span>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-codebase-unused="file">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-unused="file">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
+<div class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">src/old.ts</span>
 </span>
@@ -1044,7 +1044,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for src/old.ts" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -1061,12 +1061,12 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </li>
-<li class="m-0" data-codebase-unused="export">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-unused="export">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
+<div class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">helper</span>
 </span>
@@ -1074,7 +1074,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for helper" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -1091,12 +1091,12 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </li>
-<li class="m-0" data-codebase-unused="dependency">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-unused="dependency">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
+<div class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">
 <span class="font-mono">left-pad</span>
 </span>
@@ -1104,7 +1104,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for left-pad" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -1128,18 +1128,18 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Vulnerable packages</h2>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-codebase-vulnerable="">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<li class="@container/list-row m-0 min-w-0" data-codebase-vulnerable="">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap">
 <div class="min-w-0 flex-1">
-<div class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto]">
+<div class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto]">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">△</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">2 packages have a known vulnerability</span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">Counted by the package audit in this asset's workflow</span>
 </span>
 </div>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="Make a task for vulnerable packages" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -2936,10 +2936,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-finding-row="search-striking-distance">
-<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap bg-muted/40">
+<li class="@container/list-row m-0 min-w-0" data-finding-row="search-striking-distance">
+<div class="flex items-center gap-x-2 rounded-md @max-2xl/list-row:flex-wrap bg-muted/40">
 <div class="min-w-0 flex-1">
-<button type="button" aria-expanded="true" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
+<button type="button" aria-expanded="true" class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-warn">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-compass size-3 text-warn" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
@@ -2948,23 +2948,23 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </path>
 </svg>
 </span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">Move “weekly meal plan” into the top results</span>
 <span class="text-xs text-muted-foreground whitespace-normal wrap-anywhere">
 <span>Recommendation · Original analysis: high confidence</span>
 </span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">1,003</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">captured impressions</span>
+<span class="max-w-48 text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground whitespace-normal">captured impressions</span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform rotate-180" aria-hidden="true" data-row-affordance="expand">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4 rotate-180" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
 </path>
 </svg>
 </button>
 </div>
-<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 @max-2xl/list-row:w-full @max-2xl/list-row:ps-9 @max-2xl/list-row:pb-2" data-list-row-actions="true">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted px-3 text-xs max-sm:min-h-11 h-8" type="button" disabled="" title="Make changes from the local NoticeOS." aria-label="File task for Move “weekly meal plan” into the top results" data-file-task="true">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-plus" aria-hidden="true">
 <path d="M16 5H3">
@@ -2980,11 +2980,11 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </svg>File task</button>
 </span>
 </div>
-<div class="grid grid-cols-[minmax(0,1fr)] gap-2 rounded-b-md bg-muted/40 px-2 pb-2.5 ps-9 text-xs leading-relaxed text-muted-foreground max-sm:wrap-anywhere" data-list-row-body="true">
-<dl class="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-<div class="flex justify-between gap-3">
-<dt class="min-w-0 break-words text-muted-foreground">Average position</dt>
-<dd class="max-w-[16ch] break-words text-end font-medium tabular-nums">6.1</dd>
+<div class="@container/list-row-body grid grid-cols-[minmax(0,1fr)] gap-2 rounded-b-md bg-muted/40 px-2 pb-2.5 ps-9 text-xs leading-relaxed text-muted-foreground wrap-anywhere" data-list-row-body="true">
+<dl class="grid min-w-0 gap-x-6 gap-y-1 @xl/list-row-body:grid-cols-2">
+<div class="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-3">
+<dt class="min-w-0 text-muted-foreground">Average position</dt>
+<dd class="min-w-0 text-end font-medium tabular-nums wrap-anywhere">6.1</dd>
 </div>
 </dl>
 <span data-recommendation-validity="unverified" class="block whitespace-normal text-xs font-normal normal-case tracking-normal text-muted-foreground tabular-nums">
@@ -4505,13 +4505,13 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/integrations" data-discover="true">All integrations →</a>
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0" data-subject="source:meadow.example:gsc">
-<button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
+<li class="@container/list-row m-0 min-w-0" data-subject="source:meadow.example:gsc">
+<button type="button" aria-expanded="false" class="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md p-2 text-start @lg/list-row:grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-muted-foreground">◦</span>
-<span class="grid min-w-0 gap-0.5">
+<span class="col-start-2 row-start-1 grid min-w-0 gap-0.5">
 <span class="text-sm text-foreground whitespace-normal wrap-anywhere">Google Search Console</span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
+<span class="col-start-2 row-start-2 grid min-w-0 justify-items-start gap-0.5 text-start wrap-anywhere @lg/list-row:col-start-3 @lg/list-row:row-start-1 @lg/list-row:justify-items-end @lg/list-row:text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">
 <span class="inline-flex" data-status-for="source:meadow.example:gsc" data-connection="unknown">
 <span data-status-for="source:meadow.example:gsc" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium border-border bg-muted text-muted-foreground">
@@ -4528,7 +4528,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform" aria-hidden="true" data-row-affordance="expand">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down col-start-3 row-start-1 size-4 text-muted-foreground motion-safe:transition-transform @lg/list-row:col-start-4" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
 </path>
 </svg>
