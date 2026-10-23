@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import net, { type AddressInfo } from "node:net";
 import { createServer, type ViteDevServer } from "vite";
+import { createTestViteServer } from "../../../scripts/test-vite-server.mjs";
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_DOOR_HOST,
@@ -445,7 +446,7 @@ describe("scheduled requests during server reloads", () => {
     let first = true;
     let server: ViteDevServer | undefined;
     try {
-      server = await createServer({
+      server = await createTestViteServer(createServer, {
         configFile: false, root, logLevel: "silent", server: { port: 0, host: "127.0.0.1" },
         plugins: [ingestDoor(), { name: "synthetic-scheduled-job", configureServer(vite) {
           vite.middlewares.use((request, response, next) => {
@@ -455,7 +456,7 @@ describe("scheduled requests during server reloads", () => {
             response.end(JSON.stringify({ outcome: "ran", detail: "fixture completed" }));
           });
         } }],
-      });
+      }, { pages: false });
       await server.listen();
       const url = `http://127.0.0.1:${port}/cdn-cgi/handler/scheduled?cron=*%20*%20*%20*%20*`;
       const firing = fetch(url);
