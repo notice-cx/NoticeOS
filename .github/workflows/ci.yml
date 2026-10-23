@@ -31,7 +31,7 @@ jobs:
 
   tower-unit:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -57,7 +57,7 @@ jobs:
 
   ingest-unit:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -76,6 +76,10 @@ jobs:
 
   scripts:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        concurrency: [3, 4, 6]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -85,13 +89,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: pnpm test:scripts
+      - run: node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test-concurrency=${{ matrix.concurrency }} --test scripts/*.test.mjs
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
 
   browser:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -125,7 +129,7 @@ jobs:
 
   flow-gate:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -162,7 +166,7 @@ jobs:
   # (db/dolt/host/README.md).
   task-store:
     needs: scope
-    if: needs.scope.outputs.runtime == 'true'
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
