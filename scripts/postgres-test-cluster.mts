@@ -9,7 +9,7 @@
 // A file's store is a copy of the template (CREATE DATABASE … TEMPLATE). A
 // Worker runtime's Hyperdrive binding names one database for the runtime's
 // whole life, so a runtime starts each file clean by having its database
-// copied again under the same name (`resetDatabase`).
+// replaced, under the same name, by a new copy (`resetDatabase`).
 //
 // Only the process that starts the cluster loads this module; it alone holds
 // the owner's way in. It serves copies to the run's test processes through a
@@ -63,6 +63,9 @@ const BACKGROUND_LANES = 2;
 /** How many copies wait ready once a run hands out unnamed copies: enough for
  * the Tower tests that take several at once (up to five in one test). */
 const SPARE_COPIES = 4;
+/** How many new copies wait ready once a run resets a copy under its name:
+ * one for each Workers runtime that resets its copy before every file. */
+const RENEWAL_COPIES = 4;
 
 /** One row an owner's statement answered, as node-postgres reads it. */
 export type OwnerRow = Record<string, unknown>;
@@ -136,6 +139,10 @@ export interface TestCluster extends TestClusterOperations {
    * clears or changes rows the application role may not. Only the starting
    * process can. Resolves the rows of its last statement. */
   asOwner(database: string, sql: string): Promise<OwnerRow[]>;
+  /** Empty these tables of one copy as its owner (`emptyingTablesStatement`),
+   * on a connection kept open for that copy: what a suite runs between every
+   * two tests. Each is a noticeos table the template leaves empty. */
+  emptyTables(database: string, tables: readonly string[]): Promise<void>;
   /** Resolves once no copy given back is still being emptied and no spare is
    * being made (a copy given back waits as a spare only after that). */
   settled(): Promise<void>;
@@ -243,6 +250,7 @@ export async function openOnLoopbackPort(
 /** The owner's operations on the cluster, over its private socket, in this process alone. */
 interface Owner extends TestClusterOperations {
   asOwner(database: string, sql: string): Promise<OwnerRow[]>;
+  emptyTables(database: string, tables: readonly string[]): Promise<void>;
   /** Resolves once no copy given back is still being emptied and no spare is being made. */
   settled(): Promise<void>;
   /** End the owner's connections; the server stops them anyway. */
@@ -322,6 +330,37 @@ ${sequences}
 END $empty$`;
 }
 
+/** One statement, run as the owner in a copy, that empties those of `tables`
+ * holding a row, with each of `tables` whose foreign key reaches one of them:
+ * Postgres truncates a table only together with every table that references
+ * it, even an empty one. A table outside `tables` that references one still
+ * fails the statement. Truncating only what holds rows keeps it cheap where a
+ * test wrote to a few tables of many. */
+function emptyingTablesStatement(tables: readonly string[]): string {
+  const named = tables.map((table) => `'noticeos.${table}'`).join(', ');
+  return `DO $empty$
+DECLARE
+  named regclass[] := ARRAY[${named}]::regclass[];
+  one regclass;
+  held boolean;
+  emptied regclass[] := '{}';
+BEGIN
+  FOREACH one IN ARRAY named LOOP
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %s)', one) INTO held;
+    IF held THEN emptied := emptied || one; END IF;
+  END LOOP;
+  IF cardinality(emptied) = 0 THEN RETURN; END IF;
+  WITH RECURSIVE reached(relation) AS (
+    SELECT unnest(emptied)
+    UNION
+    SELECT fk.conrelid::regclass FROM reached JOIN pg_catalog.pg_constraint fk ON fk.contype = 'f' AND fk.confrelid = reached.relation
+     WHERE fk.conrelid = ANY (named)
+  )
+  SELECT array_agg(relation) INTO emptied FROM reached;
+  EXECUTE 'TRUNCATE ' || array_to_string(emptied, ', ');
+END $empty$`;
+}
+
 /** The copy, reset, drop and release operations, and a statement in one
  * copy, run as the owner on the cluster's private socket: never a blocking
  * call.
@@ -334,7 +373,12 @@ END $empty$`;
  * (`emptyingStatement`) and waits as a spare. Once a run asks for an unnamed
  * copy, spares are also made ahead, up to SPARE_COPIES. A copy that cannot be
  * taken back that way is dropped. Work nobody waits on takes at most
- * BACKGROUND_LANES of the owner's connections. */
+ * BACKGROUND_LANES of the owner's connections.
+ *
+ * A copy reset under its name is closed, has every session ended and is
+ * renamed away to be dropped later, and a new copy made ahead (up to
+ * RENEWAL_COPIES) takes its name: the file waiting on the reset waits for no
+ * checkpoint. Without one ready, the copy is dropped and made again. */
 function ownerOperations(socketDir: string, port: number, appUrl: string, workspaceId: string, contents: TemplateContents): Owner {
   const pg = createRequire(HELPER_PACKAGE)('pg') as NodePostgres;
   // Each statement of an operation on a pooled connection of its own: CREATE
@@ -401,6 +445,23 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       });
     }
   };
+  /** New copies made ahead for `resetDatabase`; never a copy given back. */
+  const renewals: string[] = [];
+  let renewing = 0;
+  const topUpRenewals = (): void => {
+    while (renewals.length + renewing < RENEWAL_COPIES) {
+      renewing += 1;
+      later(async () => {
+        try {
+          const name = newName();
+          await run(...copy(name));
+          renewals.push(name);
+        } finally {
+          renewing -= 1;
+        }
+      });
+    }
+  };
   const asOwner = async (database: string, sql: string): Promise<OwnerRow[]> => {
     const client = new pg.Client(ownerLogin(socketDir, port, checkCopyName(database)));
     client.on('error', () => undefined);
@@ -412,6 +473,26 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       await client.end().catch(() => undefined);
     }
   };
+  // One connection per copy for `emptyTables`, which runs nothing else on it,
+  // so no session state carries from one emptying to the next. Idle, it lets
+  // this process exit.
+  const kept = new Map<string, OwnerConnection>();
+  const keptFor = (database: string): OwnerConnection => {
+    let connection = kept.get(database);
+    if (connection === undefined) {
+      connection = new pg.Pool({ ...ownerLogin(socketDir, port, database), max: 1, idleTimeoutMillis: 0, allowExitOnIdle: true });
+      connection.on('error', () => undefined);
+      kept.set(database, connection);
+    }
+    return connection;
+  };
+  /** End the kept connection to `database`, before its sessions are ended or its name changes. */
+  const letGo = async (database: string): Promise<void> => {
+    const connection = kept.get(database);
+    kept.delete(database);
+    await connection?.end().catch(() => undefined);
+  };
+  const emptyable = new Set(contents.emptyTables);
   return {
     workspaceId,
     url: (database) => copyUrl(appUrl, database),
@@ -427,8 +508,26 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       return made;
     },
     async resetDatabase(name) {
-      await run(drop(checkCopyName(name)), ...copy(name));
+      await letGo(checkCopyName(name));
       analyzed.delete(name);
+      const ready = renewals.shift();
+      topUpRenewals();
+      if (ready === undefined) {
+        await run(drop(name), ...copy(name));
+        return name;
+      }
+      const old = newName();
+      try {
+        await run(
+          `ALTER DATABASE ${name} WITH ALLOW_CONNECTIONS false`,
+          `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${name}'`,
+          `ALTER DATABASE ${name} RENAME TO ${old}`,
+        );
+        later(() => run(drop(old)));
+      } catch {
+        await run(drop(name));
+      }
+      await run(`ALTER DATABASE ${ready} RENAME TO ${name}`);
       return name;
     },
     async analyzeDatabase(name) {
@@ -437,11 +536,13 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       await asOwner(given, 'ANALYZE');
     },
     async dropDatabase(name) {
-      await run(drop(checkCopyName(name)));
+      await letGo(checkCopyName(name));
+      await run(drop(name));
       analyzed.delete(name);
     },
     async releaseDatabase(name) {
       const given = checkCopyName(name);
+      await letGo(given);
       if (analyzed.has(given)) {
         await run(drop(given));
         analyzed.delete(given);
@@ -472,8 +573,28 @@ function ownerOperations(socketDir: string, port: number, appUrl: string, worksp
       });
     },
     asOwner,
+    async emptyTables(database, tables) {
+      const given = checkCopyName(database);
+      for (const table of tables) {
+        if (!/^[a-z][a-z0-9_]*$/u.test(table) || !emptyable.has(`noticeos.${table}`)) {
+          throw new TypeError(`not a noticeos table the template leaves empty: ${table}`);
+        }
+      }
+      if (tables.length === 0) return;
+      const statement = emptyingTablesStatement(tables);
+      try {
+        await keptFor(given).query(statement);
+      } catch {
+        // The kept connection can have been ended since its last use (a test
+        // ending sessions as the owner). Emptying twice is emptying once, and
+        // an error of the statement's own comes back from the second try.
+        await letGo(given);
+        await keptFor(given).query(statement);
+      }
+    },
     settled: () => idle,
     close() {
+      for (const database of [...kept.keys()]) void letGo(database);
       void pool.end().catch(() => undefined);
     },
   };

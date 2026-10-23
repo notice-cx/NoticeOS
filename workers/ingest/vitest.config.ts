@@ -83,7 +83,8 @@ const wranglerConfig = JSON.parse(stripJsonc(readFileSync(WRANGLER_CONFIG, 'utf8
  * `POSTGRES`, a second copy as `POSTGRES_OTHER` (for the config cache's
  * ownership proof), and `TEST_POSTGRES`: POST /reset remakes the first copy
  * before every file (test/clean-start.ts), and the second only with
- * `{ other: true }`; POST /owner runs a fixture statement as the owner.
+ * `{ other: true }`; POST /empty empties tables as the owner, between tests
+ * (test/helpers.ts); POST /owner runs a fixture statement as the owner.
  *
  * Required: nearly every file reads the config store, so a run where no
  * Postgres can start fails, naming why. wrangler insists on a local connection
@@ -132,7 +133,20 @@ async function postgresOptions(): Promise<{
           }
           return new Response(null, { status: 204 });
         }
-        return new Response('POST /reset or /owner', { status: 404 });
+        if (pathname === '/empty') {
+          const asked = (await request.json()) as { tables?: unknown; other?: unknown };
+          const tables = asked.tables;
+          if (!Array.isArray(tables) || !tables.every((table) => typeof table === 'string')) {
+            return new Response('POST /empty takes { tables }', { status: 400 });
+          }
+          try {
+            await cluster.emptyTables(asked.other === true ? other : database, tables);
+          } catch (error) {
+            return new Response(error instanceof Error ? error.message : String(error), { status: 400 });
+          }
+          return new Response(null, { status: 204 });
+        }
+        return new Response('POST /reset, /empty or /owner', { status: 404 });
       },
     },
   };

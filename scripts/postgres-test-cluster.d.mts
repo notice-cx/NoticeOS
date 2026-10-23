@@ -44,6 +44,10 @@ export interface TestCluster extends TestClusterOperations {
      * clears or changes rows the application role may not. Only the starting
      * process can. Resolves the rows of its last statement. */
     asOwner(database: string, sql: string): Promise<OwnerRow[]>;
+    /** Empty these tables of one copy as its owner (`emptyingTablesStatement`),
+     * on a connection kept open for that copy: what a suite runs between every
+     * two tests. Each is a noticeos table the template leaves empty. */
+    emptyTables(database: string, tables: readonly string[]): Promise<void>;
     /** Resolves once no copy given back is still being emptied and no spare is
      * being made (a copy given back waits as a spare only after that). */
     settled(): Promise<void>;
