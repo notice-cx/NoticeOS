@@ -172,7 +172,8 @@ CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
 A PR runs the PR lane: the Tower's typecheck and unit tests; the other
 workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey harness and
 the browser journeys tagged `@pull-request`, on desktop and phone; the Tower's
-unit tests and the root suite each split across two runners. The merge
+unit tests and the root suite each split across two runners, as does the
+task store where it runs. The merge
 queue, a push to `main`, the nightly run and a run started by hand
 (`gh workflow run ci.yml --ref <branch>`) run the full lane: the same suites,
 every browser journey split test by test across three shards, the journey

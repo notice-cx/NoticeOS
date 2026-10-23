@@ -247,13 +247,17 @@ test('every job stops after at most 30 minutes', () => {
 
 // A sharded suite runs every one of its files once, across its matrix: vitest
 // and Node each take one share per runner.
-test('the Tower unit suite and the root suite run in two shards that together run every file', () => {
+test('the Tower unit suite, the root suite and the task store run in two shards that together run every file', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  for (const name of ['tower-unit', 'scripts']) {
+  for (const name of ['tower-unit', 'scripts', 'task-store']) {
     assert.match(jobBlock(workflow, name), /^ {4}strategy:\n {6}fail-fast: false\n {6}matrix:\n {8}shard: \[1, 2\]\n/mu, `${name} is a matrix of two shards`);
   }
   assert.match(jobBlock(workflow, 'tower-unit'), /- run: pnpm --filter @noticeos\/tower run typecheck\n {8}if: matrix\.shard == 1\n/u, 'the typecheck runs once');
-  assert.match(jobBlock(workflow, 'scripts'), /- run: pnpm test:scripts\n {8}env:\n(?: {10}.*\n)*? {10}NODE_OPTIONS: --test-shard=\$\{\{ matrix\.shard \}\}\/2\n/u, 'the root suite takes its share');
+  for (const [name, suite] of [['scripts', 'pnpm test:scripts'], ['task-store', 'pnpm test:task-store']]) {
+    assert.match(jobBlock(workflow, name), new RegExp(`- run: ${suite}\\n {8}env:\\n(?: {10}.*\\n)*? {10}NODE_OPTIONS: --test-shard=\\$\\{\\{ matrix\\.shard \\}\\}\\/2\\n`, 'u'),
+      `${name} takes its share of the files`);
+  }
+  assert.match(jobBlock(workflow, 'task-store'), /name: task-store-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each task-store shard keeps its own evidence');
 });
 
 // A cancelled run must not leave a skipped required check, which GitHub

@@ -246,12 +246,17 @@ jobs:
   # a change retried after a lost reply is not repeated; task summaries, the
   # task HTTP routes and the demo simulator's days run against Postgres too.
   # The root suite skips these tests; this job supplies their opt-in inputs
-  # (db/dolt/host/README.md).
+  # (db/dolt/host/README.md). Two runners each take half the files, which
+  # puts the two longest (the persistent demo and the claim race) apart.
   task-store:
     needs: scope
     if: fromJSON(needs.scope.outputs.needed)['task-store']
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -265,12 +270,13 @@ jobs:
       - run: pnpm test:task-store
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/2
       # Each suite's redacted receipt: every task and Dolt client command it
       # ran, with its exit code and output, and the fixture's cleanup.
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: task-store-evidence
+          name: task-store-evidence-${{ matrix.shard }}
           path: ${{ runner.temp }}/task-store/evidence/
           retention-days: 14
 
