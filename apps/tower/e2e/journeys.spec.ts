@@ -2420,7 +2420,10 @@ test("decision filters keep their whole count and restore the hidden decisions w
 // client once its window closes (the pick recorded, a comment, the hand-back
 // to ready work with the human label off), and the task's page then shows the
 // pick as a fact with the options inert.
-test("a question with choices is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
+test("a question with choices on plain HTTP is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
+  });
   await createAsset(page);
   for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
   await page.goto(`/tasks?project=${JOURNEY_ASSET}`);

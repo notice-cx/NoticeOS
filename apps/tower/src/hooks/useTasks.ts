@@ -301,6 +301,7 @@ function answeredAs(answer: InboxAnswer): string {
 /** How many task ids a message names before it counts the rest. */
 const NAMED = 3;
 let batches = 0;
+let answerToasts = 0;
 
 /** "ex-1, ex-2, ex-3 and 4 more". */
 function nameIds(ids: readonly string[]): string {
@@ -406,8 +407,9 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
       // The captured owner API still refuses dispatch after session retirement.
       const project = selected(answer.project);
       const captured: InboxAnswer = Object.freeze({ ...answer, project });
-      // An exiting toast must never share the next answer's Undo lifecycle.
-      const toastId = `inbox-answer-${crypto.randomUUID()}`;
+      // An exiting toast must never share the next answer's Undo lifecycle;
+      // document-local IDs also work on plain-HTTP LAN origins.
+      const toastId = `inbox-answer-${++answerToasts}`;
       toast.success(answeredAs(answer), {
         id: toastId,
         description: answer.title,
