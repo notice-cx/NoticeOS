@@ -1,7 +1,7 @@
 import { BUILT_APP, test, expect } from "../journey-test";
 import { openWall, wallScene } from "../wall-scene";
 import { WALL_FIXTURE_VARIANTS } from "../wall-fixture";
-import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
+import { DESKTOP_ONLY, DEV_SERVER, PR_SMOKE } from "../fixtures";
 import type { WallLayout } from "../../shared/wall-layout";
 import { WALL_WIDGET_MIN_PX } from "../../src/lib/wall-editor";
 import { measureWallFit, wallFitVerdict } from "../../../../scripts/wall-fit-measure.mjs";
@@ -199,7 +199,7 @@ test("Wall default remains readable on desktop and phone", { tag: PR_SMOKE }, as
   await page.screenshot({ path: testInfo.outputPath(`wall-default-${testInfo.project.name}.png`), fullPage: true });
 });
 
-test("Wall gallery specimens use TV tokens in light and dark themes", async ({ page }, testInfo) => {
+test("Wall gallery specimens use TV tokens in light and dark themes", { tag: DEV_SERVER }, async ({ page }, testInfo) => {
   test.skip(BUILT_APP, "/dev/kitchen-sink is a dev-server page; a built app has none");
   await wallScene(page);
   const readings: unknown[] = [];

@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { PR_SMOKE } from '../apps/tower/e2e/fixtures.ts';
+import { DEV_SERVER, PR_SMOKE } from '../apps/tower/e2e/fixtures.ts';
 import { JOBS as SCOPED_JOBS, NONE, neededJobs } from './ci-scope.mjs';
 
 // The root is intentionally not a pnpm workspace. That keeps the recursive
@@ -60,19 +60,20 @@ const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
 const SMOKE = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${PR_SMOKE}`;
 const TOWER_TESTS = 'pnpm --filter @noticeos/tower run test --shard=${{ matrix.shard }}/2';
+const DEV_JOURNEYS = `pnpm --filter @noticeos/tower run test:journeys -- --grep ${DEV_SERVER}`;
 const JOBS = {
   'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, TOWER_TESTS],
   'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
   scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
   smoke: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, HARNESS, SMOKE],
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
-  'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows'],
+  'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, DEV_JOURNEYS, 'pnpm --filter @noticeos/tower run test:ux-flows'],
   // The opt-in real task store suites get their pinned inputs first.
   'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, 'pnpm test:task-store'],
 };
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = [TOWER_TESTS, "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
-  JOURNEYS, SMOKE, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
+  JOURNEYS, SMOKE, DEV_JOURNEYS, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
 /** A suite's command without the arguments that pick its share of tests. */
 const suiteOf = (command) => command.replace(/ (?:-- .*|--shard=\S+)$/u, '');
 /** The lanes: a pull request whose change reaches every job it can run, and every other run. */
@@ -258,6 +259,21 @@ test('the Tower unit suite, the root suite and the task store run in two shards 
       `${name} takes its share of the files`);
   }
   assert.match(jobBlock(workflow, 'task-store'), /name: task-store-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each task-store shard keeps its own evidence');
+});
+
+// The journeys run against the built Tower; the few that need the dev server
+// skip there and run in the full lane's flow-gate job, which has no build.
+test('the journeys run against the built Tower, and those that need the dev server run on it in the full lane', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  for (const name of ['smoke', 'browser']) {
+    const job = jobBlock(workflow, name);
+    assert.match(job, /- run: pnpm -r build\n {8}env:\n(?: {10}#.*\n)* {10}JOURNEY_BUILD: '1'\n/u, `${name} builds the Tower as its journeys run it`);
+    assert.match(job, /\n {10}JOURNEY_BUILT_CLIENT: \$\{\{ github\.workspace \}\}\/apps\/tower\/dist\/client\n/u, `${name} runs the journeys against that build`);
+  }
+  const flow = jobBlock(workflow, 'flow-gate');
+  assert.doesNotMatch(flow, /JOURNEY_BUILT_CLIENT|JOURNEY_BUILD/u, 'the flow gate runs on the dev server');
+  assert.ok(runCommands(flow).includes(DEV_JOURNEYS), 'the dev-server journeys run in the flow gate');
+  assert.equal(LANES.full['flow-gate'], true, 'the flow gate is in the full lane');
 });
 
 // A cancelled run must not leave a skipped required check, which GitHub

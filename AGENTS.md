@@ -173,12 +173,14 @@ A PR runs the PR lane: the Tower's typecheck and unit tests; the other
 workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey harness and
 the browser journeys tagged `@pull-request`, on desktop and phone; the Tower's
 unit tests and the root suite each split across two runners, as does the
-task store where it runs. The merge
+task store where it runs. The browser journeys run against the built Tower;
+those tagged `@dev-server` need Vite's dev server and run on it in the full
+lane's flow-gate job. The merge
 queue, a push to `main`, the nightly run and a run started by hand
 (`gh workflow run ci.yml --ref <branch>`) run the full lane: the same suites,
 every browser journey split test by test across three shards, the journey
-harness then the UX flow walker (a report; it fails only when a flow cannot be
-walked), and `pnpm test:task-store` against a real Dolt server in Docker; a
+harness, the journeys tagged `@dev-server`, then the UX flow walker (a report;
+it fails only when a flow cannot be walked), and `pnpm test:task-store` against a real Dolt server in Docker; a
 push to `main` whose commit already passed the full lane in the merge queue
 runs no job again. Each
 job installs only what its suites start: PostgreSQL 18, Chromium in the

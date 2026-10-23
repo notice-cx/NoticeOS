@@ -1,5 +1,6 @@
 import type { Locator, Page, TestInfo } from "@playwright/test";
 import { BUILT_APP, test, expect } from "./journey-test";
+import { DEV_SERVER } from "./fixtures";
 import { everyTabPayload, viewOf } from "../test/asset-detail-fixture";
 import { isAssetDetailView } from "../shared/asset-detail-views";
 import { shiftLabel } from "../shared/surface";
@@ -117,7 +118,7 @@ for (const mode of ["dark", "light"] as const) {
     await info.attach("banner geometry", { body: JSON.stringify({ integrations, connect }, null, 2), contentType: "application/json" });
   });
 
-  test(`setup polish: the gallery's status banners keep their mark beside their lead in ${mode}`, async ({ page }, info) => {
+  test(`setup polish: the gallery's status banners keep their mark beside their lead in ${mode}`, { tag: DEV_SERVER }, async ({ page }, info) => {
     test.skip(BUILT_APP, "/dev/kitchen-sink is a dev-server page; a built app has none");
     await theme(page, mode);
     await syntheticSite(page);

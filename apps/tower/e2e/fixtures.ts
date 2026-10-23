@@ -4,6 +4,9 @@ export const DESKTOP_ONLY = "@desktop-only";
 /** The tag of a journey every pull request runs: the PR lane's browser smoke
  * (.github/workflows/ci.yml, scripts/ci-scope.mjs). The full lane runs it too. */
 export const PR_SMOKE = "@pull-request";
+/** The tag of a journey that needs Vite's dev server: it skips against a
+ * built app, so CI's full lane runs it once more on the dev server. */
+export const DEV_SERVER = "@dev-server";
 export const JOURNEY_NOW = "2026-09-06T12:00:00.000Z";
 export const JOURNEY_ASSET = "journey.example";
 export const JOURNEY_KEY = "journey-only-not-a-real-key";

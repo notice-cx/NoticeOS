@@ -2,7 +2,7 @@ import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
 import { BUILT_APP, test, expect } from "./journey-test";
-import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, REFUSED_GATE, journeyFindingSnapshot } from "./fixtures";
+import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, DEV_SERVER, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, REFUSED_GATE, journeyFindingSnapshot } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { WALL_PRESETS, wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -3630,7 +3630,7 @@ async function openAndList(page: Page, path: string, landmark: (page: Page) => P
   return { screens: [...screens].sort(), parts: [...parts].sort() };
 }
 
-test("each main address loads its own screen and no other", async ({ page }) => {
+test("each main address loads its own screen and no other", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -3687,7 +3687,7 @@ const RETIRED_WALL_MODULE =
 const WALL_EDITOR_MODULE =
   /pragmatic-drag-and-drop|\/src\/lib\/wall-editor\.ts$|\/src\/components\/wall\/(WallPreview|WallDividers|WallMoveMenu|WallToolbar|WallLibraryPanel|WallWidgetPanel|WallVersions)\.tsx$/;
 
-test("the TV downloads no desk editing or task code, and none of the widgets the Wall retired", async ({ page }) => {
+test("the TV downloads no desk editing or task code, and none of the widgets the Wall retired", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const modules = await openAndListModules(page, "/wall", async (p) => {
     await expect(p.locator("[data-wall-strip]")).toBeVisible();
@@ -3704,7 +3704,7 @@ test("the TV downloads no desk editing or task code, and none of the widgets the
 
 // ── the asset page's tabs and the command palette ───────────────────────────
 
-test("an asset's tabs fetch their code when opened, and the palette on its first ⌘K", async ({ page }) => {
+test("an asset's tabs fetch their code when opened, and the palette on its first ⌘K", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -3752,7 +3752,7 @@ test("an asset's tabs fetch their code when opened, and the palette on its first
   expect(pageErrors).toEqual([]);
 });
 
-test("an asset tab whose code cannot be fetched preserves its panel and recovers explicitly in a new tab", async ({ page }) => {
+test("an asset tab whose code cannot be fetched preserves its panel and recovers explicitly in a new tab", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   await addAssetByApi(page);
   // A tab opened before a rebuild asks for a file the server no longer has.
@@ -3803,7 +3803,7 @@ test("an asset tab whose code cannot be fetched preserves its panel and recovers
   }
 });
 
-test("a screen whose code cannot be fetched preserves its document and recovers explicitly in a new tab", async ({ page }) => {
+test("a screen whose code cannot be fetched preserves its document and recovers explicitly in a new tab", { tag: DEV_SERVER }, async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   // A tab opened before a rebuild asks for a file the server no longer has.
   let refused = 0;
@@ -3847,7 +3847,7 @@ test("a screen whose code cannot be fetched preserves its document and recovers 
   }
 });
 
-test("the nav fetches a screen's code when the pointer rests on its link", desktopOnly("the phone's nav is a drawer opened by a tap, which is the click"), async ({ page }) => {
+test("the nav fetches a screen's code when the pointer rests on its link", desktopOnly("the phone's nav is a drawer opened by a tap, which is the click", DEV_SERVER), async ({ page }) => {
   test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toBeVisible();

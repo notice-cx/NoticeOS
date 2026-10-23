@@ -154,11 +154,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r build
+        env:
+          JOURNEY_BUILD: '1'
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
       - run: pnpm --filter @noticeos/tower run test:journey-harness
       - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @pull-request
         env:
           JOURNEY_WORKERS: 3
+          JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -190,6 +193,10 @@ jobs:
       # The journeys' run starts one throwaway Postgres for its fixture servers.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r build
+        env:
+          # The Tower is built as the journeys below run it: without its
+          # release, which their stubbed reads do not carry (e2e/README.md).
+          JOURNEY_BUILD: '1'
       # The fifth gate is `pnpm test:journeys`, split across this job and the
       # next so neither waits on the other: the isolated browser journeys
       # here, the journey harness and the UX flow gate there. The journeys'
@@ -200,6 +207,10 @@ jobs:
           # Browser workers, each with its own fixture server. Unset, a run
           # takes half the machine's cores, which on a small runner is 1.
           JOURNEY_WORKERS: 3
+          # Against that build: a few bundles per page instead of every source
+          # module through Vite. The journeys tagged @dev-server skip here and
+          # run in the flow-gate job, on the dev server.
+          JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -227,6 +238,11 @@ jobs:
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
       - run: pnpm --filter @noticeos/tower run test:journey-harness
+      # The journeys that need Vite's dev server (tagged @dev-server), which
+      # the browser shards skip against the built Tower.
+      - run: pnpm --filter @noticeos/tower run test:journeys -- --grep @dev-server
+        env:
+          JOURNEY_WORKERS: 3
       # The UX flow walker walks every declared operator flow in a browser and
       # reports what each costs (results.json in the artifact below); it fails
       # only when a flow cannot be walked to its end.
@@ -238,7 +254,10 @@ jobs:
         if: always()
         with:
           name: ux-flow-walker-report
-          path: apps/tower/e2e/ux-flows-results/
+          path: |
+            apps/tower/e2e/ux-flows-results/
+            apps/tower/e2e/playwright-report/
+            apps/tower/e2e/test-results/
           retention-days: 14
 
   # The real task store: the task client and Dolt server the
