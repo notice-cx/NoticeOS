@@ -13,9 +13,8 @@
 // folder the job's code lives in, or a scripts/ module that code imports or
 // names by file name. A change to dependencies, the toolchain, CI, config/ or
 // db/, or to a path no rule knows, runs every PR-lane job. The task store
-// also runs on a pull request that changes its own code; a change that
-// reaches it only through the Tower or ingest Worker it bundles is caught in
-// the full lane. The root script suite always runs: it reads every tracked
+// runs in the full lane only: the merge queue catches a break of it before
+// the change lands. The root script suite always runs: it reads every tracked
 // Markdown file (product-name.test.mjs, grep-visible.test.mjs,
 // docs-index.test.mjs), and a change to a file a test reads runs that test.
 // So a pull request that changes only documentation runs it alone; the docs
@@ -73,9 +72,6 @@ export const SCOPES = Object.freeze({
   'ingest-unit': ['workers/', 'packages/'],
   // The journey server loads the ingest modules by path (apps/tower/e2e/server.mjs).
   smoke: ['apps/tower/', 'workers/ingest/src/', 'packages/'],
-  // The task client and Dolt pins and the job's preparation step. The task
-  // store's own code is its test files and what they import.
-  'task-store': ['deploy/compose/Dockerfile', 'scripts/task-store-test-tools.mjs'],
 });
 const SCOPED = Object.keys(SCOPES);
 
@@ -102,7 +98,7 @@ const KNOWN = ['apps/tower/', 'workers/', 'packages/', 'scripts/', 'deploy/', 'd
 export function neededJobs(event, files = [], reaches = scopeGraph(), manifest = null) {
   if (laneOf(event) === 'full') return Object.fromEntries(JOBS.map((job) => [job, job !== 'smoke']));
   const runtime = files.filter((file) => !unreadByRuntime(file));
-  const pr = { scripts: true, browser: false, 'flow-gate': false };
+  const pr = { scripts: true, browser: false, 'flow-gate': false, 'task-store': false };
   for (const job of SCOPED) pr[job] = files.length === 0;
   for (const file of runtime) {
     const rule = REACHES.find(([pattern]) => pattern.test(file));
@@ -116,11 +112,10 @@ export function neededJobs(event, files = [], reaches = scopeGraph(), manifest =
 }
 
 /** The jobs a root package.json change reaches: its scripts run in the root
- * suite, the task store's own script in that job; any other field (the
- * package manager, engines, dependencies) reaches every job. */
+ * suite; any other field (the package manager, engines, dependencies) reaches
+ * every job. */
 function manifestJobs(manifest) {
-  if (!manifest || manifest.fields.some((field) => field !== 'scripts')) return SCOPED;
-  return manifest.scripts.includes('test:task-store') ? ['task-store'] : [];
+  return !manifest || manifest.fields.some((field) => field !== 'scripts') ? SCOPED : [];
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -163,15 +158,13 @@ function repositoryGraph(root) {
     }
     return null;
   };
-  const task = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).scripts['test:task-store'].split(/\s+/u).filter((word) => /^scripts\/.+\.test\.mjs$/u.test(word));
   const roots = Object.fromEntries(Object.entries(SCOPES).map(([job, folders]) => [job,
-    tracked.filter((file) => CODE.test(file) && (job === 'task-store' ? task.includes(file) : folders.some((folder) => file.startsWith(folder))))]));
+    tracked.filter((file) => CODE.test(file) && folders.some((folder) => file.startsWith(folder)))]));
   return (job) => {
     const seen = new Set(roots[job]);
     const queue = [...seen];
     for (let file = queue.shift(); file; file = queue.shift()) {
-      // The Workers the task store bundles reach it in the full lane.
-      if (!CODE.test(file) || (job === 'task-store' && /^(?:apps|workers)\//u.test(file))) continue;
+      if (!CODE.test(file)) continue;
       const text = readFileSync(path.join(root, file), 'utf8');
       const found = [...text.matchAll(IMPORT)].map(([, specifier]) => resolve(file, specifier));
       // A generated .mjs and the .mts it is written from are one module.
@@ -179,7 +172,7 @@ function repositoryGraph(root) {
       for (const [, name] of text.matchAll(NAMED)) found.push(...(byName.get(name) ?? []));
       for (const target of found) {
         // A root suite test file runs in its own job, whoever names it.
-        if (target && exists.has(target) && !seen.has(target) && !(/^scripts\/[^/]+\.test\.mjs$/u.test(target) && !roots[job].includes(target))) {
+        if (target && exists.has(target) && !seen.has(target) && !/^scripts\/[^/]+\.test\.mjs$/u.test(target)) {
           seen.add(target);
           queue.push(target);
         }

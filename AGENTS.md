@@ -168,39 +168,38 @@ scope is inferred.
 ## The CI bar
 
 CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
-`scripts/ci-scope.mjs`; every job starts with `pnpm install --frozen-lockfile`.
-A PR runs the PR lane: the Tower's typecheck and unit tests; the other
-workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey harness and
-the browser journeys tagged `@pull-request`, on desktop and phone. Suites
-split across runners: the Tower's typecheck on its own and its unit tests on
-two, the smoke journeys on two, the root suite on three, and the task store,
-where it runs, on two. The browser journeys run against the built Tower;
-those tagged `@dev-server` need Vite's dev server and run on it in the full
-lane's flow-gate job. The merge
-queue, a push to `main`, the nightly run and a run started by hand
-(`gh workflow run ci.yml --ref <branch>`) run the full lane: the same suites,
-every browser journey split test by test across three shards, the journey
-harness, the journeys tagged `@dev-server`, then the UX flow walker (a report;
-it fails only when a flow cannot be walked), and `pnpm test:task-store` against a real Dolt server in Docker; a
-push to `main` whose commit already passed the full lane in the merge queue
-runs no job again. Each
-job installs only what its suites start: PostgreSQL 18, Chromium in the
-browser jobs, the pinned task and Dolt tools in the task-store job. In the
-PR lane a job runs only when a changed file reaches its code: a folder it
-tests, or a `scripts/` module it imports or names; the task store also runs
-there when a change reaches its own code. Dependency, CI, `db/` and unknown
-paths run every PR-lane job. The `build` job is the required verdict in both
-lanes; it fails when a job the scope needed did not pass. Until the merge
-queue is on for `main`, a change
-that breaks only a full-lane test shows on `main` after it merges; start the
-full lane by hand on a PR that changes what those tests cover. A newer push to
-a PR cancels that PR's running CI; no other run is cancelled. A PR that
-changes only documentation no runtime suite reads (`docs/` and root Markdown)
-runs the root suite alone, and the `docs` workflow builds the asset whenever
-`docs/` changes; a push to `main` publishes it. Once CI passes on a push to
-`main`, the `Release image` workflow publishes that commit as the app image
-`os:setup` and `os:update` fetch (`RELEASE_REPOSITORY` in
-`scripts/published-image.mjs`).
+`scripts/ci-scope.mjs`; every job starts with `pnpm install --frozen-lockfile`
+and installs only what its suites start (PostgreSQL 18, Chromium in the
+browser jobs, the pinned task and Dolt tools in the task-store job).
+
+- **PR lane**, on every pull request: the Tower's typecheck and unit tests;
+  the other workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey
+  harness and the browser journeys tagged `@pull-request`, on desktop and
+  phone. A job runs only when a changed file reaches its code: a folder it
+  tests, or a `scripts/` module it imports or names. Dependency, CI, `db/` and
+  unknown paths run every PR-lane job; a PR that changes only documentation
+  no runtime suite reads (`docs/` and root Markdown) runs the root suite
+  alone. A newer push to a PR cancels that PR's running CI.
+- **Full lane**, in the merge queue, on a push to `main`, nightly and when
+  started by hand (`gh workflow run ci.yml --ref <branch>`): the same suites,
+  every browser journey split test by test across three shards, the journey
+  harness, the journeys tagged `@dev-server` (they need Vite's dev server),
+  the UX flow walker (a report; it fails only when a flow cannot be walked),
+  and `pnpm test:task-store` against a real Dolt server in Docker. A push to
+  `main` whose commit already passed the full lane in the merge queue runs no
+  job again.
+
+The browser journeys run against the built Tower. Suites split across
+runners: the Tower's typecheck on its own and its unit tests on two, the
+smoke journeys on two, the root suite on three, and the task store on two.
+The `build` job is the required verdict in both lanes; it fails when a job
+the scope needed did not pass. Until the merge queue is on for `main`, a
+change that breaks only a full-lane test shows on `main` after it merges;
+start the full lane by hand on a PR that changes what those tests cover. The
+`docs` workflow builds the asset whenever `docs/` changes and a push to
+`main` publishes it. Once CI passes on a push to `main`, the `Release image`
+workflow publishes that commit as the app image `os:setup` and `os:update`
+fetch (`RELEASE_REPOSITORY` in `scripts/published-image.mjs`).
 
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest

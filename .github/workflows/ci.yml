@@ -34,9 +34,8 @@ concurrency:
 # stuck on a package mirror once held a runner for six hours.
 jobs:
   # Which jobs this run needs, as JSON by job name. The full lane needs every
-  # job; a pull request needs the PR-lane jobs its changed files reach, the
-  # task store only when they reach its own code, and for documentation alone
-  # the root script suite (issue #4). The root script suite reads every
+  # job; a pull request needs the PR-lane jobs its changed files reach, and
+  # for documentation alone the root script suite (issue #4). The root script suite reads every
   # tracked Markdown file, so it runs in every lane. A push to main whose
   # commit passed the full lane in the merge queue needs no job.
   scope:

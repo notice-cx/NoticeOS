@@ -123,8 +123,8 @@ and the browser journeys tagged `@pull-request`. The merge queue, a push to
 `main`, a nightly run and a run started by hand run the full lane: those
 suites, every browser journey in three shards, the UX flow report, and the
 task store against a real Dolt server. A pull request runs only the PR-lane
-jobs its changed files reach, and the task store when they reach its code.
-The `build` job is the required check in both lanes. A newer push to a pull request cancels the run it replaces. A
+jobs its changed files reach. The `build` job is the required check in both
+lanes. A newer push to a pull request cancels the run it replaces. A
 pull request that changes only documentation runs only the root script suite.
 Release acceptance still requires passing CI:
 

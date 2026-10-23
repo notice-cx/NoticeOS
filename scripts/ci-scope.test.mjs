@@ -43,7 +43,7 @@ test('a pull request runs the PR lane; the merge queue, main, the nightly run an
     assert.deepEqual(neededJobs(event, ['docs/14-design.md']), EVERY_JOB_BUT_SMOKE, `${event} runs every job, whatever it changes`);
   }
   assert.deepEqual(neededJobs('pull_request', ['pnpm-lock.yaml']), {
-    'tower-unit': true, 'ingest-unit': true, scripts: true, smoke: true, browser: false, 'flow-gate': false, 'task-store': true,
+    'tower-unit': true, 'ingest-unit': true, scripts: true, smoke: true, browser: false, 'flow-gate': false, 'task-store': false,
   });
   assert.deepEqual(neededJobs('pull_request', ['docs/14-design.md', 'AGENTS.md']), DOCS_ONLY);
 });
@@ -60,14 +60,13 @@ test('a pull request runs a job only when a changed file reaches its code', () =
   assert.deepEqual(jobsFor(['workers/ingest/src/pull.ts']), ['ingest-unit', 'smoke'], 'the journey server loads ingest modules by path');
   assert.deepEqual(jobsFor(['packages/contract/src/schema.ts']), ['tower-unit', 'ingest-unit', 'smoke']);
   assert.deepEqual(jobsFor(['scripts/shared.mjs'], { 'ingest-unit': ['scripts/shared.mjs'] }), ['ingest-unit'], 'a module the ingest code imports');
-  assert.deepEqual(jobsFor(['scripts/hosted-task-x.mjs'], { 'task-store': ['scripts/hosted-task-x.mjs'] }), ['task-store']);
   assert.deepEqual(jobsFor(['scripts/unreached.mjs', 'scripts/unreached.test.mjs', 'deploy/compose/README.md', '.githooks/pre-commit',
-    '.github/dependabot.yml', 'db/postgres/README.md']), [], 'files only the root script suite reads');
-  assert.deepEqual(jobsFor(['deploy/compose/Dockerfile']), ['task-store'], 'the task client and Dolt pins');
+    '.github/dependabot.yml', 'db/postgres/README.md', 'deploy/compose/Dockerfile', 'scripts/hosted-task-operations-compose.test.mjs']), [],
+    'files only the root script suite reads; the task store runs in the full lane');
 });
 
 test('dependencies, CI, the store schema and unknown paths run every PR-lane job; config and TypeScript settings run what reads them', () => {
-  const every = ['tower-unit', 'ingest-unit', 'smoke', 'task-store'];
+  const every = ['tower-unit', 'ingest-unit', 'smoke'];
   for (const file of ['pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/ci.yml', 'db/postgres/model.json', 'LICENSE', 'tools/new.mjs']) {
     assert.deepEqual(jobsFor([file]), every, file);
   }
@@ -78,22 +77,17 @@ test('dependencies, CI, the store schema and unknown paths run every PR-lane job
 });
 
 test('a root package.json change reaches every job unless it changes scripts alone', () => {
-  const every = ['tower-unit', 'ingest-unit', 'smoke', 'task-store'];
+  const every = ['tower-unit', 'ingest-unit', 'smoke'];
   assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts'], scripts: ['audit:copy'] }), []);
-  assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts'], scripts: ['test:task-store'] }), ['task-store']);
+  assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts'], scripts: ['test:task-store'] }), []);
   assert.deepEqual(jobsFor(['package.json'], {}, { fields: ['scripts', 'engines'], scripts: [] }), every);
   assert.deepEqual(jobsFor(['package.json'], {}, null), every, 'an unreadable manifest runs everything');
 });
 
-test("each job's code reaches the modules it imports, and the task store's stops at the Workers it bundles", () => {
+test("each job's code reaches the modules it imports, and no root suite test file", () => {
   const reaches = scopeGraph(REPO_ROOT);
   assert.ok(reaches('ingest-unit').has('scripts/postgres-test-cluster.mts'), 'the ingest suite starts its Postgres through the shared cluster');
   assert.ok(reaches('tower-unit').has('scripts/test-config-isolation.mjs'), 'the Tower config imports the isolation guard');
-  const task = reaches('task-store');
-  assert.ok(task.has('scripts/hosted-task-operations-compose.test.mjs'), 'the task store reaches its own test files');
-  for (const file of ['apps/tower/src/App.tsx', 'workers/ingest/src/pull.ts']) {
-    assert.equal(task.has(file), false, `${file} reaches the task store only inside a Worker bundle, in the full lane`);
-  }
   for (const job of ['tower-unit', 'ingest-unit', 'smoke']) {
     assert.deepEqual([...reaches(job)].filter((file) => /^scripts\/[^/]+\.test\.mjs$/u.test(file)), [], `${job} reaches no root suite test file`);
   }
