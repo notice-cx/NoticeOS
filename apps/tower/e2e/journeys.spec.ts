@@ -2504,7 +2504,10 @@ test("decision filters keep their whole count and restore the hidden decisions w
 // client once its window closes (the pick recorded, a comment, the hand-back
 // to ready work with the human label off), and the task's page then shows the
 // pick as a fact with the options inert.
-test("a question with choices is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
+test("a question with choices on plain HTTP is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", { configurable: true, value: undefined });
+  });
   await addAssetByApi(page);
   for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
   await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
@@ -3998,7 +4001,7 @@ test('Wall hourly activity compares last week, shows pace and refreshes without 
   await expect(page.locator('[data-realtime-today]').first()).toBeVisible();
   await expect(page.locator('[data-realtime-prior]').first()).toBeVisible();
   await expect(page.locator('[data-realtime-pace]').first()).toContainText('%');
-  await expect(page.locator('[data-realtime-pace]').first()).toContainText('live pace');
+  await expect(page.locator('[data-realtime-pace]').first()).toContainText('day so far');
   await expect(page.locator('[data-realtime-unit]').first()).toHaveText('hourly avg users/min');
   await page.evaluate(() => document.fonts.ready);
   await page.clock.runFor(3_000);

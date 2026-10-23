@@ -76,7 +76,18 @@ describe('the retained realtime day on the Wall', () => {
 });
 
 
-describe('hourly activity and live pace', () => {
+describe('hourly activity and day-so-far pace', () => {
+  it('keeps the day-so-far deficit when the latest plotted hour has recovered', () => {
+    const history = day();
+    history.sameDayLastWeek = Array<number | null>(1440).fill(10);
+    for (let i = 0; i < 180; i++) history.minutes[i] = i < 60 ? 6 : i < 120 ? 8 : 10;
+    const activity = realtimeActivity(history, START + 180 * 60_000);
+    expect(activity.hours[2]).toMatchObject({ today: 10, prior: 10 });
+    expect(activity.change).toBeCloseTo(-20);
+    expect(activity.comparedMinutes).toBe(180);
+    expect(activity.through).toBe(new Date(START + 180 * 60_000).toISOString());
+  });
+
   it('compares the same observed minutes and excludes gaps and the partial minute', () => {
     const history = day();
     history.sameDayLastWeek = Array<number | null>(1440).fill(100);
@@ -120,5 +131,25 @@ describe('hourly activity and live pace', () => {
     expect(container.querySelector('[data-realtime-prior]')).not.toBeNull();
     expect(container.querySelector('[data-realtime-pace]')?.textContent).toContain('50%');
     expect(container.querySelector('[data-realtime-unit]')?.textContent).toBe('hourly avg users/min');
+  });
+
+  it.each(['rows', 'focus'])('labels the cumulative comparison as day so far in %s', mode => {
+    const payload = retained();
+    for (const snapshot of payload.assets) {
+      if (snapshot.status !== 'success' || !snapshot.realtimeDay) continue;
+      snapshot.realtimeDay.sameDayLastWeek = Array<number | null>(1440).fill(10);
+      snapshot.realtimeDay.minutes.fill(null);
+      for (let i = MINUTE - 180; i < MINUTE; i++) snapshot.realtimeDay.minutes[i] = i < MINUTE - 120 ? 6 : i < MINUTE - 60 ? 8 : 10;
+    }
+    const assets = wallFixturePayload().assets;
+    const { container } = render(<SiteRows assets={mode === 'focus' ? assets.slice(0, 1) : assets} issues={[]} ga4Realtime={payload} nowMs={NOW} />);
+    const today = container.querySelector(mode === 'focus' ? '[data-focus-tile="today"]' : '[data-site-today]')!;
+    expect(today.textContent).toContain('day so far');
+    const chip = today.querySelector('[data-tone]')!;
+    expect(chip.textContent).toBe('20%');
+    expect(chip.getAttribute('data-tone')).toBe('pace-behind');
+    expect(chip.getAttribute('aria-label')).toContain('today so far');
+    expect(chip.getAttribute('aria-label')).toContain('180 matching minutes');
+    expect(chip.getAttribute('aria-label')).toContain('Includes earlier hours');
   });
 });

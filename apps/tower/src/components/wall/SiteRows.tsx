@@ -455,11 +455,11 @@ function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
   const activity = useMemo(() => realtimeActivity(day, minute * 60_000), [day, minute]);
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, weekday: "short" }).format(new Date(nowMs));
   const through = activity.through ? new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(activity.through)) : null;
-  const meaning = `Provisional activity pace vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Hourly averages of per-minute active users, not distinct hourly or daily users. Unreported minutes are excluded; GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
+  const meaning = `Provisional activity today so far vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Includes earlier hours; the chart shows each hour separately. Per-minute active users, not distinct hourly or daily users. Unreported minutes are excluded; GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
   return activity.change !== null ? (
     <span className="inline-flex flex-col items-end" title={meaning}>
       <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={paceTone(activity.change)} meaning={meaning} />
-      <span className="text-wall-micro text-muted-foreground">live pace</span>
+      <span className="text-wall-micro text-muted-foreground">day so far</span>
     </span>
   ) : <span className="text-wall-micro text-muted-foreground" title={meaning}>{activity.hasPrior ? "Gathering pace" : day.comparisonError && day.comparisonError !== "ga4_comparison_waiting" ? "Last week unavailable" : "Last week pending"}</span>;
 }
