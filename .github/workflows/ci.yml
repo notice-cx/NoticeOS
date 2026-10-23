@@ -119,6 +119,10 @@ jobs:
       # The journeys' run starts one throwaway Postgres for its fixture servers.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get install -y -qq --no-install-recommends postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r build
+        env:
+          # The Tower is built as the journeys below run it: without its
+          # release, which their stubbed reads do not carry (e2e/README.md).
+          JOURNEY_BUILD: '1'
       # The fifth gate is `pnpm test:journeys`, split across this job and the
       # next so neither waits on the other: the isolated browser journeys
       # here, the journey harness and the UX flow gate there. The journeys'
@@ -129,6 +133,9 @@ jobs:
           # Browser workers, each with its own fixture server. Unset, a run
           # takes half the machine's cores, which on a small runner is 1.
           JOURNEY_WORKERS: 3
+          # Against that build: a few bundles per page instead of every source
+          # module through Vite. The journeys that need the dev server skip.
+          JOURNEY_BUILT_CLIENT: ${{ github.workspace }}/apps/tower/dist/client
       - uses: actions/upload-artifact@v7
         if: always()
         with:
