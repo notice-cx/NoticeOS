@@ -21,7 +21,8 @@ concurrency:
 # is the verdict branch protection requires. A job installs only what its own
 # suites start: PostgreSQL 18, Chromium in the two browser jobs, and the pinned
 # task client, Dolt client and Dolt server image in the task-store job
-# (scripts/ci-contract.test.mjs).
+# (scripts/ci-contract.test.mjs). Each job stops after 30 minutes: an install
+# stuck on a package mirror once held a runner for six hours.
 jobs:
   # A pull request that changes only documentation no runtime suite reads
   # skips the unit, browser and flow-gate jobs (issue #4,
@@ -29,6 +30,7 @@ jobs:
   # file, so it always runs. A push to main runs everything.
   scope:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       runtime: ${{ steps.scope.outputs.runtime }}
     steps:
@@ -42,6 +44,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -68,6 +71,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -85,6 +89,7 @@ jobs:
 
   scripts:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -104,6 +109,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -142,6 +148,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -179,6 +186,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -207,6 +215,7 @@ jobs:
     needs: [scope, tower-unit, ingest-unit, scripts, browser, flow-gate, task-store]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser, ."flow-gate", ."task-store"] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
         env:

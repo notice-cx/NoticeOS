@@ -196,6 +196,14 @@ test('the journey shards together run every journey once', () => {
   assert.match(browser, /name: user-journey-browser-evidence-\$\{\{ matrix\.shard \}\}\n/u, 'each shard keeps its own evidence');
 });
 
+test('every job stops after at most 30 minutes', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  for (const name of [...Object.keys(JOBS), 'scope', 'build']) {
+    const limit = /^ {4}timeout-minutes: (\d+)\n/mu.exec(jobBlock(workflow, name));
+    assert.ok(limit && Number(limit[1]) <= 30, `${name} declares a time limit of at most 30 minutes`);
+  }
+});
+
 // A cancelled run must not leave a skipped required check, which GitHub
 // counts as passing.
 test('a newer push cancels only the pull request run it replaces', () => {
