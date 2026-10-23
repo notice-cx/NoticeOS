@@ -322,3 +322,30 @@ test('a refresh publishes a version an agent reads through the endpoint, with ea
   const report = await call('read_panel_document', { asset: ASSET, document: 'report' });
   assert.ok(report.value.files.some((file) => file.name === 'gsc-query.csv' && /^[0-9a-f]{64}$/u.test(file.sha256)));
 });
+
+test('a page whose address holds a comma, a quote or a line break reads back whole, after more plain rows than DuckDB samples', async (t) => {
+  const root = await tempRoot(t, 'noticeos-panel-quoting-');
+  const day = '2026-09-20', now = '2026-09-22T06:00:00.000Z';
+  const plain = Array.from({ length: 25_000 }, (_, index) => ({ keys: [`https://example.com/page-${index}`], clicks: 1, impressions: 10, ctr: 0.1, position: 5 }));
+  const awkward = ['https://example.com/2,000-calorie-plan', 'https://example.com/say-"cheese"', 'https://example.com/two\nlines'];
+  const archive = { schemaVersion: 1, asset: ASSET, integration: 'gsc', report: 'page', reportDate: day, providerRows: plain.length + awkward.length, providerTruncated: false,
+    pages: [{ request: { dimensions: ['page'], dimensionFilterGroups: [{ filters: [{ dimension: 'search,"appearance"', operator: 'equals', expression: 'a,"b"' }] }] },
+      response: { rows: [...plain, ...awkward.map((page, index) => ({ keys: [page], clicks: 100 + index, impressions: 1000, ctr: 0.1, position: 2 }))] } }] };
+  const options = { door: 'http://fixture.invalid', downloadsRoot: path.join(root, 'downloads'), historyRoot: path.join(root, 'history'),
+    analysisRoot: path.join(root, 'reports'), publish: false };
+  await refreshAsset(ASSET, options, {
+    token: 'fixture-operator', windowDays: 35, freshnessMaxAgeDays: 7, now: () => now,
+    get: async (url) => new URL(url).pathname === '/api/panel-source'
+      ? Response.json({ asset: ASSET, manifest: [{ integration: 'gsc', report: 'page', reportDate: day, objectKey: 'synthetic-page',
+        contentSha256: 'a'.repeat(64), providerRows: archive.providerRows, finishedAt: '2026-09-21T12:15:00.000Z', providerTruncated: 0 }], trend: [] })
+      : new Response(JSON.stringify(archive)),
+    analyze: (input) => analyzeSignalHistory({ ...input, readValueEvents: async () => ({ assets: {} }), now }),
+  });
+
+  const { call } = await endpoint(options.analysisRoot);
+  const counted = await call('query_panel', { asset: ASSET, sql: 'SELECT count(*) AS n FROM gsc_page' });
+  assert.deepEqual([counted.error, counted.rows], [undefined, [[plain.length + awkward.length]]]);
+  const read = await call('query_panel', { asset: ASSET,
+    sql: 'SELECT page, clicks, position, row_grain, "search,""appearance""" AS appearance FROM gsc_page WHERE clicks >= 100 ORDER BY clicks' });
+  assert.deepEqual([read.error, read.rows], [undefined, awkward.map((page, index) => [page, 100 + index, 2, 'page', 'a,"b"'])]);
+});

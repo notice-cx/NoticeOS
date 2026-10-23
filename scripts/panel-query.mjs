@@ -78,7 +78,9 @@ async function runQuery(query, spill) {
             const stored = path.join(input.folder, file);
             if (path.dirname(stored) !== input.folder)
                 throw new PanelQueryError(`${file} is not a file of this version.`);
-            await connection.run(`CREATE VIEW ${sqlName(table)} AS SELECT * FROM read_csv(${sqlString(stored)}, header = true)`);
+            // The writers' dialect, stated: DuckDB guesses it from the file's first
+            // rows, and a file whose first quoted field comes later reads as unquoted.
+            await connection.run(`CREATE VIEW ${sqlName(table)} AS SELECT * FROM read_csv(${sqlString(stored)}, header = true, delim = ',', quote = '"', escape = '"')`);
         }
         await connection.run(`SET allowed_directories = [${[input.folder, spill].map(folder => sqlString(`${folder}${path.sep}`)).join(', ')}]`);
         await connection.run('SET enable_external_access = false');
