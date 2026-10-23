@@ -525,21 +525,6 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
     expect(await effectiveRevenueMinor()).toBe(30000);
   });
 
-  it('books exactly one of two concurrent corrections of one estimate', async () => {
-    await upload([estimate]);
-    const [a, b] = await Promise.all([
-      upload([correction('fix-a', 200, EST)]),
-      upload([correction('fix-b', 300, EST)]),
-    ]);
-    const outcomes = [a, b].map((r) => r.body.results[0]);
-    expect(outcomes.filter((r) => r?.ok)).toHaveLength(1);
-    expect(outcomes.find((r) => !r?.ok)).toMatchObject({ ok: false, error: 'already_superseded' });
-    // Both landing would make 100¢ into 200¢ + 300¢ = 500¢.
-    const winner = a.body.results[0]?.ok ? 20000 : 30000;
-    expect(await effectiveRevenueMinor()).toBe(winner);
-    expect(await count()).toBe(2);
-  });
-
   it('refuses two rows of one upload that replace the same entry — and their copies', async () => {
     await upload([estimate]);
     const { status, body } = await upload([

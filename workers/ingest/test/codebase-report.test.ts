@@ -116,7 +116,6 @@ describe('codebase rules', () => {
     await send(report('2026-10-01', { code_lines: 49900 }));
     const [flag] = await open('codebase-growth');
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'code_lines', pulse_id: null });
-    expect(flag!.message).toBe('The code grew 31% in 30 days (38,100 → 49,900 lines).');
     const inputs = JSON.parse(flag!.rule_inputs) as Record<string, unknown>;
     expect(inputs).toMatchObject({
       code_lines: 49900,

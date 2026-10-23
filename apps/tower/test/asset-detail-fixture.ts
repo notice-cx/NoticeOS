@@ -9,11 +9,10 @@ import {
 import { codebaseSlice } from "./codebase-fixture";
 
 /**
- * One asset report with something on every tab, shared by the suites that
- * draw the whole asset page from it: `asset-detail-tabs.test.tsx`, which
- * records each tab's DOM, and `lazy-parts.test.tsx`, which opens the tabs one
- * at a time. Dates are fixed and assume the suites pin `Date.now()` to
- * 2026-07-05T14:00:00Z and the zone to UTC.
+ * One asset report with something on every tab, for the suites that draw the
+ * whole asset page from it, such as `lazy-parts.test.tsx`, which opens the
+ * tabs one at a time. Dates are fixed and assume the suites pin `Date.now()`
+ * to 2026-07-05T14:00:00Z and the zone to UTC.
  */
 
 const emptyTrend = () => ({

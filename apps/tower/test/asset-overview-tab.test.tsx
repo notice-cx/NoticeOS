@@ -15,8 +15,7 @@ import { stubJsonFetch } from "./stub-fetch";
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 /**
- * The DOM pin in `asset-detail-tabs.test.tsx` records what this tab renders;
- * these are the rules: the figures drive the chart, the range re-derives every
+ * The overview tab's rules: the figures drive the chart, the range re-derives every
  * number that follows it, a problem is drawn once where it lives, the prose is
  * behind the one disclosure, and the banner is there only while the setup is
  * open.
