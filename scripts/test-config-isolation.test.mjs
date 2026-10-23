@@ -262,8 +262,8 @@ test('the Tower and ingest suites are wired to both guards', () => {
   const read = (file) => fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
   const tower = read('apps/tower/vitest.config.ts');
   assert.match(tower, /fixtureConfigPlugin\(\{ fixtureDir: path\.resolve\(rootDir, "test\/fixture-config"\), testDir: path\.resolve\(rootDir, "test"\) \}\)/);
-  assert.match(tower, /setupFiles: \["\.\/test\/environment\.ts", "\.\/test\/setup\.ts"\]/);
-  assert.match(tower, /sequence: \{ setupFiles: "list" \}/);
+  assert.match(tower, /setupFiles: \["\.\/test\/clean-start\.ts", "\.\/test\/environment\.ts", "\.\/test\/setup\.ts"\]/);
+  assert.match(tower, /sequence: \{ setupFiles: "list"/);
   assert.match(read('apps/tower/test/setup.ts'), /^installOwnerConfigReadGuard\(\{ testDir: /m);
   const ingest = read('workers/ingest/vitest.config.ts');
   assert.match(ingest, /fixtureConfigPlugin\(\{\s*fixtureDir: fileURLToPath\(new URL\('\.\/test\/fixture-config', import\.meta\.url\)\),\s*testDir: fileURLToPath\(new URL\('\.\/test', import\.meta\.url\)\),\s*\}\)/);
