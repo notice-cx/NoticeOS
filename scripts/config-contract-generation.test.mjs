@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ASSET_ID_RE, CONFIG_ASSET_KEY_RE } from '../packages/contract/src/configuration.mjs';
 import { CONFIG_DOCUMENT_FILES } from './config-documents.mjs';
+import { runCommand } from './run-command.mjs';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const PROJECTS = ['tsconfig.config-contract.json', 'tsconfig.config-contract.node.json'];
@@ -54,7 +54,10 @@ async function withGenerationRoot(work) {
       mkdirSync(path.dirname(path.join(root, dir)), { recursive: true });
       symlinkSync(path.join(repo, dir), path.join(root, dir));
     }
-    const run = (...args) => spawnSync(process.execPath, [path.join(root, 'scripts/generate-config-contract.mjs'), ...args], { encoding: 'utf8' });
+    const run = async (...args) => {
+      const { code, stdout, stderr } = await runCommand(process.execPath, [path.join(root, 'scripts/generate-config-contract.mjs'), ...args], { timeoutMs: Infinity });
+      return { status: code, stdout, stderr };
+    };
     return await work(root, run);
   } finally { rmSync(root, { recursive: true, force: true }); }
 }
@@ -78,32 +81,6 @@ test('every authored scripts/*.mts belongs to exactly one generation project', (
     'the walk found the shared runtime sources');
 });
 
-// The portable project is what keeps the Worker- and browser-imported modules
-// free of Node: it compiles with no ambient types at all.
-test('a node: import in a portable source fails generation', async () => {
-  await withGenerationRoot((root, run) => {
-    edit(root, 'scripts/scheduled-jobs.mts', "export const SCHEDULES_FILE = ", "import { sep } from 'node:path';\nexport const SCHEDULES_SEP = sep;\nexport const SCHEDULES_FILE = ");
-    const generated = run();
-    assert.notEqual(generated.status, 0);
-    assert.match(generated.stdout, /scripts\/scheduled-jobs\.mts.*node:path/);
-  });
-});
-
-// The deliberate mismatch: a runtime that starts returning a
-// different shape than its callers compile against is a type error, not a
-// green gate and a broken caller.
-test('a return shape the declared contract does not allow fails generation', async () => {
-  await withGenerationRoot((root, run) => {
-    edit(root, 'scripts/workflow-trace.mts',
-      "return { state: 'skipped', summary: 'No work was performed on this pass.' };",
-      "return { status: 'skipped', summary: 'No work was performed on this pass.' };");
-    const generated = run();
-    assert.notEqual(generated.status, 0);
-    assert.match(generated.stdout, /scripts\/workflow-trace\.mts\(\d+,\d+\): error TS/);
-    assert.equal(run('--check').status, 1);
-  });
-});
-
 test('plain Node preserves the distinct asset and configuration-reference vocabularies', () => {
   assert.equal(ASSET_ID_RE.test('asset_name'), false);
   assert.equal(CONFIG_ASSET_KEY_RE.test('asset_name'), true);
@@ -113,56 +90,86 @@ test('plain Node preserves the distinct asset and configuration-reference vocabu
   assert.equal(CONFIG_ASSET_KEY_RE.test('northwind.example'), true);
 });
 
-test('generation checks reject stale runtime, stale types, and missing output without repairing them', async () => {
-  await withGenerationRoot((root, run) => {
-    const generated = run();
-    assert.equal(generated.status, 0, generated.stdout + generated.stderr);
-    assert.equal(run('--check').status, 0);
-    // Each check compiles both projects, so one check judges every stale and
-    // missing file together: it must name each one and repair none.
-    const stale = [
-      'packages/contract/src/configuration.mjs', 'packages/contract/src/posthog-families.mjs',
-      'scripts/config-documents.d.mts', 'scripts/scheduled-jobs.d.mts', 'scripts/workflow-history.mjs',
-    ];
-    for (const file of stale) writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8') + '\n// stale\n');
-    const missing = 'scripts/config-documents.mjs';
-    rmSync(path.join(root, missing));
-    const check = run('--check');
-    assert.equal(check.status, 1);
-    for (const file of [...stale, missing]) assert.ok(check.stderr.includes(file), `${file} is named: ${check.stderr}`);
-    for (const file of stale) assert.ok(readFileSync(path.join(root, file), 'utf8').endsWith('\n// stale\n'), `${file} is left as it was`);
-    assert.equal(existsSync(path.join(root, missing)), false, `${missing} is not written by a check`);
+// Each case compiles its own copy, so the cases run side by side: run one
+// after another, their compiler runs make this the root suite's slowest file.
+describe('generation on a changed copy', { concurrency: true }, () => {
+  // The portable project is what keeps the Worker- and browser-imported modules
+  // free of Node: it compiles with no ambient types at all.
+  test('a node: import in a portable source fails generation', async () => {
+    await withGenerationRoot(async (root, run) => {
+      edit(root, 'scripts/scheduled-jobs.mts', "export const SCHEDULES_FILE = ", "import { sep } from 'node:path';\nexport const SCHEDULES_SEP = sep;\nexport const SCHEDULES_FILE = ");
+      const generated = await run();
+      assert.notEqual(generated.status, 0);
+      assert.match(generated.stdout, /scripts\/scheduled-jobs\.mts.*node:path/);
+    });
   });
-});
 
-// The deliberate mismatch: a PostHog field added to the one
-// definition without regenerating is caught by the check the contract's
-// typecheck runs, and once regenerated the module the flattener imports
-// carries it.
-test('a PostHog field added to its one definition is stale until regenerated, then reaches the flattener', async () => {
-  await withGenerationRoot(async (root, run) => {
-    const source = path.join(root, 'packages/contract/src/posthog-families.mts');
-    const before = readFileSync(source, 'utf8');
-    const edited = before.replace("fields: ['date', 'pageviews', 'people', 'sessions']", "fields: ['date', 'pageviews', 'people', 'sessions', 'bounces']");
-    assert.notEqual(edited, before, 'the web-daily field list is where the test expects it');
-    writeFileSync(source, edited);
+  // The deliberate mismatch: a runtime that starts returning a
+  // different shape than its callers compile against is a type error, not a
+  // green gate and a broken caller.
+  test('a return shape the declared contract does not allow fails generation', async () => {
+    await withGenerationRoot(async (root, run) => {
+      edit(root, 'scripts/workflow-trace.mts',
+        "return { state: 'skipped', summary: 'No work was performed on this pass.' };",
+        "return { status: 'skipped', summary: 'No work was performed on this pass.' };");
+      const generated = await run();
+      assert.notEqual(generated.status, 0);
+      assert.match(generated.stdout, /scripts\/workflow-trace\.mts\(\d+,\d+\): error TS/);
+      assert.equal((await run('--check')).status, 1);
+    });
+  });
 
-    const check = run('--check');
-    assert.equal(check.status, 1);
-    assert.ok(check.stderr.includes('packages/contract/src/posthog-families.mjs'), check.stderr);
-    assert.ok(check.stderr.includes('packages/contract/src/posthog-families.d.mts'), check.stderr);
+  test('generation checks reject stale runtime, stale types, and missing output without repairing them', async () => {
+    await withGenerationRoot(async (root, run) => {
+      const generated = await run();
+      assert.equal(generated.status, 0, generated.stdout + generated.stderr);
+      assert.equal((await run('--check')).status, 0);
+      // Each check compiles both projects, so one check judges every stale and
+      // missing file together: it must name each one and repair none.
+      const stale = [
+        'packages/contract/src/configuration.mjs', 'packages/contract/src/posthog-families.mjs',
+        'scripts/config-documents.d.mts', 'scripts/scheduled-jobs.d.mts', 'scripts/workflow-history.mjs',
+      ];
+      for (const file of stale) writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8') + '\n// stale\n');
+      const missing = 'scripts/config-documents.mjs';
+      rmSync(path.join(root, missing));
+      const check = await run('--check');
+      assert.equal(check.status, 1);
+      for (const file of [...stale, missing]) assert.ok(check.stderr.includes(file), `${file} is named: ${check.stderr}`);
+      for (const file of stale) assert.ok(readFileSync(path.join(root, file), 'utf8').endsWith('\n// stale\n'), `${file} is left as it was`);
+      assert.equal(existsSync(path.join(root, missing)), false, `${missing} is not written by a check`);
+    });
+  });
 
-    const incomplete = run();
-    assert.notEqual(incomplete.status, 0);
-    assert.match(incomplete.stdout, /posthog\.ts.*error TS[\s\S]*bounces/u,
-      'the row schema must match the changed family before generation can succeed');
-    edit(root, 'packages/contract/src/posthog.ts',
-      "  sessions: count,\n} satisfies PosthogRowShape<'web-daily'>);",
-      "  sessions: count,\n  bounces: count,\n} satisfies PosthogRowShape<'web-daily'>);");
-    const regeneratedOutput = run();
-    assert.equal(regeneratedOutput.status, 0, regeneratedOutput.stdout + regeneratedOutput.stderr);
-    assert.equal(run('--check').status, 0);
-    const regenerated = await import(pathToFileURL(path.join(root, 'packages/contract/src/posthog-families.mjs')).href);
-    assert.deepEqual(regenerated.POSTHOG_FAMILY_ROWS['web-daily'].fields, ['date', 'pageviews', 'people', 'sessions', 'bounces']);
+  // The deliberate mismatch: a PostHog field added to the one
+  // definition without regenerating is caught by the check the contract's
+  // typecheck runs, and once regenerated the module the flattener imports
+  // carries it.
+  test('a PostHog field added to its one definition is stale until regenerated, then reaches the flattener', async () => {
+    await withGenerationRoot(async (root, run) => {
+      const source = path.join(root, 'packages/contract/src/posthog-families.mts');
+      const before = readFileSync(source, 'utf8');
+      const edited = before.replace("fields: ['date', 'pageviews', 'people', 'sessions']", "fields: ['date', 'pageviews', 'people', 'sessions', 'bounces']");
+      assert.notEqual(edited, before, 'the web-daily field list is where the test expects it');
+      writeFileSync(source, edited);
+
+      const check = await run('--check');
+      assert.equal(check.status, 1);
+      assert.ok(check.stderr.includes('packages/contract/src/posthog-families.mjs'), check.stderr);
+      assert.ok(check.stderr.includes('packages/contract/src/posthog-families.d.mts'), check.stderr);
+
+      const incomplete = await run();
+      assert.notEqual(incomplete.status, 0);
+      assert.match(incomplete.stdout, /posthog\.ts.*error TS[\s\S]*bounces/u,
+        'the row schema must match the changed family before generation can succeed');
+      edit(root, 'packages/contract/src/posthog.ts',
+        "  sessions: count,\n} satisfies PosthogRowShape<'web-daily'>);",
+        "  sessions: count,\n  bounces: count,\n} satisfies PosthogRowShape<'web-daily'>);");
+      const regeneratedOutput = await run();
+      assert.equal(regeneratedOutput.status, 0, regeneratedOutput.stdout + regeneratedOutput.stderr);
+      assert.equal((await run('--check')).status, 0);
+      const regenerated = await import(pathToFileURL(path.join(root, 'packages/contract/src/posthog-families.mjs')).href);
+      assert.deepEqual(regenerated.POSTHOG_FAMILY_ROWS['web-daily'].fields, ['date', 'pageviews', 'people', 'sessions', 'bounces']);
+    });
   });
 });
