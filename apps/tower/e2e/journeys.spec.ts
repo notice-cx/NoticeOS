@@ -3909,7 +3909,7 @@ test('Wall hourly activity compares last week, shows pace and refreshes without 
   await expect(page.locator('[data-realtime-today]').first()).toBeVisible();
   await expect(page.locator('[data-realtime-prior]').first()).toBeVisible();
   await expect(page.locator('[data-realtime-pace]').first()).toContainText('%');
-  await expect(page.locator('[data-realtime-pace]').first()).toContainText('live pace');
+  await expect(page.locator('[data-realtime-pace]').first()).toContainText('day so far');
   await expect(page.locator('[data-realtime-unit]').first()).toHaveText('hourly avg users/min');
   await page.evaluate(() => document.fonts.ready);
   await page.clock.runFor(3_000);
