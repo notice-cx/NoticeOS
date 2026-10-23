@@ -105,6 +105,26 @@ function read(options: Partial<Parameters<typeof readTaskBoard>[0]> = {}) {
 function success(data: LiveTasksPayload): ProjectTaskRead { return { data, isError: false, error: null }; }
 
 describe("task board read", () => {
+  it.each([true, false])("scopes every board result to the project filter, preserving project choices (live=%s)", live => {
+    const other = project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ok: false, ready: [], inProgress: [] });
+    const options = { snapshot: payload({ projects: [project(), other] }), capabilities: { live, reason: null },
+      reads: new Map([["meadow.example", success(board([liveTask()]))], [other.asset, { isError: true, error: new Error("Unread") }]]) };
+    const selected = read({ ...options, filters: { ...filters, project: "meadow.example" } });
+    expect(selected.projects.map(row => row.asset)).toEqual(["meadow.example"]);
+    expect(selected.spokes.map(row => row.asset)).toEqual(["meadow.example"]);
+    expect(selected.availableProjects.map(row => row.asset)).toEqual(["meadow.example", other.asset]);
+    expect(selected.projectCounts.has(other.asset)).toBe(true);
+    expect(selected.allTasks.every(task => task.project === "meadow.example")).toBe(true);
+    expect(selected.countsComplete).toBe(true);
+    expect(selected.broken).toEqual([]);
+    expect(selected.missingProjects).toBe(0);
+    const missing = read({ ...options, filters: { ...filters, project: "unknown.example" } });
+    expect(missing.projects).toEqual([]);
+    expect(missing.allTasks).toEqual([]);
+    expect(missing.inbox).toEqual([]);
+    expect(missing.weeks).toBeNull();
+  });
+
   it('retains live rows, filtering and read provenance when writes are unavailable', () => {
     const reads = new Map([['meadow.example', success(board([liveTask()]))]]);
     const ordinary = read({ reads });
@@ -331,6 +351,16 @@ describe("a hosted catalog joined to the snapshot by prefix", () => {
     const board = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot, scope, reads: new Map(), roster, filters });
     expect(board.spokes).toHaveLength(1);
     expect(board.spokes[0]?.asset).toBe("lb");
+  });
+
+  it.each(["lightbrief.example", "lb"])("resolves query project %s to the catalog key for the whole board", project => {
+    const roster = taskCatalogProjects(catalog, snapshot);
+    const view = readTaskBoard({ capabilities: { live: false, reason: null }, snapshot, reads: new Map(), roster,
+      filters: { ...filters, project } });
+    expect(view.selectedProject).toBe("lb");
+    expect(view.projects.map(row => row.asset)).toEqual(["lb"]);
+    expect(view.rows.every(row => row.project === "lb")).toBe(true);
+    expect(view.totals.open).toBe(3);
   });
 });
 

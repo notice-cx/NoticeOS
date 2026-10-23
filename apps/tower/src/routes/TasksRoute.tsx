@@ -41,8 +41,10 @@ export function TasksRoute() {
   const navigate = useNavigate();
   const tab = tabAt(location.pathname);
   const params = new URLSearchParams(location.search);
+  const project = params.get("project") ?? "all";
+  const scope = project === "all" ? null : project;
   // The open-task count All tasks carries: the board's own yardstick.
-  const { drawn, projects, spokes } = useTaskBoard(null, UNFILTERED);
+  const { drawn, projects, availableSpokes, selectedProject } = useTaskBoard(null, { ...UNFILTERED, project });
   const open = drawn ? boardWorkRows(projects).reduce((sum, row) => sum + workQueue(row), 0) : null;
 
   if (tab === "next" && BOARD_KEYS.some((key) => params.has(key))) {
@@ -62,19 +64,19 @@ export function TasksRoute() {
 
   const tabs: TabSpec[] = TASK_TABS.map((key) => ({
     key,
-    to: TAB_PATH[key],
+    to: key !== "next" && scope !== null ? `${TAB_PATH[key]}?${new URLSearchParams({ project })}` : TAB_PATH[key],
     label: TAB_LABEL[key],
     end: key === "next",
-    ...(key === "all" && open !== null && spokes.length > 0 ? { count: open, title: "Open tasks across every project" } : {}),
+    ...(key === "all" && open !== null && projects.length > 0 ? { count: open, title: scope === null ? "Open tasks across every project" : "Open tasks in the selected project" } : {}),
   }));
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
-      <PageHeader title="Tasks" actions={<NewTaskButton />} />
+      <PageHeader title="Tasks" actions={<NewTaskButton project={selectedProject === "all" ? null : selectedProject} />} />
       <Tabs label="Task views" tabs={tabs} idBase={TAB_IDS} panelId={TAB_PANEL_ID} />
       <TabPanel id={TAB_PANEL_ID} idBase={TAB_IDS} activeKey={tab}>
-        {composing ? <TaskComposer open onClose={closeComposer} prefill={null} projects={spokes} /> : null}
-        {tab === "all" ? <TasksBoard /> : tab === "projects" ? <ProjectsTab scope={null} /> : <NextTab scope={null} />}
+        {composing ? <TaskComposer open onClose={closeComposer} prefill={selectedProject === "all" ? null : { project: selectedProject }} projects={availableSpokes} /> : null}
+        {tab === "all" ? <TasksBoard /> : tab === "projects" ? <ProjectsTab scope={scope} /> : <NextTab scope={null} />}
       </TabPanel>
     </div>
   );

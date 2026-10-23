@@ -746,6 +746,41 @@ describe("/tasks — the filters are the URL", () => {
     expect(screen.getByTestId("search").textContent).toBe("");
   });
 
+  it.each([true, false])("filters the hero, agents, epics and rows together, and restores them on Clear (live=%s)", live => {
+    const epic = { id: "nw-epic", title: "Northwind launch", status: "open", priority: 1, total: 1, closed: 0,
+      counts: { open: 1, inProgress: 0, blocked: 0, deferred: 0 }, priorities: [0, 1, 0, 0, 0] };
+    const task = liveTask({ id: "nw-task", title: "Northwind work", parent: epic.id, status: "in_progress", assignee: "other-agent" });
+    const dependent = liveTask({ id: "nw-dependent", title: "Ship Northwind", parent: epic.id,
+      dependencies: [{ id: task.id, type: "blocks", title: task.title, status: task.status }] });
+    const other = project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [], inProgress: [task], epics: [epic],
+      waiting: [item({ id: "nw-ask", title: "Northwind decision" })], counts: { ...project().counts, waiting: 1, highPriority: 8 } });
+    const { container } = renderBoard({ live, entry: "/tasks/all?project=meadow.example", data: payload({ projects: [project(), other] }),
+      boards: { "meadow.example": board([liveTask()]), "northwind.example": board([task, dependent, liveTask({ id: "nw-ask", title: "Northwind decision", labels: ["human"], ready: true })], [{ ...epic, eligibleForClose: false }], other.asset) } });
+    expect(answerLine(container)).toBe("No decisions for you");
+    expect(fig(container, "urgent")).toHaveTextContent(live ? "0" : "1");
+    expect(container.querySelector('[data-work-row="northwind.example"]')).toBeNull();
+    expect(container.querySelector('[data-tasks-epic="nw-epic"]')).toBeNull();
+    expect(screen.queryByText("Northwind work")).toBeNull();
+    expect(screen.queryByText("Northwind decision")).toBeNull();
+    expect(screen.queryByText("other-agent")).toBeNull();
+    expect(screen.getByRole("option", { name: /^Northwind ·/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }));
+    expect(answerLine(container)).toBe("1 decision for you");
+    if (live) expect(container.querySelector('[data-tasks-epic="nw-epic"]')).not.toBeNull();
+    expect(screen.getAllByText("Northwind work").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("other-agent").length).toBeGreaterThan(0);
+  });
+
+  it("keeps an unknown project visible in the filter without showing other projects' tasks", () => {
+    const { container } = renderBoard({ entry: "/tasks/all?project=unknown.example" });
+    expect(screen.getByLabelText("Project")).toHaveValue("unknown.example");
+    expect(screen.getByText("No task project matches this filter")).toBeInTheDocument();
+    expect(container.querySelector("[data-task-row]")).toBeNull();
+    expect(container.querySelector("[data-surface-hero]")).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }));
+    expect(row(container, "md-1w2")).toBeInTheDocument();
+  });
+
   it("offers every assignee it has actually seen, with its count", () => {
     const { container } = renderBoard({ data: many });
     const assignee = container.querySelector<HTMLSelectElement>("#tasks-assignee")!;
@@ -2486,6 +2521,15 @@ describe("/tasks — each figure's week against the week before", () => {
     const { container } = renderScoped("northwind.example", { data });
     expect([value(fig(container, "urgent")), value(fig(container, "blocked")), value(fig(container, "closed"))]).toEqual(["4", "6", "24"]);
     expect(within(fig(container, "closed")).getByLabelText("12 more than last week by today")).toBeInTheDocument();
+  });
+
+  it("gives a project-filtered board its own week and history, and restores all projects when switched", () => {
+    const { container } = renderBoard({ data, entry: "/tasks/all?project=northwind.example" });
+    expect([value(fig(container, "urgent")), value(fig(container, "blocked")), value(fig(container, "closed"))]).toEqual(["4", "6", "24"]);
+    expect(container.querySelector("[data-tasks-week-line]")).toHaveTextContent("12 more done this week");
+    fireEvent.change(screen.getByLabelText("Project"), { target: { value: "all" } });
+    expect(value(fig(container, "closed"))).toBe("36");
+    expect(container.querySelector("[data-tasks-week-line]")).toHaveTextContent("18 more done this week");
   });
 
   it("draws no move where the store holds no week, and no number it did not count", () => {

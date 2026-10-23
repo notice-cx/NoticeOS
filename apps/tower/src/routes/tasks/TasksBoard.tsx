@@ -188,7 +188,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
   const queryClient = useQueryClient();
   const {
-    data, drawn, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
+    data, drawn, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, availableSpokes, availableProjects, selectedProject, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
     totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken,
     closedHistoryState, weeks, doneRead,
@@ -218,13 +218,11 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     labelFilter !== "" ||
     assigneeFilter !== "all" || search.trim() !== "";
 
-  const searchedProjects = projects.filter(project => projectFilter === "all" || project.asset === (scopeKey ?? projectFilter));
-  const searchComplete = searchedProjects.length > 0
-    && searchedProjects.every(project => project.source === "live" && project.laneError === null);
-  const searchUnavailable = searchedProjects.some(project => !project.ok || project.laneError !== null);
+  const searchComplete = projects.length > 0
+    && projects.every(project => project.source === "live" && project.laneError === null);
+  const searchUnavailable = projects.some(project => !project.ok || project.laneError !== null);
 
-  // The pictures are of the whole board, as the answer's counts are: the
-  // filters below narrow the list, not the shape of the work.
+  // The project selects the whole board; the other filters narrow its lists.
   const { projectSelection } = useTasksLive();
   const inOut = boardInOut(projects, spokes, now);
   const workRows = boardWorkRows(projects, scoped ? undefined : (project) => {
@@ -325,8 +323,8 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         <TaskComposer
           open
           onClose={closeComposer}
-          prefill={projectFilter === "all" ? null : { project: scopeKey ?? projectFilter }}
-          projects={spokes}
+          prefill={selectedProject === "all" ? null : { project: selectedProject }}
+          projects={availableSpokes}
         />
       ) : null}
 
@@ -338,7 +336,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         ) : (
           <PageSkeleton subject="read:tasks" shape="list" />
         )
-      ) : spokes.length === 0 ? (
+      ) : availableProjects.length === 0 ? (
         // Missing projects are a setup/read problem, never proof of no tasks.
         !scoped ? <TaskHubUnavailable /> : <div className="rounded-[10px] border border-border bg-card p-4" data-tasks-unwired>
           <EmptyState
@@ -351,7 +349,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           {/* The first screen: how big is the queue, and what in it cannot
               move without you. The board marks it, scoped or not, because only
               the board knows where its answer ends. */}
-          <div data-surface-hero className="@container flex flex-col gap-5">
+          {projects.length > 0 ? <div data-surface-hero className="@container flex flex-col gap-5">
             {answer}
             {scoped ? null : <WorkingNow tasks={allTasks} />}
             {/* Laid out by its own width, not the window's: a site's Tasks tab
@@ -364,21 +362,21 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
               {inOutPanel ? <div className={queue || workPanel ? "@5xl:col-span-5" : "@5xl:col-span-12"}>{inOutPanel}</div> : null}
               {workPanel ? <div className={queue || !inOutPanel ? "@5xl:col-span-12" : "@5xl:col-span-7"}>{workPanel}</div> : null}
             </div>
-          </div>
+          </div> : null}
 
           <EpicPanel graphs={graphs} selected={params.get("epic")} onSelect={(id) => setParam("epic", id)} nowMs={now} />
 
           <Filters
             live={live}
             scoped={scoped}
-            projects={projects}
+            projects={availableProjects}
             projectCounts={projectCounts}
             statusCounts={statusCounts}
             closedHistoryState={closedHistoryState}
             priorityCounts={priorityCounts}
             assigneeCounts={assigneeCounts}
             value={{
-              project: projectFilter,
+              project: selectedProject,
               status: statusFilter,
               priority: priorityFilter,
               label: labelFilter,
@@ -434,7 +432,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           </StatusBanner>
 
 
-          <Board
+          {projects.length === 0 ? <EmptyState title="No task project matches this filter" /> : <Board
             rows={tableRows}
             shown={shown}
             onMore={() => setShown((count) => count + PAGE_ROWS)}
@@ -446,7 +444,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
             countsComplete={search.trim() ? searchComplete : countsComplete}
             searchIncomplete={search.trim() !== "" && !searchComplete}
             searchUnavailable={searchUnavailable}
-          />
+          />}
         </>
       )}
 
@@ -571,6 +569,8 @@ function Filters({
             onChange={(event) => onPick("project", event.target.value)}
           >
             <option value="all">Every project</option>
+            {value.project !== "all" && !projects.some(project => project.asset === value.project)
+              ? <option value={value.project}>{value.project} · unavailable</option> : null}
             {projects.map((project) => (
               <option key={project.asset} value={project.asset}>
                 {project.name}{retired.has(project.asset) ? ` · ${ASSET_STATUS_LABEL.retired}` : ""} · {projectCounts.get(project.asset) ?? 0}
