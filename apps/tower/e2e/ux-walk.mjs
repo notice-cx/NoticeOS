@@ -538,20 +538,20 @@ export class Walk {
     await this.step(confirm ? "confirm" : "click", role, label, target, () => target.click());
   }
   /**
-   * A drag from a point on `target` (`grab`) to a point on `onto` (`at`),
-   * each a fraction of its box: one gesture, so it counts as one click. The
-   * pointer travels in steps, as a hand does, so the page's own drag and drop
-   * sees every move, and aims at where `onto` is drawn at each step: starting
-   * a drag can move the page under the pointer. With `landing`, the pointer
-   * lets go only once the screen marks where it will land, as a hand waits
-   * for the drop line, re-aiming until then.
+   * A drag from `target` to a point on `onto` (`at`, fractions of its box):
+   * one gesture, so it counts as one click. The pointer travels in steps, as
+   * a hand does, so the page's own drag and drop sees every move, and aims at
+   * where `onto` is drawn at each step: starting a drag can move the page
+   * under the pointer. With `landing`, the pointer lets go only once the
+   * screen marks where it will land, as a hand waits for the drop line,
+   * re-aiming until then.
    */
-  async drag(target, onto, label, { role = "choose", grab = { x: 0.5, y: 0.5 }, at = { x: 0.5, y: 0.5 }, landing } = {}) {
+  async drag(target, onto, label, { role = "choose", at = { x: 0.5, y: 0.5 }, landing } = {}) {
     this.m.clicks += 1;
     await this.step("drag", role, label, target, async () => {
       const from = await target.boundingBox();
       if (!from) throw new Error(`nothing to drag for ${label}`);
-      const start = { x: from.x + from.width * grab.x, y: from.y + from.height * grab.y };
+      const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
       const aim = async (share) => {
         const to = await onto.boundingBox();
         if (!to) throw new Error(`nowhere to drop for ${label}`);
