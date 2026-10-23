@@ -94,7 +94,8 @@ JOURNEY_BUILT_CLIENT=/tmp/journey-build/client pnpm --filter @noticeos/tower run
 
 The journeys that name the source modules a page loads, or open the dev
 server's `/dev/kitchen-sink`, skip in that run (`BUILT_APP` in
-`journey-test.ts`).
+`journey-test.ts`). CI's `browser` job runs the journeys this way, against
+the bundle its `pnpm -r build` step makes with `JOURNEY_BUILD=1`.
 
 ## The UX flow walker
 
