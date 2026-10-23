@@ -297,10 +297,10 @@ test('the journeys run against the built Tower, and those that need the dev serv
 test('the journey browser action installs Chromium and keeps the libraries it downloads', () => {
   const action = readFileSync(BROWSER_ACTION, 'utf8');
   assert.match(action, /^ {6}run: pnpm --filter @noticeos\/tower run journey:install --with-deps\n/mu, 'it installs the browser and its libraries');
-  assert.match(action, /uses: actions\/cache\/restore@v\d+\n {6}with:\n {8}path: ~\/chromium-libraries\n {8}key: chromium-libraries-\$\{\{ runner\.os \}\}-\$\{\{ steps\.playwright\.outputs\.version \}\}\n/u);
+  assert.match(action, /uses: actions\/cache\/restore@v\d+\n {6}with:\n {8}path: ~\/chromium-libraries\/\*\.deb\n {8}key: chromium-libraries-\$\{\{ runner\.os \}\}-\$\{\{ steps\.playwright\.outputs\.version \}\}\n/u);
   assert.match(action, /Dir::Cache::Archives "%s\/chromium-libraries\/"/u, 'apt keeps its downloads in the cached folder');
-  assert.match(action, /- if: steps\.libraries\.outputs\.cache-hit != 'true' && steps\.downloaded\.outputs\.packages != '0'\n {6}uses: actions\/cache\/save@v\d+\n/u,
-    'it saves only a new download');
+  assert.match(action, /- if: steps\.libraries\.outputs\.cache-hit != 'true' && steps\.downloaded\.outputs\.packages != '0'\n {6}uses: actions\/cache\/save@v\d+\n {6}with:\n {8}path: ~\/chromium-libraries\/\*\.deb\n/u,
+    'it saves only a new download, and only the packages, which the runner can read');
   assert.ok(action.indexOf('journey:install --with-deps') < action.indexOf('actions/cache/save'), 'it saves after the install');
 });
 

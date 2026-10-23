@@ -2,7 +2,8 @@ name: Journey browser
 description: Install the journeys' Chromium and its Linux system libraries, taking the libraries from the cache a previous run saved.
 # Ubuntu's mirror can take minutes to send the libraries to a runner that
 # lacks them (522 s in one smoke job), so apt keeps what it downloads in a
-# folder the cache saves once per Playwright version.
+# folder whose packages the cache saves once per Playwright version. Only the
+# .deb files: apt's partial/ folder is its own user's and unreadable here.
 runs:
   using: composite
   steps:
@@ -12,7 +13,7 @@ runs:
     - id: libraries
       uses: actions/cache/restore@v6
       with:
-        path: ~/chromium-libraries
+        path: ~/chromium-libraries/*.deb
         key: chromium-libraries-${{ runner.os }}-${{ steps.playwright.outputs.version }}
     - shell: bash
       run: |
@@ -30,5 +31,5 @@ runs:
     - if: steps.libraries.outputs.cache-hit != 'true' && steps.downloaded.outputs.packages != '0'
       uses: actions/cache/save@v6
       with:
-        path: ~/chromium-libraries
+        path: ~/chromium-libraries/*.deb
         key: ${{ steps.libraries.outputs.cache-primary-key }}
