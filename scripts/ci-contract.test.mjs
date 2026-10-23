@@ -74,8 +74,8 @@ const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --fi
   JOURNEYS, SMOKE, HARNESS, 'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
 /** A suite's command without the arguments that pick its share of tests. */
 const suiteOf = (command) => command.replace(/ -- .*$/u, '');
-/** The lanes: a pull request that changes code, and every other run. */
-const LANES = { 'pull request': neededJobs('pull_request', ['apps/tower/src/App.tsx']), full: neededJobs('push') };
+/** The lanes: a pull request whose change reaches every job it can run, and every other run. */
+const LANES = { 'pull request': neededJobs('pull_request', ['pnpm-lock.yaml']), full: neededJobs('push') };
 
 test('the workflow declares every job the scope decides, with the gates pinned here', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');

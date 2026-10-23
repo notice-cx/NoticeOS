@@ -178,9 +178,13 @@ every browser journey split test by test across three shards, the journey
 harness then the UX flow walker (a report; it fails only when a flow cannot be
 walked), and `pnpm test:task-store` against a real Dolt server in Docker. Each
 job installs only what its suites start: PostgreSQL 18, Chromium in the
-browser jobs, the pinned task and Dolt tools in the task-store job. The
-`build` job is the required verdict in both lanes; it fails when a job the
-scope needed did not pass. Until the merge queue is on for `main`, a change
+browser jobs, the pinned task and Dolt tools in the task-store job. In the
+PR lane a job runs only when a changed file reaches its code: a folder it
+tests, or a `scripts/` module it imports or names; the task store also runs
+there when a change reaches its own code. Dependency, CI, `db/` and unknown
+paths run every PR-lane job. The `build` job is the required verdict in both
+lanes; it fails when a job the scope needed did not pass. Until the merge
+queue is on for `main`, a change
 that breaks only a full-lane test shows on `main` after it merges; start the
 full lane by hand on a PR that changes what those tests cover. A newer push to
 a PR cancels that PR's running CI; no other run is cancelled. A PR that
