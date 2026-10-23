@@ -4,7 +4,7 @@
 // with the one helper every Worker and script uses (@noticeos/postgres): the
 // store names the installation's one workspace, a transaction runs as
 // noticeos_app in it, and a later transaction reads back what it wrote. The
-// run's copy of the store is a new installation's, put back before this
+// run's copy of the store is a new installation's, made again before this
 // file (test/clean-start.ts), holding the complete synthetic fixture sites and no
 // others (test/sites.ts).
 

@@ -9,9 +9,8 @@
 // (scripts/postgres-migrate.mjs). The template is then closed to connections.
 // A file's store is a copy of the template (CREATE DATABASE … TEMPLATE). A
 // Worker runtime's Hyperdrive binding names one database for the runtime's
-// whole life, so a runtime starts each file clean by having its database put
-// back, under the same name, to what a new copy holds: emptied where it is, or
-// copied again (`resetDatabase`).
+// whole life, so a runtime starts each file clean by having its database
+// copied again under the same name (`resetDatabase`).
 //
 // Only the process that starts the cluster loads this module; it alone holds
 // the owner's way in. It serves copies to the run's test processes through a
@@ -250,50 +249,6 @@ BEGIN
   EXECUTE 'TRUNCATE ' || array_to_string(emptied, ', ');
 END $empty$`;
 }
-/** One statement, run as the owner in a copy, that ends every other session
- * to it and waits until each has gone, or fails. The ending is an aggregate's
- * argument, not a condition: a planner may test conditions in any order, and
- * this session must never be one it ends. */
-const ENDING_SESSIONS = `DO $end$
-BEGIN
-  IF NOT coalesce((SELECT bool_and(pg_terminate_backend(pid, 10000)) FROM pg_stat_activity
-                    WHERE datname = current_database() AND pid <> pg_backend_pid()), true) THEN
-    RAISE EXCEPTION 'a session to this copy did not end';
-  END IF;
-END $end$`;
-/**
- * One statement, run as the owner in a copy, whose `fingerprint` is the same
- * in two copies only when they hold the same: every object made after initdb
- * (an oid from 16384 on) as each catalog of the database records it, less the
- * columns emptying a table changes (its file, its page and row estimates);
- * every row of every table outside the system schemas; every sequence's place;
- * how many statistics there are; and the database's own settings. Emptying
- * (`emptyingStatement`) puts back only the noticeos tables' rows and the
- * sequences; whatever else an owner's statement, or a function the application
- * role calls, changed shows here.
- */
-const FINGERPRINT = `SELECT md5(concat_ws(E'\\n',
-  (SELECT string_agg(cat.relname || ':' || (xpath('/row/h/text()', query_to_xml(format(
-     'SELECT md5(coalesce(string_agg(r, E''\\n'' ORDER BY r), '''')) AS h FROM (SELECT (to_jsonb(t) - %L::text[])::text AS r FROM pg_catalog.%I t WHERE %I >= 16384) s',
-     '{relfilenode,relpages,reltuples,relallvisible,relallfrozen,relfrozenxid,relminmxid,indcheckxmin}', cat.relname, key.attname), false, true, '')))[1]::text, E'\\n' ORDER BY cat.relname)
-     FROM pg_catalog.pg_class cat
-     CROSS JOIN LATERAL (SELECT a.attname FROM pg_catalog.pg_attribute a
-       WHERE a.attrelid = cat.oid AND a.attnum > 0 AND NOT a.attisdropped AND a.atttypid IN ('oid'::regtype, 'regproc'::regtype)
-       ORDER BY a.attnum LIMIT 1) key
-    WHERE cat.relnamespace = 'pg_catalog'::regnamespace AND cat.relkind = 'r' AND NOT cat.relisshared
-      AND cat.relname NOT IN ('pg_statistic', 'pg_statistic_ext_data', 'pg_largeobject')),
-  (SELECT string_agg(rel.oid::regclass::text || ':' || (xpath('/row/h/text()', query_to_xml(format(
-     'SELECT md5(coalesce(string_agg(t::text, E''\\n'' ORDER BY t::text), '''')) AS h FROM %s t', rel.oid::regclass), false, true, '')))[1]::text, E'\\n' ORDER BY rel.oid)
-     FROM pg_catalog.pg_class rel JOIN pg_catalog.pg_namespace n ON n.oid = rel.relnamespace
-    WHERE rel.relkind IN ('r', 'p') AND NOT rel.relispartition
-      AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND n.nspname !~ '^pg_(toast|temp)'),
-  (SELECT string_agg(format('%I.%I=%s', schemaname, sequencename, last_value), E'\\n' ORDER BY schemaname, sequencename) FROM pg_catalog.pg_sequences),
-  (SELECT count(*)::text FROM pg_catalog.pg_statistic WHERE starelid >= 16384),
-  (SELECT count(*)::text FROM pg_catalog.pg_statistic_ext_data),
-  (SELECT string_agg(format('%s=%s', setrole, setconfig), E'\\n' ORDER BY setrole) FROM pg_catalog.pg_db_role_setting
-    WHERE setdatabase = (SELECT oid FROM pg_catalog.pg_database WHERE datname = current_database())),
-  (SELECT format('%s/%s', datacl, datconnlimit) FROM pg_catalog.pg_database WHERE datname = current_database())
-)) AS fingerprint`;
 /** The copy, reset, drop and release operations, and a statement in one
  * copy, run as the owner on the cluster's private socket: never a blocking
  * call.
@@ -306,11 +261,7 @@ const FINGERPRINT = `SELECT md5(concat_ws(E'\\n',
  * (`emptyingStatement`) and waits as a spare. Once a run asks for an unnamed
  * copy, spares are also made ahead, up to SPARE_COPIES. A copy that cannot be
  * taken back that way is dropped. Work nobody waits on takes at most
- * BACKGROUND_LANES of the owner's connections.
- *
- * A copy reset under its name is likewise emptied where it is, once every
- * session to it has ended, and kept when it then holds what a new copy holds
- * (`FINGERPRINT`); otherwise, or once it was analyzed, it is made again. */
+ * BACKGROUND_LANES of the owner's connections. */
 function ownerOperations(socketDir, port, appUrl, workspaceId, contents) {
     const pg = createRequire(HELPER_PACKAGE)('pg');
     // Each statement of an operation on a pooled connection of its own: CREATE
@@ -413,34 +364,6 @@ function ownerOperations(socketDir, port, appUrl, workspaceId, contents) {
         await connection?.end().catch(() => undefined);
     };
     const emptyable = new Set(contents.emptyTables);
-    // What a new copy holds, read once, from a copy made for it.
-    let newCopyHolds = null;
-    const fingerprintOfNewCopy = () => (newCopyHolds ??= (async () => {
-        const name = newName();
-        await run(...copy(name));
-        try {
-            const [row] = await asOwner(name, FINGERPRINT);
-            return String(row?.fingerprint);
-        }
-        finally {
-            await run(drop(name));
-        }
-    })());
-    /** Whether `database`, its sessions ended and emptied where it is, now
-     * holds what a new copy holds. The sessions are waited out, so none of them
-     * can still write once this answers. */
-    const emptiedInPlace = async (database) => {
-        try {
-            const [expected, [row]] = await Promise.all([
-                fingerprintOfNewCopy(),
-                asOwner(database, `${ENDING_SESSIONS};\n${emptying};\n${FINGERPRINT}`),
-            ]);
-            return row?.fingerprint === expected;
-        }
-        catch {
-            return false;
-        }
-    };
     return {
         workspaceId,
         url: (database) => copyUrl(appUrl, database),
@@ -458,8 +381,6 @@ function ownerOperations(socketDir, port, appUrl, workspaceId, contents) {
         },
         async resetDatabase(name) {
             await letGo(checkCopyName(name));
-            if (!analyzed.has(name) && (await emptiedInPlace(name)))
-                return name;
             await run(drop(name), ...copy(name));
             analyzed.delete(name);
             return name;

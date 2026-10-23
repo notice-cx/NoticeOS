@@ -81,9 +81,8 @@ const wranglerConfig = JSON.parse(stripJsonc(readFileSync(WRANGLER_CONFIG, 'utf8
  * Postgres test copies: one throwaway cluster per run, started when the first
  * Workers runtime is built. Each runtime gets its own copy of the store as
  * `POSTGRES`, a second copy as `POSTGRES_OTHER` (for the config cache's
- * ownership proof), and `TEST_POSTGRES`: POST /reset puts the first copy back
- * to what a new copy holds before every file (test/clean-start.ts), and the
- * second only with
+ * ownership proof), and `TEST_POSTGRES`: POST /reset remakes the first copy
+ * before every file (test/clean-start.ts), and the second only with
  * `{ other: true }`; POST /empty empties tables as the owner, between tests
  * (test/helpers.ts); POST /owner runs a fixture statement as the owner.
  *

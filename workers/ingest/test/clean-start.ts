@@ -11,9 +11,8 @@
 //    state. (`vi.mock` would carry over; this suite has none.)
 //  - no global stub or fake clock left by the file before is still in place;
 //  - the raw-signal bucket and Cache API are emptied (`reset()`), and this
-//    runtime's Postgres copy is put back to what a new copy of the run's
-//    template holds — its second copy too, when the file before reached it
-//    (scripts/postgres-test-cluster.mts `resetDatabase`). Complete synthetic
+//    runtime's Postgres copy is made again from the run's template — its
+//    second copy too, when the file before reached it. Complete synthetic
 //    sites are inserted directly in fixture order. Nothing rolls back between
 //    tests inside a file.
 //  - every test, and the file's own hooks, get a store of their own on that
