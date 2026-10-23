@@ -57,3 +57,8 @@ export const test = base.extend<{ isolationCheck: void; offlineGuard: OfflineGua
 });
 
 export { expect };
+
+/** A run against a built app (JOURNEY_BUILT_CLIENT, e2e/server.mjs) serves
+ * bundles, not source modules, and has no dev-only page such as
+ * /dev/kitchen-sink: a journey that needs either skips in it. */
+export const BUILT_APP = Boolean(process.env.JOURNEY_BUILT_CLIENT);

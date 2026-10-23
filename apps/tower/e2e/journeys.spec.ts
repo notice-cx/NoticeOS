@@ -1,7 +1,7 @@
 import { formatSeriesDate } from "../src/lib/format";
 import { WALL_WIDGET_MIN_PX, wallWidgetHeightIsGiven } from "../src/lib/wall-editor";
 import type { Locator, Page } from "@playwright/test";
-import { test, expect } from "./journey-test";
+import { BUILT_APP, test, expect } from "./journey-test";
 import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, PR_SMOKE, REFUSED_GATE, journeyFindingSnapshot } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { WALL_PRESETS, wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
@@ -17,13 +17,10 @@ import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
 import { READ_ONLY_DEPLOYMENT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkPayload } from "@shared/work";
 
-/** A journey the mobile project does not schedule (playwright.config.ts):
- * it walks its own screen sizes, or what it pins does not depend on one. */
-/** A run against a built app (JOURNEY_BUILT_CLIENT, e2e/server.mjs) serves
- * bundles, so a journey that names the source modules a page loads skips. */
-const BUILT_APP = Boolean(process.env.JOURNEY_BUILT_CLIENT);
 const NAMES_SOURCE_MODULES = "names the source modules a page loads; a built app serves bundles";
 
+/** A journey the mobile project does not schedule (playwright.config.ts):
+ * it walks its own screen sizes, or what it pins does not depend on one. */
 function desktopOnly(reason: string, ...tags: string[]) {
   return { tag: [DESKTOP_ONLY, ...tags], annotation: { type: "desktop only", description: reason } };
 }
@@ -3686,6 +3683,7 @@ test("the TV downloads no desk editing or task code, and none of the widgets the
 // ── the asset page's tabs and the command palette ───────────────────────────
 
 test("an asset's tabs fetch their code when opened, and the palette on its first ⌘K", async ({ page }) => {
+  test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);

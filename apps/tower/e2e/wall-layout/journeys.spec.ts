@@ -1,4 +1,4 @@
-import { test, expect } from "../journey-test";
+import { BUILT_APP, test, expect } from "../journey-test";
 import { openWall, wallScene } from "../wall-scene";
 import { WALL_FIXTURE_VARIANTS } from "../wall-fixture";
 import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
@@ -202,6 +202,7 @@ test("Wall default remains readable on desktop and phone", { tag: PR_SMOKE }, as
 });
 
 test("Wall gallery specimens use TV tokens in light and dark themes", async ({ page }, testInfo) => {
+  test.skip(BUILT_APP, "/dev/kitchen-sink is a dev-server page; a built app has none");
   await wallScene(page);
   const readings: unknown[] = [];
   for (const theme of ["light", "dark"]) {
