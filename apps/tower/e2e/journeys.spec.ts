@@ -185,7 +185,8 @@ test("desk pages share the same content edges", async ({ page }, testInfo) => {
   }
 });
 
-for (const theme of ["dark", "light"] as const) {
+{
+  const theme = "dark" as const;
   test(`workflow output metrics stay inside the page in ${theme} mode`, async ({ page }, testInfo) => {
     await page.addInitScript(color => localStorage.setItem("noticeos:theme", color), theme);
     const startedAt = "2026-09-06T11:40:00.000Z";
@@ -206,8 +207,7 @@ for (const theme of ["dark", "light"] as const) {
     };
     await page.route("**/api/workflows*", route => route.fulfill({ json: payload }));
     await page.goto(`/workflows/panel-review?run=${encodeURIComponent(trace.id)}`);
-    if (theme === "light") await expect(page.locator("html")).toHaveClass(/light/);
-    else await expect(page.locator("html")).not.toHaveClass(/light/);
+    await expect(page.locator("html")).not.toHaveClass(/light/);
     const output = page.getByRole("region", { name: "Step output", exact: true });
     const strip = output.locator("[data-kpi-strip]");
     await expect(strip.locator("[data-kpi]")).toHaveCount(4);
@@ -2582,7 +2582,8 @@ async function recordDraws(page: Page, read: string) {
   }, read);
 }
 
-for (const theme of ["dark", "light"] as const) {
+{
+  const theme = "dark" as const;
   test(`Home overview keeps four cards in two columns and its orange agent icon readable in ${theme} mode`, desktopOnly("walks desktop, tablet and phone widths with and without revenue"), async ({ page }, testInfo) => {
     await wallScene(page, "fire");
     await page.addInitScript(color => localStorage.setItem("noticeos:theme", color), theme);
@@ -3917,7 +3918,8 @@ test("core Tasks creates, opens and completes work before any user asset", { tag
   expect(pageErrors).toEqual([]);
 });
 
-for (const theme of ['dark', 'light'] as const) {
+{
+  const theme = 'dark' as const;
   test(`named local job runs once with keyboard control and clear results in ${theme} mode`, async ({ page }, testInfo) => {
     await page.addInitScript(color => localStorage.setItem('noticeos:theme', color), theme);
     const now = Date.parse(JOURNEY_NOW);

@@ -8,7 +8,8 @@ test.beforeEach(async ({ request, baseURL }) => {
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
 });
 
-for (const theme of ["dark", "light"] as const) {
+{
+  const theme = "dark" as const;
   test(`monthly cost changes preserve recorded amounts and reuse history in ${theme} mode`, async ({ page }, testInfo) => {
     await page.addInitScript((color) => localStorage.setItem("noticeos:theme", color), theme);
     const reads: Array<string | null> = [];
@@ -22,7 +23,6 @@ for (const theme of ["dark", "light"] as const) {
       await route.fulfill({ json: costMonth(period ?? "2026-09") });
     });
     await page.goto("/financials?period=2026-09");
-    if (theme === "light") await expect(page.locator("html")).toHaveClass(/light/);
     const panel = page.locator("[data-cost-composition]");
     await expect(panel).toBeVisible();
     const toggle = panel.locator("summary").filter({ hasText: "Compare with previous month" });

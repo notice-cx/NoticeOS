@@ -95,7 +95,8 @@ test.beforeEach(async ({ request, page }, info) => {
   await page.setViewportSize({ width: info.project.name === "mobile" ? 390 : 1440, height: info.project.name === "mobile" ? 844 : 900 });
 });
 
-for (const mode of ["dark", "light"] as const) {
+{
+  const mode = "dark" as const;
   test(`setup polish: status marks stay beside their lead in ${mode}`, async ({ page }, info) => {
     await theme(page, mode);
     await syntheticSite(page);

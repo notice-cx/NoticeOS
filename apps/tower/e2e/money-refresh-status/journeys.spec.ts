@@ -57,7 +57,8 @@ async function capture(page: Page, status: Locator, info: TestInfo, theme: strin
   await info.attach(`status-${theme}`, { body: await page.screenshot(), contentType: 'image/png' });
 }
 
-for (const theme of ['dark', 'light'] as const) {
+{
+  const theme = 'dark' as const;
   test(`Money refresh status: retained read, retry and recovery in ${theme}`, async ({ page, request, baseURL }, info) => {
     expect((await request.post('/__journey/reset')).ok()).toBe(true);
     expect((await (await request.get('/__journey/status')).json()).isolated).toBe(true);

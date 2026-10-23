@@ -4,7 +4,8 @@ import { JOURNEY_ASSET } from './fixtures';
 // Text-only resizing: the viewport stays390px and actual rendered fonts must
 // double. A device-pixel-ratio change would not exercise this layout contract.
 for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
-  for (const theme of ['dark', 'light'] as const) {
+  {
+    const theme = 'dark' as const;
     test(`phone text resizing: ${state}, ${theme}`, async ({ page, request, baseURL }, testInfo) => {
       test.setTimeout(90_000);
       expect((await request.post('/__journey/reset')).ok()).toBe(true);

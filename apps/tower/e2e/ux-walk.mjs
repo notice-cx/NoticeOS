@@ -542,7 +542,10 @@ export class Walk {
    * gesture, so it counts as one click. The pointer travels in steps, as a
    * hand does, so the page's own drag and drop sees every move.
    */
-  async drag(target, onto, label, { role = "choose", at = { x: 0.5, y: 0.5 } } = {}) {
+  /** A drag released only once the screen marks where it will land
+   * (`landing`), as a hand waits for the drop line: on a loaded runner the
+   * pointer can otherwise let go before the screen has taken in the move. */
+  async drag(target, onto, label, { role = "choose", at = { x: 0.5, y: 0.5 }, landing } = {}) {
     this.m.clicks += 1;
     await this.step("drag", role, label, target, async () => {
       const from = await target.boundingBox();
@@ -555,6 +558,7 @@ export class Walk {
       for (let i = 1; i <= 10; i += 1) {
         await this.page.mouse.move(start.x + ((end.x - start.x) * i) / 10, start.y + ((end.y - start.y) * i) / 10);
       }
+      if (landing) await landing.waitFor({ timeout: 10_000 });
       await this.page.mouse.up();
     });
   }
