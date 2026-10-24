@@ -1,0 +1,101 @@
+import { test, expect } from "../journey-test";
+import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
+import { persistedMetricScene } from "./scene";
+
+test("shared Portfolio tiles edit in focus, undo and persist after reload", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page, request }, testInfo) => {
+  expect((await request.post("/__journey/reset")).ok()).toBe(true);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await persistedMetricScene(page);
+  await page.goto("/wall/edit");
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  const preview = page.locator("[data-wall-preview]");
+  await preview.locator('[data-wall-metric-select="today"]').first().click();
+  const panel = page.locator('[data-wall-metric-panel="sites"]');
+  await expect(panel).toHaveAttribute("data-panel-layout", "bottom");
+  await expect(panel.getByText("Shared · Portfolio")).toBeVisible();
+  await expect.poll(async () => { const bounds = (await panel.boundingBox())!; return bounds.y + bounds.height; }).toBeLessThanOrEqual(1080);
+  await page.screenshot({ path: testInfo.outputPath("wall-tile-editor-full.png"), fullPage: true });
+  await panel.getByRole("button", { name: "Focus on row" }).click();
+  await expect(page.locator('[data-wall-row-focus="sites"]')).toBeVisible();
+  await expect(panel).toHaveAttribute("data-panel-layout", "side");
+  const focusedPreview = page.locator("[data-wall-focus-preview]");
+  expect((await focusedPreview.boundingBox())!.height).toBeLessThan(350);
+  const positions = await focusedPreview.locator("[data-wall-metric]").evaluateAll(tiles => tiles.map(tile => tile.getBoundingClientRect().top));
+  expect(positions).toHaveLength(5);
+  expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(1);
+  await page.screenshot({ path: testInfo.outputPath("wall-row-focused.png"), fullPage: true });
+  await focusedPreview.locator('[data-wall-metric-select="today"]').dragTo(focusedPreview.locator('[data-wall-metric-select="momentum"]'));
+  await expect(focusedPreview.locator("[data-wall-metric]").first()).toHaveAttribute("data-wall-metric", "today");
+  await page.locator("[data-wall-save-bar]").getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(focusedPreview.locator("[data-wall-metric]").first()).toHaveAttribute("data-wall-metric", "momentum");
+  await panel.getByLabel("Title").fill("Visitors today");
+  await panel.getByRole("button", { name: "wide", exact: true }).click();
+  await panel.getByRole("button", { name: "Move left" }).click();
+  await panel.getByRole("button", { name: "Back to Wall" }).click();
+  await expect(preview).toBeVisible();
+  const rows = preview.locator("[data-site-row]");
+  await expect(rows).toHaveCount(4);
+  for (const row of await rows.all()) {
+    await expect(row.locator("[data-wall-metric]").first()).toHaveAttribute("data-wall-metric", "today");
+    await expect(row.locator('[data-wall-metric="today"]')).toHaveAttribute("data-metric-size", "wide");
+    await expect(row.locator('[data-wall-metric="today"] h3')).toContainText("Visitors today");
+  }
+  const bar = page.locator("[data-wall-save-bar]");
+  await bar.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(rows.first().locator("[data-wall-metric]").first()).toHaveAttribute("data-wall-metric", "momentum");
+  await bar.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(rows.first().locator("[data-wall-metric]").first()).toHaveAttribute("data-wall-metric", "today");
+  await bar.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(bar.locator('[data-save-state="saved"] [data-status-for="wall:layout"]')).toHaveText("On the TV");
+  await page.reload();
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  await expect(preview.locator('[data-wall-metric="today"] h3')).toContainText(["Visitors today", "Visitors today", "Visitors today", "Visitors today"]);
+  await expect(rows.first().locator("[data-wall-metric]").first()).toHaveAttribute("data-wall-metric", "today");
+  await page.screenshot({ path: testInfo.outputPath("wall-tile-edit-saved.png"), fullPage: true });
+});
+
+test("focused Portfolio controls fit a 390px viewport without page overflow", { tag: DESKTOP_ONLY }, async ({ page, request }, testInfo) => {
+  expect((await request.post("/__journey/reset")).ok()).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await persistedMetricScene(page);
+  await page.goto("/wall/edit");
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  await page.getByRole("navigation", { name: "Wall metric sections" }).getByRole("button", { name: "Portfolio", exact: true }).click();
+  const panel = page.locator('[data-wall-metric-panel="sites"]');
+  await panel.getByRole("button", { name: "Focus on row" }).click();
+  await expect(page.locator('[data-wall-row-focus="sites"]')).toBeVisible();
+  await panel.getByLabel("Title").fill("Live visitors");
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+  const innerScroll = page.locator("[data-wall-focus-preview] .wall-portfolio-list");
+  expect(await innerScroll.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("wall-focused-mobile.png"), fullPage: true });
+  await panel.getByRole("button", { name: "Back to Wall" }).click();
+  await expect(page.locator("[data-wall-preview]")).toBeVisible();
+});
+
+test("section grips still move a whole section independently of tile editing", { tag: DESKTOP_ONLY }, async ({ page, request }) => {
+  expect((await request.post("/__journey/reset")).ok()).toBe(true);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await persistedMetricScene(page);
+  await page.goto("/wall/edit");
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  const preview = page.locator("[data-wall-preview]");
+  const revenue = preview.locator('[data-wall-edit-widget="revenue"]');
+  const sites = preview.locator('[data-wall-edit-widget="sites"]');
+  await revenue.hover();
+  const grip = revenue.getByTitle("Drag to move Revenue", { exact: true });
+  const from = (await grip.boundingBox())!;
+  const target = (await sites.boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height * 0.06, { steps: 15 });
+  await expect(preview.locator('[data-wall-drop-line="top"]')).toBeVisible();
+  await page.mouse.up();
+  await expect.poll(() => preview.evaluate(root => {
+    const revenue = root.querySelector('[data-wall-edit-widget="revenue"]');
+    const sites = root.querySelector('[data-wall-edit-widget="sites"]');
+    return revenue?.closest("[data-wall-column]") === sites?.closest("[data-wall-column]");
+  })).toBe(true);
+  await page.locator("[data-wall-save-bar]").getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => preview.evaluate(root => root.querySelector('[data-wall-edit-widget="revenue"]')?.closest("[data-wall-column]") !== root.querySelector('[data-wall-edit-widget="sites"]')?.closest("[data-wall-column]"))).toBe(true);
+});
