@@ -613,9 +613,9 @@ describe("the daily history the strip's six numbers ride", () => {
     const utc = payload.projects[0]!.weeks!;
     expect([utc.weekStart, utc.daysIn]).toEqual(["2026-07-27", 6]);
     // Last week by this time on Saturday: Monday to Saturday, six.
-    expect(utc.done).toEqual({ now: 5, notDone: 1, before: 6, lastWeek: 7, move: { by: -1, direction: "down", verdict: "bad" } });
+    expect(utc.done).toMatchObject({ now: 5, notDone: 1, before: 6, lastWeek: 7, move: { by: -1, direction: "down", verdict: "bad" } });
     // 1 → 1 → 2 → 2 → 1 → 3 → 3 → 3: rises of 1 and 2.
-    expect(utc.blocked).toEqual({ now: 3, before: 1, added: 3, move: { by: 2, direction: "up", verdict: "bad" } });
+    expect(utc.blocked).toMatchObject({ now: 3, before: 1, added: 3, move: { by: 2, direction: "up", verdict: "bad" } });
     // The board reads the weeks; the closes stay off its payload.
     expect(payload.projects[0]).not.toHaveProperty("closes");
     const ahead = (await buildWorkPayload(store.call, { now: NOW, timeZone: "Pacific/Kiritimati" })).projects[0]!.weeks!;

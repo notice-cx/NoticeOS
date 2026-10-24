@@ -492,7 +492,6 @@ const SITE_NOUN_IDENTIFIERS = [
   'Provider site', // The Search Console/Bing mapping, not the asset.
   'Second Site', // A fixture's proper name, inferred from second-site.com.
   'sites:', // Existing Tailwind container variants.
-  '--text-wall-site-stat', // Existing CSS token.
   'config/tower.json sites', // The persisted configuration key, in diagnostics.
 ];
 

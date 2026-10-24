@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { SAVED_COLUMN_LAYOUT } from "./saved-wall-layout";
 import {
   DEFAULT_WALL_LAYOUT,
   WALL_MAX_ROWS,
@@ -130,11 +131,24 @@ const drop = (layout: WallLayout, widgetId: string, onto: string, edge: "top" | 
 
 const move = (layout: WallLayout, widgetId: string, how: WallMove) => wallMovePlan(layout, widgetId, how);
 
+describe("the current default arrangement", () => {
+  it("opens unchanged and supports moving, undoing and resizing both columns", () => {
+    const opened = start(DEFAULT_WALL_LAYOUT);
+    expect(opened.layout).toBe(DEFAULT_WALL_LAYOUT);
+    expect(wallEditorRefusal(opened.layout)).toBeNull();
+    const moved = run(opened, { type: "move", widgetId: "revenue", move: "down" });
+    expect(stack(moved.layout, "side")).toEqual([["needs"], ["revenue"], ["feed"]]);
+    expect(run(moved, { type: "undo" }).layout).toBe(DEFAULT_WALL_LAYOUT);
+    expect(wallStackSizes(column(opened.layout, "business"), [156, 650], 0, .5)).toEqual({ work: 1, sites: 1 });
+    expect(wallPositionSentence(opened.layout, "revenue")).toBe("Revenue: row 2 of 2, column 2 of 2, 1 of 3 in its column");
+  });
+});
+
 describe("the layout it starts from", () => {
   it("is the saved one, with nothing selected, nothing to save and nothing to undo", () => {
-    const state = start(DEFAULT_WALL_LAYOUT);
-    expect(state.layout).toBe(DEFAULT_WALL_LAYOUT);
-    expect(state.saved).toBe(DEFAULT_WALL_LAYOUT);
+    const state = start(SAVED_COLUMN_LAYOUT);
+    expect(state.layout).toBe(SAVED_COLUMN_LAYOUT);
+    expect(state.saved).toBe(SAVED_COLUMN_LAYOUT);
     expect(state.selectedId).toBeNull();
     expect(wallEditorDirty(state)).toBe(false);
     expect(wallCanUndo(state)).toBe(false);
@@ -189,7 +203,7 @@ describe("adding a widget", () => {
   });
 
   it("puts the loop back beside the strip once its own row has gone with it", () => {
-    const without = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "loop" });
+    const without = run(start(SAVED_COLUMN_LAYOUT), { type: "remove", widgetId: "loop" });
     expect(without.layout.rows.map((row) => row.id)).toEqual(["strip", "body"]);
     expect(wallEditorRefusal(without.layout)).toBeNull();
     const state = run(without, { type: "add", widget: "loop" });
@@ -198,7 +212,7 @@ describe("adding a widget", () => {
   });
 
   it("adds the feed the default leaves out beside its two columns, in the row that takes the remaining height", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "add", widget: "feed" });
+    const state = run(start(SAVED_COLUMN_LAYOUT), { type: "add", widget: "feed" });
     expect(ids(state.layout, 2)).toEqual(["business", "side", "feed"]);
     expect(drawable(state.layout)).toBe(true);
   });
@@ -257,8 +271,8 @@ describe("the version's description when there is no note", () => {
   });
 
   it("names the widget that moved, not the one whose column closed around it", () => {
-    const layout = drop(DEFAULT_WALL_LAYOUT, "work", "sites", "top")!.layout;
-    expect(wallChangeSummary(DEFAULT_WALL_LAYOUT, layout)).toBe("Moved Work");
+    const layout = drop(SAVED_COLUMN_LAYOUT, "work", "sites", "top")!.layout;
+    expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, layout)).toBe("Moved Work");
   });
 
   it("names a stack as one move: the widget stacked onto keeps its place", () => {
@@ -267,14 +281,14 @@ describe("the version's description when there is no note", () => {
   });
 
   it("names a row swap as rearranged rows", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "strip", "down")!;
-    expect(wallChangeSummary(DEFAULT_WALL_LAYOUT, layout)).toBe("Rearranged rows");
+    const layout = move(SAVED_COLUMN_LAYOUT, "strip", "down")!;
+    expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, layout)).toBe("Rearranged rows");
   });
 });
 
 describe("the Add drawer's rows", () => {
   it("shows every widget of the default as placed and offers the ones it leaves out, while the write lane still refuses a second", () => {
-    expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => [o.spec.type, o.disabledReason])).toEqual([
+    expect(wallLibraryOptions(SAVED_COLUMN_LAYOUT).map((o) => [o.spec.type, o.disabledReason])).toEqual([
       ["strip", "On the TV"],
       ["loop", "On the TV"],
       ["timeline", "On the TV"],
@@ -298,7 +312,7 @@ describe("the Add drawer's rows", () => {
   });
 
   it("offers a widget again once it is taken off", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "work" });
+    const state = run(start(SAVED_COLUMN_LAYOUT), { type: "remove", widgetId: "work" });
     const options = wallLibraryOptions(state.layout);
     expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed", "agents", "health", "factory", "channels", "next"]);
   });
@@ -324,7 +338,7 @@ describe("removing a widget", () => {
   });
 
   it("turns a column left with one widget back into that widget, in the column's place and width", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "timeline" });
+    const state = run(start(SAVED_COLUMN_LAYOUT), { type: "remove", widgetId: "timeline" });
     expect(ids(state.layout, 2)).toEqual(["sites", "side"]);
     expect(state.layout.rows[2]?.widgets[0]).toEqual({ id: "sites", type: "sites", width: 1.4 });
     expect(drawable(state.layout)).toBe(true);
@@ -346,7 +360,7 @@ describe("widths and the asset filter", () => {
   });
 
   it("sets a column's width by its id, as a divider between columns does", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "widths", widths: { business: 1.2, side: 1.2 } });
+    const state = run(start(SAVED_COLUMN_LAYOUT), { type: "widths", widths: { business: 1.2, side: 1.2 } });
     expect(column(state.layout, "business").width).toBe(1.2);
     expect(column(state.layout, "side").width).toBe(1.2);
   });
@@ -370,7 +384,7 @@ describe("widths and the asset filter", () => {
 // Dropping onto a widget's top or bottom edge stacks the two in one column.
 describe("dropping onto a top or bottom edge", () => {
   it("stacks into the target's column, above it, keeping the moved widget's own row", () => {
-    const plan = drop(DEFAULT_WALL_LAYOUT, "work", "sites", "top")!;
+    const plan = drop(SAVED_COLUMN_LAYOUT, "work", "sites", "top")!;
     expect(stack(plan.layout, "business")).toEqual([["timeline"], ["work"], ["sites"]]);
     // The side column is left with revenue alone, so it becomes revenue again.
     expect(plan.layout.rows[2]?.widgets.map((w) => w.id)).toEqual(["business", "revenue"]);
@@ -436,7 +450,7 @@ describe("dropping onto a left or right edge", () => {
   });
 
   it("splits a widget out of a column into a column of its own beside it", () => {
-    const plan = drop(DEFAULT_WALL_LAYOUT, "timeline", "sites", "left")!;
+    const plan = drop(SAVED_COLUMN_LAYOUT, "timeline", "sites", "left")!;
     expect(plan.line).toEqual({ anchor: "slot", id: "business", edge: "left" });
     expect(plan.layout.rows[2]?.widgets.map((w) => [w.id, w.width])).toEqual([
       ["timeline", 0.7], ["sites", 0.7], ["side", 1],
@@ -461,10 +475,10 @@ describe("dropping between rows", () => {
   });
 
   it("moves a widget alone in its row with its row, id and height kept", () => {
-    const plan = wallDropPlan(DEFAULT_WALL_LAYOUT, { kind: "widget", widgetId: "strip" }, { kind: "gap", index: 2 })!;
+    const plan = wallDropPlan(SAVED_COLUMN_LAYOUT, { kind: "widget", widgetId: "strip" }, { kind: "gap", index: 2 })!;
     expect(plan.layout.rows.map((row) => row.id)).toEqual(["loop", "strip", "body"]);
     for (const index of [0, 1]) {
-      expect(wallDropPlan(DEFAULT_WALL_LAYOUT, { kind: "widget", widgetId: "strip" }, { kind: "gap", index })).toBeNull();
+      expect(wallDropPlan(SAVED_COLUMN_LAYOUT, { kind: "widget", widgetId: "strip" }, { kind: "gap", index })).toBeNull();
     }
   });
 
@@ -481,14 +495,14 @@ describe("dropping between rows", () => {
 
 describe("dropping a widget from the Add drawer", () => {
   it("places a new one where the line says, and names it", () => {
-    const plan = wallDropPlan(DEFAULT_WALL_LAYOUT, { kind: "new", widget: "feed" }, { kind: "widget", widgetId: "work", edge: "right" })!;
+    const plan = wallDropPlan(SAVED_COLUMN_LAYOUT, { kind: "new", widget: "feed" }, { kind: "widget", widgetId: "work", edge: "right" })!;
     expect(plan.widgetId).toBe("feed");
     expect(plan.layout.rows[2]?.widgets.map((w) => [w.id, w.width])).toEqual([["business", 1.4], ["side", 0.5], ["feed", 0.5]]);
     expect(drawable(plan.layout)).toBe(true);
   });
 
   it("refuses a second of a one-of-a-kind widget", () => {
-    expect(wallDropPlan(DEFAULT_WALL_LAYOUT, { kind: "new", widget: "sites" }, { kind: "gap", index: 0 })).toBeNull();
+    expect(wallDropPlan(SAVED_COLUMN_LAYOUT, { kind: "new", widget: "sites" }, { kind: "gap", index: 0 })).toBeNull();
   });
 });
 
@@ -496,29 +510,29 @@ describe("drops that do nothing", () => {
   it("refuses a widget dropped on itself, or back where it is", () => {
     expect(drop(FLAT, "strip", "strip", "left")).toBeNull();
     expect(drop(FLAT, "strip", "revenue", "left")).toBeNull();
-    expect(drop(DEFAULT_WALL_LAYOUT, "timeline", "sites", "top")).toBeNull();
+    expect(drop(SAVED_COLUMN_LAYOUT, "timeline", "sites", "top")).toBeNull();
   });
 });
 
 describe("the Move menu", () => {
   it("steps down through a column, the widget keeping its row's height", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "revenue", "down")!;
+    const layout = move(SAVED_COLUMN_LAYOUT, "revenue", "down")!;
     expect(stack(layout, "side")).toEqual([["work"], ["revenue"]]);
     expect(column(layout, "side").rows.map((r) => r.height)).toEqual(["auto", "fill"]);
   });
 
   it("steps up out of the top of a column into a row of its own", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "timeline", "up")!;
+    const layout = move(SAVED_COLUMN_LAYOUT, "timeline", "up")!;
     expect(layout.rows.map((row) => row.widgets.map((w) => w.id))).toEqual([["strip"], ["loop"], ["timeline"], ["sites", "side"]]);
   });
 
   it("takes a widget alone in its row up or down with its row, and stops at the ends", () => {
-    expect(move(DEFAULT_WALL_LAYOUT, "strip", "down")?.rows.map((row) => row.id)).toEqual(["loop", "strip", "body"]);
-    expect(move(DEFAULT_WALL_LAYOUT, "strip", "up")).toBeNull();
+    expect(move(SAVED_COLUMN_LAYOUT, "strip", "down")?.rows.map((row) => row.id)).toEqual(["loop", "strip", "body"]);
+    expect(move(SAVED_COLUMN_LAYOUT, "strip", "up")).toBeNull();
   });
 
   it("steps left into the neighbouring column at the same height", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "revenue", "left")!;
+    const layout = move(SAVED_COLUMN_LAYOUT, "revenue", "left")!;
     expect(stack(layout, "business")).toEqual([["revenue"], ["timeline"], ["sites"]]);
     expect(layout.rows[2]?.widgets.map((w) => w.id)).toEqual(["business", "work"]);
   });
@@ -529,35 +543,35 @@ describe("the Move menu", () => {
   });
 
   it("stacks a single widget onto a single widget beside a stacked one", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "work", "right")!;
+    const layout = move(SAVED_COLUMN_LAYOUT, "work", "right")!;
     expect(layout.rows[2]?.widgets.map((w) => w.id)).toEqual(["business", "revenue", "work"]);
   });
 
   it("takes a widget into a column of its own beside its column", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "work", "own-column")!;
+    const layout = move(SAVED_COLUMN_LAYOUT, "work", "own-column")!;
     expect(layout.rows[2]?.widgets.map((w) => [w.id, w.width])).toEqual([["business", 1.4], ["revenue", 0.5], ["work", 0.5]]);
     expect(move(FLAT, "strip", "own-column")).toBeNull();
   });
 
   it("takes a widget into a new row above or below its own", () => {
-    expect(move(DEFAULT_WALL_LAYOUT, "sites", "row-below")?.rows.map((row) => row.widgets.map((w) => w.id))).toEqual([
+    expect(move(SAVED_COLUMN_LAYOUT, "sites", "row-below")?.rows.map((row) => row.widgets.map((w) => w.id))).toEqual([
       ["strip"], ["loop"], ["timeline", "side"], ["sites"],
     ]);
     expect(move(FLAT, "needs", "row-above")?.rows.map((row) => row.widgets.map((w) => w.id))).toEqual([
       ["needs"], ["strip", "revenue"], ["sites", "feed"],
     ]);
-    expect(move(DEFAULT_WALL_LAYOUT, "strip", "row-below")).toBeNull();
+    expect(move(SAVED_COLUMN_LAYOUT, "strip", "row-below")).toBeNull();
   });
 
   it("stacks a widget under any other one it names", () => {
-    const layout = move(DEFAULT_WALL_LAYOUT, "work", { under: "strip" })!;
+    const layout = move(SAVED_COLUMN_LAYOUT, "work", { under: "strip" })!;
     expect(layout.rows[0]?.widgets[0]?.type).toBe("column");
-    expect(wallStackChoices(DEFAULT_WALL_LAYOUT, "work").map((w) => w.id)).toEqual(["strip", "loop", "timeline", "sites"]);
+    expect(wallStackChoices(SAVED_COLUMN_LAYOUT, "work").map((w) => w.id)).toEqual(["strip", "loop", "timeline", "sites"]);
   });
 
   it("leaves every layout drawable, from every widget, in every direction", () => {
     const moves: WallMove[] = ["up", "down", "left", "right", "own-column", "row-above", "row-below"];
-    for (const layout of [FLAT, DEFAULT_WALL_LAYOUT]) {
+    for (const layout of [FLAT, SAVED_COLUMN_LAYOUT]) {
       for (const widget of wallLayoutWidgets(layout)) {
         for (const how of moves) {
           const next = move(layout, widget.id, how);
@@ -568,19 +582,19 @@ describe("the Move menu", () => {
   });
 
   it("says where the widget is, for the announcement", () => {
-    expect(wallPositionSentence(DEFAULT_WALL_LAYOUT, "revenue")).toBe("Revenue: row 3 of 3, column 2 of 2, 1 of 2 in its column");
+    expect(wallPositionSentence(SAVED_COLUMN_LAYOUT, "revenue")).toBe("Revenue: row 3 of 3, column 2 of 2, 1 of 2 in its column");
     expect(wallPositionSentence(FLAT, "needs")).toBe("Needs attention: row 1 of 2, column 3 of 3");
   });
 });
 
 describe("undo and redo", () => {
   it("goes back through every change and forward again", () => {
-    const a = run(start(DEFAULT_WALL_LAYOUT), { type: "move", widgetId: "revenue", move: "left" });
+    const a = run(start(SAVED_COLUMN_LAYOUT), { type: "move", widgetId: "revenue", move: "left" });
     const b = run(a, { type: "remove", widgetId: "loop" });
     const back = run(b, { type: "undo" });
     expect(back.layout).toBe(a.layout);
     const first = run(back, { type: "undo" });
-    expect(first.layout).toBe(DEFAULT_WALL_LAYOUT);
+    expect(first.layout).toBe(SAVED_COLUMN_LAYOUT);
     expect(wallCanUndo(first)).toBe(false);
     const again = run(first, { type: "redo" }, { type: "redo" });
     expect(again.layout).toBe(b.layout);
@@ -594,13 +608,13 @@ describe("undo and redo", () => {
 
   it("takes a whole divider drag back in one step", () => {
     const state = run(
-      start(DEFAULT_WALL_LAYOUT),
+      start(SAVED_COLUMN_LAYOUT),
       { type: "widths", widths: { business: 1.3, side: 1.1 }, gesture: "g1" },
       { type: "widths", widths: { business: 1.2, side: 1.2 }, gesture: "g1" },
       { type: "widths", widths: { business: 1.1, side: 1.3 }, gesture: "g1" },
     );
     expect(state.past).toHaveLength(1);
-    expect(run(state, { type: "undo" }).layout).toBe(DEFAULT_WALL_LAYOUT);
+    expect(run(state, { type: "undo" }).layout).toBe(SAVED_COLUMN_LAYOUT);
   });
 
   it("records nothing for a change that changes nothing", () => {
@@ -619,7 +633,7 @@ describe("undo and redo", () => {
   it("keeps its steps when the same saved layout arrives again, and starts afresh on a new one", () => {
     const changed = run(start(), { type: "remove", widgetId: "needs" }, { type: "undo" });
     expect(run(changed, { type: "reset", layout: FLAT }).future).toHaveLength(1);
-    expect(run(changed, { type: "reset", layout: DEFAULT_WALL_LAYOUT }).future).toHaveLength(0);
+    expect(run(changed, { type: "reset", layout: SAVED_COLUMN_LAYOUT }).future).toHaveLength(0);
   });
 
   it("keeps at most its limit of steps", () => {
@@ -639,7 +653,7 @@ describe("heights", () => {
   });
 
   it("fills one of a column's rows, taking the column back to fill and fit", () => {
-    const sized = run(start(DEFAULT_WALL_LAYOUT), { type: "sizes", sizes: { timeline: 1, sites: 2 } });
+    const sized = run(start(SAVED_COLUMN_LAYOUT), { type: "sizes", sizes: { timeline: 1, sites: 2 } });
     expect(column(sized.layout, "business").rows.map((r) => r.size)).toEqual([1, 2]);
     const filled = run(sized, { type: "fill", rowId: "timeline" });
     expect(column(filled.layout, "business").rows.map((r) => [r.height, r.size])).toEqual([["fill", undefined], ["auto", undefined]]);
@@ -647,18 +661,18 @@ describe("heights", () => {
   });
 
   it("takes a size off a row", () => {
-    const sized = run(start(DEFAULT_WALL_LAYOUT), { type: "sizes", sizes: { timeline: 1 } }, { type: "sizes", sizes: { timeline: null } });
+    const sized = run(start(SAVED_COLUMN_LAYOUT), { type: "sizes", sizes: { timeline: 1 } }, { type: "sizes", sizes: { timeline: null } });
     expect(column(sized.layout, "business").rows[0]).not.toHaveProperty("size");
   });
 
   it("gives a stacked widget a share of its column", () => {
-    const business = column(DEFAULT_WALL_LAYOUT, "business");
+    const business = column(SAVED_COLUMN_LAYOUT, "business");
     expect(wallStackShareSizes(business, "timeline", 1 / 3)).toEqual({ timeline: 1, sites: 2 });
     expect(wallStackShareSizes(business, "timeline", 1 / 2)).toEqual({ timeline: 1.5, sites: 1.5 });
   });
 
   it("turns a stacked divider's drag into weights that keep the other rows' heights", () => {
-    const business = column(DEFAULT_WALL_LAYOUT, "business");
+    const business = column(SAVED_COLUMN_LAYOUT, "business");
     expect(wallStackSizes(business, [120, 680], 0, 0.5)).toEqual({ timeline: 1, sites: 1 });
     const three: WallColumn = {
       id: "c",
@@ -699,7 +713,7 @@ describe("heights", () => {
     expect(run(state, { type: "sizes", sizes: { above: null } }).layout.rows[0]).not.toHaveProperty("size");
     const filled = run(state, { type: "fill", rowId: "above" });
     expect(filled.layout.rows.map(row => [row.height, row.size])).toEqual([["fill", undefined], ["auto", undefined], ["auto", undefined]]);
-    const sizedParent = run(start(DEFAULT_WALL_LAYOUT), { type: "fit", rowId: "body" }, { type: "sizes", sizes: { body: 2 } });
+    const sizedParent = run(start(SAVED_COLUMN_LAYOUT), { type: "fit", rowId: "body" }, { type: "sizes", sizes: { body: 2 } });
     expect(wallWidgetHeightIsGiven(sizedParent.layout, "sites")).toBe(true);
     expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Bottom of the TV left empty");
     expect(wallLayoutWarnings(sizedParent.layout)).not.toContain("Portfolio squeezed into a fixed-height row");
@@ -707,21 +721,21 @@ describe("heights", () => {
 
   it("rescales sharing weights before a short top-level pair would hit the weight bounds", () => {
     const heights = [104, 128, 784];
-    const sizes = wallStackSizes(DEFAULT_WALL_LAYOUT, heights, 0, 104 / 232);
+    const sizes = wallStackSizes(SAVED_COLUMN_LAYOUT, heights, 0, 104 / 232);
     expect(sizes).toEqual({ strip: 1.6, loop: 1.95, body: 12 });
     const total = Object.values(sizes).reduce((sum, weight) => sum + weight, 0);
-    DEFAULT_WALL_LAYOUT.rows.forEach((row, index) => {
+    SAVED_COLUMN_LAYOUT.rows.forEach((row, index) => {
       expect(Math.abs(sizes[row.id]! / total * 1016 - heights[index]!)).toBeLessThan(1);
     });
-    const resized = run(start(DEFAULT_WALL_LAYOUT), { type: "sizes", sizes });
+    const resized = run(start(SAVED_COLUMN_LAYOUT), { type: "sizes", sizes });
     expect(drawable(resized.layout)).toBe(true);
-    expect(run(resized, { type: "undo" }).layout).toEqual(DEFAULT_WALL_LAYOUT);
+    expect(run(resized, { type: "undo" }).layout).toEqual(SAVED_COLUMN_LAYOUT);
   });
 
   it("knows when a widget's height is given rather than its content's", () => {
-    expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "sites")).toBe(true);
-    expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "timeline")).toBe(false);
-    expect(wallWidgetHeightIsGiven(DEFAULT_WALL_LAYOUT, "strip")).toBe(false);
+    expect(wallWidgetHeightIsGiven(SAVED_COLUMN_LAYOUT, "sites")).toBe(true);
+    expect(wallWidgetHeightIsGiven(SAVED_COLUMN_LAYOUT, "timeline")).toBe(false);
+    expect(wallWidgetHeightIsGiven(SAVED_COLUMN_LAYOUT, "strip")).toBe(false);
   });
 });
 
@@ -762,7 +776,7 @@ describe("dividers and size presets", () => {
   });
 
   it("knows the narrowest a column stays legible at: its widest row's widgets side by side", () => {
-    expect(wallSlotMinWidth(column(DEFAULT_WALL_LAYOUT, "business"))).toBe(880);
+    expect(wallSlotMinWidth(column(SAVED_COLUMN_LAYOUT, "business"))).toBe(880);
   });
 
   it("never draws Next up too short in the business preset: its row is as tall as its content", () => {
@@ -788,7 +802,7 @@ describe("what the operator is told beside Save", () => {
   });
 
   it("does not call a sized row inside a stretching column squeezed", () => {
-    const sized = run(start(DEFAULT_WALL_LAYOUT), { type: "sizes", sizes: { timeline: 1, sites: 1 } });
+    const sized = run(start(SAVED_COLUMN_LAYOUT), { type: "sizes", sizes: { timeline: 1, sites: 1 } });
     const unfilled = run(sized, { type: "fit", rowId: "sites" });
     expect(column(unfilled.layout, "business").rows[1]?.size).toBeUndefined();
     expect(wallLayoutWarnings(sized.layout)).toEqual([]);
@@ -813,15 +827,15 @@ describe("dirty and save", () => {
 
   it("drops a selection the new saved layout no longer holds, and keeps one it does", () => {
     const state = run(start(), { type: "select", widgetId: "needs" });
-    expect(run(state, { type: "reset", layout: DEFAULT_WALL_LAYOUT }).selectedId).toBeNull();
+    expect(run(state, { type: "reset", layout: SAVED_COLUMN_LAYOUT }).selectedId).toBeNull();
     const sites = run(start(), { type: "select", widgetId: "sites" });
-    expect(run(sites, { type: "reset", layout: DEFAULT_WALL_LAYOUT }).selectedId).toBe("sites");
+    expect(run(sites, { type: "reset", layout: SAVED_COLUMN_LAYOUT }).selectedId).toBe("sites");
   });
 
   it("selects what a drop or a move brought", () => {
-    const dropped = run(start(DEFAULT_WALL_LAYOUT), { type: "drop", source: { kind: "new", widget: "needs" }, target: { kind: "gap", index: 0 } });
+    const dropped = run(start(SAVED_COLUMN_LAYOUT), { type: "drop", source: { kind: "new", widget: "needs" }, target: { kind: "gap", index: 0 } });
     expect(dropped.selectedId).toBe("needs");
-    const moved = run(start(DEFAULT_WALL_LAYOUT), { type: "move", widgetId: "work", move: "own-column" });
+    const moved = run(start(SAVED_COLUMN_LAYOUT), { type: "move", widgetId: "work", move: "own-column" });
     expect(moved.selectedId).toBe("work");
   });
 });
@@ -841,37 +855,37 @@ describe("starting from a view's preset", () => {
   });
 
   it("replaces the arrangement as one unsaved step that Undo takes back", () => {
-    const before = start(DEFAULT_WALL_LAYOUT);
+    const before = start(SAVED_COLUMN_LAYOUT);
     const state = run(before, { type: "replace", layout: WALL_PRESETS.business });
     expect(state.layout).toBe(WALL_PRESETS.business);
-    expect(state.saved).toBe(DEFAULT_WALL_LAYOUT);
+    expect(state.saved).toBe(SAVED_COLUMN_LAYOUT);
     expect(wallEditorDirty(state)).toBe(true);
     expect(wallCanUndo(state)).toBe(true);
     const undone = run(state, { type: "undo" });
-    expect(undone.layout).toBe(DEFAULT_WALL_LAYOUT);
+    expect(undone.layout).toBe(SAVED_COLUMN_LAYOUT);
     expect(wallEditorDirty(undone)).toBe(false);
     expect(run(undone, { type: "redo" }).layout).toBe(WALL_PRESETS.business);
   });
 
   it("keeps the selection only when the widget is still there", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "select", widgetId: "revenue" }, { type: "replace", layout: WALL_PRESETS.business });
+    const state = run(start(SAVED_COLUMN_LAYOUT), { type: "select", widgetId: "revenue" }, { type: "replace", layout: WALL_PRESETS.business });
     expect(state.selectedId).toBe("revenue");
-    const gone = run(start(DEFAULT_WALL_LAYOUT), { type: "select", widgetId: "timeline" }, { type: "replace", layout: WALL_PRESETS.business });
+    const gone = run(start(SAVED_COLUMN_LAYOUT), { type: "select", widgetId: "timeline" }, { type: "replace", layout: WALL_PRESETS.business });
     expect(gone.selectedId).toBeNull();
   });
 
   it("replacing with the same layout records nothing", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "replace", layout: DEFAULT_WALL_LAYOUT });
+    const state = run(start(SAVED_COLUMN_LAYOUT), { type: "replace", layout: SAVED_COLUMN_LAYOUT });
     expect(wallCanUndo(state)).toBe(false);
   });
 
   it("writes the version note as the preset started from", () => {
-    expect(wallChangeSummary(DEFAULT_WALL_LAYOUT, WALL_PRESETS.business)).toBe("Started from I run the business");
+    expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, WALL_PRESETS.business)).toBe("Started from I run the business");
     expect(wallChangeSummary(WALL_PRESETS.business, WALL_PRESETS.product)).toBe("Started from I build the product");
     expect(wallChangeSummary(WALL_PRESETS.product, DEFAULT_WALL_LAYOUT)).toBe("Started from Everything");
     // A preset that is then changed is described by what changed.
-    const changed = run(start(DEFAULT_WALL_LAYOUT), { type: "replace", layout: WALL_PRESETS.business }, { type: "remove", widgetId: "needs" });
-    expect(wallChangeSummary(DEFAULT_WALL_LAYOUT, changed.layout)).not.toMatch(/^Started from/);
+    const changed = run(start(SAVED_COLUMN_LAYOUT), { type: "replace", layout: WALL_PRESETS.business }, { type: "remove", widgetId: "needs" });
+    expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, changed.layout)).not.toMatch(/^Started from/);
   });
 
   it("recognises a preset after a round trip through the validator", () => {

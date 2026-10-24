@@ -584,23 +584,13 @@ the new one then fades in.
 
 ## The Wall
 
-The TV shows five things, in the order a viewer reads them: the business's
-position in its own cycle (the loop across the top: Sense, Attribute, Decide,
-Act, Learn, each with its live count and state); current problems (the last
-24 hours, one row per asset and one for the System, every open problem a bar
-from its onset to now, and the issue mark beside an asset's name); progress
-against this month (the revenue figure, its pace, the month's line against
-last month's total); which assets need attention and how each is doing right
-now (one row per asset: live people, today against the same weekday last week,
-a 30-day trend, the month's money); and whether work is moving (waiting on the
-operator, in progress, done this week and blocked, each with its change chip
-against a week ago, this week's done against last week's on a `PaceBar`, one
-row per project, done work as a bar extending left of a centre line over last
-week's done as a dashed outline, and the open queue extending right). That
-is the "Everything" view's layout, `DEFAULT_WALL_LAYOUT`. Anything else belongs on the Tower page for its subject; the Needs
-attention, live feed, agents, Asset health, "The agents", "Visitors by
-channel" and "Next up" widgets stay in the widget library for an operator who
-wants them on the Wall.
+The default TV layout shows the strip across the top. Below it, the left
+column shows Work this week over Portfolio; the right column shows Revenue
+this month, Needs attention and Live feed. The columns share width at 3.25:1.
+Work, revenue and attention fit their content; Portfolio and Live feed take
+the remaining height in their columns. This is the "Everything" preset,
+`DEFAULT_WALL_LAYOUT`. The loop, Last 24 hours, Asset health, the agents,
+Visitors by channel and Next up remain available in the widget library.
 
 **Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
 "I run the business": the strip, "Next up" across the TV, then Asset health
@@ -681,30 +671,39 @@ to transparent at the baseline, a round point on a surface ring; a halo for
 now, a pulsing ring for a value still being counted, plain dots for final
 values; a faint dashed line for the comparison and a dashed line in the
 series' own colour for a projection. First and last day in muted micro type
-beside the plot, a thin baseline, no legends. Strokes are sized to be read at
+beside the plot and a thin baseline. Portfolio has one shared legend for
+current and reference series. Strokes are sized to be read at
 three metres, and colour comes from the token the calling component passes.
-The convention "today solid, last week dashed" is written down once, here,
-and not on the screen.
+Current observations are solid and reference periods are dashed.
 
-The revenue tile draws its month chart behind its figures on the TV: the
-chart fills the tile, every mark at `MONTH_CHART_BEHIND_OPACITY` (60 %), and
-each glyph of the figures has a margin of the TV's black that interrupts a
-line passing behind it, so the tile is only as tall as its text. The figure
-sits top left and the pace at the tile's foot, because a running total rises
-from the bottom left to the top right and the room a taller tile adds above
-the pace is where today's point, the projection and the crossing are drawn.
-The crossing's words and last month's total are placed clear of the figures,
-or left out. `test/chart-series-contrast.test.ts` keeps the line at 3:1 and
-the dashed projection above 1.5:1 at that strength. On a phone the chart is
-drawn under the figures.
+The shared metric widgets use neutral dark surfaces, subtle borders and
+16 px radii. Narrow, standard and wide tiles have reference widths of 156,
+240 and 432 px and share a 156 px height. Available width determines their
+actual width. Expanded cumulative comparisons are 324 px high. Titles pair a
+label with an icon; figures use tabular digits. Comparison tone is supplied
+separately from movement direction: fewer blocked tasks can be positive,
+while work in progress stays neutral.
 
-Work this week on the TV is as tall as its content: where the tile is 80 rem
-wide its heading and four figures are one band, each change chip on its
-figure's line; the week bar's words sit beside the bar; each project is one
-row as tall as its 20 px bar, the row's border the only gap. Given less height
-than every project needs, the tile draws the rows that fit whole and one line
-counting the rest ("+2 more projects", `workRowsThatFit`), never a cut row or
-a scroll bar. The desk's `WorkFlow` keeps its spacing.
+The comparison widget owns the placement of its main figure, unit,
+comparison, supporting figures and chart. Its configuration supplies labels,
+values, notes, reference totals and series. Revenue and task counts use this
+same structure at expanded and standard heights.
+
+Each asset uses the same fixed-height grouped row at every asset count:
+Identity, Momentum, Today, 4 weeks, Work, and Product counts when selected
+counts exist. Momentum pairs the count with recent bars; the latest window
+is highlighted. Missing readings remain unavailable and observed zeros stay
+zero. Comparison charts preserve gaps and show their first and last dates.
+
+Revenue uses the expanded cumulative comparison: facts on the left and the
+month chart on the right. Last month's total is a horizontal reference;
+the future forecast uses a distinct dashed line. Work this week uses the
+standard cumulative comparison for Done this week, after counts for
+operator decisions, work in progress and blocked tasks. History contains
+observed readings only; two available snapshots remain two points. The
+weekly chart retains the full Monday-to-Sunday date domain even when the
+latest observation is earlier. Project bars remain on the Tower's work
+pages.
 
 The TV background is pure black so unused pixels emit no light; nothing on it
 needs a pointer; state is never colour-only; a failed poll keeps last-good
@@ -883,7 +882,7 @@ that matches its line exactly as drawn (tone, pattern, weight) in foreground
 ink, and with more than one series each key is a toggle. Prefer a label on the
 mark to a legend: the first and last date beside the plot, the value at the
 halo, an event's own label at its mark, a series' name at its line; a legend
-is for a chart with no room for labels, and the Wall uses no legends. A
+is for a chart with no room for labels. Portfolio shares one legend across its rows. A
 provisional point is hollow and keyed as such beside the other marks; a
 reference series is thinner and dotted so the main series is seen first; an
 average is drawn only over completed observations, never over the shared

@@ -155,12 +155,11 @@ describe("a read in progress keeps what the Wall drew", () => {
     const answer = nextPoll(before, hoursInProgress);
     const blank = today(answer);
     expect(blank.querySelector("[data-today]")).toBeNull();
-    const history = blank.querySelector("[data-site-history]")!;
-    expect(history.getAttribute("data-date")).toBe("2026-09-21");
-    expect(history.querySelector("time")?.getAttribute("dateTime")).toBe("2026-09-21");
-    expect(history.textContent).toContain("Latest day");
-    expect(history.textContent).toContain("0people");
-    expect(blank.querySelector("[data-site-today]")).toBeNull();
+    const history = blank.querySelector("[data-site-today]")!.closest(".wall-metric")!;
+    expect(history.querySelector('h3')?.textContent).toBe('Latest daySep 21');
+    expect(history.querySelector('[data-site-today]')?.textContent).toBe('0');
+    expect(history.querySelector('.wall-site-axis')?.textContent).toContain('people');
+    expect(history.querySelector('[data-today]')).toBeNull();
     const kept = today(keepReadingsInProgress(before, answer));
     expect(kept.querySelector("[data-today]")).not.toBeNull();
     expect(kept.querySelector("[data-site-today]")?.textContent).toBe(today(before).querySelector("[data-site-today]")?.textContent);

@@ -40,6 +40,7 @@ import {
   Plus,
   Receipt,
   RefreshCw,
+  Radio,
   SlidersHorizontal,
   Sparkles,
   TriangleAlert,
@@ -62,6 +63,7 @@ import { useWholeRows } from "@/hooks/useWholeRows";
 import { agentMaker, evidenceParts } from "@/lib/agent-work";
 import { taskPath } from "@/lib/task-path";
 import { cn } from "@/lib/utils";
+import { MetricTile } from "@/components/wall/MetricWidgets";
 
 /** One glyph per kind: the shape says what happened, the tone how it went. */
 const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
@@ -197,26 +199,22 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
   const reduced = prefersReducedMotion();
 
   return (
-    <section
-      aria-label="Live feed"
+    <div
       data-wall-feed
       data-feed-state={failed ? "reconnecting" : "live"}
-      className="flex h-full min-h-0 min-w-0 flex-col gap-1 overflow-hidden rounded-xl bg-muted/60 px-4 pb-2 pt-4"
+      className="h-full min-h-0 min-w-0"
     >
-      <header className="flex items-center gap-2.5 pb-2">
+      <MetricTile title="Live feed" icon={Radio} className="wall-feed-metric" context={<span className="inline-flex items-center gap-2">
         <span
           aria-hidden
           data-feed-live-dot
           className={cn(
-            "size-3 shrink-0 rounded-full",
-            failed ? "bg-muted-foreground" : "bg-healthy ring-4 ring-healthy/30",
+            "size-2 shrink-0 rounded-full",
+            failed ? "bg-muted-foreground" : "bg-healthy",
           )}
         />
-        <span className="text-wall-label font-semibold uppercase tracking-[0.12em] text-foreground">Live</span>
-        <span className="ml-auto text-wall-micro text-muted-foreground">
           {failed ? "Reconnecting" : "since last night"}
-        </span>
-      </header>
+      </span>}>
       {feed && !failed && feed.items.length === 0 ? (
         <p className="px-2 text-wall-body text-muted-foreground">Nothing new since last night</p>
       ) : null}
@@ -225,7 +223,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
           more: out of flow, so a long feed cannot stretch its row. In the one
           column (a portrait tablet, a phone) the feed is the last region and
           as tall as its rows, the TV's twelve at most. */}
-      <div className="relative tv:min-h-80 tv:flex-1">
+      <div className="relative tv:min-h-0 tv:flex-1">
         {/* Newest first: a feed's order is its meaning, so its rows are not
             grouped by site. */}
         <ol ref={listRef} aria-live="polite" data-order="chronological" className="flex flex-col gap-1 tv:absolute tv:inset-0 tv:overflow-hidden">
@@ -326,7 +324,8 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
           })}
         </ol>
       </div>
-    </section>
+      </MetricTile>
+    </div>
   );
 }
 

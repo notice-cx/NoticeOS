@@ -1,3 +1,4 @@
+import { SAVED_COLUMN_LAYOUT } from "./saved-wall-layout";
 import { integrationStatus } from '@shared/integration-status';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
@@ -296,7 +297,9 @@ function warnings(): (string | null)[] {
 }
 
 /** The default Wall, in the order the preview draws it. */
-const DEFAULT_DRAWN = ["strip", "loop", "timeline", "sites", "revenue", "work"];
+const DEFAULT_DRAWN = ["strip", "work", "sites", "revenue", "needs", "feed"];
+const SAVED_DRAWN = ["strip", "loop", "timeline", "sites", "revenue", "work"];
+const SAVED_COLUMNS: WallConfig = { layout: SAVED_COLUMN_LAYOUT, history: [] };
 
 /** A Wall with only the site rows on it: the library then offers the rest. */
 const SITES_ONLY: WallConfig = {
@@ -522,7 +525,7 @@ describe("adding and removing", () => {
   });
 
   it("shows a placed one-of-a-kind widget as ON THE TV instead of an Add, and offers the two the default leaves out", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     openDrawer("Add a widget");
     expect(screen.queryByRole("button", { name: "Add Work" })).toBeNull();
     const row = document.querySelector('[data-wall-library-item="work"]');
@@ -558,7 +561,7 @@ describe("adding and removing", () => {
   });
 
   it("takes a row away with the last widget in it", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     removeFromChrome("loop", "The loop");
     saveWith("No loop");
     expect(savedLayout().rows.map((row) => row.id)).toEqual(["strip", "body"]);
@@ -573,7 +576,7 @@ describe("arranging", () => {
   });
 
   it("moves a widget with its Move menu, says where it went and gives focus back to it", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("work"));
     chooseMove("Work", /^Move up/u);
     expect(drawn()).toEqual(["strip", "loop", "timeline", "sites", "work", "revenue"]);
@@ -582,7 +585,7 @@ describe("arranging", () => {
   });
 
   it("moves a widget with Alt and an arrow, from the widget itself", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.keyDown(widget("strip"), { key: "ArrowDown", altKey: true });
     saveWith("The loop on top");
     expect(savedLayout().rows.map((row) => row.id)).toEqual(["loop", "strip", "body"]);
@@ -601,7 +604,7 @@ describe("arranging", () => {
   });
 
   it("stacks a widget under another and saves the column it makes", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("work"));
     openMoveMenu("Work");
     fireEvent.click(screen.getByRole("menuitem", { name: /Stack under/u }));
@@ -620,7 +623,7 @@ describe("arranging", () => {
   });
 
   it("splits a stacked widget into a column of its own", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("work"));
     chooseMove("Work", /^Into its own column/u);
     saveWith("Work on its own");
@@ -630,7 +633,7 @@ describe("arranging", () => {
 
 describe("undo and redo", () => {
   it("takes back each change with the toolbar's Undo, and brings it back with Redo", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     const undo = toolbarButton("Undo");
     const redo = toolbarButton("Redo");
     expect(undo).toHaveProperty("disabled", true);
@@ -641,7 +644,7 @@ describe("undo and redo", () => {
     fireEvent.click(undo);
     expect(drawn()).toEqual(["strip", "loop", "timeline", "sites", "revenue"]);
     fireEvent.click(undo);
-    expect(drawn()).toEqual(DEFAULT_DRAWN);
+    expect(drawn()).toEqual(SAVED_DRAWN);
     expect(undo).toHaveProperty("disabled", true);
     expect(saveButton()).toHaveProperty("disabled", true);
     fireEvent.click(redo);
@@ -671,7 +674,7 @@ describe("undo and redo", () => {
 
 describe("the selected widget's settings", () => {
   it("offers the widgets on the Wall to pick when nothing is selected, and says nothing else", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     const panel = document.querySelector('[data-wall-widget-panel="none"]') as HTMLElement;
     expect(within(panel).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Top strip", "The loop", "Last 24 hours", "Portfolio", "Revenue", "Work",
@@ -682,7 +685,7 @@ describe("the selected widget's settings", () => {
   });
 
   it("gives its column a preset share of the row in one press", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("revenue"));
     expect(document.querySelector("[data-wall-width-share]")?.textContent).toBe("42% of the row");
     fireEvent.click(screen.getByRole("button", { name: "Half of the row" }));
@@ -693,7 +696,7 @@ describe("the selected widget's settings", () => {
   });
 
   it("gives a stacked widget a share of its column's height, and fits it to its content again", async () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("timeline"));
     fireEvent.click(screen.getByRole("button", { name: "A third of the column" }));
     expect(screen.getByRole("button", { name: "A third of the column" })).toHaveAttribute("aria-pressed", "true");
@@ -709,7 +712,7 @@ describe("the selected widget's settings", () => {
   });
 
   it("gives the remaining height to a widget's row and takes it from the other", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("strip"));
     fireEvent.click(within(document.querySelector("[data-wall-size]") as HTMLElement).getByRole("button", { name: "Fill the rest" }));
     saveWith("The strip takes the screen");
@@ -717,7 +720,7 @@ describe("the selected widget's settings", () => {
   });
 
   it("moves the selected widget from its panel too, for a phone or a keyboard", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     fireEvent.click(widget("revenue"));
     fireEvent.click(within(document.querySelector('[data-wall-widget-panel="revenue"]') as HTMLElement).getByRole("button", { name: "Move Revenue" }));
     fireEvent.click(screen.getByRole("menuitem", { name: /^Move left/u }));
@@ -785,7 +788,7 @@ describe("the selected widget's settings", () => {
     fireEvent.click(within(choices).getByRole("checkbox", { name: /Accounts/ }));
     fireEvent.click(within(choices).getByRole("checkbox", { name: /Leads/ }));
     expect(widget("sites").querySelector('[data-site-row="meadow.example"] [data-site-total="accounts"]')).toBeNull();
-    expect(widget("sites").querySelector('[data-site-row="meadow.example"] [data-site-total="leads"] dd')?.textContent).toBe("0");
+    expect(widget("sites").querySelector('[data-site-row="meadow.example"] [data-site-total="leads"]')?.textContent).toBe("0");
     fireEvent.click(screen.getByRole("checkbox", { name: "Northwind" }));
     saveWith("Leads on the Wall");
     const saved = wallLayoutWidgets(savedLayout()).find((w) => w.id === "sites");
@@ -820,7 +823,7 @@ describe("the selected widget's settings", () => {
 
 describe("what the operator is told", () => {
   it("prints the refusal and darkens Save", () => {
-    renderEditor();
+    renderEditor(SAVED_COLUMNS);
     for (const [id, label] of [["strip", "Top strip"], ["loop", "The loop"], ["timeline", "Last 24 hours"], ["sites", "Portfolio"], ["revenue", "Revenue"], ["work", "Work"]] as const) {
       removeFromChrome(id, label);
     }
@@ -865,10 +868,10 @@ describe("save", () => {
       expect: null,
     });
     expect(request?.slug).toBe("wall-layout");
-    // The side column, left with revenue alone, is revenue again at its width.
-    expect(savedLayout().rows[2]?.widgets).toEqual([
-      DEFAULT_WALL_LAYOUT.rows[2]?.widgets[0],
-      { id: "revenue", type: "revenue", width: 1 },
+    // Removing the Work widget preserves the sites and the untouched side column.
+    expect(savedLayout().rows[1]?.widgets).toEqual([
+      { id: "sites", type: "sites", width: 3.25 },
+      DEFAULT_WALL_LAYOUT.rows[1]?.widgets[1],
     ]);
   });
 

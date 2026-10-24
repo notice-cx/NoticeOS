@@ -65,12 +65,12 @@ function DemoOwner({ children }: { children: ReactNode }) {
 const demoPreferences = () =>
   createOwnerStorage({ mode: "demo", workspaceId: WORKSPACE, clientGeneration: 0 }, window.localStorage);
 
-/** The demo's saved TV: the default with the sites' totals chosen and the feed for the work. */
+/** The demo's saved TV: the default with the sites' totals chosen and agent standings in place of work. */
 const SAVED: WallLayout = (() => {
   const layout = structuredClone(DEFAULT_WALL_LAYOUT) as WallLayout;
   for (const widget of wallLayoutWidgets(layout)) {
     if (widget.type === "sites") widget.settings = { pulseMetrics: { "meadow.example": ["recipe_saves"] } };
-    if (widget.type === "work") Object.assign(widget, { id: "feed", type: "feed" });
+    if (widget.type === "work") Object.assign(widget, { id: "agents", type: "agents" });
   }
   return layout;
 })();

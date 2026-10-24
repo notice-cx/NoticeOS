@@ -39,7 +39,7 @@ const WEEKS_HISTORY_DAYS = 8;
 /** The closes a project's snapshot entry carries, by asset id: a project the
  * poller could not read has none. */
 function closesByAsset(snapshot: BeadsSnapshot | null): Map<string, WorkCloses> {
-  return new Map((snapshot?.projects ?? []).flatMap((project) => (project.ok && project.closes ? [[project.asset, project.closes] as const] : [])));
+  return new Map((snapshot?.projects ?? []).flatMap((project) => (project.ok && project.closes ? [[project.asset, { ...project.closes, observedAt: snapshot!.capturedAt }] as const] : [])));
 }
 
 /** Each project's week against the week before, keyed by asset id: done from
@@ -101,7 +101,7 @@ export async function buildWorkPayload(
         history: series,
         // A store with no rollup and a snapshot with no closes have no weeks
         // to read, which is not a week of zeroes.
-        ...(history.days > 0 || closes ? { weeks: workWeeks(series, closes, now, timeZone) } : {}),
+        ...(history.days > 0 || closes ? { weeks: workWeeks(series, closes ? { ...closes, observedAt: snapshot.capturedAt } : undefined, now, timeZone) } : {}),
       };
     },
   );

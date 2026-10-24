@@ -25,22 +25,22 @@ function retained(): Ga4RealtimePayload {
 describe('the retained realtime day on the Wall', () => {
   it('shows minute activity instead of the delayed hourly chart, with gaps and no invented baseline or total', () => {
     const { container } = render(<SiteRows assets={wallFixturePayload().assets} issues={[]} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.textContent).toContain('Today vs last Tue');
-    expect(container.querySelector('[data-realtime-day]')).not.toBeNull();
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue');
+    expect(container.querySelector('[data-site-today-chart] [data-realtime-today]')).not.toBeNull();
     const line = container.querySelector('[data-realtime-today]')!;
     expect(line.querySelectorAll('path').length).toBeLessThanOrEqual(1);
     expect(container.textContent).toContain('Last week pending');
     expect(container.querySelector('[data-realtime-prior]')).toBeNull();
     expect(container.querySelector('[data-today]')).toBeNull();
-    expect(container.querySelector('[data-site-comparison]')).not.toBeNull(); // Four-week comparison remains.
+    expect(container.querySelector('[data-site-trend] [data-tone]')).not.toBeNull(); // Four-week comparison remains.
   });
 
-  it('uses retained realtime data in the one-asset focus tile', () => {
+  it('uses retained realtime data in the same tile for one asset', () => {
     const asset = wallFixturePayload().assets[0]!;
     const { container } = render(<SiteRows assets={[asset]} issues={[]} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-focus-tile="today"]')?.textContent).toContain('Today vs last Tue');
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue');
     expect(container.querySelector('[data-realtime-today]')).not.toBeNull();
-    expect(container.querySelector('[data-focus-figure="today"]')).toBeNull();
+    expect(container.querySelector('[data-site-today]')?.textContent).toBe('Last week pending');
   });
 
   it('does not draw the current incomplete minute or label yesterday as today', () => {
@@ -129,11 +129,11 @@ describe('hourly activity and day-so-far pace', () => {
     }
     const { container } = render(<SiteRows assets={wallFixturePayload().assets} issues={[]} ga4Realtime={payload} nowMs={NOW} />);
     expect(container.querySelector('[data-realtime-prior]')).not.toBeNull();
-    expect(container.querySelector('[data-realtime-pace]')?.textContent).toContain('50%');
-    expect(container.querySelector('[data-realtime-unit]')?.textContent).toBe('hourly avg users/min');
+    expect(container.querySelector('[data-site-today]')?.textContent).toContain('50%');
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('.wall-site-axis')?.textContent).toContain('avg users/min');
   });
 
-  it.each(['rows', 'focus'])('labels the cumulative comparison as day so far in %s', mode => {
+  it.each(['multiple assets', 'one asset'])('labels the cumulative comparison as day so far in %s', mode => {
     const payload = retained();
     for (const snapshot of payload.assets) {
       if (snapshot.status !== 'success' || !snapshot.realtimeDay) continue;
@@ -142,8 +142,8 @@ describe('hourly activity and day-so-far pace', () => {
       for (let i = MINUTE - 180; i < MINUTE; i++) snapshot.realtimeDay.minutes[i] = i < MINUTE - 120 ? 6 : i < MINUTE - 60 ? 8 : 10;
     }
     const assets = wallFixturePayload().assets;
-    const { container } = render(<SiteRows assets={mode === 'focus' ? assets.slice(0, 1) : assets} issues={[]} ga4Realtime={payload} nowMs={NOW} />);
-    const today = container.querySelector(mode === 'focus' ? '[data-focus-tile="today"]' : '[data-site-today]')!;
+    const { container } = render(<SiteRows assets={mode === 'one asset' ? assets.slice(0, 1) : assets} issues={[]} ga4Realtime={payload} nowMs={NOW} />);
+    const today = container.querySelector('[data-site-today]')!;
     expect(today.textContent).toContain('day so far');
     const chip = today.querySelector('[data-tone]')!;
     expect(chip.textContent).toBe('20%');

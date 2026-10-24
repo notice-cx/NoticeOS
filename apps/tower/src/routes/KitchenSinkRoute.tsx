@@ -22,7 +22,7 @@ import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { connectionCollections } from "@shared/scheduled-jobs";
 import { DeclineReasons } from "@/components/DeclineReasons";
 import type { SitesPayload } from "@shared/site-discovery";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, CircleCheck, ListTodo, Users, ChartNoAxesCombined } from "lucide-react";
 import { type ReactNode, useEffect, useReducer, useState } from "react";
 
 import { GOOGLE_TESTING_GRANT_DAYS } from "@noticeos/contract/integrations";
@@ -222,6 +222,7 @@ import { nextUpDemo, nextUpOperator } from "@/routes/kitchen-sink/next-up-demo";
 import { WallHealth } from "@/components/wall/WallHealth";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
+import { MetricTile, NumberMetric, MultiMetric, MomentumMetric, MetricComparisonChart, SparklineCompareMetric, CumulativeCompareMetric } from "@/components/wall/MetricWidgets";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { wallIssues } from "@/lib/wall-issues";
 import type { RevenueProjection } from "@shared/revenue-projection";
@@ -5759,6 +5760,10 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
+          <Section title="MetricTile / NumberMetric / MultiMetric / MomentumMetric / MetricComparisonChart / SparklineCompareMetric / CumulativeCompareMetric">
+            <WallMetricWidgetsDemo />
+          </Section>
+
           <Section title="RevenueHero (on pace to pass last month / passed it / learning / no revenue source)">
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <RevenueHero portfolio={portfolioNormal} assets={revenueOnPace} nowMs={NOW} />
@@ -5901,7 +5906,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="SiteRows (the demo assets with their marks / three assets, roomier / one asset in depth / a failed live read)">
+          <Section title="SiteRows (consistent asset rows / selected product counts / one asset / failed live read)">
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows
                 assets={wallFixture.assets}
@@ -7520,6 +7525,26 @@ function MinutePulseDemo() {
 }
 
 /** A live cell whose next read is refused: it keeps the pulse it drew. */
+function WallMetricWidgetsDemo() {
+  const current = [{ t: "2026-10-19", v: 2 }, { t: "2026-10-20", v: 9 }, { t: "2026-10-21", v: 14 }, { t: "2026-10-22", v: 20 }, { t: "2026-10-23", v: 24 }];
+  const domain = { start: "2026-10-19", end: "2026-10-25" };
+  const weekChart = { current, domain, previousTotal: { value: 31, label: "Last week: 31" }, startLabel: "Mon", endLabel: "Sun" };
+  return <div data-theme="dark" className="wall-root flex w-full flex-col gap-3 rounded-lg bg-background p-4">
+    <div className="flex flex-wrap gap-3">
+      <NumberMetric title="Decisions" icon={ListTodo} size="narrow" value={0} note="Waiting on you" />
+      <NumberMetric title="Blocked" icon={ListTodo} value={2} movement={{ direction: "down", tone: "positive", label: "3", basis: "vs last Friday" }} history={{ data: [{ t: "2026-10-16", v: 5 }, { t: "2026-10-23", v: 2 }], startLabel: "Last Friday", endLabel: "Now" }} />
+      <CumulativeCompareMetric title="Done this week" icon={CircleCheck} value={24} unit="closed" movement={{ direction: "up", tone: "positive", label: "4", basis: "vs last Friday" }} chartProps={weekChart} />
+    </div>
+    <div className="flex flex-wrap gap-3">
+      <MultiMetric title="Product counts" metrics={[{ label: "Users", value: 128 }, { label: "Projects", value: 0 }, { label: "Messages", value: null }]} />
+      <MomentumMetric title="Momentum" icon={Users} value={42} recent={{ value: 9, label: "5 min" }} context="30 min" bars={[2, 3, null, 0, 4, 3, 2, 6, 4, 7, 5, 8]} startLabel="30 min ago" endLabel="Now" />
+      <SparklineCompareMetric title="4 weeks" icon={ChartNoAxesCombined} value="↑ 12%" comparison="vs previous 4 weeks" current={[{ t: "2026-10-01", v: 4 }, { t: "2026-10-08", v: 6 }, { t: "2026-10-15", v: 5 }, { t: "2026-10-23", v: 9 }]} reference={[{ t: "2026-10-01", v: 3 }, { t: "2026-10-08", v: 4 }, { t: "2026-10-15", v: 5 }, { t: "2026-10-23", v: 6 }]} startLabel="Oct 1" endLabel="Oct 23" tone="traffic" />
+      <MetricTile title="History unavailable"><MetricComparisonChart label="History" current={[]} startLabel="Mon" endLabel="Sun" /></MetricTile>
+    </div>
+    <CumulativeCompareMetric title="Revenue this month" expanded value="$4,200" valueNote="October · estimated" movement={{ direction: "up", tone: "positive", label: "12%", basis: "projected vs September" }} secondary={[{ label: "Projected month", value: "$5,800", labelPosition: "below" }, { label: "Yesterday", value: "$210.25", note: "Oct 22 · estimated", dividerBefore: true }]} note="9 days left" chartProps={{ tone: "revenue", current: [{ t: "2026-10-01", v: 0 }, { t: "2026-10-08", v: 1200 }, { t: "2026-10-15", v: 2600 }, { t: "2026-10-23", v: 4200 }], forecast: [{ t: "2026-10-23", v: 4200 }, { t: "2026-10-31", v: 5800 }], previousTotal: { value: 5200, label: "Previous month: $5,200" }, startLabel: "Oct 1", endLabel: "Oct 31" }} />
+  </div>;
+}
+
 function LiveUsersFailedLater() {
   const [snapshot, setSnapshot] = useState<Ga4RealtimeAsset>(realtimeLive);
   useEffect(() => {

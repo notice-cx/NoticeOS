@@ -92,7 +92,7 @@ function drawRow(hourly: Ga4HourlyActiveUsers[], nowMs: number) {
   const container = render(
     <SiteRows assets={assets} issues={wallIssues({ assets, attention: [], connections: NO_READS, nowMs })} ga4Realtime={payload} nowMs={nowMs} />,
   ).container;
-  return container.querySelector(`[data-site-row="${asset.id}"] [data-site-today]`)!;
+  return container.querySelector(`[data-site-row="${asset.id}"] [data-site-today]`)!.closest(".wall-metric")!;
 }
 
 /** Where an hour sits across the chart's 1000-wide viewBox (SiteRows' hourX). */
@@ -101,7 +101,8 @@ const x = (hour: number) => (2 + (hour / 23) * 96) * 10;
 describe("the Wall's today cell", () => {
   it("while the hours carry no verdict: the window alone, muted, no percent, no tone", () => {
     const today = drawRow(NIGHT, BREAKFAST);
-    expect(today.textContent).toBe("to 2 AM");
+    expect(today.querySelector("[data-pace-window]")?.textContent).toBe("to 2 AM");
+    expect(today.querySelector("[data-site-today]")?.textContent).not.toContain("%");
     expect(today.querySelector('[data-pace-window="silent"]')?.className).toContain("text-muted-foreground");
     expect(today.querySelector("[aria-label]")).toBeNull();
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("neutral");
@@ -109,9 +110,9 @@ describe("the Wall's today cell", () => {
 
   it("once they do: the percent over the chart with its cutoff below", () => {
     const today = drawRow(SIX_HOURS, LATE_MORNING);
-    expect(today.querySelector('[data-site-comparison]')?.textContent).toBe("10%");
+    expect(today.querySelector('[data-site-today]')?.textContent).toBe("10%");
     expect(today.querySelector('[data-pace-window="shown"]')?.textContent).toBe("to 6 AM");
-    expect(today.querySelector('[data-site-comparison] [aria-label]')?.getAttribute("aria-label"))
+    expect(today.querySelector('[data-site-today] [aria-label]')?.getAttribute("aria-label"))
       .toMatch(/^10% behind; completed hours today vs /u);
     // The direction figure and the chart agree on the same comparable hours.
     const tones = [...today.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"));

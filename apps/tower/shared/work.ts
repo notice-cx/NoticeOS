@@ -10,6 +10,7 @@ import type { TaskResolution } from "@noticeos/contract/task-resolution";
 import { calendarDateIn, revenueCalendarDate } from "./daily-revenue";
 import { shiftRevenueDate } from "./revenue-projection";
 import type { SeriesPoint } from "./wall";
+import type { SeriesPointOrGap } from "./surface";
 
 /** The file that owns the asset ↔ prefix ↔ repo map the board joins on. */
 export const WORK_OWNER = "config/beads.json";
@@ -347,6 +348,8 @@ export function weekMove(metric: WorkWeekMetric, now: number | null, before: num
 /** A state's week: how many are in it today, how many were seven days before,
  * and how many entered it in between. */
 export interface WorkStateWeek {
+  /** Eight UTC calendar days; absent observations remain gaps. */
+  history?: SeriesPointOrGap[];
   /** Today's count; null when the history holds no count for today. */
   now: number | null;
   /** The count seven days before today; null where the history does not
@@ -368,6 +371,8 @@ export interface WorkClose {
 
 /** Every close one closed read returned. */
 export interface WorkCloses {
+  /** Latest observation the source read covers; absent in older snapshots. */
+  observedAt?: string;
   /** The read's first UTC day. Whether that day's own closes came back is the
    * task client's choice, so the closes are whole from the next day on. */
   since: string;
@@ -376,6 +381,10 @@ export interface WorkCloses {
 
 /** Every close this calendar week against last week, on the installation's clock. */
 export interface WorkDoneWeek {
+  /** Observation cutoff for comparisons and aggregation. */
+  observedAt?: string;
+  /** Cumulative closes by installation calendar day, through today only. */
+  history?: SeriesPoint[];
   /** Done so far this week; null when the closes do not reach its Monday. */
   now: number | null;
   /** The subset of `now` closed with another resolution (Won't do, Duplicate…). */
@@ -395,6 +404,8 @@ export interface WorkDoneWeek {
  * (the clock the rollup keys by).
  */
 export interface WorkWeeks {
+  /** Clock used for calendar weeks; absent in older payloads. */
+  timeZone?: string;
   /** The Monday this week started on. */
   weekStart: string;
   /** Today's place in the week: Monday 1 to Sunday 7. */
@@ -416,28 +427,49 @@ const DAY_MS = 86_400_000;
 function doneWeek(closes: WorkCloses | undefined, now: Date, weekStart: string, timeZone: string): WorkDoneWeek {
   if (!closes) return { now: null, notDone: null, before: null, lastWeek: null, move: null };
   const dayOf = calendarDateIn(timeZone);
+  const coverageStart = Date.parse(`${closes.since}T00:00:00.000Z`);
+  if (!Number.isFinite(coverageStart) || new Date(coverageStart).toISOString().slice(0, 10) !== closes.since) return { now: null, notDone: null, before: null, lastWeek: null, move: null };
+  if (closes.observedAt !== undefined) {
+    const observed = Date.parse(closes.observedAt);
+    if (!Number.isFinite(observed) || dayOf(new Date(observed)) < weekStart) return { now: null, notDone: null, before: null, lastWeek: null, move: null };
+    now = new Date(Math.min(now.getTime(), observed));
+  }
   // The latest day on the installation's clock the read may hold only part of.
-  const partDay = dayOf(new Date(Date.parse(`${closes.since}T00:00:00.000Z`) + DAY_MS - 1));
+  const partDay = dayOf(new Date(coverageStart + DAY_MS - 1));
   const lastStart = shiftRevenueDate(weekStart, -7);
-  const weekAgo = now.getTime() - 7 * DAY_MS;
+  const priorToday = shiftRevenueDate(dayOf(now), -7);
+  const clock = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  const localTime = clock.format(now);
   const count = { done: 0, notDone: 0, lastWeek: 0, before: 0 };
+  const daily = new Map<string, number>();
   for (const close of closes.items) {
     const at = Date.parse(close.at);
     if (!Number.isFinite(at) || at > now.getTime()) continue;
     const day = dayOf(new Date(at));
     if (day >= weekStart) {
       count.done += 1;
+      daily.set(day, (daily.get(day) ?? 0) + 1);
       if (close.resolution !== undefined) count.notDone += 1;
     } else if (day >= lastStart) {
       count.lastWeek += 1;
-      if (at <= weekAgo) count.before += 1;
+      if (day < priorToday || (day === priorToday && clock.format(new Date(at)) <= localTime)) count.before += 1;
     }
   }
   const thisWeek = weekStart > partDay;
   const lastWeek = lastStart > partDay;
   const done = thisWeek ? count.done : null;
   const before = lastWeek ? count.before : null;
+  const history: SeriesPoint[] = [];
+  if (thisWeek) {
+    let cumulative = 0;
+    for (let day = weekStart; day <= dayOf(now); day = shiftRevenueDate(day, 1)) {
+      cumulative += daily.get(day) ?? 0;
+      history.push({ t: day, v: cumulative });
+    }
+  }
   return {
+    ...(closes.observedAt !== undefined ? { observedAt: now.toISOString() } : {}),
+    ...(thisWeek ? { history } : {}),
     now: done,
     notDone: thisWeek ? count.notDone : null,
     before,
@@ -456,7 +488,11 @@ function stateWeek(metric: WorkWeekMetric, series: readonly SeriesPoint[], utcTo
     const prior = byDay.get(shiftRevenueDate(utcToday, -back - 1));
     added = day === undefined || prior === undefined ? null : added + Math.max(0, day - prior);
   }
-  return { now, before, added, move: weekMove(metric, now, before) };
+  const history = Array.from({ length: 8 }, (_, index) => {
+    const t = shiftRevenueDate(utcToday, index - 7);
+    return { t, v: byDay.get(t) ?? null };
+  });
+  return { ...(history.some((point) => point.v !== null) ? { history } : {}), now, before, added, move: weekMove(metric, now, before) };
 }
 
 /** One project's week on the installation's clock: done from its closes
@@ -467,6 +503,7 @@ export function workWeeks(history: WorkCountsHistory, closes: WorkCloses | undef
   const weekStart = shiftRevenueDate(today, -(daysIn - 1));
   const utcToday = now.toISOString().slice(0, 10);
   return {
+    timeZone,
     weekStart,
     daysIn,
     done: doneWeek(closes, now, weekStart, timeZone),
@@ -482,6 +519,14 @@ function knownSum(values: readonly (number | null)[]): number | null {
   return values.some((value) => value === null) ? null : values.reduce<number>((sum, value) => sum + value!, 0);
 }
 
+function sumObservedHistory(histories: readonly (readonly SeriesPoint[] | undefined)[]): SeriesPoint[] | undefined;
+function sumObservedHistory(histories: readonly (readonly SeriesPointOrGap[] | undefined)[]): SeriesPointOrGap[] | undefined;
+function sumObservedHistory(histories: readonly (readonly SeriesPointOrGap[] | undefined)[]): SeriesPointOrGap[] | undefined {
+  const dates = histories[0]?.map((point) => point.t);
+  if (!dates || !histories.every((points) => points && points.length === dates.length && points.every((point, index) => point.t === dates[index]))) return undefined;
+  return dates.map((t, index) => ({ t, v: knownSum(histories.map(points => points![index]!.v)) }));
+}
+
 /**
  * Several projects' weeks as one: the figures the Wall and the board draw
  * for every project they show. A project without a reading counts as not
@@ -490,19 +535,23 @@ function knownSum(values: readonly (number | null)[]): number | null {
 export function sumWorkWeeks(readings: readonly (WorkWeeks | null | undefined)[]): WorkWeeks | null {
   const first = readings.find((reading): reading is WorkWeeks => reading !== null && reading !== undefined);
   if (!first) return null;
-  const all = readings.map((reading) => reading ?? null);
+  const all = readings.map((reading) => reading && reading.weekStart === first.weekStart && reading.daysIn === first.daysIn && reading.timeZone === first.timeZone ? reading : null);
   const state = (metric: Exclude<WorkWeekMetric, "done">): WorkStateWeek => {
     const now = knownSum(all.map((reading) => reading?.[metric].now ?? null));
     const before = knownSum(all.map((reading) => reading?.[metric].before ?? null));
-    return { now, before, added: knownSum(all.map((reading) => reading?.[metric].added ?? null)), move: weekMove(metric, now, before) };
+    const history = sumObservedHistory(all.map((reading) => reading?.[metric].history));
+    return { ...(history ? { history } : {}), now, before, added: knownSum(all.map((reading) => reading?.[metric].added ?? null)), move: weekMove(metric, now, before) };
   };
-  const done = (key: Exclude<keyof WorkDoneWeek, "move">) => knownSum(all.map((reading) => reading?.done[key] ?? null));
+  const doneReadings = all.map((reading) => reading?.done.observedAt === first.done.observedAt ? reading : null);
+  const done = (key: "now" | "before" | "notDone" | "lastWeek") => knownSum(doneReadings.map((reading) => reading?.done[key] ?? null));
+  const history = sumObservedHistory(doneReadings.map((reading) => reading?.done.history));
   const now = done("now");
   const before = done("before");
   return {
+    ...(first.timeZone ? { timeZone: first.timeZone } : {}),
     weekStart: first.weekStart,
     daysIn: first.daysIn,
-    done: { now, notDone: done("notDone"), before, lastWeek: done("lastWeek"), move: weekMove("done", now, before) },
+    done: { ...(first.done.observedAt ? { observedAt: first.done.observedAt } : {}), ...(history ? { history } : {}), now, notDone: done("notDone"), before, lastWeek: done("lastWeek"), move: weekMove("done", now, before) },
     waiting: state("waiting"),
     urgent: state("urgent"),
     inProgress: state("inProgress"),

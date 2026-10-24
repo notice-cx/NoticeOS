@@ -216,6 +216,7 @@ export function WallCanvas({
           <SiteRows
             assets={assets}
             pulseMetrics={widget.settings?.pulseMetrics}
+            workAssets={new Set(sitesInWork(data).map(asset => asset.id))}
             issues={wallIssues({
               assets,
               attention: filterWallAttention(data.attention, widget.settings),

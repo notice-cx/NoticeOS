@@ -6,6 +6,7 @@ import { SEVERITY_SHAPE } from "@/components/SeverityDot";
 import { operatorState } from "@/lib/operator-posture";
 import { withSystemIssues } from "@/lib/wall-system-state";
 import { needsYouRows, type WallIssue, type WallIssueSeverity } from "@/lib/wall-issues";
+import "./MetricWidgets.css";
 
 // The top three things that need the operator, errors first then newest, each
 // with its site, one line and its age, staying put until it resolves. The list
@@ -21,8 +22,6 @@ export interface NeedsYouProps {
   system?: SystemBand;
   nowMs: number;
 }
-
-const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-muted-foreground";
 
 /** The severity as a shape, not only a colour: a circle for an error,
  * a triangle for a warning — the desk's `SeverityDot` shapes, one map. */
@@ -55,6 +54,9 @@ function urgentLabel(operator: OperatorPosture | null | undefined, nowMs: number
 export function NeedsYou({ issues, operator, system, nowMs }: NeedsYouProps) {
   const { shown, total } = needsYouRows(withSystemIssues(issues, system, nowMs));
   const urgent = urgentLabel(operator ?? unreadOperatorPosture(), nowMs);
+  const state = operatorState(operator, nowMs);
+  const urgentCount = urgent?.match(/^(.*) urgent tasks?$/)?.[1];
+  const included = operator && state?.complete && state.urgentComplete && !state.stale && operator.urgent > 0 && operator.urgent <= operator.waiting;
   const conditions = new Set<string>(["open-flags", "human-gates"]);
   if (system) for (const condition of ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]) conditions.add(condition);
   for (const issue of shown) for (const condition of issue.conditions) conditions.add(condition);
@@ -62,31 +64,32 @@ export function NeedsYou({ issues, operator, system, nowMs }: NeedsYouProps) {
   return (
     <section
       aria-label="Needs attention"
-      className="flex min-w-0 flex-col gap-3"
+      className="wall-metric min-w-0"
+      style={shown.length > 0 ? { height: "auto", minHeight: "var(--metric-height)", overflow: "visible" } : { gap: "calc(var(--metric-gap) / 2)" }}
       data-wall-needs={total > 0 ? "rows" : "calm"}
       data-material-condition={[...conditions].join(" ")}
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className={eyebrow}>Needs attention</h2>
+        <h2 className="wall-metric-title"><UserRoundCheck aria-hidden /><span>Needs attention</span></h2>
+      </div>
         {total > 0 || urgent ? (
-          <span className="inline-flex items-center gap-1.5 text-wall-micro text-muted-foreground tabular-nums" data-needs-meta>
+          <div className="flex flex-wrap items-baseline gap-x-2 text-muted-foreground tabular-nums" data-needs-meta>
             {total > 0 ? `${shown.length} of ${total}` : null}
             {total > 0 && urgent ? " · " : null}
             {urgent ? (
-              <span className="inline-flex items-center gap-1" data-material-condition="human-gates">
-                <UserRoundCheck className="size-4" aria-hidden />
-                {urgent}
+              <span className="inline-flex items-baseline gap-1" data-material-condition="human-gates">
+                {urgentCount ? <><strong className="wall-metric-value text-foreground" style={{ lineHeight: 1.2 }}>{urgentCount}</strong>{" "}<span className="wall-metric-note">urgent {urgent.endsWith(" tasks") ? "tasks" : "task"}</span></> : <span className="wall-metric-note">{urgent}</span>}
               </span>
             ) : null}
-          </span>
+          </div>
         ) : null}
-      </div>
+      {included ? <div className="wall-metric-note">Included in your {operator.waiting} decisions</div> : null}
       {shown.length === 0 ? (
         <div
-          className="flex items-center gap-3 rounded-lg bg-muted/60 px-4 py-3 text-wall-body text-muted-foreground"
+          className="wall-metric-note mt-auto flex items-center gap-2"
           data-needs-calm
         >
-          <CircleCheck className="size-6 shrink-0 text-healthy" aria-hidden />
+          <CircleCheck className="size-4 shrink-0 text-healthy" aria-hidden />
           {/* An urgent task is still something that needs the operator; the
               calm line then only says nothing is broken. */}
           {urgent ? "Nothing broken" : "Nothing needs attention"}
@@ -108,7 +111,7 @@ export function NeedsYou({ issues, operator, system, nowMs }: NeedsYouProps) {
                   <span className="truncate text-wall-list-label font-semibold text-muted-foreground" data-needs-site>
                     {issue.site}
                   </span>
-                  <span className="line-clamp-2 text-wall-list-line font-medium" data-needs-line>
+                  <span className="text-wall-list-line font-medium" data-needs-line>
                     {issue.line}
                   </span>
                 </div>

@@ -2589,13 +2589,13 @@ describe("/tasks and the Wall: one Done this week and one Done last week", () =>
       const work = await buildWorkPayload(store.call, { now: NOW, timeZone: ZONE });
 
       const tile = render(<WallWork assets={sitesInWork(wall)} operator={wall.operator} nowMs={NOW.getTime()} />);
-      const tileDone = tile.container.querySelector<HTMLElement>('[data-work-figure="Done this week"]')!;
-      const tileWeeks = tile.container.querySelector<HTMLElement>("[data-work-weeks]")!;
+      const tileDone = tile.container.querySelector<HTMLElement>('[aria-label="Done this week"]')!;
+      const tileMovement = tileDone.querySelector<HTMLElement>("[data-metric-movement]")!;
       // Three at Meadow including Won't do, and four at Northwind.
       expect(tileDone).toHaveTextContent(/^Done this week7(?!\+)/);
-      expect(within(tileDone).getByLabelText("4 more than last week by today")).toBeInTheDocument();
-      expect(tileWeeks).toHaveTextContent("Done last week by today 3");
-      expect(tileWeeks).toHaveTextContent("Done last week total 5");
+      expect(tileMovement.querySelector(".wall-metric-change")).toHaveTextContent("4");
+      expect(tileMovement).toHaveTextContent("vs last week by today");
+      expect(tileDone.querySelector("[data-metric-previous-total] title")).toHaveTextContent("Last week · 5: 5");
       tile.unmount();
 
       const { container } = renderBoard({ data: work });

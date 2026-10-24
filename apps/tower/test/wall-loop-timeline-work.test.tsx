@@ -117,15 +117,16 @@ describe("the work chart", () => {
   it("reads the three totals as not read when only the inbox was counted", () => {
     const operator = { waiting: 1, urgent: 0, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 1, capturedAt: at(0) };
     const { container } = render(<WallWork assets={[asset("a.example", null)]} operator={operator} nowMs={NOW} />);
-    expect(container.querySelector("[data-wall-work]")?.textContent?.match(/not read/g)).toHaveLength(3);
+    expect(container.querySelectorAll('[aria-label="Unavailable"]')).toHaveLength(3);
+    expect(container).toHaveTextContent("History unavailable");
     expect(container.querySelector('[role="table"]')).toBeNull();
     expect(container.querySelector("a, button")).toBeNull();
   });
 
-  it("draws one row per project with its counts", () => {
+  it("keeps project rows in the portfolio and shows the observed totals", () => {
     const operator = { waiting: 2, urgent: 0, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: at(0) };
     const { container } = render(<WallWork assets={[asset("a.example", WORK), asset("b.example", WORK)]} operator={operator} nowMs={NOW} />);
-    expect([...container.querySelectorAll("[data-work-row]")].map((row) => row.getAttribute("data-work-row"))).toEqual(["a.example", "b.example"]);
-    expect(container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("Your decisions2");
+    expect(container.querySelector("[data-work-row]")).toBeNull();
+    expect(container.querySelector('[aria-label="Your decisions"]')).toHaveTextContent("Your decisions2");
   });
 });

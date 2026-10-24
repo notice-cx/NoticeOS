@@ -1,3 +1,5 @@
+import { SAVED_COLUMN_LAYOUT } from "./saved-wall-layout";
+import type { WallLayout } from "@shared/wall-layout";
 import { integrationStatus } from '@shared/integration-status';
 import { INTEGRATION_PROVIDERS } from "@noticeos/contract";
 import { fireEvent, render, screen, waitFor, within } from "./render";
@@ -285,7 +287,8 @@ function renderHome(entry = "/") {
   return render(homeTree(entry));
 }
 
-function renderWall() {
+function renderWall(layout?: WallLayout) {
+  if (layout) payload.dashboard = { ...payload.dashboard, wall: { layout, history: [] } };
   return render(
     <MemoryRouter>
       <WallRoute />
@@ -337,7 +340,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const home = renderHome();
     expect(statusOn(home.container, "Nightly report")).toBe("Nightly report: Not checked");
     home.unmount();
-    const wall = renderWall();
+    const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(statusOn(wall.container, "Nightly report")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: On track");
@@ -349,7 +352,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const home = renderHome();
     expect(statusOn(home.container, "Google Analytics")).toBe("Google Analytics: Unknown");
     home.unmount();
-    const wall = renderWall();
+    const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: On track");
@@ -363,7 +366,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const home = renderHome();
     expect(statusOn(home.container, "Google Analytics")).toBe("Google Analytics: Failing");
     home.unmount();
-    const wall = renderWall();
+    const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "error");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: GA4 failing");
@@ -380,7 +383,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(statusOn(home.container, "Google Analytics")).toBe("Google Analytics: Working");
     expect(statusOn(home.container, "Nightly report")).toBe("Nightly report: Working");
     home.unmount();
-    const wall = renderWall();
+    const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(wall.container.querySelector("[data-source]")).toBeNull();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: On track");
@@ -900,14 +903,15 @@ describe("Home and the Wall with an unread core task hub", () => {
     const prior = payload.operator;
     payload.operator = null;
     payload.attention = [];
-    const { container } = renderWall();
+    const { container } = renderWall(SAVED_COLUMN_LAYOUT);
     payload.operator = prior;
 
     // The inbox is unread, so the work chart's waiting figure says so; the
     // site's own snapshot still counts its work.
     const waiting = container.querySelector('[data-wall-work] [data-material-condition~="human-gates"]')!;
     expect(waiting).toHaveTextContent("not read");
-    expect(waiting.textContent).not.toMatch(/\d/);
+    expect(waiting.querySelector(".wall-metric-value")).toHaveTextContent("—");
+    expect(waiting.querySelector(".wall-metric-value")?.textContent).not.toMatch(/\d/);
     // Every non-task concern is still evaluated, and calm.
     const timeline = container.querySelector("[data-wall-timeline]")!;
     expect(timeline.getAttribute("data-material-condition")?.split(" ")).toEqual([
@@ -1493,10 +1497,9 @@ describe("Home and Wall phase scoping", () => {
     expect(screen.queryByRole("link", { name: "TV dashboard" })).toBeNull();
   });
 
-  // With nothing saved, the route draws the strip and the loop, then the last
-  // 24 hours over the site rows beside revenue over the work, and no header
-  // row above it.
-  it("draws the default layout when nothing is saved: the strip and the loop, the last 24 hours over the assets beside revenue over the work", () => {
+  // With nothing saved, the route draws work over assets beside revenue,
+  // attention and the feed, with no header row above the strip.
+  it("draws the default layout: work over assets beside revenue, attention and the feed", () => {
     const { container } = renderWall();
 
     // Each widget sits in its slot, which is no box at the TV's width and
@@ -1505,15 +1508,14 @@ describe("Home and Wall phase scoping", () => {
     expect(strip).not.toBeNull();
     const body = container.querySelector("[data-wall-row='body']")!;
     expect(body).toHaveAttribute("data-wall-row-height", "fill");
-    expect(container.querySelector("[data-wall-row='loop'] > [data-wall-slot] > [data-wall-loop]")).not.toBeNull();
+    expect(container.querySelector("[data-wall-loop], [data-wall-timeline]")).toBeNull();
     const business = body.querySelector(":scope > [data-wall-column='business']")!;
     const side = body.querySelector(":scope > [data-wall-column='side']")!;
-    expect(business.querySelector("[data-wall-row='timeline'] > [data-wall-slot] > [data-wall-timeline]")).not.toBeNull();
+    expect(business.querySelector("[data-wall-row='work'] > [data-wall-slot] > [data-wall-work]")).not.toBeNull();
     expect(business.querySelector("[data-wall-row='sites'] > [data-wall-slot] > [data-wall-sites]")).not.toBeNull();
     expect(side.querySelector("[data-wall-row='money'] > [data-wall-slot] > [data-wall-revenue]")).not.toBeNull();
-    expect(side.querySelector("[data-wall-row='work'] > [data-wall-slot] > [data-wall-work]")).not.toBeNull();
-    // Needs attention and the feed stay in the library, off the default.
-    expect(container.querySelector("[data-wall-needs], [data-wall-feed]")).toBeNull();
+    expect(side.querySelector("[data-wall-needs]")).not.toBeNull();
+    expect(side.querySelector("[data-wall-feed]")).not.toBeNull();
     expect(strip!.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(strip!.textContent).toContain("Team offsite - August 2026");
     expect(strip!.querySelector("[data-strip-meeting-distance]")).toHaveTextContent("25M left");
@@ -1522,7 +1524,7 @@ describe("Home and Wall phase scoping", () => {
     expect(strip!.querySelector("[data-strip-agenda]")).not.toBeNull();
     expect(strip!.querySelector("[data-strip-countdown-value]")).not.toBeNull();
     expect(strip!.querySelector("[data-system-state]")).toBeNull();
-    expect(business.querySelector("[data-timeline-status]")).toHaveTextContent("Nothing broken");
+    expect(side.querySelector("[data-wall-needs]")).toHaveTextContent("Nothing needs attention");
     expect(container.querySelector(".wall-root")).toHaveClass("md:px-wall-inset-x", "md:py-wall-inset-y");
     expect(screen.queryByRole("button", { name: "Configure" })).not.toBeInTheDocument();
   });
@@ -1533,8 +1535,8 @@ describe("Home and Wall phase scoping", () => {
     expect(container.querySelector("[data-wall-header]")).toBeNull();
     expect(container.querySelector("[data-work-flow-legend]")).toBeNull();
     // The work chart is the Wall's one task surface, in its own region.
-    expect(container.querySelectorAll("[data-work-flow]")).toHaveLength(1);
-    expect(container.querySelector("[data-work-flow]")!.closest("[data-wall-work]")).not.toBeNull();
+    expect(container.querySelectorAll("[data-wall-work]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-wall-work] .wall-metric")).toHaveLength(4);
     expect(container.textContent).not.toMatch(/Integrations:/);
     expect(container.textContent).not.toMatch(/View refreshed|Refreshed .* ago/);
     expect(container.querySelector("[data-strip-held]")).toBeNull();
@@ -1561,9 +1563,7 @@ describe("Home and Wall phase scoping", () => {
     const waiting = container.querySelector('[data-wall-work] [data-material-condition~="human-gates"]')!;
     expect(waiting).toHaveTextContent("12");
     expect(waiting).toHaveTextContent("4 urgent");
-    const decide = container.querySelector('[data-flow-node="decide"]')!;
-    expect(decide).toHaveAttribute("data-state", "warn");
-    expect(decide).toHaveTextContent("for you to decide · 4 urgent");
+    expect(container.querySelector("[data-wall-needs]")).toHaveTextContent("4 urgent");
   });
 
   it("gives the TV one link, Home, on the strip's brand, and no controls", () => {
@@ -1597,11 +1597,12 @@ describe("Home and Wall phase scoping", () => {
 
   it("puts the work on the Wall as a chart with no way into the tasks, and leaves the tasks themselves to the desk", () => {
     const wall = renderWall();
-    // The work chart: the site's project as a row, with its counts.
-    const work = wall.container.querySelector("[data-wall-work] [data-work-flow]")!;
+    // Portfolio carries the per-asset work counts beside the aggregate tiles.
+    const work = wall.container.querySelector("[data-wall-work]")!;
     expect(work).not.toBeNull();
-    expect([...work.querySelectorAll("[data-work-row]")].map((row) => row.getAttribute("data-work-row"))).toEqual(["meadow.example"]);
-    expect(work.querySelector('[data-work-row="meadow.example"]')).toHaveAccessibleName(/2 in progress, 1 blocked/u);
+    const assetWork = wall.container.querySelector('[data-site-work="meadow.example"]')!;
+    expect(assetWork.querySelector("[data-site-work-open]")).toHaveTextContent("14");
+    expect(assetWork.querySelector("[data-site-work-blocked]")).toHaveTextContent("1");
     // Counts only: no task's own words, and nothing to press through to them.
     expect(wall.container.textContent).not.toContain("Active bet");
     expect(wall.container.textContent).not.toContain("Homepage answer-card experiment");
@@ -1646,7 +1647,7 @@ describe("Portfolio card with no ledger row at all", () => {
     expect(
       screen.queryByText(/P&L starts with the first reconciled month/),
     ).not.toBeInTheDocument();
-    for (const region of ["strip", "loop", "timeline", "sites", "work"]) {
+    for (const region of ["strip", "needs", "feed", "sites", "work"]) {
       expect(container.querySelector(`[data-wall-${region}]`)).not.toBeNull();
     }
   });
