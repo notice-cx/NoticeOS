@@ -257,10 +257,40 @@ export interface WallRow {
   widgets: WallSlot[];
 }
 
+export interface WallTvPreset {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  scale: number;
+}
+
+export interface WallTvPreview {
+  selectedId: string;
+  presets: WallTvPreset[];
+}
+
+export const DEFAULT_WALL_TV_PREVIEW: WallTvPreview = {
+  selectedId: '1080p-100',
+  presets: [
+    { id: '1080p-100', name: '1080p · 100%', width: 1920, height: 1080, scale: 100 },
+    { id: '4k-200', name: '4K · 200%', width: 3840, height: 2160, scale: 200 },
+    { id: '4k-100', name: '4K · 100%', width: 3840, height: 2160, scale: 100 },
+    { id: '1440p-100', name: '1440p · 100%', width: 2560, height: 1440, scale: 100 },
+    { id: '720p-100', name: '720p · 100%', width: 1280, height: 720, scale: 100 },
+  ],
+};
+
+/** Physical display pixels divided by the display's scaling percentage. */
+export function wallTvViewport(preset: WallTvPreset): { width: number; height: number } {
+  return { width: Math.round(preset.width * 100 / preset.scale), height: Math.round(preset.height * 100 / preset.scale) };
+}
+
 export interface WallLayout {
   version: typeof WALL_LAYOUT_VERSION;
   /** Background transparency of metric tiles; absent is the existing opaque surface. */
   tileTransparency?: number;
+  tvPreview?: WallTvPreview;
   rows: WallRow[];
 }
 
@@ -728,6 +758,26 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (value.tileTransparency !== undefined && (typeof value.tileTransparency !== 'number' || !Number.isInteger(value.tileTransparency) || value.tileTransparency < 0 || value.tileTransparency > 100)) {
     return { ok: false, reason: 'Tile transparency must be a whole number from 0 to 100.' };
   }
+  let tvPreview: WallTvPreview | undefined;
+  if (value.tvPreview !== undefined) {
+    const preview = value.tvPreview;
+    if (!isRecord(preview) || !Array.isArray(preview.presets) || preview.presets.length < 1 || preview.presets.length > 12) return { ok: false, reason: 'TV preview needs between 1 and 12 presets.' };
+    const seen = new Set<string>();
+    const presets: WallTvPreset[] = [];
+    for (const preset of preview.presets) {
+      if (!isRecord(preset) || typeof preset.id !== 'string' || !ID_RE.test(preset.id) || seen.has(preset.id)) return { ok: false, reason: 'TV presets need distinct ids of 1–32 lowercase letters, digits or dashes.' };
+      if (typeof preset.name !== 'string' || !preset.name.trim() || preset.name.length > 60) return { ok: false, reason: 'TV preset names need between 1 and 60 characters.' };
+      if (typeof preset.width !== 'number' || !Number.isInteger(preset.width) || preset.width < 640 || preset.width > 7680 || typeof preset.height !== 'number' || !Number.isInteger(preset.height) || preset.height < 360 || preset.height > 4320) return { ok: false, reason: 'TV resolution must be whole pixels from 640–7680 wide and 360–4320 high.' };
+      if (typeof preset.scale !== 'number' || !Number.isInteger(preset.scale) || preset.scale < 50 || preset.scale > 300) return { ok: false, reason: 'TV scaling must be a whole percentage from 50 to 300.' };
+      const parsed: WallTvPreset = { id: preset.id, name: preset.name, width: preset.width, height: preset.height, scale: preset.scale };
+      const viewport = wallTvViewport(parsed);
+      if (viewport.width < 320 || viewport.height < 180) return { ok: false, reason: 'TV scaling must leave a viewport at least 320 pixels wide and 180 pixels high.' };
+      seen.add(parsed.id);
+      presets.push(parsed);
+    }
+    if (typeof preview.selectedId !== 'string' || !seen.has(preview.selectedId)) return { ok: false, reason: 'Select one of the saved TV presets.' };
+    tvPreview = { selectedId: preview.selectedId, presets };
+  }
   if (!Array.isArray(value.rows) || value.rows.length === 0) {
     return { ok: false, reason: 'A layout needs at least one row.' };
   }
@@ -745,7 +795,7 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (rows.filter((row) => row.height === 'fill').length > 1) {
     return { ok: false, reason: 'Only one row can take the remaining height.' };
   }
-  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }) } };
+  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
 }
 
 /** Ids and one-of-a-kind widgets seen so far, across the whole layout — a
@@ -1035,7 +1085,7 @@ export function parseWallConfig(value: unknown): WallConfig {
   return retired ? { layout, history, retired } : { layout, history };
 }
 
-/** True when two layouts would draw the same Wall. */
+/** Equivalent layout documents, including saved preview preferences. */
 export function sameWallLayout(a: WallLayout, b: WallLayout): boolean {
   const { tileTransparency: aTransparency = 0, ...aLayout } = a;
   const { tileTransparency: bTransparency = 0, ...bLayout } = b;

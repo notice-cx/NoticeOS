@@ -1,9 +1,15 @@
 // @vitest-environment node
 // Which Wall a screen gets, by its shape.
 import { describe, expect, it } from "vitest";
-import { WALL_TV_LAYOUT_MIN_WIDTH, wallScreen } from "@/lib/wall-screen";
+import { WALL_TV_LAYOUT_MIN_WIDTH, wallScreen, wallViewportScreen } from "@/lib/wall-screen";
 
 describe("wallScreen", () => {
+  it('uses one projection policy for preview and actual CSS viewports', () => {
+    expect(wallViewportScreen(1920, 1080)).toMatchObject({ width: 1920, height: 1080, zoom: 1, kiosk: true, compact: false });
+    expect(wallViewportScreen(3840, 2160)).toMatchObject({ width: 2560, height: 1440, zoom: 1.5, kiosk: true });
+    expect(wallViewportScreen(1280, 720)).toMatchObject({ width: 1920, height: 1080, zoom: 2 / 3, scale: 2 / 3, compact: true, kiosk: false });
+    expect(wallViewportScreen(390, 844)).toMatchObject({ width: 390, height: 844, zoom: 1, layout: 'stack', compact: false, kiosk: false });
+  });
   it("draws the TV its own layout at its own size", () => {
     expect(wallScreen(1920, 1080)).toEqual({ layout: "tv", scale: 1 });
     // Bigger screens are not blown up: the 4K kiosk has its own zoom (index.css).

@@ -642,9 +642,14 @@ The kit's components for the Tower's pages render on the TV inside
 Wall is viewed from.
 
 The operator arranges widgets at `/wall/edit` and never authors widget types.
-The editor shows the TV's own layout, rendered by the same component the TV
-uses at 1920×1080 and scaled to fit the window, so the arrangement in the
-editor is exactly what the TV shows. Its structure is a row of stacks: a row
+The editor shows the TV's own layout, rendered by the same component at the
+selected TV preset's effective viewport and scaled to fit the window.
+"TV preset" selects a named physical resolution and display scaling; 4K at
+200% provides a 1920×1080 viewport. "Edit presets" changes the name, resolution
+and scaling and adds or removes presets. The preview and asset-row fit count
+update immediately. Presets save with the layout and support Undo, Redo and
+Versions. The TV uses its browser's current viewport to render the saved
+arrangement. Its structure is a row of stacks: a row
 holds columns side by side, a column stacks widgets. A dragged widget is
 placed by the edge of the target the pointer is nearest, measured as a share
 of the target so a long thin strip still has sides: top or bottom stacks the

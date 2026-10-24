@@ -66,8 +66,13 @@ test("focused Portfolio controls fit a 390px viewport without page overflow", { 
   await expect(page.locator('[data-wall-row-focus="sites"]')).toBeVisible();
   await panel.getByLabel("Title").fill("Live visitors");
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
-  const innerScroll = page.locator("[data-wall-focus-preview] .wall-portfolio-list");
-  expect(await innerScroll.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  const rowScroll = page.locator("[data-wall-focus-preview]");
+  const scrollGeometry = await rowScroll.evaluate(element => ({ width: element.clientWidth, contentWidth: element.scrollWidth, overflow: getComputedStyle(element).overflowX }));
+  expect(scrollGeometry.contentWidth).toBeGreaterThan(scrollGeometry.width);
+  expect(scrollGeometry.overflow).toBe('auto');
+  await rowScroll.evaluate(element => { element.scrollLeft = 100; });
+  expect(await rowScroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+  await testInfo.attach('focused-row-scroll-geometry', { body: JSON.stringify(scrollGeometry), contentType: 'application/json' });
   await page.screenshot({ path: testInfo.outputPath("wall-focused-mobile.png"), fullPage: true });
   await panel.getByRole("button", { name: "Back to Wall" }).click();
   await expect(page.locator("[data-wall-preview]")).toBeVisible();

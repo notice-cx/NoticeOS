@@ -872,7 +872,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallPreview",
     file: "components/wall/WallPreview.tsx",
     purpose:
-      "The television as the stage the Wall is arranged on (/wall/edit): a literal 1920x1080 box scaled to the pane and the window, holding WallCanvas itself through its `editing` slot, so there is no second layout engine. Every widget is a drag source and a drop target (pragmatic drag and drop): the edge the pointer is nearest decides the landing, top or bottom stacks with it, left or right sets it beside, and during a drag a band between rows starts a new row; a line and its words show the landing only where the drop is allowed. The pointed-at or selected widget draws a counter-scaled toolbar (grip, name, Move menu, Remove), a moved widget rings briefly, and a widget drawn below its legible size shows a too-small state. It measures the canvas's content height so the route can say how far past the TV a layout runs.",
+      "The television as the stage the Wall is arranged on (/wall/edit): the selected TV preset's effective viewport scaled to the pane and the window, holding WallCanvas itself through its `editing` slot. Every widget is a drag source and a drop target (pragmatic drag and drop): the edge the pointer is nearest decides the landing, top or bottom stacks with it, left or right sets it beside, and during a drag a band between rows starts a new row; a line and its words show the landing only where the drop is allowed. The pointed-at or selected widget draws a counter-scaled toolbar (grip, name, Move menu, Remove), a moved widget rings briefly, and a widget drawn below its legible size shows a too-small state. It measures the canvas's content height so the route can show how far past the selected TV a layout runs.",
     variants: [
       "default layout",
       "a rearranged layout",
@@ -923,6 +923,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The selected metric tile's settings below the full Wall preview or beside a focused row: compatible metric and display choices, title, named width, supported icon/reference/axis controls, movement, removal and available additions. Portfolio settings apply to every asset row.",
     variants: ["below the full Wall", "beside a focused row", "shared Portfolio", "available tile choices", "read-only"],
     demo: "The gallery composes this with WallMetricFocus and WallPreview, with editable Portfolio, Work and Revenue tiles and local Undo.",
+  },
+  {
+    name: "WallTvPresets",
+    file: "components/wall/WallTvPresets.tsx",
+    purpose: "The Wall editor's named TV resolution and display-scaling presets. Selection updates the effective viewport preview; Edit presets changes dimensions, scaling and names or adds and removes profiles. Invalid fields show errors and prevent Save.",
+    variants: ["common TV presets", "custom profile", "invalid dimensions", "read-only"],
   },
   {
     name: "WallMetricFocus",

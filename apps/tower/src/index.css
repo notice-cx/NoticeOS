@@ -154,17 +154,12 @@
   --swatch-dark: oklch(0 0 0);
 }
 
-/* The television is a box, not a viewport. `.wall-root` is drawn at
-   1920×1080 twice: as the whole viewport on the TV, and as a box scaled into
-   a pane by the editor's preview at `/wall/edit`. It declares a query
-   container named `wall`, and the five breakpoint variants fire on the
-   viewport or on that container, so nothing outside the Wall changes (no
-   ancestor is named `wall`) and inside it every widget draws the arrangement
-   the television draws at any desk width. `@slot` twice is what lets one
-   variant carry two queries. */
+/* Wall descendants use their named container's width, so the editor's host
+   window cannot select a breakpoint for the simulated TV. Other surfaces
+   retain viewport breakpoints. */
 @custom-variant sm {
   @media (width >= theme(--breakpoint-sm)) {
-    @slot;
+    &:not(:where(.wall-root, .wall-root *)) { @slot; }
   }
   @container wall (width >= theme(--breakpoint-sm)) {
     @slot;
@@ -173,7 +168,7 @@
 
 @custom-variant md {
   @media (width >= theme(--breakpoint-md)) {
-    @slot;
+    &:not(:where(.wall-root, .wall-root *)) { @slot; }
   }
   @container wall (width >= theme(--breakpoint-md)) {
     @slot;
@@ -182,7 +177,7 @@
 
 @custom-variant lg {
   @media (width >= theme(--breakpoint-lg)) {
-    @slot;
+    &:not(:where(.wall-root, .wall-root *)) { @slot; }
   }
   @container wall (width >= theme(--breakpoint-lg)) {
     @slot;
@@ -191,7 +186,7 @@
 
 @custom-variant xl {
   @media (width >= theme(--breakpoint-xl)) {
-    @slot;
+    &:not(:where(.wall-root, .wall-root *)) { @slot; }
   }
   @container wall (width >= theme(--breakpoint-xl)) {
     @slot;
@@ -200,7 +195,7 @@
 
 @custom-variant 2xl {
   @media (width >= theme(--breakpoint-2xl)) {
-    @slot;
+    &:not(:where(.wall-root, .wall-root *)) { @slot; }
   }
   @container wall (width >= theme(--breakpoint-2xl)) {
     @slot;
@@ -264,7 +259,7 @@
    pixels the Wall is always at least 1920 × 1080, every `tv:` rule and the
    TV's type ramp fire exactly as on the TV, and a screen of another shape
    gives its extra height to the fill row. The TV's scale is 1 and the
-   editor's preview sets none.
+   editor's preview applies the same projection through its transform.
 
    Readable floors: each small step is drawn at max(its TV size × the scale,
    its floor), by multiplying its size and its line by its boost (declared on
@@ -279,6 +274,13 @@
   zoom: var(--wall-scale);
   min-height: calc(100vh / var(--wall-scale));
 }
+.wall-root[data-wall-screen] {
+  padding: var(--spacing-wall-inset-y) var(--spacing-wall-inset-x);
+  zoom: var(--wall-render-zoom, 1);
+  min-height: calc(var(--wall-viewport-height) / var(--wall-render-zoom, 1));
+}
+
+.wall-root[data-wall-small-insets] { padding: .5rem; }
 
 /* The TV's layout. Saved rows describe the TV's composition, and `tv:` is
    where it is drawn: the Wall 1,776 px wide and up in its own pixels (the
@@ -347,7 +349,7 @@
    utilities, while the gate keeps narrow responsive views unchanged.
 
    The gate is the box, not the viewport: `@container wall` is true of the
-   1920 viewport the kiosk has and of the 1920 box `/wall/edit` scales into
+   selected logical viewport the kiosk and `/wall/edit` both render into
    its pane, so the ramp is declared once and both surfaces get it. The
    properties land on `.wall-root *` rather than on `.wall-root`: a query
    container's own declarations cannot be conditioned on its own size, so the
@@ -435,13 +437,11 @@
    views must keep scrolling, and so must the editor's preview, which is a box
    on a page. This clip hides an overflow from anyone looking at the page, so
    `pnpm wall:fit` is the only thing that reports one. */
-@media (min-width: 1800px) and (min-height: 900px) {
-  .wall-root {
+.wall-root[data-wall-kiosk] {
     /* A scaled Wall (a desk window a little shorter than the TV) is zoomed,
        so its screen height in its own pixels is 100vh over the scale. */
-    height: calc(100vh / var(--wall-scale, 1));
+    height: calc(var(--wall-viewport-height) / var(--wall-render-zoom, 1));
     overflow: hidden;
-  }
 }
 
 .light {
@@ -1168,13 +1168,9 @@
   animation: viz-arrive 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* A native 4K browser otherwise fits twice as many CSS pixels into the same TV
-   as the 1080p Wall it replaces, turning chart labels into fine print. The Wall
-   and its asset drill-down share the same distance-readable density: native
-   3840×2160 behaves like a 4K desktop configured to 150% scaling, without
-   affecting 2560×1440 or 1920×1080 modes. */
+/* Native 4K asset details retain their distance-readable density. The Wall's
+   equivalent zoom is selected by wallViewportScreen for both route and preview. */
 @media (min-width: 3200px) and (min-height: 1800px) {
-  .wall-root,
   .asset-detail-root {
     min-height: calc(100vh / 1.5);
     zoom: 1.5;

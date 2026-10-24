@@ -11,6 +11,7 @@
 
 export {
   DEFAULT_WALL_LAYOUT,
+  DEFAULT_WALL_TV_PREVIEW,
   EMPTY_WALL_CONFIG,
   RETIRED_WALL_WIDGET_TYPES,
   WALL_LAYOUT_HISTORY_MAX,
@@ -40,6 +41,7 @@ export {
   wallOpRefusal,
   wallRowPlaces,
   wallWidgetSpec,
+  wallTvViewport,
   wallMetricTiles,
   wallMetricSources,
   wallMetricSpec,
@@ -52,6 +54,8 @@ export type {
   WallColumnRow,
   WallConfig,
   WallLayout,
+  WallTvPreset,
+  WallTvPreview,
   WallLayoutCheck,
   WallLayoutVersion,
   WallRetired,

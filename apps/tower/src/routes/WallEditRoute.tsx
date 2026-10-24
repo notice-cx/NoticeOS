@@ -15,6 +15,7 @@ import {
   wallMetricSources,
   wallMetricTiles,
   wallWidgetSpec,
+  wallTvViewport,
   withRevertedWallLayout,
   withSavedWallLayout,
   type WallConfig,
@@ -34,6 +35,8 @@ import { WallVersions } from "@/components/wall/WallVersions";
 import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
 import { WallMetricPanel } from "@/components/wall/WallMetricPanel";
 import { WallMetricFocus } from "@/components/wall/WallMetricFocus";
+import { WallTvPresets } from "@/components/wall/WallTvPresets";
+import { tvPreviewOf, tvPresetOf } from "@/lib/wall-tv-presets";
 import type { MetricTileSelection } from "@/components/wall/WallMetricEditing";
 import { Button } from "@/components/ui/button";
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
@@ -136,6 +139,8 @@ export function WallEditRoute() {
   const [announcement, setAnnouncement] = useState("");
   const [metricSelection, setMetricSelection] = useState<MetricTileSelection | null>(null);
   const [focused, setFocused] = useState(false);
+  const [presetFieldsValid, setPresetFieldsValid] = useState(true);
+  const [presetReset, setPresetReset] = useState(0);
   const transparencyGesture = useRef<string | null>(null);
   const transparencySequence = useRef(0);
   const [sectionSettings, setSectionSettings] = useState(false);
@@ -146,8 +151,11 @@ export function WallEditRoute() {
   /** The widget a change just moved or brought, and whether focus follows it. */
   const [landed, setLanded] = useState<{ widgetId: string; verb: string; focus: boolean } | null>(null);
 
-  const dirty = wallEditorDirty(state);
-  const refusal = wallEditorRefusal(state.layout);
+  const dirty = wallEditorDirty(state) || !presetFieldsValid;
+  const refusal = presetFieldsValid ? wallEditorRefusal(state.layout) : "Fix the TV preset fields before saving.";
+  const tvPreview = useMemo(() => tvPreviewOf(state.layout), [state.layout]);
+  const tvPreset = tvPresetOf(state.layout);
+  const tvViewport = wallTvViewport(tvPreset);
   // A saved layout that named a retired widget is drawn as the default: one
   // chip says so until a Save replaces it.
   const warnings = [
@@ -267,8 +275,8 @@ export function WallEditRoute() {
   }, [disabled, undo, redo]);
 
   const onMeasure = useCallback((height: number) => {
-    setOverflow(wallOverflowNote(height));
-  }, []);
+    setOverflow(wallOverflowNote(height, tvViewport.height));
+  }, [tvViewport.height]);
   const onPortfolioFit = useCallback((fit: { visible: number; total: number } | null) => {
     setPortfolioFit(current => current?.visible === fit?.visible && current?.total === fit?.total ? current : fit);
   }, []);
@@ -330,6 +338,8 @@ export function WallEditRoute() {
     const next = structuredClone(layout);
     if (state.layout.tileTransparency === undefined) delete next.tileTransparency;
     else next.tileTransparency = state.layout.tileTransparency;
+    if (state.layout.tvPreview === undefined) delete next.tvPreview;
+    else next.tvPreview = structuredClone(state.layout.tvPreview);
     const currentSites = wallLayoutWidgets(state.layout).find(widget => widget.type === "sites");
     const nextSites = wallLayoutWidgets(next).find(widget => widget.type === "sites");
     if (currentSites && nextSites) {
@@ -392,6 +402,8 @@ export function WallEditRoute() {
     const next = withRevertedWallLayout(saved, index, new Date().toISOString());
     const ok = await write(next, "TV layout").finally(() => setReverting(null));
     if (!ok) return;
+    setPresetFieldsValid(true);
+    setPresetReset(current => current + 1);
     dispatch({ type: "reset", layout: next.layout });
   }
 
@@ -451,6 +463,8 @@ export function WallEditRoute() {
             onSubmit={() => void submit()}
             onDiscard={() => {
               setNote("");
+              setPresetFieldsValid(true);
+              setPresetReset(current => current + 1);
               dispatch({ type: "discard" });
             }}
           />
@@ -459,6 +473,7 @@ export function WallEditRoute() {
             {widgets.filter(widget => wallMetricSources(widget.type).length > 0).map(widget => <Button key={widget.id} type="button" size="sm" variant={metricWidget?.id === widget.id ? "default" : "ghost"} aria-pressed={metricWidget?.id === widget.id} onClick={() => selectMetricSection(widget.id)}>{wallWidgetSpec(widget.type).label}</Button>)}
             <Button type="button" size="sm" variant="outline" className="ml-auto" disabled={disabled} onClick={() => start(wallFullComposition(state.layout), "the full Wall layout")}>Use full Wall layout</Button>
           </nav>
+          <WallTvPresets key={presetReset} value={tvPreview} onChange={value => dispatch({ type: "tv-preview", value })} onValidityChange={setPresetFieldsValid} disabled={disabled} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-wall-transparency-control>
             <label htmlFor="wall-tile-transparency" className="font-medium">Tile transparency</label>
             <span className="text-xs text-muted-foreground" aria-hidden>Opaque</span>
@@ -490,6 +505,7 @@ export function WallEditRoute() {
             {rowFocused ? <WallMetricFocus
               widget={metricWidget}
               tileTransparency={state.layout.tileTransparency}
+              tvPreset={tvPreset}
               data={data}
               meetings={upcoming.data}
               calendarState={calendarReadState(upcoming)}
@@ -502,6 +518,7 @@ export function WallEditRoute() {
               onAsset={assetId => setMetricSelection({ widgetId: metricWidget.id, tileId: activeMetric?.tileId ?? selectedTiles[0]?.id ?? "", assetId })}
             /> : <WallPreview
               layout={state.layout}
+              tvPreset={tvPreset}
               data={data}
               meetings={upcoming.data}
               calendarState={calendarReadState(upcoming)}

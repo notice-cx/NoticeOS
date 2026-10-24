@@ -973,6 +973,53 @@ describe("Wall tile transparency", () => {
   });
 });
 
+describe("TV preview presets", () => {
+  it("selects, undoes, redoes and saves a TV preset through the shared draft", () => {
+    renderEditor();
+    const select = screen.getByLabelText("TV preset");
+    fireEvent.change(select, { target: { value: "4k-200" } });
+    expect(select).toHaveValue("4k-200");
+    fireEvent.click(toolbarButton("Undo"));
+    expect(select).toHaveValue("1080p-100");
+    fireEvent.click(toolbarButton("Redo"));
+    expect(select).toHaveValue("4k-200");
+    fireEvent.click(saveButton());
+    expect(savedLayout().tvPreview?.selectedId).toBe("4k-200");
+  });
+  it("blocks Save for a pending invalid number and restores it on Discard", () => {
+    renderEditor();
+    fireEvent.click(screen.getByText("Edit presets"));
+    fireEvent.change(screen.getByLabelText("Width", { exact: true }), { target: { value: "" } });
+    expect(saveButton()).toBeDisabled();
+    expect(screen.getByLabelText("Width", { exact: true })).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(screen.getByRole("slider", { name: "Tile transparency" }), { target: { value: "50" } });
+    expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(null);
+    expect(saveButton()).toBeDisabled();
+    fireEvent.click(toolbarButton("Discard"));
+    expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(1920);
+    expect(screen.getByLabelText("Width", { exact: true })).toHaveAttribute("aria-invalid", "false");
+    expect(state.saves).toHaveLength(0);
+  });
+  it("keeps saved TV presets in version history", () => {
+    const preview = structuredClone(DEFAULT_WALL_LAYOUT);
+    renderEditor({ layout: preview, history: [] });
+    fireEvent.change(screen.getByLabelText("TV preset"), { target: { value: "4k-100" } });
+    fireEvent.click(saveButton());
+    expect(savedConfig().history[0]?.layout).toEqual(preview);
+    expect(savedConfig().layout.tvPreview?.selectedId).toBe("4k-100");
+  });
+  it("retains the TV calibration when replacing the Wall arrangement", () => {
+    renderEditor();
+    fireEvent.change(screen.getByLabelText("TV preset"), { target: { value: "720p-100" } });
+    openDrawer("Add a widget");
+    fireEvent.click(screen.getByRole("button", { name: "Start from" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /I build the product/ }));
+    expect(screen.getByLabelText("TV preset")).toHaveValue("720p-100");
+    fireEvent.click(saveButton());
+    expect(savedLayout().tvPreview?.selectedId).toBe("720p-100");
+  });
+});
+
 describe("save", () => {
   it("writes exactly one file op, at the pointer, guarded by what it read", () => {
     renderEditor();
@@ -1088,6 +1135,18 @@ describe("versions", () => {
       { savedAt: "2026-09-04T12:00:00.000Z", reason: "Portfolio only", layout: earlier },
     ],
   };
+
+  it("clears pending invalid TV fields after a successful version Revert", async () => {
+    renderEditor(saved);
+    fireEvent.click(screen.getByText("Edit presets"));
+    fireEvent.change(screen.getByLabelText("Width", { exact: true }), { target: { value: "" } });
+    expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(null);
+    openDrawer("Versions");
+    fireEvent.click(screen.getByRole("button", { name: "Revert" }));
+    await waitFor(() => expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(1920));
+    expect(screen.getByLabelText("Width", { exact: true })).toHaveAttribute("aria-invalid", "false");
+    expect(screen.queryByText("Fix the TV preset fields before saving.")).not.toBeInTheDocument();
+  });
 
   it("lists what the Wall used to show, and how long ago, behind the toolbar's Versions", () => {
     renderEditor(saved);

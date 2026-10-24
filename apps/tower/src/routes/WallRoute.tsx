@@ -141,7 +141,11 @@ export function WallRoute() {
       className="wall-root flex min-h-screen flex-col bg-background p-2 md:px-wall-inset-x md:py-wall-inset-y"
       data-wall-layout={screen.layout}
       data-wall-scaled={scaled ? "" : undefined}
-      style={scaled ? ({ "--wall-scale": screen.scale } as CSSProperties) : undefined}
+      data-wall-screen
+      data-wall-kiosk={screen.kiosk || undefined}
+      data-wall-compact={screen.compact || undefined}
+      data-wall-small-insets={screen.viewportWidth < 768 || undefined}
+      style={{ "--wall-scale": screen.scale, "--wall-render-zoom": screen.zoom, "--wall-viewport-height": `${screen.viewportHeight}px` } as CSSProperties}
     >
       <DemoViewerStatus className="mb-2 px-0" viewSwitch={viewSwitch} />
       <WallCanvas
