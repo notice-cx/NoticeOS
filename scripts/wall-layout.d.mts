@@ -27,9 +27,39 @@ export declare const RETIRED_WALL_WIDGET_TYPES: readonly ["attention", "portfoli
 export interface WallWidgetSettings {
     /** Only these asset ids, in the layout's own order; absent means every asset. */
     assets?: string[];
+    metrics?: WallMetricTile[];
     /** Selected pulse totals per asset. Absent uses its configured totals; [] hides them. */
     pulseMetrics?: Record<string, string[]>;
 }
+export type WallMetricSource = 'momentum' | 'today' | 'four-weeks' | 'asset-work' | 'product-counts' | 'product-count' | 'decisions' | 'in-progress' | 'blocked' | 'done' | 'revenue';
+export type WallMetricDisplay = 'number' | 'momentum' | 'compare' | 'multi' | 'cumulative';
+export type WallMetricSize = 'narrow' | 'standard' | 'wide';
+export interface WallMetricTile {
+    id: string;
+    source: WallMetricSource;
+    display: WallMetricDisplay;
+    size: WallMetricSize;
+    title?: string;
+    icon?: boolean;
+    reference?: boolean;
+    axes?: boolean;
+    metricKey?: string;
+}
+export interface WallMetricSpec {
+    source: WallMetricSource;
+    label: string;
+    displays: readonly WallMetricDisplay[];
+    sizes: readonly WallMetricSize[];
+    defaultDisplay: WallMetricDisplay;
+    defaultSize: WallMetricSize;
+    reference: boolean;
+    axes: boolean;
+    icon: boolean;
+}
+export declare function wallMetricSpec(source: WallMetricSource): WallMetricSpec;
+export declare function wallMetricSources(type: WallWidgetType): WallMetricSource[];
+/** Missing templates keep existing layouts unchanged until the first tile edit. */
+export declare function wallMetricTiles(widget: WallWidget): WallMetricTile[];
 export type WallSettingKey = keyof WallWidgetSettings;
 export interface WallWidgetSpec {
     type: WallWidgetType;

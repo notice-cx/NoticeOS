@@ -40,6 +40,9 @@ export {
   wallOpRefusal,
   wallRowPlaces,
   wallWidgetSpec,
+  wallMetricTiles,
+  wallMetricSources,
+  wallMetricSpec,
   withRevertedWallLayout,
   withSavedWallLayout,
 } from "../../../scripts/wall-layout.mjs";
@@ -60,4 +63,9 @@ export type {
   WallWidgetSettings,
   WallWidgetSpec,
   WallWidgetType,
+  WallMetricTile,
+  WallMetricSource,
+  WallMetricDisplay,
+  WallMetricSize,
+  WallMetricSpec,
 } from "../../../scripts/wall-layout.mjs";
