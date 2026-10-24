@@ -350,7 +350,11 @@ export function WallPreview({
       frame = 0;
       const next = measure(box, scale);
       setGeometry(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
-      onMeasure?.(box.scrollHeight);
+      // Drag targets and landing lines are siblings of the TV canvas. Their
+      // editor-only overflow must never become a TV overflow warning.
+      const canvas = box.querySelector<HTMLElement>("[data-wall-canvas]");
+      const paddingBottom = Number.parseFloat(getComputedStyle(box).paddingBottom) || 0;
+      onMeasure?.(canvas ? Math.max(box.clientHeight, canvas.offsetTop + canvas.scrollHeight + paddingBottom) : box.clientHeight);
     };
     const schedule = () => {
       if (live && !frame) frame = requestAnimationFrame(read);

@@ -1536,7 +1536,11 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   };
 
   // Stack: Revenue above Sites joins the left column between Work and Sites.
+  const warningsBeforeDrag = await bar.locator("[data-wall-warning]").allTextContents();
+  const previewTopBeforeDrag = (await preview.boundingBox())!.y;
   await drag(await at(tile("revenue"), 0.5, 0.6), await at(tile("sites"), 0.5, 0.06), async () => {
+    await expect(bar.locator("[data-wall-warning]")).toHaveText(warningsBeforeDrag);
+    expect((await preview.boundingBox())!.y).toBeCloseTo(previewTopBeforeDrag, 1);
     await expect(preview.locator('[data-wall-drop-line="top"]')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("wall-drag-stack-line.png") });
   });
