@@ -875,6 +875,9 @@ test.describe(() => {
   // the feed; every region's text and the asset names remain readable.
   test("the Wall cuts off no text in any region, and marks only the first asset's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     await wallScene(page);
+    const waitingScene = structuredClone(wallFixturePayload());
+    waitingScene.assets.find(asset => asset.id === "summit.example")!.work = null;
+    await page.route("**/api/wall", route => route.fulfill({ json: waitingScene }));
     for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
       await wallAt(page, [width, height]);
       // The Wall runs on the fixture's time, not the journey server's Sep 6.
@@ -1030,21 +1033,35 @@ test.describe(() => {
     for (const tile of geometry) expect(tile.height).toBeCloseTo(156, 0);
     expect(Math.max(...geometry.map(tile => tile.top)) - Math.min(...geometry.map(tile => tile.top))).toBeLessThanOrEqual(1);
     const done = work.getByRole("region", { name: "Done this week", exact: true });
-    await expect(done).toContainText("Last week ·");
+    await expect(done).toContainText("Last week total ·");
     const hasHistory = wallFixturePayload(scene.variant).assets.some(asset => asset.work?.weeks?.done.history?.some(point => point.v !== null));
     if (hasHistory) {
-      const bars = done.locator("[data-metric-cumulative-bar='current']");
+      const bars = done.locator("[data-metric-daily-bar='current']");
       expect(await bars.count()).toBeGreaterThan(0);
       await expect(bars.first()).toBeVisible();
-      await expect(done.locator("[data-chart-line='solid'], [data-metric-cumulative-bar='forecast']")).toHaveCount(0);
+      expect(await done.locator("[data-chart-line='solid']").count()).toBeGreaterThan(0);
+      await expect(done.locator("[data-metric-cumulative-bar]")).toHaveCount(0);
       const dates = await bars.evaluateAll(elements => elements.map(element => element.getAttribute("data-date")));
       expect(new Set(dates).size).toBe(dates.length);
-      const missing = done.locator("[data-metric-cumulative-day='missing']");
+      const missing = done.locator("[data-metric-daily-day='missing']");
       expect(await missing.count()).toBeGreaterThan(0);
       await expect(missing.locator("rect")).toHaveCount(0);
       await expect(done.locator("[data-metric-previous-total]")).toBeAttached();
       await expect(done.locator("svg[role='img']")).toBeVisible();
-      await expect(done.locator("svg[role='img']")).toHaveAccessibleName(/Daily cumulative bars.*Missing days have no bar/);
+      await expect(done.locator("svg[role='img']")).toHaveAccessibleName(/Bars: daily closes.*Solid line: cumulative closes.*share one count scale from zero.*Missing daily readings have no bar/);
+      const scales = await done.locator("svg[role='img']").evaluate(svg => {
+        const reference = svg.querySelector('[data-metric-previous-total]')!;
+        const total = Number(reference.querySelector('title')!.textContent!.split(':').at(-1)!.trim().replaceAll(',', ''));
+        const daily = [...svg.querySelectorAll('[data-metric-daily-bar]')].filter(bar => Number(bar.getAttribute('data-value')) > 0).map(bar => ({ y: Number(bar.getAttribute('y')), height: Number(bar.getAttribute('height')), value: Number(bar.getAttribute('data-value')) }));
+        const baseline = daily[0]!.y + daily[0]!.height;
+        const referenceScale = (baseline - Number(reference.querySelector('line')!.getAttribute('y1'))) / total;
+        return { referenceScale, baseline, daily };
+      });
+      expect(scales.daily.length).toBeGreaterThan(0);
+      for (const bar of scales.daily) {
+        expect(bar.y + bar.height).toBeCloseTo(scales.baseline, 4);
+        expect(bar.height).toBeCloseTo(bar.value * scales.referenceScale, 4);
+      }
       const reference = await done.locator("[data-metric-previous-total] line").evaluate(line => ({
         x1: Number(line.getAttribute("x1")), x2: Number(line.getAttribute("x2")),
         y1: Number(line.getAttribute("y1")), y2: Number(line.getAttribute("y2")),
@@ -1054,7 +1071,7 @@ test.describe(() => {
       expect(Number.isFinite(reference.y1)).toBe(true);
     } else {
       await expect(done).toContainText("History unavailable");
-      await expect(done.locator("[data-metric-cumulative-bar]")).toHaveCount(0);
+      await expect(done.locator("[data-metric-daily-bar], [data-chart-line='solid']")).toHaveCount(0);
     }
     await expect(done).toContainText("Monday");
     await expect(done).toContainText("Sunday");
@@ -1152,8 +1169,10 @@ test.describe(() => {
       await expect(health).toHaveCount(wallFixturePayload("fire").assets.length);
       await expect(page.locator("[data-site-mark]")).toHaveCount(0);
       for (const icon of await health.all()) {
-        await expect(icon).toHaveAttribute("role", "img");
+        await expect(icon).toHaveAttribute("role", "group");
         await expect(icon).toHaveAttribute("aria-label", /.+/);
+        await expect(icon).toHaveText(/Off track|At risk|No open alerts|No data yet|Retired/);
+        await expect(icon.locator("svg rect")).toHaveCount(0);
         const size = await icon.boundingBox();
         expect(size?.width, `${at}: visible health icon`).toBeGreaterThan(8);
         expect(size?.height, `${at}: visible health icon`).toBeGreaterThan(8);
