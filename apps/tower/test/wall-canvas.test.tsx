@@ -407,6 +407,7 @@ describe("a layout naming retired widgets", () => {
     vi.doMock("@/hooks/useConnections", () => ({ useConnections: () => ({ credentials: undefined, items: null }) }));
     vi.doMock("@/hooks/useGa4Realtime", () => ({ useGa4Realtime: () => ({ data: REALTIME, isError: false }) }));
     vi.doMock("@/hooks/useCalendarUpcoming", () => ({ useCalendarUpcoming: () => ({ data: MEETINGS, isError: false }) }));
+    vi.doMock("@/hooks/useWallWeather", () => ({ useWallWeather: () => undefined }));
     const { WallRoute } = await import("@/routes/WallRoute");
     // The route reads the browser runtime (the demo's view), so the owner
     // around it must come from the same fresh module graph.
@@ -422,6 +423,7 @@ describe("a layout naming retired widgets", () => {
     vi.doUnmock("@/hooks/useConnections");
     vi.doUnmock("@/hooks/useGa4Realtime");
     vi.doUnmock("@/hooks/useCalendarUpcoming");
+    vi.doUnmock("@/hooks/useWallWeather");
   });
 });
 

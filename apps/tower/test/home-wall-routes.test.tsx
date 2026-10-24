@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttentionItem, CardDataSource, PortfolioBand, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 
+vi.mock("@/hooks/useWallWeather", () => ({ useWallWeather: () => undefined }));
+
 const payload = vi.hoisted(
   (): WallPayload => ({
     generatedAt: "2026-07-29T12:00:00.000Z",

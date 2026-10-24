@@ -25,6 +25,7 @@ vi.mock("@/hooks/useWall", () => ({
 vi.mock("@/hooks/useConnections", () => ({ useConnections: () => ({ credentials: undefined, items: null }) }));
 vi.mock("@/hooks/useGa4Realtime", () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useCalendarUpcoming", () => ({ useCalendarUpcoming: () => ({ data: undefined, isError: false, isPending: false }) }));
+vi.mock("@/hooks/useWallWeather", () => ({ useWallWeather: () => undefined }));
 // The canvas is pinned by its own suite; here only the layout and the words
 // handed to it matter.
 vi.mock("@/components/WallCanvas", () => ({
