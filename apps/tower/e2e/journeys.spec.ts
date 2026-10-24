@@ -1924,7 +1924,8 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   await page.setViewportSize({ width: 1920, height: 1600 });
   const deployed = rows.filter({ hasText: "The OS moved to a newer version" });
   await expect(deployed).toBeVisible();
-  await expect(deployed.locator("[data-feed-label]")).toHaveText("Deployed · System");
+  await expect(deployed.locator("[data-feed-label]")).toHaveText("Deployed");
+  await expect(deployed.getByRole("img", { name: "System", exact: true })).toHaveAttribute("data-feed-asset", WALL_FEED_OS[0]);
   await expect(feed).not.toContainText(WALL_FEED_OS[1]);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-os-deploy.png") });
 });

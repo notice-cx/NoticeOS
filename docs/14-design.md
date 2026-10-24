@@ -587,7 +587,12 @@ Version, meeting context and the weather's low–high band share a second baseli
 column shows Work this week, Attention ticker and Portfolio; the right column shows Revenue
 this month and Live feed. The columns share width at 3.25:1.
 Work, revenue and attention fit their content; Portfolio and Live feed take
-the remaining height in their columns. This is the "Everything" preset,
+the remaining height in their columns. On wide screens, Live feed extends to
+the Wall's bottom and shows only whole entries. Asset-related entries use
+the asset's favicon as the primary icon, with an event-kind badge. The entry
+header shows the event label, the agent's small icon and model when present,
+and a clock time. The body allows three lines; commit and link evidence
+remains below it without a separate model row. This is the "Everything" preset,
 `DEFAULT_WALL_LAYOUT`. The loop, Last 24 hours, Asset health, the agents,
 Visitors by channel and Next up remain available in the widget library.
 

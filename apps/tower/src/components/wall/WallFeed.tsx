@@ -15,11 +15,9 @@
 //
 // A task line opens its task page; no other line is a control, and nothing on
 // a TV is pressed. Colour is tokens only, and the
-// glyph carries the kind, so colour is never alone. A task line by a known
-// agent draws that agent's mark in the glyph's place, with the glyph as a badge
-// on its corner; a person's pick keeps the glyph and leads with the person's
-// name and the option chosen; a line about a site draws the site's icon for a
-// dark surface beside its name.
+// glyph carries the kind, so colour is never alone. A line about an
+// asset draws its icon with an event-kind badge; the header carries a known
+// agent's small mark and model. Assetless events keep their agent or kind icon.
 
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -258,7 +256,12 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       className={cn("wall-feed-tint pointer-events-none absolute inset-0 rounded-xl", tone.tint)}
                     />
                   ) : null}
-                  {maker && item.who ? (
+                  {item.asset ? (
+                    <span className="wall-feed-glyph relative" role="img" aria-label={item.site ?? item.asset} title={item.site ?? item.asset} data-feed-asset={item.asset}>
+                      <PropertyFavicon domain={item.asset} icons={icons?.get(item.asset)} scheme="dark" displayName={item.site ?? item.asset} className="wall-feed-glyph" />
+                      <span data-feed-badge className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}><Glyph className="size-2.5" aria-hidden /></span>
+                    </span>
+                  ) : maker && item.who ? (
                     <span className="wall-feed-glyph relative" data-feed-agent={maker}>
                       <AgentMark name={item.who} models={[item.model ?? null]} size="feed" className="wall-feed-agent-mark" />
                       <span
@@ -276,24 +279,18 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                   <span className="relative flex min-w-0 flex-col gap-0.5">
                     <span className="wall-feed-label truncate font-semibold" data-feed-label>
                       <span className={cn("uppercase tracking-[0.05em]", tone.ink)}>{item.label}</span>
-                      {item.site ? (
-                        <span className="text-muted-foreground">
-                          {" · "}
-                          {item.asset ? (
-                            <PropertyFavicon
-                              domain={item.asset}
-                              icons={icons?.get(item.asset)}
-                              scheme="dark"
-                              displayName={item.site}
-                              className="mr-1.5 -my-[0.25em] inline-grid size-[1.45em] align-middle text-[0.8em] font-bold text-foreground"
-                            />
-                          ) : null}
-                          {item.site}
+                      {maker && item.who ? (
+                        <span className="text-muted-foreground" data-feed-model>
+                          {" · "}<span data-feed-agent={maker}><AgentMark name={item.who} models={[item.model ?? null]} size="small" className="wall-feed-header-agent" /></span>{" "}{item.model ?? item.who}
                         </span>
+                      ) : item.model ? (
+                        <span className="text-muted-foreground" data-feed-model>{" · "}{item.model}</span>
+                      ) : !item.asset && item.site ? (
+                        <span className="text-muted-foreground">{" · "}{item.site}</span>
                       ) : null}
                     </span>
                     <span
-                      className={cn("wall-feed-text line-clamp-2", aged ? "text-muted-foreground" : "text-foreground")}
+                      className={cn("wall-feed-text line-clamp-3", aged ? "text-muted-foreground" : "text-foreground")}
                       data-feed-text
                     >
                       {item.who ? (
@@ -310,7 +307,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       ) : null}
                       {item.text}
                     </span>
-                    {item.who && (item.model || item.evidence) ? <FeedEvidence model={item.model ?? null} evidence={item.evidence ?? null} /> : null}
+                    {item.evidence ? <FeedEvidence evidence={item.evidence} /> : null}
                   </span>
                   <time
                     dateTime={item.at}
@@ -344,13 +341,12 @@ function FeedRow({ task, children }: { task?: string; children: ReactNode }) {
   );
 }
 
-/** A worker's line's model and a close's pointers: the commit and links the
- * closer cited, as small chips; the sentence itself is the task's line. */
-function FeedEvidence({ model, evidence }: { model: string | null; evidence: string | null }) {
+/** A close's evidence pointers, kept separately from its task title. */
+function FeedEvidence({ evidence }: { evidence: string }) {
   const pointers = evidence ? evidenceParts(evidence).filter((part) => part.kind !== "text") : [];
+  if (!pointers.length) return null;
   return (
     <span className="wall-feed-meta flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-muted-foreground" data-feed-evidence>
-      {model ? <span>{model}</span> : null}
       {pointers.map((part, index) => (
         <span key={index} className={cn("rounded-md bg-background/60 px-1.5 py-px", part.kind === "commit" && "font-mono")}>{part.text}</span>
       ))}
