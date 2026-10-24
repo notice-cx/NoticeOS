@@ -39,8 +39,8 @@ describe("the revenue widget", () => {
     expect(change.getAttribute("data-tone")).toBe("positive");
     // Observed cumulative revenue, its forecast and the prior total share a scale.
     expect(section.querySelector('[data-metric-previous-total]')).not.toBeNull();
-    expect(section.querySelector('[data-chart-line="solid"]')).not.toBeNull();
-    expect(section.querySelector('[data-chart-line="projection"]')).not.toBeNull();
+    expect(section.querySelector('[data-metric-cumulative-bar="current"]')).not.toBeNull();
+    expect(section.querySelector('[data-metric-cumulative-bar="forecast"]')).not.toBeNull();
     expect(section.textContent).toContain('Aug total $1,458');
   });
 

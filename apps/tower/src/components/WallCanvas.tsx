@@ -35,6 +35,7 @@ import { WallLoop } from "@/components/wall/WallLoop";
 import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
 import { WallTimelineWidget } from "@/components/wall/WallTimeline";
 import { WallWork } from "@/components/wall/WallWork";
+import { WallMetricScope, type WallMetricEditing } from "@/components/wall/WallMetricEditing";
 import { useNow } from "@/hooks/useNow";
 import { agentsWeek } from "@/lib/agents-week";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,7 @@ export interface WallCanvasProps {
   /** The editor's slot. Whatever it returns replaces the widget in its own
    * grid track. The TV passes nothing. */
   editing?: (slot: WallWidgetSlot) => ReactNode;
+  metricEditing?: WallMetricEditing;
   /** The words of the view the TV is drawn for; the revenue widget reads it. */
   wordLevel?: WordLevel;
 }
@@ -151,6 +153,7 @@ export function WallCanvas({
   lastGood = false,
   connections,
   editing,
+  metricEditing,
   wordLevel,
 }: WallCanvasProps) {
   // The TV switch filters site rows and counts. Revenue and the live feed
@@ -174,7 +177,7 @@ export function WallCanvas({
       case "loop":
         return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
-        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} wordLevel={wordLevel} />;
+        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} wordLevel={wordLevel} widget={widget} />;
       case "timeline": {
         const assets = filterWallAssets(data.assets, widget.settings);
         // Its marks are the feed's, read on its own like the feed column's.
@@ -194,7 +197,7 @@ export function WallCanvas({
         );
       }
       case "work":
-        return <WallWork assets={filterWallAssets(sitesInWork(data), widget.settings)} operator={data.operator} nowMs={nowMs} />;
+        return <WallWork assets={filterWallAssets(sitesInWork(data), widget.settings)} operator={data.operator} nowMs={nowMs} widget={widget} />;
       case "needs":
         return (
           <NeedsYou
@@ -214,7 +217,8 @@ export function WallCanvas({
         const assets = filterWallAssets(data.assets, widget.settings);
         return (
           <SiteRows
-            assets={assets}
+            assets={metricEditing?.focusAssetId ? assets.filter(asset => asset.id === metricEditing.focusAssetId) : assets}
+            widget={widget}
             pulseMetrics={widget.settings?.pulseMetrics}
             workAssets={new Set(sitesInWork(data).map(asset => asset.id))}
             issues={wallIssues({
@@ -314,7 +318,7 @@ export function WallCanvas({
               </div>
             );
           }
-          const node = draw(slot);
+          const node = <WallMetricScope widgetId={slot.id} editing={metricEditing}>{draw(slot)}</WallMetricScope>;
           return stacked(slot, editing ? editing({ widget: slot, row, rowIndex, column, index, node }) : node);
         })}
       </div>
