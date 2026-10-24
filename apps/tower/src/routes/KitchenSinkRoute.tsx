@@ -191,6 +191,8 @@ import { WallVersions } from "@/components/wall/WallVersions";
 import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
 import { WallMetricPanel } from "@/components/wall/WallMetricPanel";
 import { WallMetricFocus } from "@/components/wall/WallMetricFocus";
+import { WallTvPresets } from "@/components/wall/WallTvPresets";
+import { tvPreviewOf, tvPresetOf } from "@/lib/wall-tv-presets";
 import type { MetricTileSelection } from "@/components/wall/WallMetricEditing";
 import {
   wallCanRedo,
@@ -5936,7 +5938,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="WallMetricPanel · WallMetricFocus (shared Portfolio / Work / Revenue)">
+          <Section title="WallTvPresets · WallMetricPanel · WallMetricFocus (shared Portfolio / Work / Revenue)">
             <WallMetricEditorDemo />
           </Section>
 
@@ -5956,13 +5958,15 @@ function WallMetricEditorDemo() {
   const widget = wallLayoutWidgets(state.layout).find(item => item.id === selection.widgetId)!;
   const tiles = wallMetricTiles(widget);
   const metricEditing = { selection, onSelect: setSelection };
+  const tvPreset = tvPresetOf(state.layout);
   return <div className="flex min-w-0 flex-col gap-4">
+    <WallTvPresets value={tvPreviewOf(state.layout)} onChange={value => dispatch({ type: "tv-preview", value })} onValidityChange={() => {}} />
     <div className="flex flex-wrap gap-2">{["sites", "work", "revenue"].map(id => <Button key={id} type="button" size="sm" variant={selection.widgetId === id ? "default" : "outline"} onClick={() => {
       const next = wallLayoutWidgets(state.layout).find(item => item.id === id)!;
       setSelection({ widgetId: id, tileId: wallMetricTiles(next)[0]!.id });
     }}>{id === "sites" ? "Portfolio" : id === "work" ? "Work" : "Revenue"}</Button>)}<Button type="button" size="sm" variant="outline" disabled={!wallCanUndo(state)} onClick={() => dispatch({ type: "undo" })}>Undo tile edit</Button></div>
     <div className={focused ? "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]" : "flex min-w-0 flex-col gap-4"}>
-      {focused ? <WallMetricFocus widget={widget} data={WALL_DEMO_PAYLOAD} nowMs={NOW} metricEditing={metricEditing} onBack={() => setFocused(false)} onAsset={assetId => setSelection(current => ({ ...current, assetId }))} /> : <WallPreview layout={state.layout} data={WALL_DEMO_PAYLOAD} nowMs={NOW} selectedId={widget.id} onSelect={() => {}} onRemove={() => {}} metricEditing={metricEditing} />}
+      {focused ? <WallMetricFocus widget={widget} tvPreset={tvPreset} data={WALL_DEMO_PAYLOAD} nowMs={NOW} metricEditing={metricEditing} onBack={() => setFocused(false)} onAsset={assetId => setSelection(current => ({ ...current, assetId }))} /> : <WallPreview layout={state.layout} tvPreset={tvPreset} data={WALL_DEMO_PAYLOAD} nowMs={NOW} selectedId={widget.id} onSelect={() => {}} onRemove={() => {}} metricEditing={metricEditing} />}
       <WallMetricPanel widget={widget} selectedTileId={tiles.some(tile => tile.id === selection.tileId) ? selection.tileId : tiles[0]?.id ?? null} assets={WALL_DEMO_PAYLOAD.assets} focused={focused} layout={focused ? "side" : "bottom"} onFocus={() => setFocused(value => !value)} onSelectTile={tileId => setSelection(current => ({ ...current, tileId }))} onSettings={settings => dispatch({ type: "settings", widgetId: widget.id, settings })} />
     </div>
   </div>;

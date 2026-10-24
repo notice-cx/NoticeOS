@@ -16,6 +16,7 @@ test("TV preset previews match the Wall at the corresponding effective viewport"
       await page.getByLabel("TV preset", { exact: true }).selectOption(preset);
       if (portrait) {
         await page.getByText("Edit presets", { exact: true }).click();
+        await page.getByLabel("Resolution", { exact: true }).selectOption("custom");
         await page.getByLabel("Width", { exact: true }).fill(String(width));
         await page.getByLabel("Height", { exact: true }).fill(String(height));
       }
@@ -71,12 +72,20 @@ test("custom TV presets preview immediately, validate, undo and save across relo
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   const preset = page.getByLabel("TV preset", { exact: true });
   const preview = page.locator("[data-wall-preview]");
+  await page.getByLabel("Resolution", { exact: true }).selectOption("4k");
+  await page.getByLabel("Display scaling", { exact: true }).selectOption("200");
+  await expect(preview).toHaveAttribute("data-wall-preview-width", "1920");
+  await expect(page.getByLabel("Width", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Display scaling", { exact: true }).selectOption("100");
+  await expect(preview).toHaveAttribute("data-wall-preview-width", "3840");
+  await page.getByLabel("Resolution", { exact: true }).selectOption("1440p");
+  await expect(preview).toHaveAttribute("data-wall-preview-width", "2560");
   await preset.selectOption("4k-200");
   await expect(preview).toHaveAttribute("data-wall-preview-width", "1920");
   await page.getByText("Edit presets", { exact: true }).click();
   await page.getByRole("button", { name: "Add preset", exact: true }).click();
   await page.getByLabel("Preset name", { exact: true }).fill("Living room TV");
-  await page.getByLabel("Display scaling", { exact: true }).fill("150");
+  await page.getByLabel("Display scaling", { exact: true }).selectOption("150");
   await expect(preview).toHaveAttribute("data-wall-preview-width", "2560");
   await expect(preview).toHaveAttribute("data-wall-preview-height", "1440");
   const bar = page.locator("[data-wall-save-bar]");
@@ -84,6 +93,7 @@ test("custom TV presets preview immediately, validate, undo and save across relo
   await expect(preview).toHaveAttribute("data-wall-preview-width", "1920");
   await bar.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(preview).toHaveAttribute("data-wall-preview-width", "2560");
+  await page.getByLabel("Resolution", { exact: true }).selectOption("custom");
   await page.getByLabel("Width", { exact: true }).fill("");
   await expect(page.getByLabel("Width", { exact: true })).toHaveAttribute("aria-invalid", "true");
   await expect(bar.getByRole("button", { name: "Save", exact: true })).toBeDisabled();

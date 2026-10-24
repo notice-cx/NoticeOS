@@ -227,9 +227,10 @@ test("Wall gallery specimens use TV tokens in light and dark themes", { tag: DEV
   for (const theme of ["light", "dark"]) {
     await page.addInitScript(value => localStorage.setItem("noticeos:theme", value), theme);
     await page.goto("/dev/kitchen-sink");
-    await expect(page.locator("#boot-splash")).toHaveCount(0);
     const specimens = page.locator(".wall-root");
-    await expect(specimens.first()).toBeAttached();
+    // Cold Vite compilation precedes the gallery mount; splash release starts after it.
+    await expect(specimens.first()).toBeAttached({ timeout: 30_000 });
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
     const drawn = await specimens.evaluateAll(roots => roots.map(root => {
       const style = getComputedStyle(root);
       return { theme: root.closest("[data-theme]")?.getAttribute("data-theme"), color: style.color,

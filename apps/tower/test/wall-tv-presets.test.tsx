@@ -10,9 +10,27 @@ function Harness({ initial = DEFAULT_WALL_TV_PREVIEW }: { initial?: WallTvPrevie
   return <><WallTvPresets value={value} onChange={setValue} onValidityChange={setValid} /><output data-testid="value">{JSON.stringify(value)}</output><output data-testid="valid">{String(valid)}</output></>;
 }
 const current = () => JSON.parse(screen.getByTestId("value").textContent!) as WallTvPreview;
-const edit = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
+const edit = (label: string, value: string) => {
+  if ((label === "Width" || label === "Height") && !screen.queryByLabelText(label, { exact: true })) fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "custom" } });
+  if (label === "Custom scaling" && !screen.queryByLabelText(label, { exact: true })) fireEvent.change(screen.getByLabelText("Display scaling"), { target: { value: "custom" } });
+  fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
+};
 
 describe("TV preset controls", () => {
+  it("offers actual resolution and scaling presets before any manual fields", () => {
+    render(<Harness />);
+    expect(screen.queryByLabelText("Width", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Custom scaling", { exact: true })).not.toBeInTheDocument();
+    edit("Resolution", "4k");
+    expect(current().presets[0]).toMatchObject({ width: 3840, height: 2160, name: "4K · 100%" });
+    edit("Display scaling", "200");
+    expect(current().presets[0]).toMatchObject({ width: 3840, height: 2160, scale: 200, name: "4K · 200%" });
+    expect(screen.getByText(/1920 × 1080 preview/)).toBeInTheDocument();
+    edit("Resolution", "1440p");
+    edit("Display scaling", "100");
+    expect(screen.getByText(/2560 × 1440 preview/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Width", { exact: true })).not.toBeInTheDocument();
+  });
   it("selects a physical display and shows its effective scaled preview", () => {
     render(<Harness />);
     expect(screen.getByLabelText("TV preset")).toHaveValue("1080p-100");
@@ -36,7 +54,7 @@ describe("TV preset controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove preset" }));
     expect(current().presets).toHaveLength(5);
   });
-  it.each([["Preset name", ""], ["Width", ""], ["Width", "639"], ["Height", "4321"], ["Display scaling", "301"], ["Display scaling", "99.5"]])("keeps invalid %s=%s local without replacing the valid preview", (label, value) => {
+  it.each([["Preset name", ""], ["Width", ""], ["Width", "639"], ["Height", "4321"], ["Custom scaling", "301"], ["Custom scaling", "99.5"]])("keeps invalid %s=%s local without replacing the valid preview", (label, value) => {
     render(<Harness />);
     const before = current();
     edit(label, value);

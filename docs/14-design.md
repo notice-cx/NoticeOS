@@ -644,9 +644,10 @@ Wall is viewed from.
 The operator arranges widgets at `/wall/edit` and never authors widget types.
 The editor shows the TV's own layout, rendered by the same component at the
 selected TV preset's effective viewport and scaled to fit the window.
-"TV preset" selects a named physical resolution and display scaling; 4K at
-200% provides a 1920×1080 viewport. "Edit presets" changes the name, resolution
-and scaling and adds or removes presets. The preview and asset-row fit count
+"TV preset" selects a named display profile. "Resolution" and "Display scaling"
+offer common values directly; 4K at 200% provides a 1920×1080 viewport.
+"Custom" shows manual dimensions or scaling. "Edit presets" changes the name
+and adds or removes profiles. The preview and asset-row fit count
 update immediately. Presets save with the layout and support Undo, Redo and
 Versions. The TV uses its browser's current viewport to render the saved
 arrangement. Its structure is a row of stacks: a row

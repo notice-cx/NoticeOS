@@ -974,6 +974,18 @@ describe("Wall tile transparency", () => {
 });
 
 describe("TV preview presets", () => {
+  it("changes a preset resolution atomically and undoes both dimensions together", () => {
+    renderEditor();
+    fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "4k" } });
+    expect(screen.getByText(/3840 × 2160 · 100% scaling/)).toBeInTheDocument();
+    fireEvent.click(toolbarButton("Undo"));
+    expect(screen.getByLabelText("Resolution")).toHaveValue("1080p");
+    expect(toolbarButton("Undo")).toBeDisabled();
+    fireEvent.click(toolbarButton("Redo"));
+    expect(screen.getByLabelText("Resolution")).toHaveValue("4k");
+    fireEvent.click(saveButton());
+    expect(savedLayout().tvPreview?.presets[0]).toMatchObject({ width: 3840, height: 2160 });
+  });
   it("selects, undoes, redoes and saves a TV preset through the shared draft", () => {
     renderEditor();
     const select = screen.getByLabelText("TV preset");
@@ -989,6 +1001,7 @@ describe("TV preview presets", () => {
   it("blocks Save for a pending invalid number and restores it on Discard", () => {
     renderEditor();
     fireEvent.click(screen.getByText("Edit presets"));
+    fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "custom" } });
     fireEvent.change(screen.getByLabelText("Width", { exact: true }), { target: { value: "" } });
     expect(saveButton()).toBeDisabled();
     expect(screen.getByLabelText("Width", { exact: true })).toHaveAttribute("aria-invalid", "true");
@@ -996,8 +1009,8 @@ describe("TV preview presets", () => {
     expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(null);
     expect(saveButton()).toBeDisabled();
     fireEvent.click(toolbarButton("Discard"));
-    expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(1920);
-    expect(screen.getByLabelText("Width", { exact: true })).toHaveAttribute("aria-invalid", "false");
+    expect(screen.queryByLabelText("Width", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Resolution")).toHaveValue("1080p");
     expect(state.saves).toHaveLength(0);
   });
   it("keeps saved TV presets in version history", () => {
@@ -1139,12 +1152,13 @@ describe("versions", () => {
   it("clears pending invalid TV fields after a successful version Revert", async () => {
     renderEditor(saved);
     fireEvent.click(screen.getByText("Edit presets"));
+    fireEvent.change(screen.getByLabelText("Resolution"), { target: { value: "custom" } });
     fireEvent.change(screen.getByLabelText("Width", { exact: true }), { target: { value: "" } });
     expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(null);
     openDrawer("Versions");
     fireEvent.click(screen.getByRole("button", { name: "Revert" }));
-    await waitFor(() => expect(screen.getByLabelText("Width", { exact: true })).toHaveValue(1920));
-    expect(screen.getByLabelText("Width", { exact: true })).toHaveAttribute("aria-invalid", "false");
+    await waitFor(() => expect(screen.queryByLabelText("Width", { exact: true })).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Resolution")).toHaveValue("1080p");
     expect(screen.queryByText("Fix the TV preset fields before saving.")).not.toBeInTheDocument();
   });
 
