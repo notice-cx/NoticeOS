@@ -238,6 +238,9 @@ export function measureWallFit(scope) {
                 const style = getComputedStyle(el);
                 if (style.textOverflow === "ellipsis")
                     designed = true;
+                // A crawl exposes a moving window of messages; its height still has to fit.
+                if (el.hasAttribute("data-wall-crawl-viewport") && el.closest("[data-wall-attention-ticker]"))
+                    designed = true;
                 const clipsX = style.overflowX !== "visible";
                 const clipsY = scope && style.overflowY !== "visible";
                 if (!clipsX && !clipsY)

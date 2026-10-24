@@ -681,8 +681,7 @@ function attentionTones() {
     .map((node) => `${(node.getAttribute("class") ?? "").match(tone)?.[0]}: ${(node.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 60) || node.getAttribute("aria-label") || "(mark)"}`);
 }
 
-// A TV has no controls, so a stranger's first Wall must not be alarms for
-// things nobody set up: warn and error mean something broke.
+// Unconfigured sources are not failures; warn and error require an observed problem.
 test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where assets will be", desktopOnly("a Wall size check: the TV and a laptop"), async ({ page }, testInfo) => {
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
     await wallAt(page, [width, height]);
@@ -690,8 +689,8 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
     await expect(page.locator("[data-system-state]")).toHaveCount(0);
     await expect(page.locator('[data-wall-sites="none"]')).toHaveText("No assets yet");
     await expect(page.locator("[data-wall-work]")).toContainText("Tasks unknown");
-    await expect(page.locator("[data-wall-needs]")).toContainText("Tasks unknown");
-    await expect(page.locator("[data-wall-needs]")).toContainText("Nothing broken");
+    await expect(page.locator("[data-wall-needs]")).toContainText("Task status unavailable");
+    await expect(page.locator("[data-wall-needs]")).not.toContainText("Nothing needs attention");
     expect(await page.evaluate(attentionTones), `the empty Wall at ${width}×${height}`).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`wall-empty-${width}.png`) });
   }
@@ -748,6 +747,7 @@ function wallLegibility(scope: string) {
       for (let el: Element | null = parent; el && el !== root; el = el.parentElement) {
         const style = getComputedStyle(el);
         if (style.textOverflow === "ellipsis") designedTruncation = true;
+        if (el.hasAttribute("data-wall-crawl-viewport") && el.closest("[data-wall-attention-ticker]")) designedTruncation = true;
         const box = el.getBoundingClientRect();
         if (style.overflowY !== "visible") {
           top = Math.max(top, box.top);
@@ -857,7 +857,7 @@ function expectStackedInOrder(stack: ReturnType<typeof wallStack>, at: string) {
   expect(stack.feed.shown, `${at}: the feed lists at most the TV's rows`).toBe(Math.min(stack.feed.fetched, WALL_FEED_TV_ROWS));
   expect(stack.feed.newestFirst, `${at}: the feed newest first`).toBe(true);
   const order = [...stack.regions].sort((a, b) => a.top - b.top).map((region) => region.name);
-  expect(order, `${at}: strip, revenue, assets, Needs attention, feed`).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
+  expect(order, `${at}: this custom layout stacks strip, revenue, attention, assets, feed`).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
   for (const region of stack.regions) {
     expect(Math.abs(region.left - stack.canvas.left), `${at}: ${region.name} starts at the column's edge`).toBeLessThanOrEqual(1);
     expect(Math.abs(region.right - stack.canvas.right), `${at}: ${region.name} spans the column`).toBeLessThanOrEqual(1);
@@ -1872,20 +1872,23 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   );
   expect(lineSizes.length).toBeGreaterThan(0);
   for (const { drawn, step } of lineSizes) expect(drawn).toBe(step);
-  // One list ramp: a Needs attention row and a feed row draw their label, main line
-  // and meta at the same sizes, so neither list reads louder than the other.
-  await expect(page.locator("[data-wall-needs] [data-needs-row]")).toHaveCount(1);
+  // Ticker messages use the body step; feed rows retain their label and age steps.
+  const ticker = page.locator("[data-wall-attention-ticker]");
+  const message = ticker.locator('[data-attention-copy="original"] [data-attention-item="problem:alert-9001"]');
+  await expect(message).toHaveCount(1);
+  await expect(message.locator("a")).toHaveAttribute("href", "/assets/plume.example");
+  await expect(ticker.locator('button[aria-label="Pause attention ticker"]')).toBeAttached();
   const ramp = await page.evaluate(() => {
     const size = (selector: string) => {
       const found = document.querySelector(selector);
       return found ? parseFloat(getComputedStyle(found).fontSize) : null;
     };
     return {
-      needs: [size("[data-needs-site]"), size("[data-needs-line]"), size("[data-needs-age]")],
+      ticker: [size('[data-attention-copy="original"] [data-needs-site]'), size('[data-attention-copy="original"] [data-needs-line]')],
       feed: [size("[data-feed-label]"), size("[data-feed-text]"), size("[data-feed-time]")],
     };
   });
-  expect(ramp.needs, "Needs attention and the feed share one list ramp").toEqual(ramp.feed);
+  expect(ramp.ticker, "ticker identity and message use the body step").toEqual([18, 18]);
   expect(ramp.feed, "label, main line and meta at 1920").toEqual([14, 18, 14]);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-before.png") });
 
@@ -2320,6 +2323,7 @@ test("a filtered backlog is closed as Already handled in one action from All tas
 test("partial Wall decisions use lower-bound words without comparison chips", async ({ page }, testInfo) => {
   await wallScene(page);
   const partial = wallFixturePayload();
+  delete partial.attentionTasks;
   partial.operator = { ...partial.operator!, waiting: 12, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1 };
   await page.route("**/api/wall", (route) => route.fulfill({ json: partial }));
   await page.goto("/wall");
@@ -2328,7 +2332,8 @@ test("partial Wall decisions use lower-bound words without comparison chips", as
   await expect(decisions.locator('.wall-metric-value')).toHaveText('12');
   await expect(decisions).toContainText("at least 1 urgent");
   await expect(decisions.locator(".wall-metric-movement")).toHaveCount(0);
-  await expect(page.locator("[data-wall-needs]")).toContainText("at least 1 urgent");
+  await expect(page.locator("[data-wall-needs]")).toContainText("Task status unavailable");
+  await expect(page.locator("[data-wall-needs]")).not.toContainText("Nothing needs attention");
   await assertNoPageOverflow(page);
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("wall-partial-counts.png"), fullPage: true });

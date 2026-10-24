@@ -298,7 +298,7 @@ function warnings(): (string | null)[] {
 }
 
 /** The default Wall, in the order the preview draws it. */
-const DEFAULT_DRAWN = ["strip", "work", "sites", "revenue", "needs", "feed"];
+const DEFAULT_DRAWN = ["strip", "work", "needs", "sites", "revenue", "feed"];
 const SAVED_DRAWN = ["strip", "loop", "timeline", "sites", "revenue", "work"];
 const SAVED_COLUMNS: WallConfig = { layout: SAVED_COLUMN_LAYOUT, history: [] };
 
@@ -579,7 +579,7 @@ describe("adding and removing", () => {
     expect(screen.queryByRole("button", { name: "Add Work" })).toBeNull();
     const row = document.querySelector('[data-wall-library-item="work"]');
     expect(row?.querySelector('[data-wall-library-refusal="On the TV"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Add Needs attention" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Attention ticker" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Live feed" })).toBeTruthy();
     // An offered widget can be dragged onto the TV as well as added.
     expect(document.querySelector('[data-wall-library-item="feed"]')?.getAttribute("draggable")).toBe("true");
@@ -1068,9 +1068,12 @@ describe("save", () => {
       expect: null,
     });
     expect(request?.slug).toBe("wall-layout");
-    // Removing the Work widget preserves the sites and the untouched side column.
+    // The attention and Portfolio rows keep their column after Work is removed.
     expect(savedLayout().rows[1]?.widgets).toEqual([
-      { id: "sites", type: "sites", width: 3.25 },
+      { id: "business", type: "column", width: 3.25, rows: [
+        { id: "needs", height: "auto", widgets: [{ id: "needs", type: "needs", width: 1 }] },
+        { id: "sites", height: "fill", widgets: [{ id: "sites", type: "sites", width: 1 }] },
+      ] },
       DEFAULT_WALL_LAYOUT.rows[1]?.widgets[1],
     ]);
   });

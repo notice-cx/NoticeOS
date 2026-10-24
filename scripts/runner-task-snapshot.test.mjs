@@ -17,6 +17,37 @@ import {
 const PROJECT = { asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' };
 const ok = (value) => ({ code: 0, stdout: JSON.stringify(value), stderr: '' });
 
+test('attention retains every urgent task and unresolved human decision before board samples', () => {
+  const active = Array.from({ length: 24 }, (_, index) => ({ id: `shop-${index}`, title: `Urgent ${index}`, status: index % 2 ? 'blocked' : 'in_progress', priority: 1, issue_type: 'task' }));
+  const ordinary = { id: 'shop-ask', title: 'Choose a name', status: 'open', priority: 3, issue_type: 'task' };
+  const gate = { id: 'shop-gate', title: 'Approve publishing', status: 'open', priority: 4, issue_type: 'gate', await_type: 'human' };
+  const excluded = [{ id: 'shop-epic', issue_type: 'epic', priority: 0, status: 'open' }, { id: 'shop-parked', issue_type: 'task', priority: 0, status: 'deferred' }, { id: 'shop-closed', issue_type: 'task', priority: 0, status: 'closed' }];
+  const entry = summarizeBeadsProject(PROJECT, { active: ok([...active, ordinary, ...excluded]), ready: ok([ordinary]), blocked: ok(active.filter(row => row.status === 'blocked')), closed: ok([]), human: ok([ordinary]), gates: ok([gate]) });
+  assert.equal(entry.attentionTasks.complete, true);
+  assert.equal(entry.attentionTasks.items.length, 26);
+  assert.equal(entry.inProgress.length, 10);
+  assert.equal(entry.blocked.length, 10);
+  assert.equal(entry.attentionTasks.items.find(row => row.id === 'shop-23').decision, false);
+  assert.equal(entry.attentionTasks.items.find(row => row.id === ordinary.id).decision, true);
+  assert.equal(entry.attentionTasks.items.find(row => row.id === gate.id).decision, true);
+  assert.equal(new Set(entry.attentionTasks.items.map(row => row.id)).size, 26);
+});
+
+test('an unread human register preserves known urgent rows without complete coverage', () => {
+  const urgent = { id: 'shop-p1', title: 'Repair', status: 'blocked', priority: 1, issue_type: 'task' };
+  const entry = summarizeBeadsProject(PROJECT, { active: ok([urgent]), ready: ok([]), blocked: ok([urgent]), closed: ok([]), human: { code: 1, stderr: 'unavailable', stdout: '' }, gates: ok([]) });
+  assert.equal(entry.attentionTasks.complete, false);
+  assert.deepEqual(entry.attentionTasks.items.map(row => row.id), [urgent.id]);
+});
+
+test('attention above the transport safety bound is unknown rather than a truncated complete list', async () => {
+  const { BEADS_ATTENTION_TASKS_MAX } = await import('../packages/contract/src/task-snapshot.mjs');
+  const active = Array.from({ length: BEADS_ATTENTION_TASKS_MAX + 1 }, (_, index) => ({ id: `shop-${index}`, title: 'Urgent', status: 'open', priority: 1, issue_type: 'task' }));
+  const entry = summarizeBeadsProject(PROJECT, { active: ok(active), ready: ok([]), blocked: ok([]), closed: ok([]), human: ok([]), gates: ok([]) });
+  assert.equal(Object.hasOwn(entry, 'attentionTasks'), false);
+  assert.equal(entry.counts.highPriority, active.length);
+});
+
 /** A `bd` that answers every poll read with `answers[key]`, or an empty list. */
 function bdAnswering(answers = {}) {
   const keys = Object.entries(beadsPollArgs('/r', '2026-09-17'));

@@ -1032,6 +1032,23 @@ export interface WallNextUp {
   capturedAt: string;
 }
 
+export interface WallAttentionTask {
+  id: string;
+  title: string;
+  asset: string;
+  priority: number;
+  ask: WallDecisionAsk | null;
+  updatedAt: string | null;
+}
+
+/** Coverage dates the stored task reading, independently of Wall refreshes. */
+export interface WallAttentionTasks {
+  items: WallAttentionTask[];
+  capturedAt: string | null;
+  measuredProjects: number;
+  projectCount: number;
+}
+
 /** What one Wall refresh computes (`buildWallPayload`): the TV and the desk
  * pages read it, and the MCP `list_properties` tool hands part of it to
  * agents. Every key names the screen that draws it in
@@ -1059,6 +1076,8 @@ export interface WallPayload {
   /** Next up's decisions and held work. Absent from an older Worker; null
    * until a task snapshot is read. */
   next?: WallNextUp | null;
+  /** Urgent work and unresolved human decisions; absent from an older Worker. */
+  attentionTasks?: WallAttentionTasks | null;
   /** Latest ledger recorded_at: how old the ledger is. The MCP `list_properties`
    * tool hands it to agents beside the portfolio (worker/mcp-route.ts). */
   ledgerRecordedAt: string | null;

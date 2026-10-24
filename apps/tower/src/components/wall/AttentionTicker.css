@@ -1,0 +1,44 @@
+.attention-ticker {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  min-width: 0;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+  overflow: hidden;
+}
+.attention-ticker-viewport { min-width: 0; flex: 1; overflow: hidden; outline-offset: -2px; }
+.attention-ticker-track { display: flex; width: max-content; }
+.attention-ticker-sequence {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 8);
+  flex-shrink: 0;
+  width: max-content;
+  margin: 0;
+  padding: 0 calc(var(--spacing) * 8) 0 0;
+  list-style: none;
+}
+.attention-ticker-item, .attention-ticker-link, .attention-ticker-status, .attention-ticker-empty { display: flex; align-items: center; gap: calc(var(--spacing) * 2); white-space: nowrap; }
+.attention-ticker-item > svg, .attention-ticker-status > svg, .attention-ticker-empty > svg, .attention-ticker-toggle > svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+.attention-ticker-link { color: var(--foreground); text-decoration: none; }
+.attention-ticker-link:hover { text-decoration: underline; }
+.attention-ticker-asset { color: var(--muted-foreground); font-weight: 600; }
+.attention-ticker-toggle { flex-shrink: 0; max-width: 2.5rem; max-height: 2.5rem; }
+.attention-ticker-viewport:focus-visible, .attention-ticker-link:focus-visible { outline: 2px solid var(--ring); }
+@keyframes attention-ticker-crawl { to { transform: translateX(calc(-1 * var(--attention-distance))); } }
+@media (prefers-reduced-motion: no-preference) {
+  .attention-ticker[data-attention-moving="true"] .attention-ticker-track { animation: attention-ticker-crawl var(--attention-duration) linear infinite; }
+  .attention-ticker:hover .attention-ticker-track, .attention-ticker:focus-within .attention-ticker-track, .attention-ticker[data-attention-paused="true"] .attention-ticker-track { animation-play-state: paused; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .attention-ticker-viewport { overflow-x: auto; scrollbar-width: none; }
+  .attention-ticker-viewport::-webkit-scrollbar { display: none; }
+  .attention-ticker [data-attention-copy="duplicate"], .attention-ticker-toggle { display: none; }
+}
+
+.attention-ticker-viewport:focus-within { overflow-x: auto; scrollbar-width: none; }
+.attention-ticker-viewport:focus-within::-webkit-scrollbar { display: none; }
+.attention-ticker-viewport:focus-within .attention-ticker-track { animation: none; }
+.attention-ticker-viewport:focus-within [data-attention-copy="duplicate"] { display: none; }

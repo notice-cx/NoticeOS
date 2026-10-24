@@ -91,9 +91,12 @@ test("section grips still move a whole section independently of tile editing", {
   const grip = revenue.getByTitle("Drag to move Revenue", { exact: true });
   const from = (await grip.boundingBox())!;
   const target = (await sites.boundingBox())!;
+  const point = { x: target.x + target.width / 2, y: target.y + target.height * 0.06 };
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(target.x + target.width / 2, target.y + target.height * 0.06, { steps: 15 });
+  await page.mouse.move(point.x, point.y, { steps: 15 });
+  // The final movement can emit dragenter; another emits native dragover.
+  await page.mouse.move(point.x, point.y);
   await expect(preview.locator('[data-wall-drop-line="top"]')).toBeVisible();
   await page.mouse.up();
   await expect.poll(() => preview.evaluate(root => {

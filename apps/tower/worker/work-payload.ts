@@ -88,6 +88,7 @@ export async function buildWorkPayload(
       panelReview: _cardOnly,
       handoffs: _findingOnly,
       waitingUrgent: _wallOnly,
+      attentionTasks: _wallAttentionOnly,
       // The board reads the weeks counted from them, not the closes.
       closes,
       ...project

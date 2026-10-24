@@ -10,6 +10,16 @@ export type BeadsHandoffKind = (typeof BEADS_HANDOFF_KINDS)[number];
  * more sends none, so the week counts read as unknown rather than short. */
 export const BEADS_CLOSES_MAX = 5000;
 
+/** Safety bound for a project's complete attention list, independent of board samples. */
+export const BEADS_ATTENTION_TASKS_MAX = 5000;
+/** P0–P4 plus the existing headroom for custom tracker scales. */
+export const BEADS_PRIORITY_MAX = 9;
+
+export interface BeadsAttentionTasksInput {
+  items: (BeadsIssueInput & { decision: boolean })[];
+  complete: boolean;
+}
+
 /** The most links one task's `dependencies` carries. A poller whose read held
  * more for a task sends none for it, so its links read as not recorded rather
  * than short. */
@@ -127,6 +137,8 @@ export interface BeadsProjectInput {
   /** Urgent operator asks over the untruncated inbox: all human gates plus
    * P0/P1 ready-human beads. Optional under the same rule. */
   waitingUrgent?: number;
+  /** Urgent work and unresolved human decisions before board list limits. */
+  attentionTasks?: BeadsAttentionTasksInput;
   /**
    * SERP-panel triage state. Three-valued: key absent — this poller did not
    * look, and the card draws nothing; `null` — it looked and this property has

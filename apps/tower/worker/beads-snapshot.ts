@@ -11,6 +11,7 @@ import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } fro
 import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-resolution";
 import { taskCardOf } from "@noticeos/contract/task-card";
 import { isTaskChangeClass } from "@noticeos/contract/task-change-class";
+import { BEADS_ATTENTION_TASKS_MAX, BEADS_PRIORITY_MAX } from "@noticeos/contract/task-snapshot";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
 import { PRIORITY_BANDS, type WorkCloses, type WorkCounts, type WorkDependency, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
@@ -57,6 +58,7 @@ export interface SnapshotProject {
   /** All human gates plus P0/P1 ready-human rows over the untruncated inbox.
    * null when the poller generation did not send it. */
   waitingUrgent: number | null;
+  attentionTasks?: { items: (WorkItem & { decision: boolean })[]; complete: boolean };
   /** The asset's serp-panel review task. Three-valued: `undefined` = this
    * poller did not look (an older snapshot, or a repo `bd` could not answer
    * for), `null` = it looked and this asset has no review task. The payload
@@ -329,12 +331,28 @@ function readProject(value: unknown): SnapshotProject | null {
     deferred: ok ? readItems(value.deferred) : [],
     waiting: ok ? readItems(value.waiting) : [],
     waitingUrgent: ok ? optionalCount(value.waitingUrgent) : null,
+    ...(ok ? readAttentionTasks(value.attentionTasks) : {}),
     // A repo the poller could not open told it nothing: "did not look".
     panelReview: ok ? readPanelReview(value.panelReview) : undefined,
     handoffs: ok ? readHandoffs(value.handoffs) : undefined,
     ...(ok ? readWork(value) : {}),
     ...(ok ? readCloses(value.closes) : {}),
   };
+}
+
+function readAttentionTasks(value: unknown): Pick<SnapshotProject, 'attentionTasks'> {
+  if (!isRecord(value) || !Array.isArray(value.items) || value.items.length > BEADS_ATTENTION_TASKS_MAX || typeof value.complete !== 'boolean') return {};
+  const items: NonNullable<SnapshotProject['attentionTasks']>['items'] = [];
+  const ids = new Set<string>();
+  for (const raw of value.items) {
+    const item = readItem(raw);
+    if (!item || !isRecord(raw) || typeof raw.decision !== 'boolean' || !text(raw.title) || !text(raw.status)
+      || typeof raw.priority !== 'number' || !Number.isInteger(raw.priority) || raw.priority < 0 || raw.priority > BEADS_PRIORITY_MAX || ids.has(item.id)
+      || item.status === 'closed' || item.status === 'deferred' || item.issueType === 'epic' || (!raw.decision && item.priority > 1)) return {};
+    ids.add(item.id);
+    items.push({ ...item, decision: raw.decision });
+  }
+  return { attentionTasks: { items, complete: value.complete } };
 }
 
 /** The closes, all or none: a list missing one would count a week short. */

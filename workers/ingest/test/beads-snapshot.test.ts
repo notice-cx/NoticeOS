@@ -180,6 +180,31 @@ describe('POST /api/beads-snapshot — writes', () => {
     expect(stored.projects[0]!.ready).toHaveLength(1);
   });
 
+  it('stores the full attention list independently of ordinary board limits', async () => {
+    const items = Array.from({ length: BEADS_MAX_ITEMS + 5 }, (_, index) => issue({ id: `md-urgent-${index}`, decision: false }));
+    const response = await post({ capturedAt: FIRST_TICK, projects: [project({ attentionTasks: { items, complete: true } })] });
+    expect(response.status).toBe(201);
+    const [row] = await storedRows();
+    const saved = JSON.parse(row!.payload);
+    expect(saved.projects[0].attentionTasks.items).toHaveLength(55);
+    expect(saved.projects[0].attentionTasks.complete).toBe(true);
+    expect(saved.projects[0].attentionTasks.items.at(-1)).toMatchObject({ id: 'md-urgent-54', decision: false });
+  });
+
+  it.each([{ status: 'closed' }, { status: 'deferred' }, { issueType: 'epic' }, { priority: 2 }, { decision: 'yes' }])('rejects non-actionable attention rows %j', async patch => {
+    const response = await post({ capturedAt: FIRST_TICK, projects: [project({ attentionTasks: { items: [issue({ decision: false, ...patch })], complete: true } })] });
+    expect(response.status).toBe(422);
+  });
+
+  it('preserves absent and partial attention coverage, and rejects duplicate identities', async () => {
+    const response = await post({ capturedAt: FIRST_TICK, projects: [project({ attentionTasks: { items: [issue({ decision: true, priority: 4 })], complete: false } })] });
+    expect(response.status).toBe(201);
+    const [row] = await storedRows();
+    expect(JSON.parse(row!.payload).projects[0].attentionTasks).toMatchObject({ complete: false, items: [{ decision: true, priority: 4 }] });
+    const duplicate = issue({ decision: false });
+    expect((await post({ capturedAt: SECOND_TICK, projects: [project({ attentionTasks: { items: [duplicate, duplicate], complete: true } })] })).status).toBe(422);
+  });
+
   // Two snapshots a second apart are two observations of a changing hub, not
   // the same event twice — so unlike the annotation lane there is no idempotent
   // re-post collapsing them; identical boards touch instead (the two tests above).

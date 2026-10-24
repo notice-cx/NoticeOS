@@ -21,6 +21,7 @@ import { useDocumentTitle } from "@/lib/document-title";
 import { useBootSplashRelease } from "@/lib/boot-splash";
 import { TV_ITEM } from "@/components/nav-items";
 import { calendarReadState } from "@/lib/meetings";
+import { wallWithAttentionStrip } from "@/lib/wall-attention-layout";
 
 /**
  * The layout the TV draws, read with the contract's own rule. A saved layout
@@ -35,7 +36,7 @@ export function drawnLayout(dashboard: Pick<DashboardConfig, "wall" | "view">): 
     return WALL_PRESETS[dashboard.view?.default ?? DEFAULT_VIEW];
   }
   try {
-    return parseWallConfig(dashboard.wall).layout;
+    return wallWithAttentionStrip(parseWallConfig(dashboard.wall).layout);
   } catch {
     return DEFAULT_WALL_LAYOUT;
   }

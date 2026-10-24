@@ -137,10 +137,10 @@ describe("the current default arrangement", () => {
     expect(opened.layout).toBe(DEFAULT_WALL_LAYOUT);
     expect(wallEditorRefusal(opened.layout)).toBeNull();
     const moved = run(opened, { type: "move", widgetId: "revenue", move: "down" });
-    expect(stack(moved.layout, "side")).toEqual([["needs"], ["revenue"], ["feed"]]);
+    expect(stack(moved.layout, "side")).toEqual([["feed"], ["revenue"]]);
     expect(run(moved, { type: "undo" }).layout).toBe(DEFAULT_WALL_LAYOUT);
-    expect(wallStackSizes(column(opened.layout, "business"), [156, 650], 0, .5)).toEqual({ work: 1, sites: 1 });
-    expect(wallPositionSentence(opened.layout, "revenue")).toBe("Revenue: row 2 of 2, column 2 of 2, 1 of 3 in its column");
+    expect(wallStackSizes(column(opened.layout, "side"), [324, 650], 0, .5)).toEqual({ money: 1, feed: 1 });
+    expect(wallPositionSentence(opened.layout, "revenue")).toBe("Revenue: row 2 of 2, column 2 of 2, 1 of 2 in its column");
   });
 });
 
@@ -257,11 +257,11 @@ describe("the version's description when there is no note", () => {
     const before = run(start(), { type: "remove", widgetId: "feed" }).layout;
     let state = start(before);
     state = run(state, { type: "remove", widgetId: "needs" });
-    expect(wallChangeSummary(before, state.layout)).toBe("Removed Needs attention");
+    expect(wallChangeSummary(before, state.layout)).toBe("Removed Attention ticker");
     state = run(state, { type: "add", widget: "feed" });
     state = run(state, { type: "widths", widths: { revenue: 1.6 } });
     expect(wallChangeSummary(before, state.layout)).toBe(
-      "Added Live feed · removed Needs attention · resized Revenue",
+      "Added Live feed · removed Attention ticker · resized Revenue",
     );
   });
 
@@ -277,7 +277,7 @@ describe("the version's description when there is no note", () => {
 
   it("names a stack as one move: the widget stacked onto keeps its place", () => {
     const layout = drop(FLAT, "needs", "feed", "bottom")!.layout;
-    expect(wallChangeSummary(FLAT, layout)).toBe("Moved Needs attention");
+    expect(wallChangeSummary(FLAT, layout)).toBe("Moved Attention ticker");
   });
 
   it("names a row swap as rearranged rows", () => {
@@ -308,7 +308,7 @@ describe("the Add drawer's rows", () => {
       rows: [{ id: "one", height: "fill", widgets: [{ id: "a", type: "needs", width: 1 }, { id: "b", type: "needs", width: 1 }] }],
     };
     const check = validateWallLayout(twice);
-    expect(check.ok ? null : check.reason).toBe("Needs attention can appear only once on the Wall.");
+    expect(check.ok ? null : check.reason).toBe("Attention ticker can appear only once on the Wall.");
   });
 
   it("offers a widget again once it is taken off", () => {
@@ -583,7 +583,7 @@ describe("the Move menu", () => {
 
   it("says where the widget is, for the announcement", () => {
     expect(wallPositionSentence(SAVED_COLUMN_LAYOUT, "revenue")).toBe("Revenue: row 3 of 3, column 2 of 2, 1 of 2 in its column");
-    expect(wallPositionSentence(FLAT, "needs")).toBe("Needs attention: row 1 of 2, column 3 of 3");
+    expect(wallPositionSentence(FLAT, "needs")).toBe("Attention ticker: row 1 of 2, column 3 of 3");
   });
 });
 

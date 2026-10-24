@@ -48,6 +48,7 @@ import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
 import { useWallWeather } from "@/hooks/useWallWeather";
+import { wallWithAttentionStrip } from "@/lib/wall-attention-layout";
 import {
   wallCanRedo,
   wallCanUndo,
@@ -94,7 +95,7 @@ export function readWallConfig(dashboard: DashboardConfig): {
     const config = shown === null
       ? { layout: WALL_PRESETS[dashboard.view?.default ?? DEFAULT_VIEW], history: [] }
       : parseWallConfig(shown);
-    return { raw, config, refused: refusedByStore?.reason ?? null };
+    return { raw, config: { ...config, layout: wallWithAttentionStrip(config.layout) }, refused: refusedByStore?.reason ?? null };
   } catch (err) {
     // The Worker has read it already, so this is the belt: a layout that
     // reached the browser undrawable is named rather than replaced with a

@@ -403,7 +403,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 4,
+    stackOrder: 6,
     hidesWhenEmpty: false,
     settings: ['assets'],
   },
@@ -416,20 +416,20 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 7,
+    stackOrder: 3,
     hidesWhenEmpty: false,
     settings: ['assets', 'metrics'],
   },
   needs: {
     type: 'needs',
-    label: 'Needs attention',
-    shows: ['Errors', 'Warnings', 'Urgent tasks'],
+    label: 'Attention ticker',
+    shows: ['Home problems', 'Errors and warnings', 'Urgent tasks'],
     defaultWidth: 1,
     minWidthRem: 0,
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 5,
+    stackOrder: 4,
     hidesWhenEmpty: false,
     settings: ['assets'],
   },
@@ -442,7 +442,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: true,
-    stackOrder: 3,
+    stackOrder: 5,
     hidesWhenEmpty: false,
     settings: ['assets', 'pulseMetrics', 'metrics', 'rowBackground'],
   },
@@ -533,7 +533,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 6,
+    stackOrder: 7,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -576,9 +576,9 @@ export function wallLayoutWidgets(layout: WallLayout): WallWidget[] {
 }
 
 /**
- * The default Wall: header, work above portfolio rows, and a narrower column
- * containing revenue, attention and the live feed. Existing saved layouts
- * keep their arrangement; this is also available in the editor's presets.
+ * The default Wall: header, work and attention above portfolio rows, and a narrower column
+ * containing revenue and the live feed. Custom saved layouts keep their
+ * arrangement; this is also available in the editor's presets.
  */
 export const DEFAULT_WALL_LAYOUT: WallLayout = {
   version: WALL_LAYOUT_VERSION,
@@ -603,6 +603,11 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
               widgets: [{ id: 'work', type: 'work', width: 1 }],
             },
             {
+              id: 'needs',
+              height: 'auto',
+              widgets: [{ id: 'needs', type: 'needs', width: 1 }],
+            },
+            {
               id: 'sites',
               height: 'fill',
               widgets: [{ id: 'sites', type: 'sites', width: 1 }],
@@ -618,11 +623,6 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
               id: 'money',
               height: 'auto',
               widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }],
-            },
-            {
-              id: 'needs',
-              height: 'auto',
-              widgets: [{ id: 'needs', type: 'needs', width: 1 }],
             },
             {
               id: 'feed',

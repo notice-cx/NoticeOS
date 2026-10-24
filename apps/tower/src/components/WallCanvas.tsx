@@ -23,7 +23,7 @@ import {
 } from "@shared/wall-layout";
 // Read-only imports only: `/wall` downloads everything this file imports, and
 // the route-split journey fails if editing or task code reaches the TV.
-import { NeedsYou } from "@/components/wall/NeedsYou";
+import { AttentionTicker } from "@/components/wall/AttentionTicker";
 import { NextUp } from "@/components/wall/NextUp";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
@@ -42,6 +42,7 @@ import { useNow } from "@/hooks/useNow";
 import { agentsWeek } from "@/lib/agents-week";
 import { cn } from "@/lib/utils";
 import { wallIssues } from "@/lib/wall-issues";
+import { attentionTickerItems, portfolioIssues } from "@/lib/attention-ticker";
 import type { CalendarReadState } from "@/lib/meetings";
 import {
   filterWallAssets,
@@ -204,21 +205,25 @@ export function WallCanvas({
       }
       case "work":
         return <WallWork assets={filterWallAssets(sitesInWork(data), widget.settings)} operator={data.operator} nowMs={nowMs} widget={widget} />;
-      case "needs":
-        return (
-          <NeedsYou
-            system={data.system}
-            issues={wallIssues({
-              assets: filterWallAssets(data.assets, widget.settings),
-              attention: filterWallAttention(data.attention, widget.settings),
-              connections: connections ?? NO_READS,
-              calendarState,
-              nowMs,
-            })}
-            operator={data.operator}
-            nowMs={nowMs}
-          />
-        );
+      case "needs": {
+        const assets = filterWallAssets(payload.assets, widget.settings);
+        const selected = widget.settings?.assets;
+        const tasks = payload.attentionTasks;
+        const ticker = attentionTickerItems({
+          issues: portfolioIssues({
+            assets,
+            attention: filterWallAttention(payload.attention, widget.settings),
+            system: payload.system,
+            connections: connections ?? NO_READS,
+            calendarState,
+            nowMs,
+          }),
+          tasks: tasks && selected && selected.length > 0 ? { ...tasks, items: tasks.items.filter(task => selected.includes(task.asset)) } : tasks,
+          assets: payload.assets,
+          nowMs,
+        });
+        return <AttentionTicker items={ticker.items} status={ticker.taskStatus} evaluatedConditions={["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]} />;
+      }
       case "sites": {
         const assets = filterWallAssets(data.assets, widget.settings);
         return (

@@ -351,6 +351,7 @@ export function WallWidgetPanel({
  * or null when it can: off the TV by its own setting, or, for Work, off Work
  * this week by its own. */
 function siteOffWords(asset: AssetCard, display: SiteDisplay | undefined, type: string): string | null {
+  if (type === "needs") return null;
   const shown = siteShownOn(asset, display);
   if (!shown.tv) return "Off on the TV by its own setting";
   if (type === "work" && !shown.work) return "Off in Work this week by its own setting";
