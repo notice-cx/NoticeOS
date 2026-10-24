@@ -7,7 +7,7 @@ import { currentRealtimeDay } from "./realtime-day";
 /** Daily distinct users come only from an exact daily observation, never summed activity buckets. */
 export function todayUserCounts(asset: AssetCard, snapshot: Ga4RealtimeAsset | undefined, nowMs: number) {
   const activityZone = currentRealtimeDay(snapshot, nowMs)?.timeZone ?? (snapshot?.status === "success" ? snapshot.timeZone : null);
-  const timeZone = asset.activeUsers.timeZone ?? activityZone;
+  const timeZone = asset.activeUsers.timeZone ?? null;
   let date: string | null = null;
   try { if (timeZone) date = revenueCalendarDate(new Date(nowMs), timeZone); } catch { date = null; }
   let activityDate: string | null = null;

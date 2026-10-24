@@ -25,15 +25,19 @@ describe("the Today daily distinct-user totals", () => {
     asset.activeUsers.contextSeries = [{ t: "2026-09-15", v: 81 }];
     expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ today: null, reference: 81 });
   });
-  it("preserves genuine zeros and resolves the current date on the snapshot's calendar", () => {
+  it("preserves genuine zeros and resolves the current date on the provider's calendar", () => {
     const { asset, snapshot } = fixture();
     snapshot.timeZone = "Pacific/Auckland";
+    asset.activeUsers.timeZone = "Pacific/Auckland";
     asset.activeUsers.series = [{ t: "2026-09-16", v: 0 }, { t: "2026-09-23", v: 0 }];
     expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ date: "2026-09-23", today: 0, reference: 0 });
   });
   it("does not guess a date without timezone metadata or invent a count for an unreported day", () => {
     const { asset, snapshot } = fixture();
+    delete asset.activeUsers.timeZone;
     expect(todayUserCounts(asset, undefined, nowMs)).toMatchObject({ today: null, reference: null, date: null });
+    expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ today: null, reference: null, date: null, timeZone: null, activityDateMatches: false });
+    asset.activeUsers.timeZone = "America/Los_Angeles";
     asset.activeUsers.series = [];
     asset.activeUsers.contextSeries = [];
     expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ today: null, reference: null });

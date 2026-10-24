@@ -66,7 +66,9 @@ describe("the asset rows", () => {
     expect(site.querySelector('[data-site-today-chart] svg')).toBeNull();
   });
   it("labels each asset's comparison weekday in its own reporting timezone", () => {
-    const assets = wallFixturePayload().assets.slice(0, 2);
+    const assets = structuredClone(wallFixturePayload().assets.slice(0, 2));
+    assets[0]!.activeUsers.timeZone = "America/Los_Angeles";
+    assets[1]!.activeUsers.timeZone = "Pacific/Auckland";
     const realtime = wallFixtureRealtime();
     realtime.assets = realtime.assets.filter(snapshot => assets.some(asset => asset.id === snapshot.asset)).map((snapshot, index) => snapshot.status === "success"
       ? { ...snapshot, timeZone: index === 0 ? "America/Los_Angeles" : "Pacific/Auckland", observedAt: WALL_FIXTURE_NOW, hourlyObservedAt: WALL_FIXTURE_NOW }

@@ -140,7 +140,7 @@ describe("a read in progress keeps what the Wall drew", () => {
 
   it("keeps current hours through a poll and preserves today's independent daily total", () => {
     const assets = structuredClone(wallFixturePayload().assets);
-    assets.find(asset => asset.id === SITE)!.activeUsers = { series: [{ t: "2026-09-20", v: 17 }, { t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-22T19:24:00Z", timeZoneChanges: [] };
+    assets.find(asset => asset.id === SITE)!.activeUsers = { series: [{ t: "2026-09-20", v: 17 }, { t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-22T19:24:00Z", timeZone: "America/Los_Angeles", timeZoneChanges: [] };
     const today = (realtime: Ga4RealtimePayload) =>
       render(
         <SiteRows
