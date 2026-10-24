@@ -106,7 +106,7 @@ function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
     primary={{ label: "Closed", value: <span data-site-work-closed>{count(closed)}</span>, tone: "positive" }}
     metrics={[
       { label: "Open", value: <span data-site-work-open>{count(work ? work.open + work.inProgress : null)}</span> },
-      { label: "Blocked", value: <span data-site-work-blocked aria-label="Blocked tasks, included in open">{count(work?.blocked ?? null)}</span>, tone: "warn" },
+      { label: "Blocked", value: <span data-site-work-blocked aria-label="Blocked tasks, included in open">{count(work?.blocked ?? null)}</span>, tone: work && work.blocked > 0 ? "warn" : undefined },
     ]}
     note={work && (stale || ageMs(nowMs, work.capturedAt) === null) ? <AgeBadge iso={work.capturedAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={nowMs} /> : !work ? "Tasks unavailable" : undefined}
   /></div>;

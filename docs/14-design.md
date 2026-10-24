@@ -705,7 +705,8 @@ label with an icon; figures use tabular digits. Comparison tone is supplied
 separately from movement direction: fewer blocked tasks can be positive,
 while work in progress stays neutral.
 Portfolio Work uses green for Closed, neutral text for Open and amber for
-Blocked. The primary count and supporting counts keep separate spacing;
+positive Blocked counts. Zero and unavailable Blocked counts stay neutral.
+The primary count and supporting counts keep separate spacing;
 narrow tiles place the primary count above the supporting counts.
 
 The comparison widget owns the placement of its main figure, unit,
