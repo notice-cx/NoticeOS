@@ -3,6 +3,8 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import { wallMetricTiles, wallWidgetSpec, type WallWidget } from "@shared/wall-layout";
 import { WallCanvas, type WallCanvasProps } from "@/components/WallCanvas";
 import { Button } from "@/components/ui/button";
+import { fieldClass } from "@/components/ui/field";
+import { cn } from "@/lib/utils";
 import { filterWallAssets, wallOnTv } from "@/lib/wall-widgets";
 import type { WallMetricEditing } from "./WallMetricEditing";
 import "./WallMetricFocus.css";
@@ -26,7 +28,7 @@ export function WallMetricFocus({ widget, metricEditing, onBack, onAsset, ...can
   return <section className="flex min-w-0 flex-col gap-4" data-wall-row-focus={widget.id}>
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3"><Button type="button" size="sm" variant="ghost" onClick={onBack}><ArrowLeft className="size-4" />Full Wall</Button><h2 className="text-base font-semibold">{wallWidgetSpec(widget.type).label}</h2></div>
-      {widget.type === "sites" ? <label className="flex items-center gap-2 text-sm text-muted-foreground">Preview asset<select aria-label="Preview asset" className="rounded-md border border-input bg-background px-2 py-1.5 text-foreground" value={selectedAsset?.id ?? ""} onChange={event => onAsset(event.target.value)}>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}</select></label> : null}
+      {widget.type === "sites" ? <label className="flex items-center gap-2 text-sm text-muted-foreground">Preview asset<select aria-label="Preview asset" className={cn(fieldClass, "h-9 text-foreground")} value={selectedAsset?.id ?? ""} onChange={event => onAsset(event.target.value)}>{assets.map(asset => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}</select></label> : null}
     </header>
     <div ref={preview} className="wall-root wall-metric-focus-preview" style={{ "--focus-tile-count": wallMetricTiles(widget).length } as CSSProperties} data-theme="dark" data-wall-focus-preview>
       <WallCanvas {...canvas} layout={{ version: 1, rows: [{ id: "focused-row", height: "auto", widgets: [{ ...widget, width: 1, settings: { ...widget.settings, metrics: wallMetricTiles(widget) } }] }] }} metricEditing={{ ...metricEditing, focusAssetId: selectedAsset?.id }} />

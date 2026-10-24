@@ -4,6 +4,7 @@ import type { AssetCard } from "@shared/wall";
 import { wallMetricSources, wallMetricSpec, wallMetricTiles, type WallMetricSource, type WallMetricTile, type WallWidget, type WallWidgetSettings } from "@shared/wall-layout";
 import { addWallMetricTile, moveWallMetricTile, removeWallMetricTile, updateWallMetricTile } from "@/lib/wall-metric-editor";
 import { Button } from "@/components/ui/button";
+import { fieldClass } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
 export interface WallMetricPanelProps {
@@ -20,7 +21,7 @@ export interface WallMetricPanelProps {
 }
 
 const DISPLAY_LABELS = { number: "Number", momentum: "Momentum", compare: "Comparison", multi: "Multiple values", cumulative: "Cumulative" };
-const FIELD_CLASS = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
+const FIELD_CLASS = cn(fieldClass, "h-9 w-full px-3 text-foreground");
 
 export function WallMetricPanel({ widget, selectedTileId, assets, disabled = false, focused, layout = "side", onFocus, onSelectTile, onSettings, onSectionSettings }: WallMetricPanelProps) {
   const prefix = useId();

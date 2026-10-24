@@ -922,7 +922,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "The selected metric tile's settings below the full Wall preview or beside a focused row: compatible metric and display choices, title, named width, supported icon/reference/axis controls, movement, removal and available additions. Portfolio settings apply to every asset row.",
     variants: ["below the full Wall", "beside a focused row", "shared Portfolio", "available tile choices", "read-only"],
-    demo: "The Wall editor selects tiles directly in its preview.",
+    demo: "The gallery composes this with WallMetricFocus and WallPreview, with editable Portfolio, Work and Revenue tiles and local Undo.",
   },
   {
     name: "WallMetricFocus",
@@ -930,7 +930,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "A larger preview of the selected Wall section using the TV renderer, with a preview asset selector for Portfolio. Full Wall restores the complete preview without changing the saved arrangement or selected tile.",
     variants: ["Portfolio with preview asset", "Work", "Revenue"],
-    demo: "Focus on row in the Wall editor.",
+    demo: "The gallery switches between the focused section and full preview with local tile settings and a preview asset selector.",
   },
   {
     name: "WallWidgetPanel",
