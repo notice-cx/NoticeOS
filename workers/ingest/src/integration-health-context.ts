@@ -1,6 +1,6 @@
 import type { IntegrationProviderId, IntegrationHealthScope } from '@noticeos/contract';
 import { assertCredentialOwner, credentialSummary, resolveCredential, usesLegacyCredentialBindings, type ResolvedCredential } from './credentials.js';
-import { healthFailure, healthId, tryRecordIntegrationObservation } from './integration-health-store.js';
+import { healthFailure, healthId, tryRecordIntegrationAttempt } from './integration-health-store.js';
 
 export interface HealthConnection { workspaceId: string; connectionId: string | null; provider: IntegrationProviderId; revision: string; configured: boolean; changedAt: string | null;
   /** A demo connection (`CredentialSource`): it never changes, so the runs
@@ -48,23 +48,28 @@ export async function tryHealthConnection(env: IngestEnv, provider: IntegrationP
 export async function healthScope(connection: HealthConnection, capability: string, asset = '', target = '', family = ''): Promise<IntegrationHealthScope> {
   return { workspace: connection.workspaceId, provider: connection.provider, connection: connection.revision, capability, asset, target: target ? await healthId(target) : '', family };
 }
-export async function observeIntegration(env: IngestEnv, connection: HealthConnection | null, input: {
+interface HealthAttemptInput {
   capability: string; asset?: string; target?: string; family?: string; observedAt: string;
   ok: boolean; code?: unknown; nextAttemptAt?: string | null; attemptId?: string; evidenceSource?: 'live' | 'calendar' | 'delivery' | 'probe' | 'mediavine_runs';
-}): Promise<boolean> {
-  if (!connection) return false;
+}
+export async function observeIntegration(env: IngestEnv, connection: HealthConnection | null, input: HealthAttemptInput): Promise<boolean> {
+  return (await observeIntegrationAttempt(env, connection, input)).recorded;
+}
+export async function observeIntegrationAttempt(env: IngestEnv, connection: HealthConnection | null, input: HealthAttemptInput): Promise<{ recorded: boolean; reconnecting: boolean }> {
+  const unavailable = { recorded: false, reconnecting: false };
+  if (!connection) return unavailable;
   try {
-  if (connection.workspaceId !== await env.STORE.workspaceId()) return false;
+  if (connection.workspaceId !== await env.STORE.workspaceId()) return unavailable;
   // Discovery clients may resolve their credentials internally. If the edit
   // revision changed during the operation, do not assign its result to either
   // connection. The new connection remains unverified.
   const current = await tryHealthConnection(env, connection.provider);
-  if (!current || current.workspaceId !== connection.workspaceId || current.connectionId !== connection.connectionId || current.revision !== connection.revision) return false;
+  if (!current || current.workspaceId !== connection.workspaceId || current.connectionId !== connection.connectionId || current.revision !== connection.revision) return unavailable;
   const scope = await healthScope(connection, input.capability, input.asset, input.target, input.family);
   const failure = input.ok ? null : healthFailure(input.code);
-  return await tryRecordIntegrationObservation(env.STORE, { scope, attemptId: input.attemptId ?? await healthId([scope, input.observedAt]), startedAt: input.observedAt,
+  return await tryRecordIntegrationAttempt(env.STORE, { scope, attemptId: input.attemptId ?? await healthId([scope, input.observedAt]), startedAt: input.observedAt,
     // These adapters report an observation instant, not a measured duration.
     finishedAt: input.observedAt, outcome: input.ok ? 'success' : 'failure', failure: failure?.failure ?? null, code: failure?.code ?? null,
     nextAttemptAt: input.nextAttemptAt ?? null, evidenceSource: input.evidenceSource ?? 'live', evidenceId: input.attemptId ?? input.observedAt });
-  } catch { return false; }
+  } catch { return unavailable; }
 }

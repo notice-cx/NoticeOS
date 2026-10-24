@@ -21,6 +21,11 @@ export function stepResult(result: unknown): StepVerdict {
   if (result === null || (result as Probe)?.outcome === 'skipped' || (result as Probe)?.attempted === 0 || typeof (result as Probe)?.skipped === 'string') {
     return { state: 'skipped', summary: 'No work was performed on this pass.' };
   }
+  if ((result as Probe)?.operation === 'ga4-realtime' && Array.isArray((result as Probe)?.assets)) {
+    const errors = ((result as Probe)!.assets as Probe[]).filter(asset => asset?.status === 'error');
+    if (errors.some(asset => asset?.reconnecting !== true)) return { state: 'failed', summary: 'Realtime traffic collection failed.' };
+    if (errors.length > 0) return { state: 'waiting', summary: 'Reconnecting' };
+  }
   return { state: 'succeeded', summary: typeof (result as Probe)?.succeeded === 'number' ? `${(result as Probe)!.succeeded} collection${(result as Probe)!.succeeded === 1 ? '' : 's'} completed.` : 'Completed without a reported error.' };
 }
 

@@ -32,7 +32,7 @@ The button is the row's only control:
 
 ## States and labels
 
-The statuses are the same on every screen: **Not connected**, **Not checked**, **Key accepted**, **Signed in**, **URL accepted**, **Collecting**, **Working**, **Overdue**, **Failing**, **Not using**, **Unknown**. Every status is explained in [Connect data sources](/guides/connect-data-sources).
+The statuses are the same on every screen: **Not connected**, **Not checked**, **Key accepted**, **Signed in**, **URL accepted**, **Collecting**, **Working**, **Reconnecting**, **Overdue**, **Failing**, **Not using**, **Unknown**. Every status is explained in [Connect data sources](/guides/connect-data-sources).
 
 - Small chips beside a status count assets failing or reports missing.
 - **Expires in 7d** or **Key expired** appears when a credential has a recorded expiry.

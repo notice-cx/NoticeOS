@@ -143,8 +143,9 @@ export function sourceProblemSince(reading: SourceReading, connections: Connecti
     Number.isFinite(success) ? success : -Infinity,
     ...events.filter(event => event.kind === "recovered").map(event => Date.parse(event.at)),
   );
-  return events.filter(event => event.kind === "failed" && Date.parse(event.at) > closed)
-    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0]?.at ?? null;
+  const first = events.filter(event => event.kind === "failed" && Date.parse(event.at) > closed)
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))[0];
+  return first?.since && Number.isFinite(Date.parse(first.since)) ? first.since : first?.at ?? null;
 }
 
 /** One failing source kind: the sites it fails on, and its oldest onset. */

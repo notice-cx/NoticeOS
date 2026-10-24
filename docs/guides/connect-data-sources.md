@@ -82,6 +82,7 @@ The row's status shows the state of the connection:
 | **Key accepted** / **Signed in** / **URL accepted** | The provider accepted what you gave it. Nothing collected yet. |
 | **Collecting** | A first collection is running, or the asset's source is mapped and waits for the next scheduled run. The asset's Data sources row shows when that run starts. |
 | **Working** | The latest attempt succeeded. |
+| **Reconnecting** | Realtime traffic is retrying after a network error. |
 | **Overdue** | A scheduled attempt is late while others still work. |
 | **Failing** | The credential was rejected, or most assets failed their latest attempt. |
 | **Not using** | You skipped it for this asset, with a reason. |
@@ -89,6 +90,12 @@ The row's status shows the state of the connection:
 | **Doesn't apply** | This source never applies to this asset. |
 
 **Expires in 12d** or **Key expired** is shown beside a credential with a recorded expiry. Small chips beside a status count assets failing and reports missing.
+
+Realtime network errors become a failure incident after three distinct failed
+checks spanning at least two minutes. Earlier checks show **Reconnecting**.
+A recovery before confirmation creates no failure or recovery entry in Live
+feed. Access and setup errors appear immediately; overdue readings still show
+**Overdue**.
 
 ## If it didn't work
 

@@ -19,6 +19,7 @@ export type HealthState = "working" | "collecting" | "overdue" | "failing" | "no
 const FROM_SOURCE: Record<SourceKind, HealthState> = {
   working: "working",
   collecting: "collecting",
+  reconnecting: "unknown",
   "key-accepted": "collecting",
   "not-checked": "collecting",
   overdue: "overdue",

@@ -54,6 +54,21 @@ test('partial collection failure is visible without changing the collector resul
   assert.equal(stepResult(undefined).state, 'succeeded');
 });
 
+test('only realtime pending failures wait without reporting a completed collection', async () => {
+  const trace = createWorkflowRecorder();
+  const assets = [{ status: 'error', reconnecting: true }];
+  const result = { operation: 'ga4-realtime', assets };
+  assert.equal(await trace.run('traffic', async () => result), result);
+  assert.equal(trace.steps[0].state, 'waiting');
+  assert.equal(trace.steps[0].summary, 'Reconnecting');
+  assert.equal(workflowResult(trace.steps, 'ran'), 'succeeded');
+  assert.equal(stepResult({ assets }).state, 'succeeded');
+  assert.equal(stepResult({ operation: 'other', assets }).state, 'succeeded');
+  assert.equal(stepResult({ operation: 'ga4-realtime', assets: [{ status: 'error' }] }).state, 'failed');
+  assert.equal(stepResult({ ...result, ok: false }).state, 'failed');
+  assert.equal(stepResult({ operation: 'ga4-realtime', assets: [{ status: 'ok' }] }).state, 'succeeded');
+});
+
 test('parallel stages retain distinct start/end evidence', async () => {
   const trace = createWorkflowRecorder();
   let release;

@@ -20,7 +20,7 @@ import { cents } from "./ledger-history";
 import { configDocumentFile } from "../../../scripts/config-documents.mjs";
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import { isTaskResolution, TASK_RESOLUTION_LABELS } from "@noticeos/contract/task-resolution";
-import { INTEGRATION_MONITORS } from "@noticeos/contract/integration-health";
+import { INTEGRATION_MONITORS, REALTIME_ATTEMPT_EVIDENCE } from "@noticeos/contract/integration-health";
 import { settledAtSql } from "./flag-scope";
 import { SCHEDULED_JOBS } from "../../../scripts/scheduled-jobs.mjs";
 import { osDeployOutcome, type OsDeployOutcome } from "../../../scripts/os-deploy-events.mjs";
@@ -91,7 +91,7 @@ export const FEED_HEALTH_SQL = `SELECT e.event_id AS "eventId", t.provider, t.ca
        e.kind, e.failure_kind AS "failureKind", e.evidence_source AS "evidenceSource", e.evidence_id AS "evidenceId"
   FROM noticeos.integration_health_events e
   JOIN noticeos.capability_targets t ON t.workspace_id = e.workspace_id AND t.target_seq = e.target_seq
- WHERE e.recorded_at >= $1::timestamptz AND ${unarchivedAssetSql("t.asset_id", "t.workspace_id")}
+ WHERE e.recorded_at >= $1::timestamptz AND e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}' AND ${unarchivedAssetSql("t.asset_id", "t.workspace_id")}
  ORDER BY e.recorded_at DESC LIMIT $2`;
 
 /** Driven from the site list, each site's lane seeking its newest runs down

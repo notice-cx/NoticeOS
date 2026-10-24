@@ -1,4 +1,4 @@
-import { DATAFORSEO_DEPTH_BOUNDED_REPORTS, INTEGRATION_MONITORS, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
+import { DATAFORSEO_DEPTH_BOUNDED_REPORTS, INTEGRATION_MONITORS, REALTIME_ATTEMPT_EVIDENCE, REALTIME_NETWORK_CONFIRMATION, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
 import { sha256Hex } from './shared.js';
 
@@ -89,7 +89,7 @@ async function targetSeq(tx: Transaction, scope: IntegrationHealthScope): Promis
  * Report content and provider error prose are not accepted by this API.
  * Observations of one target are taken one at a time, so each reads the state
  * the one before it left. */
-export async function recordIntegrationObservation(store: WorkspaceStore, input: RecordedObservation): Promise<void> {
+export async function recordIntegrationObservation(store: WorkspaceStore, input: RecordedObservation): Promise<{ reconnecting: boolean }> {
   if (!Object.entries(INTEGRATION_MONITORS).some(([provider, items]) => provider === input.scope.provider && items.some((item) => item.id === input.scope.capability)) || !Object.hasOwn(EVIDENCE, input.evidenceSource)) throw new Error('Unknown monitoring capability');
   if (Object.values(input.scope).some((part) => typeof part !== 'string' || part.length > 1024) || input.scope.workspace !== await store.workspaceId() || !input.scope.connection || !input.attemptId || input.attemptId.length > 256 || input.evidenceId.length > 256) throw new Error('Invalid monitoring identity');
   const started = instant(input.startedAt), finished = instant(input.finishedAt);
@@ -98,26 +98,50 @@ export async function recordIntegrationObservation(store: WorkspaceStore, input:
   const eventId = await healthId([integrationScopeKey(input.scope), input.attemptId, input.outcome, safe?.code]);
   const attempt = [input.attemptId, started, finished, input.outcome, safe?.failure ?? null, safe?.code ?? null];
   const evidence = [EVIDENCE[input.evidenceSource]!, input.evidenceId];
-  await store.write(async (tx) => {
+  return await store.write(async (tx) => {
     const seq = await targetSeq(tx, input.scope);
     await tx.query(`SELECT pg_advisory_xact_lock(hashtextextended('noticeos.capability_targets:' || $1, 0))`, [seq]);
-    await tx.execute(
-      `WITH incoming (target_seq, attempt_id, started_at, finished_at, outcome, failure_kind, safe_code, evidence_source, evidence_id) AS (
-         VALUES ($2::bigint, $3::text, $4::timestamptz, $5::timestamptz, $6::text, $7::text, $8::text, $9::text, $10::text))
-       INSERT INTO noticeos.integration_health_events
-         (workspace_id, event_id, target_seq, attempt_id, started_at, recorded_at, kind, failure_kind, safe_code, evidence_source, evidence_id)
-       SELECT $1::uuid, $11, incoming.target_seq, incoming.attempt_id, incoming.started_at, incoming.finished_at,
-         CASE WHEN incoming.outcome = 'success' THEN 'recovered' WHEN old.outcome = 'failure' THEN 'changed' ELSE 'failed' END,
-         incoming.failure_kind, incoming.safe_code, incoming.evidence_source, incoming.evidence_id
-       FROM incoming LEFT JOIN noticeos.integration_capability_state old
-         ON old.workspace_id = $1::uuid AND old.target_seq = incoming.target_seq
-       WHERE (old.attempt_id IS NULL OR incoming.started_at > old.started_at
-           OR (incoming.started_at = old.started_at AND incoming.outcome = 'failure' AND old.outcome = 'success'))
-         AND ((incoming.outcome = 'failure' AND (old.outcome IS NULL OR old.outcome <> 'failure' OR old.safe_code <> incoming.safe_code))
-           OR (incoming.outcome = 'success' AND old.outcome = 'failure'))
-       ON CONFLICT (workspace_id, event_id) DO NOTHING`,
-      [tx.workspaceId, seq, ...attempt, ...evidence, eventId],
-    );
+    const [old] = await tx.query<{ started_at: string; finished_at: string; outcome: string; safe_code: string | null; last_success_started_at: string | null }>(
+      `SELECT started_at, finished_at, outcome, safe_code, last_success_started_at FROM noticeos.integration_capability_state WHERE target_seq = $1::bigint`, [seq]);
+    const newer = !old || started > javascriptInstant(old.started_at) || started === javascriptInstant(old.started_at) && input.outcome === 'failure' && old.outcome === 'success';
+    const realtime = input.scope.capability === 'ga4-realtime';
+    const candidate = realtime && safe?.failure === 'network';
+    const [incident] = realtime ? await tx.query<{ kind: 'failed' | 'changed' | 'recovered'; safe_code: string | null }>(
+      `SELECT kind, safe_code FROM noticeos.integration_health_events WHERE target_seq = $1::bigint AND evidence_source <> $2
+        ORDER BY recorded_at DESC, started_at DESC, event_id DESC LIMIT 1`, [seq, REALTIME_ATTEMPT_EVIDENCE]) : [];
+    const open = realtime ? !!incident && incident.kind !== 'recovered' : old?.outcome === 'failure';
+    let onset = started;
+    let reconnecting = false;
+    let lateConfirmation = false;
+    if (candidate) {
+      // Raw checks have their own identity and never enter incident feeds.
+      await tx.execute(`INSERT INTO noticeos.integration_health_events
+        (workspace_id,event_id,target_seq,attempt_id,started_at,recorded_at,kind,failure_kind,safe_code,evidence_source,evidence_id)
+        VALUES ($1::uuid,$2,$3::bigint,$4,$5::timestamptz,$6::timestamptz,'changed','network','network',$7,$8)
+        ON CONFLICT (workspace_id,event_id) DO NOTHING`,
+      [tx.workspaceId, await healthId([integrationScopeKey(input.scope), input.attemptId, 'raw-network']), seq, input.attemptId, started, finished, REALTIME_ATTEMPT_EVIDENCE, input.evidenceId]);
+      if (!open) {
+        const through = !newer && old?.outcome === 'failure' && old.safe_code === 'network' ? javascriptInstant(old.started_at) : started;
+        const [streak] = await tx.query<{ checks: number; first_at: string | null; last_at: string | null }>(
+          `SELECT COUNT(DISTINCT started_at)::int AS checks, MIN(started_at) AS first_at, MAX(started_at) AS last_at
+            FROM noticeos.integration_health_events WHERE target_seq = $1::bigint AND evidence_source = $2
+              AND ($3::timestamptz IS NULL OR started_at > $3::timestamptz) AND started_at <= $4::timestamptz`,
+          [seq, REALTIME_ATTEMPT_EVIDENCE, old?.last_success_started_at ?? null, through]);
+        const confirmed = !!streak && streak.checks >= REALTIME_NETWORK_CONFIRMATION.checks && streak.first_at !== null && streak.last_at !== null
+          && Date.parse(javascriptInstant(streak.last_at)) - Date.parse(javascriptInstant(streak.first_at)) >= REALTIME_NETWORK_CONFIRMATION.spanMs;
+        reconnecting = !confirmed;
+        lateConfirmation = confirmed && !newer && through > started;
+        if (confirmed && streak?.first_at) onset = javascriptInstant(streak.first_at);
+      }
+    }
+    const previousCode = realtime ? incident?.safe_code : old?.safe_code;
+    const kind = input.outcome === 'success' ? open ? 'recovered' : null
+      : reconnecting ? null : !open ? 'failed' : previousCode !== safe?.code ? 'changed' : null;
+    if ((newer || lateConfirmation) && kind) await tx.execute(`INSERT INTO noticeos.integration_health_events
+      (workspace_id,event_id,target_seq,attempt_id,started_at,recorded_at,kind,failure_kind,safe_code,evidence_source,evidence_id)
+      VALUES ($1::uuid,$2,$3::bigint,$4,$5::timestamptz,$6::timestamptz,$7,$8,$9,$10,$11)
+      ON CONFLICT (workspace_id,event_id) DO NOTHING`,
+    [tx.workspaceId, realtime ? await healthId([eventId, 'incident']) : eventId, seq, input.attemptId, onset, lateConfirmation && old && javascriptInstant(old.finished_at) > finished ? javascriptInstant(old.finished_at) : finished, kind, safe?.failure ?? null, safe?.code ?? null, ...evidence]);
     await tx.execute(
       `INSERT INTO noticeos.integration_capability_state AS state
          (workspace_id, target_seq, attempt_id, started_at, finished_at, outcome, failure_kind, safe_code, next_attempt_at, evidence_source, evidence_id)
@@ -138,16 +162,20 @@ export async function recordIntegrationObservation(store: WorkspaceStore, input:
         [tx.workspaceId, seq, started, finished],
       );
     }
+    return { reconnecting };
   });
 }
 
 export async function tryRecordIntegrationObservation(store: WorkspaceStore, observation: RecordedObservation): Promise<boolean> {
+  return (await tryRecordIntegrationAttempt(store, observation)).recorded;
+}
+
+export async function tryRecordIntegrationAttempt(store: WorkspaceStore, observation: RecordedObservation): Promise<{ recorded: boolean; reconnecting: boolean }> {
   try {
-    await recordIntegrationObservation(store, observation);
-    return true;
+    return { recorded: true, ...await recordIntegrationObservation(store, observation) };
   } catch {
     console.warn(JSON.stringify({ event: 'integration_monitoring_unavailable', provider: observation.scope.provider, capability: observation.scope.capability }));
-    return false;
+    return { recorded: false, reconnecting: false };
   }
 }
 
@@ -156,6 +184,7 @@ export type StoredHealthRow = {
   attempt_id: string; started_at: string; finished_at: string; outcome: 'success' | 'failure'; failure_kind: IntegrationFailureKind | null;
   safe_code: HealthCode | null; next_attempt_at: string | null; last_success_started_at: string | null; last_success_finished_at: string | null;
   evidence_source: string; evidence_id: string;
+  incident_kind?: 'failed' | 'changed' | 'recovered' | null;
 };
 
 /** A state row joined to its target, the target's columns named as a scope
@@ -163,9 +192,12 @@ export type StoredHealthRow = {
  * reader's; `t` is the target, `s` the state. */
 export const HEALTH_STATE_SELECT = `SELECT t.workspace_id, t.provider, t.connection_revision, t.capability, COALESCE(t.asset_id, '') AS asset, t.target_id, t.family,
     s.attempt_id, s.started_at, s.finished_at, s.outcome, s.failure_kind, s.safe_code, s.next_attempt_at,
-    s.last_success_started_at, s.last_success_finished_at, s.evidence_source, s.evidence_id
+    s.last_success_started_at, s.last_success_finished_at, s.evidence_source, s.evidence_id, incident.kind AS incident_kind
   FROM noticeos.capability_targets t
-  JOIN noticeos.integration_capability_state s ON s.workspace_id = t.workspace_id AND s.target_seq = t.target_seq`;
+  JOIN noticeos.integration_capability_state s ON s.workspace_id = t.workspace_id AND s.target_seq = t.target_seq
+  LEFT JOIN LATERAL (SELECT e.kind FROM noticeos.integration_health_events e
+    WHERE t.capability = 'ga4-realtime' AND e.workspace_id = t.workspace_id AND e.target_seq = t.target_seq AND e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}'
+    ORDER BY e.recorded_at DESC, e.started_at DESC, e.event_id DESC LIMIT 1) incident ON true`;
 
 /** A row `HEALTH_STATE_SELECT` read, in the scope's workspace, its instants as
  * JavaScript writes them. */
@@ -180,5 +212,6 @@ export function storedHealthRow(row: StoredHealthRow): StoredHealthRow {
 
 export function observationFromRow(row: StoredHealthRow): IntegrationObservation {
   const scope: IntegrationHealthScope = { workspace: row.workspace_id, provider: row.provider, connection: row.connection_revision, capability: row.capability, asset: row.asset, target: row.target_id, family: row.family };
-  return { scope, attemptId: row.attempt_id, startedAt: row.started_at, finishedAt: row.finished_at, outcome: row.outcome, failure: row.failure_kind, code: row.safe_code, nextAttemptAt: row.next_attempt_at };
+  return { scope, attemptId: row.attempt_id, startedAt: row.started_at, finishedAt: row.finished_at, outcome: row.outcome, failure: row.failure_kind, code: row.safe_code, nextAttemptAt: row.next_attempt_at,
+    ...(row.capability === 'ga4-realtime' && row.outcome === 'failure' && row.failure_kind === 'network' && (row.incident_kind === null || row.incident_kind === 'recovered') ? { reconnecting: true } : {}) };
 }

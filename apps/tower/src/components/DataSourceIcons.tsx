@@ -58,6 +58,7 @@ const MARK: Record<SourceKind, Mark | null> = {
   failing: "bang",
   overdue: "clock",
   collecting: "pending",
+  reconnecting: "pending",
   "not-checked": "unknown",
   unknown: "unknown",
   "not-connected": null,

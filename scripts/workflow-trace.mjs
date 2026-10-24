@@ -15,6 +15,13 @@ export function stepResult(result) {
     if (result === null || result?.outcome === 'skipped' || result?.attempted === 0 || typeof result?.skipped === 'string') {
         return { state: 'skipped', summary: 'No work was performed on this pass.' };
     }
+    if (result?.operation === 'ga4-realtime' && Array.isArray(result?.assets)) {
+        const errors = result.assets.filter(asset => asset?.status === 'error');
+        if (errors.some(asset => asset?.reconnecting !== true))
+            return { state: 'failed', summary: 'Realtime traffic collection failed.' };
+        if (errors.length > 0)
+            return { state: 'waiting', summary: 'Reconnecting' };
+    }
     return { state: 'succeeded', summary: typeof result?.succeeded === 'number' ? `${result.succeeded} collection${result.succeeded === 1 ? '' : 's'} completed.` : 'Completed without a reported error.' };
 }
 export function workflowResult(steps, outcome) {

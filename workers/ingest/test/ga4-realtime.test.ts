@@ -5,6 +5,8 @@ import { forgetConfigCache } from '../src/config-store.js';
 import { putCredential } from '../src/credentials.js';
 import { parseGa4MinuteRows, runGa4Realtime, readGa4Realtime } from '../src/ga4-realtime.js';
 import { asOwner, reset } from './helpers.js';
+import { storedHealthEvents } from './helpers.js';
+import { REALTIME_ATTEMPT_EVIDENCE } from '@noticeos/contract';
 
 const NOW = Date.parse('2026-07-29T12:00:00.000Z');
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -37,6 +39,33 @@ function realtimeFetch(status = 200, quota: QuotaFixture = {}, _unused = {}, min
 beforeEach(reset);
 
 describe('scheduled GA4 realtime collection', () => {
+  it('does not count cached network failures as new checks or erase the retained reading', async () => {
+    let failed = false;
+    const synthetic = realtimeFetch();
+    const fetchImpl: typeof fetch = async (input, init) => {
+      if (failed && String(input).endsWith(':runRealtimeReport')) throw new TypeError('synthetic network failure');
+      return synthetic.fetchImpl(input, init);
+    };
+    const options = { fetchImpl, tokenCache: new Map(), responseCache: await caches.open(crypto.randomUUID()) };
+    await runGa4Realtime(env, { ...options, nowMs: NOW });
+    failed = true;
+    const first = await runGa4Realtime(env, { ...options, nowMs: NOW + 60_000 });
+    expect(first.assets.every(asset => asset.status === 'error' && asset.reconnecting)).toBe(true);
+    await runGa4Realtime(env, { ...options, nowMs: NOW + 70_000 });
+    const replay = await runGa4Realtime(env, { ...options, nowMs: NOW + 80_000 });
+    expect(replay.assets.every(asset => asset.observedAt === new Date(NOW + 60_000).toISOString())).toBe(true);
+    const raw = (await storedHealthEvents()).filter(event => event.evidence_source === REALTIME_ATTEMPT_EVIDENCE);
+    expect(raw).toHaveLength(2);
+    expect(new Set(raw.map(event => event.recorded_at))).toEqual(new Set([new Date(NOW + 60_000).toISOString()]));
+    expect((await storedHealthEvents()).filter(event => event.capability === 'ga4-realtime' && event.evidence_source !== REALTIME_ATTEMPT_EVIDENCE)).toEqual([]);
+    expect((await readGa4Realtime(env, NOW + 80_000)).assets[0]).toMatchObject({ status: 'success', observedAt: new Date(NOW).toISOString(), activeUsers5m: 7 });
+    await runGa4Realtime(env, { ...options, nowMs: NOW + 120_000 });
+    const confirmed = await runGa4Realtime(env, { ...options, nowMs: NOW + 180_000 });
+    expect(confirmed.assets.every(asset => asset.status === 'error' && !asset.reconnecting)).toBe(true);
+    failed = false;
+    await runGa4Realtime(env, { ...options, nowMs: NOW + 240_000 });
+    expect((await storedHealthEvents()).filter(event => event.capability === 'ga4-realtime' && event.evidence_source !== REALTIME_ATTEMPT_EVIDENCE).map(event => event.kind).sort()).toEqual(['failed', 'failed', 'recovered', 'recovered']);
+  });
   it('keeps identical grants and provider results inside the calling workspace', async () => {
     const workspaceId = crypto.randomUUID();
     await asOwner(`INSERT INTO noticeos.workspaces (workspace_id, slug, display_name)

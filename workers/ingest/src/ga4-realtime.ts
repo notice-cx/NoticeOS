@@ -30,7 +30,7 @@ import {
 import { resolveGoogleCredential } from './google-oauth.js';
 import { Ga4ReadError, ga4ReadFailure } from './ga4-read-errors.js';
 import { cachedGa4Read, ga4CacheScope, type Ga4ReadCache } from './ga4-read-cache.js';
-import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
+import { observeIntegration, observeIntegrationAttempt, tryHealthConnection } from './integration-health-context.js';
 import { combineGa4Quota, parseGa4PropertyQuota, recordGa4Quota } from './ga4-quota.js';
 import {
   normalizeSignalError,
@@ -112,14 +112,10 @@ export async function runGa4Realtime(
         error,
         'Google authentication failed.',
       );
-      assets.push(
-        ...accountTargets.map((target) =>
-          errorResult(target.asset, observedAt, normalized),
-        ),
-      );
       for (const target of accountTargets) for (const capability of ['ga4-realtime']) {
-        const recorded = await observeIntegration(env, health, { capability, asset: target.asset, target: target.propertyRef, observedAt: new Date(clock()).toISOString(), ok: false, code: normalized.code });
-        monitoringAvailable = recorded && monitoringAvailable;
+        const result = await observeIntegrationAttempt(env, health, { capability, asset: target.asset, target: target.propertyRef, observedAt, ok: false, code: normalized.code });
+        assets.push({ ...errorResult(target.asset, observedAt, normalized), ...(result.reconnecting ? { reconnecting: true as const } : {}) });
+        monitoringAvailable = result.recorded && monitoringAvailable;
       }
       continue;
     }
@@ -175,13 +171,15 @@ export async function runGa4Realtime(
           error,
           'GA4 realtime request failed.',
         );
-        assets.push(errorResult(target.asset, observedAt, normalized));
+        let reconnecting = false;
         if (normalized.code !== 'ga4_read_in_progress') {
-          const recorded = await observeIntegration(env, health, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef,
+          const result = await observeIntegrationAttempt(env, health, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef,
             observedAt: error instanceof Ga4ReadError ? error.observedAt : new Date(clock()).toISOString(), ok: false, code: normalized.code,
             ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt } : {}) });
-          monitoringAvailable = recorded && monitoringAvailable;
+          monitoringAvailable = result.recorded && monitoringAvailable;
+          reconnecting = result.reconnecting;
         }
+        assets.push({ ...errorResult(target.asset, error instanceof Ga4ReadError ? error.observedAt : observedAt, normalized), ...(reconnecting ? { reconnecting: true as const } : {}) });
       } finally {
         try {
           const cache = responseCache ? { store: env.STORE, cache: responseCache, clock,

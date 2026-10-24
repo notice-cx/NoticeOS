@@ -160,6 +160,8 @@ export interface Ga4RealtimeSuccess extends Ga4RealtimeAssetBase {
 }
 
 export interface Ga4RealtimeFailure extends Ga4RealtimeAssetBase {
+  /** A network retry is pending incident confirmation; counts remain unavailable. */
+  reconnecting?: true;
   status: 'error';
   activeUsers5m: null;
   activeUsers30m: null;

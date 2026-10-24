@@ -31,6 +31,7 @@ const LOOK: Record<SourceKind, { tone: StateChipProps["tone"]; glyph?: ReactNode
   failing: { tone: "critical", glyph: <TriangleAlert className="size-3" /> },
   overdue: { tone: "caution", glyph: <Clock3 className="size-3" /> },
   collecting: { tone: "neutral", glyph: <CircleDashed className="size-3" /> },
+  reconnecting: { tone: "neutral", glyph: <CircleDashed className="size-3" /> },
   "not-checked": { tone: "na", glyph: <CircleDashed className="size-3" /> },
   unknown: { tone: "na", glyph: <CircleHelp className="size-3" /> },
   "not-connected": { tone: "na", dot: "hollow" },
