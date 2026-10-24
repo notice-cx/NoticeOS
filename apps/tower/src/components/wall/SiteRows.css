@@ -20,13 +20,8 @@
 .wall-portfolio-row { position: relative; display: flex; flex-direction: column; gap: .25rem; padding: 0; border: 0; border-radius: 0; background: transparent; width: 100%; max-width: 100%; }
 .wall-portfolio-row + .wall-portfolio-row::before { content: ""; position: absolute; top: calc(var(--portfolio-row-gap) / -2 - .5px); left: 0; right: 0; height: 1px; background: var(--portfolio-separator); pointer-events: none; }
 .wall-portfolio[data-row-separators="hidden"] .wall-portfolio-row::before { display: none; }
-.wall-portfolio-identity { display: flex; align-items: center; flex-wrap: wrap; column-gap: .625rem; row-gap: .25rem; min-width: 0; min-height: 1.5rem; }
 .wall-portfolio-favicon { width: 1.5rem; height: 1.5rem; }
-.wall-portfolio-name { margin: 0; font-size: 1.125rem; line-height: 1.25; font-weight: 650; overflow-wrap: anywhere; }
-.wall-portfolio-status { display: inline-flex; align-items: center; gap: .25rem; font-size: .8125rem; line-height: 1.25; }
-.wall-portfolio-status svg { width: .875rem; height: .875rem; }
-.wall-portfolio-sources { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: .625rem; color: var(--muted-foreground); font-size: .8125rem; line-height: 1.25; }
-.wall-portfolio-sources > span { white-space: nowrap; }
+.wall-portfolio-name { overflow-wrap: anywhere; }
 .wall-portfolio-metrics { display: flex; align-items: stretch; gap: var(--portfolio-gap); min-width: 0; }
 .wall-portfolio-metrics > .wall-metric, .wall-portfolio-metrics > [data-live], .wall-portfolio-metrics > [data-site-work] { flex: 0 0 var(--portfolio-tile); width: var(--portfolio-tile); min-width: 0; }
 .wall-portfolio-metrics :is([data-live], [data-site-work]) > .wall-metric { width: 100%; }
@@ -58,5 +53,4 @@
 @container wall-sites (width < 72rem) {
   .wall-portfolio-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); width: 100%; }
   .wall-portfolio-metrics > .wall-metric, .wall-portfolio-metrics > [data-live], .wall-portfolio-metrics > [data-site-work] { width: 100%; }
-  .wall-portfolio-sources { margin-left: 0; }
 }

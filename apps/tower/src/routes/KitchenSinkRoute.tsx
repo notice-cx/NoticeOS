@@ -5944,7 +5944,7 @@ export function KitchenSinkRoute() {
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows
                 assets={wallFixture.assets}
-                issues={wallIssues({ assets: wallFixture.assets, attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
+
                 ga4Realtime={realtimeDemo}
                 nowMs={NOW}
               />
@@ -5952,16 +5952,16 @@ export function KitchenSinkRoute() {
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <SiteRows
                 assets={wallFixture.assets.slice(0, 3)}
-                issues={wallIssues({ assets: wallFixture.assets.slice(0, 3), attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
+
                 ga4Realtime={realtimeDemo}
                 nowMs={NOW}
               />
             </div>
             <div data-theme="dark" className="wall-root text-foreground h-160 w-full rounded-lg bg-background p-4">
-              <SiteRows assets={[cardLive]} issues={[]} ga4Realtime={realtimeDemo} nowMs={NOW} />
+              <SiteRows assets={[cardLive]} ga4Realtime={realtimeDemo} nowMs={NOW} />
             </div>
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
-              <SiteRows assets={[cardLive]} issues={[]} ga4Realtime={realtimeDemo} ga4RealtimeError nowMs={NOW} />
+              <SiteRows assets={[cardLive]} ga4Realtime={realtimeDemo} ga4RealtimeError nowMs={NOW} />
             </div>
           </Section>
 

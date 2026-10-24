@@ -1,0 +1,14 @@
+[data-wall-feed] {
+  --feed-body-size: max(1rem, calc(13px / var(--wall-scale, 1)));
+  --feed-meta-size: max(.8125rem, calc(12px / var(--wall-scale, 1)));
+  --feed-glyph-size: max(1.5rem, calc(20px / var(--wall-scale, 1)));
+  --feed-row-gap: .5rem;
+  --feed-row-padding: .375rem;
+}
+[data-wall-feed] .wall-feed-row { grid-template-columns: var(--feed-glyph-size) minmax(0, 1fr); gap: var(--feed-row-gap); padding: var(--feed-row-padding); }
+[data-wall-feed] [data-feed-time] { position: absolute; top: var(--feed-row-padding); right: var(--feed-row-padding); padding-top: 0; }
+[data-wall-feed] .wall-feed-label { padding-inline-end: 7ch; }
+[data-wall-feed] .wall-feed-text, [data-wall-feed] .wall-feed-empty { font-size: var(--feed-body-size); line-height: 1.3; overflow-wrap: anywhere; }
+[data-wall-feed] .wall-feed-label, [data-wall-feed] .wall-feed-meta { font-size: var(--feed-meta-size); line-height: 1.25; }
+[data-wall-feed] .wall-feed-glyph, [data-wall-feed] .wall-feed-agent-mark { width: var(--feed-glyph-size); height: var(--feed-glyph-size); }
+[data-wall-feed] .wall-feed-agent-badge { width: .875rem; height: .875rem; }

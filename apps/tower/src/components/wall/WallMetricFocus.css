@@ -23,6 +23,5 @@
 }
 .wall-metric-focus-preview .wall-portfolio-row::before { display: none; }
 .wall-metric-focus-preview .wall-work-band[data-metrics-configured] { display: grid; grid-template-columns: var(--wall-metric-tracks); min-width: calc(var(--focus-tile-count) * 10.5rem); }
-.wall-metric-focus-preview .wall-work-band > h2 { grid-column: 1 / -1; }
 .wall-metric-focus-preview .wall-metric { --metric-height: 9.75rem; }
 .wall-metric-focus-preview [data-metric-expanded] { max-width: 42rem; }

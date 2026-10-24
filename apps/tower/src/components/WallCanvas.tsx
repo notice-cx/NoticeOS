@@ -232,12 +232,6 @@ export function WallCanvas({
             widget={widget}
             pulseMetrics={widget.settings?.pulseMetrics}
             workAssets={new Set(sitesInWork(data).map(asset => asset.id))}
-            issues={wallIssues({
-              assets,
-              attention: filterWallAttention(data.attention, widget.settings),
-              connections: connections ?? NO_READS,
-              nowMs,
-            })}
             ga4Realtime={ga4Realtime}
             ga4RealtimeError={ga4RealtimeError}
             nowMs={nowMs}

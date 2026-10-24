@@ -1022,8 +1022,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteRows",
     file: "components/wall/SiteRows.tsx",
     purpose:
-      "Each asset occupies the same fixed-height row of shared metric tiles, ordered Identity, Momentum, Today, 4 weeks, Work, then Product counts when selected counts exist. Row height and metric forms remain the same at every asset count; available width determines wrapping. Missing readings remain unavailable and observed zeros remain zero.",
-    variants: ["one or many assets", "selected product counts", "explicit none", "missing/zero/stale totals", "healthy/warn/error/unknown health", "fresh/stale live reading", "no data"],
+      "Each asset has a slim icon-and-name header above shared metric tiles: Momentum, Today, 4 weeks, Work, then Product counts when selected counts exist. Problems appear in AttentionTicker. Row height and metric forms remain the same at every asset count; available width determines wrapping. Missing readings remain unavailable and observed zeros remain zero.",
+    variants: ["one or many assets", "selected product counts", "explicit none", "missing/zero/stale totals", "icon-and-name header", "fresh/stale live reading", "no data"],
   },
   {
     name: "LiveUsers",
@@ -1070,7 +1070,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallWork",
     file: "components/wall/WallWork.tsx",
     purpose:
-      "The Wall's fixed-height row of shared metric tiles: cumulative Done this week against last week's total, operator decisions, work in progress and blocked counts. Actual available observations supply each count's history; movement direction and business tone remain separate. Partial operator coverage is a lower bound, and missing readings remain unavailable.",
+      "The Wall's slim title and inline week progress above fixed-height shared metric tiles: cumulative Done this week against last week's total, operator decisions, work in progress and blocked counts. Actual available observations supply each count's history; movement direction and business tone remain separate. Partial operator coverage is a lower bound, and missing readings remain unavailable.",
     variants: ["counted", "partial inbox", "nothing read", "two observed snapshots", "cumulative week with missing days"],
   },
   {

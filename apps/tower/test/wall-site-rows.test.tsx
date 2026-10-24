@@ -3,11 +3,9 @@
 import { render, waitFor } from "./render";
 import { describe, expect, it } from "vitest";
 import type { Ga4RealtimePayload } from "@noticeos/contract";
-import { NO_READS } from "@shared/connection-status";
-import type { AssetCard, AttentionItem } from "@shared/wall";
+import type { AssetCard } from "@shared/wall";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { fourWeeks } from "@/lib/wall-sites";
-import { wallIssues } from "@/lib/wall-issues";
 import type { WallPulseMetrics } from "@/lib/wall-counters";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
@@ -16,8 +14,7 @@ const HOUR = 3_600_000;
 
 function draw(
   assets: AssetCard[],
-  { attention = [], realtime = wallFixtureRealtime(), realtimeError = false, pulseMetrics, workAssets }: {
-    attention?: AttentionItem[];
+  { realtime = wallFixtureRealtime(), realtimeError = false, pulseMetrics, workAssets }: {
     realtime?: Ga4RealtimePayload;
     realtimeError?: boolean;
     pulseMetrics?: WallPulseMetrics;
@@ -29,7 +26,7 @@ function draw(
       assets={assets}
       pulseMetrics={pulseMetrics}
       workAssets={workAssets}
-      issues={wallIssues({ assets, attention, connections: NO_READS, nowMs: NOW })}
+
       ga4Realtime={realtime}
       ga4RealtimeError={realtimeError}
       nowMs={NOW}
@@ -180,7 +177,7 @@ describe("the asset rows", () => {
     expect(totals.querySelector('[data-site-total="missing"]')).toBeNull();
   });
 
-  it("keeps a counter-only asset's known health when its totals are hidden", () => {
+  it("keeps a counter-only asset's identity when its totals are hidden", () => {
     const assets = structuredClone(wallFixturePayload().assets);
     const site = assets[0]!;
     site.pulseReceivedAt = null;
@@ -188,8 +185,7 @@ describe("the asset rows", () => {
     site.dataSources = [];
     const container = draw(assets, { realtime: { ...wallFixtureRealtime(), assets: [] }, pulseMetrics: { [site.id]: [] } });
     const siteRow = row(container, site.id);
-    expect(siteRow.querySelector("[data-site-health]")).toHaveAttribute("data-site-health", "warn");
-    expect(siteRow.querySelector("[data-site-health]")).toHaveAccessibleName("Asset health: At risk");
+    expect(siteRow.querySelector("[data-site-name]")?.textContent).toBe(site.displayName);
     expect(siteRow.querySelector('[data-site-totals]')).toBeNull();
     expect(siteRow.querySelector('[data-site-waiting]')).toBeNull();
   });
@@ -241,13 +237,12 @@ describe("the asset rows", () => {
   it("counts a changed live reading to its new value instead of jumping", async () => {
     const assets = wallFixturePayload().assets;
     const realtime = wallFixtureRealtime();
-    const issues = wallIssues({ assets, attention: [], connections: NO_READS, nowMs: NOW });
     const at = (value: number): Ga4RealtimePayload => ({
       ...realtime,
       assets: realtime.assets.map((asset) => (asset.asset === "mosaic.example" && asset.status === "success" ? { ...asset, activeUsers30m: value } : asset)),
     });
-    const { container, rerender } = render(<SiteRows assets={assets} issues={issues} ga4Realtime={at(21)} nowMs={NOW} />);
-    rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={at(121)} nowMs={NOW} />);
+    const { container, rerender } = render(<SiteRows assets={assets} ga4Realtime={at(21)} nowMs={NOW} />);
+    rerender(<SiteRows assets={assets} ga4Realtime={at(121)} nowMs={NOW} />);
     const live = () => row(container, "mosaic.example").querySelector("[data-live-count]")!;
     expect(live().getAttribute("aria-label")).toBe("Live users: 121");
     expect(live().getAttribute("data-value")).toBe("121");
@@ -308,60 +303,15 @@ describe("the asset rows", () => {
   });
 });
 
-describe("an asset's explicit health words", () => {
-  it("recognizes observed task data when traffic, reports and counters are unavailable", () => {
+describe("task-only asset identity", () => {
+  it("keeps the icon and name when traffic, reports and counters are unavailable", () => {
     const asset = structuredClone(wallFixturePayload().assets.find(item => item.id === "mosaic.example")!);
     asset.pulseReceivedAt = null;
-    asset.noNightlyReport = true;
     asset.activeUsers = { ...asset.activeUsers, series: [], contextSeries: [] };
-    asset.dataSources = [];
     delete asset.counters;
-    expect(asset.work).not.toBeNull();
-    const container = draw([asset], { realtime: { ...wallFixtureRealtime(), assets: [] } });
-    const header = row(container, asset.id).querySelector("[data-site-name]")!;
-    expect(header).not.toHaveTextContent("No data yet");
-    expect(header.querySelector('[data-site-source="tasks"]')).toHaveAttribute("data-source-freshness", "current");
-    expect(row(container, asset.id).querySelector("[data-site-work-open]")).toHaveTextContent(String(asset.work!.open + asset.work!.inProgress));
-  });
-
-  it("shows observed health for active assets and no level for archived assets", () => {
-    const data = structuredClone(wallFixturePayload());
-    data.assets.find(asset => asset.id === "summit.example")!.work = null;
-    const archived = { ...data.assets[0]!, id: "archived.example", status: "retired" };
-    const container = draw([...data.assets, archived], { attention: data.attention });
-    for (const [id, state, word] of [["mosaic.example", "healthy", "No open alerts"], ["plume.example", "warn", "At risk"], ["summit.example", "unknown", "No data yet"], ["archived.example", "unknown", "Retired"]] as const) {
-      const health = row(container, id).querySelector('[data-site-name] [data-site-health]')!;
-      expect(health.getAttribute("data-site-health")).toBe(state);
-      expect(health.textContent).toBe(word);
-      expect(health.querySelector("rect")).toBeNull();
-      expect(health.getAttribute("aria-label")).toMatch(/^Asset health:/);
-    }
-    expect(container.querySelector('[data-site-mark]')).toBeNull();
-  });
-
-  it("uses the most severe issue and names the remaining issues accessibly", () => {
-    const data = wallFixturePayload();
-    const [plansLow] = data.attention;
-    const down = {
-      ...plansLow!, id: 9102, severity: "error" as const, ruleId: "hygiene-home-unreachable", metric: "home",
-      ruleInputs: { http_status: 503 }, firstFiredAt: new Date(NOW - 20 * 60_000).toISOString(),
-    };
-    const mark = row(draw(data.assets, { attention: [plansLow!, down] }), "plume.example").querySelector("[data-site-health]")!;
-    expect(mark.getAttribute("data-site-health")).toBe("error");
-    expect(mark.getAttribute("aria-label")).toBe("Asset health: Home page down; 1 more issue");
-    expect(mark.textContent).toBe("Off track");
-  });
-
-  it("never marks an asset that declared it sends no nightly report for a missing one", () => {
-    const data = wallFixturePayload();
-    const assets = data.assets.map((asset) =>
-      asset.id === "ripple.example" ? { ...asset, noNightlyReport: true, pulseReceivedAt: new Date(NOW - 9 * 24 * HOUR).toISOString() } : asset,
-    );
-    const stale = {
-      ...data.attention[0]!, id: 9103, asset: "ripple.example", assetDisplayName: "Ripple Index", ruleId: "ingest-freshness",
-      metric: "pulse", ruleInputs: { state: "stale", ageHours: 216, thresholdHours: 48 },
-    };
-    expect(row(draw(assets, { attention: [stale] }), "ripple.example").querySelector("[data-site-health]")?.getAttribute("data-site-health")).toBe("healthy");
+    const site = row(draw([asset], { realtime: { ...wallFixtureRealtime(), assets: [] } }), asset.id);
+    expect(site.querySelector("[data-site-name]")?.textContent).toBe(asset.displayName);
+    expect(site.querySelector("[data-site-work-open]")).toHaveTextContent(String(asset.work!.open + asset.work!.inProgress));
   });
 });
 
@@ -375,15 +325,15 @@ describe("asset identity headers", () => {
     expect(site.querySelector("[data-site-health] rect")).toBeNull();
   });
 
-  it("shows real ages and unavailable sources explicitly without healthy colors", () => {
-    const asset = structuredClone(wallFixturePayload().assets[0]!);
-    asset.pulseReceivedAt = new Date(NOW - 2 * HOUR).toISOString();
-    asset.work = null;
-    const site = row(draw([asset], { realtime: { ...wallFixtureRealtime(), assets: [] } }), asset.id);
-    expect(site.querySelector('[data-site-source="report"]')).toHaveTextContent("Report 2h ago");
-    expect(site.querySelector('[data-site-source="live"]')).toHaveTextContent("Live unavailable");
-    expect(site.querySelector('[data-site-source="tasks"]')).toHaveTextContent("Tasks unavailable");
-    expect(site.querySelector("[data-site-name] .text-healthy")).toBeNull();
+  it("shows only the icon and asset name in headers, regardless of source or health state", () => {
+    const assets = structuredClone(wallFixturePayload().assets);
+    for (const asset of assets) {
+      const site = row(draw([asset]), asset.id);
+      const header = site.querySelector("[data-site-name]")!;
+      expect(header.textContent).toBe(asset.displayName);
+      expect(header.children).toHaveLength(2);
+      expect(header.querySelector("[data-site-health], [data-site-source], [data-site-waiting]")).toBeNull();
+    }
   });
 });
 
@@ -393,12 +343,13 @@ describe("rows without data yet", () => {
     assets.find(asset => asset.id === "summit.example")!.work = null;
     const container = draw(assets);
     const waiting = row(container, "summit.example");
-    expect(waiting.querySelector("[data-site-waiting]")).not.toBeNull();
+    expect(waiting.querySelector("[data-site-waiting]")).toBeNull();
     // A site that has never sent a report expects none.
     expect(waiting.querySelector("[data-site-label]")?.textContent).toBe("Summit");
-    expect(waiting.querySelector("[data-site-health]")).toHaveTextContent("No data yet");
+    expect(waiting.querySelector("[data-site-name]")?.textContent).toBe("Summit");
+    expect(waiting.querySelector("[data-site-work-closed]")).toHaveTextContent("—");
     const declared = { ...assets.find((asset) => asset.id === "summit.example")!, noNightlyReport: true };
-    expect(row(draw([declared]), "summit.example").querySelector("[data-site-health]")).toHaveTextContent("No data yet");
+    expect(row(draw([declared]), "summit.example").querySelector("[data-site-name]")?.textContent).toBe("Summit");
   });
 });
 
@@ -462,7 +413,7 @@ describe("saved asset traffic without a current-day reading", () => {
       expect(label.textContent).toBe(asset.displayName);
       expect(label.className).not.toContain("truncate");
       expect(label.className).toContain("wall-portfolio-name");
-      expect(site.querySelector('[data-site-health]')?.getAttribute('class')).toContain('shrink-0');
+      expect(site.querySelector('.wall-portfolio-favicon')?.getAttribute('class')).toContain('shrink-0');
     }
   });
 });
@@ -477,7 +428,7 @@ describe("fixed portfolio metrics", () => {
     for (const asset of assets) {
       const site = row(container, asset.id);
       expect(site.querySelector('[data-site-label]')?.textContent).toBe(asset.displayName);
-      expect(site.querySelector('[data-site-name] [data-site-health]')).not.toBeNull();
+      expect(site.querySelector('[data-site-name]')?.textContent).toBe(asset.displayName);
       expect([...site.querySelectorAll('.wall-metric-title')].map(el => el.querySelector('span')?.textContent)).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
       expect(site.querySelector('.wall-portfolio-metrics')?.lastElementChild).toHaveClass('wall-product-counts');
       for (const heading of site.querySelectorAll('.wall-metric-title')) expect(heading.querySelector('svg')).not.toBeNull();
@@ -575,10 +526,9 @@ describe("minute momentum observations", () => {
 
   it("retains the last usable numbers and minute buckets after a failed read", () => {
     const assets = wallFixturePayload().assets;
-    const issues = wallIssues({ assets, attention: [], connections: NO_READS, nowMs: NOW });
     const good = wallFixtureRealtime();
-    const { container, rerender } = render(<SiteRows assets={assets} issues={issues} ga4Realtime={good} nowMs={NOW} />);
-    rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={failedFor('mosaic.example', good)} nowMs={NOW + 4 * 60_000} />);
+    const { container, rerender } = render(<SiteRows assets={assets} ga4Realtime={good} nowMs={NOW} />);
+    rerender(<SiteRows assets={assets} ga4Realtime={failedFor('mosaic.example', good)} nowMs={NOW + 4 * 60_000} />);
     const site = row(container, 'mosaic.example');
     expect(site.querySelector('[data-live]')).toHaveAttribute('data-live', 'failed');
     expect(site.querySelector('[data-live-count]')).toHaveAttribute('data-value', '21');

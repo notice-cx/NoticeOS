@@ -33,8 +33,8 @@ for (const deviceScaleFactor of [1, 2]) test.describe(`asset identity at DPR ${d
       expect(new Set(row.tiles.map(tile => tile.top)).size).toBe(1);
       for (const tile of row.tiles) expect(tile.height).toBeCloseTo(132, 0);
     }
-    await expect(page.locator('[data-site-name] [data-site-health] rect')).toHaveCount(0);
-    await expect(page.locator('[data-site-name] [data-site-source="live"]')).toHaveCount(4);
+    await expect(page.locator('[data-site-name] [data-site-health], [data-site-name] [data-site-source]')).toHaveCount(0);
+    for (const asset of payload.assets) await expect(page.locator(`[data-site-row="${asset.id}"] [data-site-name]`)).toHaveText(asset.displayName);
     await expect(page.locator('[data-site-label]', { hasText: "Example product with a longer asset name" })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`asset-headers-1920-dpr${deviceScaleFactor}.png`) });
   });

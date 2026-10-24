@@ -24,7 +24,7 @@ function retained(): Ga4RealtimePayload {
 
 describe('the retained realtime day on the Wall', () => {
   it('shows minute activity instead of the delayed hourly chart, with gaps and no invented baseline or total', () => {
-    const { container } = render(<SiteRows assets={wallFixturePayload().assets} issues={[]} ga4Realtime={retained()} nowMs={NOW} />);
+    const { container } = render(<SiteRows assets={wallFixturePayload().assets} ga4Realtime={retained()} nowMs={NOW} />);
     expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
     expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
     expect(container.querySelector('[data-site-today-chart] [data-realtime-today]')).not.toBeNull();
@@ -38,7 +38,7 @@ describe('the retained realtime day on the Wall', () => {
 
   it('uses retained realtime data in the same tile for one asset', () => {
     const asset = wallFixturePayload().assets[0]!;
-    const { container } = render(<SiteRows assets={[asset]} issues={[]} ga4Realtime={retained()} nowMs={NOW} />);
+    const { container } = render(<SiteRows assets={[asset]} ga4Realtime={retained()} nowMs={NOW} />);
     expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
     expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
     expect(container.querySelector('[data-realtime-today]')).not.toBeNull();
@@ -58,7 +58,7 @@ describe('the retained realtime day on the Wall', () => {
   it.each(['in-progress', 'refused', 'reconnecting'])('keeps recent numbers and the five-minute label stable during %s', mode => {
     const assets = wallFixturePayload().assets;
     const good = retained();
-    const { container, rerender } = render(<SiteRows assets={assets} issues={[]} ga4Realtime={good} nowMs={NOW} />);
+    const { container, rerender } = render(<SiteRows assets={assets} ga4Realtime={good} nowMs={NOW} />);
     const target = assets[0]!.id;
     const cell = () => container.querySelector(`[data-site-row="${target}"] [data-live]`)!;
     const count = cell().querySelector('[data-live-count]');
@@ -69,7 +69,7 @@ describe('the retained realtime day on the Wall', () => {
     const failed: Ga4RealtimeAsset = { asset: target, status: 'error', activeUsers5m: null, activeUsers30m: null,
       hourlyActiveUsers: null, observedAt: new Date(NOW).toISOString(), errorCode: mode === 'in-progress' ? 'ga4_read_in_progress' : 'ga4_realtime_http_503' };
     const next = mode === 'reconnecting' ? good : { ...good, assets: good.assets.map(asset => asset.asset === target ? failed : asset) };
-    rerender(<SiteRows assets={assets} issues={[]} ga4Realtime={next} ga4RealtimeError={mode === 'reconnecting'} nowMs={NOW + 1_000} />);
+    rerender(<SiteRows assets={assets} ga4Realtime={next} ga4RealtimeError={mode === 'reconnecting'} nowMs={NOW + 1_000} />);
     expect(cell().querySelector('[data-live-count]')).toBe(count);
     expect(cell().querySelector('[data-live-recent-count]')).toBe(recent);
     expect(cell().textContent).toBe(text);
@@ -129,7 +129,7 @@ describe('hourly activity and day-so-far pace', () => {
       snapshot.realtimeDay.minutes.fill(null);
       for (let i = 0; i < MINUTE; i++) snapshot.realtimeDay.minutes[i] = 3;
     }
-    const { container } = render(<SiteRows assets={wallFixturePayload().assets} issues={[]} ga4Realtime={payload} nowMs={NOW} />);
+    const { container } = render(<SiteRows assets={wallFixturePayload().assets} ga4Realtime={payload} nowMs={NOW} />);
     expect(container.querySelector('[data-realtime-prior]')).not.toBeNull();
     expect(container.querySelector('[data-site-today]')?.textContent).toContain('50%');
     expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('.wall-site-axis')?.textContent).toContain('avg users/min');
@@ -144,7 +144,7 @@ describe('hourly activity and day-so-far pace', () => {
       for (let i = MINUTE - 180; i < MINUTE; i++) snapshot.realtimeDay.minutes[i] = i < MINUTE - 120 ? 6 : i < MINUTE - 60 ? 8 : 10;
     }
     const assets = wallFixturePayload().assets;
-    const { container } = render(<SiteRows assets={mode === 'one asset' ? assets.slice(0, 1) : assets} issues={[]} ga4Realtime={payload} nowMs={NOW} />);
+    const { container } = render(<SiteRows assets={mode === 'one asset' ? assets.slice(0, 1) : assets} ga4Realtime={payload} nowMs={NOW} />);
     const today = container.querySelector('[data-site-today]')!;
     expect(today.textContent).toContain('day so far');
     const chip = today.querySelector('[data-tone]')!;

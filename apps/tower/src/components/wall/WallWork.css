@@ -1,0 +1,18 @@
+.wall-work { display: flex; flex-direction: column; gap: .25rem; min-width: 0; container-type: inline-size; container-name: wall-work; }
+.wall-work-context { font-size: .875rem; line-height: 1.25; color: var(--muted-foreground); }
+.wall-work-band { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .75rem; align-items: stretch; }
+@container wall-work (width >= 54rem) {
+  .wall-work-band { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.8fr); }
+}
+@container wall (width >= 80rem) {
+  .wall-work .wall-metric {
+    --metric-height: 8.25rem;
+    --metric-padding: .625rem;
+    --metric-gap: .25rem;
+    --metric-value-size: 2.25rem;
+    --metric-cumulative-value-size: 2.25rem;
+    --metric-change-size: 1.125rem;
+    --metric-basis-size: .75rem;
+    --metric-cumulative-chart-height: 2.5rem;
+  }
+}

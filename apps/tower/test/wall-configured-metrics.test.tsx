@@ -16,7 +16,7 @@ const portfolio: WallWidget = { id: "portfolio", type: "sites", width: 1, settin
 ] } };
 
 function rows(widget = portfolio) {
-  return <SiteRows assets={data().assets} issues={[]} ga4Realtime={wallFixtureRealtime()} nowMs={nowMs} widget={widget} />;
+  return <SiteRows assets={data().assets} ga4Realtime={wallFixtureRealtime()} nowMs={nowMs} widget={widget} />;
 }
 
 describe("configured Wall metrics", () => {
@@ -41,7 +41,7 @@ describe("configured Wall metrics", () => {
       { id: "count", source: "product-count", metricKey: card.metric, display: "number", size: "standard" },
       { id: "live", source: "momentum", display: "momentum", size: "standard" },
     ] } };
-    const { container } = render(<SiteRows assets={[asset]} issues={[]} ga4Realtime={wallFixtureRealtime()} nowMs={nowMs} widget={widget} />);
+    const { container } = render(<SiteRows assets={[asset]} ga4Realtime={wallFixtureRealtime()} nowMs={nowMs} widget={widget} />);
     expect([...container.querySelectorAll("[data-wall-metric]")].map(tile => tile.getAttribute("data-wall-metric"))).toEqual(["count", "live"]);
   });
   it("applies one portfolio template to asset-specific readings and reserves the same tracks when product counts are absent", () => {
@@ -109,7 +109,7 @@ describe("configured Wall metrics", () => {
     const card = asset.counters!.cards[0]!;
     card.value = null;
     const widget: WallWidget = { id: "portfolio", type: "sites", width: 1, settings: { metrics: [{ id: "count", source: "product-count", metricKey: card.metric, display: "number", size: "standard" }] } };
-    const { container } = render(<SiteRows assets={[asset]} issues={[]} nowMs={nowMs} widget={widget} />);
+    const { container } = render(<SiteRows assets={[asset]} nowMs={nowMs} widget={widget} />);
     expect(container.querySelector('[data-wall-metric="count"]')).toHaveAccessibleName(card.label);
     expect(container.querySelector('[aria-label="Unavailable"]')).not.toBeNull();
     expect(container.querySelector(".wall-metric-value")).not.toHaveTextContent("0");

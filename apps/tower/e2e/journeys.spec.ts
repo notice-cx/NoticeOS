@@ -902,14 +902,12 @@ test.describe(() => {
       const found = await page.evaluate(wallLegibility, "[data-wall-sites] .wall-portfolio-heading");
       expect(found.clipped, `text cut off at ${width}×${height}`).toEqual([]);
       expect(found.wrapped, `asset headings off their line at ${width}×${height}`).toEqual([]);
-      // A site that has sent nothing says so in full: that line is the one
-      // fact its row exists to say, so not even a designed ellipsis may
-      // shorten it.
-      const waiting = await page.evaluate(() => [...document.querySelectorAll("[data-site-waiting]")].map((cell) => ({
-        text: (cell.textContent ?? "").trim(), cut: cell.scrollWidth - cell.clientWidth,
-      })));
-      expect(waiting, `the waiting asset's line at ${width}×${height}`).toEqual([{ text: "No data yet", cut: 0 }]);
-      await page.locator('[data-site-row]').filter({ has: page.locator('[data-site-waiting]') }).screenshot({ path: testInfo.outputPath(`wall-waiting-site-${width}.png`) });
+      // Empty readings stay on the metrics; the identity header stays icon and name only.
+      const waitingRow = page.locator('[data-site-row="summit.example"]');
+      await expect(waitingRow.locator('[data-site-name]')).toHaveText("Summit");
+      await expect(waitingRow.locator('[data-site-health], [data-site-source], [data-site-waiting]')).toHaveCount(0);
+      await expect(waitingRow.locator('[data-live] [aria-label="Unavailable"]')).toHaveText("—");
+      await waitingRow.screenshot({ path: testInfo.outputPath(`wall-waiting-site-${width}.png`) });
       await page.locator('[data-site-row="plume.example"]').screenshot({ path: testInfo.outputPath(`wall-first-site-stale-${width}.png`) });
       await page.screenshot({ path: testInfo.outputPath(`wall-${width}.png`) });
     }
@@ -1030,7 +1028,12 @@ test.describe(() => {
       const scale = (element as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
       return { height: element.getBoundingClientRect().height / scale, top: element.getBoundingClientRect().top };
     }));
-    for (const tile of geometry) expect(tile.height).toBeCloseTo(156, 0);
+    const heading = (await work.locator(".wall-work-heading").boundingBox())!;
+    expect(heading.height).toBeLessThanOrEqual(25);
+    for (const tile of geometry) {
+      expect(tile.height).toBeCloseTo(132, 0);
+      expect(tile.top).toBeGreaterThanOrEqual(heading.y + heading.height);
+    }
     expect(Math.max(...geometry.map(tile => tile.top)) - Math.min(...geometry.map(tile => tile.top))).toBeLessThanOrEqual(1);
     const done = work.getByRole("region", { name: "Done this week", exact: true });
     await expect(done).toContainText("Last week total ·");
@@ -1165,18 +1168,10 @@ test.describe(() => {
       expect(measured.clipped, `${at}: text cut off`).toEqual([]);
       expect(measured.feed.lastRowWhole, `${at}: the feed's lowest row cut`).not.toBe(false);
       expect(measured.sites.rows.length, `${at}: every asset a row`).toBe(wallFixturePayload("fire").assets.length);
-      const health = page.locator("[data-site-row] [data-site-health]");
-      await expect(health).toHaveCount(wallFixturePayload("fire").assets.length);
-      await expect(page.locator("[data-site-mark]")).toHaveCount(0);
-      for (const icon of await health.all()) {
-        await expect(icon).toHaveAttribute("role", "group");
-        await expect(icon).toHaveAttribute("aria-label", /.+/);
-        await expect(icon).toHaveText(/Off track|At risk|No open alerts|No data yet|Retired/);
-        await expect(icon.locator("svg rect")).toHaveCount(0);
-        const size = await icon.boundingBox();
-        expect(size?.width, `${at}: visible health icon`).toBeGreaterThan(8);
-        expect(size?.height, `${at}: visible health icon`).toBeGreaterThan(8);
-      }
+      const headers = page.locator("[data-site-row] [data-site-name]");
+      await expect(headers).toHaveCount(wallFixturePayload("fire").assets.length);
+      await expect(page.locator("[data-site-name] [data-site-health], [data-site-name] [data-site-source], [data-site-mark]")).toHaveCount(0);
+      for (const asset of wallFixturePayload("fire").assets) await expect(page.locator(`[data-site-row="${asset.id}"] [data-site-name]`)).toHaveText(asset.displayName);
       // Charts use the width and height left by their figure and axis.
       const charts = await page.evaluate(() => [...document.querySelectorAll("[data-site-row]")]
         .flatMap((row) => [...row.querySelectorAll(".wall-site-chart")].filter(chart => chart.querySelector("svg")).map((chart) => {
@@ -1278,8 +1273,9 @@ test.describe(() => {
         await expect(page.locator("[data-wall-needs]")).toBeVisible();
         if (variant === "fire") {
           const [, , , down, silent] = sites;
-          await expect(page.locator(`[data-site-row="${down!.id}"] [data-site-health]`)).toHaveAttribute("data-site-health", "error");
-          await expect(page.locator(`[data-site-row="${silent!.id}"] [data-site-health]`)).toHaveAttribute("data-site-health", "warn");
+          const ticker = page.locator('[data-wall-attention-ticker] [data-attention-copy="original"]');
+          await expect(ticker.locator('[data-needs-row="error"]').filter({ hasText: down!.displayName }).first()).toBeAttached();
+          await expect(ticker.locator('[data-needs-row="warn"]').filter({ hasText: silent!.displayName }).first()).toBeAttached();
         }
         await page.evaluate(() => document.fonts.ready);
         const measured = await page.evaluate(measureWallFit);

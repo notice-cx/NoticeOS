@@ -9,6 +9,8 @@ import { operatorWaiting } from "@/lib/operator-posture";
 import { shiftRevenueDate } from "@shared/revenue-projection";
 import { formatInt } from "@/lib/format";
 import { CumulativeCompareMetric, NumberMetric, type MetricMovement } from "./MetricWidgets";
+import "./WallWork.css";
+import "./WallRowHeading.css";
 
 export interface WallWorkProps {
   assets: readonly AssetCard[];
@@ -53,9 +55,9 @@ export function WallWork({ assets, operator, nowMs, widget }: WallWorkProps) {
   };
   const tiles = wallMetricTiles(widget ?? { id: "work", type: "work", width: 1 });
   const configured = widget?.settings?.metrics !== undefined;
-  return <section aria-label="Work this week" data-wall-work className="@container min-w-0">
-    <div data-metrics-configured={configured || undefined} style={configured ? { "--wall-metric-tracks": tiles.map(tile => `minmax(0, ${tile.size === "narrow" ? .65 : tile.size === "wide" ? 1.8 : 1}fr)`).join(" ") } as CSSProperties : undefined} className="wall-work-band grid grid-cols-1 items-start gap-4 @min-[1100px]:grid-cols-[200px_repeat(3,minmax(0,1fr))_minmax(0,1.8fr)]">
-      <h2 className="flex h-full flex-col justify-center font-semibold" style={{ fontSize: "var(--text-xl)", lineHeight: 1.25 }}><ListTodo className="mb-2 size-5 text-muted-foreground" aria-hidden />Work this week{weeks?.weekStart ? <span className="mt-1 block text-wall-detail font-normal text-muted-foreground" data-work-days-in={weeks.daysIn}>{weeks.daysIn} {weeks.daysIn === 1 ? "day" : "days"} in</span> : null}{stale ? <span className="block text-wall-detail font-normal text-muted-foreground">Snapshot stale</span> : null}</h2>
+  return <section aria-label="Work this week" data-wall-work className="wall-work">
+    <header className="wall-row-heading wall-work-heading"><ListTodo className="size-5 text-muted-foreground" aria-hidden /><h2 className="wall-row-title">Work this week</h2>{weeks?.weekStart ? <span className="wall-work-context" data-work-days-in={weeks.daysIn}>{weeks.daysIn} {weeks.daysIn === 1 ? "day" : "days"} in</span> : null}{stale ? <span className="wall-work-context">Snapshot stale</span> : null}</header>
+    <div data-metrics-configured={configured || undefined} style={configured ? { "--wall-metric-tracks": tiles.map(tile => `minmax(0, ${tile.size === "narrow" ? .65 : tile.size === "wide" ? 1.8 : 1}fr)`).join(" ") } as CSSProperties : undefined} className="wall-work-band">
       {tiles.map(tile => <WallMetricBinding key={tile.id} tile={tile} configured={configured}>{configured ? <div data-wall-metric-cell>{metrics[tile.source]}</div> : metrics[tile.source]}</WallMetricBinding>)}
     </div>
   </section>;
