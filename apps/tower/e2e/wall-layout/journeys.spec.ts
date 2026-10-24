@@ -116,9 +116,16 @@ test("Wall full-width divider snaps, keeps minimums and records one Undo", { tag
   expect((await rows.nth(0).boundingBox())!.height / scale).toBeGreaterThanOrEqual(WALL_WIDGET_MIN_PX.sites.height);
   expect((await rows.nth(1).boundingBox())!.height / scale).toBeGreaterThanOrEqual(WALL_WIDGET_MIN_PX.revenue.height);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
+  // The expanded comparison's minimum can stop the next two-thirds preset.
+  // The pointer and keyboard must reach the same protected boundary.
+  await drag(last.y + last.height - 1);
+  const maximumShare = Number(await handle.getAttribute("aria-valuenow"));
+  expect((await rows.nth(1).boundingBox())!.height / scale).toBeGreaterThanOrEqual(WALL_WIDGET_MIN_PX.revenue.height);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(handle).toHaveAttribute("aria-valuenow", "50");
   await handle.focus();
   await page.keyboard.press("PageDown");
-  await expect(handle).toHaveAttribute("aria-valuenow", "67");
+  await expect(handle).toHaveAttribute("aria-valuenow", String(Math.min(Math.round(200 / 3), maximumShare)));
   await page.keyboard.press("Tab");
   await page.keyboard.press("ControlOrMeta+z");
   await expect(handle).toHaveAttribute("aria-valuenow", "50");
