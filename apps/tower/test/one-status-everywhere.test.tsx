@@ -25,6 +25,7 @@ import registerJson from "./fixture-config/integrations.json";
 import { wallFixturePayload } from "../e2e/wall-fixture";
 import { everyTabPayload } from "./asset-detail-fixture";
 import { loadAssetTabs } from "./lazy-code";
+vi.mock("@/hooks/useWallWeather", () => ({ useWallWeather: () => undefined }));
 
 const NOW = Date.parse("2026-09-23T15:00:00.000Z");
 const ASSET = "meadow.example";

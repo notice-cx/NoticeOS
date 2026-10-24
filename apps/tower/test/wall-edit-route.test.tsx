@@ -28,6 +28,7 @@ import {
  */
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
+vi.mock("@/hooks/useWallWeather", () => ({ useWallWeather: () => undefined }));
 
 const state = vi.hoisted(() => ({
   wall: null as WallPayload | null,

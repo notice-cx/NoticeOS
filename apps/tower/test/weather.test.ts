@@ -13,9 +13,23 @@ function client(value: unknown, options: { status?: number } = {}) {
   const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(value), { status: options.status ?? 200 }));
   return { api: createWeatherClient({ fetch: fetcher, now }), fetcher };
 }
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("public browser weather client", () => {
+  it("resolves default fetch at request time while retaining an explicitly injected fetch", async () => {
+    const first = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ cityName: "First City", latitude: 0, longitude: 0 }));
+    const second = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ cityName: "Second City", latitude: 1, longitude: 1 }));
+    vi.stubGlobal("fetch", first);
+    const dynamic = createWeatherClient();
+    const injected = createWeatherClient({ fetch: first });
+    vi.stubGlobal("fetch", second);
+    expect(await dynamic.locate()).toEqual({ name: "Second City", latitude: 1, longitude: 1 });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(await injected.locate()).toEqual({ name: "First City", latitude: 0, longitude: 0 });
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
   it("locates the caller using the documented free endpoint without credentials or country timezone guesses", async () => {
     const { api, fetcher } = client({ cityName: "Example City", regionName: "Example Region", countryName: "Example Country", latitude: 0, longitude: 0, timeZones: ["Pacific/Auckland", "Europe/London"] });
     expect(await api.locate()).toEqual({ name: "Example City, Example Region, Example Country", latitude: 0, longitude: 0 });

@@ -19,6 +19,7 @@ import { WallEditRoute } from "@/routes/WallEditRoute";
 import { WallRoute } from "@/routes/WallRoute";
 import WorkflowsRoute from "@/routes/WorkflowsRoute";
 import { WORKFLOW_DEFINITIONS } from "@shared/workflows";
+vi.mock("@/hooks/useWallWeather", () => ({ useWallWeather: () => undefined }));
 
 afterEach(() => {
   vi.unstubAllGlobals();
