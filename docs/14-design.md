@@ -678,6 +678,14 @@ layout" replaces the draft arrangement with the full composition; it takes
 effect only after Save. Existing saved arrangements remain unchanged until
 that action is selected and saved.
 
+"Tile transparency" changes every tile background from opaque at 0% to
+transparent at 100%, with a live preview. Text, charts and borders retain
+their opacity. The setting is saved with the layout, included in Undo, Redo
+and Versions, and retained when starting from another arrangement.
+Portfolio's "Row background and border" switch shows or hides the surface
+around all asset rows together. Individual tile surfaces and row spacing
+stay unchanged.
+
 One chart style is used for every small chart on the TV and the sparklines on
 the Tower's pages: a monotone line with round caps, an area fill that fades
 to transparent at the baseline, a round point on a surface ring; a halo for
@@ -696,6 +704,9 @@ actual width. Expanded cumulative comparisons are 324 px high. Titles pair a
 label with an icon; figures use tabular digits. Comparison tone is supplied
 separately from movement direction: fewer blocked tasks can be positive,
 while work in progress stays neutral.
+Portfolio Work uses green for Closed, neutral text for Open and amber for
+Blocked. The primary count and supporting counts keep separate spacing;
+narrow tiles place the primary count above the supporting counts.
 
 The comparison widget owns the placement of its main figure, unit,
 comparison, supporting figures and chart. Its configuration supplies labels,
@@ -841,8 +852,9 @@ icon; a missing value is shown as a word, not a dash.
 In the Wall editor, a **tile** is one metric figure or chart inside a
 **section**, such as Portfolio, Work or Revenue. Tile controls change that
 metric's source, display, title, width and supported details. Section controls
-change the whole section's placement, size and asset filter. The widget
-library lists whole sections. Outside this Wall editing context, the existing
+change the whole section's placement, size and asset filter. The Wall-wide
+"Tile transparency" control changes tile backgrounds. The widget library
+lists whole sections. Outside this Wall editing context, the existing
 term **widget** remains in use.
 
 Every word also has a level: business, operational or technical. *Business*

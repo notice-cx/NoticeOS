@@ -903,6 +903,76 @@ describe("what the operator is told", () => {
   });
 });
 
+describe("Wall tile transparency", () => {
+  it("preserves appearance calibration while a view preset replaces the section arrangement", () => {
+    const layout = structuredClone(DEFAULT_WALL_LAYOUT);
+    layout.tileTransparency = 50;
+    wallLayoutWidgets(layout).find(item => item.type === "sites")!.settings = { rowBackground: false };
+    renderEditor({ layout, history: [] });
+    openDrawer("Add a widget");
+    fireEvent.click(screen.getByRole("button", { name: "Start from" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /I build the product/ }));
+    fireEvent.click(saveButton());
+    expect(savedLayout().tileTransparency).toBe(50);
+    expect(wallLayoutWidgets(savedLayout()).find(item => item.type === "sites")?.settings?.rowBackground).toBe(false);
+  });
+
+  it("keeps calibration when applying the full Wall composition", () => {
+    renderEditor({ layout: { ...SAVED_COLUMN_LAYOUT, tileTransparency: 50 }, history: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Use full Wall layout" }));
+    expect(screen.getByRole("slider", { name: "Tile transparency" })).toHaveValue("50");
+    fireEvent.click(saveButton());
+    expect(savedLayout().tileTransparency).toBe(50);
+  });
+
+  it("uses the same shared row appearance setting from metric and section controls", () => {
+    renderEditor();
+    fireEvent.click(widget("sites").querySelector('[data-wall-metric-select="today"]')!);
+    const toggle = screen.getByRole("switch", { name: "Row background and border" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Row settings" }));
+    expect(screen.getByRole("switch", { name: "Row background and border" })).not.toBeChecked();
+    fireEvent.click(saveButton());
+    expect(wallLayoutWidgets(savedLayout()).find(item => item.id === "sites")?.settings?.rowBackground).toBe(false);
+  });
+
+  it("groups a slider drag into one Undo and saves its final value", () => {
+    renderEditor();
+    const slider = screen.getByRole("slider", { name: "Tile transparency" });
+    expect(slider).toHaveValue("0");
+    expect(slider).toHaveAttribute("aria-valuetext", "0% transparent");
+    fireEvent.pointerDown(slider);
+    fireEvent.change(slider, { target: { value: "25" } });
+    fireEvent.change(slider, { target: { value: "50" } });
+    fireEvent.pointerUp(slider);
+    fireEvent.click(toolbarButton("Undo"));
+    expect(slider).toHaveValue("0");
+    expect(toolbarButton("Undo")).toBeDisabled();
+    fireEvent.click(toolbarButton("Redo"));
+    expect(slider).toHaveValue("50");
+    fireEvent.click(saveButton());
+    expect(savedLayout().tileTransparency).toBe(50);
+  });
+
+  it("groups a held keyboard key until release and restores saved calibration on Discard", () => {
+    renderEditor({ layout: { ...DEFAULT_WALL_LAYOUT, tileTransparency: 30 }, history: [] });
+    const slider = screen.getByRole("slider", { name: "Tile transparency" });
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    fireEvent.change(slider, { target: { value: "31" } });
+    fireEvent.keyDown(slider, { key: "ArrowRight", repeat: true });
+    fireEvent.change(slider, { target: { value: "32" } });
+    fireEvent.keyUp(slider, { key: "ArrowRight" });
+    fireEvent.click(toolbarButton("Undo"));
+    expect(slider).toHaveValue("30");
+    expect(toolbarButton("Undo")).toBeDisabled();
+    fireEvent.click(toolbarButton("Redo"));
+    expect(slider).toHaveValue("32");
+    fireEvent.click(toolbarButton("Discard"));
+    expect(slider).toHaveValue("30");
+  });
+});
+
 describe("save", () => {
   it("writes exactly one file op, at the pointer, guarded by what it read", () => {
     renderEditor();

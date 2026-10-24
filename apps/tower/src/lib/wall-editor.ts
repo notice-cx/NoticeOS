@@ -115,6 +115,7 @@ export type WallEditorAction =
   | { type: "remove"; widgetId: string }
   | { type: "select"; widgetId: string | null }
   | { type: "settings"; widgetId: string; settings: WallWidgetSettings | undefined }
+  | { type: "transparency"; value: number; gesture?: string }
   /** A drag's landing, from the Wall or from the Add drawer. */
   | { type: "drop"; source: WallDragSource; target: WallDropTarget }
   /** One Move menu item, or its keyboard shortcut. */
@@ -146,6 +147,7 @@ export const WALL_UNDO_LIMIT = 100;
 export function wallFullComposition(layout: WallLayout): WallLayout {
   const settings = new Map(wallLayoutWidgets(layout).map((widget) => [widget.type, widget.settings]));
   const full = structuredClone(DEFAULT_WALL_LAYOUT);
+  if (layout.tileTransparency !== undefined) full.tileTransparency = layout.tileTransparency;
   for (const widget of wallLayoutWidgets(full)) {
     const current = settings.get(widget.type);
     if (current !== undefined) widget.settings = structuredClone(current);
@@ -291,6 +293,7 @@ export function wallLibraryOptions(layout: WallLayout): WallLibraryOption[] {
  * width, its column's width and its row's height.
  */
 export function wallChangeSummary(before: WallLayout, after: WallLayout): string {
+  if ((before.tileTransparency ?? 0) !== (after.tileTransparency ?? 0) && sameWallLayout({ ...before, tileTransparency: 0 }, { ...after, tileTransparency: 0 })) return `Tile transparency ${after.tileTransparency ?? 0}%`;
   // A layout that is exactly a view's preset was started from it.
   const preset = sameWallLayout(before, after) ? undefined : wallPresetOf(after);
   if (preset) return `Started from ${preset.label}`;
@@ -369,6 +372,7 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
     resized.length ? `resized ${resized.join(", ")}` : null,
     filtered.length ? `filtered ${filtered.join(", ")}` : null,
     rowShape(before) !== rowShape(after) ? "rearranged rows" : null,
+    (before.tileTransparency ?? 0) !== (after.tileTransparency ?? 0) ? `tile transparency ${after.tileTransparency ?? 0}%` : null,
   ].filter((part): part is string => part !== null);
   if (parts.length === 0) return "Layout changed";
   const text = parts.join(" · ");
@@ -1154,6 +1158,9 @@ export function wallEditorReducer(
     }
     case "select":
       return { ...state, selectedId: action.widgetId };
+    case "transparency":
+      if (!Number.isInteger(action.value) || action.value < 0 || action.value > 100) return state;
+      return commit(state, { ...state.layout, tileTransparency: action.value }, {}, action.gesture);
     case "settings": {
       const next = copy(state.layout);
       const spot = spotOf(next, action.widgetId);

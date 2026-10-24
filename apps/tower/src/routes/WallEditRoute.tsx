@@ -136,6 +136,8 @@ export function WallEditRoute() {
   const [announcement, setAnnouncement] = useState("");
   const [metricSelection, setMetricSelection] = useState<MetricTileSelection | null>(null);
   const [focused, setFocused] = useState(false);
+  const transparencyGesture = useRef<string | null>(null);
+  const transparencySequence = useRef(0);
   const [sectionSettings, setSectionSettings] = useState(false);
   const [portfolioFit, setPortfolioFit] = useState<{ visible: number; total: number } | null>(null);
   const restoreTileFocus = useRef(false);
@@ -325,7 +327,17 @@ export function WallEditRoute() {
   };
 
   const start = (layout: WallLayout, label: string) => {
-    dispatch({ type: "replace", layout });
+    const next = structuredClone(layout);
+    if (state.layout.tileTransparency === undefined) delete next.tileTransparency;
+    else next.tileTransparency = state.layout.tileTransparency;
+    const currentSites = wallLayoutWidgets(state.layout).find(widget => widget.type === "sites");
+    const nextSites = wallLayoutWidgets(next).find(widget => widget.type === "sites");
+    if (currentSites && nextSites) {
+      const { rowBackground: _rowBackground, ...settings } = nextSites.settings ?? {};
+      const preserved = { ...settings, ...(currentSites.settings?.rowBackground === undefined ? {} : { rowBackground: currentSites.settings.rowBackground }) };
+      nextSites.settings = Object.keys(preserved).length ? preserved : undefined;
+    }
+    dispatch({ type: "replace", layout: next });
     setAnnouncement(`Started from ${label}`);
     setFocused(false);
     setMetricSelection(null);
@@ -447,10 +459,37 @@ export function WallEditRoute() {
             {widgets.filter(widget => wallMetricSources(widget.type).length > 0).map(widget => <Button key={widget.id} type="button" size="sm" variant={metricWidget?.id === widget.id ? "default" : "ghost"} aria-pressed={metricWidget?.id === widget.id} onClick={() => selectMetricSection(widget.id)}>{wallWidgetSpec(widget.type).label}</Button>)}
             <Button type="button" size="sm" variant="outline" className="ml-auto" disabled={disabled} onClick={() => start(wallFullComposition(state.layout), "the full Wall layout")}>Use full Wall layout</Button>
           </nav>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-wall-transparency-control>
+            <label htmlFor="wall-tile-transparency" className="font-medium">Tile transparency</label>
+            <span className="text-xs text-muted-foreground" aria-hidden>Opaque</span>
+            <input
+              id="wall-tile-transparency"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={state.layout.tileTransparency ?? 0}
+              aria-valuetext={`${state.layout.tileTransparency ?? 0}% transparent`}
+              className="h-9 w-40 accent-primary"
+              disabled={disabled}
+              onPointerDown={() => { transparencyGesture.current = `transparency:${++transparencySequence.current}`; }}
+              onPointerUp={() => { transparencyGesture.current = null; }}
+              onPointerCancel={() => { transparencyGesture.current = null; }}
+              onKeyDown={event => {
+                if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(event.key) && !transparencyGesture.current) transparencyGesture.current = `transparency:${++transparencySequence.current}`;
+              }}
+              onKeyUp={() => { transparencyGesture.current = null; }}
+              onBlur={() => { transparencyGesture.current = null; }}
+              onChange={event => dispatch({ type: "transparency", value: Number(event.target.value), ...(transparencyGesture.current ? { gesture: transparencyGesture.current } : {}) })}
+            />
+            <span className="text-xs text-muted-foreground" aria-hidden>Transparent</span>
+            <output htmlFor="wall-tile-transparency" className="w-10 tabular-nums">{state.layout.tileTransparency ?? 0}%</output>
+          </div>
           {!rowFocused && portfolioFit && portfolioFit.visible < portfolioFit.total ? <p className="text-sm text-amber-600 dark:text-amber-400" data-wall-portfolio-fit>{portfolioFit.visible} of {portfolioFit.total} asset rows fit. Use the full Wall layout to give Portfolio more room, or adjust the section dividers.</p> : null}
           <div className={rowFocused ? "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start" : "flex min-w-0 flex-col gap-4"} data-wall-editor>
             {rowFocused ? <WallMetricFocus
               widget={metricWidget}
+              tileTransparency={state.layout.tileTransparency}
               data={data}
               meetings={upcoming.data}
               calendarState={calendarReadState(upcoming)}

@@ -117,6 +117,32 @@ function fakePage() {
 }
 
 describe("a page's change stream", () => {
+  it.each(['locks', 'BroadcastChannel'] as const)('receives layout changes without %s and releases its direct stream', missing => {
+    const page = fakePage();
+    if (missing === 'locks') Object.defineProperty(page.navigator, 'locks', { value: undefined });
+    else Object.defineProperty(page, 'BroadcastChannel', { value: undefined });
+    FakeSource.last = null;
+    const queries = new QueryClient();
+    const invalidate = vi.spyOn(queries, 'invalidateQueries').mockResolvedValue();
+    const stream = createChangeStream(queries, page);
+    try {
+      expect(FakeSource.last).not.toBeNull();
+      const source = FakeSource.last!;
+      source.emit('open');
+      expect(stream.connected()).toBe(true);
+      invalidate.mockClear();
+      source.emit('change', { topics: ['wall'] });
+      expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([['wall']]);
+      source.emit('error');
+      expect(stream.connected()).toBe(false);
+      source.emit('open');
+      expect(stream.connected()).toBe(true);
+      stream.close();
+      expect(source.closed).toBe(true);
+      expect(stream.connected()).toBe(false);
+    } finally { stream.close(); queries.clear(); }
+  });
+
   it('refreshes cached queries when a follower first receives a connected status', () => {
     const queries = new QueryClient();
     queries.setQueryData(['work'], { projects: ['old'] });
@@ -236,11 +262,13 @@ describe('shared demo browser runtime', () => {
     }
   });
 
-  it('refreshes changed queries, suspends all covered polling while connected, and resumes on disconnect', async () => {
+  it.each([true, false])('refreshes queries and resumes polling on disconnect with shared connection %s', async shared => {
     vi.useFakeTimers();
     const reads: string[] = [];
+    const page = fakePage();
+    if (!shared) Object.defineProperty(page.navigator, 'locks', { value: undefined });
     const runtime = createBrowserRuntime({ mode: 'demo', workspaceId, clientGeneration: 0 }, {
-      origin: 'https://demo.example.com', page: fakePage(), sendAnswer: async () => {},
+      origin: 'https://demo.example.com', page, sendAnswer: async () => {},
       fetch: async input => {
         const path = new URL(String(input)).pathname; reads.push(path);
         return Response.json(path === '/api/wall' ? wallMoneyResponse() : {

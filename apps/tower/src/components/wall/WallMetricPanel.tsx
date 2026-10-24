@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { ArrowLeft, ArrowRight, Expand, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Expand, EyeOff, Plus, Trash2 } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
 import { wallMetricSources, wallMetricSpec, wallMetricTiles, type WallMetricSource, type WallMetricTile, type WallWidget, type WallWidgetSettings } from "@shared/wall-layout";
 import { addWallMetricTile, moveWallMetricTile, removeWallMetricTile, updateWallMetricTile } from "@/lib/wall-metric-editor";
@@ -23,6 +23,13 @@ export interface WallMetricPanelProps {
 const DISPLAY_LABELS = { number: "Number", momentum: "Momentum", compare: "Comparison", multi: "Multiple values", cumulative: "Cumulative" };
 const FIELD_CLASS = cn(fieldClass, "h-9 w-full px-3 text-foreground");
 
+export function WallRowAppearance({ settings, disabled, onSettings }: { settings: WallWidgetSettings | undefined; disabled?: boolean; onSettings: (settings: WallWidgetSettings) => void }) {
+  const shown = settings?.rowBackground !== false;
+  return <Button type="button" variant="outline" size="sm" role="switch" aria-label="Row background and border" aria-checked={shown} disabled={disabled} onClick={() => onSettings({ ...settings, rowBackground: !shown })}>
+    {shown ? <Check className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}Row background and border
+  </Button>;
+}
+
 export function WallMetricPanel({ widget, selectedTileId, assets, disabled = false, focused, layout = "side", onFocus, onSelectTile, onSettings, onSectionSettings }: WallMetricPanelProps) {
   const prefix = useId();
   const [adding, setAdding] = useState(false);
@@ -43,6 +50,7 @@ export function WallMetricPanel({ widget, selectedTileId, assets, disabled = fal
       <div className="flex min-w-0 items-center gap-2"><h2 className="truncate text-sm font-semibold">{tile?.title || spec?.label || "Row tiles"}</h2>{widget.type === "sites" ? <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">Shared · Portfolio</span> : null}</div>
       <div className="flex items-center gap-2"><Button type="button" variant="ghost" size="sm" onClick={onFocus}>{focused ? <ArrowLeft className="size-4" /> : <Expand className="size-4" />}{focused ? "Back to Wall" : "Focus on row"}</Button>{onSectionSettings ? <Button type="button" variant="ghost" size="sm" onClick={onSectionSettings}>Row settings</Button> : null}</div>
     </header>
+    {widget.type === "sites" ? <div><WallRowAppearance settings={widget.settings} disabled={disabled} onSettings={onSettings} /></div> : null}
     {tile && spec ? <div className={cn("grid gap-4", layout === "bottom" && "lg:grid-cols-3")}>
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1.5 text-xs font-medium" htmlFor={`${prefix}-metric`}>Metric<select id={`${prefix}-metric`} className={FIELD_CLASS} disabled={disabled || tile.source === "product-count"} value={tile.source} onChange={event => patch({ source: event.target.value as WallMetricSource, display: wallMetricSpec(event.target.value as WallMetricSource).defaultDisplay, size: wallMetricSpec(event.target.value as WallMetricSource).defaultSize, metricKey: undefined })}>{editableSources.map(source => <option key={source} value={source}>{wallMetricSpec(source).label}</option>)}</select></label>

@@ -12,6 +12,13 @@ function Editor({ focused = false }: { focused?: boolean }) {
 }
 
 describe("Wall tile controls", () => {
+  it("changes only shared row appearance and preserves tile and asset settings", () => {
+    const settings = { assets: ["example.com"], pulseMetrics: { "example.com": ["accounts"] }, metrics: [{ id: "today", source: "today" as const, display: "compare" as const, size: "standard" as const }] };
+    const changed = vi.fn();
+    render(<WallMetricPanel widget={{ ...initial, settings }} selectedTileId="today" assets={[]} focused onFocus={vi.fn()} onSelectTile={vi.fn()} onSettings={changed} />);
+    fireEvent.click(screen.getByRole("switch", { name: "Row background and border" }));
+    expect(changed).toHaveBeenCalledWith({ ...settings, rowBackground: false });
+  });
   it("requires the wide layout for cumulative revenue and restores both widths for Number", () => {
     function RevenueEditor() {
       const [widget, setWidget] = useState<WallWidget>({ id: "revenue", type: "revenue", width: 1, settings: { metrics: [{ id: "revenue", source: "revenue", display: "number", size: "standard" }] } });

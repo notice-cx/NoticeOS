@@ -42,7 +42,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
   const configured = widget?.settings?.metrics !== undefined;
   const ordered = [...tiles.filter(tile => tile.source !== "product-counts"), ...tiles.filter(tile => tile.source === "product-counts")];
   if (assets.length === 0) return <section aria-label="Portfolio" className="flex items-center gap-3 text-wall-body text-muted-foreground" data-wall-sites="none"><Globe aria-hidden />No assets yet</section>;
-  return <section aria-label="Portfolio" className="wall-portfolio" data-wall-sites>
+  return <section aria-label="Portfolio" className="wall-portfolio" data-wall-sites data-row-background={widget?.settings?.rowBackground === false ? "hidden" : undefined}>
     <header className="wall-portfolio-header"><h2 className="wall-portfolio-heading">Portfolio</h2><div className="wall-portfolio-legend" aria-label="Chart legend"><span><i aria-hidden />Current</span><span><i aria-hidden />Reference period</span></div></header>
     <div className="wall-portfolio-list">
       {assets.map(asset => {
@@ -106,7 +106,7 @@ function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
     primary={{ label: "Closed", value: <span data-site-work-closed>{count(closed)}</span>, tone: "positive" }}
     metrics={[
       { label: "Open", value: <span data-site-work-open>{count(work ? work.open + work.inProgress : null)}</span> },
-      { label: "Blocked", value: <span data-site-work-blocked aria-label="Blocked tasks, included in open">{count(work?.blocked ?? null)}</span> },
+      { label: "Blocked", value: <span data-site-work-blocked aria-label="Blocked tasks, included in open">{count(work?.blocked ?? null)}</span>, tone: "warn" },
     ]}
     note={work && (stale || ageMs(nowMs, work.capturedAt) === null) ? <AgeBadge iso={work.capturedAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={nowMs} /> : !work ? "Tasks unavailable" : undefined}
   /></div>;

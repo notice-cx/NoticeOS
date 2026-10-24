@@ -344,7 +344,7 @@ export function WallCanvas({
   return (
     <WallSeconds>
       {/* The one `fill` row takes what the others leave. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-wall-region" data-wall-canvas>
+      <div className="flex min-h-0 flex-1 flex-col gap-wall-region" data-wall-canvas style={{ "--wall-tile-background-opacity": `${100 - (layout.tileTransparency ?? 0)}%` } as CSSProperties}>
         {layout.rows.map((row, rowIndex) => drawRow(row, rowIndex, null))}
       </div>
     </WallSeconds>

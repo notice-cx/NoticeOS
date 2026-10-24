@@ -20,6 +20,20 @@ function rows(widget = portfolio) {
 }
 
 describe("configured Wall metrics", () => {
+  it.each([false, true])("applies the shared Portfolio row background choice without changing tiles or tracks (configured=%s)", configured => {
+    const shown: WallWidget = { id: "portfolio", type: "sites", width: 1, settings: { ...(configured ? portfolio.settings : {}) } };
+    const view = render(rows(shown));
+    const tiles = () => [...view.container.querySelectorAll("[data-wall-metric]")].map(tile => [tile.getAttribute("data-wall-metric"), tile.getAttribute("data-metric-size")]);
+    const before = tiles();
+    const tracks = [...view.container.querySelectorAll<HTMLElement>("[data-site-row]")].map(row => row.style.getPropertyValue("--wall-metric-tracks"));
+    expect(view.container.querySelector("[data-wall-sites]")).not.toHaveAttribute("data-row-background");
+    view.rerender(rows({ ...shown, settings: { ...shown.settings, rowBackground: false } }));
+    expect(view.container.querySelector("[data-wall-sites]")).toHaveAttribute("data-row-background", "hidden");
+    expect(tiles()).toEqual(before);
+    expect([...view.container.querySelectorAll<HTMLElement>("[data-site-row]")].map(row => row.style.getPropertyValue("--wall-metric-tracks"))).toEqual(tracks);
+    view.rerender(rows({ ...shown, settings: { ...shown.settings, rowBackground: true } }));
+    expect(view.container.querySelector("[data-wall-sites]")).not.toHaveAttribute("data-row-background");
+  });
   it("preserves saved positions for individual product counters", () => {
     const asset = data().assets.find(asset => asset.counters?.cards.length)!;
     const card = asset.counters!.cards[0]!;

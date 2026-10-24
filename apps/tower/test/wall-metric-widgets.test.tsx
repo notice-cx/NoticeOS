@@ -4,6 +4,13 @@ import { CumulativeCompareMetric, MetricComparisonChart, MomentumMetric, MultiMe
 import { WallMetricBinding } from "@/components/wall/WallMetricEditing";
 
 describe("Wall metric widgets", () => {
+  it("colors an individual supporting fact from its supplied tone without changing its siblings", () => {
+    const { container } = render(<MultiMetric title="Work" primary={{ label: "Closed", value: 103, tone: "positive" }} metrics={[{ label: "Open", value: 163 }, { label: "Blocked", value: 7, tone: "warn" }]} />);
+    const facts = container.querySelectorAll(".wall-metric-facts dd");
+    expect(facts[0]).not.toHaveClass("text-warn");
+    expect(facts[1]).toHaveClass("text-warn");
+    expect(container.querySelector(".wall-metric-primary dd")).toHaveClass("text-trend-positive");
+  });
   it("retains the explicit primary count and separate pace when a comparison changes to Number", () => {
     const view = render(<WallMetricBinding tile={{ id: "today", source: "today", display: "number", size: "standard" }} configured><SparklineCompareMetric title="Today" primary={{ value: 0 }} secondary="12% ahead" referenceFact={{ label: "vs last Fri", value: 42 }} value="12%" /></WallMetricBinding>);
     expect(view.container.querySelector(".wall-metric-value")).toHaveTextContent(/^0$/);

@@ -16,6 +16,7 @@ import { CountdownEditor } from "@/components/DashboardWidgets";
 import { OwnerChip } from "@/components/OwnerChip";
 import { StateChip } from "@/components/StateChip";
 import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
+import { WallRowAppearance } from "@/components/wall/WallMetricPanel";
 import { Button } from "@/components/ui/button";
 import {
   WALL_SHARE_PRESETS,
@@ -295,6 +296,8 @@ export function WallWidgetPanel({
             )}
           </div>
         </div>
+
+        {widget.type === "sites" ? <WallRowAppearance settings={widget.settings} disabled={disabled} onSettings={settings => onSettings(widget.id, settings)} /> : null}
 
         {spec.settings.includes("assets") ? (
           <AssetFilter

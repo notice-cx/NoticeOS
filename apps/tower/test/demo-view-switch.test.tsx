@@ -218,6 +218,21 @@ describe("an installation's TV", () => {
 });
 
 describe("demoDrawnLayout", () => {
+  it.each([false, true])("carries the shared Portfolio row background choice %s into demo presets", rowBackground => {
+    const saved = structuredClone(SAVED);
+    const sites = wallLayoutWidgets(saved).find(widget => widget.type === "sites")!;
+    sites.settings = { ...sites.settings, rowBackground };
+    const drawn = demoDrawnLayout({ wall: { layout: saved, history: [] } }, "product");
+    expect(sitesSettings(drawn)).toMatchObject({ rowBackground, pulseMetrics: sites.settings.pulseMetrics });
+    expect(sitesSettings(WALL_PRESETS.product)).toBeUndefined();
+  });
+  it.each([0, 50, 100])("carries %s percent tile transparency through each demo preset without changing the preset", tileTransparency => {
+    const saved = { ...structuredClone(SAVED), tileTransparency };
+    for (const view of ["business", "product", "everything"] as const) {
+      expect(demoDrawnLayout({ wall: { layout: saved, history: [] } }, view).tileTransparency).toBe(tileTransparency);
+      expect(WALL_PRESETS[view].tileTransparency).toBeUndefined();
+    }
+  });
   it("draws Everything's preset when nothing is saved", () => {
     expect(demoDrawnLayout({}, "everything")).toBe(DEFAULT_WALL_LAYOUT);
     expect(demoDrawnLayout({}, null)).toBe(DEFAULT_WALL_LAYOUT);

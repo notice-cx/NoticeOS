@@ -10,6 +10,7 @@ import type { AssetCard, WallPayload } from "@shared/wall";
 import { SAVED_COLUMN_LAYOUT } from "./saved-wall-layout";
 import { DEFAULT_WALL_LAYOUT, parseWallConfig, type WallLayout } from "@shared/wall-layout";
 import { WallCanvas } from "@/components/WallCanvas";
+import { WallMetricFocus } from "@/components/wall/WallMetricFocus";
 
 const NOW = Date.parse("2026-09-05T12:05:00.000Z");
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-09-05T12:05:00.000Z") }));
@@ -246,6 +247,18 @@ const RETIRED_MARKS = [
 ].join(", ");
 
 describe("the Wall nobody rearranged is the default", () => {
+  it.each([undefined, 0, 50, 100])("inherits background-only tile opacity from %s percent transparency", tileTransparency => {
+    const layout: WallLayout = { ...structuredClone(DEFAULT_WALL_LAYOUT), ...(tileTransparency !== undefined ? { tileTransparency } : {}) };
+    const view = canvas(layout);
+    const root = view.container.querySelector<HTMLElement>("[data-wall-canvas]")!;
+    expect(root.style.getPropertyValue("--wall-tile-background-opacity")).toBe(`${100 - (tileTransparency ?? 0)}%`);
+    expect(root.style.opacity).toBe("");
+    expect(root.querySelector(".wall-metric")?.getAttribute("style") ?? "").not.toContain("opacity:");
+  });
+  it("carries the draft transparency into a focused row", () => {
+    const view = render(<WallMetricFocus widget={{ id: "sites", type: "sites", width: 1 }} data={PAYLOAD} nowMs={NOW} tileTransparency={75} metricEditing={{ selection: null, onSelect: vi.fn() }} onBack={vi.fn()} onAsset={vi.fn()} />);
+    expect(view.container.querySelector<HTMLElement>("[data-wall-canvas]")?.style.getPropertyValue("--wall-tile-background-opacity")).toBe("25%");
+  });
   it("draws the strip and work over assets beside revenue, attention and the feed", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     const canvasEl = view.container.querySelector("[data-wall-canvas]")!;
