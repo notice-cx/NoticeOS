@@ -37,8 +37,7 @@
 .wall-site-axis { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--muted-foreground); font-size: max(.8125rem, calc(11px / var(--wall-scale, 1))); line-height: 1.1; }
 .wall-site-axis > [data-pace-window] { font-size: inherit; line-height: inherit; }
 .wall-product-value { display: inline-flex; align-items: center; gap: 0.375rem; }
-@media (max-width: 1280px) and (orientation: landscape) {
-  .wall-portfolio .wall-metric {
+  .wall-root[data-wall-compact] .wall-portfolio .wall-metric {
     --metric-padding: .625rem;
     --metric-gap: .25rem;
     --metric-title-size: max(1.0625rem, calc(12px / var(--wall-scale, 1)));
@@ -46,8 +45,7 @@
     --metric-axis-size: max(.75rem, calc(11px / var(--wall-scale, 1)));
     --metric-value-size: 2.25rem;
   }
-  .wall-site-chart { min-height: calc(21px / var(--wall-scale, 1)); }
-}
+  .wall-root[data-wall-compact] .wall-site-chart { min-height: calc(21px / var(--wall-scale, 1)); }
 @container wall-sites (width >= 72rem) {
   .wall-portfolio-row { --portfolio-tile: calc((100cqw - var(--portfolio-identity) - 6 * var(--portfolio-gap) - 1.75rem) / 5); }
 }

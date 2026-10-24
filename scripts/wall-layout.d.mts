@@ -151,10 +151,29 @@ export interface WallRow {
     size?: number;
     widgets: WallSlot[];
 }
+export interface WallTvPreset {
+    id: string;
+    name: string;
+    width: number;
+    height: number;
+    scale: number;
+}
+export interface WallTvPreview {
+    selectedId: string;
+    presets: WallTvPreset[];
+}
+export declare const DEFAULT_WALL_TV_PREVIEW: WallTvPreview;
+/** Physical display pixels divided by the display's scaling percentage. */
+export declare function wallTvViewport(preset: WallTvPreset): {
+    width: number;
+    height: number;
+};
 export interface WallLayout {
     version: typeof WALL_LAYOUT_VERSION;
     /** Background transparency of metric tiles; absent is the existing opaque surface. */
     tileTransparency?: number;
+    tileSurfaces?: boolean;
+    tvPreview?: WallTvPreview;
     rows: WallRow[];
 }
 /** One saved layout the current one replaced. */
@@ -259,7 +278,7 @@ export declare const WALL_RETIRED_WARNING = "Old layout retired, new default sho
  * could only be reverted to the default), and `retired` keeps the value as
  * saved for the editor's Save guard. */
 export declare function parseWallConfig(value: unknown): WallConfig;
-/** True when two layouts would draw the same Wall. */
+/** Equivalent layout documents, including saved preview preferences. */
 export declare function sameWallLayout(a: WallLayout, b: WallLayout): boolean;
 /**
  * The `WallConfig` a Save produces: the new layout becomes current and the one

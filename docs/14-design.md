@@ -584,7 +584,9 @@ the new one then fades in.
 
 ## The Wall
 
-The default TV layout shows the strip across the top. Below it, the left
+The default TV layout shows the strip across the top. On wide screens, the
+brand, meeting, countdown, date and time share one primary text baseline;
+version and meeting context remain below it. Below the strip, the left
 column shows Work this week over Portfolio; the right column shows Revenue
 this month, Needs attention and Live feed. The columns share width at 3.25:1.
 Work, revenue and attention fit their content; Portfolio and Live feed take
@@ -642,9 +644,15 @@ The kit's components for the Tower's pages render on the TV inside
 Wall is viewed from.
 
 The operator arranges widgets at `/wall/edit` and never authors widget types.
-The editor shows the TV's own layout, rendered by the same component the TV
-uses at 1920×1080 and scaled to fit the window, so the arrangement in the
-editor is exactly what the TV shows. Its structure is a row of stacks: a row
+The editor shows the TV's own layout, rendered by the same component at the
+selected TV preset's effective viewport and scaled to fit the window.
+"TV preset" selects a named display profile. "Resolution" and "Display scaling"
+offer common values directly; 4K at 200% provides a 1920×1080 viewport.
+"Custom" shows manual dimensions or scaling. "Edit presets" changes the name
+and adds or removes profiles. The preview and asset-row fit count
+update immediately. Presets save with the layout and support Undo, Redo and
+Versions. The TV uses its browser's current viewport to render the saved
+arrangement. Its structure is a row of stacks: a row
 holds columns side by side, a column stacks widgets. A dragged widget is
 placed by the edge of the target the pointer is nearest, measured as a share
 of the target so a long thin strip still has sides: top or bottom stacks the
@@ -683,6 +691,10 @@ transparent at 100%, with a live preview. Borders stay slightly more opaque
 than tile backgrounds; Portfolio separators fade with the backgrounds.
 Text and charts retain their opacity. The setting is saved with the layout,
 included in Undo, Redo and Versions, and retained when starting from another arrangement.
+"Tile backgrounds and borders" hides or shows tile fills and enclosing
+borders together. Turning them back on restores the saved transparency.
+Text, chart marks, editor selection outlines and Portfolio row separators
+retain their visibility.
 Portfolio asset rows have no background or enclosing border. A faint
 horizontal rule spans the Portfolio width between adjacent rows.
 The "Row separators" switch shows or hides these rules together. Individual

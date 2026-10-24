@@ -813,6 +813,9 @@ describe("what the operator is told beside Save", () => {
     expect(wallOverflowNote(WALL_TV_HEIGHT)).toBeNull();
     expect(wallOverflowNote(0)).toBeNull();
     expect(wallOverflowNote(Number.NaN)).toBeNull();
+    expect(wallOverflowNote(720, 720)).toBeNull();
+    expect(wallOverflowNote(800, 720)).toBe("This layout runs 80 px past the TV.");
+    expect(wallOverflowNote(2160, 2160)).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { wallScreen, type WallScreen } from "@/lib/wall-screen";
+import { wallViewportScreen, type WallViewportScreen } from "@/lib/wall-screen";
 
 function subscribe(onChange: () => void): () => void {
   window.addEventListener("resize", onChange);
@@ -14,7 +14,7 @@ function size(): string {
 
 /** Which Wall this screen gets (`wallScreen`), kept current as the window is
  * resized or a tablet turns. */
-export function useWallScreen(): WallScreen {
+export function useWallScreen(): WallViewportScreen {
   const [width, height] = useSyncExternalStore(subscribe, size, () => "1920x1080").split("x").map(Number);
-  return wallScreen(width!, height!);
+  return wallViewportScreen(width!, height!);
 }

@@ -227,9 +227,10 @@ describe("demoDrawnLayout", () => {
     expect(sitesSettings(WALL_PRESETS.product)).toBeUndefined();
   });
   it.each([0, 50, 100])("carries %s percent tile transparency through each demo preset without changing the preset", tileTransparency => {
-    const saved = { ...structuredClone(SAVED), tileTransparency };
+    const saved = { ...structuredClone(SAVED), tileTransparency, tileSurfaces: false };
     for (const view of ["business", "product", "everything"] as const) {
       expect(demoDrawnLayout({ wall: { layout: saved, history: [] } }, view).tileTransparency).toBe(tileTransparency);
+      expect(demoDrawnLayout({ wall: { layout: saved, history: [] } }, view).tileSurfaces).toBe(false);
       expect(WALL_PRESETS[view].tileTransparency).toBeUndefined();
     }
   });

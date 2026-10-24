@@ -24,6 +24,8 @@ import {
   WALL_TV_HEIGHT,
   WALL_TV_WIDTH,
   WALL_WIDGET_LIBRARY,
+  wallTvViewport,
+  type WallTvPreset,
   type WallLayout,
   type WallWidgetType,
 } from "@shared/wall-layout";
@@ -35,6 +37,7 @@ import type { WallMetricEditing } from "@/components/wall/WallMetricEditing";
 import { Button } from "@/components/ui/button";
 import type { CalendarReadState } from "@/lib/meetings";
 import { cn } from "@/lib/utils";
+import { wallViewportScreen } from "@/lib/wall-screen";
 import {
   wallDropEdge,
   wallDropPlan,
@@ -84,7 +87,7 @@ export function wallDragPreview(type: WallWidgetType, nativeSetDragImage: Parame
   });
 }
 
-/** A box in the TV's own pixels, relative to the 1920×1080 canvas. */
+/** A box in the renderer's logical pixels, before its screen and preview projection. */
 interface Box {
   left: number;
   top: number;
@@ -237,6 +240,7 @@ function labelPlace(edge: "top" | "bottom" | "left" | "right" | "gap", scale: nu
 }
 
 export interface WallPreviewProps {
+  tvPreset?: WallTvPreset;
   layout: WallLayout;
   data: WallPayload;
   meetings?: CalendarUpcoming | null;
@@ -266,7 +270,7 @@ export interface WallPreviewProps {
   fitHeight?: boolean;
   /** Room for the selected tile's controls below the full-Wall preview. */
   reservedHeight?: number;
-  /** The measured content height of the 1920×1080 canvas, after every change. */
+  /** Content height in the selected CSS viewport's pixels, excluding preview fitting. */
   onMeasure?: (contentHeightPx: number) => void;
   onPortfolioFit?: (fit: { visible: number; total: number } | null) => void;
   className?: string;
@@ -275,7 +279,7 @@ export interface WallPreviewProps {
 
 /**
  * The Wall at TV geometry, as the stage the operator arranges it on. It is the
- * real renderer (`WallCanvas` in an exact 1920×1080 box, scaled by a
+ * real renderer (`WallCanvas` in the selected TV's box, scaled by a
  * transform) and the real breakpoints (`wall-root` is the `wall` query
  * container). Each widget is a drag source and a drop target: the edge the
  * pointer is nearest decides where it lands, and a line over the picture says
@@ -307,10 +311,17 @@ export function WallPreview({
   onPortfolioFit,
   className,
   metricEditing,
+  tvPreset,
 }: WallPreviewProps) {
+  const viewport = tvPreset ? wallTvViewport(tvPreset) : { width: WALL_TV_WIDTH, height: WALL_TV_HEIGHT };
+  const screen = wallViewportScreen(viewport.width, viewport.height);
   const frameRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  const [contentHeight, setContentHeight] = useState(screen.height);
+  const scale = fitScale * screen.zoom;
+  const scrolls = screen.layout === 'stack' && !screen.kiosk;
+  const projectedHeight = scrolls ? Math.max(viewport.height * fitScale, contentHeight * scale) : viewport.height * fitScale;
   const [hovered, setHovered] = useState<string | null>(null);
   const [geometry, setGeometry] = useState<StageGeometry>(NO_GEOMETRY);
   const [dragging, setDragging] = useState<WallDragSource | null>(null);
@@ -328,10 +339,10 @@ export function WallPreview({
     if (!frame) return;
     const measureScale = () => {
       const rect = frame.getBoundingClientRect();
-      const byWidth = rect.width > 0 ? rect.width / WALL_TV_WIDTH : 1;
+      const byWidth = rect.width > 0 ? rect.width / viewport.width : 1;
       const room = Math.max(320, window.innerHeight - Math.max(0, rect.top) - 24 - reservedHeight);
-      const byHeight = fitHeight && room > 240 ? room / WALL_TV_HEIGHT : Number.POSITIVE_INFINITY;
-      setScale(Math.min(byWidth, byHeight));
+      const byHeight = fitHeight && room > 240 ? room / viewport.height : Number.POSITIVE_INFINITY;
+      setFitScale(Math.min(byWidth, byHeight));
     };
     measureScale();
     if (typeof ResizeObserver === "undefined") {
@@ -345,7 +356,7 @@ export function WallPreview({
       observer.disconnect();
       window.removeEventListener("resize", measureScale);
     };
-  }, [fitHeight, reservedHeight]);
+  }, [fitHeight, reservedHeight, viewport.width, viewport.height]);
 
   // Observe content only: selection chrome and fit notes cannot trigger
   // their own measurements. Widget reflows and font loads settle in one frame.
@@ -362,12 +373,14 @@ export function WallPreview({
       // editor-only overflow must never become a TV overflow warning.
       const canvas = box.querySelector<HTMLElement>("[data-wall-canvas]");
       const paddingBottom = Number.parseFloat(getComputedStyle(box).paddingBottom) || 0;
-      onMeasure?.(canvas ? Math.max(box.clientHeight, canvas.offsetTop + canvas.scrollHeight + paddingBottom) : box.clientHeight);
+      const height = canvas ? Math.max(box.clientHeight, canvas.offsetTop + canvas.scrollHeight + paddingBottom) : box.clientHeight;
+      setContentHeight(current => current === height ? current : height);
+      onMeasure?.(height * screen.zoom);
       const list = canvas?.querySelector(".wall-portfolio-list");
       const rows = list ? [...list.querySelectorAll("[data-site-row]")] : [];
       const bounds = list?.getBoundingClientRect();
       if (bounds && bounds.height > 0) {
-        const viewport = box.getBoundingClientRect();
+        const viewport = (box.closest('[data-wall-preview]') ?? box).getBoundingClientRect();
         const visible = rows.filter(row => {
           const rect = row.getBoundingClientRect();
           return rect.top >= Math.max(bounds.top, viewport.top) - 1 && rect.bottom <= Math.min(bounds.bottom, viewport.bottom) + 1;
@@ -391,7 +404,7 @@ export function WallPreview({
       cancelAnimationFrame(frame);
       document.fonts?.removeEventListener("loadingdone", schedule);
     };
-  }, [layout, data, meetings, calendarState, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, onMeasure, onPortfolioFit]);
+  }, [layout, data, meetings, calendarState, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, screen.zoom, screen.width, screen.height, onMeasure, onPortfolioFit]);
 
   // One watcher for every drag on the page that belongs to this editor: it
   // asks the grammar what the drop under the pointer would do and draws the
@@ -434,34 +447,51 @@ export function WallPreview({
         ref={frameRef}
         // A transform does not change layout, so the frame reserves the
         // scaled box's height itself.
-        style={{ height: `${WALL_TV_HEIGHT * scale}px` }}
+        style={{ height: `${viewport.height * fitScale}px` }}
         className="w-full"
       >
         <div
-          style={{ width: `${WALL_TV_WIDTH * scale}px`, height: `${WALL_TV_HEIGHT * scale}px` }}
-          className="mx-auto overflow-hidden border border-border bg-background text-foreground"
+          style={{ width: `${viewport.width * fitScale}px`, height: `${viewport.height * fitScale}px` }}
+          className={cn("mx-auto overflow-x-hidden border border-border bg-background text-foreground", scrolls ? "overflow-y-auto" : "overflow-y-hidden")}
           // The TV never draws light, but this box sits inside the desk's
           // `.light`; `data-theme="dark"` re-declares the dark tokens here.
           data-theme="dark"
           data-wall-preview
           data-wall-preview-scale={scale.toFixed(3)}
+          data-wall-preview-fit-scale={fitScale.toFixed(6)}
+          data-wall-preview-width={viewport.width}
+          data-wall-preview-height={viewport.height}
+          data-wall-preview-content-height={projectedHeight}
           data-wall-dragging={dragging ? "" : undefined}
         >
+          <div className="relative overflow-hidden" style={{ width: `${viewport.width * fitScale}px`, height: `${projectedHeight}px` }}>
           <div
             ref={boxRef}
             // `wall-root` is the television's scope and the `wall` query
             // container, as `WallRoute` puts it above the canvas. The padding is
             // the TV route's own, resolved: a container cannot query itself, and
-            // this box is 1920 wide on every screen.
-            className="wall-root relative flex flex-col bg-background px-wall-inset-x py-wall-inset-y"
+            // this box uses the selected viewport's logical rendering size.
+            className="wall-root absolute left-0 top-0 flex flex-col bg-background px-wall-inset-x py-wall-inset-y"
+            data-wall-screen
+            data-wall-kiosk={screen.kiosk || undefined}
+            data-wall-compact={screen.compact || undefined}
+            data-wall-small-insets={screen.viewportWidth < 768 || undefined}
+            data-wall-scaled={screen.scale < 1 || undefined}
+            data-wall-logical-width={screen.width}
+            data-wall-logical-height={screen.height}
             style={
               {
-                width: `${WALL_TV_WIDTH}px`,
-                height: `${WALL_TV_HEIGHT}px`,
+                width: `${screen.width}px`,
+                height: scrolls ? 'auto' : `${screen.height}px`,
+                minHeight: `${screen.height}px`,
+                zoom: 1,
                 transform: `scale(${scale})`,
                 transformOrigin: "top left",
                 // Read by the chrome, so a control keeps its real size.
                 "--wall-chrome-scale": chromeScale,
+                "--wall-scale": screen.scale,
+                "--wall-render-zoom": screen.zoom,
+                "--wall-viewport-height": `${viewport.height}px`,
               } as CSSProperties
             }
           >
@@ -521,10 +551,11 @@ export function WallPreview({
               />
             ) : null}
           </div>
+          </div>
         </div>
       </div>
       <p className="text-xs leading-snug text-muted-foreground" data-wall-preview-note>
-        <span className="tabular-nums">TV · {WALL_TV_WIDTH}×{WALL_TV_HEIGHT}, scaled to fit</span>
+        <span className="tabular-nums">TV · {viewport.width}×{viewport.height}, scaled to fit</span>
         {onDrop && !disabled && scale >= CHROME_MIN_SCALE ? (
           <span data-wall-preview-hint>
             {metricEditing ? " · Select a tile to edit. Drag a section by its grip to move it." : " · Drag a widget onto another’s edge to move it. Drag a handle between widgets to resize."}

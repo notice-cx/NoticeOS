@@ -47,6 +47,10 @@
 [data-wall-canvas] [data-wall-loop] [data-flow-node] { --wall-node-surface: var(--card); background-color: color-mix(in srgb, var(--wall-node-surface) var(--wall-tile-background-opacity, 100%), transparent); }
 [data-wall-canvas] [data-wall-loop] [data-flow-node][data-state="error"] { --wall-node-surface: var(--error-soft); }
 [data-wall-canvas] [data-wall-loop] [data-flow-node][data-state="absent"] { --wall-node-surface: var(--background); }
+[data-wall-canvas][data-wall-tile-surfaces="hidden"] .wall-metric,
+[data-wall-canvas][data-wall-tile-surfaces="hidden"] [class~="bg-muted/60"],
+[data-wall-canvas][data-wall-tile-surfaces="hidden"] [data-wall-loop] [data-flow-node] { background-color: transparent; background-image: none; border-color: transparent; }
+[data-wall-canvas][data-wall-tile-surfaces="hidden"] [data-wall-loop] [data-flow-node]:not(:focus-visible) { box-shadow: none; }
 .wall-metric-select { position: absolute; inset: 0; z-index: 2; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
 .wall-metric-select:focus-visible { outline: 3px solid var(--ring); outline-offset: -3px; }
 .wall-metric[data-metric-selected] { outline: 2px solid var(--ring); outline-offset: 2px; }

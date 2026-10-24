@@ -23,3 +23,23 @@ export function wallScreen(width: number, height: number): WallScreen {
   if (!landscape || width < WALL_TV_LAYOUT_MIN_WIDTH) return { layout: "stack", scale: 1 };
   return { layout: "tv", scale: Math.min(1, width / WALL_TV_WIDTH, height / WALL_TV_HEIGHT) };
 }
+
+export interface WallViewportScreen extends WallScreen {
+  width: number;
+  height: number;
+  zoom: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  kiosk: boolean;
+  compact: boolean;
+}
+
+/** CSS viewport dimensions already include the display's operating-system scaling. */
+export function wallViewportScreen(width: number, height: number): WallViewportScreen {
+  const screen = wallScreen(width, height);
+  const zoom = width >= 3200 && height >= 1800 ? 1.5 : screen.layout === 'tv' ? screen.scale : 1;
+  return { ...screen, width: width / zoom, height: height / zoom, zoom,
+    viewportWidth: width, viewportHeight: height,
+    kiosk: width >= 1800 && height >= 900,
+    compact: width <= 1280 && width > height };
+}

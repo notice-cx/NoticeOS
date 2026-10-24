@@ -247,6 +247,14 @@ const RETIRED_MARKS = [
 ].join(", ");
 
 describe("the Wall nobody rearranged is the default", () => {
+  it("propagates hidden tile surfaces into the full and focused canvas without changing transparency", () => {
+    const view = canvas({ ...structuredClone(DEFAULT_WALL_LAYOUT), tileSurfaces: false, tileTransparency: 50 });
+    const root = view.container.querySelector<HTMLElement>("[data-wall-canvas]")!;
+    expect(root).toHaveAttribute("data-wall-tile-surfaces", "hidden");
+    expect(root.style.getPropertyValue("--wall-tile-background-opacity")).toBe("50%");
+    const focus = render(<WallMetricFocus widget={{ id: "sites", type: "sites", width: 1 }} data={PAYLOAD} nowMs={NOW} tileSurfaces={false} metricEditing={{ selection: null, onSelect: vi.fn() }} onBack={vi.fn()} onAsset={vi.fn()} />);
+    expect(focus.container.querySelector("[data-wall-canvas]")).toHaveAttribute("data-wall-tile-surfaces", "hidden");
+  });
   it.each([undefined, 0, 50, 100])("inherits background-only tile opacity from %s percent transparency", tileTransparency => {
     const layout: WallLayout = { ...structuredClone(DEFAULT_WALL_LAYOUT), ...(tileTransparency !== undefined ? { tileTransparency } : {}) };
     const view = canvas(layout);
