@@ -16,7 +16,7 @@ describe("Wall tile controls", () => {
     const settings = { assets: ["example.com"], pulseMetrics: { "example.com": ["accounts"] }, metrics: [{ id: "today", source: "today" as const, display: "compare" as const, size: "standard" as const }] };
     const changed = vi.fn();
     render(<WallMetricPanel widget={{ ...initial, settings }} selectedTileId="today" assets={[]} focused onFocus={vi.fn()} onSelectTile={vi.fn()} onSettings={changed} />);
-    fireEvent.click(screen.getByRole("switch", { name: "Row background and border" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Row separators" }));
     expect(changed).toHaveBeenCalledWith({ ...settings, rowBackground: false });
   });
   it("requires the wide layout for cumulative revenue and restores both widths for Number", () => {

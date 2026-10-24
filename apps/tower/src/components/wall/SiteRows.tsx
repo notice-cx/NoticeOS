@@ -42,7 +42,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
   const configured = widget?.settings?.metrics !== undefined;
   const ordered = [...tiles.filter(tile => tile.source !== "product-counts"), ...tiles.filter(tile => tile.source === "product-counts")];
   if (assets.length === 0) return <section aria-label="Portfolio" className="flex items-center gap-3 text-wall-body text-muted-foreground" data-wall-sites="none"><Globe aria-hidden />No assets yet</section>;
-  return <section aria-label="Portfolio" className="wall-portfolio" data-wall-sites data-row-background={widget?.settings?.rowBackground === false ? "hidden" : undefined}>
+  return <section aria-label="Portfolio" className="wall-portfolio" data-wall-sites data-row-separators={widget?.settings?.rowBackground === false ? "hidden" : undefined}>
     <header className="wall-portfolio-header"><h2 className="wall-portfolio-heading">Portfolio</h2><div className="wall-portfolio-legend" aria-label="Chart legend"><span><i aria-hidden />Current</span><span><i aria-hidden />Reference period</span></div></header>
     <div className="wall-portfolio-list">
       {assets.map(asset => {
@@ -65,14 +65,8 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
           }
         };
         const weight = (tile: WallMetricTile) => tile.size === "narrow" ? .65 : tile.size === "wide" ? 1.8 : 1;
-        const lastVisible = ordered.findLastIndex(tile => tile.source === "product-counts" ? visiblePulseCounters(asset, pulseMetrics).length > 0 : tile.source === "product-count" ? asset.counters?.cards.some(card => card.metric === tile.metricKey) : tile.source === "asset-work" ? !workAssets || workAssets.has(asset.id) : true);
-        const visibleWeight = ordered.slice(0, lastVisible + 1).reduce((sum, tile) => sum + weight(tile), 0);
-        const totalWeight = ordered.reduce((sum, tile) => sum + weight(tile), 0);
         return <section key={asset.id} className="wall-portfolio-row" aria-label={asset.displayName} data-site-row={asset.id} data-metrics-configured={configured || undefined} style={configured ? {
           "--wall-metric-tracks": ordered.map(tile => `minmax(0, ${weight(tile)}fr)`).join(" "),
-          "--wall-metric-tail-share": totalWeight ? visibleWeight / totalWeight : 0,
-          "--wall-metric-tail-gaps": lastVisible + 1,
-          "--wall-metric-template-gaps": ordered.length,
         } as CSSProperties : undefined}>
           <div className="wall-portfolio-identity" data-site-name>
             <div className="wall-portfolio-mark"><PropertyFavicon domain={asset.id} icons={asset.icons} scheme="dark" displayName={asset.displayName} className="size-8 shrink-0" /><SiteHealth asset={asset} mark={siteMark(issues, asset.id)} site={asset.id} /></div>

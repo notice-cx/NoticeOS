@@ -1,6 +1,7 @@
 import { test, expect } from "../journey-test";
 import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
 import { persistedMetricScene } from "../wall-metric-editor/scene";
+import { openWall } from "../wall-scene";
 import { installOfflineGuard, startOfflineProxy } from "../offline-guard.mjs";
 
 function paintedAppearance(element: Element) {
@@ -14,7 +15,7 @@ function paintedAppearance(element: Element) {
   };
   const style = getComputedStyle(element);
   const pseudo = getComputedStyle(element, "::before");
-  return { background: style.backgroundColor, border: style.borderTopColor, backgroundAlpha: alpha(style.backgroundColor), borderAlpha: alpha(style.borderTopColor), pseudoBackgroundAlpha: alpha(pseudo.backgroundColor), pseudoBorderAlpha: alpha(pseudo.borderTopColor) };
+  return { backgroundAlpha: alpha(style.backgroundColor), borderWidth: style.borderWidth, radius: style.borderRadius, separator: pseudo.content !== "none" && pseudo.display !== "none", separatorAlpha: alpha(pseudo.backgroundColor), separatorHeight: parseFloat(pseudo.height), separatorWidth: parseFloat(pseudo.width), rowWidth: element.clientWidth };
 }
 
 test("an open TV without Web Locks receives a layout saved from another browser context", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page: tv, browser, request, fixtureServer }) => {
@@ -48,7 +49,7 @@ test("an open TV without Web Locks receives a layout saved from another browser 
     await expect(transparency).toHaveValue("50");
     await editor.locator('[data-wall-preview] [data-wall-metric-select="today"]').first().click();
     await editor.locator('[data-wall-metric-panel="sites"]').getByLabel("Title").fill("Live layout update");
-    await editor.getByRole("switch", { name: "Row background and border" }).click();
+    await editor.getByRole("switch", { name: "Row separators" }).click();
     const bar = editor.locator("[data-wall-save-bar]");
     await bar.getByRole("button", { name: "Save", exact: true }).click();
     await expect(bar.locator('[data-save-state="saved"] [data-status-for="wall:layout"]')).toHaveText("On the TV");
@@ -56,14 +57,14 @@ test("an open TV without Web Locks receives a layout saved from another browser 
     // The fixture pushes every three seconds; the Wall's fallback poll is sixty.
     await expect(tv.locator('[data-wall-metric="today"] h3')).toContainText(["Live layout update", "Live layout update", "Live layout update", "Live layout update"], { timeout: 12_000 });
     await expect(tv.locator("[data-wall-canvas]")).toHaveCSS("--wall-tile-background-opacity", "50%");
-    await expect(tv.locator("[data-wall-sites]")).toHaveAttribute("data-row-background", "hidden");
+    await expect(tv.locator("[data-wall-sites]")).toHaveAttribute("data-row-separators", "hidden");
     expect(navigations).toBe(0);
     expect(streams).toBeGreaterThan(0);
     await expect(tv).toHaveURL(/\/wall$/);
     await editor.reload();
     await expect(editor.getByRole("slider", { name: "Tile transparency" })).toHaveValue("50");
     await editor.locator('[data-wall-preview] [data-wall-metric-select="today"]').first().click();
-    await expect(editor.getByRole("switch", { name: "Row background and border" })).not.toBeChecked();
+    await expect(editor.getByRole("switch", { name: "Row separators" })).not.toBeChecked();
   } finally {
     try {
       try {
@@ -79,38 +80,57 @@ test("an open TV without Web Locks receives a layout saved from another browser 
   }
 });
 
-test("shared Portfolio row appearance leaves metric surfaces and layout intact", { tag: DESKTOP_ONLY }, async ({ page, request }) => {
+test("shared Portfolio separators leave metric surfaces and layout intact", { tag: DESKTOP_ONLY }, async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/reset")).ok()).toBe(true);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await persistedMetricScene(page);
+  await openWall(page, [1920, 1080]);
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  const wallRows = page.locator("[data-site-row]");
+  await expect(wallRows).toHaveCount(4);
+  for (let index = 0; index < 4; index += 1) {
+    const row = wallRows.nth(index);
+    const painted = await row.evaluate(paintedAppearance);
+    expect(painted.backgroundAlpha).toBe(0);
+    expect(painted.borderWidth).toBe("0px");
+    expect(painted.radius).toBe("0px");
+    expect(painted.separator).toBe(index > 0);
+    if (index > 0) {
+      expect(painted.separatorAlpha).toBeGreaterThan(0);
+      expect(painted.separatorAlpha).toBeLessThan(1);
+      expect(painted.separatorHeight).toBe(1);
+      expect(painted.separatorWidth).toBeCloseTo(painted.rowWidth, 0);
+    }
+    const bounds = (await row.boundingBox())!;
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(1080);
+  }
+  await page.screenshot({ path: testInfo.outputPath("portfolio-separators-1920.png") });
   await page.goto("/wall/edit");
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   const preview = page.locator("[data-wall-preview]");
   await preview.locator('[data-wall-metric-select="today"]').first().click();
   await page.locator('[data-wall-metric-panel="sites"]').getByLabel("Title").fill("Shared row");
-  const row = preview.locator("[data-site-row]").first();
+  const row = preview.locator("[data-site-row]").nth(1);
   const tile = row.locator(".wall-metric").first();
   const before = await tile.evaluate(element => ({ background: getComputedStyle(element).backgroundColor, border: getComputedStyle(element).borderColor }));
-  expect((await row.evaluate(paintedAppearance)).pseudoBackgroundAlpha).toBeGreaterThan(0);
+  expect((await row.evaluate(paintedAppearance)).separator).toBe(true);
   const bounds = (await row.boundingBox())!;
-  const toggle = page.getByRole("switch", { name: "Row background and border" });
+  const toggle = page.getByRole("switch", { name: "Row separators" });
   await expect(toggle).toBeChecked();
   await toggle.click();
-  await expect(preview.locator("[data-wall-sites]")).toHaveAttribute("data-row-background", "hidden");
+  await expect(preview.locator("[data-wall-sites]")).toHaveAttribute("data-row-separators", "hidden");
   await expect(preview.locator("[data-site-row]")).toHaveCount(4);
   const hidden = await row.evaluate(paintedAppearance);
   expect(hidden.backgroundAlpha).toBe(0);
-  expect(hidden.borderAlpha).toBe(0);
-  expect(hidden.pseudoBackgroundAlpha).toBe(0);
-  expect(hidden.pseudoBorderAlpha).toBe(0);
+  expect(hidden.separator).toBe(false);
   expect(await tile.evaluate(element => ({ background: getComputedStyle(element).backgroundColor, border: getComputedStyle(element).borderColor }))).toEqual(before);
   const after = (await row.boundingBox())!;
   expect(after.width).toBeCloseTo(bounds.width, 0);
   expect(after.height).toBeCloseTo(bounds.height, 0);
   await page.locator('[data-wall-metric-panel="sites"]').getByRole("button", { name: "Focus on row" }).click();
-  await expect(page.locator("[data-wall-focus-preview] [data-wall-sites]")).toHaveAttribute("data-row-background", "hidden");
-  await page.getByRole("switch", { name: "Row background and border" }).click();
-  await expect(page.locator("[data-wall-focus-preview] [data-wall-sites]")).not.toHaveAttribute("data-row-background", "hidden");
+  await expect(page.locator("[data-wall-focus-preview] [data-wall-sites]")).toHaveAttribute("data-row-separators", "hidden");
+  await page.getByRole("switch", { name: "Row separators" }).click();
+  await expect(page.locator("[data-wall-focus-preview] [data-wall-sites]")).not.toHaveAttribute("data-row-separators", "hidden");
 });
 
 test("tile transparency previews its bounds without fading figures or charts", { tag: DESKTOP_ONLY }, async ({ page, request }, testInfo) => {

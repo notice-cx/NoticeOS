@@ -928,11 +928,11 @@ describe("Wall tile transparency", () => {
   it("uses the same shared row appearance setting from metric and section controls", () => {
     renderEditor();
     fireEvent.click(widget("sites").querySelector('[data-wall-metric-select="today"]')!);
-    const toggle = screen.getByRole("switch", { name: "Row background and border" });
+    const toggle = screen.getByRole("switch", { name: "Row separators" });
     expect(toggle).toBeChecked();
     fireEvent.click(toggle);
     fireEvent.click(screen.getByRole("button", { name: "Row settings" }));
-    expect(screen.getByRole("switch", { name: "Row background and border" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Row separators" })).not.toBeChecked();
     fireEvent.click(saveButton());
     expect(wallLayoutWidgets(savedLayout()).find(item => item.id === "sites")?.settings?.rowBackground).toBe(false);
   });

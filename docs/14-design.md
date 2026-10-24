@@ -682,9 +682,10 @@ that action is selected and saved.
 transparent at 100%, with a live preview. Text, charts and borders retain
 their opacity. The setting is saved with the layout, included in Undo, Redo
 and Versions, and retained when starting from another arrangement.
-Portfolio's "Row background and border" switch shows or hides the surface
-around all asset rows together. Individual tile surfaces and row spacing
-stay unchanged.
+Portfolio asset rows have no background or enclosing border. A faint
+horizontal rule spans the Portfolio width between adjacent rows.
+The "Row separators" switch shows or hides these rules together. Individual
+tile surfaces and row spacing stay unchanged.
 
 One chart style is used for every small chart on the TV and the sparklines on
 the Tower's pages: a monotone line with round caps, an area fill that fades
