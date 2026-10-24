@@ -243,9 +243,9 @@ export declare function wallRowPlaces(layout: WallLayout): WallRowPlace[];
 /** Every widget on the Wall, columns' included, in reading order. */
 export declare function wallLayoutWidgets(layout: WallLayout): WallWidget[];
 /**
- * The default Wall: header, work above portfolio rows, and a narrower column
- * containing revenue, attention and the live feed. Existing saved layouts
- * keep their arrangement; this is also available in the editor's presets.
+ * The default Wall: header, work and attention above portfolio rows, and a narrower column
+ * containing revenue and the live feed. Custom saved layouts keep their
+ * arrangement; this is also available in the editor's presets.
  */
 export declare const DEFAULT_WALL_LAYOUT: WallLayout;
 /**

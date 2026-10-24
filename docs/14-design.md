@@ -587,16 +587,18 @@ the new one then fades in.
 The default TV layout shows the strip across the top. On wide screens, the
 brand, meeting, countdown, weather temperature, date and time share one primary text baseline.
 Version, meeting context and the weather's low–high band share a second baseline. Weather appears immediately before the date; the condition icon and current temperature have the clock's size. A neutral rounded band marks the temperature between today's low and high. Missing readings show a dash; retained readings show "Cached". Below the strip, the left
-column shows Work this week over Portfolio; the right column shows Revenue
-this month, Needs attention and Live feed. The columns share width at 3.25:1.
+column shows Work this week, Attention ticker and Portfolio; the right column shows Revenue
+this month and Live feed. The columns share width at 3.25:1.
 Work, revenue and attention fit their content; Portfolio and Live feed take
 the remaining height in their columns. This is the "Everything" preset,
 `DEFAULT_WALL_LAYOUT`. The loop, Last 24 hours, Asset health, the agents,
 Visitors by channel and Next up remain available in the widget library.
 
+Attention ticker uses a fixed 40 px strip and 18 px message text at 1080p. It scrolls every canonical Home problem and stored urgent task, with severity glyphs and linked titles. It pauses on pointer hover, focus or its pause control. Reduced motion uses a stationary horizontal list. The list includes assets hidden from Portfolio rows; an explicit ticker asset filter narrows it. The standard saved composition moves its attention row between Work and Portfolio without replacing metric settings. Custom compositions retain their positions. Portfolio keeps its 156 px tiles and uses smaller row padding and gaps to keep four assets visible.
+
 **Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
 "I run the business": the strip, "Next up" across the TV, then Asset health
-over the revenue beside Needs attention over "The agents"; the decisions are
+over the revenue beside Attention ticker over "The agents"; the decisions are
 the view's subject, and at the TV's full width "Next up" is at its shortest.
 "I build the product": the strip, then the
 revenue over "Visitors by channel" beside the asset rows over the work.
@@ -625,18 +627,18 @@ the newest task snapshot.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
 renders rows of thirteen widget types: the strip, the loop, revenue, the last 24
-hours, Needs attention, the asset rows, work, the feed, the agents' ranking,
+hours, Attention ticker, the asset rows, work, the feed, the agents' ranking,
 Asset health, "The agents" (the agents' week), "Visitors by channel" and "Next
 up". `scripts/wall-layout.mts`
 defines the composition rules: how many rows and widgets a layout may hold,
 that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining
 height, and the one-column order a portrait tablet or a phone stacks into
-(`stackOrder`): the strip, revenue, the asset rows, the last 24 hours, Needs
-attention, "Next up", work, the agents' ranking, the feed, the loop, Asset
+(`stackOrder`): the strip, revenue, work, Attention ticker, the asset rows,
+the last 24 hours, "Next up", the agents' ranking, the feed, the loop, Asset
 health, "The agents" and "Visitors by channel". A layout with neither the asset rows nor
 Asset health is warned "No assets on the TV", and one with none of the last 24
-hours, Needs attention or Asset health "No alerts on the TV". The
+hours, Attention ticker or Asset health "No alerts on the TV". The
 same validator runs on every path a layout can be written through, so the
 editor, the config pipeline and the renderer always accept the same layouts.
 The kit's components for the Tower's pages render on the TV inside
@@ -933,7 +935,7 @@ one-press pick between the options an agent offered; `ResolutionChips`,
 `ReadFailed`, `PageSkeleton` and `RouteLoading` so every surface has a
 designed empty, failed and loading state, `Skeleton` for one block of a
 loading shape, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the
-figure. On the Wall: `WallStrip`, `RevenueHero`, `NeedsYou`, `SiteRows`,
+figure. On the Wall: `WallStrip`, `RevenueHero`, `AttentionTicker`, `SiteRows`,
 `WallFeed`, `NextUp`, and `WallCanvas` that composes them.
 
 **Charts.** Tabular digits on every figure. One chart style on the Wall, from

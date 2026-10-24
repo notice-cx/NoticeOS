@@ -37,6 +37,10 @@
 .wall-site-axis { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--muted-foreground); font-size: max(.8125rem, calc(11px / var(--wall-scale, 1))); line-height: 1.1; }
 .wall-site-axis > [data-pace-window] { font-size: inherit; line-height: inherit; }
 .wall-product-value { display: inline-flex; align-items: center; gap: 0.375rem; }
+@container wall (width >= 80rem) {
+  .wall-portfolio { --portfolio-row-gap: .75rem; }
+  .wall-portfolio-row { padding-block: .0625rem; }
+}
   .wall-root[data-wall-compact] .wall-portfolio .wall-metric {
     --metric-padding: .625rem;
     --metric-gap: .25rem;

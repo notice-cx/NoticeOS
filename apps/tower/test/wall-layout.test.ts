@@ -89,13 +89,13 @@ const PRE_D28 = {
 };
 
 describe("the default layout", () => {
-  it("places work over assets beside revenue, attention and the feed", () => {
+  it("places work and attention above assets beside revenue and the feed", () => {
     expect(DEFAULT_WALL_LAYOUT.rows.map(r => [r.id, r.height])).toEqual([["strip", "auto"], ["body", "fill"]]);
     expect(row(DEFAULT_WALL_LAYOUT, 0).widgets.map(w => [w.type, w.width])).toEqual([["strip", 1]]);
     expect(row(DEFAULT_WALL_LAYOUT, 1).widgets.map(w => [w.id, w.type, w.width])).toEqual([["business", "column", 3.25], ["side", "column", 1]]);
     const shape = (id: "business" | "side") => column(DEFAULT_WALL_LAYOUT, id).rows.map(r => [r.id, r.height, r.widgets.map(w => [w.type, w.width])]);
-    expect(shape("business")).toEqual([["work", "auto", [["work", 1]]], ["sites", "fill", [["sites", 1]]]]);
-    expect(shape("side")).toEqual([["money", "auto", [["revenue", 1.55]]], ["needs", "auto", [["needs", 1]]], ["feed", "fill", [["feed", 1]]]]);
+    expect(shape("business")).toEqual([["work", "auto", [["work", 1]]], ["needs", "auto", [["needs", 1]]], ["sites", "fill", [["sites", 1]]]]);
+    expect(shape("side")).toEqual([["money", "auto", [["revenue", 1.55]]], ["feed", "fill", [["feed", 1]]]]);
   });
 
   it("validates, normalises to itself and raises no warning", () => {
@@ -106,7 +106,7 @@ describe("the default layout", () => {
 
   it("places each widget once at its library weight and leaves optional widgets in the library", () => {
     const placed = wallLayoutWidgets(DEFAULT_WALL_LAYOUT);
-    expect(placed.map((w) => w.type)).toEqual(["strip", "work", "sites", "revenue", "needs", "feed"]);
+    expect(placed.map((w) => w.type)).toEqual(["strip", "work", "needs", "sites", "revenue", "feed"]);
     for (const widget of placed) {
       expect(WALL_WIDGET_LIBRARY[widget.type].unique).toBe(true);
       // Taking a widget off and adding it back puts back the same weight.
@@ -118,9 +118,10 @@ describe("the default layout", () => {
     }
   });
 
-  it("stacks on a phone as the operator reads: the money, the assets, what is broken, what waits on the operator, the work and who did it, the loop last", () => {
+  it("stacks Work, attention and Portfolio consecutively with distinct ranks", () => {
     const order = [...WALL_WIDGET_TYPES].sort((a, b) => WALL_WIDGET_LIBRARY[a].stackOrder - WALL_WIDGET_LIBRARY[b].stackOrder);
-    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "next", "work", "agents", "feed", "loop", "health", "factory", "channels"]);
+    expect(order).toEqual(["strip", "revenue", "work", "needs", "sites", "timeline", "next", "agents", "feed", "loop", "health", "factory", "channels"]);
+    expect(new Set(order.map(type => WALL_WIDGET_LIBRARY[type].stackOrder)).size).toBe(WALL_WIDGET_TYPES.length);
   });
 
   it("offers none of the retired widgets", () => {
@@ -462,9 +463,9 @@ describe("a column slot", () => {
     expect(wallLayoutWidgets(DEFAULT_WALL_LAYOUT).map((w) => w.id)).toEqual([
       "strip",
       "work",
+      "needs",
       "sites",
       "revenue",
-      "needs",
       "feed",
     ]);
   });

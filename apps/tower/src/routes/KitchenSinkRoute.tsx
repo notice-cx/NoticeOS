@@ -231,6 +231,7 @@ import { NextUp } from "@/components/wall/NextUp";
 import { nextUpDemo, nextUpOperator } from "@/routes/kitchen-sink/next-up-demo";
 import { WallHealth } from "@/components/wall/WallHealth";
 import { NeedsYou } from "@/components/wall/NeedsYou";
+import { AttentionTicker } from "@/components/wall/AttentionTicker";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { MetricTile, NumberMetric, MultiMetric, MomentumMetric, MetricComparisonChart, SparklineCompareMetric, CumulativeCompareMetric } from "@/components/wall/MetricWidgets";
 import { SiteRows } from "@/components/wall/SiteRows";
@@ -5799,6 +5800,16 @@ export function KitchenSinkRoute() {
             </div>
             <div data-theme="dark" className="wall-root text-foreground w-full rounded-lg bg-background p-4">
               <RevenueHero portfolio={{ ...portfolioNormal, booked: NO_RESIDUE.booked, forecast: NO_RESIDUE.forecast, netTrend: [], firstRun: true }} assets={[]} />
+            </div>
+          </Section>
+
+          <Section title="AttentionTicker (all messages / cached / partial / empty / unavailable)">
+            <div data-theme="dark" className="wall-root flex w-full flex-col gap-3 bg-background p-4 text-foreground">
+              <AttentionTicker items={Array.from({ length: 6 }, (_, index) => ({ id: `example-${index}`, severity: index === 0 ? "error" as const : "warn" as const, assetName: `Example asset ${index + 1}`, title: index % 2 ? "Approve the proposed update" : "Latest report is overdue", href: "/tasks", conditions: [], since: null, kind: index % 2 ? "task" as const : "problem" as const }))} />
+              <AttentionTicker items={[{ id: "cached-example", severity: "warn", assetName: "Example asset", title: "Review the pending decision", href: "/tasks", conditions: [], since: null, kind: "task" }]} status="stale" />
+              <AttentionTicker items={[]} status="partial" />
+              <AttentionTicker items={[]} />
+              <AttentionTicker items={[]} status="unavailable" />
             </div>
           </Section>
 

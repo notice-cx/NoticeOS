@@ -68,6 +68,7 @@ import {
   type WallNextUp,
   type WallPayload,
   type WallWorking,
+  type WallAttentionTasks,
   type WorkSummary,
   wallDecisionAsk,
 } from "../shared/wall";
@@ -384,6 +385,29 @@ export function wallNextUpOf(snapshot: BeadsSnapshot | null, now: Date): WallNex
     working: working.slice(0, WALL_NEXT_WORKING),
     capturedAt: snapshot.capturedAt,
   };
+}
+
+/** Complete attention rows come from the snapshot's uncapped derivation.
+ * Older snapshots retain their known rows without claiming full coverage. */
+export function wallAttentionTasksOf(snapshot: BeadsSnapshot | null): WallAttentionTasks {
+  const items: WallAttentionTasks['items'] = [];
+  let measuredProjects = 0;
+  const ids = new Set<string>();
+  for (const project of snapshot?.projects ?? []) {
+    if (!project.ok) continue;
+    if (project.attentionTasks?.complete) measuredProjects++;
+    const decisions = new Set(project.waiting.map(item => item.id));
+    const rows = project.attentionTasks?.items ?? [...project.ready, ...project.inProgress, ...(project.blocked ?? []), ...project.waiting]
+      .map(item => ({ ...item, decision: decisions.has(item.id) }));
+    for (const item of rows) {
+      if (ids.has(item.id) || item.status === 'closed' || item.status === 'deferred' || item.issueType === 'epic'
+        || (!item.decision && item.priority > 1)) continue;
+      ids.add(item.id);
+      items.push({ id: item.id, title: item.title, asset: project.asset, priority: item.priority,
+        ask: item.decision ? wallDecisionAsk(item) : null, updatedAt: item.updatedAt });
+    }
+  }
+  return { items, capturedAt: snapshot?.capturedAt ?? null, measuredProjects, projectCount: snapshot?.projects.length ?? 0 };
 }
 
 export async function buildWallPayload(
@@ -917,6 +941,7 @@ export async function buildWallPayload(
     operator,
     agents: wallAgentsOf(beadsSnapshot),
     next: wallNextUpOf(beadsSnapshot, now),
+    attentionTasks: wallAttentionTasksOf(beadsSnapshot),
     ledgerRecordedAt: ledger?.ts ? javascriptInstant(ledger.ts) : null,
   };
 }

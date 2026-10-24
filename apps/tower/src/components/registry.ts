@@ -981,7 +981,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallStrip",
     file: "components/wall/WallStrip.tsx",
     purpose:
-      "The Wall's grouped header: brand and local clock/date, next meeting today, and a prominent days-left countdown in one sans family, scaled labels keeping an 11px floor and portrait screens wrapping whole groups. A failed Wall poll keeps the values and adds their age; concrete OS, scheduler and spend problems belong to NeedsYou.",
+      "The Wall's grouped header: brand and local clock/date, next meeting today, and a prominent days-left countdown in one sans family, scaled labels keeping an 11px floor and portrait screens wrapping whole groups. A failed Wall poll keeps the values and adds their age; concrete OS, scheduler and spend problems appear in AttentionTicker.",
     variants: ["meeting today", "clear day", "countdown remaining", "countdown reached", "no countdown", "held payload", "TV and wrapping phone groups"],
   },
   {
@@ -1040,10 +1040,16 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["ranked standings", "no agent yet"],
   },
   {
+    name: "AttentionTicker",
+    file: "components/wall/AttentionTicker.tsx",
+    purpose: "Every actionable Wall problem and task in a fixed-height horizontal strip. Overflow moves at a measured speed, pauses on hover or focus, and provides a pause control; reduced-motion users scroll the stationary messages.",
+    variants: ["problems and tasks", "empty", "loading", "cached", "partial", "unavailable", "paused", "reduced motion"],
+  },
+  {
     name: "NeedsYou / IssueGlyph",
     file: "components/wall/NeedsYou.tsx",
     purpose:
-      "The Wall's top three actionable problems, errors first then newest, with asset, concise line and age (docs/14-design.md § The Wall). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs, backups failing two scheduled runs since the last good copy, and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each asset's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Assets that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
+      "IssueGlyph supplies severity shape and colour for asset problem marks. The gallery retains the compact NeedsYou list; the Wall renders the full canonical problem list through AttentionTicker.",
     variants: ["top three with the rest counted", "urgent tasks beside the heading", "nothing broken but urgent tasks", "nothing needs attention"],
   },
   {

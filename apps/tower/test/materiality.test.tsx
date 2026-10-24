@@ -9,14 +9,16 @@ import {
   WALL_PAYLOAD_INVENTORY,
   type MaterialCondition,
 } from "@shared/materiality";
-import type { AttentionItem, SystemBand as SystemData } from "@shared/wall";
+import type { AttentionItem, SystemBand as SystemData, WallAttentionTasks } from "@shared/wall";
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from "@shared/wall-layout";
-import { NeedsYou } from "@/components/wall/NeedsYou";
+import { AttentionTicker } from "@/components/wall/AttentionTicker";
 import { WallStrip } from "@/components/wall/WallStrip";
 import { WallTimeline } from "@/components/wall/WallTimeline";
 import { WallWork } from "@/components/wall/WallWork";
 import { NO_READS } from "@shared/connection-status";
-import { wallIssues } from "@/lib/wall-issues";
+import { wallIssues, type WallIssue } from "@/lib/wall-issues";
+import { withSystemIssues } from "@/lib/wall-system-state";
+import { attentionTickerItems } from "@/lib/attention-ticker";
 
 const NOW = Date.parse("2026-08-05T00:00:00.000Z");
 const RECENT = "2026-08-04T23:58:00.000Z";
@@ -144,7 +146,7 @@ const rollbackAttention: AttentionItem = {
 };
 
 /** The Wall's widgets: every Wall destination is one of them or not-applicable. */
-const WALL_WIDGETS = ["WallStrip", "WallLoop", "RevenueHero", "SiteRows", "WallTimeline", "WallWork", "NeedsYou", "WallFeed"];
+const WALL_WIDGETS = ["WallStrip", "WallLoop", "RevenueHero", "SiteRows", "WallTimeline", "WallWork", "AttentionTicker", "WallFeed"];
 
 describe("the Wall's destinations", () => {
   it("names a Wall widget for every condition the Wall shows, and a reason for each it does not", () => {
@@ -164,17 +166,17 @@ describe("the Wall's destinations", () => {
         return [condition, wall.placement === "not-applicable" ? "not-applicable" : wall.component];
       })),
     ).toEqual({
-      "open-flags": "NeedsYou",
-      "signal-freshness": "NeedsYou",
-      "os-runner-health": "NeedsYou",
-      "scheduled-lane-health": "NeedsYou",
-      "budget-guardrail": "NeedsYou",
+      "open-flags": "AttentionTicker",
+      "signal-freshness": "AttentionTicker",
+      "os-runner-health": "AttentionTicker",
+      "scheduled-lane-health": "AttentionTicker",
+      "budget-guardrail": "AttentionTicker",
       "human-gates": "WallWork",
       "active-changes": "not-applicable",
       // The asset card's bet line is not drawn, and a watch that closes badly
       // is rollback-failure.
       "outcome-watches": "not-applicable",
-      "rollback-failure": "NeedsYou",
+      "rollback-failure": "AttentionTicker",
     });
     const watches = MATERIALITY["outcome-watches"].wall;
     expect(watches.placement === "not-applicable" ? watches.reason : "").toMatch(/rollback-failure/);
@@ -182,7 +184,7 @@ describe("the Wall's destinations", () => {
 
   it("puts every Wall destination on the default layout", () => {
     const placed = new Set(wallLayoutWidgets(DEFAULT_WALL_LAYOUT).map((widget) => widget.type));
-    const drawnBy: Record<string, string> = { NeedsYou: "needs", WallWork: "work" };
+    const drawnBy: Record<string, string> = { AttentionTicker: "needs", WallWork: "work" };
     for (const condition of MATERIAL_CONDITIONS) {
       const wall = MATERIALITY[condition].wall;
       if (wall.placement === "not-applicable") continue;
@@ -219,7 +221,7 @@ describe("material current-state fixtures", () => {
   }
 
   it.each(cases)("draws %s on the Wall's timeline as a bar of its own, with a glyph", (condition, data) => {
-    expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "NeedsYou" });
+    expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "AttentionTicker" });
     const { container } = timeline(condition === "signal-freshness" ? [reportLate] : [], data);
     expect(container.querySelector(`[data-span][data-material-condition~="${condition}"]`)).not.toBeNull();
     expect(container.querySelector("[data-wall-timeline]")).toHaveAttribute("data-wall-timeline", "problems");
@@ -248,7 +250,7 @@ describe("material current-state fixtures", () => {
       undefined,
     );
     for (const condition of ["open-flags", "rollback-failure"] as const) {
-      expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "NeedsYou" });
+      expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "AttentionTicker" });
       expectVisual(container, condition);
     }
     expect(container.querySelector('[data-span][data-severity="error"][data-material-condition~="rollback-failure"]')).not.toBeNull();
@@ -276,13 +278,19 @@ describe("material current-state fixtures", () => {
 });
 
 // Needs attention on the default Wall draws each material condition it names.
-describe("Needs attention, when a layout places it", () => {
+describe("Attention ticker, when a layout places it", () => {
   const calm: SystemData = {
     ...system,
     spendTodayUsd: 1,
     ingest: { fresh: 5, stale: 0, notExpected: 0, expected: 5 },
     scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: RECENT, lastRanAt: RECENT, failedRuns: 0, failingSince: null }],
   };
+
+  function ticker(issues: WallIssue[], data?: SystemData, items: WallAttentionTasks['items'] = []) {
+    const built = attentionTickerItems({ issues: withSystemIssues(issues, data, NOW), tasks: { items, capturedAt: RECENT, measuredProjects: 2, projectCount: 2 }, assets: [], nowMs: NOW });
+    const evaluatedConditions = ["open-flags", "human-gates", ...(data ? ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"] : [])];
+    return renderUi(<AttentionTicker items={built.items} status={built.taskStatus} evaluatedConditions={evaluatedConditions} />);
+  }
 
   it.each([
     ["os-runner-health", { ...calm, hasPulse: false }],
@@ -291,37 +299,28 @@ describe("Needs attention, when a layout places it", () => {
     ["budget-guardrail", { ...calm, spendTodayUsd: 9 }],
   ] as const)("draws %s as a specific problem with a glyph", (condition, data) => {
     const issues = condition === "signal-freshness" ? [{ key: "report-fixture", severity: "warn" as const, assets: ["fixture.example"], site: "Fixture", line: "No nightly report in 62h", mark: "Report late", since: RECENT, conditions: ["signal-freshness" as const] }] : [];
-    const { container } = renderUi(<NeedsYou issues={issues} system={data} nowMs={NOW} />);
+    const { container } = ticker(issues, data);
     expect(container.querySelector(`[data-needs-row][data-material-condition~="${condition}"]`)).not.toBeNull();
     expectVisual(container, condition);
   });
 
   it("marks evaluated system conditions on the calm action list", () => {
-    const { container } = renderUi(<NeedsYou issues={[]} system={calm} nowMs={NOW} />);
+    const { container } = ticker([], calm);
     for (const condition of ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"] as const) {
       expectVisual(container, condition);
     }
   });
 
   it("keeps historical alert severity, rollback failure and human gates", () => {
-    const { container } = renderUi(
-      <NeedsYou
-        issues={wallIssues({
+    const { container } = ticker(
+        wallIssues({
           assets: [],
           attention: [rollbackAttention, neverReportedAttention],
           connections: NO_READS,
           nowMs: NOW,
-        })}
-        operator={{
-          waiting: 2,
-          urgent: 1,
-          measuredProjects: 2,
-          urgentMeasuredProjects: 2,
-          projectCount: 2,
-          capturedAt: RECENT,
-        }}
-        nowMs={NOW}
-      />,
+        }),
+        undefined,
+        [{ id: "ro-material", title: "Recovery plan", asset: "meadow.example", priority: 1, ask: "choose", updatedAt: RECENT }],
     );
     for (const condition of ["open-flags", "rollback-failure", "human-gates"] as const) {
       expectVisual(container, condition);
@@ -329,6 +328,8 @@ describe("Needs attention, when a layout places it", () => {
     // Each row carries its own conditions, not only the list around it.
     expect(container.querySelector('[data-needs-row="error"][data-material-condition~="rollback-failure"] svg')).not.toBeNull();
     expect(container.querySelectorAll('[data-needs-row="error"][data-material-condition~="open-flags"]')).toHaveLength(2);
+    expect(container.querySelector('[data-attention-item="task:ro-material"] a')).toHaveAttribute("href", "/tasks/ro-material?project=meadow.example");
+    expect(container.querySelector('[data-attention-item="task:ro-material"]')).toHaveTextContent("Choose: Recovery plan");
   });
 });
 

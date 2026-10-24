@@ -5,6 +5,10 @@ export const BEADS_HANDOFF_KINDS = ['query', 'finding', 'page', 'alert'];
 /** The most closes one project's `closes` carries. A poller whose read held
  * more sends none, so the week counts read as unknown rather than short. */
 export const BEADS_CLOSES_MAX = 5000;
+/** Safety bound for a project's complete attention list, independent of board samples. */
+export const BEADS_ATTENTION_TASKS_MAX = 5000;
+/** P0–P4 plus the existing headroom for custom tracker scales. */
+export const BEADS_PRIORITY_MAX = 9;
 /** The most links one task's `dependencies` carries. A poller whose read held
  * more for a task sends none for it, so its links read as not recorded rather
  * than short. */

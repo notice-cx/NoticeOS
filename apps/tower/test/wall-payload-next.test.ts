@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { loadLatestBeadsSnapshot, type BeadsSnapshot, type SnapshotProject } from "../worker/beads-snapshot";
-import { WALL_NEXT_DECISIONS, WALL_NEXT_WORKING, wallNextUpOf } from "../worker/wall-payload";
+import { WALL_NEXT_DECISIONS, WALL_NEXT_WORKING, wallNextUpOf, wallAttentionTasksOf } from "../worker/wall-payload";
 import { wallDecisionAsk } from "../shared/wall";
 import type { WorkEvent, WorkItem } from "../shared/work";
 
@@ -53,6 +53,27 @@ function project(asset: string, over: Partial<SnapshotProject> = {}): SnapshotPr
 }
 
 const snapshot = (...projects: SnapshotProject[]): BeadsSnapshot => ({ capturedAt: hoursAgo(0), projects });
+
+describe("wallAttentionTasksOf", () => {
+  it("retains more than the Next up and board caps with measured coverage", () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({ ...item(`md-${index}`, { priority: 1 }), decision: false }));
+    const result = wallAttentionTasksOf(snapshot(project("meadow.example", { attentionTasks: { items, complete: true } })));
+    expect(result.items).toHaveLength(25);
+    expect(result).toMatchObject({ measuredProjects: 1, projectCount: 1, capturedAt: hoursAgo(0) });
+  });
+  it("keeps old snapshots as partial, deduplicates task ids and omits closed, deferred and containers", () => {
+    const urgent = item("md-one", { priority: 0 });
+    const result = wallAttentionTasksOf(snapshot(project("meadow.example", { ready: [urgent, item("md-normal")], inProgress: [urgent], waiting: [item("md-choice"), item("md-closed", { status: "closed" }), item("md-parked", { status: "deferred" }), item("md-epic", { issueType: "epic" })] }), project("failed.example", { ok: false })));
+    expect(result.items.map(row => [row.id, row.ask])).toEqual([["md-one", null], ["md-choice", "answer"]]);
+    expect(result).toMatchObject({ measuredProjects: 0, projectCount: 2 });
+    expect(wallAttentionTasksOf(null)).toEqual({ items: [], capturedAt: null, measuredProjects: 0, projectCount: 0 });
+  });
+  it("does not count failed projects as measured or use their rows", () => {
+    const result = wallAttentionTasksOf(snapshot(project("failed.example", { ok: false, attentionTasks: { items: [{ ...item("bad", { priority: 0 }), decision: false }], complete: true } })));
+    expect(result.items).toEqual([]);
+    expect(result.measuredProjects).toBe(0);
+  });
+});
 
 describe("wallNextUpOf — the decisions", () => {
   it("is null with no snapshot, so the TV says tasks are unknown rather than none", () => {
@@ -222,6 +243,21 @@ describe("the snapshot's links, as the Tower reads the stored row", () => {
   }) as unknown as WorkspaceStore;
   const stored = (over: Record<string, unknown>) => ({ asset: "meadow.example", prefix: "md", ok: true, error: null, counts: {},
     ready: [], inProgress: [], recentlyClosed: [], ...over });
+
+  it("reads complete attention lists independently and drops malformed coverage without inventing an empty list", async () => {
+    const valid = { items: [{ ...item("md-full", { priority: 1 }), decision: false }], complete: true };
+    const result = await loadLatestBeadsSnapshot(storing({ projects: [stored({ attentionTasks: valid }), stored({ asset: "older.example" }), stored({ asset: "bad.example", attentionTasks: { items: [{ id: "bad", decision: "yes" }], complete: true } })] }));
+    expect(result!.projects[0]!.attentionTasks).toEqual(valid);
+    expect(result!.projects[1]).not.toHaveProperty("attentionTasks");
+    expect(result!.projects[2]).not.toHaveProperty("attentionTasks");
+    expect(wallAttentionTasksOf(result).measuredProjects).toBe(1);
+  });
+
+  it.each([{ title: undefined }, { status: undefined }, { priority: undefined }, { priority: -1 }, { priority: 10 }, { priority: 0.5 }])("never grants complete attention coverage using legacy defaults for %j", async patch => {
+    const result = await loadLatestBeadsSnapshot(storing({ projects: [stored({ attentionTasks: { items: [{ ...item("md-new", { priority: 1 }), decision: true, ...patch }], complete: true }, ready: [item("md-known", { priority: 1 })] })] }));
+    expect(result!.projects[0]).not.toHaveProperty("attentionTasks");
+    expect(wallAttentionTasksOf(result)).toMatchObject({ measuredProjects: 0, items: [{ id: "md-known" }] });
+  });
 
   it("reads each row's links and the blocked list, and leaves out what an older poller never wrote", async () => {
     const snapshot = await loadLatestBeadsSnapshot(storing({ projects: [

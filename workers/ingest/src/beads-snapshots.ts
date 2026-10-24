@@ -13,7 +13,7 @@
 // count is stored absent, never defaulted to 0.
 
 import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
-import { BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX } from '@noticeos/contract/task-snapshot';
+import { BEADS_ATTENTION_TASKS_MAX, BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX, BEADS_PRIORITY_MAX } from '@noticeos/contract/task-snapshot';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
 import { isTaskResolution, TASK_RESOLUTIONS, type TaskResolution } from '@noticeos/contract/task-resolution';
 import { taskCardOf, type TaskCard } from '@noticeos/contract/task-card';
@@ -96,7 +96,7 @@ export const BEADS_ASSIGNEE_MAX = 128;
 export const BEADS_STATUS_MAX = 64;
 export const BEADS_TYPE_MAX = 64;
 /** `bd` uses P0–P4; the headroom keeps a custom scale from failing the write. */
-export const BEADS_PRIORITY_MAX = 9;
+export { BEADS_PRIORITY_MAX } from '@noticeos/contract/task-snapshot';
 export const BEADS_ERROR_MAX = 500;
 export const BEADS_PREFIX_MAX = 32;
 /** How many priority bands a queue-shape array carries (`bd` ships P0–P4). */
@@ -236,6 +236,7 @@ interface StoredProject {
   recentlyCreated?: StoredIssue[];
   waiting?: StoredIssue[];
   waitingUrgent?: number;
+  attentionTasks?: { items: (StoredIssue & { decision: boolean })[]; complete: boolean };
   panelReview?: StoredPanelReview | null;
   handoffs?: StoredHandoff[];
   workers?: StoredWorker[];
@@ -728,6 +729,30 @@ function parseOptionalIssueList(
   return parseIssueList(issues, value, path);
 }
 
+function parseAttentionTasks(issues: Issues, value: unknown, path: string): StoredProject['attentionTasks'] | null {
+  if (value === undefined) return undefined;
+  if (!isRecord(value) || typeof value.complete !== 'boolean') {
+    issues.add(path, 'invalid_type', `${path} must carry items and complete coverage`);
+    return null;
+  }
+  const rows = asObjectArray(issues, value.items, `${path}.items`, BEADS_ATTENTION_TASKS_MAX);
+  if (rows === null) return null;
+  const items: NonNullable<StoredProject['attentionTasks']>['items'] = [];
+  const ids = new Set<string>();
+  for (const [index, raw] of rows.entries()) {
+    const itemPath = `${path}.items.${index}`;
+    const item = parseIssue(issues, raw, itemPath);
+    if (!item || typeof raw.decision !== 'boolean' || item.status === 'closed' || item.status === 'deferred' || item.issueType === 'epic'
+      || (!raw.decision && item.priority > 1) || ids.has(item.id)) {
+      issues.add(itemPath, 'custom', `${itemPath} must be a distinct active urgent task or human decision`);
+      return null;
+    }
+    ids.add(item.id);
+    items.push({ ...item, decision: raw.decision });
+  }
+  return { items, complete: value.complete };
+}
+
 function parseProject(
   issues: Issues,
   raw: Record<string, unknown>,
@@ -747,6 +772,7 @@ function parseProject(
   const deferred = parseOptionalIssueList(issues, raw.deferred, `${path}.deferred`);
   const recentlyCreated = parseOptionalIssueList(issues, raw.recentlyCreated, `${path}.recentlyCreated`);
   const waitingList = parseOptionalIssueList(issues, raw.waiting, `${path}.waiting`);
+  const attentionTasks = parseAttentionTasks(issues, raw.attentionTasks, `${path}.attentionTasks`);
   const waitingUrgent =
     raw.waitingUrgent === undefined || raw.waitingUrgent === null
       ? undefined
@@ -777,6 +803,7 @@ function parseProject(
     deferred === null ||
     recentlyCreated === null ||
     waitingList === null ||
+    attentionTasks === null ||
     waitingUrgent === null ||
     handoffs === null ||
     workers === null ||
@@ -811,6 +838,8 @@ function parseProject(
       (deferred?.length ?? 0) > 0 ||
       (recentlyCreated?.length ?? 0) > 0 ||
       (waitingList?.length ?? 0) > 0 ||
+      (attentionTasks?.items.length ?? 0) > 0 ||
+      attentionTasks?.complete === true ||
       (handoffs?.length ?? 0) > 0 ||
       (workers?.length ?? 0) > 0 ||
       (recentWork?.length ?? 0) > 0 ||
@@ -839,6 +868,7 @@ function parseProject(
     ...(deferred === undefined ? {} : { deferred }),
     ...(recentlyCreated === undefined ? {} : { recentlyCreated }),
     ...(waitingList === undefined ? {} : { waiting: waitingList }),
+    ...(attentionTasks === undefined ? {} : { attentionTasks }),
     ...(waitingUrgent === undefined ? {} : { waitingUrgent }),
     // `null` is a value here, not an absence.
     ...(panelReview === undefined ? {} : { panelReview }),

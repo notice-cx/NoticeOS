@@ -255,6 +255,7 @@ afterEach(() => {
   payload.assets = SEEDED_ASSETS;
   payload.system = SEEDED_SYSTEM;
   payload.dashboard = SEEDED_DASHBOARD;
+  payload.attentionTasks = undefined;
   workState.data = undefined;
   workState.isError = false;
   reads.providers = undefined;
@@ -376,6 +377,13 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(timelineOn(wall.container).querySelector('[data-span^="source-ga4"]')).toHaveAttribute("data-severity", "error");
     expect(timelineOn(wall.container).querySelector("[data-event-timeline-list]")).toHaveTextContent("GA4 collection failing");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
+    wall.unmount();
+    payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "meadow.example": { tv: false } } };
+    const hidden = renderWall();
+    expect(hidden.container.querySelector('[data-site-row="meadow.example"]')).toBeNull();
+    const ticker = hidden.container.querySelector('[data-wall-attention-ticker] [data-attention-copy="original"]')!;
+    expect(ticker).toHaveTextContent("GA4 collection failing");
+    expect(ticker.querySelector('[data-attention-item^="problem:source-ga4"] a')).toHaveAttribute("href", "/assets/meadow.example/sources");
   });
 
   it("shows a working source as a working check on Home, and the Wall's health bar without a concern", () => {
@@ -1158,7 +1166,7 @@ describe("Home — the answer, the money and what is broken", () => {
       panelReview: { beadId: "md-4a2", panelDate: "2026-07-20", dueAt: "2026-07-22T00:00:00.000Z", status: "open", closedAt: null, panel: true } }];
     payload.attention = [];
     const { container } = renderHome();
-    expect(container.querySelector('[data-incident="review-meadow.example"] a')).toHaveAttribute("href", "/tasks/md-4a2");
+    expect(container.querySelector('[data-incident="review-meadow.example"] a')).toHaveAttribute("href", "/tasks/md-4a2?project=meadow.example");
   });
 
   /** A site with no number yet opens on its Data sources, as the sidebar sends it. */
@@ -1499,9 +1507,8 @@ describe("Home and Wall phase scoping", () => {
     expect(screen.queryByRole("link", { name: "TV dashboard" })).toBeNull();
   });
 
-  // With nothing saved, the route draws work over assets beside revenue,
-  // attention and the feed, with no header row above the strip.
-  it("draws the default layout: work over assets beside revenue, attention and the feed", () => {
+  // Unsaved placement has the ticker between Work and Portfolio.
+  it("draws work and attention above assets beside revenue and the feed", () => {
     const { container } = renderWall();
 
     // Each widget sits in its slot, which is no box at the TV's width and
@@ -1516,7 +1523,8 @@ describe("Home and Wall phase scoping", () => {
     expect(business.querySelector("[data-wall-row='work'] > [data-wall-slot] > [data-wall-work]")).not.toBeNull();
     expect(business.querySelector("[data-wall-row='sites'] > [data-wall-slot] > [data-wall-sites]")).not.toBeNull();
     expect(side.querySelector("[data-wall-row='money'] > [data-wall-slot] > [data-wall-revenue]")).not.toBeNull();
-    expect(side.querySelector("[data-wall-needs]")).not.toBeNull();
+    expect(business.querySelector("[data-wall-needs]")).not.toBeNull();
+    expect(side.querySelector("[data-wall-needs]")).toBeNull();
     expect(side.querySelector("[data-wall-feed]")).not.toBeNull();
     expect(strip!.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(strip!.textContent).toContain("Team offsite - August 2026");
@@ -1526,7 +1534,7 @@ describe("Home and Wall phase scoping", () => {
     expect(strip!.querySelector("[data-strip-agenda]")).not.toBeNull();
     expect(strip!.querySelector("[data-strip-countdown-value]")).not.toBeNull();
     expect(strip!.querySelector("[data-system-state]")).toBeNull();
-    expect(side.querySelector("[data-wall-needs]")).toHaveTextContent("Nothing needs attention");
+    expect(business.querySelector("[data-wall-needs]")).toHaveTextContent("Task status unavailable");
     expect(container.querySelector(".wall-root")).toHaveClass("md:px-wall-inset-x", "md:py-wall-inset-y");
     expect(screen.queryByRole("button", { name: "Configure" })).not.toBeInTheDocument();
   });
@@ -1559,23 +1567,30 @@ describe("Home and Wall phase scoping", () => {
       projectCount: 1,
       capturedAt: "2026-07-29T12:04:50.000Z",
     };
+    payload.attentionTasks = {
+      items: Array.from({ length: 4 }, (_, index) => ({ id: `ro-urgent${index}`, title: `Urgent decision ${index + 1}`, asset: "meadow.example", priority: 1, ask: "answer" as const, updatedAt: "2026-07-29T12:04:50.000Z" })),
+      capturedAt: "2026-07-29T12:04:50.000Z", measuredProjects: 1, projectCount: 1,
+    };
     const { container } = renderWall();
     payload.operator = prior;
 
     const waiting = container.querySelector('[data-wall-work] [data-material-condition~="human-gates"]')!;
     expect(waiting).toHaveTextContent("12");
     expect(waiting).toHaveTextContent("4 urgent");
-    expect(container.querySelector("[data-wall-needs]")).toHaveTextContent("4 urgent");
+    const ticker = container.querySelector("[data-wall-needs]")!;
+    for (let index = 1; index <= 4; index++) expect(ticker).toHaveTextContent(`Answer: Urgent decision ${index}`);
+    expect(ticker).not.toHaveTextContent("Nothing needs attention");
   });
 
-  it("gives the TV one link, Home, on the strip's brand, and no controls", () => {
+  it("keeps the strip's brand as its one Home link, with no strip controls", () => {
     const { container } = renderWall();
 
     const home = screen.getByRole("link", { name: "NoticeOS" });
     expect(home).toHaveAttribute("href", "/");
     expect(home.closest("[data-wall-strip]")).not.toBeNull();
-    expect(container.querySelectorAll("a")).toHaveLength(1);
-    expect(container.querySelectorAll("button")).toHaveLength(0);
+    const strip = container.querySelector("[data-wall-strip]")!;
+    expect(strip.querySelectorAll("a")).toHaveLength(1);
+    expect(strip.querySelectorAll("button")).toHaveLength(0);
   });
 
   /** Absence is the render for an asset with no tracked SERP panel. Asserted

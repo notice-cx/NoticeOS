@@ -49,9 +49,9 @@ import { cn } from "@/lib/utils";
 import { incidentsFromIssues, timelineFromWall } from "@/lib/viz-adapters";
 import { weekOnWeek } from "@/lib/sites-index";
 import { completeDays } from "@/lib/wall-sites";
-import { wallIssues, type WallIssue } from "@/lib/wall-issues";
+import { type WallIssue } from "@/lib/wall-issues";
 import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
-import { withSystemIssues } from "@/lib/wall-system-state";
+import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
 import { SiteLead } from "@/routes/asset-detail/SiteLead";
 import { ClockProposal } from "@/routes/home/ClockProposal";
 import { ChannelsModule } from "@/routes/home/ChannelsModule";
@@ -61,7 +61,6 @@ import { HealthModule } from "@/routes/home/HealthModule";
 import { HomeModules } from "@/routes/home/modules";
 import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
-import { taskPath } from "@/lib/task-path";
 
 /**
  * Home answers how the business is doing, what is broken and what needs the
@@ -138,7 +137,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   // Everything keeps its twelve-column grid; every other view stacks its
   // modules in columns, each at its own content's height.
   const stacks = view.id !== "everything";
-  const issues = withSystemIssues(wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs }), data.system, nowMs);
+  const issues = portfolioIssues({ assets: data.assets, attention: data.attention, connections, system: data.system, nowMs });
   const money = homeMoney(data.portfolio, data.assets);
   // The site rows (the sites compared and the day's lanes)
   // draw the sites whose Home and Sites list switch is on. A hidden site's
@@ -181,7 +180,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         id="home-problems"
         tabIndex={-1}
         className="scroll-mt-6 outline-none"
-        items={incidentsFromIssues(issues, { to: (issue) => issueLink(issue, data.assets) })}
+        items={incidentsFromIssues(issues, { to: (issue) => issueDestination(issue, data.assets) })}
         nowMs={nowMs}
         marker={since}
         compact={linkedModule !== "problems"}
@@ -233,15 +232,6 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
       <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
     </div>
   );
-}
-
-/** Where a problem's row opens: the task that closes it, its site, the
- * System, or the alerts. */
-function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
-  if (issue.task) return taskPath(issue.task);
-  const asset = issue.assets.length === 1 ? assets.find((candidate) => candidate.id === issue.assets[0]) : undefined;
-  if (asset) return issue.key.startsWith("source-") ? `/assets/${encodeURIComponent(asset.id)}/sources` : sitePath(asset);
-  return issue.key.startsWith("system-") || issue.key.startsWith("source-") ? "/health" : "/alerts";
 }
 
 /** The sites' technical health in a sentence or two: how many are fine, then

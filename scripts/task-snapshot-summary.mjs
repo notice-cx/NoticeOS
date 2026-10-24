@@ -1,7 +1,7 @@
 // Pure task snapshot reads and derivation; shared unchanged with the standalone poller.
 import { gateReason, gateTitle, TASK_BLOCKING_DEPENDENCIES } from '../packages/contract/src/task-gate.mjs';
 import { HANDOFF_LABELS, recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
-import { BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
+import { BEADS_ATTENTION_TASKS_MAX, BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { readTaskCard } from '../packages/contract/src/task-card.mjs';
 import { readTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
@@ -609,6 +609,16 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
   const waitingUrgent =
     humanGates.length +
     humanBeads.filter((issue) => issue.priority <= BEADS_HIGH_PRIORITY_MAX).length;
+  const decisionIds = new Set(waiting.map(issue => issue.id));
+  const attentionItems = [...new Map([
+    ...active.filter(issue => issue.priority <= BEADS_HIGH_PRIORITY_MAX),
+    ...waiting,
+  ].filter(issue => issue.status !== 'closed' && issue.status !== BEADS_DEFERRED_STATUS && issue.issueType !== BEADS_CONTAINER_TYPE)
+    .map(issue => [issue.id, issue])).values()]
+    .map(issue => ({ ...issue, decision: decisionIds.has(issue.id) }));
+  // An oversized or older read remains partial rather than claiming an empty queue.
+  const attentionTasks = attentionItems.length <= BEADS_ATTENTION_TASKS_MAX
+    ? { items: attentionItems, complete: completeWaiting } : undefined;
   // The blocked tasks a listed decision holds lead their sample, so what an
   // answer releases is counted from tasks the snapshot lists.
   const asks = new Set(waiting.slice(0, BEADS_WAITING_LIMIT).map((issue) => issue.id));
@@ -667,6 +677,7 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
       ...(completeWaiting ? { waiting: waiting.length } : {}),
     },
     ...(completeWaiting ? { waitingUrgent } : {}),
+    ...(attentionTasks === undefined ? {} : { attentionTasks }),
     priorities,
     ...(epics === undefined ? {} : { epics }),
     ready: ready.slice(0, BEADS_READY_LIMIT),

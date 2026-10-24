@@ -478,7 +478,7 @@ export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number
   sites: { width: 880, height: 360 },
   revenue: { width: 432, height: 324 },
   work: { width: 340, height: 260 },
-  needs: { width: 260, height: 160 },
+  needs: { width: 260, height: 40 },
   feed: { width: 336, height: 300 },
   agents: { width: 288, height: 200 },
   // Five dots and a short note per site.
