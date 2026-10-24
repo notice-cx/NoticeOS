@@ -693,6 +693,8 @@ function WallStageWidget({
       onKeyDown={keys}
       className={cn(
         "relative min-h-0 min-w-0 outline-none ring-inset transition-shadow duration-700",
+        // Empty sections still need room for the counter-scaled section grip.
+        metricInteractive && "min-h-[calc(var(--spacing)*9*var(--wall-chrome-scale,1))]",
         !metricInteractive && (disabled ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"),
         "ring-1 ring-border/60 hover:ring-foreground/50 focus-visible:ring-4 focus-visible:ring-ring",
         selected && "ring-4 ring-primary",

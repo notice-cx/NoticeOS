@@ -988,10 +988,20 @@ test.describe(() => {
         const facts = section.querySelector(".wall-metric-summary")!.getBoundingClientRect();
         const chart = section.querySelector(".wall-metric-plot")!.getBoundingClientRect();
         const scale = (section as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
+        const readings = (kind: "current" | "forecast") => [...section.querySelectorAll(`[data-metric-cumulative-bar='${kind}']`)].map(bar => ({ date: bar.getAttribute("data-date"), value: Number(bar.getAttribute("data-value")), height: Number(bar.getAttribute("height")) }));
         return { height: section.getBoundingClientRect().height / scale, apart: facts.right <= chart.left, chartWidth: chart.width, factsWidth: facts.width,
-          actual: Boolean(section.querySelector("[data-chart-line='solid']")), forecast: Boolean(section.querySelector("[data-chart-line='projection']")), reference: Boolean(section.querySelector("[data-metric-previous-total]")) };
+          actual: readings("current"), forecast: readings("forecast"), reference: Boolean(section.querySelector("[data-metric-previous-total]")), actualLine: Boolean(section.querySelector("[data-chart-line='solid']")) };
       });
-      expect(found).toMatchObject({ height: 324, apart: true, actual: true, forecast: true, reference: true });
+      expect(found).toMatchObject({ height: 324, apart: true, reference: true, actualLine: false });
+      expect(found.actual.length).toBeGreaterThan(0);
+      expect(found.forecast.length).toBeGreaterThan(0);
+      for (const bar of [...found.actual, ...found.forecast]) {
+        expect(bar.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(Number.isFinite(bar.value)).toBe(true);
+        expect(bar.height).toBeGreaterThan(0);
+      }
+      expect(found.forecast.every(bar => !found.actual.some(actual => actual.date === bar.date))).toBe(true);
+      await expect(revenue.locator("svg[role='img']")).toHaveAccessibleName(/Daily cumulative bars.*Filled: observed.*Outlined: forecast/);
       expect(found.chartWidth).toBeGreaterThan(80);
       expect(found.factsWidth).toBeGreaterThan(80);
       await assertNoPageOverflow(page);
@@ -1002,6 +1012,7 @@ test.describe(() => {
   test("the Wall's work metrics share one fixed height and keep observed history distinct from missing history", desktopOnly("the TV's fixed height"), async ({ page }, testInfo) => {
     const scene = await wallScene(page, "fire");
     await wallAt(page, [1920, 1080]);
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
     const work = page.locator("[data-wall-work]");
     const tiles = work.locator(".wall-metric");
     await expect(tiles).toHaveCount(4);
@@ -1017,9 +1028,18 @@ test.describe(() => {
     await expect(done).toContainText("Last week ·");
     const hasHistory = wallFixturePayload(scene.variant).assets.some(asset => asset.work?.weeks?.done.history?.some(point => point.v !== null));
     if (hasHistory) {
-      await expect(done.locator("[data-chart-line='solid']")).toBeVisible();
+      const bars = done.locator("[data-metric-cumulative-bar='current']");
+      expect(await bars.count()).toBeGreaterThan(0);
+      await expect(bars.first()).toBeVisible();
+      await expect(done.locator("[data-chart-line='solid'], [data-metric-cumulative-bar='forecast']")).toHaveCount(0);
+      const dates = await bars.evaluateAll(elements => elements.map(element => element.getAttribute("data-date")));
+      expect(new Set(dates).size).toBe(dates.length);
+      const missing = done.locator("[data-metric-cumulative-day='missing']");
+      expect(await missing.count()).toBeGreaterThan(0);
+      await expect(missing.locator("rect")).toHaveCount(0);
       await expect(done.locator("[data-metric-previous-total]")).toBeAttached();
       await expect(done.locator("svg[role='img']")).toBeVisible();
+      await expect(done.locator("svg[role='img']")).toHaveAccessibleName(/Daily cumulative bars.*Missing days have no bar/);
       const reference = await done.locator("[data-metric-previous-total] line").evaluate(line => ({
         x1: Number(line.getAttribute("x1")), x2: Number(line.getAttribute("x2")),
         y1: Number(line.getAttribute("y1")), y2: Number(line.getAttribute("y2")),
@@ -1027,11 +1047,21 @@ test.describe(() => {
       expect(reference.x2).toBeGreaterThan(reference.x1);
       expect(reference.y2).toBe(reference.y1);
       expect(Number.isFinite(reference.y1)).toBe(true);
-    } else await expect(done).toContainText("History unavailable");
+    } else {
+      await expect(done).toContainText("History unavailable");
+      await expect(done.locator("[data-metric-cumulative-bar]")).toHaveCount(0);
+    }
     await expect(done).toContainText("Monday");
     await expect(done).toContainText("Sunday");
     await assertNoPageOverflow(page);
     await work.screenshot({ path: testInfo.outputPath("wall-work-metrics-1920.png") });
+    await page.screenshot({ path: testInfo.outputPath("wall-work-full-1920.png"), fullPage: true });
+    scene.variant = "four";
+    await page.reload();
+    await wallAt(page, [1920, 1080]);
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    await expect(page.locator("[data-site-row]")).toHaveCount(4);
+    await page.screenshot({ path: testInfo.outputPath("wall-four-assets-1920.png"), fullPage: true });
   });
 
   // The Wall on a laptop and a landscape tablet, under a saved layout that
@@ -1518,15 +1548,21 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   const inColumn = (column: string, id: string) => preview.locator(`[data-wall-column="${column}"] [data-wall-edit-widget="${id}"]`);
   const announced = page.locator('[data-status-for="readout:wall-arrange"]');
   await expect(preview.locator("[data-site-name]").first()).toBeVisible();
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  await page.evaluate(() => document.fonts.ready);
   await expect(bar.getByRole("button", { name: "Undo" })).toBeDisabled();
 
   /** Press, travel and release in steps, as a hand does: the browser's own drag. */
-  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }, during?: () => Promise<void>) => {
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number } | (() => Promise<{ x: number; y: number }>), during?: () => Promise<void>) => {
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     for (let i = 1; i <= 10; i += 1) {
-      await page.mouse.move(from.x + ((to.x - from.x) * i) / 10, from.y + ((to.y - from.y) * i) / 10);
+      const end = typeof to === "function" ? await to() : to;
+      await page.mouse.move(from.x + ((end.x - from.x) * i) / 10, from.y + ((end.y - from.y) * i) / 10);
     }
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    const end = typeof to === "function" ? await to() : to;
+    await page.mouse.move(end.x, end.y);
     await during?.();
     await page.mouse.up();
   };
@@ -1535,10 +1571,15 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
     return { x: box.x + box.width * fx, y: box.y + box.height * fy };
   };
 
+  const grip = async (id: string, label: string) => {
+    await tile(id).hover();
+    return at(tile(id).getByTitle(`Drag to move ${label}`, { exact: true }), 0.5, 0.5);
+  };
+
   // Stack: Revenue above Sites joins the left column between Work and Sites.
   const warningsBeforeDrag = await bar.locator("[data-wall-warning]").allTextContents();
   const previewTopBeforeDrag = (await preview.boundingBox())!.y;
-  await drag(await at(tile("revenue"), 0.5, 0.6), await at(tile("sites"), 0.5, 0.06), async () => {
+  await drag(await grip("revenue", "Revenue"), () => at(tile("sites"), 0.5, 0.06), async () => {
     await expect(bar.locator("[data-wall-warning]")).toHaveText(warningsBeforeDrag);
     expect((await preview.boundingBox())!.y).toBeCloseTo(previewTopBeforeDrag, 1);
     await expect(preview.locator('[data-wall-drop-line="top"]')).toBeVisible();
@@ -1549,7 +1590,7 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   await expect(bar.locator('[data-save-state="unsaved"]')).toBeVisible();
 
   // Split: Work onto the left edge of Sites becomes a column of its own.
-  await drag(await at(tile("work"), 0.5, 0.5), await at(tile("sites"), 0.03, 0.5), async () => {
+  await drag(await grip("work", "Work"), () => at(tile("sites"), 0.03, 0.5), async () => {
     await expect(preview.locator('[data-wall-drop-line="left"]')).toBeVisible();
   });
   await expect(preview.locator('[data-wall-column] [data-wall-edit-widget="work"]')).toHaveCount(0);
