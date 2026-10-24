@@ -585,8 +585,8 @@ the new one then fades in.
 ## The Wall
 
 The default TV layout shows the strip across the top. On wide screens, the
-brand, meeting, countdown, date and time share one primary text baseline.
-Version and meeting context share a second baseline. Below the strip, the left
+brand, meeting, countdown, weather temperature, date and time share one primary text baseline.
+Version, meeting context and the weather's low–high band share a second baseline. Weather appears immediately before the date; the condition icon and current temperature have the clock's size. A neutral rounded band marks the temperature between today's low and high. Missing readings show a dash; retained readings show "Cached". Below the strip, the left
 column shows Work this week over Portfolio; the right column shows Revenue
 this month, Needs attention and Live feed. The columns share width at 3.25:1.
 Work, revenue and attention fit their content; Portfolio and Live feed take

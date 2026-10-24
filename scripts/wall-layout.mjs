@@ -128,6 +128,14 @@ export const DEFAULT_WALL_TV_PREVIEW = {
 export function wallTvViewport(preset) {
     return { width: Math.round(preset.width * 100 / preset.scale), height: Math.round(preset.height * 100 / preset.scale) };
 }
+/** Defaults are read without materialising settings into older saved layouts. */
+export function wallWeatherSettings(layout) {
+    const weather = layout.weather;
+    if (weather === undefined)
+        return { enabled: true, unit: 'fahrenheit', location: { mode: 'automatic' } };
+    const location = weather.location;
+    return { enabled: weather.enabled, unit: weather.unit, location: location.mode === 'automatic' ? { mode: 'automatic' } : { mode: 'fixed', name: location.name, latitude: location.latitude, longitude: location.longitude } };
+}
 export const WALL_WIDGET_LIBRARY = {
     // The one top line. Its countdown is the one at `/countdown`, so the editor
     // shows that form for it.
@@ -534,6 +542,20 @@ export function validateWallLayout(value) {
     }
     if (value.tileSurfaces !== undefined && typeof value.tileSurfaces !== 'boolean')
         return { ok: false, reason: 'Tile backgrounds and borders must be shown or hidden.' };
+    let weather;
+    if (value.weather !== undefined) {
+        const raw = value.weather;
+        if (!isRecord(raw) || typeof raw.enabled !== 'boolean' || (raw.unit !== 'fahrenheit' && raw.unit !== 'celsius') || !isRecord(raw.location))
+            return { ok: false, reason: 'Weather needs an On or Off choice, temperature unit and location.' };
+        const location = raw.location;
+        if (location.mode === 'automatic')
+            weather = { enabled: raw.enabled, unit: raw.unit, location: { mode: 'automatic' } };
+        else if (location.mode === 'fixed' && typeof location.name === 'string' && location.name.trim().length > 0 && location.name.length <= 160 && typeof location.latitude === 'number' && Number.isFinite(location.latitude) && location.latitude >= -90 && location.latitude <= 90 && typeof location.longitude === 'number' && Number.isFinite(location.longitude) && location.longitude >= -180 && location.longitude <= 180) {
+            weather = { enabled: raw.enabled, unit: raw.unit, location: { mode: 'fixed', name: location.name.trim(), latitude: location.latitude, longitude: location.longitude } };
+        }
+        else
+            return { ok: false, reason: 'Choose automatic weather location or a city from search.' };
+    }
     let tvPreview;
     if (value.tvPreview !== undefined) {
         const preview = value.tvPreview;
@@ -578,7 +600,7 @@ export function validateWallLayout(value) {
     if (rows.filter((row) => row.height === 'fill').length > 1) {
         return { ok: false, reason: 'Only one row can take the remaining height.' };
     }
-    return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency }), ...(value.tileSurfaces === undefined ? {} : { tileSurfaces: value.tileSurfaces }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
+    return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency }), ...(value.tileSurfaces === undefined ? {} : { tileSurfaces: value.tileSurfaces }), ...(tvPreview === undefined ? {} : { tvPreview }), ...(weather === undefined ? {} : { weather }) } };
 }
 const ID_RULE = 'an id of 1–32 lowercase letters, digits or dashes';
 const WIDTH_RULE = `a width between ${WALL_WIDTH_MIN} and ${WALL_WIDTH_MAX} in steps of ${WALL_WIDTH_STEP}`;
@@ -878,9 +900,9 @@ export function parseWallConfig(value) {
 }
 /** Equivalent layout documents, including saved preview preferences. */
 export function sameWallLayout(a, b) {
-    const { tileTransparency: aTransparency = 0, tileSurfaces: aSurfaces = true, ...aLayout } = a;
-    const { tileTransparency: bTransparency = 0, tileSurfaces: bSurfaces = true, ...bLayout } = b;
-    return aTransparency === bTransparency && aSurfaces === bSurfaces && JSON.stringify(aLayout) === JSON.stringify(bLayout);
+    const { tileTransparency: aTransparency = 0, tileSurfaces: aSurfaces = true, weather: _aWeather, ...aLayout } = a;
+    const { tileTransparency: bTransparency = 0, tileSurfaces: bSurfaces = true, weather: _bWeather, ...bLayout } = b;
+    return aTransparency === bTransparency && aSurfaces === bSurfaces && JSON.stringify(wallWeatherSettings(a)) === JSON.stringify(wallWeatherSettings(b)) && JSON.stringify(aLayout) === JSON.stringify(bLayout);
 }
 /**
  * The `WallConfig` a Save produces: the new layout becomes current and the one

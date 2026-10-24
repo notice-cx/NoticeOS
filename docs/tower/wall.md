@@ -24,7 +24,7 @@ A saved layout always replaces the preset. Changing the workspace view later cha
 
 In the [public demo](/start/try-the-demo#switch-the-view), the Wall follows the view the visitor picks in the demo banner above it, or `?view=` in its address: **I run the business** and **I build the product** show their presets, and **Everything** shows the demo's saved layout.
 
-**Top strip.** The brand, next meeting, countdown and clock share the header. The countdown shows its icon, label and remaining time on one line.
+**Top strip.** The brand, next meeting, countdown, weather and clock share the header. The countdown shows its icon, label and remaining time on one line. On private and home TVs, weather appears to the left of the date with a conditions icon, current temperature and today's low–high band. Fahrenheit and approximate network location are the defaults. Select **Top strip** in the Wall editor to change units, search for a city or turn weather off. A failed refresh retains the last temperature with **Cached**; a first failed read shows **Unavailable**. A previous day's low and high are not shown as today's range.
 
 **The loop.** Sense, Attribute, Decide, Act and Learn across the screen, the five steps NoticeOS runs over and over ([How NoticeOS works](/concepts/how-noticeos-thinks)), each with its live count: the data sources working out of those you expect (and how many are failing), the decisions waiting for you, the work in progress, and the outcomes ready to read. A stage with no measurement yet shows **not measured yet** or **not read** instead of a number.
 

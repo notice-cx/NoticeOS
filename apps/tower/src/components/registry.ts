@@ -88,6 +88,18 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["read-only face", "Configure open (the form)", "no countdown yet (the form makes the first)", "saves paused"],
   },
   {
+    name: "WallWeatherEditor",
+    file: "components/wall/WallWeatherEditor.tsx",
+    purpose: "The Wall's weather settings: visibility, temperature unit, automatic location or a selected city. Search results supply coordinates; hosted and demo installations keep these controls disabled.",
+    variants: ["automatic location", "city search", "Fahrenheit", "Celsius", "off", "unavailable"],
+  },
+  {
+    name: "WallWeather",
+    file: "components/wall/WallWeather.tsx",
+    purpose: "The Wall header's condition icon, current temperature and low–high range from a supplied reading. Fahrenheit is the default; cached and unavailable readings retain distinct states.",
+    variants: ["Fahrenheit", "Celsius", "night", "missing range", "cached", "loading", "unavailable"],
+  },
+  {
     name: "WallCanvas",
     file: "components/WallCanvas.tsx",
     purpose:

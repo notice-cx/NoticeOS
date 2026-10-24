@@ -168,12 +168,27 @@ export declare function wallTvViewport(preset: WallTvPreset): {
     width: number;
     height: number;
 };
+export interface WallWeatherSettings {
+    enabled: boolean;
+    unit: 'fahrenheit' | 'celsius';
+    location: {
+        mode: 'automatic';
+    } | {
+        mode: 'fixed';
+        name: string;
+        latitude: number;
+        longitude: number;
+    };
+}
+/** Defaults are read without materialising settings into older saved layouts. */
+export declare function wallWeatherSettings(layout: Pick<WallLayout, 'weather'>): WallWeatherSettings;
 export interface WallLayout {
     version: typeof WALL_LAYOUT_VERSION;
     /** Background transparency of metric tiles; absent is the existing opaque surface. */
     tileTransparency?: number;
     tileSurfaces?: boolean;
     tvPreview?: WallTvPreview;
+    weather?: WallWeatherSettings;
     rows: WallRow[];
 }
 /** One saved layout the current one replaced. */

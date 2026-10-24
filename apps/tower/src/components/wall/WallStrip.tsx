@@ -7,6 +7,7 @@ import type { AssetCard, SystemBand } from "@shared/wall";
 import { compiledLiveSource, compiledSourceVersion } from "@shared/source-version";
 import { compiledAppRelease } from "@shared/app-release";
 import { BrandLockup } from "@/components/BrandLockup";
+import { WallWeather, type WallWeatherState } from "@/components/wall/WallWeather";
 import {
   formatMeetingClock,
   formatMeetingDistance,
@@ -130,6 +131,8 @@ export interface WallStripProps {
   /** The surface's own calendar poll. */
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  weather?: WallWeatherState;
+  weatherUnit?: "fahrenheit" | "celsius";
   /** When the Wall's last poll failed, the time the values on screen were
    * read; null while polls succeed. */
   heldSince?: string | null;
@@ -137,7 +140,7 @@ export interface WallStripProps {
   nowMs: number;
 }
 
-export function WallStrip({ countdown, meetings, calendarState, heldSince = null, nowMs }: WallStripProps) {
+export function WallStrip({ countdown, meetings, calendarState, weather, weatherUnit, heldSince = null, nowMs }: WallStripProps) {
   const meeting = stripMeeting(meetings, nowMs);
   const left = countdown ? stripCountdown(nowMs, countdown.targetAt) : null;
   const [count, unit] = left?.split(" ") ?? [];
@@ -180,9 +183,10 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
   return (
     <header
       data-wall-strip
-      aria-label="Time, meetings and countdown"
+      aria-label={weather ? "Time, weather, meetings and countdown" : "Time, meetings and countdown"}
       className="wall-strip grid min-w-0 py-2"
       data-strip-has-agenda={hasAgenda || undefined}
+      data-strip-has-weather={weather ? "" : undefined}
     >
       <a
         href={demoDocumentUrl("/")}
@@ -209,6 +213,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
           </> : <span data-strip-caption>{release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}</span>}
         </span>
       </a>
+      {weather ? <WallWeather state={weather} unit={weatherUnit} /> : null}
       <div className="wall-strip-widget wall-strip-clock" data-strip-clock-group>
         <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
         <time

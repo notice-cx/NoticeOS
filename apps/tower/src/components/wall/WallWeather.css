@@ -1,0 +1,59 @@
+.wall-strip-weather {
+  display: grid;
+  width: 10rem;
+  min-width: 10rem;
+  grid-template-rows: auto auto;
+  align-items: first baseline;
+}
+.wall-weather-primary {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: calc(var(--spacing) * 2);
+}
+.wall-weather-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  align-self: center;
+}
+.wall-weather-caption {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: calc(var(--spacing) * 1.5);
+  white-space: nowrap;
+}
+.wall-weather-range {
+  position: relative;
+  width: 2rem;
+  height: .5rem;
+  border-radius: var(--radius);
+  align-self: center;
+}
+.wall-weather-range::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 3px;
+  border-radius: inherit;
+  background: linear-gradient(to right, color-mix(in srgb, var(--muted-foreground) 50%, transparent), var(--muted-foreground));
+}
+.wall-weather-position {
+  position: absolute;
+  left: clamp(0px, calc(var(--wall-weather-position) - .1875rem), calc(100% - .375rem));
+  top: 50%;
+  transform: translateY(-50%);
+  width: .375rem;
+  height: .375rem;
+  border-radius: var(--radius);
+  background: var(--foreground);
+  outline: 1px solid var(--background);
+}
+.wall-weather-range-missing { color: var(--muted-foreground); }
+@container wall (width >= 80rem) {
+  .wall-strip-weather { grid-template-rows: subgrid; }
+  .wall-weather-primary { font-size: 2.4375rem; line-height: 3rem; }
+}
