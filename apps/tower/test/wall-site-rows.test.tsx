@@ -39,6 +39,16 @@ function draw(
 const row = (container: HTMLElement, id: string) => container.querySelector(`[data-site-row="${id}"]`)!;
 
 describe("the asset rows", () => {
+  it.each([7, 0, null])("uses warning color only for a known positive blocked count (%s)", blocked => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    if (blocked === null) asset.work = null;
+    else asset.work!.blocked = blocked;
+    const site = row(draw([asset]), asset.id);
+    const value = site.querySelector('[data-site-work-blocked]')!;
+    expect(value).toHaveTextContent(blocked === null ? "—" : String(blocked));
+    if (blocked !== null && blocked > 0) expect(value.closest("dd")).toHaveClass("text-warn");
+    else expect(value.closest("dd")).not.toHaveClass("text-warn");
+  });
   it("places today's exact daily total before its pace and appends the reference day's daily total", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     asset.activeUsers.series = [{ t: "2026-09-15", v: 123 }, { t: "2026-09-22", v: 456 }];

@@ -25,8 +25,8 @@ const FIELD_CLASS = cn(fieldClass, "h-9 w-full px-3 text-foreground");
 
 export function WallRowAppearance({ settings, disabled, onSettings }: { settings: WallWidgetSettings | undefined; disabled?: boolean; onSettings: (settings: WallWidgetSettings) => void }) {
   const shown = settings?.rowBackground !== false;
-  return <Button type="button" variant="outline" size="sm" role="switch" aria-label="Row background and border" aria-checked={shown} disabled={disabled} onClick={() => onSettings({ ...settings, rowBackground: !shown })}>
-    {shown ? <Check className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}Row background and border
+  return <Button type="button" variant="outline" size="sm" role="switch" aria-label="Row separators" aria-checked={shown} disabled={disabled} onClick={() => onSettings({ ...settings, rowBackground: !shown })}>
+    {shown ? <Check className="size-4" aria-hidden /> : <EyeOff className="size-4" aria-hidden />}Row separators
   </Button>;
 }
 

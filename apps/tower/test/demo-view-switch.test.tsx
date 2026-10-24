@@ -218,7 +218,7 @@ describe("an installation's TV", () => {
 });
 
 describe("demoDrawnLayout", () => {
-  it.each([false, true])("carries the shared Portfolio row background choice %s into demo presets", rowBackground => {
+  it.each([false, true])("carries the shared Portfolio row separator choice %s into demo presets", rowBackground => {
     const saved = structuredClone(SAVED);
     const sites = wallLayoutWidgets(saved).find(widget => widget.type === "sites")!;
     sites.settings = { ...sites.settings, rowBackground };

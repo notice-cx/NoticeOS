@@ -9,13 +9,13 @@ function layout(value: WallWidget = widget): WallLayout { return { version: 1, r
 function checked(metrics: unknown, type = 'sites') { return validateWallLayout({ ...layout(), rows: [{ id: 'main', height: 'auto', widgets: [{ ...widget, type, settings: { metrics } }] }] }); }
 
 describe('Wall metric templates', () => {
-  it('preserves the shared Portfolio row background choice through settings, parsing and history', () => {
+  it('preserves the shared Portfolio row separator choice through settings, parsing and history', () => {
     const original = layout();
     const sites: WallWidget = { ...widget, settings: { ...widget.settings, rowBackground: false } };
     const changed = layout(sites);
     expect(validateWallLayout(changed)).toEqual({ ok: true, layout: changed });
     expect(validateWallLayout(layout({ ...sites, settings: { ...sites.settings, rowBackground: true } })).ok).toBe(true);
-    const saved = withSavedWallLayout({ layout: original, history: [] }, changed, 'Hide row backgrounds', '2026-10-23T00:00:00Z');
+    const saved = withSavedWallLayout({ layout: original, history: [] }, changed, 'Hide row separators', '2026-10-23T00:00:00Z');
     expect(parseWallConfig(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
     const reverted = withRevertedWallLayout(saved, 0, '2026-10-23T01:00:00Z');
     expect(reverted.layout).toEqual(original);
@@ -25,7 +25,7 @@ describe('Wall metric templates', () => {
     expect(wallEditorReducer(state, { type: 'undo' }).layout).toEqual(changed);
   });
 
-  it('rejects non-boolean row backgrounds and row settings on other sections', () => {
+  it('rejects non-boolean row separators and row settings on other sections', () => {
     for (const rowBackground of [null, 0, 1, 'false', [], {}]) {
       expect(validateWallLayout({ ...layout(), rows: [{ id: 'main', height: 'auto', widgets: [{ ...widget, settings: { rowBackground } }] }] }).ok).toBe(false);
     }

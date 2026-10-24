@@ -675,7 +675,7 @@ function checkWidget(rawWidget, where, ids) {
         }
         if (rawWidget.settings.rowBackground !== undefined) {
             if (typeof rawWidget.settings.rowBackground !== 'boolean')
-                return { ok: false, reason: 'Portfolio row background must be shown or hidden.' };
+                return { ok: false, reason: 'Portfolio row separators must be shown or hidden.' };
             settings = { ...settings, rowBackground: rawWidget.settings.rowBackground };
         }
         if (rawWidget.settings.metrics !== undefined) {

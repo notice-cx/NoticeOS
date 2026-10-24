@@ -28,7 +28,7 @@ export interface WallWidgetSettings {
     /** Only these asset ids, in the layout's own order; absent means every asset. */
     assets?: string[];
     metrics?: WallMetricTile[];
-    /** Portfolio row background and border are visible unless explicitly hidden. */
+    /** Legacy stored key for Portfolio row separators; absent means visible. */
     rowBackground?: boolean;
     /** Selected pulse totals per asset. Absent uses its configured totals; [] hides them. */
     pulseMetrics?: Record<string, string[]>;
