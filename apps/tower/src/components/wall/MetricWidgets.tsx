@@ -83,7 +83,7 @@ export function MultiMetric({ primary, metrics, note, ...tile }: MultiMetricProp
   const { binding } = useWallMetricBinding();
   if (binding?.configured && binding.tile.display === "number" && primary) return <NumberMetric {...tile} value={primary.value} qualifier={primary.label} note={note} />;
   const facts = <dl className="wall-metric-facts" style={{ "--metric-count": Math.max(1, metrics.length) } as CSSProperties}>{metrics.map(({ label, value, icon: Icon, tone }) => <div key={label}><dt>{Icon ? <Icon aria-hidden="true" /> : null}{label}</dt><dd className={tone ? SERIES_TONE_CLASS[tone] : undefined}>{shown(value)}</dd></div>)}</dl>;
-  return <MetricTile {...tile}>{primary ? <div className="wall-metric-breakdown"><dl className="wall-metric-primary"><dt>{primary.label}</dt><dd className={primary.tone ? SERIES_TONE_CLASS[primary.tone] : undefined}>{shown(primary.value)}</dd></dl>{facts}</div> : facts}{note != null ? <div className="wall-metric-note">{note}</div> : null}</MetricTile>;
+  return <MetricTile {...tile}>{primary ? <div className="wall-metric-breakdown"><div className="wall-metric-primary-zone"><dl className="wall-metric-primary"><dt>{primary.label}</dt><dd className={primary.tone ? SERIES_TONE_CLASS[primary.tone] : undefined}>{shown(primary.value)}</dd></dl>{note != null ? <div className="wall-metric-note">{note}</div> : null}</div>{facts}</div> : <>{facts}{note != null ? <div className="wall-metric-note">{note}</div> : null}</>}</MetricTile>;
 }
 
 export interface MomentumMetricProps extends TileProps {

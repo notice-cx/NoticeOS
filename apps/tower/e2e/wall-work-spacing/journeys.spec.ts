@@ -14,7 +14,7 @@ test("Portfolio Work counts keep clear spacing at narrow, standard and wide widt
     { id: "work", source: "asset-work", display: "multi", size: "standard" },
   ] } }] }] };
   await wallScene(page, "one", { layout });
-  const payload = wallFixturePayload("one");
+  const payload = structuredClone(wallFixturePayload("one"));
   await page.route("**/api/wall", route => route.fulfill({ json: { ...payload, dashboard: { ...payload.dashboard, wall: { layout, history: [] } } } }));
   for (const [closed, open, blocked] of [[103, 163, 7], [1103, 1163, 117]] as const) {
     const work = payload.assets[0]!.work!;
@@ -31,7 +31,10 @@ test("Portfolio Work counts keep clear spacing at narrow, standard and wide widt
     await page.evaluate(async size => {
       await document.fonts.ready;
       const row = document.querySelector<HTMLElement>("[data-site-row]")!;
-      row.style.gridTemplateColumns = `8.75rem ${size === "narrow" ? "9.75rem" : size === "standard" ? "15rem" : "27rem"}`;
+      const metrics = row.querySelector<HTMLElement>(".wall-portfolio-metrics")!;
+      const width = size === "narrow" ? "9.75rem" : size === "standard" ? "15rem" : "27rem";
+      metrics.style.gridTemplateColumns = width;
+      metrics.style.width = width;
       row.style.width = "fit-content";
     }, size);
     const tiles = page.locator("[data-site-work] .wall-metric");
@@ -42,14 +45,18 @@ test("Portfolio Work counts keep clear spacing at narrow, standard and wide widt
       const open = element.querySelector("[data-site-work-open]")!;
       const blocked = element.querySelector("[data-site-work-blocked]")!;
       const ink = (node: Element) => { const range = document.createRange(); range.selectNodeContents(node); return box(range); };
-      return { size: element.getAttribute("data-metric-size"), tile: box(element), closed: box(closed), open: box(open), blocked: box(blocked), facts: [...element.querySelectorAll("dt, dd")].map(ink), closedColor: getComputedStyle(closed).color, openColor: getComputedStyle(open).color, blockedColor: getComputedStyle(blocked).color, warning: blocked.closest("dd")!.classList.contains("text-warn") };
+      return { size: element.getAttribute("data-metric-size"), tile: box(element), support: box(element.querySelector(".wall-metric-facts")!), closed: box(closed), open: box(open), blocked: box(blocked), openLabel: box(open.closest("dd")!.parentElement!.querySelector("dt")!), blockedLabel: box(blocked.closest("dd")!.parentElement!.querySelector("dt")!), facts: [...element.querySelectorAll("dt, dd")].map(ink), closedColor: getComputedStyle(closed).color, openColor: getComputedStyle(open).color, blockedColor: getComputedStyle(blocked).color, warning: blocked.closest("dd")!.classList.contains("text-warn") };
     }));
     for (const found of geometry) {
-      expect(found.tile.height).toBeCloseTo(156, 0);
+      expect(found.tile.height).toBeCloseTo(132, 0);
       expect(found.tile.width).toBeCloseTo(found.size === "narrow" ? 156 : found.size === "standard" ? 240 : 432, 0);
-      if (found.size === "narrow") expect(found.open.top - found.closed.bottom).toBeGreaterThanOrEqual(4);
-      else expect(found.open.left - found.closed.right).toBeGreaterThanOrEqual(16);
-      expect(found.blocked.top - found.open.bottom).toBeGreaterThanOrEqual(found.size === "narrow" ? 4 : 10);
+      expect(found.support.left - found.closed.right).toBeGreaterThanOrEqual(16);
+      expect(Math.abs(found.support.right - found.open.right)).toBeLessThanOrEqual(1);
+      expect(Math.abs(found.support.right - found.blocked.right)).toBeLessThanOrEqual(1);
+      expect(found.tile.right - found.support.right).toBeCloseTo(11, 0);
+      expect(found.blocked.top - found.open.bottom).toBeGreaterThanOrEqual(10);
+      expect(found.openLabel.bottom).toBeGreaterThan(found.open.bottom);
+      expect(found.blockedLabel.bottom).toBeGreaterThan(found.blocked.bottom);
       for (const fact of found.facts) {
         expect(fact.left).toBeGreaterThanOrEqual(found.tile.left);
         expect(fact.right).toBeLessThanOrEqual(found.tile.right);
@@ -61,11 +68,11 @@ test("Portfolio Work counts keep clear spacing at narrow, standard and wide widt
       expect(found.blockedColor).not.toBe(found.openColor);
     }
     await testInfo.attach(`work-spacing-${closed}-${size}`, { body: JSON.stringify(geometry, null, 2), contentType: "application/json" });
-    await page.locator("[data-site-row]").screenshot({ path: testInfo.outputPath(`work-spacing-${closed}-${size}.png`) });
+    await tiles.first().screenshot({ path: testInfo.outputPath(`work-spacing-${closed}-${size}.png`) });
     }
   }
   layout.rows = structuredClone(DEFAULT_WALL_LAYOUT.rows);
-  payload.assets = wallFixturePayload("four").assets;
+  payload.assets = structuredClone(wallFixturePayload("four").assets);
   const contextualWork = payload.assets[0]!.work!;
   contextualWork.open = 163;
   contextualWork.inProgress = 0;
