@@ -904,9 +904,24 @@ describe("what the operator is told", () => {
 });
 
 describe("Wall tile transparency", () => {
+  it("toggles complete tile surfaces with Undo and Redo while retaining transparency", () => {
+    renderEditor({ layout: { ...structuredClone(DEFAULT_WALL_LAYOUT), tileTransparency: 50 }, history: [] });
+    const toggle = screen.getByRole("switch", { name: "Tile backgrounds and borders" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByRole("slider", { name: "Tile transparency" })).toHaveValue("50");
+    fireEvent.click(toolbarButton("Undo"));
+    expect(toggle).toBeChecked();
+    fireEvent.click(toolbarButton("Redo"));
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(saveButton());
+    expect(savedLayout()).toMatchObject({ tileSurfaces: false, tileTransparency: 50 });
+  });
   it("preserves appearance calibration while a view preset replaces the section arrangement", () => {
     const layout = structuredClone(DEFAULT_WALL_LAYOUT);
     layout.tileTransparency = 50;
+    layout.tileSurfaces = false;
     wallLayoutWidgets(layout).find(item => item.type === "sites")!.settings = { rowBackground: false };
     renderEditor({ layout, history: [] });
     openDrawer("Add a widget");
@@ -914,15 +929,17 @@ describe("Wall tile transparency", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /I build the product/ }));
     fireEvent.click(saveButton());
     expect(savedLayout().tileTransparency).toBe(50);
+    expect(savedLayout().tileSurfaces).toBe(false);
     expect(wallLayoutWidgets(savedLayout()).find(item => item.type === "sites")?.settings?.rowBackground).toBe(false);
   });
 
   it("keeps calibration when applying the full Wall composition", () => {
-    renderEditor({ layout: { ...SAVED_COLUMN_LAYOUT, tileTransparency: 50 }, history: [] });
+    renderEditor({ layout: { ...SAVED_COLUMN_LAYOUT, tileTransparency: 50, tileSurfaces: false }, history: [] });
     fireEvent.click(screen.getByRole("button", { name: "Use full Wall layout" }));
     expect(screen.getByRole("slider", { name: "Tile transparency" })).toHaveValue("50");
     fireEvent.click(saveButton());
     expect(savedLayout().tileTransparency).toBe(50);
+    expect(savedLayout().tileSurfaces).toBe(false);
   });
 
   it("uses the same shared row appearance setting from metric and section controls", () => {

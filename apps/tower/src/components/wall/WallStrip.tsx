@@ -191,8 +191,8 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
         className="wall-strip-widget wall-strip-brand rounded text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         data-strip-home
       >
-        <span className="wall-strip-brand-primary" data-strip-primary>
-          <BrandLockup size="text" className="text-wall-strip-brand! leading-[1.3]!" />
+        <span className="wall-strip-brand-primary" data-strip-primary data-strip-baseline="brand">
+          <BrandLockup size="text" className="text-wall-strip-brand!" />
         </span>
         <span
           className="wall-strip-version text-wall-strip-label font-normal text-muted-foreground tabular-nums"
@@ -215,13 +215,14 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
           dateTime={new Date(nowMs).toISOString()}
           className="whitespace-nowrap text-wall-strip-time font-medium tracking-tight tabular-nums"
           data-strip-time
+          data-strip-baseline="time"
           data-strip-primary
         >
           {clock.dayPeriodFirst ? dayPeriod : null}
           {clock.time}
           {clock.dayPeriodFirst ? null : dayPeriod}
         </time>
-        <span className="whitespace-nowrap text-wall-strip-label text-muted-foreground tabular-nums" data-strip-date data-strip-meta>
+        <span className="whitespace-nowrap text-wall-strip-label text-muted-foreground tabular-nums" data-strip-date data-strip-meta data-strip-baseline="date">
           {stripDate(nowMs)}
         </span>
       </div>
@@ -229,12 +230,12 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
         <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
         {meeting !== null ? (
           meeting === "none-today" ? (
-            <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-meeting="none" data-strip-primary>{calendarState === "partial" ? "Calendar incomplete" : calendarState === "failed" || calendarState === "retrying" ? "No cached meetings today" : "No meetings today"}</span>
+            <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-meeting="none" data-strip-primary data-strip-baseline="meeting">{calendarState === "partial" ? "Calendar incomplete" : calendarState === "failed" || calendarState === "retrying" ? "No cached meetings today" : "No meetings today"}</span>
           ) : (
             <div className="wall-strip-meeting" data-strip-meeting>
               <div className="wall-strip-meeting-primary min-w-0 text-wall-strip-time font-medium tracking-tight" data-strip-primary>
                 <span className="whitespace-nowrap font-normal text-muted-foreground tabular-nums" data-strip-meeting-when>{meetingClockText(meeting.when, meeting.dayPeriod, meeting.dayPeriodFirst)}</span>
-                <span className="min-w-0 truncate" title={meeting.title} data-strip-meeting-title>{meeting.title}</span>
+                <span className="min-w-0 truncate" title={meeting.title} data-strip-meeting-title data-strip-baseline="meeting">{meeting.title}</span>
                 <span className="whitespace-nowrap font-normal text-muted-foreground tabular-nums" data-strip-meeting-distance>{meetingDistanceText(meeting.distance)}</span>
               </div>
               <div className="flex min-w-0 flex-wrap items-start gap-x-3" data-strip-meta>
@@ -244,7 +245,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
               </div>
             </div>
           )
-        ) : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary>{calendarState ? "Calendar" : "Reconnecting"}</span>}
+        ) : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary data-strip-baseline="meeting">{calendarState ? "Calendar" : "Reconnecting"}</span>}
         {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}</div> : null}
       </div> : null}
       {countdown && left !== null ? (
@@ -255,13 +256,13 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
         >
           <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
           {emoji ? <span aria-hidden className="shrink-0 select-none text-wall-strip-emoji" data-strip-countdown-emoji>{emoji}</span> : null}
-          <span className="min-w-0 truncate text-muted-foreground" title={countdown.label} data-strip-countdown-label>{countdown.label}</span>
+          <span className="min-w-0 truncate text-muted-foreground" title={countdown.label} data-strip-countdown-label data-strip-baseline="countdown-label">{countdown.label}</span>
           <span
             className={cn("shrink-0 whitespace-nowrap font-semibold tabular-nums", reached && "text-muted-foreground")}
             data-strip-countdown-days
             data-strip-primary
           >
-            <span data-strip-countdown-value>{count}</span>{unit ? <> <span data-strip-countdown-unit>{unit}</span></> : null}
+            <span data-strip-countdown-value data-strip-baseline="countdown">{count}</span>{unit ? <> <span data-strip-countdown-unit>{unit}</span></> : null}
           </span>
         </div>
       ) : null}

@@ -290,6 +290,7 @@ export interface WallLayout {
   version: typeof WALL_LAYOUT_VERSION;
   /** Background transparency of metric tiles; absent is the existing opaque surface. */
   tileTransparency?: number;
+  tileSurfaces?: boolean;
   tvPreview?: WallTvPreview;
   rows: WallRow[];
 }
@@ -758,6 +759,7 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (value.tileTransparency !== undefined && (typeof value.tileTransparency !== 'number' || !Number.isInteger(value.tileTransparency) || value.tileTransparency < 0 || value.tileTransparency > 100)) {
     return { ok: false, reason: 'Tile transparency must be a whole number from 0 to 100.' };
   }
+  if (value.tileSurfaces !== undefined && typeof value.tileSurfaces !== 'boolean') return { ok: false, reason: 'Tile backgrounds and borders must be shown or hidden.' };
   let tvPreview: WallTvPreview | undefined;
   if (value.tvPreview !== undefined) {
     const preview = value.tvPreview;
@@ -795,7 +797,7 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (rows.filter((row) => row.height === 'fill').length > 1) {
     return { ok: false, reason: 'Only one row can take the remaining height.' };
   }
-  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
+  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }), ...(value.tileSurfaces === undefined ? {} : { tileSurfaces: value.tileSurfaces as boolean }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
 }
 
 /** Ids and one-of-a-kind widgets seen so far, across the whole layout — a
@@ -1087,9 +1089,9 @@ export function parseWallConfig(value: unknown): WallConfig {
 
 /** Equivalent layout documents, including saved preview preferences. */
 export function sameWallLayout(a: WallLayout, b: WallLayout): boolean {
-  const { tileTransparency: aTransparency = 0, ...aLayout } = a;
-  const { tileTransparency: bTransparency = 0, ...bLayout } = b;
-  return aTransparency === bTransparency && JSON.stringify(aLayout) === JSON.stringify(bLayout);
+  const { tileTransparency: aTransparency = 0, tileSurfaces: aSurfaces = true, ...aLayout } = a;
+  const { tileTransparency: bTransparency = 0, tileSurfaces: bSurfaces = true, ...bLayout } = b;
+  return aTransparency === bTransparency && aSurfaces === bSurfaces && JSON.stringify(aLayout) === JSON.stringify(bLayout);
 }
 
 /**

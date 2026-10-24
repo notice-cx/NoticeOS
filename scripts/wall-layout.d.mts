@@ -172,6 +172,7 @@ export interface WallLayout {
     version: typeof WALL_LAYOUT_VERSION;
     /** Background transparency of metric tiles; absent is the existing opaque surface. */
     tileTransparency?: number;
+    tileSurfaces?: boolean;
     tvPreview?: WallTvPreview;
     rows: WallRow[];
 }

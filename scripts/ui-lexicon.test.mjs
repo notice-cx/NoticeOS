@@ -159,6 +159,8 @@ const ALLOWED_PHRASES = [
   'Edit tiles',
   'Tile transparency',
   'tile transparency',
+  'Tile backgrounds and borders',
+  'tile backgrounds and borders',
   'Select a tile in the preview to edit it.',
   'Select a tile to edit. Drag a section by its grip to move it.',
   'The same tiles appear on the Wall.',

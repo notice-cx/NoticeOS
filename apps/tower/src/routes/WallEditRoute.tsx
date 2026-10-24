@@ -338,6 +338,8 @@ export function WallEditRoute() {
     const next = structuredClone(layout);
     if (state.layout.tileTransparency === undefined) delete next.tileTransparency;
     else next.tileTransparency = state.layout.tileTransparency;
+    if (state.layout.tileSurfaces === undefined) delete next.tileSurfaces;
+    else next.tileSurfaces = state.layout.tileSurfaces;
     if (state.layout.tvPreview === undefined) delete next.tvPreview;
     else next.tvPreview = structuredClone(state.layout.tvPreview);
     const currentSites = wallLayoutWidgets(state.layout).find(widget => widget.type === "sites");
@@ -475,6 +477,7 @@ export function WallEditRoute() {
           </nav>
           <WallTvPresets key={presetReset} value={tvPreview} onChange={value => dispatch({ type: "tv-preview", value })} onValidityChange={setPresetFieldsValid} disabled={disabled} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" data-wall-transparency-control>
+            <Button type="button" size="sm" variant="outline" role="switch" aria-label="Tile backgrounds and borders" aria-checked={state.layout.tileSurfaces !== false} disabled={disabled} onClick={() => dispatch({ type: "surfaces", value: state.layout.tileSurfaces === false })}>Tile backgrounds and borders: {state.layout.tileSurfaces === false ? "Off" : "On"}</Button>
             <label htmlFor="wall-tile-transparency" className="font-medium">Tile transparency</label>
             <span className="text-xs text-muted-foreground" aria-hidden>Opaque</span>
             <input
@@ -505,6 +508,7 @@ export function WallEditRoute() {
             {rowFocused ? <WallMetricFocus
               widget={metricWidget}
               tileTransparency={state.layout.tileTransparency}
+              tileSurfaces={state.layout.tileSurfaces}
               tvPreset={tvPreset}
               data={data}
               meetings={upcoming.data}

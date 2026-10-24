@@ -532,6 +532,8 @@ export function validateWallLayout(value) {
     if (value.tileTransparency !== undefined && (typeof value.tileTransparency !== 'number' || !Number.isInteger(value.tileTransparency) || value.tileTransparency < 0 || value.tileTransparency > 100)) {
         return { ok: false, reason: 'Tile transparency must be a whole number from 0 to 100.' };
     }
+    if (value.tileSurfaces !== undefined && typeof value.tileSurfaces !== 'boolean')
+        return { ok: false, reason: 'Tile backgrounds and borders must be shown or hidden.' };
     let tvPreview;
     if (value.tvPreview !== undefined) {
         const preview = value.tvPreview;
@@ -576,7 +578,7 @@ export function validateWallLayout(value) {
     if (rows.filter((row) => row.height === 'fill').length > 1) {
         return { ok: false, reason: 'Only one row can take the remaining height.' };
     }
-    return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
+    return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency }), ...(value.tileSurfaces === undefined ? {} : { tileSurfaces: value.tileSurfaces }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
 }
 const ID_RULE = 'an id of 1–32 lowercase letters, digits or dashes';
 const WIDTH_RULE = `a width between ${WALL_WIDTH_MIN} and ${WALL_WIDTH_MAX} in steps of ${WALL_WIDTH_STEP}`;
@@ -876,9 +878,9 @@ export function parseWallConfig(value) {
 }
 /** Equivalent layout documents, including saved preview preferences. */
 export function sameWallLayout(a, b) {
-    const { tileTransparency: aTransparency = 0, ...aLayout } = a;
-    const { tileTransparency: bTransparency = 0, ...bLayout } = b;
-    return aTransparency === bTransparency && JSON.stringify(aLayout) === JSON.stringify(bLayout);
+    const { tileTransparency: aTransparency = 0, tileSurfaces: aSurfaces = true, ...aLayout } = a;
+    const { tileTransparency: bTransparency = 0, tileSurfaces: bSurfaces = true, ...bLayout } = b;
+    return aTransparency === bTransparency && aSurfaces === bSurfaces && JSON.stringify(aLayout) === JSON.stringify(bLayout);
 }
 /**
  * The `WallConfig` a Save produces: the new layout becomes current and the one

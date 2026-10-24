@@ -57,9 +57,10 @@ export function demoDrawnLayout(dashboard: Pick<DashboardConfig, "wall" | "view"
   const rowBackground = sitesSettings?.rowBackground;
   const carryPulseMetrics = pulseMetrics !== undefined && wallLayoutWidgets(preset).some((widget) => widget.type === "sites");
   const carryRowBackground = rowBackground !== undefined && wallLayoutWidgets(preset).some((widget) => widget.type === "sites");
-  if (!carryPulseMetrics && !carryRowBackground && saved.tileTransparency === undefined) return preset;
+  if (!carryPulseMetrics && !carryRowBackground && saved.tileTransparency === undefined && saved.tileSurfaces === undefined) return preset;
   const layout = structuredClone(preset) as WallLayout;
   if (saved.tileTransparency !== undefined) layout.tileTransparency = saved.tileTransparency;
+  if (saved.tileSurfaces !== undefined) layout.tileSurfaces = saved.tileSurfaces;
   for (const widget of wallLayoutWidgets(layout)) {
     if (carryPulseMetrics && widget.type === "sites") widget.settings = { ...widget.settings, pulseMetrics: structuredClone(pulseMetrics) };
     if (carryRowBackground && widget.type === "sites") widget.settings = { ...widget.settings, rowBackground };

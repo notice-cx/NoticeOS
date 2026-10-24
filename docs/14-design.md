@@ -584,7 +584,9 @@ the new one then fades in.
 
 ## The Wall
 
-The default TV layout shows the strip across the top. Below it, the left
+The default TV layout shows the strip across the top. On wide screens, the
+brand, meeting, countdown, date and time share one primary text baseline;
+version and meeting context remain below it. Below the strip, the left
 column shows Work this week over Portfolio; the right column shows Revenue
 this month, Needs attention and Live feed. The columns share width at 3.25:1.
 Work, revenue and attention fit their content; Portfolio and Live feed take
@@ -689,6 +691,10 @@ transparent at 100%, with a live preview. Borders stay slightly more opaque
 than tile backgrounds; Portfolio separators fade with the backgrounds.
 Text and charts retain their opacity. The setting is saved with the layout,
 included in Undo, Redo and Versions, and retained when starting from another arrangement.
+"Tile backgrounds and borders" hides or shows tile fills and enclosing
+borders together. Turning them back on restores the saved transparency.
+Text, chart marks, editor selection outlines and Portfolio row separators
+retain their visibility.
 Portfolio asset rows have no background or enclosing border. A faint
 horizontal rule spans the Portfolio width between adjacent rows.
 The "Row separators" switch shows or hides these rules together. Individual

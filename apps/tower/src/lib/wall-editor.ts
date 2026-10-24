@@ -117,6 +117,7 @@ export type WallEditorAction =
   | { type: "select"; widgetId: string | null }
   | { type: "settings"; widgetId: string; settings: WallWidgetSettings | undefined }
   | { type: "transparency"; value: number; gesture?: string }
+  | { type: "surfaces"; value: boolean }
   | { type: "tv-preview"; value: WallTvPreview }
   /** A drag's landing, from the Wall or from the Add drawer. */
   | { type: "drop"; source: WallDragSource; target: WallDropTarget }
@@ -150,6 +151,7 @@ export function wallFullComposition(layout: WallLayout): WallLayout {
   const settings = new Map(wallLayoutWidgets(layout).map((widget) => [widget.type, widget.settings]));
   const full = structuredClone(DEFAULT_WALL_LAYOUT);
   if (layout.tileTransparency !== undefined) full.tileTransparency = layout.tileTransparency;
+  if (layout.tileSurfaces !== undefined) full.tileSurfaces = layout.tileSurfaces;
   if (layout.tvPreview !== undefined) full.tvPreview = structuredClone(layout.tvPreview);
   for (const widget of wallLayoutWidgets(full)) {
     const current = settings.get(widget.type);
@@ -298,6 +300,7 @@ export function wallLibraryOptions(layout: WallLayout): WallLibraryOption[] {
 export function wallChangeSummary(before: WallLayout, after: WallLayout): string {
   if (JSON.stringify(before.tvPreview) !== JSON.stringify(after.tvPreview) && sameWallLayout({ ...before, tvPreview: undefined }, { ...after, tvPreview: undefined })) return "Updated TV preview settings";
   if ((before.tileTransparency ?? 0) !== (after.tileTransparency ?? 0) && sameWallLayout({ ...before, tileTransparency: 0 }, { ...after, tileTransparency: 0 })) return `Tile transparency ${after.tileTransparency ?? 0}%`;
+  if ((before.tileSurfaces ?? true) !== (after.tileSurfaces ?? true) && sameWallLayout({ ...before, tileSurfaces: true }, { ...after, tileSurfaces: true })) return `Tile backgrounds and borders ${after.tileSurfaces === false ? "hidden" : "shown"}`;
   // A layout that is exactly a view's preset was started from it.
   const preset = sameWallLayout(before, after) ? undefined : wallPresetOf(after);
   if (preset) return `Started from ${preset.label}`;
@@ -377,6 +380,7 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
     filtered.length ? `filtered ${filtered.join(", ")}` : null,
     rowShape(before) !== rowShape(after) ? "rearranged rows" : null,
     (before.tileTransparency ?? 0) !== (after.tileTransparency ?? 0) ? `tile transparency ${after.tileTransparency ?? 0}%` : null,
+    (before.tileSurfaces ?? true) !== (after.tileSurfaces ?? true) ? `tile backgrounds and borders ${after.tileSurfaces === false ? "hidden" : "shown"}` : null,
     JSON.stringify(before.tvPreview) !== JSON.stringify(after.tvPreview) ? "updated TV preview settings" : null,
   ].filter((part): part is string => part !== null);
   if (parts.length === 0) return "Layout changed";
@@ -1168,6 +1172,8 @@ export function wallEditorReducer(
       const checked = validateWallLayout({ ...state.layout, tvPreview: action.value });
       return checked.ok ? commit(state, checked.layout) : state;
     }
+    case "surfaces":
+      return typeof action.value === "boolean" ? commit(state, { ...state.layout, tileSurfaces: action.value }) : state;
     case "settings": {
       const next = copy(state.layout);
       const spot = spotOf(next, action.widgetId);
