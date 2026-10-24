@@ -27,7 +27,7 @@ function observedInstant(value: unknown, offset: unknown): string | null {
 }
 
 export function createWeatherClient(options: { fetch?: typeof fetch; now?: () => number; timeoutMs?: number } = {}): WeatherClient {
-  const read = options.fetch ?? globalThis.fetch.bind(globalThis);
+  const read: typeof fetch = options.fetch ?? ((input, init) => globalThis.fetch(input, init));
   const now = options.now ?? Date.now;
   const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.min(30_000, Math.max(1, options.timeoutMs!)) : 8_000;
   async function json(url: URL, signal?: AbortSignal): Promise<JsonObject> {
