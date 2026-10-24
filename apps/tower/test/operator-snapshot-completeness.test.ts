@@ -115,7 +115,7 @@ describe("partial operator snapshots from the task poller", () => {
       [tx.workspaceId, CAPTURED],
     ));
     const weeks = (await buildWorkPayload(ctx.call, { now: NOW, timeZone: "UTC" })).projects[0]!.weeks;
-    expect(weeks).toEqual({
+    expect(weeks).toMatchObject({
       weekStart: "2026-08-31",
       daysIn: 6,
       // Every close counts; the resolution remains a subset of the total.
@@ -125,6 +125,10 @@ describe("partial operator snapshots from the task poller", () => {
       inProgress: { now: 1, before: null, added: null, move: null },
       blocked: { now: 0, before: null, added: null, move: null },
     });
+    expect(weeks?.timeZone).toBe("UTC");
+    expect(weeks?.done.history?.at(-1)?.v).toBe(4);
+    expect(weeks?.waiting.history).toBeUndefined();
+    expect(weeks?.blocked.history?.at(-1)?.v).toBe(0);
   });
 
   it("returns to a complete zero only after a newer complete empty snapshot", async () => {

@@ -40,7 +40,7 @@ export function WallWork({ assets, operator, nowMs }: WallWorkProps) {
   const waitingHistory = history(waitingComparable ? weeks?.waiting.history : undefined);
   const inProgressHistory = history(!partial && !stale && weeks?.inProgress.now === inProgress ? weeks?.inProgress.history : undefined);
   const blockedHistory = history(!partial && !stale && weeks?.blocked.now === blocked ? weeks?.blocked.history : undefined);
-  if (!observed.length && waiting === null) return <section aria-label="Work this week" data-wall-work="none" className="text-wall-body text-muted-foreground">Tasks unknown</section>;
+  if (!observed.length && waiting === null) return <section aria-label="Work this week" data-wall-work="none" data-material-condition="human-gates" className="flex items-center gap-3 text-wall-body text-muted-foreground"><ListTodo className="size-5 shrink-0" aria-hidden />Tasks unknown</section>;
   return <section aria-label="Work this week" data-wall-work className="@container min-w-0">
     <div className="wall-work-band grid grid-cols-1 items-start gap-4 @min-[1100px]:grid-cols-[200px_repeat(3,minmax(0,1fr))_minmax(0,1.8fr)]">
       <h2 className="flex h-full flex-col justify-center font-semibold" style={{ fontSize: "var(--text-xl)", lineHeight: 1.25 }}><ListTodo className="mb-2 size-5 text-muted-foreground" aria-hidden />Work this week{weeks?.weekStart ? <span className="mt-1 block text-wall-detail font-normal text-muted-foreground" data-work-days-in={weeks.daysIn}>{weeks.daysIn} {weeks.daysIn === 1 ? "day" : "days"} in</span> : null}{stale ? <span className="block text-wall-detail font-normal text-muted-foreground">Snapshot stale</span> : null}</h2>

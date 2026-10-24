@@ -157,25 +157,24 @@ describe("the Wall's destinations", () => {
         expect(wall.placement).toBe("fixed-horizon");
       }
     }
-    // The default Wall's widgets: problems on the timeline, the inbox on the
-    // work chart. Needs attention is in the library, not on the default.
+    // The default Wall draws problems in Needs attention and the inbox in Work.
     expect(
       Object.fromEntries(MATERIAL_CONDITIONS.map((condition) => {
         const wall = MATERIALITY[condition].wall;
         return [condition, wall.placement === "not-applicable" ? "not-applicable" : wall.component];
       })),
     ).toEqual({
-      "open-flags": "WallTimeline",
-      "signal-freshness": "WallTimeline",
-      "os-runner-health": "WallTimeline",
-      "scheduled-lane-health": "WallTimeline",
-      "budget-guardrail": "WallTimeline",
+      "open-flags": "NeedsYou",
+      "signal-freshness": "NeedsYou",
+      "os-runner-health": "NeedsYou",
+      "scheduled-lane-health": "NeedsYou",
+      "budget-guardrail": "NeedsYou",
       "human-gates": "WallWork",
       "active-changes": "not-applicable",
       // The asset card's bet line is not drawn, and a watch that closes badly
       // is rollback-failure.
       "outcome-watches": "not-applicable",
-      "rollback-failure": "WallTimeline",
+      "rollback-failure": "NeedsYou",
     });
     const watches = MATERIALITY["outcome-watches"].wall;
     expect(watches.placement === "not-applicable" ? watches.reason : "").toMatch(/rollback-failure/);
@@ -183,7 +182,7 @@ describe("the Wall's destinations", () => {
 
   it("puts every Wall destination on the default layout", () => {
     const placed = new Set(wallLayoutWidgets(DEFAULT_WALL_LAYOUT).map((widget) => widget.type));
-    const drawnBy: Record<string, string> = { WallTimeline: "timeline", WallWork: "work" };
+    const drawnBy: Record<string, string> = { NeedsYou: "needs", WallWork: "work" };
     for (const condition of MATERIAL_CONDITIONS) {
       const wall = MATERIALITY[condition].wall;
       if (wall.placement === "not-applicable") continue;
@@ -220,7 +219,7 @@ describe("material current-state fixtures", () => {
   }
 
   it.each(cases)("draws %s on the Wall's timeline as a bar of its own, with a glyph", (condition, data) => {
-    expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "WallTimeline" });
+    expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "NeedsYou" });
     const { container } = timeline(condition === "signal-freshness" ? [reportLate] : [], data);
     expect(container.querySelector(`[data-span][data-material-condition~="${condition}"]`)).not.toBeNull();
     expect(container.querySelector("[data-wall-timeline]")).toHaveAttribute("data-wall-timeline", "problems");
@@ -249,7 +248,7 @@ describe("material current-state fixtures", () => {
       undefined,
     );
     for (const condition of ["open-flags", "rollback-failure"] as const) {
-      expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "WallTimeline" });
+      expect(MATERIALITY[condition].wall).toMatchObject({ placement: "fixed-horizon", component: "NeedsYou" });
       expectVisual(container, condition);
     }
     expect(container.querySelector('[data-span][data-severity="error"][data-material-condition~="rollback-failure"]')).not.toBeNull();
@@ -262,10 +261,13 @@ describe("material current-state fixtures", () => {
     const operator = { waiting: 2, urgent: 1, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: RECENT };
     const counted = renderUi(<WallWork assets={[]} operator={operator} nowMs={NOW} />);
     expectVisual(counted.container, "human-gates");
-    expect(counted.container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("21 urgent");
+    const countedGates = counted.container.querySelector('[data-material-condition~="human-gates"]')!;
+    expect(countedGates.querySelector(".wall-metric-value")).toHaveTextContent(/^2$/);
+    expect(countedGates).toHaveTextContent("1 urgent");
     counted.unmount();
     const partial = renderUi(<WallWork assets={[]} operator={{ ...operator, waiting: 0, urgent: 0, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
-    expect(partial.container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("unknown");
+    expect(partial.container.querySelector('[data-material-condition~="human-gates"] [aria-label="Unavailable"]')).not.toBeNull();
+    expect(partial.container.querySelector(".wall-metric-value")).not.toHaveTextContent(/^0$/);
     partial.unmount();
     const unread = renderUi(<WallWork assets={[]} operator={null} nowMs={NOW} />);
     expect(unread.container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("Tasks unknown");
@@ -273,8 +275,7 @@ describe("material current-state fixtures", () => {
   });
 });
 
-// Needs attention is no longer on the default Wall but stays in the library; a Wall
-// that places it still draws every condition it names.
+// Needs attention on the default Wall draws each material condition it names.
 describe("Needs attention, when a layout places it", () => {
   const calm: SystemData = {
     ...system,
