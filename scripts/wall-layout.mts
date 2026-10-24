@@ -98,6 +98,8 @@ export interface WallWidgetSettings {
   /** Only these asset ids, in the layout's own order; absent means every asset. */
   assets?: string[];
   metrics?: WallMetricTile[];
+  /** Portfolio row background and border are visible unless explicitly hidden. */
+  rowBackground?: boolean;
   /** Selected pulse totals per asset. Absent uses its configured totals; [] hides them. */
   pulseMetrics?: Record<string, string[]>;
 }
@@ -257,6 +259,8 @@ export interface WallRow {
 
 export interface WallLayout {
   version: typeof WALL_LAYOUT_VERSION;
+  /** Background transparency of metric tiles; absent is the existing opaque surface. */
+  tileTransparency?: number;
   rows: WallRow[];
 }
 
@@ -394,7 +398,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     prefersFill: true,
     stackOrder: 3,
     hidesWhenEmpty: false,
-    settings: ['assets', 'pulseMetrics', 'metrics'],
+    settings: ['assets', 'pulseMetrics', 'metrics', 'rowBackground'],
   },
   // The live feed: what just happened, newest on top, from its own 30-second
   // read. Never hides — an empty window says so. Its track is its share of
@@ -721,6 +725,9 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (value.version !== WALL_LAYOUT_VERSION) {
     return { ok: false, reason: `A layout must say version ${WALL_LAYOUT_VERSION}.` };
   }
+  if (value.tileTransparency !== undefined && (typeof value.tileTransparency !== 'number' || !Number.isInteger(value.tileTransparency) || value.tileTransparency < 0 || value.tileTransparency > 100)) {
+    return { ok: false, reason: 'Tile transparency must be a whole number from 0 to 100.' };
+  }
   if (!Array.isArray(value.rows) || value.rows.length === 0) {
     return { ok: false, reason: 'A layout needs at least one row.' };
   }
@@ -738,7 +745,7 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (rows.filter((row) => row.height === 'fill').length > 1) {
     return { ok: false, reason: 'Only one row can take the remaining height.' };
   }
-  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows } };
+  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }) } };
 }
 
 /** Ids and one-of-a-kind widgets seen so far, across the whole layout — a
@@ -886,6 +893,10 @@ function checkWidget(rawWidget: unknown, where: string, ids: LayoutIds): Checked
       }
       settings = { assets: assetIds };
     }
+    if (rawWidget.settings.rowBackground !== undefined) {
+      if (typeof rawWidget.settings.rowBackground !== 'boolean') return { ok: false, reason: 'Portfolio row background must be shown or hidden.' };
+      settings = { ...settings, rowBackground: rawWidget.settings.rowBackground };
+    }
     if (rawWidget.settings.metrics !== undefined) {
       const raw = rawWidget.settings.metrics;
       if (!Array.isArray(raw) || raw.length > 8) return { ok: false, reason: 'Choose at most eight metric tiles.' };
@@ -1026,7 +1037,9 @@ export function parseWallConfig(value: unknown): WallConfig {
 
 /** True when two layouts would draw the same Wall. */
 export function sameWallLayout(a: WallLayout, b: WallLayout): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  const { tileTransparency: aTransparency = 0, ...aLayout } = a;
+  const { tileTransparency: bTransparency = 0, ...bLayout } = b;
+  return aTransparency === bTransparency && JSON.stringify(aLayout) === JSON.stringify(bLayout);
 }
 
 /**

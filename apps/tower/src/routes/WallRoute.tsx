@@ -52,11 +52,17 @@ export function demoDrawnLayout(dashboard: Pick<DashboardConfig, "wall" | "view"
   if (view === null) return saved;
   if (view === "everything" && dashboard.wall !== undefined && dashboard.wall !== null) return saved;
   const preset = WALL_PRESETS[view];
-  const pulseMetrics = wallLayoutWidgets(saved).find((widget) => widget.type === "sites")?.settings?.pulseMetrics;
-  if (pulseMetrics === undefined || !wallLayoutWidgets(preset).some((widget) => widget.type === "sites")) return preset;
+  const sitesSettings = wallLayoutWidgets(saved).find((widget) => widget.type === "sites")?.settings;
+  const pulseMetrics = sitesSettings?.pulseMetrics;
+  const rowBackground = sitesSettings?.rowBackground;
+  const carryPulseMetrics = pulseMetrics !== undefined && wallLayoutWidgets(preset).some((widget) => widget.type === "sites");
+  const carryRowBackground = rowBackground !== undefined && wallLayoutWidgets(preset).some((widget) => widget.type === "sites");
+  if (!carryPulseMetrics && !carryRowBackground && saved.tileTransparency === undefined) return preset;
   const layout = structuredClone(preset) as WallLayout;
+  if (saved.tileTransparency !== undefined) layout.tileTransparency = saved.tileTransparency;
   for (const widget of wallLayoutWidgets(layout)) {
-    if (widget.type === "sites") widget.settings = { ...widget.settings, pulseMetrics: structuredClone(pulseMetrics) };
+    if (carryPulseMetrics && widget.type === "sites") widget.settings = { ...widget.settings, pulseMetrics: structuredClone(pulseMetrics) };
+    if (carryRowBackground && widget.type === "sites") widget.settings = { ...widget.settings, rowBackground };
   }
   return layout;
 }

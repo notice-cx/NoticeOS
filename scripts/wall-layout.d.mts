@@ -28,6 +28,8 @@ export interface WallWidgetSettings {
     /** Only these asset ids, in the layout's own order; absent means every asset. */
     assets?: string[];
     metrics?: WallMetricTile[];
+    /** Portfolio row background and border are visible unless explicitly hidden. */
+    rowBackground?: boolean;
     /** Selected pulse totals per asset. Absent uses its configured totals; [] hides them. */
     pulseMetrics?: Record<string, string[]>;
 }
@@ -151,6 +153,8 @@ export interface WallRow {
 }
 export interface WallLayout {
     version: typeof WALL_LAYOUT_VERSION;
+    /** Background transparency of metric tiles; absent is the existing opaque surface. */
+    tileTransparency?: number;
     rows: WallRow[];
 }
 /** One saved layout the current one replaced. */

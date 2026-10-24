@@ -120,6 +120,8 @@ const ALLOWED_PHRASES = [
   'POST /api/pulse', // the endpoint an asset posts its nightly report to
   'dataforseo_incomplete', // a collector error code, shown as the code it is
   '--focus-tile-count', // the focused Wall row's CSS track count
+  '--wall-tile-background-opacity', // the Wall's inherited background alpha, not content opacity
+  'wall-tile-transparency', // the Wall appearance range control's DOM id
   // 3. SQL. A `lanes(…)` CTE is the store's own name.
   'lanes(integration)',
   'lanes.integration',
@@ -155,6 +157,8 @@ const ALLOWED_PHRASES = [
   'Add tile',
   'Available tiles',
   'Edit tiles',
+  'Tile transparency',
+  'tile transparency',
   'Select a tile in the preview to edit it.',
   'Select a tile to edit. Drag a section by its grip to move it.',
   'The same tiles appear on the Wall.',

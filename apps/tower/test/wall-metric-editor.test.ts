@@ -9,6 +9,30 @@ function layout(value: WallWidget = widget): WallLayout { return { version: 1, r
 function checked(metrics: unknown, type = 'sites') { return validateWallLayout({ ...layout(), rows: [{ id: 'main', height: 'auto', widgets: [{ ...widget, type, settings: { metrics } }] }] }); }
 
 describe('Wall metric templates', () => {
+  it('preserves the shared Portfolio row background choice through settings, parsing and history', () => {
+    const original = layout();
+    const sites: WallWidget = { ...widget, settings: { ...widget.settings, rowBackground: false } };
+    const changed = layout(sites);
+    expect(validateWallLayout(changed)).toEqual({ ok: true, layout: changed });
+    expect(validateWallLayout(layout({ ...sites, settings: { ...sites.settings, rowBackground: true } })).ok).toBe(true);
+    const saved = withSavedWallLayout({ layout: original, history: [] }, changed, 'Hide row backgrounds', '2026-10-23T00:00:00Z');
+    expect(parseWallConfig(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    const reverted = withRevertedWallLayout(saved, 0, '2026-10-23T01:00:00Z');
+    expect(reverted.layout).toEqual(original);
+    expect(reverted.history[0]!.layout).toEqual(changed);
+    const state = wallEditorReducer(wallEditorState(changed), { type: 'settings', widgetId: 'sites', settings: updateWallMetricTile(sites, 'today', { title: 'Visitors' }) });
+    expect(state.layout.rows[0]!.widgets[0]).toMatchObject({ settings: { rowBackground: false, assets: ['example.com'], pulseMetrics: { 'example.com': ['orders'] } } });
+    expect(wallEditorReducer(state, { type: 'undo' }).layout).toEqual(changed);
+  });
+
+  it('rejects non-boolean row backgrounds and row settings on other sections', () => {
+    for (const rowBackground of [null, 0, 1, 'false', [], {}]) {
+      expect(validateWallLayout({ ...layout(), rows: [{ id: 'main', height: 'auto', widgets: [{ ...widget, settings: { rowBackground } }] }] }).ok).toBe(false);
+    }
+    for (const type of ['work', 'revenue', 'health']) {
+      expect(validateWallLayout({ ...layout(), rows: [{ id: 'main', height: 'auto', widgets: [{ ...widget, type, settings: { rowBackground: false } }] }] }).ok).toBe(false);
+    }
+  });
   it('changes source without retaining unsupported saved details', () => {
     const original: WallWidget = { ...widget, settings: { ...widget.settings, metrics: [{ id: 'tile', source: 'today', display: 'compare', size: 'wide', reference: true, axes: true, icon: false }] } };
     const settings = updateWallMetricTile(original, 'tile', { source: 'asset-work' });

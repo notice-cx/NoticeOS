@@ -211,7 +211,7 @@ export const WALL_WIDGET_LIBRARY = {
         prefersFill: true,
         stackOrder: 3,
         hidesWhenEmpty: false,
-        settings: ['assets', 'pulseMetrics', 'metrics'],
+        settings: ['assets', 'pulseMetrics', 'metrics', 'rowBackground'],
     },
     // The live feed: what just happened, newest on top, from its own 30-second
     // read. Never hides — an empty window says so. Its track is its share of
@@ -515,6 +515,9 @@ export function validateWallLayout(value) {
     if (value.version !== WALL_LAYOUT_VERSION) {
         return { ok: false, reason: `A layout must say version ${WALL_LAYOUT_VERSION}.` };
     }
+    if (value.tileTransparency !== undefined && (typeof value.tileTransparency !== 'number' || !Number.isInteger(value.tileTransparency) || value.tileTransparency < 0 || value.tileTransparency > 100)) {
+        return { ok: false, reason: 'Tile transparency must be a whole number from 0 to 100.' };
+    }
     if (!Array.isArray(value.rows) || value.rows.length === 0) {
         return { ok: false, reason: 'A layout needs at least one row.' };
     }
@@ -532,7 +535,7 @@ export function validateWallLayout(value) {
     if (rows.filter((row) => row.height === 'fill').length > 1) {
         return { ok: false, reason: 'Only one row can take the remaining height.' };
     }
-    return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows } };
+    return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency }) } };
 }
 const ID_RULE = 'an id of 1–32 lowercase letters, digits or dashes';
 const WIDTH_RULE = `a width between ${WALL_WIDTH_MIN} and ${WALL_WIDTH_MAX} in steps of ${WALL_WIDTH_STEP}`;
@@ -669,6 +672,11 @@ function checkWidget(rawWidget, where, ids) {
                 assetIds.push(id);
             }
             settings = { assets: assetIds };
+        }
+        if (rawWidget.settings.rowBackground !== undefined) {
+            if (typeof rawWidget.settings.rowBackground !== 'boolean')
+                return { ok: false, reason: 'Portfolio row background must be shown or hidden.' };
+            settings = { ...settings, rowBackground: rawWidget.settings.rowBackground };
         }
         if (rawWidget.settings.metrics !== undefined) {
             const raw = rawWidget.settings.metrics;
@@ -827,7 +835,9 @@ export function parseWallConfig(value) {
 }
 /** True when two layouts would draw the same Wall. */
 export function sameWallLayout(a, b) {
-    return JSON.stringify(a) === JSON.stringify(b);
+    const { tileTransparency: aTransparency = 0, ...aLayout } = a;
+    const { tileTransparency: bTransparency = 0, ...bLayout } = b;
+    return aTransparency === bTransparency && JSON.stringify(aLayout) === JSON.stringify(bLayout);
 }
 /**
  * The `WallConfig` a Save produces: the new layout becomes current and the one
