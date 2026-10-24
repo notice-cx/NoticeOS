@@ -47,6 +47,7 @@ import { useConnections } from "@/hooks/useConnections";
 import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
+import { useWallWeather } from "@/hooks/useWallWeather";
 import {
   wallCanRedo,
   wallCanUndo,
@@ -130,6 +131,7 @@ export function WallEditRoute() {
   const countdownRefused = dashboard?.refused?.countdown ?? null;
 
   const [state, dispatch] = useReducer(wallEditorReducer, config.layout, wallEditorState);
+  const weather = useWallWeather(dashboard ? state.layout : null, now);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [reverting, setReverting] = useState<number | null>(null);
@@ -342,6 +344,8 @@ export function WallEditRoute() {
     else next.tileSurfaces = state.layout.tileSurfaces;
     if (state.layout.tvPreview === undefined) delete next.tvPreview;
     else next.tvPreview = structuredClone(state.layout.tvPreview);
+    if (state.layout.weather === undefined) delete next.weather;
+    else next.weather = structuredClone(state.layout.weather);
     const currentSites = wallLayoutWidgets(state.layout).find(widget => widget.type === "sites");
     const nextSites = wallLayoutWidgets(next).find(widget => widget.type === "sites");
     if (currentSites && nextSites) {
@@ -526,6 +530,7 @@ export function WallEditRoute() {
               data={data}
               meetings={upcoming.data}
               calendarState={calendarReadState(upcoming)}
+              weather={weather}
               ga4Realtime={realtime.data}
               ga4RealtimeError={realtime.isError}
               connections={{ credentials, items, events }}
@@ -591,6 +596,7 @@ export function WallEditRoute() {
                   disabled={disabled}
                   onSelect={select}
                   onSettings={(widgetId, settings) => dispatch({ type: "settings", widgetId, settings })}
+                  onWeather={value => dispatch({ type: "weather", value })}
                   onWidths={(widths) => dispatch({ type: "widths", widths })}
                   onSizes={(sizes) => dispatch({ type: "sizes", sizes })}
                   onHeight={(rowId, height) => dispatch({ type: height, rowId })}

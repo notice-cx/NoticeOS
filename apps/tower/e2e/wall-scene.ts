@@ -13,6 +13,7 @@ import type { Page } from "@playwright/test";
 import type { ViewId } from "../shared/views";
 import type { WallLayout } from "../shared/wall-layout";
 import { expect } from "./journey-test";
+import { weatherScene } from "./wall-weather-fixture";
 import {
   WALL_FIXTURE_NOW, wallFixtureCalendar, wallFixtureHealth, wallFixturePayload, wallFixtureProviders, wallFixtureRealtime,
   type WallFixtureVariant,
@@ -83,6 +84,7 @@ export async function wallScene(
   };
   if (clock) await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   await page.addInitScript(() => sessionStorage.clear());
+  await weatherScene(page);
   await page.route("**/api/wall", (route) => route.fulfill({ json: reads().wall }));
   await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: reads().realtime }));
   await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: reads().calendar }));

@@ -13,6 +13,7 @@ import { useNow } from "@/hooks/useNow";
 import { useConnections } from "@/hooks/useConnections";
 import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useWall } from "@/hooks/useWall";
+import { useWallWeather } from "@/hooks/useWallWeather";
 import { useWallScreen } from "@/hooks/useWallScreen";
 import { useView } from "@/hooks/useView";
 import { useDemoReadonly } from "@/lib/browser-context";
@@ -57,10 +58,11 @@ export function demoDrawnLayout(dashboard: Pick<DashboardConfig, "wall" | "view"
   const rowBackground = sitesSettings?.rowBackground;
   const carryPulseMetrics = pulseMetrics !== undefined && wallLayoutWidgets(preset).some((widget) => widget.type === "sites");
   const carryRowBackground = rowBackground !== undefined && wallLayoutWidgets(preset).some((widget) => widget.type === "sites");
-  if (!carryPulseMetrics && !carryRowBackground && saved.tileTransparency === undefined && saved.tileSurfaces === undefined) return preset;
+  if (!carryPulseMetrics && !carryRowBackground && saved.tileTransparency === undefined && saved.tileSurfaces === undefined && saved.weather === undefined) return preset;
   const layout = structuredClone(preset) as WallLayout;
   if (saved.tileTransparency !== undefined) layout.tileTransparency = saved.tileTransparency;
   if (saved.tileSurfaces !== undefined) layout.tileSurfaces = saved.tileSurfaces;
+  if (saved.weather !== undefined) layout.weather = structuredClone(saved.weather);
   for (const widget of wallLayoutWidgets(layout)) {
     if (carryPulseMetrics && widget.type === "sites") widget.settings = { ...widget.settings, pulseMetrics: structuredClone(pulseMetrics) };
     if (carryRowBackground && widget.type === "sites") widget.settings = { ...widget.settings, rowBackground };
@@ -121,6 +123,7 @@ export function WallRoute() {
     if (!dashboard) return null;
     return demo ? demoDrawnLayout(dashboard, tvView) : drawnLayout(dashboard);
   }, [dashboard, demo, tvView]);
+  const weather = useWallWeather(layout, now);
 
   if (!data || layout === null) {
     if (isError) {
@@ -155,6 +158,7 @@ export function WallRoute() {
         nowMs={now}
         meetings={upcoming.data}
         calendarState={calendarReadState(upcoming)}
+        weather={weather}
         ga4Realtime={realtime.data}
         ga4RealtimeError={realtime.isError}
         lastGood={isError}

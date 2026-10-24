@@ -36,6 +36,7 @@ import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
 import type { WallMetricEditing } from "@/components/wall/WallMetricEditing";
 import { Button } from "@/components/ui/button";
 import type { CalendarReadState } from "@/lib/meetings";
+import type { WallWeatherState } from "@/components/wall/WallWeather";
 import { cn } from "@/lib/utils";
 import { wallViewportScreen } from "@/lib/wall-screen";
 import {
@@ -245,6 +246,7 @@ export interface WallPreviewProps {
   data: WallPayload;
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  weather?: WallWeatherState;
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
   /** The reads each source mark's status comes from, as on the TV. */
@@ -292,6 +294,7 @@ export function WallPreview({
   data,
   meetings,
   calendarState,
+  weather,
   ga4Realtime,
   ga4RealtimeError,
   connections,
@@ -404,7 +407,7 @@ export function WallPreview({
       cancelAnimationFrame(frame);
       document.fonts?.removeEventListener("loadingdone", schedule);
     };
-  }, [layout, data, meetings, calendarState, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, screen.zoom, screen.width, screen.height, onMeasure, onPortfolioFit]);
+  }, [layout, data, meetings, calendarState, weather, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, screen.zoom, screen.width, screen.height, onMeasure, onPortfolioFit]);
 
   // One watcher for every drag on the page that belongs to this editor: it
   // asks the grammar what the drop under the pointer would do and draws the
@@ -500,6 +503,7 @@ export function WallPreview({
               data={data}
               meetings={meetings}
               calendarState={calendarState}
+              weather={weather}
               ga4Realtime={ga4Realtime}
               ga4RealtimeError={ga4RealtimeError}
               connections={connections}

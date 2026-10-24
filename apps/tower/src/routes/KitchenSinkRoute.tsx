@@ -49,6 +49,7 @@ import {
   wallMetricTiles,
   type WallLayout,
   type WallLayoutVersion,
+  type WallWeatherSettings,
 } from "@shared/wall-layout";
 import type { AlertRuleStat, AlertRuleStatsPayload } from "@shared/alert-rules";
 import type { AnnotationItem } from "@shared/annotations";
@@ -187,6 +188,8 @@ import { WallPreview } from "@/components/wall/WallPreview";
 import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
 import { WallToolbar, type WallEditorPanel } from "@/components/wall/WallToolbar";
 import { WallStrip } from "@/components/wall/WallStrip";
+import { WallWeather } from "@/components/wall/WallWeather";
+import { WallWeatherEditor } from "@/components/wall/WallWeatherEditor";
 import { WallVersions } from "@/components/wall/WallVersions";
 import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
 import { WallMetricPanel } from "@/components/wall/WallMetricPanel";
@@ -4231,6 +4234,19 @@ export function KitchenSinkRoute() {
 
           {/* The Wall's one top line: the same OS report in four states, the
               meeting and countdown from the gallery's own fixed clock. */}
+          <Section title="WallWeatherEditor (automatic location / city search / units / off)">
+            <WallWeatherEditorDemo />
+          </Section>
+
+          <Section title="WallWeather (Fahrenheit / Celsius / night / cached / missing range / loading / unavailable)">
+            <div data-theme="dark" className="wall-root flex flex-wrap items-start gap-6 bg-background p-4 text-foreground">
+              {(["ready", "stale"] as const).map(status => <WallWeather key={status} state={{ status, reading: { location: { name: "Example City", latitude: 40, longitude: -75 }, timeZone: "UTC", observedAt: iso(0), fetchedAt: iso(0), temperatureC: 18, lowC: 10, highC: 22, conditionCode: 2, isDay: true } }} />)}
+              <WallWeather unit="celsius" state={{ status: "ready", reading: { location: { name: "Example City", latitude: 40, longitude: -75 }, timeZone: "UTC", observedAt: iso(0), fetchedAt: iso(0), temperatureC: 0, lowC: null, highC: null, conditionCode: 0, isDay: false } }} />
+              <WallWeather state={{ status: "loading" }} />
+              <WallWeather state={{ status: "unavailable", message: "Weather could not be loaded" }} />
+            </div>
+          </Section>
+
           <Section title="WallStrip (healthy / a source failing / OS report missing / clear day, no countdown)">
             <div data-theme="dark" className="wall-root text-foreground flex w-full flex-col gap-2 bg-background p-2">
               <WallStrip
@@ -5949,6 +5965,11 @@ export function KitchenSinkRoute() {
       </div>
     </div>
   );
+}
+
+function WallWeatherEditorDemo() {
+  const [value, setValue] = useState<WallWeatherSettings>({ enabled: true, unit: "fahrenheit", location: { mode: "automatic" } });
+  return <WallWeatherEditor value={value} onChange={setValue} searchLocations={async () => [{ name: "Example City, Example Region", latitude: 40, longitude: -75 }]} />;
 }
 
 function WallMetricEditorDemo() {

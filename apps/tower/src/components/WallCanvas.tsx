@@ -19,6 +19,7 @@ import {
   type WallSlot,
   type WallWidget,
   wallWidgetSpec,
+  wallWeatherSettings,
 } from "@shared/wall-layout";
 // Read-only imports only: `/wall` downloads everything this file imports, and
 // the route-split journey fails if editing or task code reaches the TV.
@@ -33,6 +34,7 @@ import { WallFactory } from "@/components/wall/WallFactory";
 import { WallHealth } from "@/components/wall/WallHealth";
 import { WallLoop } from "@/components/wall/WallLoop";
 import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
+import type { WallWeatherState } from "@/components/wall/WallWeather";
 import { WallTimelineWidget } from "@/components/wall/WallTimeline";
 import { WallWork } from "@/components/wall/WallWork";
 import { WallMetricScope, type WallMetricEditing } from "@/components/wall/WallMetricEditing";
@@ -73,6 +75,7 @@ export interface WallCanvasProps {
   /** The surface's own upcoming-meetings poll. */
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
+  weather?: WallWeatherState;
   /** The independent 30-second GA4 read; failure never blanks a card. */
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
@@ -148,6 +151,7 @@ export function WallCanvas({
   nowMs,
   meetings,
   calendarState,
+  weather,
   ga4Realtime,
   ga4RealtimeError = false,
   lastGood = false,
@@ -171,6 +175,8 @@ export function WallCanvas({
             countdown={data.dashboard.countdown}
             meetings={meetings}
             calendarState={calendarState}
+            weather={weather}
+            weatherUnit={wallWeatherSettings(layout).unit}
             heldSince={lastGood ? data.generatedAt : null}
           />
         );

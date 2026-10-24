@@ -11,12 +11,14 @@ import {
   type WallColumnRow,
   type WallLayout,
   type WallWidgetSettings,
+  type WallWeatherSettings,
 } from "@shared/wall-layout";
 import { CountdownEditor } from "@/components/DashboardWidgets";
 import { OwnerChip } from "@/components/OwnerChip";
 import { StateChip } from "@/components/StateChip";
 import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
 import { WallRowAppearance } from "@/components/wall/WallMetricPanel";
+import { WallWeatherEditor } from "@/components/wall/WallWeatherEditor";
 import { Button } from "@/components/ui/button";
 import {
   WALL_SHARE_PRESETS,
@@ -49,6 +51,7 @@ export interface WallWidgetPanelProps {
   /** Pick a widget to edit, as a click on it in the preview does. */
   onSelect: (widgetId: string) => void;
   onSettings: (widgetId: string, settings: WallWidgetSettings | undefined) => void;
+  onWeather?: (value: WallWeatherSettings) => void;
   /** A width preset: new widths by slot id. */
   onWidths: (widths: Record<string, number>) => void;
   /** A stacked height preset: new height weights by column-row id. */
@@ -100,6 +103,7 @@ export function WallWidgetPanel({
   nowMs,
   onSelect,
   onSettings,
+  onWeather,
   onWidths,
   onSizes,
   onHeight,
@@ -337,6 +341,7 @@ export function WallWidgetPanel({
             <CountdownEditor config={countdown} refused={countdownRefused} nowMs={nowMs} embedded />
           </div>
         ) : null}
+        {widget.type === "strip" && onWeather ? <WallWeatherEditor value={layout.weather} disabled={disabled} onChange={onWeather} /> : null}
       </div>
     </div>
   );

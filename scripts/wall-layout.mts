@@ -286,12 +286,27 @@ export function wallTvViewport(preset: WallTvPreset): { width: number; height: n
   return { width: Math.round(preset.width * 100 / preset.scale), height: Math.round(preset.height * 100 / preset.scale) };
 }
 
+export interface WallWeatherSettings {
+  enabled: boolean;
+  unit: 'fahrenheit' | 'celsius';
+  location: { mode: 'automatic' } | { mode: 'fixed'; name: string; latitude: number; longitude: number };
+}
+
+/** Defaults are read without materialising settings into older saved layouts. */
+export function wallWeatherSettings(layout: Pick<WallLayout, 'weather'>): WallWeatherSettings {
+  const weather = layout.weather;
+  if (weather === undefined) return { enabled: true, unit: 'fahrenheit', location: { mode: 'automatic' } };
+  const location = weather.location;
+  return { enabled: weather.enabled, unit: weather.unit, location: location.mode === 'automatic' ? { mode: 'automatic' } : { mode: 'fixed', name: location.name, latitude: location.latitude, longitude: location.longitude } };
+}
+
 export interface WallLayout {
   version: typeof WALL_LAYOUT_VERSION;
   /** Background transparency of metric tiles; absent is the existing opaque surface. */
   tileTransparency?: number;
   tileSurfaces?: boolean;
   tvPreview?: WallTvPreview;
+  weather?: WallWeatherSettings;
   rows: WallRow[];
 }
 
@@ -760,6 +775,16 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
     return { ok: false, reason: 'Tile transparency must be a whole number from 0 to 100.' };
   }
   if (value.tileSurfaces !== undefined && typeof value.tileSurfaces !== 'boolean') return { ok: false, reason: 'Tile backgrounds and borders must be shown or hidden.' };
+  let weather: WallWeatherSettings | undefined;
+  if (value.weather !== undefined) {
+    const raw = value.weather;
+    if (!isRecord(raw) || typeof raw.enabled !== 'boolean' || (raw.unit !== 'fahrenheit' && raw.unit !== 'celsius') || !isRecord(raw.location)) return { ok: false, reason: 'Weather needs an On or Off choice, temperature unit and location.' };
+    const location = raw.location;
+    if (location.mode === 'automatic') weather = { enabled: raw.enabled, unit: raw.unit, location: { mode: 'automatic' } };
+    else if (location.mode === 'fixed' && typeof location.name === 'string' && location.name.trim().length > 0 && location.name.length <= 160 && typeof location.latitude === 'number' && Number.isFinite(location.latitude) && location.latitude >= -90 && location.latitude <= 90 && typeof location.longitude === 'number' && Number.isFinite(location.longitude) && location.longitude >= -180 && location.longitude <= 180) {
+      weather = { enabled: raw.enabled, unit: raw.unit, location: { mode: 'fixed', name: location.name.trim(), latitude: location.latitude, longitude: location.longitude } };
+    } else return { ok: false, reason: 'Choose automatic weather location or a city from search.' };
+  }
   let tvPreview: WallTvPreview | undefined;
   if (value.tvPreview !== undefined) {
     const preview = value.tvPreview;
@@ -797,7 +822,7 @@ export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (rows.filter((row) => row.height === 'fill').length > 1) {
     return { ok: false, reason: 'Only one row can take the remaining height.' };
   }
-  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }), ...(value.tileSurfaces === undefined ? {} : { tileSurfaces: value.tileSurfaces as boolean }), ...(tvPreview === undefined ? {} : { tvPreview }) } };
+  return { ok: true, layout: { version: WALL_LAYOUT_VERSION, rows, ...(value.tileTransparency === undefined ? {} : { tileTransparency: value.tileTransparency as number }), ...(value.tileSurfaces === undefined ? {} : { tileSurfaces: value.tileSurfaces as boolean }), ...(tvPreview === undefined ? {} : { tvPreview }), ...(weather === undefined ? {} : { weather }) } };
 }
 
 /** Ids and one-of-a-kind widgets seen so far, across the whole layout — a
@@ -1089,9 +1114,9 @@ export function parseWallConfig(value: unknown): WallConfig {
 
 /** Equivalent layout documents, including saved preview preferences. */
 export function sameWallLayout(a: WallLayout, b: WallLayout): boolean {
-  const { tileTransparency: aTransparency = 0, tileSurfaces: aSurfaces = true, ...aLayout } = a;
-  const { tileTransparency: bTransparency = 0, tileSurfaces: bSurfaces = true, ...bLayout } = b;
-  return aTransparency === bTransparency && aSurfaces === bSurfaces && JSON.stringify(aLayout) === JSON.stringify(bLayout);
+  const { tileTransparency: aTransparency = 0, tileSurfaces: aSurfaces = true, weather: _aWeather, ...aLayout } = a;
+  const { tileTransparency: bTransparency = 0, tileSurfaces: bSurfaces = true, weather: _bWeather, ...bLayout } = b;
+  return aTransparency === bTransparency && aSurfaces === bSurfaces && JSON.stringify(wallWeatherSettings(a)) === JSON.stringify(wallWeatherSettings(b)) && JSON.stringify(aLayout) === JSON.stringify(bLayout);
 }
 
 /**
