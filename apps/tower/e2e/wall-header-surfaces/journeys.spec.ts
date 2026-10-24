@@ -5,18 +5,22 @@ import { openWall, wallScene } from "../wall-scene";
 import { persistedMetricScene } from "../wall-metric-editor/scene";
 import { SAVED_COLUMN_LAYOUT } from "../../test/saved-wall-layout";
 
-test("Wall header primary text shares a baseline across agenda states and TV sizes", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page, request }, testInfo) => {
+test("Wall header text shares two baselines across calendar states and TV sizes", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/reset")).ok()).toBe(true);
   await wallScene(page, "four");
   let calendar = wallFixtureCalendar();
   await page.route("**/api/calendar/upcoming", route => route.fulfill({ json: calendar }));
-  for (const mode of ["empty", "next", "active", "long"] as const) {
+  for (const mode of ["empty", "cached-empty", "next", "active", "long"] as const) {
     calendar = wallFixtureCalendar();
-    if (mode === "empty") calendar.meetings = [];
+    if (mode === "empty" || mode === "cached-empty") calendar.meetings = [];
     else if (mode === "active") {
       calendar.meetings[0]!.startsAt = new Date(Date.parse(WALL_FIXTURE_NOW) - 15 * 60_000).toISOString();
       calendar.meetings[0]!.endsAt = new Date(Date.parse(WALL_FIXTURE_NOW) + 15 * 60_000).toISOString();
     } else if (mode === "long") calendar.meetings[0]!.title = "Quarterly portfolio planning and integration review with the product team";
+    if (mode === "cached-empty") {
+      calendar.feedsConfigured = 2;
+      calendar.fetchedAt = new Date(Date.parse(WALL_FIXTURE_NOW) - 3_600_000).toISOString();
+    }
     for (const [width, height] of [[1920, 1080], [1280, 720], [3840, 2160]] as const) {
       await openWall(page, [width, height]);
       await expect(page.locator("#boot-splash")).toHaveCount(0);
@@ -31,6 +35,18 @@ test("Wall header primary text shares a baseline across agenda states and TV siz
       }));
       expect(baselines.length).toBeGreaterThanOrEqual(6);
       expect(Math.max(...baselines.map(item => item.baseline)) - Math.min(...baselines.map(item => item.baseline)), `${mode} ${width}×${height}: ${JSON.stringify(baselines)}`).toBeLessThanOrEqual(1.5);
+      if (mode !== "empty") {
+        const captions = await page.locator("[data-wall-strip]").evaluate(root => [...root.querySelectorAll<HTMLElement>("[data-strip-caption]")].map(node => {
+          const probe = document.createElement("span");
+          probe.style.cssText = "display:inline-block;width:0;height:0;padding:0;margin:0;vertical-align:baseline";
+          node.append(probe);
+          const baseline = probe.getBoundingClientRect().top;
+          probe.remove();
+          return { text: node.textContent, baseline };
+        }));
+        expect(captions.length).toBeGreaterThanOrEqual(2);
+        expect(Math.max(...captions.map(item => item.baseline)) - Math.min(...captions.map(item => item.baseline)), `${mode} captions ${width}×${height}: ${JSON.stringify(captions)}`).toBeLessThanOrEqual(.5);
+      }
       if (width === 1920) await page.locator("[data-wall-strip]").screenshot({ path: testInfo.outputPath(`header-${mode}.png`) });
     }
   }

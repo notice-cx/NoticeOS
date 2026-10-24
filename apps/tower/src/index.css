@@ -846,10 +846,19 @@
   .wall-strip {
     min-height: 4.5rem;
     padding-block: .25rem;
+    grid-template-rows: auto auto;
+    row-gap: 0;
     grid-template-columns: minmax(13rem, 1fr) minmax(0, 1.25fr) max-content minmax(13rem, 1fr);
     column-gap: 1.5rem;
   }
   .wall-strip-widget { grid-row: 1; }
+  .wall-strip-brand, .wall-strip-agenda {
+    grid-row: 1 / 3;
+    grid-template-rows: subgrid;
+    align-self: stretch;
+    align-items: first baseline;
+  }
+  .wall-strip-meeting { align-items: first baseline; }
   .wall-strip-brand { grid-column: 1; }
   .wall-strip-version { justify-content: start; font-size: max(.8125rem, calc(11px / var(--wall-scale, 1))); }
   .wall-strip-clock { display: flex; grid-column: 4; justify-self: end; align-items: baseline; gap: 1.25rem; text-align: right; }
