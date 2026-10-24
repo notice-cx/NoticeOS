@@ -32,7 +32,7 @@ test("The attention strip fits between Work and Portfolio while Live feed fills 
   expect(boxes.ticker.height).toBe(40);
   expect(boxes.feed.height).toBeGreaterThan(500);
   expect(boxes.rows).toHaveLength(4);
-  for (const row of boxes.rows) { expect(row.visible).toBe(true); expect(row.tileHeight).toBeCloseTo(156, 0); }
+  for (const row of boxes.rows) { expect(row.visible).toBe(true); expect(row.tileHeight).toBeCloseTo(132, 0); }
   const fit = await page.evaluate(measureWallFit);
   if ("error" in fit) throw new Error(fit.error);
   expect(fit.ink).toEqual([]);

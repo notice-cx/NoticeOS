@@ -1,15 +1,17 @@
 import type { Ga4RealtimeAsset, Ga4RealtimePayload, Ga4RealtimeDay } from "@noticeos/contract";
 import { useMemo, type CSSProperties } from "react";
-import { ChartNoAxesCombined, Globe, Layers, ListTodo, TrendingUp } from "lucide-react";
+import { ChartNoAxesCombined, CircleAlert, CircleHelp, Globe, Layers, ListTodo, TrendingUp, TriangleAlert } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
 import { wallMetricTiles, type WallWidget, type WallMetricTile } from "@shared/wall-layout";
 import { CADENCE_HOURS } from "@shared/wall";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
-import { ageMs, isAmber } from "@shared/freshness";
+import { ageMs, formatAge, isAmber } from "@shared/freshness";
+import { liveTrafficIsRecent } from "@shared/live-traffic-health";
 import { currentRealtimeDay, realtimeActivity } from "@/lib/realtime-day";
 import { clockHourNow, intradayUsersPace, paceWindowLabel, type IntradayUsersPace } from "@/lib/intraday-pace";
+import { wallTrafficTone } from "@/lib/wall-traffic-tone";
 import { todayUserCounts } from "@/lib/wall-today";
-import { DeltaChip, paceDirectionLabel, paceTone, performanceToneClass } from "@/components/DeltaChip";
+import { DeltaChip, paceDirectionLabel, performanceToneClass } from "@/components/DeltaChip";
 import { AgeBadge } from "@/components/AgeBadge";
 import { visiblePulseCounters, type WallPulseMetrics } from "@/lib/wall-counters";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -47,7 +49,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
     <div className="wall-portfolio-list">
       {assets.map(asset => {
         const snapshot = ga4Realtime?.assets.find(reading => reading.asset === asset.id);
-        const hasData = asset.pulseReceivedAt !== null || asset.activeUsers.series.length > 0 || snapshot?.status === "success" || asset.counters?.cards.some(card => card.value !== null) === true;
+        const hasData = asset.pulseReceivedAt !== null || asset.activeUsers.series.length > 0 || snapshot?.status === "success" || asset.counters?.cards.some(card => card.value !== null) === true || asset.work != null;
         const renderTile = (tile: WallMetricTile) => {
           switch (tile.source) {
             case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} metric />;
@@ -68,12 +70,15 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
         return <section key={asset.id} className="wall-portfolio-row" aria-label={asset.displayName} data-site-row={asset.id} data-metrics-configured={configured || undefined} style={configured ? {
           "--wall-metric-tracks": ordered.map(tile => `minmax(0, ${weight(tile)}fr)`).join(" "),
         } as CSSProperties : undefined}>
-          <div className="wall-portfolio-identity" data-site-name>
-            <div className="wall-portfolio-mark"><PropertyFavicon domain={asset.id} icons={asset.icons} scheme="dark" displayName={asset.displayName} className="size-8 shrink-0" /><SiteHealth asset={asset} mark={siteMark(issues, asset.id)} site={asset.id} /></div>
-            <span className="wall-portfolio-name" data-site-label>{asset.displayName}</span>
-            {!hasData ? <span className="text-wall-micro text-muted-foreground" data-site-waiting>No data yet</span> : null}
+          <header className="wall-portfolio-identity" data-site-name>
+            <PropertyFavicon domain={asset.id} icons={asset.icons} scheme="dark" displayName={asset.displayName} className="wall-portfolio-favicon shrink-0" />
+            <h3 className="wall-portfolio-name" data-site-label>{asset.displayName}</h3>
+            <SiteHealth asset={asset} mark={siteMark(issues, asset.id)} site={asset.id} hasData={hasData} />
+            <SourceFreshness asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} />
+          </header>
+          <div className="wall-portfolio-metrics">
+            {ordered.map(tile => <WallMetricBinding key={tile.id} tile={tile} assetId={asset.id} configured={configured}>{configured ? <div data-wall-metric-cell>{renderTile(tile)}</div> : renderTile(tile)}</WallMetricBinding>)}
           </div>
-          {ordered.map(tile => <WallMetricBinding key={tile.id} tile={tile} assetId={asset.id} configured={configured}>{configured ? <div data-wall-metric-cell>{renderTile(tile)}</div> : renderTile(tile)}</WallMetricBinding>)}
         </section>;
       })}
     </div>
@@ -122,7 +127,7 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
     <span data-site-today>
       {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : <span className="wall-metric-note">Comparison unavailable</span>}
     </span>} chart={<>
-    <div className={cn("wall-site-chart", !retained && performanceToneClass(pace?.paceChange == null ? "neutral" : paceTone(pace.paceChange)))} data-site-today-chart data-tone={retained ? undefined : pace?.paceChange == null ? "neutral" : paceTone(pace.paceChange)}>
+    <div className={cn("wall-site-chart", !retained && performanceToneClass(pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)))} data-site-today-chart data-tone={retained ? undefined : pace?.paceChange == null ? "neutral" : wallTrafficTone(pace.paceChange)}>
       {retained ? <RealtimeTodayChart day={retained} nowMs={nowMs} weight="row" reference={reference} /> : hourly ? <TodayVsLastWeek hourly={hourly} weight="row" nowHour={nowHour} reference={reference} /> : null}
     </div>
     <div className="wall-site-axis"><span>{retained ? "avg users/min" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</div>
@@ -135,7 +140,7 @@ function TrendMetric({ asset }: { asset: AssetCard }) {
   const weeks = fourWeeks(asset.activeUsers);
   const drawn = weeks && weeks.days.some(day => day.value !== null) ? weeks : null;
   return <SparklineCompareMetric title="4 weeks" icon={ChartNoAxesCombined} value={
-    <span data-site-trend>{weeks?.change ? <span data-site-week><DeltaChip value={weeks.change.percent} render={value => `${formatPercent(value)}%`} tone={weeks.change.tone} meaning="Last 4 weeks vs the 4 before" /></span> : <span className="wall-metric-note">Comparison unavailable</span>}</span>} comparison={weeks?.change ? "vs prior 4 wk" : undefined} chart={<>
+    <span data-site-trend>{weeks?.change ? <span data-site-week><DeltaChip value={weeks.change.percent} render={value => `${formatPercent(value)}%`} tone={wallTrafficTone(weeks.change.percent)} meaning="Last 4 weeks vs the 4 before" /></span> : <span className="wall-metric-note">Comparison unavailable</span>}</span>} comparison={weeks?.change ? "vs prior 4 wk" : undefined} chart={<>
     <div className="wall-site-chart" role="img" aria-label={`${asset.displayName} daily active users`} data-site-chart="row">{drawn ? <FourWeekLine weeks={drawn} weight="row" reference={reference} /> : <span className="wall-metric-note">History unavailable</span>}</div>
     {drawn ? <div className="wall-site-axis" data-site-weeks-axis><span>{formatSeriesDate(drawn.days[0]!.date)}</span><span>{formatSeriesDate(drawn.days.at(-1)!.date)}</span></div> : null}
   </>} />;
@@ -158,7 +163,7 @@ function PaceFigure({ pace }: { pace: IntradayUsersPace }) {
     <DeltaChip
       value={pace.paceChange}
       render={(value) => `${formatPercent(value)}%`}
-      tone={paceTone(pace.paceChange)}
+      tone={wallTrafficTone(pace.paceChange)}
       meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
       className="whitespace-nowrap"
     />
@@ -205,7 +210,7 @@ function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
   const meaning = `Provisional activity today so far vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Includes earlier hours; the chart shows each hour separately. Per-minute active users, not distinct hourly or daily users. Unreported minutes are excluded; GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
   return activity.change !== null ? (
     <span className="inline-flex flex-col items-end" title={meaning}>
-      <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={paceTone(activity.change)} meaning={meaning} />
+      <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={wallTrafficTone(activity.change)} meaning={meaning} />
       <span className="text-wall-micro text-muted-foreground">day so far</span>
     </span>
   ) : <span className="text-wall-micro text-muted-foreground" title={meaning}>{activity.hasPrior ? "Gathering pace" : day.comparisonError && day.comparisonError !== "ga4_comparison_waiting" ? "Last week unavailable" : "Last week pending"}</span>;
@@ -292,25 +297,29 @@ function FourWeekLine({ weeks, weight, reference = true }: { weeks: FourWeeks; w
 
 
 
-function SiteHealth({ asset, mark, site }: { asset: AssetCard; mark: SiteMark | null; site: string }) {
+function SourceFreshness({ asset, snapshot, reconnecting, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; reconnecting: boolean; nowMs: number }) {
+  const counterTimes = asset.counters?.cards.filter(card => card.value !== null && card.observedAt !== null).map(card => card.observedAt!) ?? [];
+  const latestCount = counterTimes.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+  const report = asset.pulseReceivedAt;
+  const live = snapshot?.status === "success" ? snapshot.observedAt : null;
+  const source = (label: string, at: string | null, stale: boolean, failed = false) => {
+    const age = ageMs(nowMs, at);
+    return <span data-site-source={label.toLowerCase()} data-source-freshness={failed ? "unavailable" : age === null ? "unknown" : stale ? "stale" : "current"} title={at ?? undefined}>{label} {failed ? "unavailable" : age === null ? "unavailable" : `${stale ? "stale · " : ""}${formatAge(age)} ago`}</span>;
+  };
+  return <div className="wall-portfolio-sources" aria-label="Source freshness">
+    {source(report ? "Report" : "Counts", report ?? latestCount, isAmber(nowMs, report ?? latestCount, report ? CADENCE_HOURS.pulse : asset.counters?.cadenceHours ?? CADENCE_HOURS.pulse))}
+    {source("Live", live, live !== null && !liveTrafficIsRecent(live, nowMs), reconnecting || snapshot?.status === "error")}
+    {source("Tasks", asset.work?.capturedAt ?? null, isAmber(nowMs, asset.work?.capturedAt ?? null, WORK_POLL_CADENCE_HOURS))}
+  </div>;
+}
+
+function SiteHealth({ asset, mark, site, hasData }: { asset: AssetCard; mark: SiteMark | null; site: string; hasData: boolean }) {
   const health = siteHealth(asset, mark ? [{ assets: [asset.id], severity: mark.severity }] : []);
-  // A retired site, drawn only when its TV switch is on, has no level: nobody
-  // watches it, so it is neither healthy nor failing.
-  const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "retired" ? "unknown" : "healthy";
-  const level = state === "error" ? 1 : state === "warn" ? 2 : state === "healthy" ? 4 : 0;
-  const label = mark ? `${mark.label}${mark.more ? `; ${mark.more} more ${mark.more === 1 ? "issue" : "issues"}` : ""}` : health.word;
-  return (
-    <svg
-      role="img"
-      aria-label={`Asset health: ${label}`}
-      viewBox="0 0 20 20"
-      className={cn("size-5 shrink-0", state === "error" ? "text-error" : state === "warn" ? "text-warn" : "text-muted-foreground")}
-      data-site-health={state}
-      data-status-for={`asset:${site}`}
-    >
-      {[5, 9, 13, 17].map((height, index) => (
-        <rect key={height} x={index * 5} y={19 - height} width="3" height={height} rx="1" fill="currentColor" className={index < level ? "opacity-100" : "opacity-20"} />
-      ))}
-    </svg>
-  );
+  const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "retired" || !hasData ? "unknown" : "healthy";
+  const label = mark ? `${mark.label}${mark.more ? `; ${mark.more} more ${mark.more === 1 ? "issue" : "issues"}` : ""}` : health.key === "retired" ? health.word : !hasData ? "No data yet" : health.key === "on-track" ? "No open alerts" : health.word;
+  const word = health.key === "retired" ? health.word : state === "error" || state === "warn" ? health.word : label;
+  const Glyph = state === "error" ? CircleAlert : state === "warn" ? TriangleAlert : CircleHelp;
+  return <span className={cn("wall-portfolio-status shrink-0", state === "error" ? "text-error" : state === "warn" ? "text-warn" : "text-muted-foreground")} role="group" aria-label={`Asset health: ${label}`} title={label} data-site-health={state} data-site-waiting={!hasData && health.key !== "retired" ? "" : undefined} data-status-for={`asset:${site}`}>
+    {state === "error" || state === "warn" || state === "unknown" ? <Glyph aria-hidden /> : null}{word}
+  </span>;
 }

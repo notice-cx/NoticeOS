@@ -4,6 +4,31 @@ import { CumulativeCompareMetric, MetricComparisonChart, MomentumMetric, MultiMe
 import { WallMetricBinding } from "@/components/wall/WallMetricEditing";
 
 describe("Wall metric widgets", () => {
+  it("overlays cumulative closes on daily bars using the same count scale and prior-week reference", () => {
+    const { container } = render(<CumulativeCompareMetric title="Done this week" value={7} chartProps={{ variant: "daily-bars-line", current: [{ t: "2026-10-19", v: 2 }, { t: "2026-10-20", v: 2 }, { t: "2026-10-21", v: 7 }], domain: { start: "2026-10-19", end: "2026-10-25" }, previousTotal: { value: 10, label: "Last week total · 10" }, startLabel: "Monday", endLabel: "Sunday" }} />);
+    const bars = container.querySelectorAll("[data-metric-daily-bar]");
+    expect(Array.from(bars, bar => bar.getAttribute("data-value"))).toEqual(["2", "0", "5"]);
+    expect(Number(bars[1]!.getAttribute("height"))).toBeGreaterThan(0);
+    expect(container.querySelectorAll("[data-metric-daily-day='missing']")).toHaveLength(4);
+    const line = container.querySelector("[data-chart-line='solid']")!;
+    expect(line.getAttribute("d")).toContain("16"); // Seven closes on the shared 0–10 scale.
+    expect(Number(bars[2]!.getAttribute("y"))).toBe(24); // Five daily closes, same scale.
+    expect(container.querySelector("[data-metric-previous-total] line")).toHaveAttribute("y1", "4");
+    expect(container.querySelector("[role='img']")).toHaveAccessibleName(/Bars: daily closes.*Solid line: cumulative.*one count scale/);
+    expect(container.querySelector("[data-metric-daily-key]")).toHaveTextContent("Bars: dailyLine: cumulative");
+    expect(container.querySelector("[data-chart-line='projection']")).toBeNull();
+  });
+
+  it("does not turn missing daily baselines into zero or distribute a multi-day increase", () => {
+    const { container } = render(<MetricComparisonChart label="Done" variant="daily-bars-line" current={[{ t: "2026-10-20", v: 3 }, { t: "2026-10-21", v: null }, { t: "2026-10-22", v: 8 }, { t: "2026-10-23", v: 8 }, { t: "2026-10-24", v: Number.NaN }]} domain={{ start: "2026-10-19", end: "2026-10-25" }} startLabel="Monday" endLabel="Sunday" />);
+    const bars = container.querySelectorAll("[data-metric-daily-bar]");
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toHaveAttribute("data-date", "2026-10-23");
+    expect(bars[0]).toHaveAttribute("data-value", "0");
+    expect(container.querySelectorAll("[data-metric-daily-day='missing']")).toHaveLength(6);
+    expect(container.querySelector("[data-chart-line='solid']")?.getAttribute("d")?.match(/M/g)).toHaveLength(2);
+  });
+
   it("colors an individual supporting fact from its supplied tone without changing its siblings", () => {
     const { container } = render(<MultiMetric title="Work" primary={{ label: "Closed", value: 103, tone: "positive" }} metrics={[{ label: "Open", value: 163 }, { label: "Blocked", value: 7, tone: "warn" }]} />);
     const facts = container.querySelectorAll(".wall-metric-facts dd");

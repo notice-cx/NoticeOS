@@ -1,6 +1,8 @@
 import { test, expect } from "../journey-test";
 import { DESKTOP_ONLY, PR_SMOKE } from "../fixtures";
 import { persistedMetricScene } from "./scene";
+import { wallFixturePayload } from "../wall-fixture";
+import { fetchToRewrite } from "../rewritten-read.mjs";
 
 test("shared Portfolio tiles edit in focus, undo and persist after reload", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/reset")).ok()).toBe(true);
@@ -58,12 +60,20 @@ test("focused Portfolio controls fit a 390px viewport without page overflow", { 
   expect((await request.post("/__journey/reset")).ok()).toBe(true);
   await page.setViewportSize({ width: 390, height: 844 });
   await persistedMetricScene(page);
+  await page.route("**/api/wall", async route => {
+    const { response, headers } = await fetchToRewrite(route);
+    const actual = await response.json();
+    const fixture = structuredClone(wallFixturePayload("four"));
+    fixture.assets[2]!.displayName = "Example product with a longer asset name";
+    await route.fulfill({ response, headers, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
+  });
   await page.goto("/wall/edit");
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   await page.getByRole("navigation", { name: "Wall metric sections" }).getByRole("button", { name: "Portfolio", exact: true }).click();
   const panel = page.locator('[data-wall-metric-panel="sites"]');
   await panel.getByRole("button", { name: "Focus on row" }).click();
   await expect(page.locator('[data-wall-row-focus="sites"]')).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Preview asset" }).getByRole("option", { name: "Example product with a longer asset name" })).toHaveCount(1);
   await panel.getByLabel("Title").fill("Live visitors");
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
   const rowScroll = page.locator("[data-wall-focus-preview]");

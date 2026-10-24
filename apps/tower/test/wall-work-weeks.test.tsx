@@ -93,13 +93,16 @@ describe("the Wall's metric work tile", () => {
     expect(blocked.querySelector("svg[role=img]")).toBeNull();
   });
 
-  it("uses observed cumulative closes and last week's total without project bars", () => {
+  it("uses daily closes under a cumulative line and last week's total without project bars", () => {
     const w = weeks();
     w.done.history = [{ t: "2026-09-21", v: 2 }, { t: "2026-09-22", v: 6 }];
     const { container } = render(<WallWork assets={[asset("a.example", work(w)), asset("b.example", work(w))]} operator={operator} nowMs={NOW} />);
     const done = within(container).getByRole("region", { name: "Done this week" });
     expect(done).toHaveTextContent("12");
-    expect(done).toHaveTextContent("Last week · 30");
+    expect(done).toHaveTextContent("Last week total · 30");
+    expect(Array.from(done.querySelectorAll("[data-metric-daily-bar]"), bar => bar.getAttribute("data-value"))).toEqual(["4", "8"]);
+    expect(done.querySelector("[data-chart-line='solid']")).not.toBeNull();
+    expect(done.querySelector("[data-chart-line='projection']")).toBeNull();
     expect(done.querySelector("[data-metric-previous-total]")).not.toBeNull();
     expect(done.querySelector("svg")).not.toBeNull();
     expect(container.querySelector("[data-pace-bar], [data-work-row]")).toBeNull();

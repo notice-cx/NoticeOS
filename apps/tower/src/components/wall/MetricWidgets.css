@@ -91,22 +91,23 @@
 .wall-metric-facts dd { margin: 0; font-size: min(var(--metric-small-value-size), calc((100cqh - (var(--metric-count) - 1) * var(--metric-fact-gap)) / var(--metric-count) / var(--metric-value-line))); font-weight: 600; line-height: var(--metric-value-line); }
 .wall-metric-breakdown {
   --metric-primary-value-size: 2.625rem;
-  --metric-detail-value-size: 1.5rem;
+  --metric-detail-value-size: 1.375rem;
   --metric-detail-label-size: .75rem;
   --metric-primary-label-size: .8125rem;
   --metric-breakdown-gap: 1rem;
-  --metric-breakdown-fact-gap: .75rem;
+  --metric-breakdown-fact-gap: .375rem;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) max-content;
   gap: var(--metric-breakdown-gap);
   flex: 1;
   min-height: 0;
 }
+.wall-metric-primary-zone { display: flex; flex-direction: column; justify-content: center; gap: var(--metric-gap); min-width: 0; }
 .wall-metric-primary { display: flex; flex-direction: column; justify-content: center; margin: 0; min-width: 0; }
 .wall-metric-primary dt { order: 2; font-size: var(--metric-primary-label-size); line-height: var(--metric-note-line); color: var(--muted-foreground); }
 .wall-metric-primary dd { margin: 0; font-size: var(--metric-primary-value-size); font-weight: 600; line-height: var(--metric-value-line); }
-.wall-metric-breakdown .wall-metric-facts { display: flex; flex-direction: column; justify-content: center; gap: var(--metric-breakdown-fact-gap); container-type: normal; }
-.wall-metric-breakdown .wall-metric-facts > div { justify-content: flex-start; align-items: baseline; }
+.wall-metric-breakdown .wall-metric-facts { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; justify-self: end; width: max-content; gap: var(--metric-breakdown-fact-gap); container-type: normal; }
+.wall-metric-breakdown .wall-metric-facts > div { flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 0; text-align: right; }
 .wall-metric-breakdown .wall-metric-facts dt { order: 2; font-size: var(--metric-detail-label-size); }
 .wall-metric-breakdown .wall-metric-facts dd { font-size: var(--metric-detail-value-size); }
 .wall-metric-chart { min-width: 0; margin-top: auto; }
@@ -157,15 +158,8 @@
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-plot { justify-content: flex-start; }
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-chart { flex: 1; display: flex; flex-direction: column; min-height: 0; gap: var(--metric-fact-gap); }
 .wall-metric-cumulative[data-metric-expanded] .wall-metric-chart svg { flex: 1; height: auto; min-height: 0; }
-@container (max-width: 14rem) {
-  .wall-metric-breakdown .wall-metric-facts { gap: var(--metric-gap); }
-  .wall-metric-breakdown .wall-metric-facts > div { flex-direction: column; align-items: flex-start; gap: 0; }
-}
 @container (max-width: 11rem) {
-  .wall-metric-breakdown { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; gap: var(--metric-fact-gap); --metric-primary-value-size: 1.75rem; --metric-detail-value-size: 1.25rem; --metric-breakdown-fact-gap: .375rem; }
-  .wall-metric-breakdown > .wall-metric-primary { flex-direction: row; justify-content: flex-start; align-items: baseline; gap: var(--metric-gap); }
-  .wall-metric-breakdown .wall-metric-facts { gap: var(--metric-breakdown-fact-gap); }
-  .wall-metric-breakdown .wall-metric-facts > div { flex-direction: row; align-items: baseline; gap: var(--metric-gap); }
+  .wall-metric-breakdown { --metric-primary-value-size: 1.5rem; --metric-detail-value-size: 1rem; }
   .wall-metric-value { font-size: calc(var(--metric-value-size) * .85); }
   .wall-metric-main { flex-wrap: wrap; gap: 0; }
   .wall-metric-context { display: none; }

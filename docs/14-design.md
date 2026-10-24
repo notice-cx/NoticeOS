@@ -85,10 +85,7 @@ The families, and what each means:
 - **Trend and pace.** `trend-positive` / `trend-negative` are the diverging
   scale for a *completed* like-for-like comparison, at three intensities.
   `pace-on` / `pace-behind` / `pace-far-behind` are aliases of those and
-  `warn`, scoped to today's hours against the same hours last week: "a little
-  behind" uses the warn colour as one step of a comparison rather than as a
-  warning, and nothing else may reuse it that way. `paceTone` in
-  `components/DeltaChip.tsx` is the one place the step is chosen.
+  `warn` for comparison colour. The Wall's known traffic changes use green for any increase, yellow for declines below 10%, orange from 10% to below 25%, and red from 25%. Zero and unavailable comparisons are neutral. `wallTrafficTone` maps the existing magnitude steps to these colours; a recorded reporting-timezone change does not remove the colour from a visible percentage. Other intraday comparisons retain `paceTone` in `components/DeltaChip.tsx`.
 - **Surface kinds: `surface-money` / `-alert` / `-win` / `-neutral`.** A
   card's *subject*, as a low-chroma tint on its top edge with one inner
   highlight line. A tint never shows severity: an alert card has the alert
@@ -594,7 +591,7 @@ the remaining height in their columns. This is the "Everything" preset,
 `DEFAULT_WALL_LAYOUT`. The loop, Last 24 hours, Asset health, the agents,
 Visitors by channel and Next up remain available in the widget library.
 
-Attention ticker uses a fixed 40 px strip and 18 px message text at 1080p. It scrolls every canonical Home problem and stored urgent task, with severity glyphs and linked titles. It pauses on pointer hover, focus or its pause control. Reduced motion uses a stationary horizontal list. The list includes assets hidden from Portfolio rows; an explicit ticker asset filter narrows it. The standard saved composition moves its attention row between Work and Portfolio without replacing metric settings. Custom compositions retain their positions. Portfolio keeps its 156 px tiles and uses smaller row padding and gaps to keep four assets visible.
+Attention ticker uses a fixed 40 px strip and 18 px message text at 1080p. It scrolls every canonical Home problem and stored urgent task, with severity glyphs and linked titles. It pauses on pointer hover, focus or its pause control. Reduced motion uses a stationary horizontal list. The list includes assets hidden from Portfolio rows; an explicit ticker asset filter narrows it. The standard saved composition moves its attention row between Work and Portfolio without replacing metric settings. Custom compositions retain their positions. Portfolio uses slim asset headers and compact metric tiles to keep four assets visible.
 
 **Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
 "I run the business": the strip, "Next up" across the TV, then Asset health
@@ -716,14 +713,14 @@ Current observations are solid and reference periods are dashed.
 The shared metric widgets use neutral dark surfaces, subtle borders and
 16 px radii. Narrow, standard and wide tiles have reference widths of 156,
 240 and 432 px and share a 156 px height. Available width determines their
-actual width. Expanded cumulative comparisons are 324 px high. Titles pair a
+actual width. Wide-screen Portfolio tiles use a 132 px height below 24 px asset headers. Expanded cumulative comparisons are 324 px high. Titles pair a
 label with an icon; figures use tabular digits. Comparison tone is supplied
 separately from movement direction: fewer blocked tasks can be positive,
 while work in progress stays neutral.
 Portfolio Work uses green for Closed, neutral text for Open and amber for
 positive Blocked counts. Zero and unavailable Blocked counts stay neutral.
-The primary count and supporting counts keep separate spacing;
-narrow tiles place the primary count above the supporting counts.
+The primary count occupies the left section; supporting counts align to the
+right edge, with labels below each figure and space between the sections.
 
 The comparison widget owns the placement of its main figure, unit,
 comparison, supporting figures and chart. Its configuration supplies labels,
@@ -731,10 +728,10 @@ values, notes, reference totals and series. Revenue and task counts use this
 same structure at expanded and standard heights.
 
 Each asset uses the same metric forms at every asset count. The full-width
-Portfolio keeps four asset rows visible at 1920×1080, with 156 px metric
-heights. A saved narrow column wraps the metrics and scrolls the asset list;
+Portfolio keeps four asset rows visible at 1920×1080, with 132 px metric
+heights below slim headers. The header contains the icon, asset name, observed health and source ages as words. A saved narrow column wraps the metrics and scrolls the asset list;
 changing display density does not enlarge its CSS viewport. Default rows show:
-Identity, Momentum, Today, 4 weeks, Work, and Product counts when selected
+Momentum, Today, 4 weeks, Work, and Product counts when selected
 counts exist. Momentum pairs the count with recent bars; the latest window
 is highlighted. Missing readings remain unavailable and observed zeros stay
 zero. Comparison charts preserve gaps and show their first and last dates.
@@ -751,7 +748,7 @@ by that date, rather than that day's increment. Filled bars are observed;
 outlined bars are projected. Last month's total is a dashed horizontal
 reference. Work this week uses the standard cumulative comparison for Done
 this week, after counts for operator decisions, work in progress and blocked
-tasks. Its daily bars show observed cumulative totals; missing dates have no
+tasks. Its bars show daily closes and a solid line shows the cumulative total. The bars, line and last-week reference share one count scale from zero. Missing daily counts have no
 bar. History contains observed readings only; two available snapshots remain
 two observations. The
 weekly chart retains the full Monday-to-Sunday date domain even when the
