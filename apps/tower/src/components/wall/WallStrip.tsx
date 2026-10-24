@@ -192,7 +192,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
         data-strip-home
       >
         <span className="wall-strip-brand-primary" data-strip-primary>
-          <BrandLockup size="text" className="text-wall-strip-brand! leading-none!" />
+          <BrandLockup size="text" className="text-wall-strip-brand! leading-[1.3]!" />
         </span>
         <span
           className="wall-strip-version text-wall-strip-label font-normal text-muted-foreground tabular-nums"

@@ -778,10 +778,8 @@
   min-width: 0;
   grid-template-rows: var(--wall-strip-time-line) minmax(var(--wall-strip-label-line), auto);
 }
-/* The wordmark's face sets its glyphs in a box about 1.27 em tall, taller than
-   the strip's first row at the brand's size. "NoticeOS" has no descenders, so
-   the row clips only that empty box instead of growing past the other widgets. */
-.wall-strip-brand-primary { display: flex; align-items: center; overflow-y: clip; }
+.wall-strip-brand { grid-template-rows: auto minmax(var(--wall-strip-label-line), auto); }
+.wall-strip-brand-primary { display: flex; align-items: center; }
 .wall-strip-version {
   display: flex;
   align-items: baseline;

@@ -53,6 +53,27 @@ for (const variant of WALL_FIXTURE_VARIANTS) {
   });
 }
 
+test("Wall default editor has no undersized widgets", { tag: DESKTOP_ONLY }, async ({ page }, testInfo) => {
+  await wallScene(page, "four");
+  await page.goto("/wall/edit");
+  await expect(page.locator("#boot-splash")).toHaveCount(0);
+  await page.evaluate(() => document.fonts.ready);
+  const preview = page.locator("[data-wall-preview]");
+  const scale = Number(await preview.getAttribute("data-wall-preview-scale"));
+  const measurements = [];
+  for (const content of await page.locator("[data-wall-widget-content]").all()) {
+    measurements.push(await page.evaluate(measureWallFit, { root: (await content.elementHandle())!, scale }));
+  }
+  await testInfo.attach("widget-fit", { body: JSON.stringify(measurements, null, 2), contentType: "application/json" });
+  await page.screenshot({ path: testInfo.outputPath("wall-editor-brand-fit.png"), fullPage: true });
+  for (const measurement of measurements) {
+    if ("error" in measurement) throw new Error(measurement.error);
+    expect(measurement.ink).toEqual([]);
+    expect(measurement.clipped).toEqual([]);
+  }
+  await expect(page.locator("[data-wall-too-small-note]")).toHaveCount(0);
+});
+
 const TWO_ROWS: WallLayout = {
   version: 1,
   rows: [
