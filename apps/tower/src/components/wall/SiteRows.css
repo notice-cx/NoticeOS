@@ -3,7 +3,7 @@
   --portfolio-row-gap: 1rem;
   --portfolio-identity: 8.75rem;
   --portfolio-tile: 15rem;
-  --portfolio-separator: color-mix(in srgb, var(--border) 60%, transparent);
+  --portfolio-separator: color-mix(in srgb, var(--border) calc(var(--wall-tile-background-opacity, 100%) * .6), transparent);
   display: flex;
   flex-direction: column;
   min-width: 0;

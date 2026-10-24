@@ -28,7 +28,7 @@
   --metric-cumulative-fact-size: 1.5rem;
   --metric-cumulative-chart-height: 4rem;
   --metric-surface: #111318;
-  --metric-edge: #232730;
+  --metric-edge: color-mix(in srgb, #232730 min(100%, calc(var(--wall-tile-background-opacity, 100%) + 8%)), transparent);
   box-sizing: border-box;
   flex: 1 1 var(--metric-standard-width);
   width: 100%; min-width: 0;
