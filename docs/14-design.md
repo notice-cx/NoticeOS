@@ -679,9 +679,10 @@ effect only after Save. Existing saved arrangements remain unchanged until
 that action is selected and saved.
 
 "Tile transparency" changes every tile background from opaque at 0% to
-transparent at 100%, with a live preview. Text, charts and borders retain
-their opacity. The setting is saved with the layout, included in Undo, Redo
-and Versions, and retained when starting from another arrangement.
+transparent at 100%, with a live preview. Borders stay slightly more opaque
+than tile backgrounds; Portfolio separators fade with the backgrounds.
+Text and charts retain their opacity. The setting is saved with the layout,
+included in Undo, Redo and Versions, and retained when starting from another arrangement.
 Portfolio asset rows have no background or enclosing border. A faint
 horizontal rule spans the Portfolio width between adjacent rows.
 The "Row separators" switch shows or hides these rules together. Individual
@@ -855,7 +856,8 @@ In the Wall editor, a **tile** is one metric figure or chart inside a
 **section**, such as Portfolio, Work or Revenue. Tile controls change that
 metric's source, display, title, width and supported details. Section controls
 change the whole section's placement, size and asset filter. The Wall-wide
-"Tile transparency" control changes tile backgrounds. The widget library
+"Tile transparency" control changes tile backgrounds, borders and Portfolio
+separators. The widget library
 lists whole sections. Outside this Wall editing context, the existing
 term **widget** remains in use.
 

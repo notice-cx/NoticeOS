@@ -15,7 +15,7 @@ function paintedAppearance(element: Element) {
   };
   const style = getComputedStyle(element);
   const pseudo = getComputedStyle(element, "::before");
-  return { backgroundAlpha: alpha(style.backgroundColor), borderWidth: style.borderWidth, radius: style.borderRadius, separator: pseudo.content !== "none" && pseudo.display !== "none", separatorAlpha: alpha(pseudo.backgroundColor), separatorHeight: parseFloat(pseudo.height), separatorWidth: parseFloat(pseudo.width), rowWidth: element.clientWidth };
+  return { backgroundAlpha: alpha(style.backgroundColor), borderAlpha: alpha(style.borderTopColor), borderWidth: style.borderWidth, radius: style.borderRadius, separator: pseudo.content !== "none" && pseudo.display !== "none", separatorAlpha: alpha(pseudo.backgroundColor), separatorHeight: parseFloat(pseudo.height), separatorWidth: parseFloat(pseudo.width), rowWidth: element.clientWidth };
 }
 
 test("an open TV without Web Locks receives a layout saved from another browser context", { tag: [DESKTOP_ONLY, PR_SMOKE] }, async ({ page: tv, browser, request, fixtureServer }) => {
@@ -57,6 +57,7 @@ test("an open TV without Web Locks receives a layout saved from another browser 
     // The fixture pushes every three seconds; the Wall's fallback poll is sixty.
     await expect(tv.locator('[data-wall-metric="today"] h3')).toContainText(["Live layout update", "Live layout update", "Live layout update", "Live layout update"], { timeout: 12_000 });
     await expect(tv.locator("[data-wall-canvas]")).toHaveCSS("--wall-tile-background-opacity", "50%");
+    expect((await tv.locator(".wall-metric").first().evaluate(paintedAppearance)).borderAlpha).toBeCloseTo(.58, 2);
     await expect(tv.locator("[data-wall-sites]")).toHaveAttribute("data-row-separators", "hidden");
     expect(navigations).toBe(0);
     expect(streams).toBeGreaterThan(0);
@@ -158,7 +159,15 @@ test("tile transparency previews its bounds without fading figures or charts", {
     await expect(preview.locator("[data-wall-canvas]")).toHaveCSS("--wall-tile-background-opacity", `${100 - value}%`);
     await expect(tile).toHaveCSS("opacity", "1");
     await expect(tile.locator("h3")).toHaveCSS("opacity", "1");
-    expect((await tile.evaluate(paintedAppearance)).backgroundAlpha).toBeCloseTo((100 - value) / 100, 2);
+    const backgroundAlpha = (100 - value) / 100;
+    for (const metric of await preview.locator(".wall-metric").all()) {
+      const appearance = await metric.evaluate(paintedAppearance);
+      expect(appearance.backgroundAlpha).toBeCloseTo(backgroundAlpha, 2);
+      expect(appearance.borderAlpha).toBeCloseTo(Math.min(1, backgroundAlpha + .08), 2);
+    }
+    const separator = await preview.locator("[data-site-row]").nth(1).evaluate(paintedAppearance);
+    expect(separator.separator).toBe(true);
+    expect(separator.separatorAlpha).toBeCloseTo(backgroundAlpha * .6, 2);
     await expect(chart).toHaveCSS("opacity", "1");
     await expect(chart).toHaveCSS("color", chartColor);
     expect(await tile.evaluate(element => ({ color: getComputedStyle(element).color, text: element.querySelector("h3")!.textContent, chart: element.querySelector("svg[role=img]")!.innerHTML }))).toEqual(before);
@@ -167,6 +176,7 @@ test("tile transparency previews its bounds without fading figures or charts", {
   await tile.locator("[data-wall-metric-select]").click();
   await page.locator('[data-wall-metric-panel="sites"]').getByRole("button", { name: "Focus on row" }).click();
   await expect(page.locator("[data-wall-focus-preview] [data-wall-canvas]")).toHaveCSS("--wall-tile-background-opacity", "0%");
+  expect((await page.locator("[data-wall-focus-preview] .wall-metric").first().evaluate(paintedAppearance)).borderAlpha).toBeCloseTo(.08, 2);
   const bar = page.locator("[data-wall-save-bar]");
   await bar.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(slider).toHaveValue("50");
