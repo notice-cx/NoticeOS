@@ -845,7 +845,7 @@
   }
   .wall-strip {
     min-height: 4.5rem;
-    padding-block: .375rem;
+    padding-block: .25rem;
     grid-template-columns: minmax(13rem, 1fr) minmax(0, 1.25fr) max-content minmax(13rem, 1fr);
     column-gap: 1.5rem;
   }

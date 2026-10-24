@@ -784,6 +784,8 @@ function wallLegibility(scope: string) {
 function stripGroups() {
   const strip = document.querySelector("[data-wall-strip]")!;
   const box = strip.getBoundingClientRect();
+  const style = getComputedStyle(strip);
+  const scale = box.width / parseFloat(style.width);
   const rect = (el: Element) => {
     const r = el.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
@@ -800,6 +802,9 @@ function stripGroups() {
   const marks = ["[data-strip-home] .brand-mark", "[data-strip-countdown-emoji]"]
     .map((selector) => ({ selector, ...rect(strip.querySelector(selector)!) }));
   return { height: box.height, box: rect(strip), groups, labels, marks,
+    paddingTop: parseFloat(style.paddingTop) * scale,
+    paddingBottom: parseFloat(style.paddingBottom) * scale,
+    minHeight: parseFloat(style.minHeight) * scale,
     date: rect(strip.querySelector("[data-strip-date]")!),
     time: rect(strip.querySelector("[data-strip-time]")!),
     valueSize: parseFloat(getComputedStyle(strip.querySelector("[data-strip-countdown-value]")!).fontSize) };
@@ -1212,11 +1217,12 @@ test.describe(() => {
       if (width > height) {
         const scale = Math.min(1, width / 1920, height / 1080);
         expect(found.height, `${at}: at least the TV's 72px header, scaled`).toBeGreaterThanOrEqual(72 * scale - 1);
-        const expectedHeight = Math.max(72 * scale, Math.max(...found.groups.map((group) => group.height)) + 16 * scale);
+        const groupSpan = Math.max(...found.groups.map((group) => group.bottom)) - Math.min(...found.groups.map((group) => group.top));
+        const expectedHeight = Math.max(found.minHeight, groupSpan + found.paddingTop + found.paddingBottom);
         expect(Math.abs(found.height - expectedHeight), `${at}: readable groups plus real padding determine height`).toBeLessThanOrEqual(1);
         for (const group of found.groups) {
-          expect(group.top - found.box.top, `${at}: ${group.selector} has real top padding`).toBeGreaterThanOrEqual(8 * scale - 1);
-          expect(found.box.bottom - group.bottom, `${at}: ${group.selector} has real bottom padding`).toBeGreaterThanOrEqual(8 * scale - 1);
+          expect(group.top - found.box.top, `${at}: ${group.selector} has real top padding`).toBeGreaterThanOrEqual(found.paddingTop - 1);
+          expect(found.box.bottom - group.bottom, `${at}: ${group.selector} has real bottom padding`).toBeGreaterThanOrEqual(found.paddingBottom - 1);
         }
       }
       const legibility = await page.evaluate(wallLegibility, "[data-strip-date], [data-strip-countdown-unit]");
@@ -1437,8 +1443,13 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
     await page.getByRole("menuitem", { name: direction === "down" ? /^Move down/ : /^Move up/ }).click();
   };
   const versions = page.locator("[data-wall-version-count]");
+  const openPortfolioSettings = async () => {
+    await page.getByRole("navigation", { name: "Wall metric sections" }).getByRole("button", { name: "Portfolio", exact: true }).click();
+    await page.locator('[data-wall-metric-panel="sites"]').getByRole("button", { name: "Row settings", exact: true }).click();
+    await expect(page.locator('[data-wall-widget-panel="sites"]')).toBeVisible();
+  };
 
-  await page.locator('[data-wall-edit-widget="sites"]').click();
+  await openPortfolioSettings();
   const panel = page.locator('[data-wall-widget-panel="sites"]');
   const plume = panel.locator('[data-wall-pulse-picker="plume.example"]');
   const menu = panel.locator('[data-wall-pulse-picker="mosaic.example"]');
@@ -1469,7 +1480,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(versions).toHaveText("1");
 
   // Update: the next Save, guarded by the layout the first one wrote.
-  await page.locator('[data-wall-edit-widget="sites"]').click();
+  await openPortfolioSettings();
   await menu.getByRole("checkbox", { name: /Items rated/ }).uncheck();
   // Hiding and restoring an asset retains its pulse choices.
   await panel.getByRole("checkbox", { name: "Mosaic Finder", exact: true }).uncheck();
@@ -1512,7 +1523,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   // disappears from the TV rather than being invented as zero.
   missingSelectedMetric = true;
   await page.reload();
-  await page.locator('[data-wall-edit-widget="sites"]').click();
+  await openPortfolioSettings();
   await expect(plume.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toBeChecked();
   await expect(preview.locator('[data-site-total="plansSaved"]')).toHaveCount(0);
   await expect(preview.locator('[data-site-total="leads"]')).toHaveText("0");
