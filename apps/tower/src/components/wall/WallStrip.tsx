@@ -160,21 +160,21 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   }).format(new Date(version.committedAt)) : null;
   const heldCaption = heldSince !== null ? (
-    <span className="flex items-center gap-1.5 text-wall-strip-label text-muted-foreground tabular-nums" data-strip-held data-strip-meta>
-      <ClockAlert className="size-4 shrink-0" aria-hidden />
-      Refreshed {formatAge(ageMs(nowMs, heldSince))} ago · reconnecting
+    <span className="flex items-baseline gap-1.5 text-wall-strip-label text-muted-foreground tabular-nums" data-strip-held data-strip-meta>
+      <ClockAlert className="size-4 shrink-0 self-center" aria-hidden />
+      <span data-strip-caption>Refreshed {formatAge(ageMs(nowMs, heldSince))} ago · reconnecting</span>
     </span>
   ) : null;
   const calendarCaption = calendarState ? (
     <span
-      className={cn("flex items-center gap-1.5 text-wall-strip-label tabular-nums", calendarState === "partial" ? "text-warn" : "text-muted-foreground")}
+      className={cn("flex items-baseline gap-1.5 text-wall-strip-label tabular-nums", calendarState === "partial" ? "text-warn" : "text-muted-foreground")}
       data-strip-calendar-status={calendarState}
     >
-      {calendarState === "partial" ? <ClockAlert className="size-4 shrink-0" aria-hidden /> : null}
-      {calendarState === "loading" ? "Loading events…"
+      {calendarState === "partial" ? <ClockAlert className="size-4 shrink-0 self-center" aria-hidden /> : null}
+      <span data-strip-caption>{calendarState === "loading" ? "Loading events…"
         : calendarState === "partial" ? "Some calendars unavailable"
         : meeting !== null && meetings ? `Retrying automatically · cached ${formatAge(ageMs(nowMs, meetings.fetchedAt))} old`
-        : "Retrying automatically"}
+        : "Retrying automatically"}</span>
     </span>
   ) : null;
   return (
@@ -200,13 +200,13 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
           data-strip-version
           data-strip-meta
         >
-          {liveSource ? <><span>DEV</span><span aria-hidden> · </span></> : null}
+          {liveSource ? <><span data-strip-caption>DEV</span><span aria-hidden> · </span></> : null}
           {version ? <>
-            <span className="font-mono">{version.commit.slice(0, 7)}{version.modified && liveSource ? "*" : null}</span>
+            <span className="font-mono" data-strip-caption>{version.commit.slice(0, 7)}{version.modified && liveSource ? "*" : null}</span>
             <span aria-hidden> · </span>
-            <time dateTime={version.committedAt}>{versionDate}</time>
-            {version.modified && !liveSource ? <span> · local edits</span> : null}
-          </> : release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}
+            <time dateTime={version.committedAt} data-strip-caption>{versionDate}</time>
+            {version.modified && !liveSource ? <span data-strip-caption> · local edits</span> : null}
+          </> : <span data-strip-caption>{release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}</span>}
         </span>
       </a>
       <div className="wall-strip-widget wall-strip-clock" data-strip-clock-group>
@@ -238,15 +238,15 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
                 <span className="min-w-0 truncate" title={meeting.title} data-strip-meeting-title data-strip-baseline="meeting">{meeting.title}</span>
                 <span className="whitespace-nowrap font-normal text-muted-foreground tabular-nums" data-strip-meeting-distance>{meetingDistanceText(meeting.distance)}</span>
               </div>
-              <div className="flex min-w-0 flex-wrap items-start gap-x-3" data-strip-meta>
-                {heldSince === null && !calendarState ? <span className="text-wall-strip-label text-muted-foreground" data-strip-meeting-cue>{meeting.inProgress ? "Now" : "Up next"}</span> : null}
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-3" data-strip-meta>
+                {heldSince === null && !calendarState ? <span className="text-wall-strip-label text-muted-foreground" data-strip-meeting-cue data-strip-caption>{meeting.inProgress ? "Now" : "Up next"}</span> : null}
                 {calendarCaption}
                 {heldCaption}
               </div>
             </div>
           )
         ) : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary data-strip-baseline="meeting">{calendarState ? "Calendar" : "Reconnecting"}</span>}
-        {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}</div> : null}
+        {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}</div> : null}
       </div> : null}
       {countdown && left !== null ? (
         <div
