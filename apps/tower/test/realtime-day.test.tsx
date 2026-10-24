@@ -149,7 +149,7 @@ describe('hourly activity and day-so-far pace', () => {
     expect(today.textContent).toContain('day so far');
     const chip = today.querySelector('[data-tone]')!;
     expect(chip.textContent).toBe('20%');
-    expect(chip.getAttribute('data-tone')).toBe('pace-behind');
+    expect(chip.getAttribute('data-tone')).toBe('wall-traffic-decline');
     expect(chip.getAttribute('aria-label')).toContain('today so far');
     expect(chip.getAttribute('aria-label')).toContain('180 matching minutes');
     expect(chip.getAttribute('aria-label')).toContain('Includes earlier hours');

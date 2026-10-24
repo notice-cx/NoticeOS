@@ -117,7 +117,7 @@ describe("the Wall's today cell", () => {
       .toMatch(/^10% behind; completed hours today vs /u);
     // The direction figure and the chart agree on the same comparable hours.
     const tones = [...today.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"));
-    expect(tones).toEqual(["pace-behind", "pace-behind"]);
+    expect(tones).toEqual(["wall-traffic-decline", "wall-traffic-decline"]);
   });
 
   it("puts the breathing now point at the clock and ends today's line where the data ends", () => {

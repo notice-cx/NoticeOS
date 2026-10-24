@@ -2595,7 +2595,7 @@ describe("/tasks and the Wall: one Done this week and one Done last week", () =>
       expect(tileDone).toHaveTextContent(/^Done this week7(?!\+)/);
       expect(tileMovement.querySelector(".wall-metric-change")).toHaveTextContent("4");
       expect(tileMovement).toHaveTextContent("vs last week by today");
-      expect(tileDone.querySelector("[data-metric-previous-total] title")).toHaveTextContent("Last week · 5: 5");
+      expect(tileDone.querySelector("[data-metric-previous-total] title")).toHaveTextContent("Last week total · 5: 5");
       tile.unmount();
 
       const { container } = renderBoard({ data: work });
