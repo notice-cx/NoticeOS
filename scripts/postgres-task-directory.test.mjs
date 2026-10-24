@@ -8,6 +8,7 @@ import {execFileSync,spawnSync} from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
+import {EventEmitter} from 'node:events';
 import {stopLocalSecretReads} from './worker-config-folder.mjs';
 import {findPostgres,LOOPBACK_HBA} from './postgres-dev.mjs';
 import {openOnLoopbackPort} from './postgres-test-cluster.mjs';
@@ -20,6 +21,31 @@ import {v4Miniflare} from './miniflare-v4.mjs';
 
 const require=createRequire(path.join(REPO_ROOT,'packages/postgres/package.json'));
 const {Pool}=require('pg');
+
+// Pool.end can resolve before its clients emit end; the cluster must outlive
+// those transports so shutdown cannot turn retirement into a connection error.
+function poolRetirement(pool){
+  const ended=[];
+  pool.on('connect',client=>ended.push(new Promise(resolve=>client.once('end',resolve))));
+  return async()=>{await pool.end();await Promise.all(ended);};
+}
+
+test('fixture pool retirement joins delayed client end after pool end resolves',async()=>{
+  const pool=new EventEmitter(),client=new EventEmitter(),second=new EventEmitter();
+  let poolEnded=false,retired=false;
+  pool.end=async()=>{poolEnded=true;};
+  const retire=poolRetirement(pool);
+  pool.emit('connect',client);
+  pool.emit('connect',second);
+  const closing=retire().then(()=>{retired=true;});
+  await Promise.resolve();
+  assert.equal(poolEnded,true);
+  assert.equal(retired,false,'Cluster cleanup cannot begin while a client transport is retiring');
+  client.emit('end');await Promise.resolve();
+  assert.equal(retired,false,'Every client transport must finish retirement');
+  second.emit('end');await closing;
+  assert.equal(retired,true);
+});
 test('directory construction and malformed input open no socket',async()=>{
   let connections=0;
   const server=net.createServer(socket=>{connections++;socket.destroy();});
@@ -105,10 +131,20 @@ async function workerProof(root,connectionString,facts,revoke){
 test('platform task directory has immutable ownership and no customer grants',{timeout:60000},async t=>{
   const tools = findPostgres();
   const root=mkdtempSync(path.join(os.tmpdir(),'n-directory-'));
-  let owner,admin,reader;const clients=[],readers=[];
+  let owner,admin,reader;const readers=[],retirePools=[];
+  const fixtureErrors=[];
+  function watchPool(pool,owner){
+    retirePools.push(poolRetirement(pool));
+    pool.on('error',(error,client)=>{
+      const evidence={owner,pid:client?.processID,code:error.code,message:error.message};
+      fixtureErrors.push(evidence);
+      assert.fail(`Unexpected fixture pool error: ${JSON.stringify(evidence)}`);
+    });
+  }
   try{
     owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root,'pg'), tools)); if (!owner) return;
     admin=new Pool({host:owner.socketDir,port:owner.loopbackPort,database:'noticeos_dev',user:'postgres',max:2});
+    watchPool(admin,'fixture-admin');
     applyMigrations(owner);
     const baseConnection=owner.applicationLogin().url();
     async function runtime(role){
@@ -118,7 +154,8 @@ test('platform task directory has immutable ownership and no customer grants',{t
       appendFileSync(path.join(owner.root,LOOPBACK_HBA),`host all ${role} 127.0.0.1/32 scram-sha-256\n`);
       execFileSync(tools.pgCtl,['reload','-D',path.join(owner.root,'data')],{stdio:'pipe'});
       const url=new URL(baseConnection);url.username=role;url.password=password;
-      const client=new Pool({connectionString:url.href,max:2});clients.push(client);
+      const client=new Pool({connectionString:url.href,max:2});
+      watchPool(client,`fixture-${role}`);
       client.fixtureConnection=url.href;
       assert.equal((await client.query('SELECT session_user,current_user')).rows[0].session_user,role);
       return client;
@@ -144,6 +181,16 @@ test('platform task directory has immutable ownership and no customer grants',{t
     // Separate factories coordinate through PostgreSQL, not an in-process queue.
     const peer=openTaskDirectory({connectionString:directory.fixtureConnection});readers.push(peer);
     const budget=()=>({deadline:Date.now()+30_000});
+    async function reacquire(stage,work=async()=>{}){
+      try{return await peer.withProjectMutation(a,pa,budget(),work);}
+      catch(error){
+        const backends=(await admin.query(`SELECT a.pid,a.application_name,a.usename,a.state,l.locktype,l.mode,l.granted
+          FROM pg_catalog.pg_stat_activity a LEFT JOIN pg_catalog.pg_locks l ON l.pid=a.pid AND l.locktype='advisory'
+          WHERE a.datname=current_database() ORDER BY a.pid`)).rows;
+        t.diagnostic(JSON.stringify({stage,backends}));
+        throw new Error(`Task lock reacquisition failed: ${stage}`,{cause:error});
+      }
+    }
     let entered,release;const enteredPromise=new Promise(r=>{entered=r});
     const released=new Promise(r=>{release=r});let escaped;
     const held=reader.withProjectMutation(a,pa,budget(),async lease=>{
@@ -160,7 +207,7 @@ test('platform task directory has immutable ownership and no customer grants',{t
     await assert.rejects(escaped.project(),{name:'TaskDirectoryRefused',message:'Task mutation lease is closed'});
     await assert.rejects(reader.withProjectMutation(a,pa,budget(),async()=>{throw new Error('owned synthetic failure')}),
       {name:'TaskDirectoryRefused',message:'Task mutation lease refused'});
-    await peer.withProjectMutation(a,pa,budget(),async lease=>assert.deepEqual(await lease.project(),facts));
+    await reacquire('after callback exception',async lease=>assert.deepEqual(await lease.project(),facts));
     // Aborting stops work, but the lock stays held until awaited retirement.
     const cancel=new AbortController();let cancelEntered,retire;
     const cancelReady=new Promise(r=>{cancelEntered=r}),retired=new Promise(r=>{retire=r});
@@ -172,28 +219,48 @@ test('platform task directory has immutable ownership and no customer grants',{t
     await assert.rejects(peer.withProjectMutation(a,pa,budget(),async()=>assert.fail('early unlock')),
       {name:'TaskDirectoryRefused',message:'Task project is busy'});
     retire();await cancelledAssertion;
-    await peer.withProjectMutation(a,pa,budget(),async()=>{});
-    const lostUrl=new URL(directory.fixtureConnection),ownedName=`directory-loss-${randomUUID()}`;
-    lostUrl.searchParams.set('application_name',ownedName);
-    const losing=openTaskDirectory({connectionString:lostUrl.href});readers.push(losing);
-    let lossEntered,lossRetire,lossObserved;
-    const lossReady=new Promise(r=>{lossEntered=r}),lossCleanup=new Promise(r=>{lossRetire=r}),
-      lossSignal=new Promise(r=>{lossObserved=r});
-    let settled=false;
-    const losingWork=losing.withProjectMutation(a,pa,budget(),async lease=>{
-      lossEntered();await new Promise(r=>lease.signal.addEventListener('abort',r,{once:true}));
-      lossObserved();await lossCleanup;
-      await assert.rejects(lease.project(),{name:'TaskDirectoryRefused'});
-    });
-    const lossAssertion=assert.rejects(losingWork,{name:'TaskDirectoryRefused'}).then(()=>{settled=true});
-    await lossReady;
-    const ownedBackend=(await admin.query('SELECT pid FROM pg_catalog.pg_stat_activity WHERE application_name=$1 AND usename=$2',
-      [ownedName,'noticeos_task_directory'])).rows;
-    assert.equal(ownedBackend.length,1);
-    assert.equal((await admin.query('SELECT pg_catalog.pg_terminate_backend($1) stopped',[ownedBackend[0].pid])).rows[0].stopped,true);
-    await lossSignal;assert.equal(settled,false,'Connection loss waits for owned work cleanup');
-    lossRetire();await lossAssertion;
-    await peer.withProjectMutation(a,pa,budget(),async()=>{});
+    await reacquire('after cancellation');
+    for(let iteration=0;iteration<50;iteration++){
+      const lostUrl=new URL(directory.fixtureConnection),ownedName=`directory-loss-${randomUUID()}`;
+      lostUrl.searchParams.set('application_name',ownedName);
+      const losing=openTaskDirectory({connectionString:lostUrl.href});readers.push(losing);
+      let lossEntered,lossRetire,lossObserved;
+      const lossReady=new Promise(r=>{lossEntered=r}),lossCleanup=new Promise(r=>{lossRetire=r}),
+        lossSignal=new Promise(r=>{lossObserved=r});
+      let settled=false;
+      const lossAbort=new AbortController();
+      const losingWork=losing.withProjectMutation(a,pa,{...budget(),signal:lossAbort.signal},async lease=>{
+        lossEntered();await new Promise(r=>{if(lease.signal.aborted)r();else lease.signal.addEventListener('abort',r,{once:true});});
+        lossObserved();await lossCleanup;
+        await assert.rejects(lease.project(),{name:'TaskDirectoryRefused'});
+      });
+      const lossAssertion=assert.rejects(losingWork,{name:'TaskDirectoryRefused'}).then(()=>{settled=true;return{ok:true};},error=>({ok:false,error}));
+      const waitFor=ready=>Promise.race([ready,losingWork.then(
+        ()=>{throw new Error('Owned mutation settled before its readiness signal');},error=>{throw error;})]);
+      let failed=false,primary;
+      try{
+      await waitFor(lossReady);
+      const ownedBackend=(await admin.query('SELECT pid FROM pg_catalog.pg_stat_activity WHERE application_name=$1 AND usename=$2',
+        [ownedName,'noticeos_task_directory'])).rows;
+      assert.equal(ownedBackend.length,1);
+      assert.equal((await admin.query('SELECT pg_catalog.pg_terminate_backend($1,5000) stopped',[ownedBackend[0].pid])).rows[0].stopped,true);
+      await waitFor(lossSignal);assert.equal(settled,false,'Connection loss waits for owned work cleanup');
+      lossRetire();const observed=await lossAssertion;if(!observed.ok)throw observed.error;
+      assert.equal((await admin.query('SELECT count(*)::int AS count FROM pg_catalog.pg_stat_activity WHERE pid=$1',[ownedBackend[0].pid])).rows[0].count,0,'Terminated backend retired before lock reacquisition');
+      await reacquire(`after backend termination ${iteration}`);
+      }catch(error){failed=true;primary=error;}
+      finally{
+        lossAbort.abort();lossRetire();
+        const closed=await Promise.allSettled([lossAssertion,losing.close()]);
+        const errors=failed?[primary]:[];
+        for(const result of closed){
+          const error=result.status==='rejected'?result.reason:result.value?.ok===false?result.value.error:null;
+          if(error!==null&&error!==undefined&&!errors.includes(error))errors.push(error);
+        }
+        if(errors.length===1)throw errors[0];
+        if(errors.length>1)throw new AggregateError(errors,`Backend termination ${iteration} failed with cleanup errors`);
+      }
+    }
     const resolve='SELECT * FROM noticeos_platform.resolve_task_project($1::uuid,$2::uuid)';
     assert.deepEqual((await directory.query(resolve,[a,pa])).rows,[{workspace_id:a,project_id:pa,executor_ref:executor,credential_ref:credentialA,database_key:databaseA}]);
     assert.deepEqual((await directory.query(resolve,[randomUUID(),pb])).rows,[]);
@@ -291,9 +358,10 @@ test('platform task directory has immutable ownership and no customer grants',{t
     assert.equal((await read).workspaceId,b);await close;
     await assert.rejects(reader.project(b,pb),{name:'TaskDirectoryRefused',message:'Task directory is closed'});
   }finally{
-    const closed=await Promise.allSettled([...readers.map(client=>client.close()),...clients.map(client=>client.end()),admin?.end()]);
+    const closed=await Promise.allSettled([...readers.map(client=>client.close()),...retirePools.map(retire=>retire())]);
     await owner?.close();assert.equal(existsSync(path.join(root,'pg','data','postmaster.pid')),false);
     rmSync(root,{recursive:true,force:true});
+    assert.deepEqual(fixtureErrors,[]);
     for(const result of closed)if(result.status==='rejected')throw result.reason;
   }
 });
