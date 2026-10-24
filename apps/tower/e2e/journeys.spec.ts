@@ -1587,7 +1587,7 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
     return at(tile(id).getByTitle(`Drag to move ${label}`, { exact: true }), 0.5, 0.5);
   };
 
-  // Stack: Revenue above Sites joins the left column between Work and Sites.
+  // Stack: Revenue above Sites follows Work and the attention ticker.
   const warningsBeforeDrag = await bar.locator("[data-wall-warning]").allTextContents();
   const previewTopBeforeDrag = (await preview.boundingBox())!.y;
   await drag(await grip("revenue", "Revenue"), () => at(tile("sites"), 0.5, 0.06), async () => {
@@ -1597,7 +1597,7 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
     await page.screenshot({ path: testInfo.outputPath("wall-drag-stack-line.png") });
   });
   await expect(inColumn("business", "revenue")).toBeVisible();
-  await expect(announced).toHaveText("Revenue moved to row 2 of 2, column 1 of 2, 2 of 3 in its column");
+  await expect(announced).toHaveText("Revenue moved to row 2 of 2, column 1 of 2, 3 of 4 in its column");
   await expect(bar.locator('[data-save-state="unsaved"]')).toBeVisible();
 
   // Split: Work onto the left edge of Sites becomes a column of its own.
@@ -1613,7 +1613,7 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   await drag(handle, { x: handle.x + 40, y: handle.y }, async () => {
     await expect(preview.locator("[data-wall-divider-readout]")).toBeVisible();
   });
-  // And the divider between the two widgets stacked in the left column.
+  // And the first divider among the three remaining rows in the left column.
   const stacked = preview.locator('[data-wall-divider^="y:"]').first();
   const ystart = await at(stacked, 0.5, 0.5);
   await drag(ystart, { x: ystart.x, y: ystart.y + 30 });
@@ -1641,9 +1641,9 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
   const saved = (await wall())!;
   const body = saved.layout.rows[1]!;
-  expect(body.widgets.map((slot) => slot.id)).toEqual(["work", "business", "side"]);
+  expect(body.widgets.map((slot) => slot.id)).toEqual(["work", "business", "feed"]);
   const business = body.widgets[1]!;
-  expect(business.type === "column" ? business.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["revenue"], ["sites"]]);
+  expect(business.type === "column" ? business.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["needs"], ["revenue"], ["sites"]]);
   expect(business.type === "column" ? business.rows.every((row) => typeof row.size === "number") : false).toBe(true);
   expect(body.widgets[0]!.width).toBeGreaterThan(1.625);
   await page.screenshot({ path: testInfo.outputPath("wall-arranged-saved.png") });
