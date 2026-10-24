@@ -1876,18 +1876,12 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   await expect(feed).toHaveAttribute("data-feed-state", "live");
   // What the room walked in on arrives with no animation.
   await expect(feed.locator("li[data-feed-arrived]")).toHaveCount(0);
-  // Every line draws at the Wall's body step, not a size it inherited.
-  const lineSizes = await feed.locator("[data-feed-text]").evaluateAll((lines) =>
-    lines.map((line) => {
-      const style = getComputedStyle(line);
-      const step = style.getPropertyValue("--wall-body-size").trim();
-      const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
-      return { drawn: parseFloat(style.fontSize), step: step.endsWith("rem") ? parseFloat(step) * rootPx : parseFloat(step) };
-    }),
+  // Feed rows use compact type while ticker messages keep the Wall's body step.
+  const lineSizes = await feed.locator("[data-feed-text]").evaluateAll(lines =>
+    lines.map(line => parseFloat(getComputedStyle(line).fontSize)),
   );
   expect(lineSizes.length).toBeGreaterThan(0);
-  for (const { drawn, step } of lineSizes) expect(drawn).toBe(step);
-  // Ticker messages use the body step; feed rows retain their label and age steps.
+  for (const drawn of lineSizes) expect(drawn).toBe(16);
   const ticker = page.locator("[data-wall-attention-ticker]");
   const message = ticker.locator('[data-attention-copy="original"] [data-attention-item="problem:alert-9001"]');
   await expect(message).toHaveCount(1);
@@ -1904,7 +1898,7 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
     };
   });
   expect(ramp.ticker, "ticker identity and message use the body step").toEqual([18, 18]);
-  expect(ramp.feed, "label, main line and meta at 1920").toEqual([14, 18, 14]);
+  expect(ramp.feed, "compact label, main line and meta at 1920").toEqual([13, 16, 13]);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-before.png") });
 
   const injected = await request.post("/__journey/wall-feed-event");
@@ -1930,7 +1924,8 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   await page.setViewportSize({ width: 1920, height: 1600 });
   const deployed = rows.filter({ hasText: "The OS moved to a newer version" });
   await expect(deployed).toBeVisible();
-  await expect(deployed.locator("[data-feed-label]")).toHaveText("Deployed · System");
+  await expect(deployed.locator("[data-feed-label]")).toHaveText("Deployed");
+  await expect(deployed.getByRole("img", { name: "System", exact: true })).toHaveAttribute("data-feed-asset", WALL_FEED_OS[0]);
   await expect(feed).not.toContainText(WALL_FEED_OS[1]);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-os-deploy.png") });
 });

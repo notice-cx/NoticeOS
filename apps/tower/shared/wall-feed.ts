@@ -68,7 +68,7 @@ export interface WallFeedItem {
   asset: string | null;
   /** That asset's display name — named whenever there is one. */
   site: string | null;
-  /** One sentence, at most `WALL_FEED_MAX_WORDS` words. */
+  /** A bounded sentence; individual task entries retain more of their title. */
   text: string;
   /** How many stored events the line folds; 1 for a single event. */
   count: number;
@@ -111,6 +111,7 @@ export const WALL_FEED_ARRIVAL_GAP_MS = 2_000;
 export const WALL_FEED_SLIDE_MS = 240;
 /** A line's word budget (the UX gate's label budget). */
 export const WALL_FEED_MAX_WORDS = 12;
+export const WALL_FEED_TASK_MAX_WORDS = 32;
 /** The local hour the window opens at, the evening before. */
 export const WALL_FEED_WINDOW_HOUR = 18;
 /** The rows the TV's feed column draws (its 952 px body at about 70 px a row),

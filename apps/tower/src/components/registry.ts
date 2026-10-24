@@ -58,7 +58,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "AgentMark",
     file: "components/AgentMark.tsx",
-    purpose: "Locally served, original artwork of the maker whose agent did the work, beside a visible worker name: the name decides, else the models it named. A worker no maker matches, a person included, shows its first letter. On the Wall's live feed it takes the glyph tile's place on a task line, with the kind's glyph as a badge.",
+    purpose: "Locally served, original artwork of the maker whose agent did the work, beside a visible worker name: the name decides, else the models it named. A worker no maker matches, a person included, shows its first letter. On the Wall's live feed it appears beside the model in an entry header; assetless agent events also use it as the primary icon with an event-kind badge.",
     variants: ["Anthropic", "OpenAI", "Google", "by model", "first letter", "small", "default", "feed"],
   },
   {
@@ -110,7 +110,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallFeed / WallFeedWidget",
     file: "components/wall/WallFeed.tsx",
     purpose:
-      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, or a known agent's mark with the kind's glyph as a badge; the kind and the asset with its favicon; one sentence; a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
+      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, filling the column to the Wall's bottom with whole entries. Asset-related entries use the asset favicon and an event-kind badge; assetless entries use an agent or kind icon. The header places the event label beside the agent icon and model, with a clock time. The body allows three lines; commit and link evidence remains below without a separate model row. New entries slide in and old entries use muted ink. WallFeedWidget polls its own 30-second read.",
     variants: ["live rows (every tone)", "aged rows muted", "reconnecting (last rows kept)", "empty window", "arrival and whole-row fit (component test and journey)"],
   },
   {

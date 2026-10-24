@@ -12,3 +12,8 @@
 [data-wall-feed] .wall-feed-label, [data-wall-feed] .wall-feed-meta { font-size: var(--feed-meta-size); line-height: 1.25; }
 [data-wall-feed] .wall-feed-glyph, [data-wall-feed] .wall-feed-agent-mark { width: var(--feed-glyph-size); height: var(--feed-glyph-size); }
 [data-wall-feed] .wall-feed-agent-badge { width: .875rem; height: .875rem; }
+[data-wall-feed] .wall-feed-header-agent { display: inline-grid; width: 1em; height: 1em; vertical-align: -.125em; }
+@container wall (width >= calc(1800px - 1.5rem)) {
+  /* Entries provide their own bottom padding; use the full remaining column. */
+  [data-wall-feed] .wall-feed-metric { padding-bottom: 0; }
+}

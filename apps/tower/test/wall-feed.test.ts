@@ -30,7 +30,7 @@ import {
   buildWallFeed,
   handleWallFeedRequest,
 } from "../worker/wall-feed";
-import { WALL_FEED_KINDS, feedSentence, feedWindowStart, feedWordCount, type WallFeedItem } from "../shared/wall-feed";
+import { WALL_FEED_KINDS, WALL_FEED_TASK_MAX_WORDS, feedSentence, feedWindowStart, feedWordCount, type WallFeedItem } from "../shared/wall-feed";
 import { osDeployAnnotation } from "../../../scripts/os-deploy-events.mjs";
 import { REALTIME_ATTEMPT_EVIDENCE } from "@noticeos/contract";
 import { type AlertRow, storeAlerts, storeReports } from "./alert-rows";
@@ -675,14 +675,27 @@ needsPostgres("buildWallFeed", () => {
       .toEqual(["Google · 2 of 3 assets"]);
   });
 
-  it("keeps every line to twelve words and names the asset whenever the line is about one", async () => {
+  it("retains up to 32 words of an individual task title while non-task summaries stay at twelve", async () => {
+    const title = Array.from({ length: 40 }, (_, index) => `detail${index}`).join(" ");
+    await snapshot(pg.call, at("19:28"), {}, {}, {
+      "medley.example.com": [{ kind: "claimed", taskId: "mn-long", title, by: "codex", at: at("19:27") }],
+    });
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    const task = items.find(item => item.task === "mn-long")!;
+    expect(task.text).toBe(feedSentence(title, WALL_FEED_TASK_MAX_WORDS));
+    expect(feedWordCount(task.text)).toBe(32);
+    expect(task.text).toContain("detail31");
+    expect(task.text).not.toContain("detail32");
+  });
+
+  it("keeps non-task summaries concise and individual task titles bounded, naming each asset", async () => {
     await storeChanges(pg.call, [{
       asset: "medley.example.com", at: at("19:00"), kind: "external",
       note: "A very long note that goes on and on well past the twelve word budget for a line",
     }]);
     const { items } = await buildWallFeed(pg.call, DEPS);
     for (const item of items) {
-      expect(feedWordCount(item.text), item.text).toBeLessThanOrEqual(12);
+      expect(feedWordCount(item.text), item.text).toBeLessThanOrEqual(item.task ? WALL_FEED_TASK_MAX_WORDS : 12);
       if (item.asset) expect(item.site).toBeTruthy();
     }
     const names = new Map([["recipes.example.com", "Recipes"], ["medley.example.com", "Medley"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "System"], ["lantern.example.com", "Lantern"]]);
