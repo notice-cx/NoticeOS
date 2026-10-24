@@ -64,6 +64,7 @@ import { agentMaker, evidenceParts } from "@/lib/agent-work";
 import { taskPath } from "@/lib/task-path";
 import { cn } from "@/lib/utils";
 import { MetricTile } from "@/components/wall/MetricWidgets";
+import "./WallFeed.css";
 
 /** One glyph per kind: the shape says what happened, the tone how it went. */
 const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
@@ -216,7 +217,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
           {failed ? "Reconnecting" : "since last night"}
       </span>}>
       {feed && !failed && feed.items.length === 0 ? (
-        <p className="px-2 text-wall-body text-muted-foreground">Nothing new since last night</p>
+        <p className="wall-feed-empty text-muted-foreground">Nothing new since last night</p>
       ) : null}
       {/* In the TV's layout (`tv:`, the TV, a laptop, a landscape tablet) the
           rows fill whatever height the Wall gives the column and never ask for
@@ -258,22 +259,22 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                     />
                   ) : null}
                   {maker && item.who ? (
-                    <span className="relative" data-feed-agent={maker}>
-                      <AgentMark name={item.who} models={[item.model ?? null]} size="feed" />
+                    <span className="wall-feed-glyph relative" data-feed-agent={maker}>
+                      <AgentMark name={item.who} models={[item.model ?? null]} size="feed" className="wall-feed-agent-mark" />
                       <span
                         data-feed-badge
-                        className={cn("absolute -bottom-1 -right-1 grid size-4 place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}
+                        className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}
                       >
                         <Glyph className="size-2.5" aria-hidden />
                       </span>
                     </span>
                   ) : (
-                    <span className={cn("relative grid size-[1.875rem] place-items-center rounded-lg", tone.tile, tone.ink)}>
+                    <span className={cn("wall-feed-glyph relative grid place-items-center rounded-lg", tone.tile, tone.ink)}>
                       <Glyph className="size-4" aria-hidden />
                     </span>
                   )}
                   <span className="relative flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-wall-list-label font-semibold" data-feed-label>
+                    <span className="wall-feed-label truncate font-semibold" data-feed-label>
                       <span className={cn("uppercase tracking-[0.05em]", tone.ink)}>{item.label}</span>
                       {item.site ? (
                         <span className="text-muted-foreground">
@@ -292,7 +293,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       ) : null}
                     </span>
                     <span
-                      className={cn("line-clamp-2 text-wall-list-line", aged ? "text-muted-foreground" : "text-foreground")}
+                      className={cn("wall-feed-text line-clamp-2", aged ? "text-muted-foreground" : "text-foreground")}
                       data-feed-text
                     >
                       {item.who ? (
@@ -313,7 +314,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                   </span>
                   <time
                     dateTime={item.at}
-                    className="relative pt-0.5 text-right text-wall-list-meta tabular-nums text-muted-foreground"
+                    className="wall-feed-meta relative pt-0.5 text-right tabular-nums text-muted-foreground"
                     data-feed-time
                   >
                     {feedClock(atMs, nowMs)}
@@ -329,7 +330,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
   );
 }
 
-const ROW = "relative grid min-h-0 grid-cols-[1.875rem_minmax(0,1fr)_auto] items-start gap-3 overflow-hidden rounded-xl px-2.5 py-2.5";
+const ROW = "wall-feed-row relative grid min-h-0 items-start overflow-hidden rounded-xl";
 
 /** A task line is a link to its task page; every other line is text. */
 function FeedRow({ task, children }: { task?: string; children: ReactNode }) {
@@ -348,7 +349,7 @@ function FeedRow({ task, children }: { task?: string; children: ReactNode }) {
 function FeedEvidence({ model, evidence }: { model: string | null; evidence: string | null }) {
   const pointers = evidence ? evidenceParts(evidence).filter((part) => part.kind !== "text") : [];
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-wall-list-meta text-muted-foreground" data-feed-evidence>
+    <span className="wall-feed-meta flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-muted-foreground" data-feed-evidence>
       {model ? <span>{model}</span> : null}
       {pointers.map((part, index) => (
         <span key={index} className={cn("rounded-md bg-background/60 px-1.5 py-px", part.kind === "commit" && "font-mono")}>{part.text}</span>

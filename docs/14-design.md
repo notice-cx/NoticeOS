@@ -420,7 +420,7 @@ eight-column one leaves.
 
 **An asset's Overview starts with the asset's health**: the header shows one
 health word (`siteHealth` in `lib/site-health.ts`, the same calculation Home,
-the Portfolio page and the TV's asset rows use) and one line of three facts
+and the Portfolio page use) and one line of three facts
 separated by dots. Below it the main row shows money, people, search and the
 asset's one product figure as `StatTile`s, each with its window, its change
 against the days before, its recent days as a dated `BarStrip` and one context
@@ -713,7 +713,7 @@ Current observations are solid and reference periods are dashed.
 The shared metric widgets use neutral dark surfaces, subtle borders and
 16 px radii. Narrow, standard and wide tiles have reference widths of 156,
 240 and 432 px and share a 156 px height. Available width determines their
-actual width. Wide-screen Portfolio tiles use a 132 px height below 24 px asset headers. Expanded cumulative comparisons are 324 px high. Titles pair a
+actual width. Wide-screen Portfolio and Work tiles use a 132 px height below 24 px headings. Expanded cumulative comparisons are 324 px high. Titles pair a
 label with an icon; figures use tabular digits. Comparison tone is supplied
 separately from movement direction: fewer blocked tasks can be positive,
 while work in progress stays neutral.
@@ -729,7 +729,7 @@ same structure at expanded and standard heights.
 
 Each asset uses the same metric forms at every asset count. The full-width
 Portfolio keeps four asset rows visible at 1920×1080, with 132 px metric
-heights below slim headers. The header contains the icon, asset name, observed health and source ages as words. A saved narrow column wraps the metrics and scrolls the asset list;
+heights below slim headers. The header contains only the icon and asset name. Problems appear in the Attention ticker; missing and stale readings remain on their metric tiles. A saved narrow column wraps the metrics and scrolls the asset list;
 changing display density does not enlarge its CSS viewport. Default rows show:
 Momentum, Today, 4 weeks, Work, and Product counts when selected
 counts exist. Momentum pairs the count with recent bars; the latest window
@@ -746,7 +746,7 @@ Revenue uses the expanded cumulative comparison: facts on the left and the
 month chart on the right. Each daily bar shows the cumulative total reached
 by that date, rather than that day's increment. Filled bars are observed;
 outlined bars are projected. Last month's total is a dashed horizontal
-reference. Work this week uses the standard cumulative comparison for Done
+reference. Work this week places its title and week progress in a slim heading above the tiles. Wide-screen Work tiles are 132 px high. It uses the standard cumulative comparison for Done
 this week, after counts for operator decisions, work in progress and blocked
 tasks. Its bars show daily closes and a solid line shows the cumulative total. The bars, line and last-week reference share one count scale from zero. Missing daily counts have no
 bar. History contains observed readings only; two available snapshots remain

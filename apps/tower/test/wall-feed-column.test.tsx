@@ -49,6 +49,16 @@ afterEach(() => {
 });
 
 describe("the feed column", () => {
+  it("keeps a long task title, model and evidence accessible in the compact presentation", () => {
+    const title = "Keep the selected restaurant and delivery address when customers return from checkout to update their order";
+    render(<MemoryRouter><WallFeed feed={payload([item("long", 1, { text: title, task: "sample-1", who: "codex", model: "GPT-6.1 Sol", evidence: "abcdef1234567" })])} nowMs={NOW} /></MemoryRouter>);
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent(title);
+    expect(link).toHaveTextContent("GPT-6.1 Sol");
+    expect(link).toHaveTextContent("abcdef1");
+    expect(link).toHaveAttribute("href", "/tasks/sample-1");
+    expect(link.querySelector("[data-feed-text]")).toHaveClass("line-clamp-2");
+  });
   it("draws the rows newest first, one line each: kind, asset, sentence, clock time", () => {
     render(<WallFeed feed={payload([item("a", 6), item("b", 20, { kind: "alert", label: "Alert", tone: "warn" })])} nowMs={NOW} />);
     expect(rows()).toEqual(["Line a", "Line b"]);

@@ -57,7 +57,7 @@
 .wall-metric[data-metric-related] { outline: 1px dashed var(--ring); outline-offset: 2px; }
 .wall-metric[data-metric-axes="hidden"] :is(.wall-metric-axis, .wall-site-axis) { display: none; }
 .wall-metric[data-metric-reference="hidden"] :is([data-chart-line="ghost"], [data-metric-previous-total], .wall-metric-reference, .wall-metric-basis) { display: none; }
-.wall-work-band[data-metrics-configured] { display: grid; grid-template-columns: 12.5rem var(--wall-metric-tracks); align-items: stretch; }
+.wall-work-band[data-metrics-configured] { display: grid; grid-template-columns: var(--wall-metric-tracks); align-items: stretch; }
 .wall-work-band[data-metrics-configured] > [data-wall-metric-cell] { min-width: 0; }
 .wall-work-band[data-metrics-configured] [data-wall-metric-cell] .wall-metric { width: 100%; }
 [data-wall-revenue][data-metrics-configured] > .wall-metric[data-metric-size="standard"] { max-width: var(--metric-standard-width); }

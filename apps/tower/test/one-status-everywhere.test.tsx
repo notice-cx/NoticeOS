@@ -186,16 +186,12 @@ describe("one source, one status, on every screen", () => {
     home.unmount();
 
     // The Wall: no source icons; a source Failing everywhere else is
-    // represented by site health and a specific concern.
+    // represented by a specific concern in the ticker.
     const wall = renderAt("/wall", <WallRoute />);
     const wallIcons = marks(wall.container);
-    const siteHealth = wall.container.querySelector(`[data-site-row="${ASSET}"] [data-site-health]`);
-    expect(siteHealth).toHaveAttribute("data-site-health", "error");
-    expect(siteHealth).toHaveAttribute("role", "group");
-    expect(siteHealth?.getAttribute("aria-label")).toMatch(/^Asset health: (Search Console|Bing) failing; 1 more issue$/u);
-    expect(siteHealth).toHaveTextContent(/^Off track$/u);
-    expect(siteHealth?.querySelector("svg rect")).toBeNull();
-    expect(siteHealth?.querySelector("svg.lucide-circle-alert")).toHaveAttribute("aria-hidden", "true");
+    const siteHeader = wall.container.querySelector(`[data-site-row="${ASSET}"] [data-site-name]`)!;
+    expect(siteHeader.textContent).toBe(wallPayload().assets.find(asset => asset.id === ASSET)!.displayName);
+    expect(siteHeader.querySelector("[data-site-health], [data-site-source]")).toBeNull();
     // Needs attention lists each failing source.
     const concerns = wall.container.querySelector("[data-wall-needs]")!;
     expect(concerns).toHaveTextContent("Search Console collection failing");

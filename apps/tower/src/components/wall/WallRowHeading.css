@@ -1,0 +1,10 @@
+.wall-row-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: .625rem;
+  row-gap: .25rem;
+  min-width: 0;
+  min-height: 1.5rem;
+}
+.wall-row-title { margin: 0; font-size: 1.125rem; line-height: 1.25; font-weight: 650; }

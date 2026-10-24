@@ -1,12 +1,11 @@
 import type { Ga4RealtimeAsset, Ga4RealtimePayload, Ga4RealtimeDay } from "@noticeos/contract";
 import { useMemo, type CSSProperties } from "react";
-import { ChartNoAxesCombined, CircleAlert, CircleHelp, Globe, Layers, ListTodo, TrendingUp, TriangleAlert } from "lucide-react";
+import { ChartNoAxesCombined, Globe, Layers, ListTodo, TrendingUp } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
 import { wallMetricTiles, type WallWidget, type WallMetricTile } from "@shared/wall-layout";
 import { CADENCE_HOURS } from "@shared/wall";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
-import { ageMs, formatAge, isAmber } from "@shared/freshness";
-import { liveTrafficIsRecent } from "@shared/live-traffic-health";
+import { ageMs, isAmber } from "@shared/freshness";
 import { currentRealtimeDay, realtimeActivity } from "@/lib/realtime-day";
 import { clockHourNow, intradayUsersPace, paceWindowLabel, type IntradayUsersPace } from "@/lib/intraday-pace";
 import { wallTrafficTone } from "@/lib/wall-traffic-tone";
@@ -22,15 +21,13 @@ import { WallMetricBinding, useWallMetricBinding } from "./WallMetricEditing";
 import { readingRuns, type ChartPoint } from "@/lib/chart-path";
 import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { siteHealth } from "@/lib/site-health";
-import { siteMark, type SiteMark, type WallIssue } from "@/lib/wall-issues";
 import { currentHourlyReading, fourWeeks, type FourWeeks, type HourlyActiveUsers } from "@/lib/wall-sites";
 import "./SiteRows.css";
+import "./WallRowHeading.css";
 
 export interface SiteRowsProps {
   assets: readonly AssetCard[];
   pulseMetrics?: WallPulseMetrics;
-  issues: readonly WallIssue[];
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
   nowMs: number;
@@ -39,7 +36,7 @@ export interface SiteRowsProps {
   widget?: WallWidget;
 }
 
-export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4RealtimeError = false, nowMs, workAssets, widget }: SiteRowsProps) {
+export function SiteRows({ assets, pulseMetrics, ga4Realtime, ga4RealtimeError = false, nowMs, workAssets, widget }: SiteRowsProps) {
   const tiles = wallMetricTiles(widget ?? { id: "sites", type: "sites", width: 1 });
   const configured = widget?.settings?.metrics !== undefined;
   const ordered = [...tiles.filter(tile => tile.source !== "product-counts"), ...tiles.filter(tile => tile.source === "product-counts")];
@@ -49,7 +46,6 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
     <div className="wall-portfolio-list">
       {assets.map(asset => {
         const snapshot = ga4Realtime?.assets.find(reading => reading.asset === asset.id);
-        const hasData = asset.pulseReceivedAt !== null || asset.activeUsers.series.length > 0 || snapshot?.status === "success" || asset.counters?.cards.some(card => card.value !== null) === true || asset.work != null;
         const renderTile = (tile: WallMetricTile) => {
           switch (tile.source) {
             case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} metric />;
@@ -70,11 +66,9 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
         return <section key={asset.id} className="wall-portfolio-row" aria-label={asset.displayName} data-site-row={asset.id} data-metrics-configured={configured || undefined} style={configured ? {
           "--wall-metric-tracks": ordered.map(tile => `minmax(0, ${weight(tile)}fr)`).join(" "),
         } as CSSProperties : undefined}>
-          <header className="wall-portfolio-identity" data-site-name>
+          <header className="wall-row-heading wall-portfolio-identity" data-site-name>
             <PropertyFavicon domain={asset.id} icons={asset.icons} scheme="dark" displayName={asset.displayName} className="wall-portfolio-favicon shrink-0" />
-            <h3 className="wall-portfolio-name" data-site-label>{asset.displayName}</h3>
-            <SiteHealth asset={asset} mark={siteMark(issues, asset.id)} site={asset.id} hasData={hasData} />
-            <SourceFreshness asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} />
+            <h3 className="wall-row-title wall-portfolio-name" data-site-label>{asset.displayName}</h3>
           </header>
           <div className="wall-portfolio-metrics">
             {ordered.map(tile => <WallMetricBinding key={tile.id} tile={tile} assetId={asset.id} configured={configured}>{configured ? <div data-wall-metric-cell>{renderTile(tile)}</div> : renderTile(tile)}</WallMetricBinding>)}
@@ -293,33 +287,4 @@ function FourWeekLine({ weeks, weight, reference = true }: { weeks: FourWeeks; w
       {last ? <ChartDot at={last} size="md" halo={false} /> : null}
     </svg>
   );
-}
-
-
-
-function SourceFreshness({ asset, snapshot, reconnecting, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; reconnecting: boolean; nowMs: number }) {
-  const counterTimes = asset.counters?.cards.filter(card => card.value !== null && card.observedAt !== null).map(card => card.observedAt!) ?? [];
-  const latestCount = counterTimes.sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
-  const report = asset.pulseReceivedAt;
-  const live = snapshot?.status === "success" ? snapshot.observedAt : null;
-  const source = (label: string, at: string | null, stale: boolean, failed = false) => {
-    const age = ageMs(nowMs, at);
-    return <span data-site-source={label.toLowerCase()} data-source-freshness={failed ? "unavailable" : age === null ? "unknown" : stale ? "stale" : "current"} title={at ?? undefined}>{label} {failed ? "unavailable" : age === null ? "unavailable" : `${stale ? "stale · " : ""}${formatAge(age)} ago`}</span>;
-  };
-  return <div className="wall-portfolio-sources" aria-label="Source freshness">
-    {source(report ? "Report" : "Counts", report ?? latestCount, isAmber(nowMs, report ?? latestCount, report ? CADENCE_HOURS.pulse : asset.counters?.cadenceHours ?? CADENCE_HOURS.pulse))}
-    {source("Live", live, live !== null && !liveTrafficIsRecent(live, nowMs), reconnecting || snapshot?.status === "error")}
-    {source("Tasks", asset.work?.capturedAt ?? null, isAmber(nowMs, asset.work?.capturedAt ?? null, WORK_POLL_CADENCE_HOURS))}
-  </div>;
-}
-
-function SiteHealth({ asset, mark, site, hasData }: { asset: AssetCard; mark: SiteMark | null; site: string; hasData: boolean }) {
-  const health = siteHealth(asset, mark ? [{ assets: [asset.id], severity: mark.severity }] : []);
-  const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "retired" || !hasData ? "unknown" : "healthy";
-  const label = mark ? `${mark.label}${mark.more ? `; ${mark.more} more ${mark.more === 1 ? "issue" : "issues"}` : ""}` : health.key === "retired" ? health.word : !hasData ? "No data yet" : health.key === "on-track" ? "No open alerts" : health.word;
-  const word = health.key === "retired" ? health.word : state === "error" || state === "warn" ? health.word : label;
-  const Glyph = state === "error" ? CircleAlert : state === "warn" ? TriangleAlert : CircleHelp;
-  return <span className={cn("wall-portfolio-status shrink-0", state === "error" ? "text-error" : state === "warn" ? "text-warn" : "text-muted-foreground")} role="group" aria-label={`Asset health: ${label}`} title={label} data-site-health={state} data-site-waiting={!hasData && health.key !== "retired" ? "" : undefined} data-status-for={`asset:${site}`}>
-    {state === "error" || state === "warn" || state === "unknown" ? <Glyph aria-hidden /> : null}{word}
-  </span>;
 }

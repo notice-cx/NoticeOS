@@ -7,10 +7,8 @@ import { act, render, renderHook, waitFor } from "./render";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
-import { NO_READS } from "@shared/connection-status";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { currentDayReadings, keepReadingsInProgress, useGa4Realtime } from "@/hooks/useGa4Realtime";
-import { wallIssues } from "@/lib/wall-issues";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
 const fetchGa4Realtime = vi.hoisted(() => vi.fn());
@@ -145,7 +143,7 @@ describe("a read in progress keeps what the Wall drew", () => {
       render(
         <SiteRows
           assets={assets}
-          issues={wallIssues({ assets, attention: [], connections: NO_READS, nowMs: NOW })}
+
           ga4Realtime={realtime}
           ga4RealtimeError={false}
           nowMs={NOW + 30_000}

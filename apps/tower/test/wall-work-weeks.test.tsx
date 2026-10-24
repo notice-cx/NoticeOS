@@ -65,10 +65,15 @@ describe("the Wall's metric work tile", () => {
     }
   });
 
-  it("places the heading and four metrics in the same responsive band", () => {
+  it("places the slim heading above four full-width metric tracks", () => {
     const { container } = render(<WallWork assets={[asset("a.example", work(weeks()))]} operator={operator} nowMs={NOW} />);
     const band = container.querySelector(".wall-work-band")!;
-    expect(band.children).toHaveLength(5);
+    expect(band.children).toHaveLength(4);
+    expect(band.querySelector("h2")).toBeNull();
+    const header = container.querySelector(".wall-work-heading")!;
+    expect(header.querySelector("h2")).toHaveTextContent("Work this week");
+    expect(header.querySelector("[data-work-days-in]")).not.toBeNull();
+    expect(header.nextElementSibling).toBe(band);
     expect(band.lastElementChild).toHaveAttribute("aria-label", "Done this week");
     expect(band.querySelectorAll(".wall-metric-title svg")).toHaveLength(4);
   });

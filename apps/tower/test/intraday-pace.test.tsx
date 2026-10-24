@@ -6,7 +6,6 @@
 import { render } from "./render";
 import { describe, expect, it } from "vitest";
 import type { Ga4HourlyActiveUsers, Ga4RealtimePayload } from "@noticeos/contract";
-import { NO_READS } from "@shared/connection-status";
 import { SiteRows } from "@/components/wall/SiteRows";
 import {
   PACE_VERDICT_MINIMUM,
@@ -15,7 +14,6 @@ import {
   intradayUsersPace,
   paceWindowLabel,
 } from "@/lib/intraday-pace";
-import { wallIssues } from "@/lib/wall-issues";
 import { wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
 const ZONE = "America/Los_Angeles";
@@ -90,7 +88,7 @@ function drawRow(hourly: Ga4HourlyActiveUsers[], nowMs: number) {
   };
   const assets = wallFixturePayload().assets;
   const container = render(
-    <SiteRows assets={assets} issues={wallIssues({ assets, attention: [], connections: NO_READS, nowMs })} ga4Realtime={payload} nowMs={nowMs} />,
+    <SiteRows assets={assets} ga4Realtime={payload} nowMs={nowMs} />,
   ).container;
   return container.querySelector(`[data-site-row="${asset.id}"] [data-site-today]`)!.closest(".wall-metric")!;
 }

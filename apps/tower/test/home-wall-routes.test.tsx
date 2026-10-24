@@ -323,7 +323,7 @@ function googleAnswers(items: { capability: string; state: "healthy" | "failing"
 }
 
 // Home keeps each source's one status; the Wall draws no icon row, and a
-// failing source becomes the site's health bar and a bar on the Wall's timeline.
+// failing source appears in the Wall's attention ticker and timeline.
 describe("Home shows each source's one status, and the Wall marks only a failing one", () => {
   const ga4: CardDataSource = { id: "ga4", label: "Google Analytics", state: "live", observedAt: "2026-07-29T12:00:00Z", verification: { kind: "collection-success", laneId: "ga4" } };
   const nightly: CardDataSource = { id: "nightly-report", label: "Nightly report", state: "live", observedAt: "2026-07-29T11:00:00Z", verification: { kind: "collection-success", laneId: "nightly-report" } };
@@ -345,8 +345,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     home.unmount();
     const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(statusOn(wall.container, "Nightly report")).toBeUndefined();
-    expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: No open alerts");
+    expect(siteHealthOn(wall.container)).toBeNull();
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
   });
 
@@ -357,13 +356,12 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     home.unmount();
     const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
-    expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: No open alerts");
+    expect(siteHealthOn(wall.container)).toBeNull();
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
   });
 
-  it("shows the monitoring model's Failing on Home, and the Wall's health bar and timeline despite a successful 15-minute run", () => {
+  it("shows the monitoring model's Failing on Home, and the Wall's ticker and timeline despite a successful 15-minute run", () => {
     googleAnswers([{ capability: "ga4-daily", state: "healthy" }, { capability: "ga4-archive", state: "failing" }]);
     payload.assets = [{ ...SEEDED_ASSETS[0]!, dataSources: [ga4] }];
     const home = renderHome();
@@ -371,8 +369,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     home.unmount();
     const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
-    expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "error");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: GA4 failing");
+    expect(siteHealthOn(wall.container)).toBeNull();
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "problems");
     expect(timelineOn(wall.container).querySelector('[data-span^="source-ga4"]')).toHaveAttribute("data-severity", "error");
     expect(timelineOn(wall.container).querySelector("[data-event-timeline-list]")).toHaveTextContent("GA4 collection failing");
@@ -386,7 +383,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(ticker.querySelector('[data-attention-item^="problem:source-ga4"] a')).toHaveAttribute("href", "/assets/meadow.example/sources");
   });
 
-  it("shows a working source as a working check on Home, and the Wall's health bar without a concern", () => {
+  it("shows a working source as a working check on Home, and the Wall's identity header without a concern", () => {
     googleAnswers([{ capability: "ga4-daily", state: "healthy" }]);
     payload.assets = [{ ...SEEDED_ASSETS[0]!, dataSources: [ga4, nightly] }];
     const home = renderHome();
@@ -395,8 +392,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     home.unmount();
     const wall = renderWall(SAVED_COLUMN_LAYOUT);
     expect(wall.container.querySelector("[data-source]")).toBeNull();
-    expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Asset health: No open alerts");
+    expect(siteHealthOn(wall.container)).toBeNull();
     expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
   });
 });
