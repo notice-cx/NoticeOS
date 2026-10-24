@@ -13,8 +13,8 @@ export interface DeltaChipProps {
   value: number;
   /** Formatter for the magnitude; defaults to whole-dollar USD. */
   render?: (n: number) => string;
-  /** Performance tones are scoped like-for-like signals, never severity; pace
-   * tones are today's pace against the same hours last week (`paceTone`). */
+  /** Callers opt into a display scale. General performance and pace retain
+   * their comparison rules; Wall traffic has a separate direction scale. */
   tone?: ChipTone;
   /** What this movement is, in one sentence: which two windows, over what.
    * It becomes the tooltip and the accessible name, since the arrow is
@@ -25,8 +25,7 @@ export interface DeltaChipProps {
   className?: string;
 }
 
-/** A trend indicator. Direction is always carried by the glyph. Positive green
- * is opt-in only for a completed like-for-like comparison. */
+/** A trend indicator. The caller chooses its color scale; the glyph always carries direction. */
 export function DeltaChip({
   value,
   render = (n) => formatUsd(n),
@@ -71,7 +70,7 @@ export type PerformanceTone =
  */
 export type PaceTone = "pace-on" | "pace-behind" | "pace-far-behind";
 
-export type ChipTone = PerformanceTone | PaceTone;
+export type ChipTone = PerformanceTone | PaceTone | "wall-traffic-decline";
 
 const TONE_CLASS: Record<ChipTone, string> = {
   neutral: "data-[tone=neutral]:text-foreground",
@@ -85,6 +84,7 @@ const TONE_CLASS: Record<ChipTone, string> = {
   negative: "data-[tone=negative]:text-trend-negative/80",
   "negative-strong":
     "data-[tone=negative-strong]:text-trend-negative",
+  "wall-traffic-decline": "data-[tone=wall-traffic-decline]:text-urgent",
   "pace-on": "data-[tone=pace-on]:text-pace-on",
   "pace-behind": "data-[tone=pace-behind]:text-pace-behind",
   "pace-far-behind": "data-[tone=pace-far-behind]:text-pace-far-behind",

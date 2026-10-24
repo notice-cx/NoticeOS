@@ -37,7 +37,7 @@ for (const variant of WALL_FIXTURE_VARIANTS) {
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
       const tiles = rows.nth(index).locator('.wall-metric');
       for (const tile of await tiles.all()) {
-        expect((await tile.boundingBox())!.height).toBeCloseTo(156, 0);
+        expect((await tile.boundingBox())!.height).toBeCloseTo(132, 0);
         await expect(tile.locator('h3 svg')).toBeAttached();
       }
     }

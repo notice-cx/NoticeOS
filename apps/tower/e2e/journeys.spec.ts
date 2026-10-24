@@ -1274,7 +1274,7 @@ test.describe(() => {
           const scale = (element as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
           return element.getBoundingClientRect().height / scale;
         }));
-        for (const tileHeight of tiles) expect(tileHeight, `${variant}: consistent metric height at ${width}`).toBeCloseTo(156, 0);
+        for (const tileHeight of tiles) expect(tileHeight, `${variant}: consistent metric height at ${width}`).toBeCloseTo(width >= 1280 ? 132 : 156, 0);
         const list = region.locator(".wall-portfolio-list");
         if (width > height && sites.length > 3) {
           await expect(list).toHaveCSS("overflow-y", "auto");

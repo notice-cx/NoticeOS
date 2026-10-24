@@ -6,6 +6,7 @@ import type { Ga4RealtimePayload } from "@noticeos/contract";
 import { NO_READS } from "@shared/connection-status";
 import type { AssetCard, AttentionItem } from "@shared/wall";
 import { SiteRows } from "@/components/wall/SiteRows";
+import { fourWeeks } from "@/lib/wall-sites";
 import { wallIssues } from "@/lib/wall-issues";
 import type { WallPulseMetrics } from "@/lib/wall-counters";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
@@ -49,6 +50,20 @@ describe("the asset rows", () => {
     if (blocked !== null && blocked > 0) expect(value.closest("dd")).toHaveClass("text-warn");
     else expect(value.closest("dd")).not.toHaveClass("text-warn");
   });
+  it("colors a known positive four-week percentage green across a timezone move without changing the evidence", () => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    const points = Array.from({ length: 56 }, (_, index) => ({ t: new Date(Date.UTC(2026, 6, 28 + index)).toISOString().slice(0, 10), v: index < 28 ? 100 : 123 }));
+    asset.activeUsers = { ...asset.activeUsers, contextSeries: points.slice(0, 28), series: points.slice(28), provisionalFrom: null, timeZoneChanges: [{ effectiveOn: "2026-08-10", from: "America/New_York", to: "America/Los_Angeles" }] };
+    expect(fourWeeks(asset.activeUsers)?.change).toEqual({ percent: 23, tone: "neutral" });
+    const site = row(draw([asset]), asset.id);
+    expect(site.querySelector('[data-site-week] [data-tone]')).toHaveAttribute("data-tone", "pace-on");
+    expect(site.querySelector('[data-site-week]')).toHaveTextContent("23%");
+    asset.activeUsers.contextSeries = [];
+    const missing = row(draw([asset]), asset.id);
+    expect(missing.querySelector('[data-site-week]')).toBeNull();
+    expect(missing.querySelector('[data-site-trend]')).toHaveTextContent("Comparison unavailable");
+  });
+
   it("places today's exact daily total before its pace and appends the reference day's daily total", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     asset.activeUsers.series = [{ t: "2026-09-15", v: 123 }, { t: "2026-09-22", v: 456 }];
@@ -97,9 +112,9 @@ describe("the asset rows", () => {
       data.assets.map((asset) => asset.id),
     );
     expect(container.querySelector('h2')?.textContent).toBe('Portfolio');
-    const titles = [...row(container, 'mosaic.example').querySelectorAll('h3')].map(tile => tile.firstElementChild?.nextSibling?.textContent);
+    const titles = [...row(container, 'mosaic.example').querySelectorAll('.wall-metric-title')].map(tile => tile.firstElementChild?.nextSibling?.textContent);
     expect(titles).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
-    for (const tile of row(container, 'mosaic.example').querySelectorAll('h3')) expect(tile.querySelector('svg')).not.toBeNull();
+    for (const tile of row(container, 'mosaic.example').querySelectorAll('.wall-metric-title')) expect(tile.querySelector('svg')).not.toBeNull();
   });
 
   it("states live users, today's pace and four weeks without repeating the revenue widget", () => {
@@ -179,7 +194,7 @@ describe("the asset rows", () => {
     expect(siteRow.querySelector('[data-site-waiting]')).toBeNull();
   });
 
-  it("colours today's line, wash, now point and % in the pace's one step: amber a little behind, red far behind", () => {
+  it("uses the Wall traffic display bands consistently for today's chart and percentage", () => {
     const realtime = wallFixtureRealtime();
     const atShare = (asset: string, share: number): Ga4RealtimePayload["assets"][number] => {
       const snapshot = realtime.assets.find((one) => one.asset === asset)!;
@@ -200,14 +215,14 @@ describe("the asset rows", () => {
     const container = draw(wallFixturePayload().assets, { realtime: shaped });
     const steps = (id: string) =>
       [...row(container, id).querySelectorAll("[data-site-today-chart][data-tone], [data-site-today] [data-tone]")].map((element) => element.getAttribute("data-tone"));
-    expect(steps("mosaic.example")).toEqual(["pace-behind", "pace-behind"]);
+    expect(steps("mosaic.example")).toEqual(["wall-traffic-decline", "wall-traffic-decline"]);
     expect(steps("plume.example")).toEqual(["pace-far-behind", "pace-far-behind"]);
     // A site too small for a verdict (under 100 of last week's users in the
     // hours so far) draws no step and no percent.
     expect(steps("acorn.example")).toEqual(["neutral"]);
     expect(row(container, "acorn.example").querySelector("[data-site-today]")?.textContent).toBe("Gathering pace");
     const chart = row(container, "mosaic.example").querySelector("[data-site-today-chart]")!;
-    expect(chart.className).toContain("data-[tone=pace-behind]:text-pace-behind");
+    expect(chart.className).toContain("data-[tone=wall-traffic-decline]:text-urgent");
     expect(chart.querySelector("[data-today]")?.getAttribute("class")).toContain("stroke-current");
     expect(chart.querySelector("[data-chart-area]")).not.toBeNull();
     expect(chart.querySelector("[data-filling-hour]")).not.toBeNull();
@@ -218,8 +233,8 @@ describe("the asset rows", () => {
     const only = wallFixturePayload().assets.find((asset) => asset.id === "mosaic.example")!;
     const tile = draw([only], { realtime: shaped }).querySelector('[data-site-today]')!.closest('.wall-metric')!;
     expect([...tile.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"))).toEqual([
-      "pace-behind",
-      "pace-behind",
+      "wall-traffic-decline",
+      "wall-traffic-decline",
     ]);
   });
 
@@ -271,7 +286,7 @@ const failedFor = (id: string, realtime = wallFixtureRealtime()): Ga4RealtimePay
 });
 
 describe("the asset rows", () => {
-  it("takes the trend colour away from a change whose span crosses a reporting-timezone change", () => {
+  it("keeps the visible trend direction color when its percentage spans a reporting-timezone change", () => {
     const data = wallFixturePayload();
     const mosaic = data.assets.find((asset) => asset.id === "mosaic.example")!;
     const moved: AssetCard = {
@@ -284,24 +299,41 @@ describe("the asset rows", () => {
     const others = data.assets.filter((asset) => asset.id !== "mosaic.example");
     const clean = row(draw([mosaic, ...others]), "mosaic.example").querySelector("[data-site-trend] [data-tone]")!;
     const spanned = row(draw([moved, ...others]), "mosaic.example").querySelector("[data-site-trend] [data-tone]")!;
-    expect(clean.getAttribute("data-tone")).toBe("positive");
-    expect(spanned.getAttribute("data-tone")).toBe("neutral");
+    expect(clean.getAttribute("data-tone")).toBe("pace-on");
+    expect(spanned.getAttribute("data-tone")).toBe("pace-on");
     expect(spanned.textContent).toBe(clean.textContent);
     const alone = (asset: AssetCard) =>
       draw([asset]).querySelector('[data-site-trend] [data-site-week] [data-tone]')!.getAttribute("data-tone");
-    expect([alone(mosaic), alone(moved)]).toEqual(["positive", "neutral"]);
+    expect([alone(mosaic), alone(moved)]).toEqual(["pace-on", "pace-on"]);
   });
 });
 
-describe("an asset's signal-bar health indicator", () => {
+describe("an asset's explicit health words", () => {
+  it("recognizes observed task data when traffic, reports and counters are unavailable", () => {
+    const asset = structuredClone(wallFixturePayload().assets.find(item => item.id === "mosaic.example")!);
+    asset.pulseReceivedAt = null;
+    asset.noNightlyReport = true;
+    asset.activeUsers = { ...asset.activeUsers, series: [], contextSeries: [] };
+    asset.dataSources = [];
+    delete asset.counters;
+    expect(asset.work).not.toBeNull();
+    const container = draw([asset], { realtime: { ...wallFixtureRealtime(), assets: [] } });
+    const header = row(container, asset.id).querySelector("[data-site-name]")!;
+    expect(header).not.toHaveTextContent("No data yet");
+    expect(header.querySelector('[data-site-source="tasks"]')).toHaveAttribute("data-source-freshness", "current");
+    expect(row(container, asset.id).querySelector("[data-site-work-open]")).toHaveTextContent(String(asset.work!.open + asset.work!.inProgress));
+  });
+
   it("shows observed health for active assets and no level for archived assets", () => {
-    const data = wallFixturePayload();
+    const data = structuredClone(wallFixturePayload());
+    data.assets.find(asset => asset.id === "summit.example")!.work = null;
     const archived = { ...data.assets[0]!, id: "archived.example", status: "retired" };
     const container = draw([...data.assets, archived], { attention: data.attention });
-    for (const [id, state, bars] of [["mosaic.example", "healthy", 4], ["plume.example", "warn", 2], ["summit.example", "healthy", 4], ["archived.example", "unknown", 0]] as const) {
+    for (const [id, state, word] of [["mosaic.example", "healthy", "No open alerts"], ["plume.example", "warn", "At risk"], ["summit.example", "unknown", "No data yet"], ["archived.example", "unknown", "Retired"]] as const) {
       const health = row(container, id).querySelector('[data-site-name] [data-site-health]')!;
       expect(health.getAttribute("data-site-health")).toBe(state);
-      expect(health.querySelectorAll('.opacity-100')).toHaveLength(bars);
+      expect(health.textContent).toBe(word);
+      expect(health.querySelector("rect")).toBeNull();
       expect(health.getAttribute("aria-label")).toMatch(/^Asset health:/);
     }
     expect(container.querySelector('[data-site-mark]')).toBeNull();
@@ -317,7 +349,7 @@ describe("an asset's signal-bar health indicator", () => {
     const mark = row(draw(data.assets, { attention: [plansLow!, down] }), "plume.example").querySelector("[data-site-health]")!;
     expect(mark.getAttribute("data-site-health")).toBe("error");
     expect(mark.getAttribute("aria-label")).toBe("Asset health: Home page down; 1 more issue");
-    expect(mark.querySelectorAll('.opacity-100')).toHaveLength(1);
+    expect(mark.textContent).toBe("Off track");
   });
 
   it("never marks an asset that declared it sends no nightly report for a missing one", () => {
@@ -333,15 +365,40 @@ describe("an asset's signal-bar health indicator", () => {
   });
 });
 
+describe("asset identity headers", () => {
+  it("places the complete asset identity before its full-width metric group", () => {
+    const asset = { ...wallFixturePayload().assets[0]!, displayName: "Example asset with a longer product name" };
+    const site = row(draw([asset]), asset.id);
+    expect(site.firstElementChild?.tagName).toBe("HEADER");
+    expect(site.querySelector("h3")?.textContent).toBe(asset.displayName);
+    expect(site.children[1]).toHaveClass("wall-portfolio-metrics");
+    expect(site.querySelector("[data-site-health] rect")).toBeNull();
+  });
+
+  it("shows real ages and unavailable sources explicitly without healthy colors", () => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    asset.pulseReceivedAt = new Date(NOW - 2 * HOUR).toISOString();
+    asset.work = null;
+    const site = row(draw([asset], { realtime: { ...wallFixtureRealtime(), assets: [] } }), asset.id);
+    expect(site.querySelector('[data-site-source="report"]')).toHaveTextContent("Report 2h ago");
+    expect(site.querySelector('[data-site-source="live"]')).toHaveTextContent("Live unavailable");
+    expect(site.querySelector('[data-site-source="tasks"]')).toHaveTextContent("Tasks unavailable");
+    expect(site.querySelector("[data-site-name] .text-healthy")).toBeNull();
+  });
+});
+
 describe("rows without data yet", () => {
   it("are one quiet line, the same whether or not the asset declared it sends no report", () => {
-    const container = draw(wallFixturePayload().assets);
+    const assets = structuredClone(wallFixturePayload().assets);
+    assets.find(asset => asset.id === "summit.example")!.work = null;
+    const container = draw(assets);
     const waiting = row(container, "summit.example");
     expect(waiting.querySelector("[data-site-waiting]")).not.toBeNull();
     // A site that has never sent a report expects none.
-    expect(waiting.querySelector("[data-site-name]")?.textContent).toBe("SummitNo data yet");
-    const declared = { ...wallFixturePayload().assets.find((asset) => asset.id === "summit.example")!, noNightlyReport: true };
-    expect(row(draw([declared]), "summit.example").querySelector("[data-site-name]")?.textContent).toBe("SummitNo data yet");
+    expect(waiting.querySelector("[data-site-label]")?.textContent).toBe("Summit");
+    expect(waiting.querySelector("[data-site-health]")).toHaveTextContent("No data yet");
+    const declared = { ...assets.find((asset) => asset.id === "summit.example")!, noNightlyReport: true };
+    expect(row(draw([declared]), "summit.example").querySelector("[data-site-health]")).toHaveTextContent("No data yet");
   });
 });
 
@@ -421,9 +478,9 @@ describe("fixed portfolio metrics", () => {
       const site = row(container, asset.id);
       expect(site.querySelector('[data-site-label]')?.textContent).toBe(asset.displayName);
       expect(site.querySelector('[data-site-name] [data-site-health]')).not.toBeNull();
-      expect([...site.querySelectorAll('h3')].map(el => el.querySelector('span')?.textContent)).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
-      expect(site.lastElementChild).toHaveClass('wall-product-counts');
-      for (const heading of site.querySelectorAll('h3')) expect(heading.querySelector('svg')).not.toBeNull();
+      expect([...site.querySelectorAll('.wall-metric-title')].map(el => el.querySelector('span')?.textContent)).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
+      expect(site.querySelector('.wall-portfolio-metrics')?.lastElementChild).toHaveClass('wall-product-counts');
+      for (const heading of site.querySelectorAll('.wall-metric-title')) expect(heading.querySelector('svg')).not.toBeNull();
     }
   });
 

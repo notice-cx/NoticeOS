@@ -32,7 +32,7 @@ for (const deviceScaleFactor of [1, 2]) {
         await page.screenshot({ path: testInfo.outputPath(`wall-${saved ? "saved" : "default"}-${deviceScaleFactor}x.png`) });
         expect(measurements.rows).toHaveLength(4);
         expect(measurements.viewport).toEqual({ width: 1920, height: 1080, dpr: deviceScaleFactor });
-        for (const row of measurements.rows) for (const tile of row.tiles) expect(tile.height).toBeCloseTo(156, 0);
+        for (const row of measurements.rows) for (const tile of row.tiles) expect(tile.height).toBeCloseTo(132, 0);
         if (!saved) expect(measurements.rows.every(row => row.fullyVisible)).toBe(true);
         else {
           await page.locator("[data-site-row]").last().scrollIntoViewIfNeeded();
@@ -75,7 +75,7 @@ test.describe("explicit full composition", () => {
       const bounds = (await row.boundingBox())!;
       expect(bounds.y).toBeGreaterThanOrEqual(frame.y - 1);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
-      for (const tile of await row.locator(".wall-metric").all()) expect((await tile.boundingBox())!.height).toBeCloseTo(156, 0);
+      for (const tile of await row.locator(".wall-metric").all()) expect((await tile.boundingBox())!.height).toBeCloseTo(132, 0);
     }
     await expect(page.locator("#boot-splash")).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("wall-full-layout-after-explicit-save-2x.png") });

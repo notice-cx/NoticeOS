@@ -13,8 +13,7 @@
 .wall-metric-focus-preview .wall-portfolio-identity { display: none; }
 .wall-metric-focus-preview .wall-portfolio-list { overflow: auto; padding: .25rem; }
 .wall-metric-focus-preview .wall-portfolio-row[data-metrics-configured] {
-  display: grid;
-  grid-template-columns: var(--wall-metric-tracks);
+  display: block;
   min-width: calc(var(--focus-tile-count) * 10.5rem);
   width: 100%;
   max-width: none;
