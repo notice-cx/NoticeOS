@@ -43,11 +43,12 @@ function decode(kind: string, data: string): ChangeEvent | null {
   return null;
 }
 
-/** Opens the change stream for a standalone or shared demo page, or returns the idle stream
- * where the browser lacks what it needs. */
+/** Opens the change stream for a standalone or shared demo page. Browsers
+ * without tab coordination, including plain-HTTP TVs, keep their own stream. */
 export function createChangeStream(queries: QueryClient, window: Window, streamUrl = CHANGE_STREAM_PATH): ChangeStream {
   const page = window as Window & typeof globalThis;
-  if (typeof page.EventSource !== 'function' || typeof page.BroadcastChannel !== 'function' || !page.navigator.locks) return NO_CHANGE_STREAM;
+  if (typeof page.EventSource !== 'function') return NO_CHANGE_STREAM;
+  const shared = typeof page.BroadcastChannel === 'function' && typeof page.navigator.locks?.request === 'function';
   const listeners = new Set<() => void>();
   let connected = false;
   let leading = false;
@@ -65,7 +66,7 @@ export function createChangeStream(queries: QueryClient, window: Window, streamU
   const apply = (message: TabMessage) => {
     if (closed) return;
     if (message.kind === 'status') setConnected(message.connected);
-    else if (message.kind === 'ask') { if (leading) channel.postMessage({ kind: 'status', connected } satisfies TabMessage); }
+    else if (message.kind === 'ask') { if (leading) channel?.postMessage({ kind: 'status', connected } satisfies TabMessage); }
     else if (message.kind === 'change') {
       for (const topic of message.topics) for (const queryKey of REFRESHES[topic]) void queries.invalidateQueries({ queryKey });
     } else {
@@ -78,11 +79,11 @@ export function createChangeStream(queries: QueryClient, window: Window, streamU
       });
     }
   };
-  const channel = new page.BroadcastChannel(`${CHANNEL}:${streamUrl}`);
-  channel.onmessage = (event: MessageEvent<TabMessage>) => apply(event.data);
-  const relay = (message: TabMessage) => { apply(message); if (!closed) channel.postMessage(message); };
+  const channel = shared ? new page.BroadcastChannel(`${CHANNEL}:${streamUrl}`) : null;
+  if (channel) channel.onmessage = (event: MessageEvent<TabMessage>) => apply(event.data);
+  const relay = (message: TabMessage) => { apply(message); if (!closed) channel?.postMessage(message); };
   const stop = new AbortController();
-  const holdStream = () => page.navigator.locks.request(`${CHANNEL}:${streamUrl}`, { signal: stop.signal }, () => new Promise<void>((release) => {
+  const holdSource = () => new Promise<void>((release) => {
     leading = true;
     const source = new page.EventSource(streamUrl);
     source.addEventListener('open', () => {
@@ -97,16 +98,19 @@ export function createChangeStream(queries: QueryClient, window: Window, streamU
     }
     stop.signal.addEventListener('abort', () => {
       source.close();
-      if (connected) channel.postMessage({ kind: 'status', connected: false } satisfies TabMessage);
+      if (connected) channel?.postMessage({ kind: 'status', connected: false } satisfies TabMessage);
       leading = false;
       release();
     }, { once: true });
-  })).catch(() => { /* Closed before this tab held the stream. */ });
+  });
+  const holdStream = () => (shared
+    ? page.navigator.locks.request(`${CHANNEL}:${streamUrl}`, { signal: stop.signal }, holdSource)
+    : holdSource()).catch(() => { /* Unavailable connections retain polling. */ });
   // After the page has loaded: a browser opens six connections to a host, and
   // a stream held from the start would take one from the page's own files.
   if (page.document.readyState === 'complete') void holdStream();
   else page.addEventListener('load', () => { if (!stop.signal.aborted) void holdStream(); }, { once: true, signal: stop.signal });
-  channel.postMessage({ kind: 'ask' } satisfies TabMessage);
+  channel?.postMessage({ kind: 'ask' } satisfies TabMessage);
   return Object.freeze({
     connected: () => connected,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
@@ -114,7 +118,7 @@ export function createChangeStream(queries: QueryClient, window: Window, streamU
       if (closed) return;
       stop.abort();
       closed = true;
-      channel.close();
+      channel?.close();
       setConnected(false);
     },
   });
