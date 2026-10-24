@@ -802,10 +802,9 @@ FLOWS["arrange-wall"] = {
     await settle(w.page);
     const tile = (id) => w.page.locator(`[data-wall-preview] [data-wall-edit-widget="${id}"]`);
     if (!w.mobile) {
-      // The drag path: Revenue onto the top edge of Sites stacks it above
-      // them. Not Work: on this layout its tile is 9-14 px tall, under the
-      // resize handle above it, and a press meant for it lands on Revenue.
-      await w.drag(tile("revenue"), tile("sites"), "drag Revenue onto the top of Assets",
+      // The section grip moves Revenue; its metric tile selects tile settings.
+      await tile("revenue").hover();
+      await w.drag(tile("revenue").getByTitle("Drag to move Revenue", { exact: true }), tile("sites"), "drag Revenue by its grip onto the top of Portfolio",
         { at: { x: 0.5, y: 0.06 }, landing: w.page.locator('[data-wall-preview] [data-wall-drop-line="top"]') });
       await tile("revenue").locator("xpath=ancestor::*[@data-wall-column='business']").waitFor({ timeout: 10_000 });
     }

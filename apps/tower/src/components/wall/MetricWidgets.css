@@ -1,4 +1,5 @@
 .wall-metric {
+  position: relative;
   --metric-height: 9.75rem;
   --metric-expanded-height: 20.25rem;
   --metric-narrow-width: 9.75rem;
@@ -42,6 +43,17 @@
   font-variant-numeric: tabular-nums;
   container-type: inline-size;
 }
+.wall-metric-select { position: absolute; inset: 0; z-index: 2; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.wall-metric-select:focus-visible { outline: 3px solid var(--ring); outline-offset: -3px; }
+.wall-metric[data-metric-selected] { outline: 2px solid var(--ring); outline-offset: 2px; }
+.wall-metric[data-metric-related] { outline: 1px dashed var(--ring); outline-offset: 2px; }
+.wall-metric[data-metric-axes="hidden"] :is(.wall-metric-axis, .wall-site-axis) { display: none; }
+.wall-metric[data-metric-reference="hidden"] :is([data-chart-line="ghost"], [data-metric-previous-total], .wall-metric-reference, .wall-metric-basis) { display: none; }
+.wall-work-band[data-metrics-configured] { display: grid; grid-template-columns: 12.5rem var(--wall-metric-tracks); align-items: stretch; }
+.wall-work-band[data-metrics-configured] > [data-wall-metric-cell] { min-width: 0; }
+.wall-work-band[data-metrics-configured] [data-wall-metric-cell] .wall-metric { width: 100%; }
+[data-wall-revenue][data-metrics-configured] > .wall-metric[data-metric-size="standard"] { max-width: var(--metric-standard-width); }
+[data-wall-revenue][data-metrics-configured] > .wall-metric[data-metric-size="wide"] { max-width: var(--metric-wide-width); }
 .wall-metric[data-metric-size="narrow"] { flex-basis: var(--metric-narrow-width); }
 .wall-metric[data-metric-size="wide"] { flex-basis: var(--metric-wide-width); }
 .wall-metric[data-metric-expanded] { --metric-summary-share: 46%; height: var(--metric-expanded-height); }
@@ -49,6 +61,8 @@
 .wall-metric-title > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wall-metric-title svg, .wall-metric-facts svg { width: var(--metric-icon-size); height: var(--metric-icon-size); flex: none; }
 .wall-metric-context { margin-left: auto; font-size: var(--metric-axis-size); white-space: nowrap; }
+.wall-metric-context b { font-weight: 600; color: var(--foreground); }
+.wall-metric-secondary { margin-left: auto; text-align: right; font-size: var(--metric-note-size); }
 .wall-metric-main { display: flex; align-items: baseline; justify-content: space-between; gap: var(--metric-gap); min-width: 0; }
 .wall-metric-value { font-size: var(--metric-value-size); font-weight: 600; letter-spacing: -.04em; line-height: var(--metric-value-line); white-space: nowrap; }
 .wall-metric-primary { display: flex; flex-direction: column; min-width: 0; }
@@ -90,6 +104,8 @@
 .wall-metric-chart { min-width: 0; margin-top: auto; }
 .wall-metric-chart svg { display: block; width: 100%; height: var(--metric-chart-height); overflow: visible; }
 .wall-metric-chart [data-metric-previous-total] line { stroke: var(--muted-foreground); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.wall-metric-chart [data-metric-cumulative-bar="current"] { fill: currentColor; fill-opacity: .8; }
+.wall-metric-chart [data-metric-cumulative-bar="forecast"] { fill: currentColor; fill-opacity: .12; stroke: currentColor; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
 .wall-metric-axis { display: flex; justify-content: space-between; gap: var(--metric-gap); font-size: var(--metric-axis-size); line-height: 1.25; color: var(--muted-foreground); }
 .wall-metric-reference, .wall-metric-empty { font-size: var(--metric-axis-size); color: var(--muted-foreground); }
 .wall-metric-comparison { font-size: var(--metric-small-value-size); font-weight: 600; line-height: 1.15; }
@@ -99,6 +115,8 @@
 .wall-metric-series-key span { display: inline-flex; align-items: center; gap: var(--metric-fact-gap); }
 .wall-metric-series-key span::before { content: ""; width: var(--metric-icon-size); border-top: 1px solid currentColor; }
 .wall-metric-series-key span:last-child::before { border-top-style: dashed; }
+.wall-metric-chart[data-metric-chart="cumulative-bars"] .wall-metric-series-key span::before { width: .5rem; height: .625rem; border: 1px solid currentColor; border-radius: .125rem; background: currentColor; opacity: .8; }
+.wall-metric-chart[data-metric-chart="cumulative-bars"] .wall-metric-series-key span:last-child::before { border-style: dashed; background: transparent; }
 .wall-metric-bars { display: flex; align-items: flex-end; gap: var(--metric-bar-gap); height: var(--metric-chart-height); margin-top: auto; }
 .wall-metric-bars > span { flex: 1; height: var(--metric-bar-height); min-height: var(--metric-zero-height); background: currentColor; opacity: .35; border-radius: var(--metric-bar-gap); }
 .wall-metric-bars > [data-metric-bar="recent"] { opacity: 1; }

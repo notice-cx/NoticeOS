@@ -1,5 +1,5 @@
 import { Tv } from "lucide-react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Link, useBlocker } from "react-router-dom";
 import type { FileJsonSetOp, JsonValue } from "@shared/changeset";
 import type { DashboardConfig } from "@shared/dashboard";
@@ -12,6 +12,9 @@ import {
   nextWallWidgetId,
   parseWallConfig,
   wallLayoutWidgets,
+  wallMetricSources,
+  wallMetricTiles,
+  wallWidgetSpec,
   withRevertedWallLayout,
   withSavedWallLayout,
   type WallConfig,
@@ -29,6 +32,9 @@ import { WallPreview } from "@/components/wall/WallPreview";
 import { WallToolbar, type WallEditorPanel } from "@/components/wall/WallToolbar";
 import { WallVersions } from "@/components/wall/WallVersions";
 import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
+import { WallMetricPanel } from "@/components/wall/WallMetricPanel";
+import { WallMetricFocus } from "@/components/wall/WallMetricFocus";
+import type { MetricTileSelection } from "@/components/wall/WallMetricEditing";
 import { Button } from "@/components/ui/button";
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
 import { calendarReadState } from "@/lib/meetings";
@@ -48,6 +54,7 @@ import {
   wallEditorRefusal,
   wallEditorState,
   wallEditorWarnings,
+  wallFullComposition,
   wallMovePlan,
   wallOverflowNote,
   wallWidgetWhere,
@@ -97,12 +104,9 @@ export function readWallConfig(dashboard: DashboardConfig): {
 }
 
 /**
- * `/wall/edit`: the Wall's editor. The television is the stage (`WallCanvas`
- * at 1920×1080, scaled to the pane and the window): widgets are dragged and
- * dropped on it, its dividers resized, and every change can be undone. The
- * side shows the selected widget's settings, the Add drawer or the saved
- * versions. Save is one write: the layout plus its history is one value at one
- * pointer, through `useConfigSave`.
+ * The full Wall and focused row edit the same draft. Selecting an asset
+ * changes only the preview; Portfolio tile settings remain shared. Save writes
+ * the layout and history together through the existing concurrency guard.
  */
 export function WallEditRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
@@ -130,6 +134,13 @@ export function WallEditRoute() {
   const [panel, setPanel] = useState<WallEditorPanel>("widget");
   const [flashId, setFlashId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [metricSelection, setMetricSelection] = useState<MetricTileSelection | null>(null);
+  const [focused, setFocused] = useState(false);
+  const [sectionSettings, setSectionSettings] = useState(false);
+  const [portfolioFit, setPortfolioFit] = useState<{ visible: number; total: number } | null>(null);
+  const restoreTileFocus = useRef(false);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const [previewControlsHeight, setPreviewControlsHeight] = useState(0);
   /** The widget a change just moved or brought, and whether focus follows it. */
   const [landed, setLanded] = useState<{ widgetId: string; verb: string; focus: boolean } | null>(null);
 
@@ -182,6 +193,46 @@ export function WallEditRoute() {
   }, [landed, state.layout]);
 
   const disabled = !writable || saving || reverting !== null;
+  const widgets = wallLayoutWidgets(state.layout);
+  const selectedWidget = widgets.find(widget => widget.id === state.selectedId);
+  const metricWidget = selectedWidget && wallMetricSources(selectedWidget.type).length ? selectedWidget : null;
+  const selectedTiles = metricWidget ? wallMetricTiles(metricWidget) : [];
+  const activeMetric = metricWidget && metricSelection?.widgetId === metricWidget.id
+    ? { ...metricSelection, tileId: selectedTiles.some(tile => tile.id === metricSelection.tileId) ? metricSelection.tileId : selectedTiles[0]?.id ?? "" }
+    : null;
+  const rowFocused = focused && metricWidget !== null;
+  const showMetricPanel = panel === "widget" && metricWidget !== null && !sectionSettings;
+  useLayoutEffect(() => {
+    const controls = controlsRef.current;
+    const measure = () => setPreviewControlsHeight(showMetricPanel && !rowFocused && window.innerWidth >= 1024 && controls ? controls.getBoundingClientRect().height + 32 : 0);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (controls) observer?.observe(controls);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [showMetricPanel, rowFocused]);
+  const focusTile = activeMetric?.tileId;
+  const focusAsset = activeMetric?.assetId;
+  const focusWidget = metricWidget?.id;
+  useEffect(() => {
+    if (!restoreTileFocus.current || rowFocused) return;
+    restoreTileFocus.current = false;
+    const section = [...document.querySelectorAll<HTMLElement>("[data-wall-edit-widget]")].find(element => element.dataset.wallEditWidget === focusWidget);
+    const tile = [...section?.querySelectorAll<HTMLElement>("[data-wall-metric]") ?? []].find(element => element.dataset.wallMetric === focusTile && (!focusAsset || element.dataset.wallAsset === focusAsset));
+    tile?.querySelector<HTMLButtonElement>("[data-wall-metric-select]")?.focus({ preventScroll: true });
+  }, [rowFocused, focusTile, focusAsset, focusWidget]);
+  const backToWall = useCallback(() => {
+    restoreTileFocus.current = true;
+    setFocused(false);
+  }, []);
+  useEffect(() => {
+    if (!rowFocused) return;
+    const back = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); backToWall(); }
+    };
+    window.addEventListener("keydown", back);
+    return () => window.removeEventListener("keydown", back);
+  }, [rowFocused, backToWall]);
 
   const undo = useCallback(() => {
     dispatch({ type: "undo" });
@@ -216,11 +267,41 @@ export function WallEditRoute() {
   const onMeasure = useCallback((height: number) => {
     setOverflow(wallOverflowNote(height));
   }, []);
+  const onPortfolioFit = useCallback((fit: { visible: number; total: number } | null) => {
+    setPortfolioFit(current => current?.visible === fit?.visible && current?.total === fit?.total ? current : fit);
+  }, []);
 
   const select = (widgetId: string | null) => {
     dispatch({ type: "select", widgetId });
+    setMetricSelection(null);
+    setSectionSettings(true);
+    setFocused(false);
     if (widgetId) setPanel("widget");
   };
+
+  const selectMetric = (selection: MetricTileSelection) => {
+    dispatch({ type: "select", widgetId: selection.widgetId });
+    setMetricSelection(selection);
+    setSectionSettings(false);
+    setPanel("widget");
+  };
+  const selectMetricSection = (widgetId: string) => {
+    const widget = widgets.find(item => item.id === widgetId);
+    if (!widget) return;
+    selectMetric({ widgetId, tileId: wallMetricTiles(widget)[0]?.id ?? "" });
+  };
+  const reorderMetric = (sourceId: string, targetId: string) => {
+    if (!metricWidget || disabled) return;
+    const metrics = wallMetricTiles(metricWidget);
+    const from = metrics.findIndex(tile => tile.id === sourceId);
+    const to = metrics.findIndex(tile => tile.id === targetId);
+    if (from < 0 || to < 0 || from === to || metrics[from]?.source === "product-counts" || metrics[to]?.source === "product-counts") return;
+    const [tile] = metrics.splice(from, 1);
+    metrics.splice(to, 0, tile!);
+    dispatch({ type: "settings", widgetId: metricWidget.id, settings: { ...metricWidget.settings, metrics } });
+    setAnnouncement(`${tile!.title ?? tile!.source} moved`);
+  };
+  const metricEditing = { selection: activeMetric, onSelect: selectMetric, disabled };
 
   const drop = (source: WallDragSource, target: WallDropTarget) => {
     const plan = wallDropPlan(state.layout, source, target);
@@ -246,6 +327,8 @@ export function WallEditRoute() {
   const start = (layout: WallLayout, label: string) => {
     dispatch({ type: "replace", layout });
     setAnnouncement(`Started from ${label}`);
+    setFocused(false);
+    setMetricSelection(null);
   };
 
   const remove = (widgetId: string) => {
@@ -360,9 +443,25 @@ export function WallEditRoute() {
             }}
           />
 
-          {/* The television and the side, one column below a wide screen. */}
-          <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start" data-wall-editor>
-            <WallPreview
+          <nav className="flex flex-wrap items-center gap-1" aria-label="Wall metric sections">
+            {widgets.filter(widget => wallMetricSources(widget.type).length > 0).map(widget => <Button key={widget.id} type="button" size="sm" variant={metricWidget?.id === widget.id ? "default" : "ghost"} aria-pressed={metricWidget?.id === widget.id} onClick={() => selectMetricSection(widget.id)}>{wallWidgetSpec(widget.type).label}</Button>)}
+            <Button type="button" size="sm" variant="outline" className="ml-auto" disabled={disabled} onClick={() => start(wallFullComposition(state.layout), "the full Wall layout")}>Use full Wall layout</Button>
+          </nav>
+          {!rowFocused && portfolioFit && portfolioFit.visible < portfolioFit.total ? <p className="text-sm text-amber-600 dark:text-amber-400" data-wall-portfolio-fit>{portfolioFit.visible} of {portfolioFit.total} asset rows fit. Use the full Wall layout to give Portfolio more room, or adjust the section dividers.</p> : null}
+          <div className={rowFocused ? "grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start" : "flex min-w-0 flex-col gap-4"} data-wall-editor>
+            {rowFocused ? <WallMetricFocus
+              widget={metricWidget}
+              data={data}
+              meetings={upcoming.data}
+              calendarState={calendarReadState(upcoming)}
+              ga4Realtime={realtime.data}
+              ga4RealtimeError={realtime.isError}
+              connections={{ credentials, items, events }}
+              nowMs={now}
+              metricEditing={{ ...metricEditing, focusAssetId: activeMetric?.assetId, onReorder: reorderMetric }}
+              onBack={backToWall}
+              onAsset={assetId => setMetricSelection({ widgetId: metricWidget.id, tileId: activeMetric?.tileId ?? selectedTiles[0]?.id ?? "", assetId })}
+            /> : <WallPreview
               layout={state.layout}
               data={data}
               meetings={upcoming.data}
@@ -381,10 +480,13 @@ export function WallEditRoute() {
               flashId={flashId}
               disabled={disabled}
               fitHeight
+              reservedHeight={previewControlsHeight}
               onMeasure={onMeasure}
-            />
+              onPortfolioFit={onPortfolioFit}
+              metricEditing={metricEditing}
+            />}
 
-            <div className="flex min-w-0 flex-col gap-4" data-wall-side>
+            <div ref={controlsRef} className="flex min-w-0 flex-col gap-4" data-wall-side>
               {panel === "add" ? (
                 <WallLibraryPanel
                   layout={state.layout}
@@ -402,7 +504,22 @@ export function WallEditRoute() {
                   onRevert={(index) => void revert(index)}
                   onClose={() => setPanel("widget")}
                 />
+              ) : showMetricPanel ? (
+                <WallMetricPanel
+                  widget={metricWidget}
+                  selectedTileId={activeMetric?.tileId ?? null}
+                  assets={data.assets}
+                  disabled={disabled}
+                  focused={rowFocused}
+                  layout={rowFocused ? "side" : "bottom"}
+                  onFocus={() => rowFocused ? backToWall() : setFocused(true)}
+                  onSelectTile={tileId => selectMetric({ widgetId: metricWidget.id, tileId, ...(activeMetric?.assetId ? { assetId: activeMetric.assetId } : {}) })}
+                  onSettings={settings => dispatch({ type: "settings", widgetId: metricWidget.id, settings })}
+                  onSectionSettings={() => { setSectionSettings(true); setFocused(false); }}
+                />
               ) : (
+                <>
+                {metricWidget ? <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => { setSectionSettings(false); selectMetricSection(metricWidget.id); }}>Edit tiles</Button> : null}
                 <WallWidgetPanel
                   layout={state.layout}
                   selectedId={state.selectedId}
@@ -420,8 +537,9 @@ export function WallEditRoute() {
                   onMove={move}
                   onRemove={remove}
                 />
+                </>
               )}
-              <SiteOrder assets={data.assets} disabled={!writable} />
+              {!showMetricPanel ? <SiteOrder assets={data.assets} disabled={!writable} /> : null}
             </div>
           </div>
           {/* Where a move put the widget, for a screen reader; the ring on

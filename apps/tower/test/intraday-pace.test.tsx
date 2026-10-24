@@ -99,12 +99,13 @@ function drawRow(hourly: Ga4HourlyActiveUsers[], nowMs: number) {
 const x = (hour: number) => (2 + (hour / 23) * 96) * 10;
 
 describe("the Wall's today cell", () => {
-  it("while the hours carry no verdict: the window alone, muted, no percent, no tone", () => {
+  it("keeps the daily total while incomplete hours show no pace verdict", () => {
     const today = drawRow(NIGHT, BREAKFAST);
     expect(today.querySelector("[data-pace-window]")?.textContent).toBe("to 2 AM");
     expect(today.querySelector("[data-site-today]")?.textContent).not.toContain("%");
     expect(today.querySelector('[data-pace-window="silent"]')?.className).toContain("text-muted-foreground");
-    expect(today.querySelector("[aria-label]")).toBeNull();
+    expect(today.querySelector("[data-site-today] [aria-label]")).toBeNull();
+    expect(today.querySelector("[data-site-today-total]")?.textContent).toBe("887");
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("neutral");
   });
 

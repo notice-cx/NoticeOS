@@ -18,6 +18,7 @@
  */
 
 import {
+  DEFAULT_WALL_LAYOUT,
   WALL_MAX_ROWS,
   WALL_MAX_WIDGETS_PER_ROW,
   WALL_PRESETS,
@@ -140,6 +141,17 @@ export type WallEditorAction =
 
 /** How many steps Undo keeps. */
 export const WALL_UNDO_LIMIT = 100;
+
+/** An explicit full-Wall arrangement retains each existing section's settings. */
+export function wallFullComposition(layout: WallLayout): WallLayout {
+  const settings = new Map(wallLayoutWidgets(layout).map((widget) => [widget.type, widget.settings]));
+  const full = structuredClone(DEFAULT_WALL_LAYOUT);
+  for (const widget of wallLayoutWidgets(full)) {
+    const current = settings.get(widget.type);
+    if (current !== undefined) widget.settings = structuredClone(current);
+  }
+  return full;
+}
 
 export function wallEditorState(saved: WallLayout): WallEditorState {
   return { layout: saved, saved, selectedId: null, past: [], future: [], gesture: null };
@@ -1148,8 +1160,10 @@ export function wallEditorReducer(
       if (!spot) return state;
       // An empty asset filter is no filter: the widget shows every asset, and
       // the layout says so by carrying none.
-      if (action.settings === undefined || action.settings.assets?.length === 0) delete spot.widget.settings;
-      else spot.widget.settings = action.settings;
+      const settings = action.settings === undefined ? undefined : structuredClone(action.settings);
+      if (settings?.assets?.length === 0) delete settings.assets;
+      if (settings === undefined || Object.keys(settings).length === 0) delete spot.widget.settings;
+      else spot.widget.settings = settings;
       return commit(state, next);
     }
     case "drop": {

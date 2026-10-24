@@ -31,6 +31,7 @@ import { DropLine } from "@/components/DropLine";
 import { WallCanvas } from "@/components/WallCanvas";
 import { WallDividers, type WallDividerGeometry } from "@/components/wall/WallDividers";
 import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
+import type { WallMetricEditing } from "@/components/wall/WallMetricEditing";
 import { Button } from "@/components/ui/button";
 import type { CalendarReadState } from "@/lib/meetings";
 import { cn } from "@/lib/utils";
@@ -263,9 +264,13 @@ export interface WallPreviewProps {
   /** Fit the whole television into the window's height too, not only the
    * pane's width, so the picture being arranged is always all in view. */
   fitHeight?: boolean;
+  /** Room for the selected tile's controls below the full-Wall preview. */
+  reservedHeight?: number;
   /** The measured content height of the 1920×1080 canvas, after every change. */
   onMeasure?: (contentHeightPx: number) => void;
+  onPortfolioFit?: (fit: { visible: number; total: number } | null) => void;
   className?: string;
+  metricEditing?: WallMetricEditing;
 }
 
 /**
@@ -275,8 +280,8 @@ export interface WallPreviewProps {
  * container). Each widget is a drag source and a drop target: the edge the
  * pointer is nearest decides where it lands, and a line over the picture says
  * so before the drop. During a drag, a band between rows takes a new row.
- * Everything the canvas draws is `pointer-events-none` and `aria-hidden`: the
- * widget's frame is the one target and carries the name.
+ * Metric tiles keep individual selection targets; their sections drag by the
+ * grip. Other sections use the whole frame as the selection and drag target.
  */
 export function WallPreview({
   layout,
@@ -297,8 +302,11 @@ export function WallPreview({
   flashId = null,
   disabled = false,
   fitHeight = false,
+  reservedHeight = 0,
   onMeasure,
+  onPortfolioFit,
   className,
+  metricEditing,
 }: WallPreviewProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -321,7 +329,7 @@ export function WallPreview({
     const measureScale = () => {
       const rect = frame.getBoundingClientRect();
       const byWidth = rect.width > 0 ? rect.width / WALL_TV_WIDTH : 1;
-      const room = window.innerHeight - Math.max(0, rect.top) - 24;
+      const room = Math.max(320, window.innerHeight - Math.max(0, rect.top) - 24 - reservedHeight);
       const byHeight = fitHeight && room > 240 ? room / WALL_TV_HEIGHT : Number.POSITIVE_INFINITY;
       setScale(Math.min(byWidth, byHeight));
     };
@@ -337,7 +345,7 @@ export function WallPreview({
       observer.disconnect();
       window.removeEventListener("resize", measureScale);
     };
-  }, [fitHeight]);
+  }, [fitHeight, reservedHeight]);
 
   // Observe content only: selection chrome and fit notes cannot trigger
   // their own measurements. Widget reflows and font loads settle in one frame.
@@ -355,6 +363,17 @@ export function WallPreview({
       const canvas = box.querySelector<HTMLElement>("[data-wall-canvas]");
       const paddingBottom = Number.parseFloat(getComputedStyle(box).paddingBottom) || 0;
       onMeasure?.(canvas ? Math.max(box.clientHeight, canvas.offsetTop + canvas.scrollHeight + paddingBottom) : box.clientHeight);
+      const list = canvas?.querySelector(".wall-portfolio-list");
+      const rows = list ? [...list.querySelectorAll("[data-site-row]")] : [];
+      const bounds = list?.getBoundingClientRect();
+      if (bounds && bounds.height > 0) {
+        const viewport = box.getBoundingClientRect();
+        const visible = rows.filter(row => {
+          const rect = row.getBoundingClientRect();
+          return rect.top >= Math.max(bounds.top, viewport.top) - 1 && rect.bottom <= Math.min(bounds.bottom, viewport.bottom) + 1;
+        }).length;
+        onPortfolioFit?.({ visible, total: rows.length });
+      } else onPortfolioFit?.(null);
     };
     const schedule = () => {
       if (live && !frame) frame = requestAnimationFrame(read);
@@ -372,7 +391,7 @@ export function WallPreview({
       cancelAnimationFrame(frame);
       document.fonts?.removeEventListener("loadingdone", schedule);
     };
-  }, [layout, data, meetings, calendarState, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, onMeasure]);
+  }, [layout, data, meetings, calendarState, ga4Realtime, ga4RealtimeError, connections, nowMs, scale, onMeasure, onPortfolioFit]);
 
   // One watcher for every drag on the page that belongs to this editor: it
   // asks the grammar what the drop under the pointer would do and draws the
@@ -458,6 +477,7 @@ export function WallPreview({
               // A "reconnecting" note inside a preview would read as a fault in
               // the layout being arranged.
               lastGood={false}
+              metricEditing={metricEditing}
               editing={({ widget, node }) => (
                 <WallStageWidget
                   key={widget.id}
@@ -472,6 +492,7 @@ export function WallPreview({
                   lifted={dragging?.kind === "widget" && dragging.widgetId === widget.id}
                   small={geometry.tooSmall[widget.id] ?? null}
                   disabled={disabled}
+                  metricInteractive={metricEditing !== undefined && ["sites", "work", "revenue"].includes(widget.type)}
                   onHover={(on) => setHovered((id) => (on ? widget.id : id === widget.id ? null : id))}
                   onSelect={() => onSelect(widget.id)}
                   onRemove={() => onRemove(widget.id)}
@@ -506,8 +527,7 @@ export function WallPreview({
         <span className="tabular-nums">TV · {WALL_TV_WIDTH}×{WALL_TV_HEIGHT}, scaled to fit</span>
         {onDrop && !disabled && scale >= CHROME_MIN_SCALE ? (
           <span data-wall-preview-hint>
-            {" · "}Drag a widget onto another&rsquo;s edge: top or bottom stacks them, left or right sets it
-            beside. Drag a handle between widgets to resize.
+            {metricEditing ? " · Select a tile to edit. Drag a section by its grip to move it." : " · Drag a widget onto another’s edge to move it. Drag a handle between widgets to resize."}
           </span>
         ) : null}
       </p>
@@ -580,6 +600,7 @@ function WallStageWidget({
   lifted,
   small,
   disabled,
+  metricInteractive = false,
   onHover,
   onSelect,
   onRemove,
@@ -595,12 +616,14 @@ function WallStageWidget({
   lifted: boolean;
   small: "narrow" | "short" | null;
   disabled: boolean;
+  metricInteractive?: boolean;
   onHover: (on: boolean) => void;
   onSelect: () => void;
   onRemove: () => void;
   onMove?: (move: WallMove) => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const gripRef = useRef<HTMLSpanElement | null>(null);
   const spec = WALL_WIDGET_LIBRARY[type];
   const position = wallPositionSentence(layout, widgetId);
 
@@ -608,12 +631,13 @@ function WallStageWidget({
     const element = ref.current;
     if (!element || disabled) return;
     return combine(
-      draggable({
+      ...(metricInteractive && !gripRef.current ? [] : [draggable({
         element,
+        ...(metricInteractive && gripRef.current ? { dragHandle: gripRef.current } : {}),
         getInitialData: () => wallDragData({ kind: "widget", widgetId }),
         onGenerateDragPreview: ({ nativeSetDragImage }) => wallDragPreview(type, nativeSetDragImage),
         onDragStart: () => onSelect(),
-      }),
+      })]),
       dropTargetForElements({
         element,
         canDrop: ({ source }) => sourceOf(source.data) !== null,
@@ -628,7 +652,7 @@ function WallStageWidget({
     );
     // `onSelect` is a fresh closure each render; the drag only needs the id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetId, type, disabled]);
+  }, [widgetId, type, disabled, metricInteractive, chrome]);
 
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -650,9 +674,9 @@ function WallStageWidget({
   return (
     <div
       ref={ref}
-      role="button"
+      role={metricInteractive ? "group" : "button"}
       tabIndex={0}
-      aria-pressed={selected}
+      aria-pressed={metricInteractive ? undefined : selected}
       aria-label={position ?? spec.label}
       aria-keyshortcuts={onMove ? "Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight" : undefined}
       data-wall-edit-widget={widgetId}
@@ -669,14 +693,16 @@ function WallStageWidget({
       onKeyDown={keys}
       className={cn(
         "relative min-h-0 min-w-0 outline-none ring-inset transition-shadow duration-700",
-        disabled ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+        // Empty sections still need room for the counter-scaled section grip.
+        metricInteractive && "min-h-[calc(var(--spacing)*9*var(--wall-chrome-scale,1))]",
+        !metricInteractive && (disabled ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"),
         "ring-1 ring-border/60 hover:ring-foreground/50 focus-visible:ring-4 focus-visible:ring-ring",
         selected && "ring-4 ring-primary",
         flash && "ring-8 ring-primary/70 duration-0",
         lifted && "opacity-40",
       )}
     >
-      <div className="pointer-events-none h-full" data-wall-widget-content aria-hidden>
+      <div className={cn("h-full", !metricInteractive && "pointer-events-none")} data-wall-widget-content aria-hidden={metricInteractive ? undefined : true}>
         {node}
       </div>
       {small ? (
@@ -703,7 +729,8 @@ function WallStageWidget({
           data-wall-edit-chrome
         >
           <span
-            className="grid size-9 place-items-center text-muted-foreground"
+            ref={gripRef}
+            className="grid size-9 cursor-grab place-items-center text-muted-foreground active:cursor-grabbing"
             aria-hidden
             title={disabled ? undefined : `Drag to move ${spec.label}`}
           >

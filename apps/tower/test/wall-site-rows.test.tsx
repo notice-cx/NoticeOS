@@ -39,8 +39,36 @@ function draw(
 const row = (container: HTMLElement, id: string) => container.querySelector(`[data-site-row="${id}"]`)!;
 
 describe("the asset rows", () => {
+  it("places today's exact daily total before its pace and appends the reference day's daily total", () => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    asset.activeUsers.series = [{ t: "2026-09-15", v: 123 }, { t: "2026-09-22", v: 456 }];
+    const realtime = wallFixtureRealtime();
+    realtime.assets = realtime.assets.map(snapshot => snapshot.status === "success" ? { ...snapshot, timeZone: "America/Los_Angeles" } : snapshot);
+    const site = row(draw([asset], { realtime }), asset.id);
+    const total = site.querySelector<HTMLElement>('[data-site-today-total]')!;
+    expect(total).toHaveTextContent("456");
+    expect(total).toHaveAccessibleName("456 daily active users today so far");
+    const tile = total.closest(".wall-metric")!;
+    expect(tile.querySelector(".wall-metric-context")).toHaveTextContent("vs last Tue 123");
+    expect(tile.querySelector(".wall-metric-main")?.firstElementChild).toContainElement(total);
+    expect(tile.querySelector(".wall-metric-secondary [data-site-today]")).not.toBeNull();
+  });
+  it("retains provider-day totals but suppresses a pace and chart whose calendar date differs", () => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    asset.activeUsers.timeZone = "Pacific/Auckland";
+    asset.activeUsers.series = [{ t: "2026-09-16", v: 11 }, { t: "2026-09-23", v: 22 }];
+    const realtime = wallFixtureRealtime();
+    realtime.assets = realtime.assets.map(snapshot => snapshot.status === "success" ? { ...snapshot, timeZone: "America/Los_Angeles" } : snapshot);
+    const site = row(draw([asset], { realtime }), asset.id);
+    expect(site.querySelector('[data-site-today-total]')).toHaveTextContent("22");
+    expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("vs last Wed 11");
+    expect(site.querySelector('[data-site-today]')).toHaveTextContent("Comparison unavailable");
+    expect(site.querySelector('[data-site-today-chart] svg')).toBeNull();
+  });
   it("labels each asset's comparison weekday in its own reporting timezone", () => {
-    const assets = wallFixturePayload().assets.slice(0, 2);
+    const assets = structuredClone(wallFixturePayload().assets.slice(0, 2));
+    assets[0]!.activeUsers.timeZone = "America/Los_Angeles";
+    assets[1]!.activeUsers.timeZone = "Pacific/Auckland";
     const realtime = wallFixtureRealtime();
     realtime.assets = realtime.assets.filter(snapshot => assets.some(asset => asset.id === snapshot.asset)).map((snapshot, index) => snapshot.status === "success"
       ? { ...snapshot, timeZone: index === 0 ? "America/Los_Angeles" : "Pacific/Auckland", observedAt: WALL_FIXTURE_NOW, hourlyObservedAt: WALL_FIXTURE_NOW }
@@ -330,17 +358,17 @@ describe("any number of assets", () => {
 });
 
 describe("saved asset traffic without a current-day reading", () => {
-  it.each(["absent", "failed", "previous-day"])("shows dated GA4 history when hourly observations are %s", mode => {
+  it.each(["absent", "failed", "previous-day"])("keeps Today unknown rather than relabeling stale daily history when hourly observations are %s", mode => {
     const assets = structuredClone(wallFixturePayload().assets);
     const asset = assets.find(site => site.id === "mosaic.example")!;
-    asset.activeUsers = { series: [{ t: "2026-09-18", v: 17 }, { t: "2026-09-20", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-21T06:00:00Z", timeZoneChanges: [] };
+    asset.activeUsers = { series: [{ t: "2026-09-18", v: 17 }, { t: "2026-09-20", v: 0 }, { t: "2026-09-21", v: 50 }], provisionalFrom: "2026-09-21", collectedAt: "2026-09-21T06:00:00Z", timeZoneChanges: [] };
     const realtime = mode === "failed" ? failedFor(asset.id) : wallFixtureRealtime();
     const changed = { ...realtime, assets: mode === "absent" ? realtime.assets.filter(one => one.asset !== asset.id) : realtime.assets.map(one => one.asset === asset.id && one.status === "success" ? { ...one, hourlyObservedAt: "2026-09-21T12:00:00Z" } : one) };
     const container = draw(assets, { realtime: changed });
     const site = row(container, asset.id), history = site.querySelector('[data-site-today]')!.closest('.wall-metric')!;
-    expect(history.querySelector('h3')?.textContent).toBe('Latest daySep 20');
-    expect(history.querySelector('.wall-metric-comparison')?.textContent).toBe('0');
-    expect(history.textContent).toContain('people');
+    expect(history.querySelector('h3')?.textContent).toContain('Today');
+    expect(history.querySelector('[data-site-today-total]')?.textContent).toBe('—');
+    expect(history.querySelector('[data-site-today-total]')).toHaveAccessibleName('Daily active users today unavailable');
     expect(site.querySelector('[data-today]')).toBeNull();
     if (mode !== "previous-day") expect(site.querySelector('[data-live] [aria-label="Unavailable"]')?.textContent).toBe("—");
     expect(row(container, "plume.example").querySelector('[data-today]')).not.toBeNull();
@@ -383,7 +411,7 @@ describe("fixed portfolio metrics", () => {
       const site = row(container, asset.id);
       expect(site.querySelector('[data-site-label]')?.textContent).toBe(asset.displayName);
       expect(site.querySelector('[data-site-name] [data-site-health]')).not.toBeNull();
-      expect([...site.querySelectorAll('h3')].map(el => el.querySelector('span')?.textContent)).toEqual(['Momentum', 'Latest day', '4 weeks', 'Work', 'Product counts']);
+      expect([...site.querySelectorAll('h3')].map(el => el.querySelector('span')?.textContent)).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
       expect(site.lastElementChild).toHaveClass('wall-product-counts');
       for (const heading of site.querySelectorAll('h3')) expect(heading.querySelector('svg')).not.toBeNull();
     }

@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { render } from "./render";
 import { CumulativeCompareMetric, MetricComparisonChart, MomentumMetric, MultiMetric, NumberMetric, SparklineCompareMetric } from "@/components/wall/MetricWidgets";
+import { WallMetricBinding } from "@/components/wall/WallMetricEditing";
 
 describe("Wall metric widgets", () => {
+  it("retains the explicit primary count and separate pace when a comparison changes to Number", () => {
+    const view = render(<WallMetricBinding tile={{ id: "today", source: "today", display: "number", size: "standard" }} configured><SparklineCompareMetric title="Today" primary={{ value: 0 }} secondary="12% ahead" referenceFact={{ label: "vs last Fri", value: 42 }} value="12%" /></WallMetricBinding>);
+    expect(view.container.querySelector(".wall-metric-value")).toHaveTextContent(/^0$/);
+    expect(view.container.querySelector(".wall-metric-note")).toHaveTextContent("12% ahead");
+    expect(view.container.querySelector(".wall-metric-context")).toHaveTextContent("vs last Fri 42");
+    view.rerender(<WallMetricBinding tile={{ id: "today", source: "today", display: "number", size: "standard" }} configured><SparklineCompareMetric title="Today" primary={{ value: null }} secondary="12% ahead" value="12%" /></WallMetricBinding>);
+    expect(view.container.querySelector(".wall-metric-value [aria-label='Unavailable']")).not.toBeNull();
+  });
   it("labels a primary count and its breakdown while keeping zero distinct from unavailable", () => {
     const view = render(<MultiMetric title="Work" primary={{ label: "Closed", value: 0, tone: "positive" }} metrics={[{ label: "Open", value: 12 }, { label: "Blocked", value: null }]} />);
     const primary = view.container.querySelector(".wall-metric-primary")!;
@@ -34,6 +43,29 @@ describe("Wall metric widgets", () => {
     const { container } = render(<NumberMetric title="Tasks" value={3} qualifier="At least" />);
     expect(container.querySelector(".wall-metric-qualifier")).toHaveTextContent("At least");
     expect(container.querySelector(".wall-metric-value")).toHaveTextContent(/^3$/);
+  });
+
+  it("shares daily cumulative bars at both heights, with real zeros, missing days, forecast distinction and the prior-period rule", () => {
+    const props = { title: "Revenue", value: 12, chartProps: { current: [{ t: "2026-10-19", v: 0 }, { t: "2026-10-20", v: null }, { t: "2026-10-21", v: 12 }], forecast: [{ t: "2026-10-21", v: 12 }, { t: "2026-10-22", v: 15 }], previousTotal: { value: 18, label: "Last month total" }, domain: { start: "2026-10-19", end: "2026-10-25" }, startLabel: "Mon", endLabel: "Sun" } };
+    const view = render(<CumulativeCompareMetric {...props} />);
+    const verify = () => {
+      expect(view.container.querySelectorAll('[data-metric-cumulative-bar="current"]')).toHaveLength(2);
+      expect(view.container.querySelectorAll('[data-metric-cumulative-bar="forecast"]')).toHaveLength(1);
+      expect(view.container.querySelector('[data-metric-cumulative-bar][data-date="2026-10-19"]')).toHaveAttribute("data-value", "0");
+      expect(view.container.querySelector('[data-metric-cumulative-bar][data-date="2026-10-21"]')).toHaveAttribute("data-value", "12");
+      expect(view.container.querySelector('[data-metric-cumulative-bar][data-date="2026-10-20"]')).toBeNull();
+      expect(view.container.querySelectorAll('[data-metric-cumulative-day="missing"]')).toHaveLength(4);
+      expect(view.container.querySelector('[data-metric-previous-total] title')).toHaveTextContent("Last month total: 18");
+      expect(view.container.querySelector('[role="img"]')).toHaveAccessibleName(/total reached by each day.*Filled: observed.*Outlined: forecast.*Missing days have no bar/);
+      expect(view.container.querySelector('[data-chart-line="solid"]')).toBeNull();
+      const actual = view.container.querySelector('[data-metric-cumulative-bar][data-date="2026-10-21"]')!;
+      const lastSlot = 4 + 6.5 * 192 / 7;
+      expect(Number(actual.getAttribute("x"))).toBeLessThan(lastSlot);
+      expect(view.container.querySelector(".wall-metric-axis")).toHaveTextContent("MonSun");
+    };
+    verify();
+    view.rerender(<CumulativeCompareMetric {...props} expanded />);
+    verify();
   });
 
   it("shows isolated observations without joining a missing interval", () => {

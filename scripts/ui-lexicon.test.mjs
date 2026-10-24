@@ -87,9 +87,8 @@ const BANNED = [
   { pattern: /\bpollers?\b/gi, word: 'the OS' },
   { pattern: /\bknobs?\b/gi, word: 'setting' },
   { pattern: /\b(?:the|a|this) registers?\b/gi, word: 'the catalog' },
-  // `tile` names a shape rather than a thing and appears nowhere else in the
-  // product; every dashboard the operator has ever used calls that box a
-  // WIDGET.
+  // Wall metric tiles have a distinct meaning from whole sections. Their
+  // exact editor phrases are allowed below; elsewhere the term is widget.
   { pattern: /\btiles?\b/gi, word: 'widget' },
   // The other half of rule 1: a SYNONYM for a word doc 14 has already mapped is
   // the same failure as a coinage. `sense_only` renders as exactly one pair,
@@ -99,8 +98,8 @@ const BANNED = [
 ];
 
 /**
- * Exact strings that may contain a banned word and are NOT desk copy. Five
- * kinds, and nothing else belongs here; the television says Tasks like every
+ * Exact strings that may contain a banned word. Six kinds belong here;
+ * the television says Tasks like every
  * other surface, so *bead* fails everywhere.
  */
 const ALLOWED_PHRASES = [
@@ -120,6 +119,7 @@ const ALLOWED_PHRASES = [
   '"asset-lane"', // ditto — the per-asset data-source register the write lane validates against
   'POST /api/pulse', // the endpoint an asset posts its nightly report to
   'dataforseo_incomplete', // a collector error code, shown as the code it is
+  '--focus-tile-count', // the focused Wall row's CSS track count
   // 3. SQL. A `lanes(…)` CTE is the store's own name.
   'lanes(integration)',
   'lanes.integration',
@@ -148,6 +148,17 @@ const ALLOWED_PHRASES = [
   //    Copy button, which is the labelling doc 14 asks for; it is not inline
   //    prose, so the inline-markup rule below cannot see it.
   'bd init --server',
+  // 6. WALL METRIC TILES: individual figures/charts within whole sections,
+  //    a separate editable object defined in doc 14's Lexicon.
+  'Row tiles',
+  'Remove tile',
+  'Add tile',
+  'Available tiles',
+  'Edit tiles',
+  'Select a tile in the preview to edit it.',
+  'Select a tile to edit. Drag a section by its grip to move it.',
+  'The same tiles appear on the Wall.',
+  'Drag tiles to reorder, or use Move left and Move right.',
 ];
 
 /**

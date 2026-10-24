@@ -661,9 +661,22 @@ size at which a neighbour stays legible; a widget drawn below that size shows
 "Too narrow" instead of a broken chart. A column left with one widget is
 replaced by that widget and an empty row is removed, so the layout never holds
 a container nobody can see. Each change, including one drag of a handle, is
-reversed by one Undo. The side panel holds only the selected widget's
-settings, the Add drawer or the versions: no panel of controls repeats the
-arrangement the preview already shows.
+reversed by one Undo. Selecting a metric tile opens its settings below the
+full preview. On desktop the preview reserves room for the selected tile
+settings within the window. "Focus on row" displays that row at a larger size with its
+settings beside it; "Back to Wall" restores the full preview and retains the
+selection. Portfolio settings apply to every asset row, with each asset
+retaining its own readings. Identity stays first and Product counts stays
+last. Move left and Move right provide keyboard-accessible ordering.
+
+The tile panel offers only compatible metrics and display forms. It controls
+the title, named width, icon and supported reference and axis marks. Add tile
+lists metrics available in that section; product counts come from reported
+metric names. Row settings retain the existing section controls. Undo, Redo,
+Save and Versions apply to both tile and section changes. "Use full Wall
+layout" replaces the draft arrangement with the full composition; it takes
+effect only after Save. Existing saved arrangements remain unchanged until
+that action is selected and saved.
 
 One chart style is used for every small chart on the TV and the sparklines on
 the Tower's pages: a monotone line with round caps, an area fill that fades
@@ -689,18 +702,30 @@ comparison, supporting figures and chart. Its configuration supplies labels,
 values, notes, reference totals and series. Revenue and task counts use this
 same structure at expanded and standard heights.
 
-Each asset uses the same fixed-height grouped row at every asset count:
+Each asset uses the same metric forms at every asset count. The full-width
+Portfolio keeps four asset rows visible at 1920×1080, with 156 px metric
+heights. A saved narrow column wraps the metrics and scrolls the asset list;
+changing display density does not enlarge its CSS viewport. Default rows show:
 Identity, Momentum, Today, 4 weeks, Work, and Product counts when selected
 counts exist. Momentum pairs the count with recent bars; the latest window
 is highlighted. Missing readings remain unavailable and observed zeros stay
 zero. Comparison charts preserve gaps and show their first and last dates.
 
+Today shows the reported distinct active-user count for today's date as its
+main figure, or a dash when that daily count is unavailable. Its reference
+figure is the reported daily count for the same weekday last week. The
+separate pace percentage and hourly chart compare matching observed minutes;
+minute activity is never added into daily unique users.
+
 Revenue uses the expanded cumulative comparison: facts on the left and the
-month chart on the right. Last month's total is a horizontal reference;
-the future forecast uses a distinct dashed line. Work this week uses the
-standard cumulative comparison for Done this week, after counts for
-operator decisions, work in progress and blocked tasks. History contains
-observed readings only; two available snapshots remain two points. The
+month chart on the right. Each daily bar shows the cumulative total reached
+by that date, rather than that day's increment. Filled bars are observed;
+outlined bars are projected. Last month's total is a dashed horizontal
+reference. Work this week uses the standard cumulative comparison for Done
+this week, after counts for operator decisions, work in progress and blocked
+tasks. Its daily bars show observed cumulative totals; missing dates have no
+bar. History contains observed readings only; two available snapshots remain
+two observations. The
 weekly chart retains the full Monday-to-Sunday date domain even when the
 latest observation is earlier. Project bars remain on the Tower's work
 pages.
@@ -812,6 +837,13 @@ own GA4 and Search Console objects that the Data sources tab has to name. One
 concept has one word everywhere; an alert's text states what happened and
 which direction is good, in the verb, with the statistics behind the evidence
 icon; a missing value is shown as a word, not a dash.
+
+In the Wall editor, a **tile** is one metric figure or chart inside a
+**section**, such as Portfolio, Work or Revenue. Tile controls change that
+metric's source, display, title, width and supported details. Section controls
+change the whole section's placement, size and asset filter. The widget
+library lists whole sections. Outside this Wall editing context, the existing
+term **widget** remains in use.
 
 Every word also has a level: business, operational or technical. *Business*
 surfaces — Home, Portfolio, Money, an asset's Overview, the TV — use words about

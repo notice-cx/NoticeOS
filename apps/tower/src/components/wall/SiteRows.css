@@ -25,6 +25,13 @@
 .wall-portfolio-mark { display: flex; align-items: center; gap: 0.75rem; }
 .wall-portfolio-row > .wall-metric, .wall-portfolio-row > [data-live], .wall-portfolio-row > [data-site-work] { flex: 0 0 var(--portfolio-tile); width: var(--portfolio-tile); min-width: 0; }
 .wall-portfolio-row :is([data-live], [data-site-work]) > .wall-metric { width: 100%; }
+.wall-portfolio-row[data-metrics-configured] { position: relative; display: grid; grid-template-columns: var(--portfolio-identity) var(--wall-metric-tracks); width: 100%; background: transparent; border-color: transparent; }
+/* All rows share tracks; the row's visible background ends at its last tile. */
+.wall-portfolio-row[data-metrics-configured]::before { content: ""; position: absolute; top: -1px; bottom: -1px; left: -1px; box-sizing: border-box; width: calc(2px + .75rem + var(--portfolio-identity) + var(--wall-metric-tail-gaps) * var(--portfolio-gap) + (100% - .75rem - var(--portfolio-identity) - var(--wall-metric-template-gaps) * var(--portfolio-gap)) * var(--wall-metric-tail-share)); border: 1px solid var(--portfolio-edge); border-radius: inherit; background: var(--portfolio-surface); pointer-events: none; }
+.wall-portfolio-row[data-metrics-configured] > * { position: relative; }
+.wall-portfolio-row[data-metrics-configured] > .wall-portfolio-identity { grid-column: auto; flex-direction: column; align-items: flex-start; }
+.wall-portfolio-row[data-metrics-configured] > [data-wall-metric-cell] { min-width: 0; }
+.wall-portfolio-row[data-metrics-configured] [data-wall-metric-cell] > :is(.wall-metric, [data-live], [data-site-work]) { width: 100%; }
 .wall-site-chart { flex: 1; position: relative; min-height: 1.75rem; width: 100%; }
 .wall-site-chart:not([data-tone]) { color: var(--traffic); }
 .wall-site-chart svg { overflow: visible; }

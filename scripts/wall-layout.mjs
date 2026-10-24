@@ -79,6 +79,41 @@ export const RETIRED_WALL_WIDGET_TYPES = [
     'meetings',
     'assets',
 ];
+function metricSpec(source, label, displays, reference = false, axes = false) {
+    return { source, label, displays, defaultDisplay: displays[0], defaultSize: source === 'revenue' || source === 'done' ? 'wide' : 'standard', sizes: source === 'revenue' ? ['standard', 'wide'] : ['narrow', 'standard', 'wide'], reference, axes, icon: true };
+}
+const METRIC_SPECS = {
+    momentum: metricSpec('momentum', 'Live users', ['momentum', 'number'], false, true),
+    today: metricSpec('today', 'Today', ['compare', 'number'], true, true),
+    'four-weeks': metricSpec('four-weeks', '4 weeks', ['compare', 'number'], true, true),
+    'asset-work': metricSpec('asset-work', 'Work', ['multi', 'number']),
+    'product-counts': metricSpec('product-counts', 'Product counts', ['multi']),
+    'product-count': metricSpec('product-count', 'Product count', ['number']),
+    decisions: metricSpec('decisions', 'Your decisions', ['number']),
+    'in-progress': metricSpec('in-progress', 'In progress', ['number']),
+    blocked: metricSpec('blocked', 'Blocked', ['number']),
+    done: metricSpec('done', 'Done this week', ['cumulative', 'number'], true, true),
+    revenue: metricSpec('revenue', 'Revenue', ['cumulative', 'number'], true, true),
+};
+export function wallMetricSpec(source) { return METRIC_SPECS[source]; }
+export function wallMetricSources(type) {
+    if (type === 'sites')
+        return ['momentum', 'today', 'four-weeks', 'asset-work', 'product-count', 'product-counts'];
+    if (type === 'work')
+        return ['decisions', 'in-progress', 'blocked', 'done'];
+    if (type === 'revenue')
+        return ['revenue'];
+    return [];
+}
+/** Missing templates keep existing layouts unchanged until the first tile edit. */
+export function wallMetricTiles(widget) {
+    if (widget.settings?.metrics !== undefined)
+        return widget.settings.metrics.map((tile) => ({ ...tile }));
+    return wallMetricSources(widget.type).filter((source) => source !== 'product-count').map((source) => {
+        const spec = wallMetricSpec(source);
+        return { id: source, source, display: spec.defaultDisplay, size: spec.defaultSize };
+    });
+}
 export const WALL_WIDGET_LIBRARY = {
     // The one top line. Its countdown is the one at `/countdown`, so the editor
     // shows that form for it.
@@ -122,7 +157,7 @@ export const WALL_WIDGET_LIBRARY = {
         prefersFill: false,
         stackOrder: 2,
         hidesWhenEmpty: false,
-        settings: [],
+        settings: ['metrics'],
     },
     // Every open problem as a bar from its onset to now, and what happened as
     // marks, on one 24-hour axis: the Wall's account of what is broken.
@@ -150,7 +185,7 @@ export const WALL_WIDGET_LIBRARY = {
         prefersFill: false,
         stackOrder: 7,
         hidesWhenEmpty: false,
-        settings: ['assets'],
+        settings: ['assets', 'metrics'],
     },
     needs: {
         type: 'needs',
@@ -176,7 +211,7 @@ export const WALL_WIDGET_LIBRARY = {
         prefersFill: true,
         stackOrder: 3,
         hidesWhenEmpty: false,
-        settings: ['assets', 'pulseMetrics'],
+        settings: ['assets', 'pulseMetrics', 'metrics'],
     },
     // The live feed: what just happened, newest on top, from its own 30-second
     // read. Never hides — an empty window says so. Its track is its share of
@@ -634,6 +669,45 @@ function checkWidget(rawWidget, where, ids) {
                 assetIds.push(id);
             }
             settings = { assets: assetIds };
+        }
+        if (rawWidget.settings.metrics !== undefined) {
+            const raw = rawWidget.settings.metrics;
+            if (!Array.isArray(raw) || raw.length > 8)
+                return { ok: false, reason: 'Choose at most eight metric tiles.' };
+            if (spec.type === 'revenue' && raw.length !== 1)
+                return { ok: false, reason: 'Revenue needs one metric tile.' };
+            const metrics = [];
+            const tileIds = new Set();
+            const sources = new Set();
+            for (const tile of raw) {
+                if (!isRecord(tile) || typeof tile.id !== 'string' || !ID_RE.test(tile.id) || tileIds.has(tile.id))
+                    return { ok: false, reason: 'Metric tiles need distinct valid ids.' };
+                const source = tile.source;
+                if (!wallMetricSources(spec.type).includes(source))
+                    return { ok: false, reason: 'Choose a metric supported by this section.' };
+                const metric = wallMetricSpec(source);
+                if (!metric.displays.includes(tile.display) || !metric.sizes.includes(tile.size) || (tile.display === 'cumulative' && (tile.size === 'narrow' || (source === 'revenue' && tile.size !== 'wide'))))
+                    return { ok: false, reason: 'Choose a supported metric display and size.' };
+                if (Object.keys(tile).some((key) => !['id', 'source', 'display', 'size', 'title', 'icon', 'reference', 'axes', 'metricKey'].includes(key)))
+                    return { ok: false, reason: 'Metric tile has an unknown setting.' };
+                if (tile.title !== undefined && (typeof tile.title !== 'string' || tile.title.length > 80))
+                    return { ok: false, reason: 'Metric titles must contain at most eighty characters.' };
+                for (const key of ['icon', 'reference', 'axes']) {
+                    if (tile[key] !== undefined && (typeof tile[key] !== 'boolean' || (tile[key] === true && !metric[key])))
+                        return { ok: false, reason: 'Choose supported metric details.' };
+                }
+                if (source === 'product-count' ? typeof tile.metricKey !== 'string' || !tile.metricKey.trim() : tile.metricKey !== undefined)
+                    return { ok: false, reason: 'Choose a product count by its metric name.' };
+                const identity = source === 'product-count' ? `${source}:${tile.metricKey}` : source;
+                if (sources.has(identity))
+                    return { ok: false, reason: 'A metric can appear only once in a section.' };
+                if (metrics.some((entry) => entry.source === 'product-counts'))
+                    return { ok: false, reason: 'Product counts must be the last tile.' };
+                sources.add(identity);
+                tileIds.add(tile.id);
+                metrics.push({ ...tile });
+            }
+            settings = { ...settings, metrics };
         }
         if (rawWidget.settings.pulseMetrics !== undefined) {
             const raw = rawWidget.settings.pulseMetrics;

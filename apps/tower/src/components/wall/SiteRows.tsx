@@ -1,25 +1,28 @@
 import type { Ga4RealtimeAsset, Ga4RealtimePayload, Ga4RealtimeDay } from "@noticeos/contract";
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import { ChartNoAxesCombined, Globe, Layers, ListTodo, TrendingUp } from "lucide-react";
 import type { AssetCard } from "@shared/wall";
+import { wallMetricTiles, type WallWidget, type WallMetricTile } from "@shared/wall-layout";
 import { CADENCE_HOURS } from "@shared/wall";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
 import { ageMs, isAmber } from "@shared/freshness";
 import { currentRealtimeDay, realtimeActivity } from "@/lib/realtime-day";
 import { clockHourNow, intradayUsersPace, paceWindowLabel, type IntradayUsersPace } from "@/lib/intraday-pace";
+import { todayUserCounts } from "@/lib/wall-today";
 import { DeltaChip, paceDirectionLabel, paceTone, performanceToneClass } from "@/components/DeltaChip";
 import { AgeBadge } from "@/components/AgeBadge";
 import { visiblePulseCounters, type WallPulseMetrics } from "@/lib/wall-counters";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ChartArea, ChartDot, ChartLine } from "@/components/surface/ChartMarks";
 import { LiveUsers } from "@/components/wall/LiveUsers";
-import { MultiMetric, SparklineCompareMetric } from "@/components/wall/MetricWidgets";
+import { MultiMetric, NumberMetric, SparklineCompareMetric } from "@/components/wall/MetricWidgets";
+import { WallMetricBinding, useWallMetricBinding } from "./WallMetricEditing";
 import { readingRuns, type ChartPoint } from "@/lib/chart-path";
 import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { siteHealth } from "@/lib/site-health";
 import { siteMark, type SiteMark, type WallIssue } from "@/lib/wall-issues";
-import { currentHourlyReading, latestFinishedUsers, fourWeeks, type FourWeeks, type HourlyActiveUsers } from "@/lib/wall-sites";
+import { currentHourlyReading, fourWeeks, type FourWeeks, type HourlyActiveUsers } from "@/lib/wall-sites";
 import "./SiteRows.css";
 
 export interface SiteRowsProps {
@@ -31,9 +34,13 @@ export interface SiteRowsProps {
   nowMs: number;
   /** Work visibility is separate from an asset's TV visibility. */
   workAssets?: ReadonlySet<string>;
+  widget?: WallWidget;
 }
 
-export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4RealtimeError = false, nowMs, workAssets }: SiteRowsProps) {
+export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4RealtimeError = false, nowMs, workAssets, widget }: SiteRowsProps) {
+  const tiles = wallMetricTiles(widget ?? { id: "sites", type: "sites", width: 1 });
+  const configured = widget?.settings?.metrics !== undefined;
+  const ordered = [...tiles.filter(tile => tile.source !== "product-counts"), ...tiles.filter(tile => tile.source === "product-counts")];
   if (assets.length === 0) return <section aria-label="Portfolio" className="flex items-center gap-3 text-wall-body text-muted-foreground" data-wall-sites="none"><Globe aria-hidden />No assets yet</section>;
   return <section aria-label="Portfolio" className="wall-portfolio" data-wall-sites>
     <header className="wall-portfolio-header"><h2 className="wall-portfolio-heading">Portfolio</h2><div className="wall-portfolio-legend" aria-label="Chart legend"><span><i aria-hidden />Current</span><span><i aria-hidden />Reference period</span></div></header>
@@ -41,17 +48,38 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
       {assets.map(asset => {
         const snapshot = ga4Realtime?.assets.find(reading => reading.asset === asset.id);
         const hasData = asset.pulseReceivedAt !== null || asset.activeUsers.series.length > 0 || snapshot?.status === "success" || asset.counters?.cards.some(card => card.value !== null) === true;
-        return <section key={asset.id} className="wall-portfolio-row" aria-label={asset.displayName} data-site-row={asset.id}>
+        const renderTile = (tile: WallMetricTile) => {
+          switch (tile.source) {
+            case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} metric />;
+            case "today": return <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} />;
+            case "four-weeks": return <TrendMetric asset={asset} />;
+            case "asset-work": return !workAssets || workAssets.has(asset.id) ? <AssetWork asset={asset} nowMs={nowMs} /> : null;
+            case "product-counts": return <ProductCounts asset={asset} choices={pulseMetrics} nowMs={nowMs} />;
+            case "product-count": {
+              const card = asset.counters?.cards.find(card => card.metric === tile.metricKey);
+              if (!card) return null;
+              const cadence = card.source === "nightly" ? CADENCE_HOURS.pulse : asset.counters!.cadenceHours;
+              return <NumberMetric title={card.label} icon={Layers} value={card.value === null ? null : <span data-site-total={card.metric}>{formatInt(card.value)}</span>} note={isAmber(nowMs, card.observedAt, cadence) || ageMs(nowMs, card.observedAt) === null ? <AgeBadge iso={card.observedAt} cadenceHours={cadence} nowMs={nowMs} /> : undefined} />;
+            }
+            default: return null;
+          }
+        };
+        const weight = (tile: WallMetricTile) => tile.size === "narrow" ? .65 : tile.size === "wide" ? 1.8 : 1;
+        const lastVisible = ordered.findLastIndex(tile => tile.source === "product-counts" ? visiblePulseCounters(asset, pulseMetrics).length > 0 : tile.source === "product-count" ? asset.counters?.cards.some(card => card.metric === tile.metricKey) : tile.source === "asset-work" ? !workAssets || workAssets.has(asset.id) : true);
+        const visibleWeight = ordered.slice(0, lastVisible + 1).reduce((sum, tile) => sum + weight(tile), 0);
+        const totalWeight = ordered.reduce((sum, tile) => sum + weight(tile), 0);
+        return <section key={asset.id} className="wall-portfolio-row" aria-label={asset.displayName} data-site-row={asset.id} data-metrics-configured={configured || undefined} style={configured ? {
+          "--wall-metric-tracks": ordered.map(tile => `minmax(0, ${weight(tile)}fr)`).join(" "),
+          "--wall-metric-tail-share": totalWeight ? visibleWeight / totalWeight : 0,
+          "--wall-metric-tail-gaps": lastVisible + 1,
+          "--wall-metric-template-gaps": ordered.length,
+        } as CSSProperties : undefined}>
           <div className="wall-portfolio-identity" data-site-name>
             <div className="wall-portfolio-mark"><PropertyFavicon domain={asset.id} icons={asset.icons} scheme="dark" displayName={asset.displayName} className="size-8 shrink-0" /><SiteHealth asset={asset} mark={siteMark(issues, asset.id)} site={asset.id} /></div>
             <span className="wall-portfolio-name" data-site-label>{asset.displayName}</span>
             {!hasData ? <span className="text-wall-micro text-muted-foreground" data-site-waiting>No data yet</span> : null}
           </div>
-          <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} metric />
-          <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} lastWeekday={lastWeekdayLabel(snapshot, nowMs)} />
-          <TrendMetric asset={asset} />
-          {!workAssets || workAssets.has(asset.id) ? <AssetWork asset={asset} nowMs={nowMs} /> : null}
-          <ProductCounts asset={asset} choices={pulseMetrics} nowMs={nowMs} />
+          {ordered.map(tile => <WallMetricBinding key={tile.id} tile={tile} assetId={asset.id} configured={configured}>{configured ? <div data-wall-metric-cell>{renderTile(tile)}</div> : renderTile(tile)}</WallMetricBinding>)}
         </section>;
       })}
     </div>
@@ -84,36 +112,42 @@ function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
   /></div>;
 }
 
-function TodayMetric({ asset, snapshot, nowMs, lastWeekday }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number; lastWeekday: string }) {
-  const retained = currentRealtimeDay(snapshot, nowMs);
-  const current = currentHourlyReading(snapshot, nowMs);
+function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number }) {
+  const { binding } = useWallMetricBinding();
+  const reference = !binding?.configured || binding.tile.reference !== false;
+  const daily = todayUserCounts(asset, snapshot, nowMs);
+  const retained = daily.activityDateMatches ? currentRealtimeDay(snapshot, nowMs) : null;
+  const current = daily.activityDateMatches ? currentHourlyReading(snapshot, nowMs) : null;
   const pace = intradayUsersPace(asset, current ?? undefined);
   const hourly = current?.status === "success" ? current.hourlyActiveUsers : null;
   const nowHour = current?.status === "success" ? clockHourNow(nowMs, current.timeZone) : null;
-  const saved = !retained && !hourly ? latestFinishedUsers(asset.activeUsers) : null;
-  return <SparklineCompareMetric title={saved ? "Latest day" : "Today"} icon={TrendingUp} context={saved ? formatSeriesDate(saved.t) : `vs ${lastWeekday}`} value={
+  return <SparklineCompareMetric title="Today" icon={TrendingUp}
+    primary={{ value: <span data-site-today-total title="Distinct active users today so far" aria-label={daily.today === null ? "Daily active users today unavailable" : `${formatInt(daily.today)} daily active users today so far`}>{daily.today === null ? <span aria-label="Unavailable">—</span> : formatInt(daily.today)}</span> }}
+    referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`Daily active users on ${daily.referenceDate}`}>{formatInt(daily.reference)}</span> }}
+    secondary={
     <span data-site-today>
-      {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : saved ? formatInt(saved.v) : <span className="wall-metric-note">Comparison unavailable</span>}
+      {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : <span className="wall-metric-note">Comparison unavailable</span>}
     </span>} chart={<>
     <div className={cn("wall-site-chart", !retained && performanceToneClass(pace?.paceChange == null ? "neutral" : paceTone(pace.paceChange)))} data-site-today-chart data-tone={retained ? undefined : pace?.paceChange == null ? "neutral" : paceTone(pace.paceChange)}>
-      {retained ? <RealtimeTodayChart day={retained} nowMs={nowMs} weight="row" /> : hourly ? <TodayVsLastWeek hourly={hourly} weight="row" nowHour={nowHour} /> : null}
+      {retained ? <RealtimeTodayChart day={retained} nowMs={nowMs} weight="row" reference={reference} /> : hourly ? <TodayVsLastWeek hourly={hourly} weight="row" nowHour={nowHour} reference={reference} /> : null}
     </div>
-    <div className="wall-site-axis">{saved ? <><span>people</span><AgeBadge iso={asset.activeUsers.collectedAt} cadenceHours={CADENCE_HOURS.signals} nowMs={nowMs} /></> : <><span>{retained ? "avg users/min" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</>}</div>
+    <div className="wall-site-axis"><span>{retained ? "avg users/min" : "active users"}</span>{pace && !retained ? <PaceWindow pace={pace} /> : <span>0–24h</span>}</div>
   </>} />;
 }
 
 function TrendMetric({ asset }: { asset: AssetCard }) {
+  const { binding } = useWallMetricBinding();
+  const reference = !binding?.configured || binding.tile.reference !== false;
   const weeks = fourWeeks(asset.activeUsers);
   const drawn = weeks && weeks.days.some(day => day.value !== null) ? weeks : null;
   return <SparklineCompareMetric title="4 weeks" icon={ChartNoAxesCombined} value={
     <span data-site-trend>{weeks?.change ? <span data-site-week><DeltaChip value={weeks.change.percent} render={value => `${formatPercent(value)}%`} tone={weeks.change.tone} meaning="Last 4 weeks vs the 4 before" /></span> : <span className="wall-metric-note">Comparison unavailable</span>}</span>} comparison={weeks?.change ? "vs prior 4 wk" : undefined} chart={<>
-    <div className="wall-site-chart" role="img" aria-label={`${asset.displayName} daily active users`} data-site-chart="row">{drawn ? <FourWeekLine weeks={drawn} weight="row" /> : <span className="wall-metric-note">History unavailable</span>}</div>
+    <div className="wall-site-chart" role="img" aria-label={`${asset.displayName} daily active users`} data-site-chart="row">{drawn ? <FourWeekLine weeks={drawn} weight="row" reference={reference} /> : <span className="wall-metric-note">History unavailable</span>}</div>
     {drawn ? <div className="wall-site-axis" data-site-weeks-axis><span>{formatSeriesDate(drawn.days[0]!.date)}</span><span>{formatSeriesDate(drawn.days.at(-1)!.date)}</span></div> : null}
   </>} />;
 }
 
-function lastWeekdayLabel(snapshot: Ga4RealtimeAsset | undefined, nowMs: number): string {
-  const zone = snapshot?.status === "success" ? snapshot.timeZone : null;
+function lastWeekdayLabel(zone: string | null, nowMs: number): string {
   if (!zone) return "last week";
   try {
     return `last ${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: zone }).format(new Date(nowMs))}`;
@@ -148,7 +182,7 @@ function PaceWindow({ pace, className }: { pace: IntradayUsersPace; className?: 
 
 
 
-function RealtimeTodayChart({ day, nowMs, weight }: { day: Ga4RealtimeDay; nowMs: number; weight: ChartWeight }) {
+function RealtimeTodayChart({ day, nowMs, weight, reference = true }: { day: Ga4RealtimeDay; nowMs: number; weight: ChartWeight; reference?: boolean }) {
   const style = WEIGHT[weight];
   const minute = Math.floor(nowMs / 60_000);
   const activity = useMemo(() => realtimeActivity(day, minute * 60_000), [day, minute]);
@@ -161,8 +195,8 @@ function RealtimeTodayChart({ day, nowMs, weight }: { day: Ga4RealtimeDay; nowMs
   const end = lastHour < 0 ? null : at(lastHour, todayValues[lastHour]!);
   return (
     <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" role="img"
-      aria-label={`Hourly average active users per minute today, ${day.timeZone}; missing hours are gaps; live activity is provisional${activity.hasPrior ? "; dashed line is the same weekday last week" : "; last week comparison pending"}`}>
-      {activity.hasPrior ? <ChartLine runs={runs(priorValues)} kind="ghost" width={style.ghost} data-realtime-prior /> : null}
+      aria-label={`Hourly average active users per minute today, ${day.timeZone}; missing hours are gaps; live activity is provisional${reference ? activity.hasPrior ? "; dashed line is the same weekday last week" : "; last week comparison pending" : ""}`}>
+      {reference && activity.hasPrior ? <ChartLine runs={runs(priorValues)} kind="ghost" width={style.ghost} data-realtime-prior /> : null}
       <g data-realtime-today><ChartLine runs={runs(todayValues)} width={style.line} /></g>
       {end ? <ChartDot at={end} size={style.dot} halo={false} /> : null}
     </svg>
@@ -210,7 +244,7 @@ function Floor() {
  * gap between them is the lag. A 1000×100 viewBox stretched to the caller's
  * box, with non-scaling strokes and round-stroke dots so nothing squashes.
  */
-function TodayVsLastWeek({ hourly, weight, nowHour }: { hourly: HourlyActiveUsers; weight: ChartWeight; nowHour: number | null }) {
+function TodayVsLastWeek({ hourly, weight, nowHour, reference = true }: { hourly: HourlyActiveUsers; weight: ChartWeight; nowHour: number | null; reference?: boolean }) {
   const style = WEIGHT[weight];
   const max = Math.max(1, ...hourly.map((point) => Math.max(point.sameDayLastWeek, point.today ?? 0)));
   // Zero on the floor; the busiest hour a little under the top, so a line at
@@ -229,7 +263,7 @@ function TodayVsLastWeek({ hourly, weight, nowHour }: { hourly: HourlyActiveUser
   return (
     <span className="relative block size-full">
       <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" role="img" aria-hidden>
-        <ChartLine runs={[lastWeek]} kind="ghost" width={style.ghost} data-last-week />
+        {reference ? <ChartLine runs={[lastWeek]} kind="ghost" width={style.ghost} data-last-week /> : null}
         <ChartArea runs={todayRuns} baseline={100} strength={0.38} fadeEnd={0.22} />
         <ChartLine runs={todayRuns} width={style.line} data-today />
         {end && now ? <ChartDot at={end} size="sm" data-data-end /> : null}
@@ -240,7 +274,7 @@ function TodayVsLastWeek({ hourly, weight, nowHour }: { hourly: HourlyActiveUser
   );
 }
 
-function FourWeekLine({ weeks, weight }: { weeks: FourWeeks; weight: ChartWeight }) {
+function FourWeekLine({ weeks, weight, reference = true }: { weeks: FourWeeks; weight: ChartWeight; reference?: boolean }) {
   const style = WEIGHT[weight];
   const values = weeks.days.flatMap((day) => [day.value, weeks.hasPrior ? day.prior : null]).filter((v): v is number => v !== null);
   const low = Math.min(...values);
@@ -255,7 +289,7 @@ function FourWeekLine({ weeks, weight }: { weeks: FourWeeks; weight: ChartWeight
   const last = now.at(-1)?.at(-1);
   return (
     <svg viewBox="0 0 1000 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
-      {weeks.hasPrior ? <ChartLine runs={prior} kind="ghost" width={style.ghost} data-prior-weeks /> : null}
+      {reference && weeks.hasPrior ? <ChartLine runs={prior} kind="ghost" width={style.ghost} data-prior-weeks /> : null}
       <ChartLine runs={now} width={style.line - 0.5} data-trend-line />
       {last ? <ChartDot at={last} size="md" halo={false} /> : null}
     </svg>

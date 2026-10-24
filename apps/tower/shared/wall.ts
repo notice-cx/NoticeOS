@@ -256,6 +256,8 @@ export interface CardDataSource {
 /** One provider-backed daily chart. Values come from the latest successful
  * snapshot; the matching CardDataSource carries current run health. */
 export interface SignalTrend {
+  /** Reporting timezone stored with the latest provider observation. */
+  timeZone?: string;
   /**
    * The days immediately before `series`, in the same grain. They supply
    * prior-week and rolling-average context for the first visible date, and

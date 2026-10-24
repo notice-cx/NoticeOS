@@ -25,7 +25,8 @@ function retained(): Ga4RealtimePayload {
 describe('the retained realtime day on the Wall', () => {
   it('shows minute activity instead of the delayed hourly chart, with gaps and no invented baseline or total', () => {
     const { container } = render(<SiteRows assets={wallFixturePayload().assets} issues={[]} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue');
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
+    expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
     expect(container.querySelector('[data-site-today-chart] [data-realtime-today]')).not.toBeNull();
     const line = container.querySelector('[data-realtime-today]')!;
     expect(line.querySelectorAll('path').length).toBeLessThanOrEqual(1);
@@ -38,7 +39,8 @@ describe('the retained realtime day on the Wall', () => {
   it('uses retained realtime data in the same tile for one asset', () => {
     const asset = wallFixturePayload().assets[0]!;
     const { container } = render(<SiteRows assets={[asset]} issues={[]} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue');
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
+    expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
     expect(container.querySelector('[data-realtime-today]')).not.toBeNull();
     expect(container.querySelector('[data-site-today]')?.textContent).toBe('Last week pending');
   });

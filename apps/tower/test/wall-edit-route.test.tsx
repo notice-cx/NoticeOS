@@ -364,6 +364,54 @@ describe("the page it opens on", () => {
   });
 });
 
+describe("metric tiles and row focus", () => {
+  it("edits one shared Portfolio tile without changing saved section geometry or preview filters", async () => {
+    renderEditor(SAVED_COLUMNS);
+    const today = document.querySelector<HTMLButtonElement>('[data-site-row="meadow.example"] [data-wall-metric-select="today"]')!;
+    fireEvent.click(today);
+    expect(screen.getByLabelText("Title")).toBeDefined();
+    expect(saveButton()).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("button", { name: "Focus on row" }));
+    expect(document.querySelectorAll("[data-site-row]")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Visitors today" } });
+    fireEvent.change(screen.getByLabelText("Preview asset"), { target: { value: "northwind.example" } });
+    expect(document.querySelector('[data-site-row="northwind.example"] [data-wall-metric="today"]')?.getAttribute("aria-label")).toBe("Visitors today");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelectorAll("[data-site-row]")).toHaveLength(2);
+    expect(document.activeElement).toBe(document.querySelector('[data-site-row="northwind.example"] [data-wall-metric-select="today"]'));
+    fireEvent.click(toolbarButton("Undo"));
+    expect(screen.getByLabelText("Title")).toHaveProperty("value", "");
+    fireEvent.click(toolbarButton("Redo"));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(state.saves).toHaveLength(1));
+    const config = savedConfig();
+    const updated = wallLayoutWidgets(config.layout).find(item => item.type === "sites")!;
+    expect(updated.settings?.metrics?.find(item => item.id === "today")?.title).toBe("Visitors today");
+    expect(updated.settings?.assets).toBeUndefined();
+    const withoutMetrics = structuredClone(config.layout);
+    delete wallLayoutWidgets(withoutMetrics).find(item => item.type === "sites")!.settings;
+    expect(withoutMetrics).toEqual(SAVED_COLUMN_LAYOUT);
+    const op = state.saves[0]!.ops[0]!;
+    expect(op.kind === "file-json-set" && op.expect).toEqual(SAVED_COLUMNS);
+    expect(config.history[0]?.layout).toEqual(SAVED_COLUMN_LAYOUT);
+  });
+
+  it("previews the full composition only on request, with exact Undo and a guarded Save", async () => {
+    renderEditor(SAVED_COLUMNS);
+    expect(drawn()).toEqual(SAVED_DRAWN);
+    fireEvent.click(screen.getByRole("button", { name: "Use full Wall layout" }));
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
+    expect(state.saves).toHaveLength(0);
+    fireEvent.click(toolbarButton("Undo"));
+    expect(drawn()).toEqual(SAVED_DRAWN);
+    fireEvent.click(toolbarButton("Redo"));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(state.saves).toHaveLength(1));
+    expect(savedConfig().layout).toEqual(DEFAULT_WALL_LAYOUT);
+    expect(savedConfig().history[0]?.layout).toEqual(SAVED_COLUMN_LAYOUT);
+  });
+});
+
 // A saved layout the Tower cannot read: the Worker draws the default in its
 // place and names the refusal beside it, with the value as stored
 // (`dashboard.refused.wall`). A Save or a Revert from there is guarded by what
@@ -569,10 +617,14 @@ describe("adding and removing", () => {
 });
 
 describe("arranging", () => {
-  it("makes every widget a drag source and says how a drag lands", () => {
+  it("keeps section dragging on the grip while tiles remain selection targets", () => {
     renderEditor();
-    for (const id of DEFAULT_DRAWN) expect(widget(id).getAttribute("draggable"), id).toBe("true");
-    expect(document.querySelector("[data-wall-preview-hint]")?.textContent).toContain("top or bottom stacks them");
+    for (const id of DEFAULT_DRAWN) {
+      fireEvent.mouseEnter(widget(id));
+      expect(widget(id).getAttribute("draggable"), id).toBe("true");
+    }
+    expect(document.querySelector("[data-wall-preview-hint]")?.textContent).toContain("Select a tile to edit");
+    expect(document.querySelector("[data-wall-preview-hint]")?.textContent).toContain("grip");
   });
 
   it("moves a widget with its Move menu, says where it went and gives focus back to it", () => {
@@ -1123,7 +1175,7 @@ describe("a phone", () => {
     renderEditor(SITES_ONLY);
     const panes = document.querySelector("[data-wall-editor]");
     expect(panes?.className).toContain("flex-col");
-    expect(panes?.className).toContain("xl:grid");
+    expect(document.querySelector("[data-wall-side]")).not.toBeNull();
     openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
     expect(saveButton()).toHaveProperty("disabled", false);

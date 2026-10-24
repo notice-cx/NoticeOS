@@ -1,6 +1,8 @@
 import { CircleDollarSign } from "lucide-react";
 import type { WordLevel } from "@shared/views";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
+import { wallMetricTiles, type WallWidget } from "@shared/wall-layout";
+import { WallMetricBinding } from "./WallMetricEditing";
 import { CumulativeCompareMetric, type CumulativeCompareMetricProps, type MetricComparisonChartProps, type MetricMovement } from "@/components/wall/MetricWidgets";
 import {
   formatPercent,
@@ -27,9 +29,10 @@ export interface RevenueHeroProps {
   /** The words of the view the TV is drawn for: "business" calls an estimate
    * "so far", as Home's money does; the other levels say "est.". */
   wordLevel?: WordLevel;
+  widget?: WallWidget;
 }
 
-export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational" }: RevenueHeroProps) {
+export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational", widget }: RevenueHeroProps) {
   const business = wordLevel === "business";
   const model = monthRevenue(portfolio, assets);
   const yesterday = yesterdayTotal(assets, nowMs ?? Date.now());
@@ -83,7 +86,8 @@ export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational
     {model.revenue === null && model.previousMonth ? <span data-revenue-previous-month>
     {formatPeriodMonthYear(model.previousMonth.period)} {formatUsd(model.previousMonth.revenue)} est.{model.previousMonth.reported < model.previousMonth.sites ? <> · {model.previousMonth.reported} of {model.previousMonth.sites} assets</> : null}
   </span> : null}</> : undefined;
-  return <section aria-label="Revenue this month" data-wall-revenue={model.revenue === null ? "waiting" : pace ? "pace" : "figure"}>
+  return <section aria-label="Revenue this month" data-metrics-configured={widget?.settings?.metrics !== undefined || undefined} data-wall-revenue={model.revenue === null ? "waiting" : pace ? "pace" : "figure"}>
+    {wallMetricTiles(widget ?? { id: "revenue", type: "revenue", width: 1 }).map(tile => <WallMetricBinding key={tile.id} tile={tile} configured={widget?.settings?.metrics !== undefined}>
     <CumulativeCompareMetric
       title={model.periodIsCurrent ? "Revenue this month" : `${month} revenue`}
       icon={CircleDollarSign} expanded context="USD"
@@ -92,6 +96,7 @@ export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational
       movement={movement} secondary={secondary} note={note}
       chartProps={chartProps} chartUnavailable={model.waiting ?? "No projection available"}
     />
+    </WallMetricBinding>)}
   </section>;
 }
 

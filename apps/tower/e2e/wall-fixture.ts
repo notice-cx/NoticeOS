@@ -44,7 +44,7 @@ function trend(scale: number, seed: number): AssetCard["activeUsers"] {
   });
   values[89] = Math.round(values[89]! * 0.55);
   const all = days(values);
-  return { contextSeries: all.slice(0, 62), series: all.slice(62), provisionalFrom: TODAY, timeZoneChanges: [], collectedAt: iso(6 * MINUTE) };
+  return { contextSeries: all.slice(0, 62), series: all.slice(62), provisionalFrom: TODAY, timeZone: TZ, timeZoneChanges: [], collectedAt: iso(6 * MINUTE) };
 }
 
 function sources(overrides: Partial<Record<string, CardDataSource["state"]>> = {}): CardDataSource[] {
