@@ -51,7 +51,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
         const renderTile = (tile: WallMetricTile) => {
           switch (tile.source) {
             case "momentum": return <LiveUsers asset={asset} snapshot={snapshot} reconnecting={ga4RealtimeError} nowMs={nowMs} metric />;
-            case "today": return <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} lastWeekday={lastWeekdayLabel(snapshot, nowMs)} />;
+            case "today": return <TodayMetric asset={asset} snapshot={snapshot} nowMs={nowMs} />;
             case "four-weeks": return <TrendMetric asset={asset} />;
             case "asset-work": return !workAssets || workAssets.has(asset.id) ? <AssetWork asset={asset} nowMs={nowMs} /> : null;
             case "product-counts": return <ProductCounts asset={asset} choices={pulseMetrics} nowMs={nowMs} />;
@@ -112,18 +112,18 @@ function AssetWork({ asset, nowMs }: { asset: AssetCard; nowMs: number }) {
   /></div>;
 }
 
-function TodayMetric({ asset, snapshot, nowMs, lastWeekday }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number; lastWeekday: string }) {
+function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: Ga4RealtimeAsset | undefined; nowMs: number }) {
   const { binding } = useWallMetricBinding();
   const reference = !binding?.configured || binding.tile.reference !== false;
-  const retained = currentRealtimeDay(snapshot, nowMs);
-  const current = currentHourlyReading(snapshot, nowMs);
+  const daily = todayUserCounts(asset, snapshot, nowMs);
+  const retained = daily.activityDateMatches ? currentRealtimeDay(snapshot, nowMs) : null;
+  const current = daily.activityDateMatches ? currentHourlyReading(snapshot, nowMs) : null;
   const pace = intradayUsersPace(asset, current ?? undefined);
   const hourly = current?.status === "success" ? current.hourlyActiveUsers : null;
   const nowHour = current?.status === "success" ? clockHourNow(nowMs, current.timeZone) : null;
-  const daily = todayUserCounts(asset, snapshot, nowMs);
   return <SparklineCompareMetric title="Today" icon={TrendingUp}
     primary={{ value: <span data-site-today-total title="Distinct active users today so far" aria-label={daily.today === null ? "Daily active users today unavailable" : `${formatInt(daily.today)} daily active users today so far`}>{daily.today === null ? <span aria-label="Unavailable">—</span> : formatInt(daily.today)}</span> }}
-    referenceFact={{ label: `vs ${lastWeekday}`, value: daily.reference === null ? null : <span data-site-today-reference title={`Daily active users on ${daily.referenceDate}`}>{formatInt(daily.reference)}</span> }}
+    referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`Daily active users on ${daily.referenceDate}`}>{formatInt(daily.reference)}</span> }}
     secondary={
     <span data-site-today>
       {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : <span className="wall-metric-note">Comparison unavailable</span>}
@@ -147,8 +147,7 @@ function TrendMetric({ asset }: { asset: AssetCard }) {
   </>} />;
 }
 
-function lastWeekdayLabel(snapshot: Ga4RealtimeAsset | undefined, nowMs: number): string {
-  const zone = currentRealtimeDay(snapshot, nowMs)?.timeZone ?? (snapshot?.status === "success" ? snapshot.timeZone : null);
+function lastWeekdayLabel(zone: string | null, nowMs: number): string {
   if (!zone) return "last week";
   try {
     return `last ${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: zone }).format(new Date(nowMs))}`;

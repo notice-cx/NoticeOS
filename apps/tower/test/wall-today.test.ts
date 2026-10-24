@@ -38,4 +38,29 @@ describe("the Today daily distinct-user totals", () => {
     asset.activeUsers.contextSeries = [];
     expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ today: null, reference: null });
   });
+  it("prefers the daily provider calendar when the realtime OS clock is on a different date", () => {
+    const { asset, snapshot } = fixture();
+    asset.activeUsers.timeZone = "America/Los_Angeles";
+    snapshot.timeZone = "Pacific/Auckland";
+    asset.activeUsers.series = [{ t: "2026-09-15", v: 71 }, { t: "2026-09-16", v: 82 }, { t: "2026-09-22", v: 123 }, { t: "2026-09-23", v: 456 }];
+    expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ timeZone: "America/Los_Angeles", date: "2026-09-22", today: 123, reference: 71, activityDateMatches: false });
+    expect(todayUserCounts(asset, undefined, nowMs)).toMatchObject({ today: 123, reference: 71 });
+  });
+  it.each([
+    ["2026-03-08T09:30:00Z", "2026-03-08", "2026-03-01"],
+    ["2026-03-08T10:30:00Z", "2026-03-08", "2026-03-01"],
+    ["2026-11-01T08:30:00Z", "2026-11-01", "2026-10-25"],
+    ["2026-11-01T09:30:00Z", "2026-11-01", "2026-10-25"],
+  ])("keeps daily dates correct across daylight saving changes at %s", (instant, date, referenceDate) => {
+    const { asset, snapshot } = fixture();
+    asset.activeUsers.timeZone = "America/Los_Angeles";
+    snapshot.timeZone = "UTC";
+    asset.activeUsers.series = [{ t: referenceDate, v: 10 }, { t: date, v: 20 }];
+    expect(todayUserCounts(asset, snapshot, Date.parse(instant))).toMatchObject({ date, referenceDate, today: 20, reference: 10 });
+  });
+  it("keeps an invalid stored provider timezone unknown instead of replacing it with a different valid calendar", () => {
+    const { asset, snapshot } = fixture();
+    asset.activeUsers.timeZone = "Invalid/Provider";
+    expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ date: null, referenceDate: null, today: null, reference: null });
+  });
 });

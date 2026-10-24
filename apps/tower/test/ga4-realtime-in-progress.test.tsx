@@ -138,7 +138,7 @@ describe("a read in progress keeps what the Wall drew", () => {
     expect(reading(currentDayReadings(undated, "2026-09-23T07:05:00.000Z")).hourlyActiveUsers).toBeNull();
   });
 
-  it("keeps current hours through a poll and dates unavailable-hour history", () => {
+  it("keeps current hours through a poll and preserves today's independent daily total", () => {
     const assets = structuredClone(wallFixturePayload().assets);
     assets.find(asset => asset.id === SITE)!.activeUsers = { series: [{ t: "2026-09-20", v: 17 }, { t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-22T19:24:00Z", timeZoneChanges: [] };
     const today = (realtime: Ga4RealtimePayload) =>
@@ -156,11 +156,12 @@ describe("a read in progress keeps what the Wall drew", () => {
     const blank = today(answer);
     expect(blank.querySelector("[data-today]")).toBeNull();
     const history = blank.querySelector("[data-site-today]")!.closest(".wall-metric")!;
-    expect(history.querySelector('h3')?.textContent).toBe('Latest daySep 21');
-    expect(history.querySelector('[data-site-today]')?.textContent).toBe('0');
-    expect(history.querySelector('.wall-site-axis')?.textContent).toContain('people');
+    expect(history.querySelector('h3')?.textContent).toBe('Todayvs last Tue —');
+    expect(history.querySelector('[data-site-today-total]')?.textContent).toBe('50');
+    expect(history.querySelector('[data-site-today]')?.textContent).toBe('Comparison unavailable');
     expect(history.querySelector('[data-today]')).toBeNull();
     const kept = today(keepReadingsInProgress(before, answer));
+    expect(kept.querySelector('[data-site-today-total]')?.textContent).toBe('50');
     expect(kept.querySelector("[data-today]")).not.toBeNull();
     expect(kept.querySelector("[data-site-today]")?.textContent).toBe(today(before).querySelector("[data-site-today]")?.textContent);
     expect(kept.textContent).not.toBe("—");

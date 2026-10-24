@@ -296,6 +296,7 @@ describe("loadSignalTrends — one provider resource per series", () => {
         to: "America/New_York",
       },
     ]);
+    expect(trend.activeUsers.timeZone).toBe("America/New_York");
   });
 });
 

@@ -53,6 +53,18 @@ describe("the asset rows", () => {
     expect(tile.querySelector(".wall-metric-main")?.firstElementChild).toContainElement(total);
     expect(tile.querySelector(".wall-metric-secondary [data-site-today]")).not.toBeNull();
   });
+  it("retains provider-day totals but suppresses a pace and chart whose calendar date differs", () => {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    asset.activeUsers.timeZone = "Pacific/Auckland";
+    asset.activeUsers.series = [{ t: "2026-09-16", v: 11 }, { t: "2026-09-23", v: 22 }];
+    const realtime = wallFixtureRealtime();
+    realtime.assets = realtime.assets.map(snapshot => snapshot.status === "success" ? { ...snapshot, timeZone: "America/Los_Angeles" } : snapshot);
+    const site = row(draw([asset], { realtime }), asset.id);
+    expect(site.querySelector('[data-site-today-total]')).toHaveTextContent("22");
+    expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("vs last Wed 11");
+    expect(site.querySelector('[data-site-today]')).toHaveTextContent("Comparison unavailable");
+    expect(site.querySelector('[data-site-today-chart] svg')).toBeNull();
+  });
   it("labels each asset's comparison weekday in its own reporting timezone", () => {
     const assets = wallFixturePayload().assets.slice(0, 2);
     const realtime = wallFixtureRealtime();

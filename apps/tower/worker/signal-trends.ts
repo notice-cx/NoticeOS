@@ -23,6 +23,7 @@ type SignalSeriesRow = {
   integration: "ga4" | "gsc" | "bing-webmaster";
   finishedAt: string;
   provisionalFrom: string | null;
+  timeZone: string | null;
   date: string;
   metric: string;
   value: number;
@@ -183,11 +184,11 @@ export function signalTrendsSql(options: {
     : "";
   return `WITH latest_success AS MATERIALIZED (
   SELECT a.asset_id AS asset, lanes.integration, run.finished_at AS "finishedAt", run.window_end AS "windowEnd",
-         run.provisional_from AS "provisionalFrom", run.property_ref AS "propertyRef"
+         run.provisional_from AS "provisionalFrom", run.property_ref AS "propertyRef", run.time_zone AS "timeZone"
     FROM noticeos.assets a
    CROSS JOIN (VALUES ('ga4'), ('gsc'), ('bing-webmaster')) AS lanes(integration)
     JOIN LATERAL (
-      SELECT candidate.finished_at, candidate.window_end, candidate.provisional_from, candidate.property_ref
+      SELECT candidate.finished_at, candidate.window_end, candidate.provisional_from, candidate.property_ref, candidate.time_zone
         FROM noticeos.signal_runs candidate
        WHERE candidate.workspace_id = a.workspace_id
          AND candidate.asset_id = a.asset_id
@@ -199,7 +200,7 @@ export function signalTrendsSql(options: {
     ) run ON true${options.narrowed ? `\n   WHERE a.asset_id = ANY($3::text[])` : ""}
 )
 SELECT DISTINCT ON (latest.asset COLLATE "C", latest.integration COLLATE "C", written.date, series.metric COLLATE "C")
-       latest.asset, latest.integration, latest."finishedAt", latest."provisionalFrom",
+       latest.asset, latest.integration, latest."finishedAt", latest."provisionalFrom", latest."timeZone",
        written.date, series.metric, written.value
   FROM latest_success latest
  CROSS JOIN LATERAL (
@@ -317,6 +318,7 @@ export async function loadSignalTrends(
     trend.series.push({ t: row.date, v: toNum(row.value) ?? 0 });
     trend.provisionalFrom = row.provisionalFrom;
     trend.collectedAt = row.finishedAt;
+    if (row.timeZone) trend.timeZone = row.timeZone;
     map.set(row.asset, entry);
   }
   for (const [assetId, entry] of map.entries()) {

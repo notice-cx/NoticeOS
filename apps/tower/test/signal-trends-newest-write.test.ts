@@ -34,8 +34,8 @@ function specOf(shipped: string): string {
   const from = shipped.indexOf("  FROM latest_success latest");
   const order = shipped.lastIndexOf(" ORDER BY latest.asset");
   if (select < 0 || from < 0 || order < 0) throw new Error("the shipped trend read changed shape; update specOf");
-  return `${shipped.slice(0, select)}SELECT asset, integration, "finishedAt", "provisionalFrom", date, metric, value
-  FROM (SELECT latest.asset, latest.integration, latest."finishedAt", latest."provisionalFrom",
+  return `${shipped.slice(0, select)}SELECT asset, integration, "finishedAt", "provisionalFrom", "timeZone", date, metric, value
+  FROM (SELECT latest.asset, latest.integration, latest."finishedAt", latest."provisionalFrom", latest."timeZone",
                written.date, series.metric, written.value,
                ROW_NUMBER() OVER (
                  PARTITION BY latest.asset, latest.integration, written.date, series.metric
