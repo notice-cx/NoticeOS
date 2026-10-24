@@ -32,7 +32,7 @@ function Age({ at, nowMs }: { at: string | null; nowMs: number }) {
 }
 
 const shortDate = (date: string) => new Date(`${date}T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-const WORK_ORDER: Record<WorkStatus['kind'], number> = { failing: 0, overdue: 1, unknown: 2, collecting: 3, working: 4, 'not-using': 5, idle: 6 };
+const WORK_ORDER: Record<WorkStatus['kind'], number> = { failing: 0, overdue: 1, reconnecting: 2, unknown: 3, collecting: 4, working: 5, 'not-using': 6, idle: 7 };
 
 /** Distinct report dates, oldest first; past six, the first five and a count. */
 function dateList(items: WorkStatus['missing']): string {

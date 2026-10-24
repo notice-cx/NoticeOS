@@ -141,8 +141,12 @@ export interface IntegrationObservation {
   /** Registry-owned safe code, not provider error prose. */
   code: string | null;
   nextAttemptAt: string | null;
+  /** Raw realtime network evidence has not yet confirmed a visible incident. */
+  reconnecting?: boolean;
 }
-export type IntegrationHealthState = 'healthy' | 'failing' | 'stale' | 'never-run' | 'idle' | 'paused' | 'disconnected' | 'unmonitored' | 'unknown';
+export const REALTIME_ATTEMPT_EVIDENCE = 'realtime-attempt';
+export const REALTIME_NETWORK_CONFIRMATION = { checks: 3, spanMs: 120_000 } as const;
+export type IntegrationHealthState = 'healthy' | 'failing' | 'reconnecting' | 'stale' | 'never-run' | 'idle' | 'paused' | 'disconnected' | 'unmonitored' | 'unknown';
 export interface IntegrationCapabilityHealth {
   scope: IntegrationHealthScope;
   state: IntegrationHealthState;
@@ -165,6 +169,7 @@ export function integrationCapabilityHealth(input: {
   /** Latest attempt must satisfy this obligation, or it is stale. */
   requiredSince: string | null;
   nowMs: number;
+  lastSuccessAt?: string | null;
 }): IntegrationCapabilityHealth {
   const relevant = input.observations.filter((item) => integrationScopeKey(item.scope) === integrationScopeKey(input.scope));
   const valid = relevant.filter((item) => Number.isFinite(Date.parse(item.startedAt)) && Number.isFinite(Date.parse(item.finishedAt)) && Date.parse(item.finishedAt) >= Date.parse(item.startedAt) && Date.parse(item.finishedAt) <= input.nowMs);
@@ -172,11 +177,14 @@ export function integrationCapabilityHealth(input: {
   // tie, failure wins conservatively until a later success is recorded.
   valid.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt) || Number(b.outcome === 'failure') - Number(a.outcome === 'failure'));
   const latest = valid[0] ?? null;
-  const lastSuccessAt = valid.find((item) => item.outcome === 'success')?.finishedAt ?? null;
+  const supplied = input.lastSuccessAt && Number.isFinite(Date.parse(input.lastSuccessAt)) && Date.parse(input.lastSuccessAt) <= input.nowMs ? input.lastSuccessAt : null;
+  const lastSuccessAt = [valid.find((item) => item.outcome === 'success')?.finishedAt, supplied].filter((at): at is string => !!at).sort().at(-1) ?? null;
   const state: IntegrationHealthState = input.connection !== 'connected' ? input.connection
     : !input.covered ? 'unmonitored'
       : !input.observerAvailable || valid.length !== relevant.length ? 'unknown'
-        : latest?.outcome === 'failure' ? 'failing'
+        : latest?.outcome === 'failure' ? latest.reconnecting && latest.failure === 'network' && input.scope.capability === 'ga4-realtime'
+          ? input.requiredSince !== null && lastSuccessAt !== null && Date.parse(lastSuccessAt) < Date.parse(input.requiredSince) ? 'stale' : 'reconnecting'
+          : 'failing'
           : !latest ? (input.trigger === 'event' || input.trigger === 'setup') && input.requiredSince === null ? 'idle' : 'never-run'
             : input.requiredSince !== null && (!Number.isFinite(Date.parse(input.requiredSince)) || Date.parse(latest.startedAt) < Date.parse(input.requiredSince)) ? 'stale'
               : input.requiredSince === null && input.trigger !== 'scheduled' ? 'idle' : 'healthy';
@@ -219,6 +227,8 @@ export interface IntegrationHealthEvent {
   asset: string | null;
   at: string;
   kind: 'failed' | 'changed' | 'recovered';
+  /** Confirmed incident onset, when earlier than its confirmation. */
+  since?: string;
 }
 export interface IntegrationHealthPayload {
   generatedAt: string;
@@ -227,7 +237,7 @@ export interface IntegrationHealthPayload {
   events: IntegrationHealthEvent[];
 }
 export const INTEGRATION_HEALTH_LABELS: Record<IntegrationHealthState, string> = {
-  healthy: 'Working', failing: 'Failing', stale: 'Overdue', 'never-run': 'Awaiting first result', idle: 'Idle',
+  healthy: 'Working', failing: 'Failing', reconnecting: 'Reconnecting', stale: 'Overdue', 'never-run': 'Awaiting first result', idle: 'Idle',
   paused: 'Paused', disconnected: 'Not connected', unmonitored: 'Not monitored', unknown: 'Unknown',
 };
 export function integrationHealthNeedsAttention(item: Pick<IntegrationHealthItem, 'state'>): boolean {

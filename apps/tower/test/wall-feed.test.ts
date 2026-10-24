@@ -32,6 +32,7 @@ import {
 } from "../worker/wall-feed";
 import { WALL_FEED_KINDS, feedSentence, feedWindowStart, feedWordCount, type WallFeedItem } from "../shared/wall-feed";
 import { osDeployAnnotation } from "../../../scripts/os-deploy-events.mjs";
+import { REALTIME_ATTEMPT_EVIDENCE } from "@noticeos/contract";
 import { type AlertRow, storeAlerts, storeReports } from "./alert-rows";
 import { writeSignalRun } from "./collected-metrics";
 import { storeChanges } from "./change-rows";
@@ -319,6 +320,26 @@ async function seedPostgres(pg: TestStore): Promise<void> {
 const DEPS = { now: NOW, osTimeZone: ZONE };
 const unavailable = postgresUnavailable();
 const needsPostgres = describe.skipIf(unavailable !== null);
+
+needsPostgres("pending realtime evidence", () => {
+  it("never projects raw checks into Source failed or Source back, while retaining confirmed events", async () => {
+    const pg = await createTestStore();
+    try {
+      await asset(pg, "fixture.example", "Fixture");
+      await health(pg, "raw-check", "google", "ga4-realtime", "fixture.example", at("12:00"), "failed", REALTIME_ATTEMPT_EVIDENCE, "attempt-at-12");
+      expect((await buildWallFeed(pg.call, DEPS)).items.filter(item => item.kind === "source-failed" || item.kind === "source-back")).toEqual([]);
+      await pg.call.write(async tx => {
+        const [row] = await tx.query<{ seq: string }>(`SELECT target_seq::text AS seq FROM noticeos.capability_targets WHERE asset_id = 'fixture.example'`);
+        await tx.execute(`INSERT INTO noticeos.integration_health_events
+          (workspace_id,event_id,target_seq,attempt_id,started_at,recorded_at,kind,failure_kind,safe_code,evidence_source,evidence_id)
+          VALUES ($1,'confirmed',$2::bigint,'attempt-3',$3::timestamptz,$4::timestamptz,'failed','network','network','live','third'),
+                 ($1,'recovered',$2::bigint,'attempt-4',$5::timestamptz,$5::timestamptz,'recovered',NULL,NULL,'live','fourth')`,
+          [tx.workspaceId, row!.seq, at("12:00"), at("12:02"), at("12:03")]);
+      });
+      expect((await buildWallFeed(pg.call, DEPS)).items.filter(item => item.kind === "source-failed" || item.kind === "source-back").map(item => item.kind).sort()).toEqual(["source-back", "source-failed"]);
+    } finally { await pg.close(); }
+  });
+});
 
 describe("the feed's window", () => {
   it("opens at 6 PM yesterday in the OS time zone, across both DST changes", () => {

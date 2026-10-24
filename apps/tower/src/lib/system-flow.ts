@@ -18,6 +18,7 @@ import { siteCount } from "@shared/site-noun";
 const PROVIDER_STATE: Record<ConnectionKind, FlowState> = {
   working: "ok",
   collecting: "active",
+  reconnecting: "idle",
   "key-accepted": "idle",
   "not-checked": "idle",
   overdue: "warn",

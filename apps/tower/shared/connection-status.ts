@@ -37,11 +37,12 @@ export type ConnectionKind =
   | "working"
   | "overdue"
   | "failing"
+  | "reconnecting"
   | "not-using"
   | "unknown";
 
 /** What one site (or feed, or the account itself) can be. */
-export type SiteKind = "collecting" | "working" | "overdue" | "failing" | "not-using" | "unknown";
+export type SiteKind = "collecting" | "working" | "overdue" | "failing" | "reconnecting" | "not-using" | "unknown";
 
 type WorkKind = SiteKind | "idle";
 
@@ -99,6 +100,7 @@ export const CONNECTION_LABELS: Record<ConnectionKind | "checking", string> = {
   working: "Working",
   overdue: "Overdue",
   failing: "Failing",
+  reconnecting: "Reconnecting",
   "not-using": "Not using",
   unknown: "Unknown",
 };
@@ -192,6 +194,7 @@ function workStatus(key: string, items: IntegrationHealthItem[]): WorkStatus {
           : items.every((item) => item.state === "paused") ? "not-using" : "idle";
   } else if (latest.state === "failing" && !quality(latest)) kind = "failing";
   else if (latest.state === "stale") kind = "overdue";
+  else if (latest.state === "reconnecting") kind = "reconnecting";
   else if (latest.state === "unknown" || latest.state === "unmonitored") kind = "unknown";
   else if (latest.state === "paused") kind = "not-using";
   else if (latest.state === "never-run") kind = "collecting";
@@ -213,7 +216,7 @@ export function siteStatus(key: string, items: IntegrationHealthItem[]): SiteSta
   }
   const works = [...byWork.entries()].map(([workKey, list]) => workStatus(workKey, list));
   const has = (kind: WorkKind) => works.some((work) => work.kind === kind);
-  const kind: SiteKind | null = has("failing") ? "failing" : has("working") ? "working" : has("overdue") ? "overdue"
+  const kind: SiteKind | null = has("failing") ? "failing" : has("reconnecting") ? has("overdue") ? "overdue" : "reconnecting" : has("working") ? "working" : has("overdue") ? "overdue"
     : has("collecting") ? "collecting" : has("unknown") ? "unknown" : has("not-using") ? "not-using" : null;
   if (kind === null) return null;
   // The reason a failing site leads with: its direct pull before any one report
@@ -233,7 +236,7 @@ export function siteStatus(key: string, items: IntegrationHealthItem[]): SiteSta
   };
 }
 
-const SITE_ORDER: Record<SiteKind, number> = { failing: 0, overdue: 1, unknown: 2, collecting: 3, working: 4, "not-using": 5 };
+const SITE_ORDER: Record<SiteKind, number> = { failing: 0, overdue: 1, reconnecting: 2, unknown: 3, collecting: 4, working: 5, "not-using": 6 };
 
 /** Every site of one provider, failing first, then by how much is missing. */
 export function siteStatuses(items: IntegrationHealthItem[]): SiteStatus[] {
@@ -267,8 +270,9 @@ export function connectionStatus(
   const some = (kind: SiteKind) => sites.some((site) => site.kind === kind);
   const kind: ConnectionKind =
     connectionState(credential) === "failing" || (failing > 0 && failing * 2 > measured.length) ? "failing"
-      : some("working") ? "working"
-        : some("overdue") ? "overdue"
+      : some("reconnecting") ? some("overdue") ? "overdue" : "reconnecting"
+        : some("working") ? "working"
+          : some("overdue") ? "overdue"
           : some("collecting") ? "collecting"
             : sites.length > 0 && sites.every((site) => site.kind === "not-using") ? "not-using"
               : some("unknown") ? "unknown"

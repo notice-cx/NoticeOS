@@ -166,6 +166,7 @@ function LayerHeadingRow({ layer, span }: { layer: IntegrationLayer; span: numbe
 }
 
 const MOBILE_STATE_ORDER: Record<CellKind, number> = {
+  reconnecting: 2,
   failing: 0, overdue: 1, unknown: 2, "not-checked": 3, "not-connected": 4, collecting: 5,
   "key-accepted": 6, working: 7, "not-using": 8, "not-applicable": 9,
 };

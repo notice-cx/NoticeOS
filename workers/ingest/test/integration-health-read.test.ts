@@ -7,7 +7,7 @@ import { POSTHOG_FAMILIES } from '@noticeos/contract';
 import { EGRESS_BEACONS } from '../src/egress.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
-import { healthConnection, observeIntegration } from '../src/integration-health-context.js';
+import { healthConnection, observeIntegration, observeIntegrationAttempt } from '../src/integration-health-context.js';
 import { readIntegrationHealth } from '../src/integration-health-read.js';
 import { recordSignalFailure, recordSignalSuccess, SignalError } from '../src/signal-store.js';
 import { resolveGoogleCredential } from '../src/google-oauth.js';
@@ -30,6 +30,30 @@ async function calendar() {
   await putCredential(env, { provider: 'calendar', fields: { CALENDAR_FEEDS: JSON.stringify({ Team: PRIVATE }) } });
   return healthConnection(env, 'calendar');
 }
+it('keeps realtime retries neutral, deduplicates the actual observer identity, and exposes only a confirmed failure and recovery', async () => {
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Synthetic health must not fetch'));
+  const register = (await getConfigDocument(env, 'config/integrations.json')).body as LaneRegister;
+  const google = await resolveGoogleCredential(env);
+  const target = googleTargets(google, google.source, googleCredentialResolver(env), register).find(target => target.integration === 'ga4')!;
+  const connection = await healthConnection(env, 'google');
+  const at = (offset: number) => new Date(NOW - 120_000 + offset).toISOString();
+  const fail = (offset: number) => observeIntegrationAttempt(env, connection, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef, observedAt: at(offset), ok: false, code: 'request_failed' });
+  expect(await fail(0)).toEqual({ recorded: true, reconnecting: true });
+  expect(await fail(0)).toEqual({ recorded: true, reconnecting: true });
+  const first = await readIntegrationHealth(env, Date.parse(at(0)));
+  expect(first.items.find(item => item.capability === 'ga4-realtime' && item.asset === target.asset)).toMatchObject({ state: 'reconnecting', failure: 'network', lastAttemptAt: at(0) });
+  expect(first.events).toEqual([]);
+  expect(await fail(60_000)).toEqual({ recorded: true, reconnecting: true });
+  expect(await fail(120_000)).toEqual({ recorded: true, reconnecting: false });
+  const confirmed = await readIntegrationHealth(env, NOW);
+  expect(confirmed.items.find(item => item.capability === 'ga4-realtime' && item.asset === target.asset)).toMatchObject({ state: 'failing', failure: 'network', lastAttemptAt: at(120_000) });
+  expect(confirmed.events.filter(item => item.kind === 'failed')).toEqual([expect.objectContaining({ at: at(120_000), since: at(0) })]);
+  await observeIntegration(env, connection, { capability: 'ga4-realtime', asset: target.asset, target: target.propertyRef, observedAt: at(180_000), ok: true });
+  const recovered = await readIntegrationHealth(env, NOW + 60_000);
+  expect(recovered.items.find(item => item.capability === 'ga4-realtime' && item.asset === target.asset)).toMatchObject({ state: 'healthy', lastSuccessAt: at(180_000) });
+  expect(recovered.events.map(item => item.kind).sort()).toEqual(['failed', 'recovered']);
+  expect(fetchSpy).not.toHaveBeenCalled();
+});
 it('reads persistent per-feed failure and recovery without calling a provider or writing state', async () => {
   const connection = await calendar();
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Health must not fetch'));

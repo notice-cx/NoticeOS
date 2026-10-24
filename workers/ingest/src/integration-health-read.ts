@@ -1,5 +1,5 @@
 import {
-  INTEGRATION_MONITORS, INTEGRATION_MONITORING_GAPS, INTEGRATION_CADENCE_HOURS, REPORT_STALE_MULTIPLIER,
+  INTEGRATION_MONITORS, INTEGRATION_MONITORING_GAPS, INTEGRATION_CADENCE_HOURS, REPORT_STALE_MULTIPLIER, REALTIME_ATTEMPT_EVIDENCE,
   integrationCapabilityHealth, integrationScopeKey, type IntegrationHealthItem, type IntegrationHealthPayload,
   type IntegrationMonitorDefinition, type IntegrationProviderId, type IntegrationObservation,
 } from '@noticeos/contract';
@@ -29,7 +29,7 @@ interface SignalRow { id: string; asset: string; integration: string; property_r
   /** An archive run whose report is incomplete: truncated where truncation is not the family's own depth. */
   cut_short?: number }
 interface DumpRow extends Omit<SignalRow, 'started_at'> { requested_at: string; report: string; report_date: string; last_success_at: string | null; scope_count: number; failure_count: number; family_rank: number }
-type EventRow = { workspace_id: string; event_id: string; provider: string; connection_revision: string; capability: string; asset: string; target_id: string; family: string; recorded_at: string; kind: 'failed' | 'changed' | 'recovered' };
+type EventRow = { workspace_id: string; event_id: string; provider: string; connection_revision: string; capability: string; asset: string; target_id: string; family: string; recorded_at: string; started_at: string; kind: 'failed' | 'changed' | 'recovered' };
 /** `where` over the target `t` and state `s`. A failure first, then the
  * newest; a tie in the order its target was named. */
 async function healthStates(tx: Transaction, where: string, params: readonly (string | readonly string[])[], limit: number): Promise<StoredHealthRow[]> {
@@ -141,11 +141,12 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       await tx.query('SELECT 1 FROM noticeos.integration_capability_state LIMIT 1');
       // The newest transitions; a tie newest-started first, then by id.
       const rows = await tx.query<EventRow>(`SELECT e.workspace_id, e.event_id, t.provider, t.connection_revision, t.capability, COALESCE(t.asset_id, '') AS asset,
-          t.target_id, t.family, e.recorded_at, e.kind
+          t.target_id, t.family, e.recorded_at, e.started_at, e.kind
         FROM noticeos.integration_health_events e
         JOIN noticeos.capability_targets t ON t.workspace_id = e.workspace_id AND t.target_seq = e.target_seq
+        WHERE e.evidence_source <> '${REALTIME_ATTEMPT_EVIDENCE}'
         ORDER BY e.recorded_at DESC, e.started_at DESC, e.event_id COLLATE "C" LIMIT 100`);
-      return rows.map(row => ({ ...row, recorded_at: javascriptInstant(row.recorded_at) }));
+      return rows.map(row => ({ ...row, recorded_at: javascriptInstant(row.recorded_at), started_at: javascriptInstant(row.started_at) }));
     });
   } catch { observerAvailable = false; payload.available = false; }
   const observed = new Map<string, StoredHealthRow>();
@@ -189,7 +190,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       stored?.next_attempt_at ? Date.parse(stored.next_attempt_at) - Date.parse(stored.started_at) : 60_000);
     const obligation = spec.capability === 'ga4-comparison' ? new Date(nowMs - Math.max(realtimeDelay, 3_600_000) * 3).toISOString() : spec.capability === 'ga4-realtime' ? new Date(nowMs - realtimeDelay * 3).toISOString() : requiredSince;
     const projected = integrationCapabilityHealth({ scope, connection: !spec.connection.configured ? 'disconnected' : spec.paused ? 'paused' : 'connected',
-      covered: !setup, observerAvailable: observerAvailable && !legacyUnverified && !unrecordedAttempt && !limitedProviders.has(spec.connection.provider), trigger: def.trigger, observations, requiredSince: obligation, nowMs });
+      covered: !setup, observerAvailable: observerAvailable && !legacyUnverified && !unrecordedAttempt && !limitedProviders.has(spec.connection.provider), trigger: def.trigger, observations, requiredSince: obligation, nowMs,
+      lastSuccessAt: stored?.last_success_finished_at });
     const state = setup && spec.connection.configured ? 'idle' : projected.state;
     // Public IDs are based on product identity, never on credentials or private targets.
     const id = await healthId([spec.connection.provider, spec.capability, spec.asset ?? '', spec.family ?? '', spec.detail ?? '']);
@@ -461,7 +463,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   }
   for (const event of eventRows) {
     const item = currentItems.get(integrationScopeKey({ workspace: event.workspace_id, provider: event.provider, connection: event.connection_revision, capability: event.capability, asset: event.asset, target: event.target_id, family: event.family }));
-    if (item && Date.parse(event.recorded_at) <= nowMs) payload.events.push({ id: event.event_id, itemId: item.id, provider: item.provider, label: item.label, asset: item.asset, at: event.recorded_at, kind: event.kind });
+    if (item && Date.parse(event.recorded_at) <= nowMs) payload.events.push({ id: event.event_id, itemId: item.id, provider: item.provider, label: item.label, asset: item.asset, at: event.recorded_at, kind: event.kind,
+      ...(event.capability === 'ga4-realtime' && event.kind === 'failed' && event.started_at < event.recorded_at ? { since: event.started_at } : {}) });
   }
   return payload;
 }

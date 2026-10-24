@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:test';
+import { REALTIME_ATTEMPT_EVIDENCE } from '@noticeos/contract';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { countOf, failureWords, healthFailure, recordIntegrationObservation, type RecordedObservation } from '../src/integration-health-store.js';
 import { refuseHealthStates, reset, storedHealthEvents, storedHealthStates } from './helpers.js';
@@ -12,6 +13,59 @@ const rows = storedHealthStates;
 async function events() { return (await storedHealthEvents()).map(({ kind, safe_code }) => ({ kind, safe_code })); }
 beforeEach(async () => { await reset(); workspaceId = await env.STORE.workspaceId(); });
 describe('durable integration history', () => {
+  const network = (offset: number, patch: Partial<RecordedObservation> = {}) => item('failure', offset, { failure: 'network', code: 'request_failed', ...patch });
+  const visible = async () => (await storedHealthEvents()).filter(event => event.evidence_source !== REALTIME_ATTEMPT_EVIDENCE);
+  it('confirms three distinct network checks spanning two minutes, never a cache replay or random id at the same timestamp', async () => {
+    expect(await recordIntegrationObservation(env.STORE, network(0))).toEqual({ reconnecting: true });
+    await recordIntegrationObservation(env.STORE, network(0));
+    await recordIntegrationObservation(env.STORE, network(0, { attemptId: 'same-time-other-id' }));
+    expect(await visible()).toEqual([]);
+    expect(await recordIntegrationObservation(env.STORE, network(60_000))).toEqual({ reconnecting: true });
+    expect(await recordIntegrationObservation(env.STORE, network(119_999))).toEqual({ reconnecting: true });
+    expect(await visible()).toEqual([]);
+    expect(await recordIntegrationObservation(env.STORE, network(120_000))).toEqual({ reconnecting: false });
+    expect(await visible()).toEqual([expect.objectContaining({ kind: 'failed', started_at: new Date(T).toISOString(), recorded_at: new Date(T + 120_000).toISOString() })]);
+    await recordIntegrationObservation(env.STORE, network(180_000));
+    expect(await visible()).toHaveLength(1);
+    await recordIntegrationObservation(env.STORE, item('success', 240_000));
+    expect((await visible()).map(event => event.kind)).toEqual(['failed', 'recovered']);
+    expect((await rows())[0]).toMatchObject({ outcome: 'success', last_success_started_at: new Date(T + 240_000).toISOString() });
+  });
+  it('qualifies late distinct checks against the latest pending failure without regressing state or recovery', async () => {
+    await recordIntegrationObservation(env.STORE, network(0));
+    await recordIntegrationObservation(env.STORE, network(120_000));
+    expect(await recordIntegrationObservation(env.STORE, network(60_000))).toEqual({ reconnecting: false });
+    expect(await visible()).toEqual([expect.objectContaining({ kind: 'failed', started_at: new Date(T).toISOString(), recorded_at: new Date(T + 120_000).toISOString() })]);
+    expect((await rows())[0]).toMatchObject({ attempt_id: '120000-failure', started_at: new Date(T + 120_000).toISOString() });
+    await recordIntegrationObservation(env.STORE, item('success', 180_000));
+    await recordIntegrationObservation(env.STORE, network(90_000));
+    expect((await visible()).map(event => event.kind)).toEqual(['failed', 'recovered']);
+    expect((await rows())[0]).toMatchObject({ outcome: 'success', attempt_id: '180000-success' });
+  });
+  it('does not create an incident when the qualifying check arrives after a newer quiet recovery', async () => {
+    await recordIntegrationObservation(env.STORE, network(0));
+    await recordIntegrationObservation(env.STORE, network(120_000));
+    await recordIntegrationObservation(env.STORE, item('success', 180_000));
+    await recordIntegrationObservation(env.STORE, network(60_000));
+    expect(await visible()).toEqual([]);
+    expect((await rows())[0]?.outcome).toBe('success');
+  });
+  it('requires three checks even when two are far apart, and quiet recovery produces no incident or recovery', async () => {
+    await recordIntegrationObservation(env.STORE, network(0));
+    expect(await recordIntegrationObservation(env.STORE, network(180_000))).toEqual({ reconnecting: true });
+    await recordIntegrationObservation(env.STORE, item('success', 240_000));
+    expect(await visible()).toEqual([]);
+    expect((await storedHealthEvents()).filter(event => event.evidence_source === REALTIME_ATTEMPT_EVIDENCE)).toHaveLength(2);
+    expect(await recordIntegrationObservation(env.STORE, network(300_000))).toEqual({ reconnecting: true });
+    expect(await visible()).toEqual([]);
+  });
+  it.each(['http_403', 'config_missing', 'http_429', 'invalid_response'])('keeps %s immediate even after a pending network error', async code => {
+    await recordIntegrationObservation(env.STORE, network(0));
+    expect(await recordIntegrationObservation(env.STORE, item('failure', 60_000, { code }))).toEqual({ reconnecting: false });
+    expect((await visible()).map(event => event.kind)).toEqual(['failed']);
+    expect(await recordIntegrationObservation(env.STORE, network(120_000))).toEqual({ reconnecting: false });
+    expect((await visible()).map(event => event.kind)).toEqual(['failed', 'changed']);
+  });
   it('retains failures, last success and recovery while deduplicating repeated observations', async () => {
     await recordIntegrationObservation(env.STORE, item('success'));
     await recordIntegrationObservation(env.STORE, item('failure', 1000));

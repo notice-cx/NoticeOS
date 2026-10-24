@@ -142,12 +142,14 @@ export function SourcesTab({
 /** Attention first, then the settled ones. A source that needs something is the
  * reason this panel exists; a working one is a tick you scroll past. */
 const KIND_RANK: Record<ConnectionKind | "not-applicable", number> = {
+  reconnecting: 2,
   failing: 0, overdue: 1, unknown: 2, "not-checked": 3, collecting: 4, "key-accepted": 5, working: 6,
   "not-connected": 7, "not-using": 8, "not-applicable": 9,
 };
 
 /** The row's mark, from the same status its chip shows. */
 const KIND_TONE: Record<ConnectionKind | "not-applicable", ListRowTone> = {
+  reconnecting: "info",
   failing: "error", overdue: "warn", working: "ok", "key-accepted": "ok", collecting: "info", "not-checked": "info",
   unknown: "info", "not-connected": "info", "not-using": "info", "not-applicable": "info",
 };

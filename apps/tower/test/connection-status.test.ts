@@ -57,6 +57,15 @@ function site(asset: string, provider = "google"): IntegrationHealthItem[] {
 }
 
 describe("a connection's one status", () => {
+  it("shows a pending realtime retry as neutral Reconnecting without a failing count or overwriting real access trouble", () => {
+    const pending = item({ capability: "ga4-realtime", state: "reconnecting", failure: "network", code: "network" });
+    expect(connectionLabel("reconnecting")).toBe("Reconnecting");
+    const result = connectionStatus("google", credential(), [pending]);
+    expect(result).toMatchObject({ kind: "reconnecting", sitesFailing: 0 });
+    expect(result.sites[0]).toMatchObject({ kind: "reconnecting" });
+    expect(connectionStatus("google", credential(), [pending, item({ capability: "ga4-daily", state: "failing", failure: "access" })])).toMatchObject({ kind: "failing", sitesFailing: 1 });
+    expect(connectionStatus("google", credential(), [pending, item({ capability: "ga4-daily", state: "stale" })])).toMatchObject({ kind: "overdue" });
+  });
   it("is Working with a count of missing reports when the latest attempts succeed and old outage dates were never retried", () => {
     const items = [
       ...["meadow.example", "northwind.example"].flatMap((asset) => site(asset)),

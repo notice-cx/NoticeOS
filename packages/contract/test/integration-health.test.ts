@@ -24,6 +24,15 @@ describe('integration monitoring coverage', () => {
 });
 
 describe('capability-level health', () => {
+  it('labels only pending realtime network failures Reconnecting and keeps overdue success evidence visible', () => {
+    const pending = { ...observation('failure'), failure: 'network' as const, code: 'network', reconnecting: true };
+    expect(derive([pending]).state).toBe('reconnecting');
+    expect(derive([pending], { lastSuccessAt: '2026-09-10T23:50:00Z' }).state).toBe('stale');
+    expect(derive([{ ...pending, failure: 'access' }]).state).toBe('failing');
+    expect(derive([{ ...pending, reconnecting: false }]).state).toBe('failing');
+    const other = { ...scope, capability: 'ga4-daily' };
+    expect(derive([{ ...pending, scope: other }], { scope: other }).state).toBe('failing');
+  });
   it('preserves a failure until the same capability succeeds, even after it goes stale', () => {
     expect(derive([observation('failure')], { requiredSince: '2026-09-10T23:59:59Z' }).state).toBe('failing');
     expect(derive([observation('failure'), observation('success', '2026-09-10T23:59:30Z')])).toMatchObject({ state: 'healthy', lastSuccessAt: '2026-09-10T23:59:30Z' });
