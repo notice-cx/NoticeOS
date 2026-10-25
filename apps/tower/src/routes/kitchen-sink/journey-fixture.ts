@@ -35,7 +35,7 @@ function demoResult(definition: JourneyDefinition, counts: number[][]): JourneyF
   const period = (kind: JourneyPeriod["kind"], first: number, last: number): JourneyPeriod => ({
     kind, startDate: day(first * 7), endDate: day(last * 7 + 6), complete: true, quality: "complete",
     steps: definition.steps.map((step, i) => ({ id: step.id, users: counts.slice(first, last + 1).reduce((sum, row) => sum + row[i]!, 0) })),
-    visitors: { users: counts.slice(first, last + 1).reduce((sum, row) => sum + row[0]! * 2, 0), quality: "complete" },
+    visitors: { users: JOURNEY_DEMO_WEEKS.slice(first, last + 1).reduce((sum, row) => sum + row[0]! * 2, 0), quality: "complete" },
   });
   return { journeyId: definition.id, definitionId: journeyDefinitionId(definition), propertyId: "123456789", timeZone: "UTC", identity: "ga4-active-users", collectedAt: "2026-10-25T08:00:00Z", current7: period("current7", 7, 7), prior7: period("prior7", 6, 6), current28: period("current28", 4, 7), prior28: period("prior28", 0, 3), weekly: counts.map((_, i) => period("week", i, i)) };
 }

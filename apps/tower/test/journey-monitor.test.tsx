@@ -48,6 +48,8 @@ describe("ordered journey presentation", () => {
 
   it("keeps the gallery's weekly and period sample counts consistent", () => {
     for (const item of JOURNEY_DEMO_SNAPSHOT.funnels) {
+      expect(item.current28!.visitors).toEqual(result.current28!.visitors);
+      expect(item.weekly.map((week) => week.visitors)).toEqual(result.weekly.map((week) => week.visitors));
       for (const [first, last, period] of [[0, 4, item.prior28], [4, 8, item.current28]] as const) {
         expect(period!.steps.map((step) => step.users)).toEqual(item.weekly.slice(first, last).reduce<number[]>((sum, week) => week.steps.map((step, i) => (sum[i] ?? 0) + step.users!), []));
       }
