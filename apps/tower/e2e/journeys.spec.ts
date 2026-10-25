@@ -429,7 +429,12 @@ test('ordered journey loss and weekly history retain their dates and planned sta
   await page.evaluate(() => window.scrollTo(0, 0));
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('ordered-journey-steps.png'), fullPage: true });
-  await monitor.getByRole('button', { name: 'Over time', exact: true }).click();
+  await expect(monitor.getByRole('button', { name: 'Over time', exact: true })).toHaveCount(0);
+  await expect(monitor.getByRole('heading', { name: 'Save plan over time', exact: true })).toBeVisible();
+  await monitor.getByRole('button', { name: 'Inspect Create account', exact: true }).click();
+  await expect(monitor.getByRole('img', { name: 'Create account: weekly percentage of visitors', exact: true })).toBeVisible();
+  await expect(monitor.locator('.journey-step')).toHaveCount(5);
+  await monitor.getByText('All step changes', { exact: true }).click();
   await expect(monitor.getByRole('heading', { name: 'Where continuation changed' })).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: testInfo.outputPath('ordered-journey-history.png'), fullPage: true });
@@ -441,7 +446,7 @@ test('ordered journey loss and weekly history retain their dates and planned sta
   }
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('ordered-journey-history-light.png'), fullPage: true });
-  await monitor.getByRole('button', { name: /View this week/ }).click();
+  await monitor.getByRole('button', { name: /Aug 24–30, 2026:.*of visitors reached Create account/ }).click();
   await expect(monitor).toContainText('Viewing week');
   await expect(monitor).toContainText('Aug 24');
   await monitor.getByRole('button', { name: 'Return to 28-day period' }).click();

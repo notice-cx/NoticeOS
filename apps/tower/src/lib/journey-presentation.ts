@@ -68,3 +68,35 @@ export function journeyWindow(definition: JourneyDefinition): string {
   const label = (seconds: number) => seconds % 86_400 === 0 ? `${seconds / 86_400} day${seconds === 86_400 ? "" : "s"}` : seconds % 3_600 === 0 ? `${seconds / 3_600} hours` : `${seconds} seconds`;
   return limits.every((value) => value === limits[0]) && limits.length === definition.steps.length - 1 ? `In order · each next step within ${label(limits[0]!)}` : "In order · step time limits in Definition";
 }
+
+/** Reach shares the funnel's visitor or entrant denominator at every step. */
+export function journeyStepReach(definition: JourneyDefinition, period: JourneyPeriod | null, index: number): number | null {
+  const reading = journeyReading(definition, period);
+  const count = reading.counts[index];
+  const denominator = reading.visitors ?? reading.counts[0] ?? 0;
+  return count === undefined || denominator <= 0 ? null : count / denominator * 100;
+}
+
+export function journeyStepReachChange(definition: JourneyDefinition, period: JourneyPeriod | null, prior: JourneyPeriod | null, index: number): number | null {
+  if (journeyComparison(definition, period, prior) === null) return null;
+  const rate = journeyStepReach(definition, period, index);
+  const before = journeyStepReach(definition, prior, index);
+  return rate === null || before === null ? null : rate - before;
+}
+
+/** Rounded bounds keep small percentage changes visible without hiding the scale. */
+export function journeyRateDomain(rates: readonly (number | null)[]): { min: number; max: number; ticks: number[] } {
+  const values = rates.filter((value): value is number => value !== null && Number.isFinite(value) && value >= 0 && value <= 100);
+  if (values.length === 0 || values.every((value) => value === 0)) return { min: 0, max: 1, ticks: [0, 0.25, 0.5, 0.75, 1] };
+  const low = Math.min(...values), high = Math.max(...values);
+  const spread = high - low;
+  const padding = spread > 0 ? spread * 0.12 : high * 0.05;
+  const target = (spread + padding * 2) / 4;
+  const magnitude = 10 ** Math.floor(Math.log10(target));
+  const step = [1, 2, 2.5, 5, 10].map((size) => size * magnitude).reduce((best, size) => Math.abs(size - target) < Math.abs(best - target) ? size : best);
+  const rounded = (value: number) => Number(value.toPrecision(12));
+  const min = rounded(Math.max(0, Math.floor((low - padding) / step) * step));
+  const max = rounded(Math.min(100, Math.ceil((high + padding) / step) * step));
+  const ticks = Array.from({ length: Math.round((max - min) / step) + 1 }, (_, index) => rounded(min + index * step));
+  return { min, max, ticks };
+}

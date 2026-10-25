@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { JourneyMonitor } from "@/components/JourneyMonitor";
 import { JourneyDefinitionEditor } from "@/components/JourneyDefinitionEditor";
-import { journeyComparison, journeyReading, journeyStepChange, matchingJourneyResult, previousJourneyWeek } from "@/lib/journey-presentation";
+import { journeyComparison, journeyRateDomain, journeyReading, journeyStepChange, journeyStepReach, journeyStepReachChange, matchingJourneyResult, previousJourneyWeek } from "@/lib/journey-presentation";
 import { JOURNEY_DEMO_DEFINITIONS, JOURNEY_DEMO_SNAPSHOT } from "@/routes/kitchen-sink/journey-fixture";
 import type { JourneyDefinition, JourneySnapshot } from "@noticeos/contract/journeys";
 
@@ -46,6 +46,32 @@ describe("ordered journey presentation", () => {
     expect(matchingJourneyResult({ ...account, version: 2 }, [result])).toBeNull();
   });
 
+  it("uses the selected step's visitor reach and rejects incompatible weekly comparisons", () => {
+    expect(journeyStepReach(account, result.current28, 0)).toBe(50);
+    expect(journeyStepReach(account, result.current28, 2)).toBeCloseTo(15);
+    expect(journeyStepReach(account, result.current28, 4)).toBe(11);
+    expect(journeyStepReach(account, { ...result.current28!, visitors: undefined }, 2)).toBe(30);
+    expect(journeyStepReach(account, { ...result.current28!, quality: "sampled" }, 2)).toBeNull();
+    expect(journeyStepReachChange(account, result.current28, { ...result.prior28!, visitors: undefined }, 2)).toBeNull();
+    expect(journeyStepReachChange(account, result.weekly[6]!, result.weekly[5]!, 2)).toBeLessThan(0);
+  });
+
+  it("fits percentage axes to low, flat and boundary series without dropping real values", () => {
+    for (const values of [[0.28, 0.31, 0.44], [0.003, 0.004], [47, 53, 49], [0, 100], [100], [0.3], [0], []]) {
+      const { min, max, ticks } = journeyRateDomain(values);
+      expect(max).toBeGreaterThan(min);
+      expect(min).toBeGreaterThanOrEqual(0);
+      expect(max).toBeLessThanOrEqual(100);
+      for (const value of values) { expect(min).toBeLessThanOrEqual(value); expect(max).toBeGreaterThanOrEqual(value); }
+      expect(ticks[0]).toBe(min);
+      expect(ticks.at(-1)).toBe(max);
+      expect(new Set(ticks).size).toBe(ticks.length);
+    }
+    expect(journeyRateDomain([0.28, 0.31, 0.44]).max).toBeLessThan(0.6);
+    expect(journeyRateDomain([0.003, 0.004]).max).toBeLessThan(0.005);
+    expect(journeyRateDomain([47, 53, 49]).max - journeyRateDomain([47, 53, 49]).min).toBeLessThanOrEqual(10);
+  });
+
   it("keeps the gallery's weekly and period sample counts consistent", () => {
     for (const item of JOURNEY_DEMO_SNAPSHOT.funnels) {
       expect(item.current28!.visitors).toEqual(result.current28!.visitors);
@@ -81,6 +107,52 @@ describe("JourneyMonitor", () => {
     expect(screen.getByText("people entered")).toBeInTheDocument();
   });
 
+  it("keeps the funnel visible while step selection changes its history and weekly counts", () => {
+    const measured = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(640);
+    try {
+      const { container } = render(<JourneyMonitor definitions={[account]} snapshot={JOURNEY_DEMO_SNAPSHOT} />);
+      expect(screen.queryByRole("button", { name: "Steps" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Over time" })).not.toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Journey steps" })).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "Choose save: weekly percentage of visitors" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Inspect Account created" }));
+      expect(screen.getByRole("heading", { name: "Account created over time" })).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "Account created: weekly percentage of visitors" })).toBeInTheDocument();
+      expect(container.querySelectorAll(".journey-step")).toHaveLength(account.steps.length);
+      fireEvent.click(screen.getByRole("button", { name: /Oct 5–11, 2026: 10% of visitors reached Account created/ }));
+      expect(container.querySelector('[data-step-index="4"]')).toHaveAttribute("aria-pressed", "true");
+      expect(container.querySelector('[data-step-index="4"]')!.textContent).toContain("600");
+      expect(screen.getByText(/Viewing week · Oct 5–11, 2026/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Return to 28-day period" }));
+      expect(container.querySelector('[data-step-index="4"]')!.textContent).toContain("2,640");
+    } finally { measured.mockRestore(); }
+  });
+
+  it("keeps an unavailable week as a gap without switching the history's visitor baseline", () => {
+    const measured = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(640);
+    try {
+      const weekly = result.weekly.map((week, index) => index === 6 ? { ...week, quality: "unavailable" as const } : week);
+      const { container } = render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, weekly }] }} />);
+      fireEvent.click(screen.getByRole("button", { name: /Oct 5–11, 2026: — of visitors reached Choose save/ }));
+      expect(screen.getByText("Ordered conversion is unavailable")).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: "Choose save: weekly percentage of visitors" })).toBeInTheDocument();
+      expect(container.querySelectorAll(".journey-trend-point")).toHaveLength(7);
+      expect(screen.getByText("Count unavailable", { exact: false })).toBeInTheDocument();
+    } finally { measured.mockRestore(); }
+  });
+
+  it("preserves a known zero count and displays a small nonzero weekly change", () => {
+    const zero = { ...result.weekly[7]!, visitors: { users: 0, quality: "complete" as const }, steps: account.steps.map((step) => ({ id: step.id, users: 0 })) };
+    const { container, rerender } = render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, weekly: [zero] }] }} />);
+    expect(container.querySelector(".journey-history-reading")!.textContent).toContain("0 people");
+    expect(container.querySelector(".journey-history-reading")!.textContent).not.toContain("Count unavailable");
+    const weekly = result.weekly.slice(6).map((week, index) => ({ ...week, visitors: { users: 100000, quality: "complete" as const }, steps: week.steps.map((step, stepIndex) => ({ ...step, users: stepIndex === 4 ? 3 + index : step.users })) }));
+    rerender(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, weekly }] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Inspect Account created" }));
+    expect(container.querySelector(".journey-history-reading")!.textContent).toContain("0.004%");
+    expect(container.querySelector(".journey-history-reading")!.textContent).toContain("+0.001 pts vs prior week");
+  });
+
   it("shows a missing visitor reference honestly without hiding the ordered funnel", () => {
     render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, current28: { ...result.current28!, visitors: undefined } }] }} />);
     expect(screen.getByText(/Visitor totals were not collected/)).toBeInTheDocument();
@@ -90,12 +162,11 @@ describe("JourneyMonitor", () => {
 
   it("selects a week in the change grid and opens its actual weekly counts", () => {
     const { container } = render(<JourneyMonitor definitions={JOURNEY_DEMO_DEFINITIONS} snapshot={JOURNEY_DEMO_SNAPSHOT} />);
-    fireEvent.click(screen.getByRole("button", { name: "Over time" }));
+    fireEvent.click(screen.getByText("All step changes"));
     expect(screen.getByRole("heading", { name: "Where continuation changed" })).toBeInTheDocument();
     const regression = screen.getByRole("button", { name: /Choose save, Oct 5–11, 2026:.*down/i });
     expect(regression).toHaveAttribute("data-trend", "negative");
     fireEvent.click(regression);
-    fireEvent.click(screen.getByRole("button", { name: "View this week →" }));
     expect(screen.getByText(/Viewing week · Oct 5–11, 2026/)).toBeInTheDocument();
     expect(container.querySelector('[data-step-index="0"]')!.textContent).toContain("3,000");
     expect(container.querySelector('[data-step-index="4"]')!.textContent).toContain("600");
@@ -115,7 +186,7 @@ describe("JourneyMonitor", () => {
     expect(container.querySelector(".journey-current")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Exploration/ }));
     expect(screen.getByText("Session paths are not collected")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Over time" })).toBeDisabled();
+    expect(screen.queryByRole("region", { name: "Selected step history" })).not.toBeInTheDocument();
   });
 
   it("keeps real calendar gaps in the trend and withholds a change verdict after a gap", () => {
@@ -124,7 +195,7 @@ describe("JourneyMonitor", () => {
       const weekly = [result.weekly[0]!, result.weekly[1]!, result.weekly[7]!];
       const snapshot = { ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, weekly }] };
       const { container } = render(<JourneyMonitor definitions={[account]} snapshot={snapshot} />);
-      fireEvent.click(screen.getByRole("button", { name: "Over time" }));
+      fireEvent.click(screen.getByText("All step changes"));
       const path = container.querySelector(".journey-trend-line")!.getAttribute("d")!;
       expect(path.match(/M/g)).toHaveLength(2);
       expect(path.match(/L/g)).toHaveLength(1);
