@@ -162,7 +162,9 @@ export function insightFunnel(insight: Record<string, unknown> | null, taken: Re
   if (insight === null || insight.deleted === true) return null;
   const name = [insight.name, insight.derived_name].find((value): value is string => typeof value === 'string' && value.trim() !== '')?.trim();
   if (name === undefined) return null;
-  const steps = querySteps(asRecord(insight.query)) ?? filterSteps(asRecord(insight.filters));
+  const steps = insight.query === undefined || insight.query === null
+    ? filterSteps(asRecord(insight.filters))
+    : querySteps(asRecord(insight.query));
   if (steps === null) return null;
   const funnel: PosthogFunnel = {
     id: funnelId(name, typeof insight.short_id === 'string' ? insight.short_id : null, taken),
@@ -179,10 +181,13 @@ export function insightFunnel(insight: Record<string, unknown> | null, taken: Re
 function querySteps(query: Record<string, unknown> | null): PosthogFunnelStep[] | null {
   const source = query?.kind === 'InsightVizNode' ? asRecord(query.source) : query;
   if (source?.kind !== 'FunnelsQuery' || !Array.isArray(source.series)) return null;
+  // Import only semantics represented by the local event-and-path definition.
+  if (Object.keys(source).some((key) => !['kind', 'series', 'dateRange'].includes(key))) return null;
   const steps: PosthogFunnelStep[] = [];
   for (const node of source.series) {
     const record = asRecord(node);
     if (record?.kind !== 'EventsNode' || typeof record.event !== 'string') return null;
+    if (Object.keys(record).some((key) => !['kind', 'event', 'properties', 'name', 'custom_name'].includes(key))) return null;
     const step = eventStep(record.event, record.properties);
     if (step === null) return null;
     steps.push(step);
@@ -193,11 +198,17 @@ function querySteps(query: Record<string, unknown> | null): PosthogFunnelStep[] 
 /** Steps of an older filter-based funnel (`insight: "FUNNELS"`, `events` in order). */
 function filterSteps(filters: Record<string, unknown> | null): PosthogFunnelStep[] | null {
   if (filters?.insight !== 'FUNNELS' || !Array.isArray(filters.events)) return null;
-  if (Array.isArray(filters.actions) && filters.actions.length > 0) return null;
-  const events = filters.events
-    .map((entry) => asRecord(entry))
-    .filter((entry): entry is Record<string, unknown> => entry !== null)
-    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
+  if (filters.actions !== undefined && filters.actions !== null && (!Array.isArray(filters.actions) || filters.actions.length > 0)) return null;
+  if (Object.keys(filters).some((key) => !['insight', 'events', 'actions', 'date_from', 'date_to'].includes(key))) return null;
+  const events: Record<string, unknown>[] = [];
+  for (const value of filters.events) {
+    const entry = asRecord(value);
+    if (entry === null || Object.keys(entry).some((key) => !['id', 'order', 'type', 'properties', 'name', 'custom_name'].includes(key))) return null;
+    if (entry.type !== undefined && entry.type !== 'events') return null;
+    if (entry.order !== undefined && (typeof entry.order !== 'number' || !Number.isSafeInteger(entry.order) || entry.order < 0)) return null;
+    events.push(entry);
+  }
+  events.sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0));
   const steps: PosthogFunnelStep[] = [];
   for (const entry of events) {
     if (typeof entry.id !== 'string') return null;
@@ -211,10 +222,12 @@ function filterSteps(filters: Record<string, unknown> | null): PosthogFunnelStep
 /** One step: the event, and a page path only when the step's one filter is an
  * exact `$pathname`. Any other filter makes it a step this archive cannot count. */
 function eventStep(event: string, properties: unknown): PosthogFunnelStep | null {
+  if (properties !== undefined && properties !== null && !Array.isArray(properties)) return null;
   const filters = Array.isArray(properties) ? properties.map(asRecord) : [];
   if (filters.length === 0) return { event };
   if (filters.length > 1) return null;
   const only = filters[0];
+  if (only === null || only === undefined || Object.keys(only).some((key) => !['key', 'operator', 'value', 'type'].includes(key)) || only.type !== undefined && only.type !== 'event') return null;
   const value = Array.isArray(only?.value) && only.value.length === 1 ? only.value[0] : only?.value;
   if (only?.key !== '$pathname' || (only.operator ?? 'exact') !== 'exact' || typeof value !== 'string') return null;
   return { event, path: value };

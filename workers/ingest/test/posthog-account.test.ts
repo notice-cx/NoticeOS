@@ -137,6 +137,29 @@ describe('a saved insight is a funnel only when the archive can count it as Post
     expect(funnels.slice(0, 3).map((funnel) => funnel.id)).toEqual(['signup', 'signup-2', 'signup-3']);
   });
 
+  it('does not silently remove global filters, ordering or window rules from imported funnels', () => {
+    for (const extra of [{ properties: [{ key: '$browser', value: 'Chrome' }] }, { funnelsFilter: { funnelOrderType: 'unordered' } }, { aggregation_group_type_index: 0 }]) {
+      expect(insightFunnel({ name: 'Filtered signup', query: { kind: 'FunnelsQuery', series: [{ kind: 'EventsNode', event: 'a' }, { kind: 'EventsNode', event: 'b' }], ...extra } })).toBeNull();
+    }
+    expect(insightFunnel({ name: 'Windowed signup', filters: { insight: 'FUNNELS', events: [{ id: 'a' }, { id: 'b' }], funnel_window_interval: 30 } })).toBeNull();
+  });
+  it('never falls back to mirror filters after rejecting an existing query', () => {
+    expect(insightFunnel({ name: 'Filtered signup', query: { kind: 'FunnelsQuery', series: [{ kind: 'EventsNode', event: 'a' }, { kind: 'EventsNode', event: 'b' }], properties: [{ key: '$browser', value: 'Chrome' }] },
+      filters: { insight: 'FUNNELS', events: [{ id: 'a' }, { id: 'b' }] } })).toBeNull();
+  });
+  it('rejects unrepresented step semantics and malformed constraints without dropping nodes', () => {
+    for (const extra of [{ math: 'unique_group' }, { fixedProperties: [{ key: '$browser', value: 'Chrome' }] }, { properties: { key: '$browser', value: 'Chrome' } },
+      { properties: [{ key: '$pathname', value: '/join', type: 'person' }] }, { properties: [{ key: '$pathname', value: '/join', negation: true }] }]) {
+      expect(insightFunnel({ name: 'Signup', query: { kind: 'FunnelsQuery', series: [
+        { kind: 'EventsNode', event: 'a', ...extra }, { kind: 'EventsNode', event: 'b' },
+      ] } })).toBeNull();
+    }
+    for (const events of [[{ id: 'a' }, null, { id: 'b' }], [{ id: 'a', properties: {} }, { id: 'b' }], [{ id: 'a', order: 'bad' }, { id: 'b' }]]) {
+      expect(insightFunnel({ name: 'Signup', filters: { insight: 'FUNNELS', events } })).toBeNull();
+    }
+    expect(insightFunnel({ name: 'Signup', filters: { insight: 'FUNNELS', events: [{ id: 'a' }, { id: 'b' }], actions: {} } })).toBeNull();
+  });
+
   it('reads a project domain from its app URLs, then its recordings, then a name that is a domain', () => {
     expect(projectHost({ app_urls: ['https://www.example.com/'] }, 'x')).toBe('example.com');
     expect(projectHost({ app_urls: [], recording_domains: ['https://shop.example.com'] }, 'x')).toBe('shop.example.com');
