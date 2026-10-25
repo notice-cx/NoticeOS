@@ -1527,6 +1527,7 @@ export interface AssetGa4Config {
   /** `config/ga4-custom-dimensions.json` → `/assets/<id>/eventParams`. */
   eventParams: string[] | null;
   productUseStages?: import('@noticeos/contract/product-use').ProductUseStage[] | null;
+  journeys?: import('@noticeos/contract/journeys').JourneyDefinition[] | null;
   /** Distinguishes first list creation from first asset-holder creation. */
   valueEventsEntryExists?: boolean;
 }
@@ -1577,6 +1578,7 @@ export interface FetchFailure extends FlagReading {
 }
 
 export interface AssetDetailPayload {
+  journeys: import('@noticeos/contract/journeys').JourneySnapshot | null;
   generatedAt: string;
   asset: AssetInfo;
   /** Complete latest-run matrix on asset #0; null on ordinary assets. */

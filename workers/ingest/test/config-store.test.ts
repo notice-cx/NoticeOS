@@ -16,6 +16,7 @@ import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CONFIG_DOCUMENT_FILES,
+  COLLECTOR_CONFIG_FILES,
   applyConfigOps,
   configSourceLine,
   forgetConfigCache,
@@ -108,9 +109,7 @@ describe('reading before anything is seeded', () => {
   it('leaves every collector on its compiled config', async () => {
     const { documents, sources } = await readCollectorConfigs(env);
     expect(documents).toEqual({});
-    // Six files, every one of them answered by the copy compiled into this
-    // Worker — which is what makes an unseeded run byte-identical to yesterday's.
-    expect(Object.values(sources)).toEqual(Array(6).fill('file'));
+    expect(Object.values(sources)).toEqual(COLLECTOR_CONFIG_FILES.map(() => 'file'));
   });
 
   it('names a file this Worker does not carry rather than inventing one', async () => {

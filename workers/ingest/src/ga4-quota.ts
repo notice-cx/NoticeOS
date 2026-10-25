@@ -28,7 +28,7 @@ export const GA4_QUOTA_EXHAUSTED_CODE = 'ga4_quota_exhausted';
 export const GA4_QUOTA_RESERVE = { tokensPerDay: 40_000, tokensPerHour: 8_000 } as const;
 
 /** Which lane spent the tokens, carried into the flag so the fix is obvious. */
-export type Ga4QuotaLane = 'signal-dumps' | 'google-signals' | 'ga4-realtime' | 'ga4-comparison';
+export type Ga4QuotaLane = 'signal-dumps' | 'google-signals' | 'ga4-realtime' | 'ga4-comparison' | 'ga4-journeys';
 
 /**
  * The buckets a request reports back. A missing or unusable field stays
@@ -145,7 +145,7 @@ export async function recordGa4Quota(
 ): Promise<Ga4QuotaWrite> {
   const { asset, lane, propertyRef, quota, at } = input;
   const pressured = quotaPressure(quota);
-  const ruleId = lane === 'ga4-realtime' ? 'ga4-realtime-quota-pressure' : GA4_QUOTA_RULE_ID;
+  const ruleId = lane === 'ga4-realtime' ? 'ga4-realtime-quota-pressure' : lane === 'ga4-journeys' ? 'ga4-funnel-quota-pressure' : GA4_QUOTA_RULE_ID;
 
   console.log(
     JSON.stringify({
@@ -197,7 +197,7 @@ export async function recordGa4Quota(
       propertyRef,
       observations: priorObservations(open?.ruleInputs) + 1,
       lastObservedAt: at,
-      pool: lane === 'ga4-realtime' ? 'realtime' : 'core',
+      pool: lane === 'ga4-realtime' ? 'realtime' : lane === 'ga4-journeys' ? 'funnel' : 'core',
       reserves: GA4_QUOTA_RESERVE,
       tokensPerDay: quota?.tokensPerDay ?? null,
       tokensPerHour: quota?.tokensPerHour ?? null,

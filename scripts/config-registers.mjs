@@ -394,6 +394,12 @@ export const CONFIG_REGISTERS = {
             },
         ],
     },
+    'journeys': {
+        file: 'config/value-events.json', container: `/assets/${ASSET_PARAM}/journeys`,
+        shape: 'array', keyField: 'id', addableContainer: true, seedUndo: 'list',
+        label: 'Journeys', describe: 'versioned ordered user journeys',
+        owner: 'config/value-events.README.md', surface: "the asset's Journeys tab", fields: null,
+    },
     'product-use-stages': {
         file: 'config/value-events.json',
         container: `/assets/${ASSET_PARAM}/productUseStages`,

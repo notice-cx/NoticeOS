@@ -22,6 +22,19 @@ export interface RegistryEntry {
 
 export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
+    name: "JourneyMonitor",
+    file: "components/JourneyMonitor.tsx",
+    purpose: "An asset's ordered-user journeys: common-baseline step counts, the largest absolute loss, adjacent-period comparisons and weekly completion with continuation cells. Sampled, missing and planned reports retain explicit states; session exploration is separate.",
+    variants: ["complete ordered read", "prior period", "selected week", "weekly history and continuation cells", "sampled or missing report", "planned subscription", "unsupported session exploration", "no definitions"],
+  },
+  {
+    name: "JourneyDefinitionEditor",
+    file: "components/JourneyDefinitionEditor.tsx",
+    purpose: "Versioned journey definitions with business labels, exact event/path/parameter alternatives, per-step time limits and reorder controls. Whole-list guarded saves and removals carry Undo beside the definition.",
+    variants: ["new template", "edit", "OR events", "exact parameters", "reorder", "save and undo", "remove and undo", "read-only"],
+    demo: "Opened through Definition or New journey in the JourneyMonitor gallery.",
+  },
+  {
     name: "PageAnswer",
     file: "components/surface/PageAnswer.tsx",
     purpose:

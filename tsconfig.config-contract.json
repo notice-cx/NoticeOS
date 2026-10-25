@@ -20,6 +20,7 @@
     "scripts/change-topics.mts",
     "packages/contract/src/configuration.mts",
     "packages/contract/src/product-use.mts",
+    "packages/contract/src/journeys.mts",
     "packages/contract/src/ledger-coverage.mts",
     "packages/contract/src/revenue-sources.mts",
     "packages/contract/src/posthog-families.mts",

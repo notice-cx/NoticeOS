@@ -261,6 +261,41 @@ and one command imports it as evidence.
 | **How you know how old it is** | `freshness.json` `uncollected[]`, one row per family, aged from that family's own newest `report_date`; without a row of their own the nightly `bing-webmaster` API collection would mark them fresh and the reader would need to know already which families it does not cover. They are outside the top-level `fresh` — they have no cadence to miss — so read `uncollected[]`, not just the top-level `fresh`. A family nobody has ever imported has no row at all: a missing row means the file was never imported, not that an old file is stale. |
 | **Where the originals are** | Every imported file is archived byte-identical (base64, inside the gzip JSON archive in private R2) alongside the parse, so any later reader can parse it again without needing a download that may no longer be available. |
 
+## Ordered journeys
+
+An asset's Journeys tab shows ordered GA4 user counts, completion, the largest
+number of people lost between steps, and complete weekly history. Definitions
+are saved in `config/value-events.json` under the asset's `journeys` list.
+Each step has a business label and one or more event alternatives. Alternatives
+may require an exact page path or exact event parameter values. A destination
+step may set a time limit from the preceding step.
+
+The scheduled GA4 archive job collects active funnel definitions through
+Google's `v1alpha` `runFunnelReport` method. It requests 7-day and 28-day totals,
+their preceding periods, and eight complete Monday–Sunday weeks directly.
+Rolling periods end two calendar days before collection in the property's
+reporting time zone. Weekly unique users are never added to produce a rolling
+total. A missing property time zone prevents collection.
+
+Archives preserve the definition identity, property, time zone, collection time,
+ordered `activeUsers` counts, provider response and quality metadata. Dynamic
+request reports are grouped as `ga4-journeys` in the panel. Requests use a
+separate Funnel quota budget and stored results are reused before a provider
+request. Recent windows are checked again until the settlement period ends.
+The Tower reads the published snapshot; opening the page makes no provider
+request.
+
+Changed measurement rules start a separate history. Comparisons require the
+same definition, property, time zone and user identity, with adjacent periods
+of equal length. Sampled, thresholded, incomplete and unavailable results do
+not receive improvement or regression colours. Counts are GA4 active users,
+not visits, attempts or a cross-provider person count.
+
+Planned definitions do not collect reports. Session exploration also requires
+a separate source that records page order within each visit. The Journeys tab
+shows this setup state; independent page totals and ordered user funnels do
+not supply session branches.
+
 ## The PostHog families: product data
 
 Search data shows how people

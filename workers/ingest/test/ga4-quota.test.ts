@@ -36,4 +36,15 @@ describe('GA4 quota reserves', () => {
     const refilled = await recordGa4Quota(env, { ...input, lane: 'google-signals', quota: { tokensPerDay: bucket(199_000), tokensPerHour: null } });
     expect(refilled.resolved).toBe(1);
   });
+  it('keeps Funnel quota and recovery separate from Core', async () => {
+    const quota = { tokensPerDay: bucket(10_000), tokensPerHour: null };
+    await recordGa4Quota(env, { ...input, lane: 'google-signals', quota });
+    await recordGa4Quota(env, { ...input, lane: 'ga4-journeys', quota });
+    const funnel = await pgRows<{ pool: string }>("SELECT rule_inputs->>'pool' AS pool FROM noticeos.current_flags WHERE rule_id = 'ga4-funnel-quota-pressure' AND resolved_at IS NULL");
+    expect(funnel).toHaveLength(1);
+    expect(funnel[0]!.pool).toBe('funnel');
+    await recordGa4Quota(env, { ...input, lane: 'ga4-journeys', quota: { tokensPerDay: bucket(199_000), tokensPerHour: null } });
+    const active = await pgRows<{ rule_id: string }>("SELECT rule_id FROM noticeos.current_flags WHERE resolved_at IS NULL ORDER BY rule_id");
+    expect(active.map((row) => row.rule_id)).toEqual(['ga4-quota-pressure']);
+  });
 });

@@ -14,6 +14,7 @@ import { MEDIAVINE_REPORTING_CLOCK } from "../../../packages/mediavine/src/index
 import { revenueExpectedThrough, shiftRevenueDate } from "../shared/revenue-projection";
 import { bookLedger } from '../test/money';
 import { writeInsightSnapshots } from '../test/provider-reports';
+import { ORDERED_JOURNEY_DEFINITIONS, orderedJourneyFixture } from './ordered-journeys-fixture';
 import { storeCodebaseReports, weeklyStoredReports } from '../test/codebase-fixture';
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
 import { MISSING, applyDocumentOps, configDocumentKey, resolveOps, validateSchemaAndSafety, type Changeset, type Mismatch } from "../../../scripts/config-documents.mjs";
@@ -1332,6 +1333,25 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // only the provider's or the site's answer the fixture's, so a capture
       // shows what an installation shows.
       response = await afterFailure(url.pathname.slice("/__journey/after-failure/".length));
+    } else if (url.pathname === "/__journey/ordered-journeys" && request.method === "POST") {
+      if (!await siteStored(JOURNEY_ASSET)) {
+        response = Response.json({ error: "Create the fixture asset first." }, { status: 409 });
+      } else {
+        const config = documents['config/value-events.json'] as { assets: Record<string, unknown> };
+        config.assets[JOURNEY_ASSET] = { journeys: structuredClone(ORDERED_JOURNEY_DEFINITIONS) };
+        versions.set('config/value-events.json', (versions.get('config/value-events.json') ?? 0) + 1);
+        const integrations = documents['config/integrations.json'] as { assets: Record<string, Record<string, unknown>> };
+        integrations.assets[JOURNEY_ASSET] = { ...integrations.assets[JOURNEY_ASSET], ga4: {
+          propertyId: '123456', status: 'live', since: JOURNEY_NOW.slice(0,10),
+        } };
+        versions.set('config/integrations.json', (versions.get('config/integrations.json') ?? 0) + 1);
+        await writeInsightSnapshots(postgres.current().store, [{
+          id: 'ordered-journeys', asset: JOURNEY_ASSET, generated_at: JOURNEY_NOW,
+          window_start: '2026-08-08', window_end: '2026-09-04',
+          payload: JSON.stringify({ ...journeyFindingSnapshot(), journeys: orderedJourneyFixture() }),
+        }]);
+        response = Response.json({ seeded: true });
+      }
     } else if (url.pathname === "/__journey/finding" && request.method === "POST") {
       // One saved finding on the fixture asset, after the real wizard created it.
       if (!await siteStored(JOURNEY_ASSET)) {

@@ -114,6 +114,8 @@ import { loadIntegrationEvidence, recentSincePeriod, serpPanelAssets } from './i
 import { parseProductSnapshot } from '../shared/product-snapshot';
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
 import { emptySignalTrendSet, loadSignalTrends } from "./signal-trends";
+import { assetJourneys, readJourneyBinding } from './asset-journeys';
+import { readJourneyDefinitions } from '@noticeos/contract/journeys';
 
 const PROPERTY_SIGNAL_CHART_DAYS = 90;
 
@@ -1734,7 +1736,7 @@ async function assembleAssetDetail(
     // Only the analyzer's bounded snapshot crosses into this read model: the
     // site's newest, by the order the store keeps two by
     // (`noticeos.insight_snapshot_is_kept`), as the text it was published as.
-    wants("executive")
+    wants("executive") || wants("journeys")
       ? (async () => {
           const [row] = await store.read((tx) =>
             tx.query<{ payload: string }>(
@@ -1746,10 +1748,16 @@ async function assembleAssetDetail(
               [id],
             ),
           );
-          const executive = parseExecutiveSnapshot(row?.payload ?? null, id);
+          const executive = wants("executive") ? parseExecutiveSnapshot(row?.payload ?? null, id) : null;
           return {
-            executive,
-            recommendationEvidence: executive ? await readRecommendationSources(store, id, nowMs) : null,
+            ...(wants("executive") ? {
+              executive,
+              recommendationEvidence: executive ? await readRecommendationSources(store, id, nowMs) : null,
+            } : {}),
+            ...(wants("journeys") ? {
+              journeys: assetJourneys(row?.payload ?? null, valueEvents.assets[id]?.journeys,
+                await readJourneyBinding(store, id, integrations.assets[id]?.ga4)),
+            } : {}),
           };
         })()
       : null,
@@ -1991,6 +1999,7 @@ async function assembleAssetDetail(
       valueEvents: stringListEntry(valueEvents.assets[id]?.valueEvents),
       eventParams: stringListEntry(ga4EventParams.assets[id]?.eventParams),
       productUseStages: readProductUseStages(valueEvents.assets[id]?.productUseStages)?.map((stage) => ({ ...stage })) ?? null,
+      journeys: readJourneyDefinitions(valueEvents.assets[id]?.journeys)?.map((journey) => ({ ...journey })) ?? null,
       valueEventsEntryExists: valueEvents.assets[id] !== undefined,
     },
     ...(tasksRead

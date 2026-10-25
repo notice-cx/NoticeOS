@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { journeyDefinitionId, journeyDefinitionsRefusal, readJourneyPeriod, readJourneySnapshot } from '../packages/contract/src/journeys.mjs';
+import { archiveFamily, archiveRows } from './signal-archive.mjs';
+import { buildExecutiveSnapshot, journeysSnapshot } from './signal-insights.mjs';
+
+const definition = { id: 'activation', label: 'Activation', goal: 'First useful action', kind: 'funnel', status: 'active', version: 1, steps: [
+  { id: 'account', label: 'Account created', alternatives: [{ eventName: 'sign_up' }] },
+  { id: 'saved', label: 'Plan saved', alternatives: [{ eventName: 'plan_save', parameters: [{name:'action',value:'save'}] }], withinSeconds: 86400 },
+] };
+const period = (kind='current7', startDate='2026-10-12', endDate='2026-10-18', users=[100,40]) => ({kind,startDate,endDate,complete:true,quality:'complete',steps:definition.steps.map((step,index) => ({id:step.id,users:users[index]}))});
+const archive = (p, fields={}) => ({ schemaVersion:1,asset:'example.com',integration:'ga4',report:'journeys-hash',reportDate:p.endDate,collectedAt:'2026-10-20T00:00:00Z',providerTruncated:false,dataState:'provider-snapshot', pages:[{request:{},response:{journeyId:definition.id,definitionId:journeyDefinitionId(definition),definition,propertyId:'123',timeZone:'UTC',identity:'ga4-active-users',period:{kind:p.kind,startDate:p.startDate,endDate:p.endDate,complete:true},quality:p.quality,steps:p.steps,...fields}}] });
+const config = {assets:{'example.com':{journeys:[definition]}}};
+const families = (archives) => new Map([['ga4-journeys',archives.flatMap((a) => archiveRows(a,new Map()))]]);
+
+test('definitions validate bounded exact alternatives and identity excludes display copy', () => {
+  assert.equal(journeyDefinitionsRefusal([definition]),null);
+  assert.equal(journeyDefinitionId({...definition,label:'New label',goal:'Other goal'}),journeyDefinitionId(definition));
+  assert.notEqual(journeyDefinitionId({...definition,version:2}),journeyDefinitionId(definition));
+  assert.notEqual(journeyDefinitionsRefusal([definition,definition]),null);
+  assert.notEqual(journeyDefinitionsRefusal([{...definition,steps:[{...definition.steps[0],withinSeconds:5},definition.steps[1]]}]),null);
+});
+
+test('period reader rejects invented dates, increasing counts and unreviewed fields', () => {
+  assert.equal(readJourneyPeriod(period('current7','2026-02-24','2026-02-30')),null);
+  assert.equal(readJourneyPeriod(period('current7',undefined,undefined,[40,100])),null);
+  assert.equal(readJourneyPeriod({...period(),secret:'unexpected'}),null);
+  assert.equal(readJourneyPeriod({...period(),quality:'sampled'}),null);
+  assert.equal(readJourneyPeriod({...period(),quality:'unavailable'}),null);
+});
+
+test('archive periods survive normalization and direct windows never add weekly uniques', () => {
+  const a = archive(period());
+  assert.equal(archiveFamily(a),'ga4-journeys');
+  const snapshot = journeysSnapshot(families([a,archive(period('week')),archive(period('prior7','2026-10-05','2026-10-11',[80,30]))]),'example.com',config,'2026-10-20T01:00:00Z');
+  assert.equal(snapshot.funnels[0].current7.steps[0].users,100);
+  assert.equal(snapshot.funnels[0].prior7.steps[0].users,80);
+  assert.equal(snapshot.funnels[0].current28,null);
+  assert.equal(snapshot.funnels[0].weekly.length,1);
+  assert.equal(readJourneySnapshot({...snapshot,unreviewed:true}),null);
+  assert.equal(readJourneySnapshot({...snapshot,funnels:[snapshot.funnels[0],snapshot.funnels[0]]}),null);
+});
+
+test('changed measurement definitions and incompatible property periods never compare', () => {
+  const a=archive(period());
+  const other=archive(period('prior7','2026-10-05','2026-10-11'),{propertyId:'456'});
+  other.collectedAt='2026-10-19T00:00:00Z';
+  const snapshot=journeysSnapshot(families([a,other]),'example.com',config,'2026-10-20T01:00:00Z');
+  assert.equal(snapshot.funnels[0].prior7,null);
+  const changed=structuredClone(config);changed.assets['example.com'].journeys[0].version=2;
+  assert.equal(journeysSnapshot(families([a]),'example.com',changed,'2026-10-20T01:00:00Z').funnels.length,0);
+});
+
+
+test('stale rolling archives retain dated history but cannot pose as a current period', () => {
+  const snapshot=journeysSnapshot(families([archive(period()),archive(period('week'))]),'example.com',config,'2026-10-23T01:00:00Z');
+  assert.equal(snapshot.funnels[0].current7,null);
+  assert.equal(snapshot.funnels[0].prior7,null);
+  assert.equal(snapshot.funnels[0].weekly.length,1);
+});
+
+
+test('assets without journey declarations retain their existing executive snapshot shape', () => {
+  const snapshot=buildExecutiveSnapshot({asset:'example.com',families:new Map(),archives:[],generatedAt:'2026-10-20T01:00:00Z'});
+  assert.equal(Object.hasOwn(snapshot,'journeys'),false);
+  const declared=buildExecutiveSnapshot({asset:'example.com',families:new Map(),archives:[],valueEvents:config,generatedAt:'2026-10-20T01:00:00Z'});
+  assert.equal(declared.journeys.definitions.length,1);
+});

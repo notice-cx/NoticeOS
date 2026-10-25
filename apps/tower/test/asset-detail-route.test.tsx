@@ -207,6 +207,7 @@ afterEach(() => {
  * the Daily metrics table is the only table on the page. */
 function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
   return {
+    journeys: null,
     generatedAt: "2026-07-05T12:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {
@@ -1182,6 +1183,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ""))).toEqual([
       "Overview",
       "Growth",
+      "Journeys",
       "Money",
       "Search",
       "Codebase",
@@ -1195,6 +1197,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(tabs.map((t) => t.getAttribute("href"))).toEqual([
       "/assets/meadow.example",
       "/assets/meadow.example/growth",
+      "/assets/meadow.example/journeys",
       "/assets/meadow.example/financials",
       "/assets/meadow.example/search",
       "/assets/meadow.example/codebase",
@@ -1217,9 +1220,11 @@ describe("AssetDetailRoute — executive page identity", () => {
       "false",
       "false",
       "false",
+      "false",
     ]);
     expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual([
       "0",
+      "-1",
       "-1",
       "-1",
       "-1",
@@ -1363,12 +1368,13 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(sources).toHaveAttribute("title", "1 working · 1 failing");
     expect(tabs[0]!.textContent).toBe("Overview");
     expect(tabs[1]!.textContent).toBe("Growth");
-    expect(tabs[2]!.textContent).toBe("Money");
-    expect(tabs[3]!.textContent).toBe("Search");
-    expect(tabs[4]!.textContent).toBe("Codebase");
-    expect(tabs[5]!.textContent).toBe("Health");
-    expect(tabs[7]!.textContent).toBe("Tasks");
-    expect(tabs[8]!.textContent).toBe("Activity");
+    expect(tabs[2]!.textContent).toBe("Journeys");
+    expect(tabs[3]!.textContent).toBe("Money");
+    expect(tabs[4]!.textContent).toBe("Search");
+    expect(tabs[5]!.textContent).toBe("Codebase");
+    expect(tabs[6]!.textContent).toBe("Health");
+    expect(tabs[8]!.textContent).toBe("Tasks");
+    expect(tabs[9]!.textContent).toBe("Activity");
   });
 
   it.each([undefined, null, "not-a-date"])("never shows a provider's source Working in the header before its reads answer (observation: %s)", async (observedAt) => {

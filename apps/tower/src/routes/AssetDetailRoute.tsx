@@ -31,6 +31,7 @@ import {
   CodebaseTab,
   FinancialsTab,
   GrowthTab,
+  JourneysTab,
   HealthTab,
   OverviewTab,
   SearchTab,
@@ -256,6 +257,8 @@ function tabContent(tab: AssetTab, data: AssetDetailResponse, handlers: TabHandl
       ) : null;
     case "financials":
       return viewCovers(data, "financials") ? <FinancialsTab data={data} nowMs={nowMs} /> : null;
+    case "journeys":
+      return viewCovers(data, "journeys") ? <JourneysTab data={data} /> : null;
     case "search":
       return viewCovers(data, "search") ? (
         <RecommendationEvidenceProvider data={data} nowMs={nowMs}>

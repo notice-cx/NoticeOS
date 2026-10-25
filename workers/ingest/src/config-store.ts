@@ -561,6 +561,7 @@ export const COLLECTOR_CONFIG_FILES = [
   'config/counters.json',
   'config/integrations.json',
   'config/ga4-custom-dimensions.json',
+  'config/value-events.json',
   'config/serp-panel.json',
   'config/constants.json',
 ] as const;
@@ -585,6 +586,7 @@ const USABLE: Record<CollectorConfigFile, (body: unknown) => boolean> = {
   'config/counters.json': (body) => isRecord(body) && isRecord(body.assets),
   'config/integrations.json': (body) => isRecord(body) && isRecord(body.assets),
   'config/ga4-custom-dimensions.json': (body) => isRecord(body) && isRecord(body.assets),
+  'config/value-events.json': (body) => isRecord(body) && isRecord(body.assets),
   'config/serp-panel.json': (body) => isRecord(body) && isRecord(body.assets),
   'config/constants.json': (body) => isRecord(body) && isRecord(body.flag_defaults),
 };

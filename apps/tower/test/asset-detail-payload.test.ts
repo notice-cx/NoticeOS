@@ -753,7 +753,7 @@ describe("buildAssetDetailPayload", () => {
     expect(nom.ga4Config.eventParams).toEqual(["message", "source"]);
 
     const os = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
-    expect(os.ga4Config).toEqual({ valueEvents: null, eventParams: null, productUseStages: null, valueEventsEntryExists: false });
+    expect(os.ga4Config).toEqual({ valueEvents: null, eventParams: null, productUseStages: null, journeys: null, valueEventsEntryExists: false });
   });
 
   it("carries only the selected asset's validated Product use presentation", async () => {
@@ -3308,6 +3308,7 @@ describe("buildAssetDetailPayload — the PostHog product block", () => {
 /** The payload fields each section owns — the spec `ASSET_VIEW_SECTIONS` is
  * checked against. `watchHistory` owns `watches.history`, not a key. */
 const SECTION_FIELD_SPEC: Record<string, string[]> = {
+  journeys: ["journeys"],
   performance: ["performance"],
   executive: ["executive", "recommendationEvidence"],
   metrics: ["metrics"],
@@ -3503,12 +3504,12 @@ describe("buildAssetDetailView — one read per tab", () => {
   it("leaves a section it does not draw ABSENT, so no tab can mistake it for empty", async () => {
     await seedEveryMoneySection(ctx);
     const alerts =(await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts"))!;
-    for (const key of ["performance", "executive", "metrics", "ledger", "annotations", "handoffBeads", "hygiene"]) {
+    for (const key of ["journeys", "performance", "executive", "metrics", "ledger", "annotations", "handoffBeads", "hygiene"]) {
       expect(alerts).not.toHaveProperty(key);
     }
     const response = alerts as AssetDetailResponse;
     expect(viewCovers(response, "tasks")).toBe(true);
-    for (const other of ["overview", "growth", "financials", "search", "codebase", "activity", "sources", "settings"] as const) {
+    for (const other of ["overview", "growth", "journeys", "financials", "search", "codebase", "activity", "sources", "settings"] as const) {
       expect(viewCovers(response, other), other).toBe(false);
     }
     const overview = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "overview"))! as AssetDetailResponse;

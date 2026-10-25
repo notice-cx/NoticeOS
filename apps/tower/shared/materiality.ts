@@ -207,6 +207,7 @@ export const WALL_PAYLOAD_INVENTORY = {
  * concern cannot select progressive-disclosure because that placement is not in
  * CurrentConcern's type. */
 export const ASSET_PAYLOAD_INVENTORY = {
+  journeys: { class: "material-current", placement: "primary-content", destination: "Journeys tab conversion bars and weekly history" },
   generatedAt: { class: "supporting-evidence", placement: "first-viewport", destination: "held-read posture" },
   asset: { class: "material-current", placement: "first-viewport", destination: "AssetHeader identity and source status" },
   scheduledLanes: { class: "material-current", placement: "primary-content", destination: "SourcesTab / ScheduledLanesPanel" },

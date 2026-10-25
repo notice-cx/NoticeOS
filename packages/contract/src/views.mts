@@ -50,6 +50,7 @@ export type HomeModuleId = (typeof HOME_MODULES)[number];
 export const SITE_TABS = [
   "overview",
   "growth",
+  "journeys",
   "financials",
   "search",
   "codebase",
@@ -108,7 +109,7 @@ export const VIEW_LIBRARY: readonly ViewSpec[] = [
     detail: "Is my asset healthy and easy to find? In plain words.",
     nav: ["/", "/assets", "/financials", "/tasks", "/settings"],
     home: ["health", "money", "factory", "decide"],
-    siteTabs: ["overview", "financials", "search", "health", "tasks", "settings"],
+    siteTabs: ["overview", "journeys", "financials", "search", "health", "tasks", "settings"],
     wordLevel: "business",
   },
   {
@@ -117,7 +118,7 @@ export const VIEW_LIBRARY: readonly ViewSpec[] = [
     detail: "Where does the money come from, and where do people drop off?",
     nav: ["/", "/assets", "/alerts", "/tasks", "/financials", "/health", "/integrations", "/settings"],
     home: ["money", "channels", "gaps", "problems", "decide", "sites"],
-    siteTabs: ["overview", "growth", "financials", "search", "codebase", "health", "tasks", "sources", "settings"],
+    siteTabs: ["overview", "growth", "journeys", "financials", "search", "codebase", "health", "tasks", "sources", "settings"],
     wordLevel: "operational",
   },
   {

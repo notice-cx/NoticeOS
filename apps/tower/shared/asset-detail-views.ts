@@ -17,6 +17,7 @@ import type { AssetDetailPayload, WatchSlice } from "./asset-detail";
 export const ASSET_DETAIL_VIEWS = [
   "overview",
   "growth",
+  "journeys",
   "financials",
   "search",
   "codebase",
@@ -36,6 +37,7 @@ export const RESTORE_HASH = "#restore";
 
 /** The payload fields each section supplies. */
 interface SectionFields {
+  journeys: Pick<AssetDetailPayload, "journeys">;
   /** The 90-day provider trends (the heaviest read on the page). */
   performance: Pick<AssetDetailPayload, "performance">;
   /** The saved analysis and its source attempts. */
@@ -69,6 +71,7 @@ export type AssetDetailSection = keyof SectionFields;
 export const ASSET_VIEW_SECTIONS = {
   overview: ["performance", "executive", "metrics", "counters", "ledger", "dailyRevenue", "decisions", "tasks", "annotations"],
   growth: ["performance", "executive", "decisions", "tasks", "annotations"],
+  journeys: ["journeys"],
   financials: ["ledger", "dailyRevenue"],
   // `performance`: until a site tracks terms, its Search tab leads with its
   // search clicks and impressions.
@@ -88,6 +91,7 @@ export const ASSET_VIEW_SECTIONS = {
 
 /** The top-level payload fields a section owns outright, for the runtime check. */
 export const ASSET_SECTION_FIELDS: { [S in AssetDetailSection]: readonly (keyof AssetDetailPayload)[] } = {
+  journeys: ["journeys"],
   performance: ["performance"],
   executive: ["executive", "recommendationEvidence"],
   metrics: ["metrics"],

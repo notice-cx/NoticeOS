@@ -838,6 +838,7 @@ const OWED_COLLECTOR_LABELS: Record<string, string> = {
   hygiene: "search checks",
   "ga4-realtime": "Realtime traffic",
   "ga4-comparison": "Activity comparison",
+  "ga4-journeys": "Journey reports",
   "google-signals": "Google",
   "bing-signals": "Bing",
   "signal-dumps": "traffic archives",
@@ -1125,7 +1126,7 @@ function ga4Quota(facts: AlertFacts): AlertLanguage {
   );
   const remaining = num(tightest?.remaining);
   const reserve = num(tightest?.threshold);
-  const period = str(tightest?.bucket) === "tokensPerHour" ? "hourly" : "daily";
+  const period = str(tightest?.bucket)?.includes("PerHour") ? "hourly" : "daily";
   const lane = str(i.lane);
   const property = str(i.propertyRef);
   const at = str(i.lastObservedAt);
@@ -1135,7 +1136,7 @@ function ga4Quota(facts: AlertFacts): AlertLanguage {
     evidence.push({ polarity: "supporting", source: "Tokens left", detail: count(remaining), at });
   }
   if (reserve !== null) evidence.push({ polarity: "supporting", source: "Warns at", detail: `${count(reserve)} tokens`, at: null });
-  if (str(i.pool)) evidence.push({ polarity: "supporting", source: "Quota", detail: str(i.pool) === "realtime" ? "Realtime" : "Core", at });
+  if (str(i.pool)) evidence.push({ polarity: "supporting", source: "Quota", detail: str(i.pool) === "realtime" ? "Realtime" : str(i.pool) === "funnel" ? "Funnel" : "Core", at });
   if (lane) evidence.push({ polarity: "supporting", source: "Spent by", detail: OWED_COLLECTOR_LABELS[lane] ?? lane, at: null });
   if (property) evidence.push({ polarity: "supporting", source: "GA4 property", detail: property, at: null });
 
@@ -1163,6 +1164,7 @@ const TRANSLATORS: Record<string, (facts: AlertFacts) => AlertLanguage> = {
   "hygiene-security-headers": securityHeaders,
   "ga4-quota-pressure": ga4Quota,
   "ga4-realtime-quota-pressure": ga4Quota,
+  "ga4-funnel-quota-pressure": ga4Quota,
   "os-egress-down": egressDown,
   "watch-window-closed": watchWindowClosed,
 };

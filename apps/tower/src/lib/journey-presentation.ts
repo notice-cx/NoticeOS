@@ -1,0 +1,60 @@
+import { journeyDefinitionId, type JourneyDefinition, type JourneyFunnelResult, type JourneyPeriod } from "@noticeos/contract/journeys";
+
+export interface JourneyReading {
+  counts: number[];
+  rate: number | null;
+  largestLoss: number | null;
+  reason: string | null;
+}
+
+/** A conversion uses the same ordered population; independent event counts never enter here. */
+export function journeyReading(definition: JourneyDefinition, period: JourneyPeriod | null): JourneyReading {
+  const missing = { counts: [], rate: null, largestLoss: null };
+  if (definition.kind === "exploration") return { ...missing, reason: "Session paths require separate collection." };
+  if (!period) return { ...missing, reason: "No ordered report has been collected for this period." };
+  if (!period.complete || period.quality !== "complete") return { ...missing, reason: period.reason ?? (period.quality === "sampled" ? "This report is sampled. Conversion comparisons are unavailable." : "This period has no complete ordered report.") };
+  if (period.steps.length !== definition.steps.length || period.steps.some((step, i) => step.id !== definition.steps[i]?.id || step.users === null || step.users < 0 || (i > 0 && step.users > (period.steps[i - 1]?.users ?? -1)))) {
+    return { ...missing, reason: "These step counts cannot be compared." };
+  }
+  const counts = period.steps.map((step) => step.users!);
+  let largestLoss: number | null = null;
+  for (let i = 1; i < counts.length; i++) if (counts[i - 1]! - counts[i]! > 0 && (largestLoss === null || counts[i - 1]! - counts[i]! > counts[largestLoss - 1]! - counts[largestLoss]!)) largestLoss = i;
+  return { counts, rate: counts[0]! > 0 ? counts.at(-1)! / counts[0]! * 100 : null, largestLoss, reason: counts[0] === 0 ? "No people entered this journey in this period." : null };
+}
+
+export function matchingJourneyResult(definition: JourneyDefinition, results: readonly JourneyFunnelResult[]): JourneyFunnelResult | null {
+  return results.find((result) => result.journeyId === definition.id && result.definitionId === journeyDefinitionId(definition)) ?? null;
+}
+
+export function previousJourneyWeek(period: JourneyPeriod, weeks: readonly JourneyPeriod[]): JourneyPeriod | null {
+  const before = new Date(`${period.startDate}T00:00:00Z`).getTime() - 86_400_000;
+  return weeks.find((week) => new Date(`${week.endDate}T00:00:00Z`).getTime() === before) ?? null;
+}
+
+export function journeyComparison(definition: JourneyDefinition, period: JourneyPeriod | null, prior: JourneyPeriod | null): number | null {
+  if (!period || !prior) return null;
+  const span = (p: JourneyPeriod) => Date.parse(p.endDate) - Date.parse(p.startDate);
+  if (span(period) !== span(prior) || Date.parse(period.startDate) - Date.parse(prior.endDate) !== 86_400_000) return null;
+  const current = journeyReading(definition, period).rate;
+  const before = journeyReading(definition, prior).rate;
+  return current === null || before === null ? null : current - before;
+}
+
+export function journeyStepContinuation(definition: JourneyDefinition, period: JourneyPeriod | null, index: number): number | null {
+  const counts = journeyReading(definition, period).counts;
+  return index > 0 && counts[index] !== undefined && (counts[index - 1] ?? 0) > 0 ? counts[index]! / counts[index - 1]! * 100 : null;
+}
+
+export function journeyStepChange(definition: JourneyDefinition, period: JourneyPeriod | null, prior: JourneyPeriod | null, index: number): number | null {
+  if (journeyComparison(definition, period, prior) === null) return null;
+  const rate = journeyStepContinuation(definition, period, index);
+  const before = journeyStepContinuation(definition, prior, index);
+  return rate === null || before === null ? null : rate - before;
+}
+
+export function journeyWindow(definition: JourneyDefinition): string {
+  const limits = definition.steps.slice(1).map((step) => step.withinSeconds).filter((value): value is number => value !== undefined);
+  if (limits.length === 0) return "In order · no step time limit";
+  const label = (seconds: number) => seconds % 86_400 === 0 ? `${seconds / 86_400} day${seconds === 86_400 ? "" : "s"}` : seconds % 3_600 === 0 ? `${seconds / 3_600} hours` : `${seconds} seconds`;
+  return limits.every((value) => value === limits[0]) && limits.length === definition.steps.length - 1 ? `In order · each next step within ${label(limits[0]!)}` : "In order · step time limits in Definition";
+}

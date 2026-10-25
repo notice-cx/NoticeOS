@@ -168,6 +168,7 @@ export {
 export const DERIVATION_FILES = [
   'scripts/signal-archive.mjs',
   'packages/contract/src/posthog-families.mjs',
+  'packages/contract/src/journeys.mjs',
   'scripts/signal-downloads.mjs',
   'scripts/signal-history.mjs',
   'scripts/history-files.mjs',

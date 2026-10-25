@@ -926,3 +926,26 @@ test('Product use mutations validate the final list, including cross-row edits a
     {valueEvents:['purchase'],productUseStages:[row(0)]});
   assert.deepEqual(await apply([row(0),row(0)],[{kind:'file-json-delete',pointer:list,expect:[row(0),row(0)]}]),{valueEvents:['purchase']});
 });
+
+
+test('journeys save as a guarded list and semantic validation covers whole asset inserts', async () => {
+  const file = 'config/value-events.json';
+  const journey = {id:'signup',label:'Accounts',goal:'Create accounts',kind:'funnel',status:'active',version:1,steps:[
+    {id:'entry',label:'Visit',alternatives:[{eventName:'page_view'}]},
+    {id:'account',label:'Account',alternatives:[{eventName:'sign_up'}]},
+  ]};
+  const pointer = '/assets/example.com/journeys';
+  const op = {kind:'file-json-insert',file,pointer,value:[journey]};
+  const cs = changeset([op]); validateSchemaAndSafety(cs);
+  const initial = {assets:{'example.com':{valueEvents:['purchase']}}};
+  const result = await resolveOps(cs,null,{readDocument:documentsFrom({[file]:initial})});
+  applyDocumentOps(result.resolved,result.documents);
+  assert.deepEqual(result.documents.get(file).assets['example.com'],{...initial.assets['example.com'],journeys:[journey]});
+  const collision=await resolveOps(cs,null,{readDocument:documentsFrom({[file]:result.documents.get(file)})});
+  assert.equal(collision.mismatches.length,1);
+  const invalid=changeset([{kind:'file-json-insert',file,pointer:'/assets/other.example',value:{journeys:[journey,journey]}}]);
+  validateSchemaAndSafety(invalid);
+  const bad=await resolveOps(invalid,null,{readDocument:documentsFrom({[file]:initial})});
+  assert.throws(() => applyDocumentOps(bad.resolved,bad.documents),/unique/);
+  assert.throws(() => validateSchemaAndSafety(changeset([{...op,value:[{...journey,steps:[]}]}])),/journey/i);
+});

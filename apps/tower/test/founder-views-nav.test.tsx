@@ -233,18 +233,18 @@ describe("an asset's tabs follow the view", () => {
   it("shows the business view's tabs in the bar's order", () => {
     storeView("business");
     renderTabs("/assets/meadow.example");
-    expect(tabNames()).toEqual(["Overview", "Money", "Search", "Health", "Tasks", "Settings"]);
+    expect(tabNames()).toEqual(["Overview", "Journeys", "Money", "Search", "Health", "Tasks", "Settings"]);
   });
 
   it("shows the product view's tabs, Health after Codebase", () => {
     storeView("product");
     renderTabs("/assets/meadow.example");
-    expect(tabNames()).toEqual(["Overview", "Growth", "Money", "Search", "Codebase", "Health", "Tasks", "Data sources", "Settings"]);
+    expect(tabNames()).toEqual(["Overview", "Growth", "Journeys", "Money", "Search", "Codebase", "Health", "Tasks", "Data sources", "Settings"]);
   });
 
   it("keeps a deep-linked tab the view leaves out, last", () => {
     storeView("business");
     renderTabs("/assets/meadow.example/activity");
-    expect(tabNames()).toEqual(["Overview", "Money", "Search", "Health", "Tasks", "Settings", "Activity"]);
+    expect(tabNames()).toEqual(["Overview", "Journeys", "Money", "Search", "Health", "Tasks", "Settings", "Activity"]);
   });
 });
