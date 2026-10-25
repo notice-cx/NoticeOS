@@ -2,9 +2,10 @@ import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { JourneyDefinition } from '@noticeos/contract/journeys';
 import { ga4JourneyRequest, ga4JourneyResult, journeyWindows, runGa4Journeys } from '../src/ga4-journeys.js';
-import { archiveCollectedDump, runSignalDumps, type SignalDumpOutcome } from '../src/signal-dumps.js';
+import { archiveCollectedDump, archivePart, runGa4JourneyDumps, runSignalDumps, type SignalDumpOutcome } from '../src/signal-dumps.js';
+import { EGRESS_DOWN_RULE_ID, EgressGate } from '../src/egress.js';
 import type { GooglePropertyTarget } from '../src/google-signals.js';
-import { pgAll, pgExecute, reset } from './helpers';
+import { flagRows, pgAll, pgExecute, reset } from './helpers';
 import { providerDumpFetch } from './signal-dumps-fixture';
 
 const DEFINITION: JourneyDefinition = {
@@ -135,6 +136,58 @@ describe('GA4 ordered journey collection', () => {
     const results = await collect(fetchImpl, { target: { ...TARGET, propertyRef: '654321', timeZoneAssumed: true } });
     expect(calls).toBe(2);
     expect(results.every((result) => result.status === 'error')).toBe(true);
+  });
+  it('keeps exact outage obligations blocked by saved quota and clears only a reused window for the selected asset', async () => {
+    const low = response();
+    low.propertyQuota.tokensPerHour.remaining = 0;
+    const initial = await collect(async () => Response.json(low));
+    const cached = initial[0]!;
+    const guarded = initial[1]!;
+    expect(cached.status).toBe('success');
+    expect(guarded.status).toBe('error');
+    const cachedPart = archivePart('ga4', cached.report, cached.reportDate);
+    const guardedPart = archivePart('ga4', guarded.report, guarded.reportDate);
+    const unrelatedPart = archivePart('ga4', 'events', guarded.reportDate);
+    const dark = new EgressGate(env, {
+      lane: 'signal-dumps', at: new Date(NOW - 3_600_000).toISOString(),
+      fetchImpl: async () => { throw new Error('fixture network offline'); },
+    });
+    await dark.isDown();
+    dark.recordUnmeasured(TARGET.asset, cachedPart);
+    dark.recordUnmeasured(TARGET.asset, guardedPart);
+    dark.recordUnmeasured(TARGET.asset, unrelatedPart);
+    dark.recordUnmeasured('northwind.example', cachedPart);
+    dark.recordUnmeasured('ferns.example');
+    await dark.finalize();
+
+    const accounts = JSON.parse(env.GOOGLE_SIGNAL_ACCOUNTS!) as Record<string, { properties: Record<string, Record<string, unknown>> }>;
+    for (const account of Object.values(accounts)) for (const property of Object.values(account.properties)) property.time_zone = TARGET.timeZone;
+    const requests: string[] = [];
+    const result = await runGa4JourneyDumps(env, {
+      assets: [TARGET.asset], nowMs: NOW, rawConfig: JSON.stringify(accounts),
+      journeyConfig: { assets: { [TARGET.asset]: { journeys: [DEFINITION] } } },
+      fetchImpl: async (input) => {
+        const url = String(input);
+        requests.push(url);
+        if (url === 'https://www.cloudflare.com/cdn-cgi/trace') return new Response('fixture connection restored');
+        throw new Error(`Unexpected provider request: ${url}`);
+      },
+    });
+    expect(requests).toEqual(['https://www.cloudflare.com/cdn-cgi/trace']);
+    expect(result).toMatchObject({ unchanged: 1, failed: 11, egress: { up: true, resolved: 0 } });
+    expect(result.outcomes.find((entry) => entry.report === guarded.report)).toMatchObject({
+      status: 'error', errorCode: 'ga4_journey_budget_exhausted',
+    });
+    const [flag] = await flagRows('rule_id = $1', [EGRESS_DOWN_RULE_ID]);
+    expect(flag?.resolved_at).toBeNull();
+    const inputs = JSON.parse(flag!.rule_inputs!) as {
+      lanes: Record<string, { unmeasuredAssets: string[]; parts: Record<string, string[]> }>;
+    };
+    expect(inputs.lanes['signal-dumps']).toMatchObject({
+      unmeasuredAssets: [TARGET.asset, 'northwind.example', 'ferns.example'],
+      parts: { [TARGET.asset]: [guardedPart, unrelatedPart], 'northwind.example': [cachedPart] },
+    });
+    expect(inputs.lanes['signal-dumps']!.parts['ferns.example']).toBeUndefined();
   });
   it('uses the exact property timezone already reported by GA4 for an OAuth mapping', async () => {
     await pgExecute(`INSERT INTO noticeos.signal_runs

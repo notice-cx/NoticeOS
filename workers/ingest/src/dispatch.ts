@@ -47,7 +47,7 @@ import { runStripeRevenue } from './stripe.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
 import { type PullAssetConfig, runPullAdapter } from './pull.js';
-import { type Ga4CustomDimensionConfig, runSignalDumps } from './signal-dumps.js';
+import { type Ga4CustomDimensionConfig, runGa4JourneyDumps, runSignalDumps } from './signal-dumps.js';
 import type { JourneyConfig } from './ga4-journeys.js';
 import { runSiteIcons } from './site-icons.js';
 import { runWatchWindows } from './watch-windows.js';
@@ -322,21 +322,24 @@ export async function runCollectNow(
   options: LaneNarrowing = {},
 ): Promise<CollectNowResult> {
   const provider = String(input.provider);
-  const plan = collectNowStep(provider);
+  const journeys = provider === 'ga4' && Array.isArray(input.families)
+    && input.families.length === 1 && input.families[0] === 'journeys';
+  const plan = journeys
+    ? { job: SCHEDULED_JOBS.find((entry) => entry.id === 'signal-dumps')!, step: { step: 'journeys' } }
+    : collectNowStep(provider);
   if (plan === null) return { ok: false, provider, error: 'not-supported' };
   const job = plan.job.id;
   const assets = [...new Set((Array.isArray(input.assets) ? input.assets : []).filter(
     (asset): asset is string => typeof asset === 'string' && asset !== '',
   ))];
   if (assets.length === 0) return { ok: false, provider, error: 'no-sites', job };
-  // Naming families narrows DataForSEO's run; no other step has families.
-  const families = input.families === undefined ? undefined : namedDataForSeoFamilies(input.families);
+  const families = input.families === undefined || journeys ? undefined : namedDataForSeoFamilies(input.families);
   if (families === null || (families !== undefined && plan.step.step !== 'search')) {
     return { ok: false, provider, error: 'not-supported', job };
   }
   const cfg = runConfig(await readCollectorConfigs(env));
   if (jobPaused(cfg, job)) return { ok: false, provider, error: 'paused', job };
-  if ((await resolveCredential(env, provider as IntegrationProviderId)).source === 'none') {
+  if ((await resolveCredential(env, (journeys ? 'google' : provider) as IntegrationProviderId)).source === 'none') {
     return { ok: false, provider, error: 'not-connected', job };
   }
   const startedAt = new Date(options.nowMs ?? Date.now()).toISOString();
@@ -348,7 +351,24 @@ export async function runCollectNow(
     ...(options.nowMs !== undefined ? { nowMs: options.nowMs } : {}),
   };
   let sites: CollectNowSite[];
-  if (plan.step.step === 'bing') {
+  if (journeys) {
+    const run = await runGa4JourneyDumps(env, {
+      laneRegister: cfg.laneRegister, journeyConfig: cfg.journeyConfig, osTimeZone: cfg.osTimeZone,
+      configSources: cfg.configSources, assets, ...narrow,
+    });
+    sites = [];
+    for (const asset of assets) {
+      const outcomes = run.outcomes.filter((outcome) => outcome.asset === asset);
+      const unmeasured = outcomes.length > 0 && outcomes.every((outcome) => outcome.egressDown === true);
+      const stored = outcomes.filter((outcome) => outcome.status !== 'error').length;
+      sites.push({
+        asset,
+        outcome: unmeasured ? 'unmeasured' : outcomes.some((outcome) => outcome.status === 'error') ? 'failed' : stored > 0 ? 'collected' : 'skipped',
+        code: outcomes.find((outcome) => outcome.errorCode !== null)?.errorCode ?? null,
+        reports: stored,
+      });
+    }
+  } else if (plan.step.step === 'bing') {
     const run = await bingLane(env, cfg, { ...narrow, assets });
     sites = run.outcomes.map((outcome) => ({
       asset: outcome.asset,

@@ -362,6 +362,22 @@ describe("the assets and collect routes", () => {
     expect(unknown.status).toBe(404);
   });
 
+  it("passes scoped GA4 journeys through collection without adding a GA4 site listing", async () => {
+    const binding = ingest(account([]), { ok: false, provider: "ga4", error: "paused", job: "signal-dumps" });
+    const url = new URL("http://t/api/integrations/ga4/collect");
+    const response = await handleSitesRequest(new Request(url, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assets: ["journey.example"], families: ["journeys"] }),
+    }), url, await deps(binding), "ga4", "collect");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: false, provider: "ga4", error: "paused", job: "signal-dumps" });
+    expect(binding.collectNow).toHaveBeenCalledWith({ provider: "ga4", assets: ["journey.example"], families: ["journeys"] });
+    expect(binding.discoverSites).not.toHaveBeenCalled();
+    const listing = await handleSitesRequest(new Request("http://t/api/integrations/ga4/sites"),
+      new URL("http://t/api/integrations/ga4/sites"), await deps(binding), "ga4", "sites");
+    expect(listing.status).toBe(404);
+  });
+
   it("reads every non-retired asset and nothing for a lane it has no cell on", async () => {
     const ctx = await createTestStore();
     await addSites(ctx, [{ id: "n.example", domain: null, displayName: "N", status: "pre-launch" }]);

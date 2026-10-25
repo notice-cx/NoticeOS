@@ -480,6 +480,100 @@ interface ManifestFailure {
   knownZeroCost?: true;
 }
 
+async function collectTargetJourneys(
+  env: IngestEnv,
+  target: GooglePropertyTarget,
+  options: Pick<SignalDumpsOptions, 'journeyConfig'>,
+  nowMs: number,
+  accessToken: string | (() => Promise<string>),
+  egress: EgressLane,
+  budget: { remaining: number },
+  monitoring: CollectionMonitoring,
+): Promise<SignalDumpOutcome[]> {
+  const requestedAt = new Date(nowMs).toISOString();
+  return runGa4Journeys({
+    env, target, definitions: assetJourneyDefinitions(options.journeyConfig ?? valueEventsJson, target.asset), nowMs,
+    accessToken, fetchImpl: egress.transport.fetch, budget,
+    archive: (report, reportDate, collected) => archiveCollectedDump(env, {
+      monitoring, provider: 'google', target, report, reportDate, requestedAt,
+      dataState: 'revision-window', collected,
+    }),
+    reuse: async (report, reportDate, cached) => {
+      await recordDumpSuccess(env.STORE, { monitoring, target, report, reportDate, requestedAt,
+        dataState: 'revision-window', status: 'unchanged',
+        requestCount: 0, providerTruncated: false, ...cached });
+      return { asset: target.asset, integration: 'ga4', report, reportDate, status: 'unchanged',
+        providerRows: cached.providerRows, providerTruncated: false, objectKey: cached.objectKey, errorCode: null };
+    },
+    failed: async (report, reportDate, error) => {
+      if (await egressExplains(egress.gate, egress.transport, error)) return unmeasuredDumpOutcome(egress.gate, target, report, reportDate);
+      const normalized = normalizeSignalError(error, 'GA4 journey collection failed.');
+      await recordDumpFailure(env.STORE, { monitoring, target, report, reportDate,
+        requestedAt, dataState: 'revision-window', error: normalized });
+      return failedOutcome(target, report, reportDate, normalized);
+    },
+    quota: (quota) => recordGa4Quota(env, { asset: target.asset, lane: 'ga4-journeys', propertyRef: target.propertyRef, quota, at: requestedAt })
+      .then(() => undefined).catch((error: unknown) => { throw localStoreError(error, 'google', 'journeys'); }),
+  });
+}
+
+export interface Ga4JourneyDumpsOptions extends Pick<SignalDumpsOptions,
+  'nowMs' | 'fetchImpl' | 'rawConfig' | 'journeyConfig' | 'laneRegister' | 'configSources' | 'osTimeZone' | 'egress'> {
+  assets: readonly string[];
+}
+
+/** A manual archive pass over saved active funnels, without traffic or search reports. */
+export async function runGa4JourneyDumps(
+  env: IngestEnv,
+  options: Ga4JourneyDumpsOptions,
+): Promise<SignalDumpsResult> {
+  const nowMs = options.nowMs ?? Date.now();
+  const requestedAt = new Date(nowMs).toISOString();
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const egress: EgressLane = {
+    gate: options.egress ?? new EgressGate(env, { lane: 'signal-dumps', fetchImpl, at: requestedAt }),
+    transport: watchTransport(fetchImpl),
+  };
+  const google = await resolveGoogleCredential(env);
+  const health = await tryHealthConnection(env, 'google', google.credential, [google.oauth?.clientId ?? '', google.oauth?.clientSecret ?? '']);
+  const monitoring = beginCollection(env.STORE, health);
+  const selected = new Set(options.assets);
+  const targets = googleTargets(
+    { accounts: options.rawConfig ?? google.accounts, oauth: google.oauth, connected: google.connected },
+    options.rawConfig === undefined ? google.source : 'env', googleCredentialResolver(env),
+    options.laneRegister, options.osTimeZone,
+  ).filter((target) => target.integration === 'ga4' && selected.has(target.asset)
+    && !laneDeclined(target.asset, 'ga4', options.laneRegister)
+    && assetJourneyDefinitions(options.journeyConfig ?? valueEventsJson, target.asset)
+      .some((definition) => definition.kind === 'funnel' && definition.status === 'active'));
+  const budget = { remaining: GA4_JOURNEY_REQUEST_LIMIT };
+  const outcomes: SignalDumpOutcome[] = [];
+  for (const [, accountTargets] of groupGoogleTargetsByAccount(targets)) {
+    // Cached windows need no token mint. A rejected mint is reused within this account too.
+    let token: Promise<string> | undefined;
+    const accessToken = () => token ??= googleAccessToken(accountTargets[0]!.auth, GOOGLE_SCOPES.ga4, nowMs, egress.transport.fetch);
+    for (const target of accountTargets) {
+      outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, budget, monitoring));
+    }
+  }
+  const answered = new Set(outcomes.filter((outcome) => outcome.status !== 'error')
+    .map((outcome) => archivePartKey(outcome.asset, archivePart(outcome.integration, outcome.report, outcome.reportDate))));
+  const result: SignalDumpsResult = {
+    attempted: outcomes.length,
+    succeeded: outcomes.filter((outcome) => outcome.status === 'success').length,
+    unchanged: outcomes.filter((outcome) => outcome.status === 'unchanged').length,
+    failed: outcomes.filter((outcome) => outcome.status === 'error').length,
+    skipped: selected.size - new Set(targets.map((target) => target.asset)).size,
+    retried: 0,
+    outcomes,
+    egress: await egress.gate.finalize({ covers: (asset, part) => part !== null && answered.has(archivePartKey(asset, part)) }),
+  };
+  console.log(JSON.stringify({ event: 'ga4_journeys_complete', attempted: result.attempted,
+    succeeded: result.succeeded, unchanged: result.unchanged, failed: result.failed, skipped: result.skipped,
+    ...configSourceLine(options.configSources, ['config/integrations.json', 'config/value-events.json']) }));
+  return { ...result, ...collectionMonitoring(monitoring) };
+}
+
 export async function runSignalDumps(
   env: IngestEnv,
   options: SignalDumpsOptions = {},
@@ -627,30 +721,7 @@ export async function runSignalDumps(
           }
         }
         if (target.integration === 'ga4') {
-          outcomes.push(...await runGa4Journeys({
-            env, target, definitions: assetJourneyDefinitions(options.journeyConfig ?? valueEventsJson, target.asset), nowMs,
-            accessToken, fetchImpl: egress.transport.fetch, budget: journeyBudget,
-            archive: (report, reportDate, collected) => archiveCollectedDump(env, {
-              monitoring: googleMonitoring, provider: 'google', target, report, reportDate, requestedAt,
-              dataState: 'revision-window', collected,
-            }),
-            reuse: async (report, reportDate, cached) => {
-              await recordDumpSuccess(env.STORE, { monitoring: googleMonitoring, target, report, reportDate, requestedAt,
-                dataState: 'revision-window', status: 'unchanged',
-                requestCount: 0, providerTruncated: false, ...cached });
-              return { asset: target.asset, integration: 'ga4', report, reportDate, status: 'unchanged',
-                providerRows: cached.providerRows, providerTruncated: false, objectKey: cached.objectKey, errorCode: null };
-            },
-            failed: async (report, reportDate, error) => {
-              if (await egressExplains(egress.gate, egress.transport, error)) return unmeasuredDumpOutcome(egress.gate, target, report, reportDate);
-              const normalized = normalizeSignalError(error, 'GA4 journey collection failed.');
-              await recordDumpFailure(env.STORE, { monitoring: googleMonitoring, target, report, reportDate,
-                requestedAt, dataState: 'revision-window', error: normalized });
-              return failedOutcome(target, report, reportDate, normalized);
-            },
-            quota: (quota) => recordGa4Quota(env, { asset: target.asset, lane: 'ga4-journeys', propertyRef: target.propertyRef, quota, at: requestedAt })
-              .then(() => undefined).catch((error: unknown) => { throw localStoreError(error, 'google', 'journeys'); }),
-          }));
+          outcomes.push(...await collectTargetJourneys(env, target, options, nowMs, accessToken, egress, journeyBudget, googleMonitoring));
         }
       }
     }

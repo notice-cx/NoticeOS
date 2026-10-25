@@ -285,6 +285,14 @@ request. Recent windows are checked again until the settlement period ends.
 The Tower reads the published snapshot; opening the page makes no provider
 request.
 
+An operator can run one Journey collection through
+`POST /api/integrations/ga4/collect` with
+`{"assets":["example.com"],"families":["journeys"]}`. It collects only active
+funnels for the named assets, honors the saved archive-job pause, reuses cached
+windows and retains the 96-request limit. It does not collect traffic or search
+reports. The response lists each asset's stored report count and any collection
+failure. The scheduled panel refresh publishes the stored results to the Tower.
+
 Changed measurement rules start a separate history. Comparisons require the
 same definition, property, time zone and user identity, with adjacent periods
 of equal length. Sampled, thresholded, incomplete and unavailable results do

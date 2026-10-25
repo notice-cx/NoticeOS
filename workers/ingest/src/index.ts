@@ -613,7 +613,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
       if (!(proof instanceof Request)) throw new WorkspaceEntryRefused();
       const original = proof.clone();
       const selected = await providerCollectionArguments(input, original, 'collectNow');
-      if (integrationProvider(selected.provider) === null) throw new WorkspaceEntryRefused();
+      if (selected.provider !== 'ga4' && integrationProvider(selected.provider) === null) throw new WorkspaceEntryRefused();
       return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx, async store => {
         await assertCollectionAssets(store, selected.assets);
         return runCollectNow({ ...this.env, STORE: store }, selected);

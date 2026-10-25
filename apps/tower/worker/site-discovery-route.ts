@@ -102,6 +102,7 @@ export async function handleSitesRequest(
   provider: string,
   action: "sites" | "collect",
 ): Promise<Response> {
+  if (provider === "ga4" && action === "collect") return handleCollectRequest(request, url, deps.ingest, provider);
   const declared = integrationProvider(provider);
   if (declared === null) return jsonError("provider_not_found", 404, { provider });
 
@@ -137,7 +138,7 @@ export async function handleSitesRequest(
 /** Collection has no site-list/config/meter read capability. */
 export async function handleCollectRequest(request: Request, url: URL,
   ingest: Pick<SiteDiscoveryIngest, "collectNow">, provider: string): Promise<Response> {
-  if (integrationProvider(provider) === null) return jsonError("provider_not_found", 404, { provider });
+  if (provider !== "ga4" && integrationProvider(provider) === null) return jsonError("provider_not_found", 404, { provider });
   if (request.method !== "POST") return jsonError("method_not_allowed", 405);
   if (crossOrigin(request, url)) return jsonError("forbidden", 403);
   if (!isJsonRequest(request)) return jsonError("unsupported_media_type", 415);

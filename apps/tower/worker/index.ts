@@ -510,7 +510,7 @@ const towerHandler = {
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
       }
       const collection = providerCollectionRequest(request);
-      if (profile === 'hosted' && collection && integrationProvider(collection.provider) !== null) {
+      if (profile === 'hosted' && collection && (collection.provider === 'ga4' || integrationProvider(collection.provider) !== null)) {
         try {
           const proof = request.clone();
           return await withWorkspaceEntry(env, proof, async () => {

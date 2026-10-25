@@ -83,6 +83,7 @@ The same standalone operations have HTTP endpoints:
 | --- | --- |
 | `GET /api/assets/:asset/journeys` | Return saved definitions, edit tokens and collection behavior |
 | `PUT /api/assets/:asset/journeys/:id` | Save `{journey, edit_token, dry_run?}`; the journey's `id` must match the path |
+| `POST /api/integrations/ga4/collect` | Collect active funnels for `{assets: ["example.com"], families: ["journeys"]}` through the GA4 archive collector; the panel refresh publishes the results |
 
 Saving does not establish that a funnel is measurable. Browser and server events must identify the same person, and a completion event must represent the stated outcome. Ordered GA4 users are separate from session exploration, which requires a supported session-path source.
 
