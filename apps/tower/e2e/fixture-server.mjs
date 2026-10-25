@@ -7,7 +7,8 @@
 //     one from the OS, or one the caller pinned;
 //   - an environment holding PATH, that port, the run's throwaway Postgres
 //     (JOURNEY_POSTGRES, below) and, when the run names one, the built app to
-//     serve (JOURNEY_BUILT_CLIENT) only — no other URL, no secrets, nothing
+//     serve (JOURNEY_BUILT_CLIENT), plus an owned temporary installation — no
+//     other URL, no secrets, nothing
 //     else inherited from the shell that ran the tests;
 //   - ready only once the server has printed that its isolation guard is armed
 //     and that it listens;
@@ -21,6 +22,7 @@
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -92,9 +94,11 @@ export async function startFixtureServer({ port = null, timeoutMs = 60_000 } = {
 
 async function launch(port, timeoutMs) {
   const postgres = await journeyPostgres();
+  const installationRoot = await mkdtemp(path.join(await realpath(os.tmpdir()), "noticeos-journey-installation-"));
   const child = spawn(process.execPath, [path.join(HERE, "server.mjs")], {
     cwd: path.resolve(HERE, ".."),
     env: { PATH: process.env.PATH, JOURNEY_PORT: String(port), [JOURNEY_POSTGRES]: JSON.stringify(postgres),
+      JOURNEY_INSTALLATION_ROOT: installationRoot,
       ...(process.env.JOURNEY_BUILT_CLIENT ? { JOURNEY_BUILT_CLIENT: path.resolve(process.env.JOURNEY_BUILT_CLIENT) } : {}) },
     stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
@@ -108,20 +112,26 @@ async function launch(port, timeoutMs) {
   // had to be killed.
   let halting;
   const halt = () => (halting ??= (async () => {
-    if (child.exitCode !== null || child.signalCode !== null) return false;
-    const exited = once(child, "exit");
-    child.kill("SIGTERM");
-    let timer;
-    const hung = await Promise.race([
-      exited.then(() => false),
-      new Promise((resolve) => { timer = setTimeout(() => resolve(true), STOP_TIMEOUT_MS); }),
-    ]);
-    clearTimeout(timer);
-    if (hung) {
-      child.kill("SIGKILL");
-      await exited;
+    try {
+      if (child.exitCode !== null || child.signalCode !== null) return false;
+      const exited = once(child, "exit");
+      child.kill("SIGTERM");
+      let timer;
+      const hung = await Promise.race([
+        exited.then(() => false),
+        new Promise((resolve) => { timer = setTimeout(() => resolve(true), STOP_TIMEOUT_MS); }),
+      ]);
+      clearTimeout(timer);
+      if (hung) {
+        child.kill("SIGKILL");
+        await exited;
+      }
+      return hung;
+    } finally {
+      if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) {
+        await rm(installationRoot, { recursive: true, force: true });
+      }
     }
-    return hung;
   })());
   const stop = async () => {
     const tail = () => output.slice(-2000);
@@ -155,6 +165,7 @@ async function launch(port, timeoutMs) {
   return {
     port,
     origin: journeyOrigin(port),
+    installationRoot,
     child,
     /** Everything the server has printed so far. */
     output: () => output,

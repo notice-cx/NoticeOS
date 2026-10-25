@@ -3,6 +3,11 @@
 // leak into the test runner or an owner's runtime.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { startTestCluster } from "../../../scripts/postgres-test-cluster.mjs";
 import { HANDLER_FAILURE_MARK } from "./handler-failure.mjs";
 import { ARMED_MARK, VIOLATION_MARK } from "./isolation-guard.mjs";
@@ -11,7 +16,11 @@ import { JOURNEY_POSTGRES, startFixtureServer } from "./fixture-server.mjs";
 let cluster;
 let server;
 let base;
+const checkoutFixture = fileURLToPath(new URL("./fixture-repo", import.meta.url));
+const checkoutEntries = () => existsSync(checkoutFixture) ? readdirSync(checkoutFixture, { recursive: true }).sort() : [];
+let beforeEntries;
 before(async () => {
+  beforeEntries = checkoutEntries();
   // This process starts the run's Postgres itself, as Playwright's global
   // setup does, so it holds the owner's way in (a refused reset, below).
   cluster = await startTestCluster();
@@ -22,8 +31,13 @@ before(async () => {
   base = server.origin;
 });
 after(async () => {
-  await server?.stop();
-  cluster?.close();
+  try {
+    await server?.stop();
+    if (server) assert.equal(existsSync(server.installationRoot), false, "The stopped server's task client files are removed");
+    assert.deepEqual(checkoutEntries(), beforeEntries, "Journey task operations leave the fixture checkout unchanged");
+  } finally {
+    await cluster?.close();
+  }
 });
 
 async function request(path, method = "GET", body) {
@@ -147,6 +161,12 @@ test("real handlers support an isolated fresh-install journey and exact task/gat
   const list = await request(`/api/tasks?project=${asset}`);
   assert.equal(list.status, 200, JSON.stringify(list.body));
   assert.deepEqual(list.body.tasks.map((row) => row.id).sort(), ["jt-approve", "jt-review"]);
+  const clients = path.join(server.installationRoot, "task-projects");
+  const clientFolders = readdirSync(clients);
+  assert.equal(clientFolders.length, 1);
+  const metadata = JSON.parse(readFileSync(path.join(clients, clientFolders[0], ".beads/metadata.json"), "utf8"));
+  assert.equal(metadata.dolt_database, "journey_fixture");
+  assert.deepEqual(checkoutEntries(), beforeEntries, "Task discovery writes only the runner-owned installation");
   const task = await request("/api/tasks/jt-review");
   assert.equal(task.status, 200);
   assert.equal(task.body.task.id, "jt-review");
@@ -166,6 +186,22 @@ test("fixture rejects cross-origin writes and unsupported external operations", 
   const state = (await request("/__journey/status")).body;
   assert.equal(state.isolated, true);
   assert.equal(state.assets.length, 1);
+});
+
+test("a refused server start removes only its temporary installation after its child exits", async () => {
+  const failedRoot = await mkdtemp(path.join(await realpath(os.tmpdir()), "noticeos-journey-refusal-"));
+  const previousTmp = process.env.TMPDIR;
+  try {
+    process.env.TMPDIR = failedRoot;
+    await assert.rejects(startFixtureServer({ port: server.port }), /already in use|EADDRINUSE/iu);
+    assert.deepEqual(readdirSync(failedRoot), [], "A refused launch leaves no owned installation");
+    assert.equal(existsSync(server.installationRoot), true, "The running server keeps its own installation");
+    assert.equal((await request("/__journey/status")).status, 200);
+  } finally {
+    if (previousTmp === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previousTmp;
+    await rm(failedRoot, { recursive: true, force: true });
+  }
 });
 
 // The fixture's own clock, end to end. Its config store saves UTC; the

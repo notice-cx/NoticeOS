@@ -19,6 +19,7 @@ import { storeCodebaseReports, weeklyStoredReports } from '../test/codebase-fixt
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
 import { MISSING, applyDocumentOps, configDocumentKey, resolveOps, validateSchemaAndSafety, type Changeset, type Mismatch } from "../../../scripts/config-documents.mjs";
 import { attachTestCluster, type TestClusterHandle } from "../../../scripts/postgres-test-copies.mjs";
+import { INSTALLATION_DIR_ENV } from "../../../scripts/installation.mjs";
 import { openWorkspaceStore, type WorkspaceStore } from "@noticeos/postgres";
 import worker, { type TowerEnv } from "../worker/index";
 import { compiledConfig } from "../worker/compiled-config";
@@ -539,7 +540,7 @@ function serializeMismatch(m: Mismatch): ConfigWriteMismatch {
  * The ingest functions (asset creation, the credential store, integration
  * health) are the real ones, injected by server.mjs after Vite loads them.
  */
-export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: TestClusterHandle) {
+export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: TestClusterHandle, installationRoot: string) {
   let bucket = journeyBucket();
   const postgres = journeyPostgres(postgresHandle);
   // A fresh view per call: the ingest code reads it as its call's env.
@@ -818,11 +819,18 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   // Installation folders are absent from the public source export; the real
   // resolver still parses and matches every saved asset/prefix/database.
   const taskHost = JSON.stringify({ repositories: [JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT] });
-  const readProjects = () => readSpokes(fixtureRoot, { door: JOURNEY_CONFIG_DOOR, token: JOURNEY_OPERATOR_TOKEN,
-    fetchImpl: configDoor, readHost: async () => taskHost });
+  const taskDirectories = new Set<string>();
+  const readProjects = async () => {
+    const projects = await readSpokes(fixtureRoot, { door: JOURNEY_CONFIG_DOOR, token: JOURNEY_OPERATOR_TOKEN,
+      fetchImpl: configDoor, readHost: async () => taskHost, env: { [INSTALLATION_DIR_ENV]: installationRoot } });
+    for (const project of projects) if (!project.unavailableReason && project.cwd) taskDirectories.add(path.resolve(project.cwd));
+    return projects;
+  };
 
   function runBd(argv: string[], cwd: string): BdResult {
-    if (path.resolve(cwd) !== path.resolve(fixtureRoot)) throw new Error("Task fixture escaped its own spoke");
+    if (path.resolve(cwd) !== path.resolve(fixtureRoot) || argv[0] !== "-C" || !taskDirectories.has(path.resolve(argv[1] ?? ""))) {
+      throw new Error("Task fixture escaped its own task client directory");
+    }
     taskCommands.push([...argv]);
     const verb = argv[2];
     const arg = argv[3];
