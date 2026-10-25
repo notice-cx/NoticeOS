@@ -9,6 +9,7 @@ import { dateInTimeZone, isValidTimeZone, shiftCalendarDate } from './time-zone.
 import { previousTimeZone } from './time-zone-change.js';
 import { GA4_QUOTA_RESERVE, isQuotaExhausted, parseGa4PropertyQuota } from './ga4-quota.js';
 import { signalObjectScope } from './signal-objects.js';
+import { redactLogText } from '../../../scripts/os-log.mjs';
 
 export interface JourneyConfig { assets?: Record<string, { journeys?: unknown } | undefined> }
 export interface JourneyWindow { kind: JourneyPeriod['kind']; startDate: string; endDate: string; complete: true }
@@ -76,12 +77,21 @@ export function ga4JourneyRequest(definition: JourneyDefinition, period: Journey
           })) } } } : {}),
         } };
         return alternative.pagePath === undefined ? event : { andGroup: { expressions: [event, {
-          funnelFieldFilter: { fieldName: 'pagePath', stringFilter: { matchType: 'EXACT', value: alternative.pagePath, caseSensitive: true } },
+          funnelFieldFilter: { fieldName: 'unifiedPagePathScreen', stringFilter: { matchType: 'EXACT', value: alternative.pagePath, caseSensitive: true } },
         }] } };
       }) } },
     })) },
     funnelVisualizationType: 'STANDARD_FUNNEL', limit: '100', returnPropertyQuota: true,
   };
+}
+
+function journeyRequestError(status: number, body: unknown, definition: JourneyDefinition, accessToken: string): SignalError {
+  const message = asRecord(asRecord(body)?.error)?.message;
+  const reason = typeof message === 'string'
+    ? redactLogText(accessToken ? message.replaceAll(accessToken, '[REDACTED]') : message).replace(/[\r\n]+/g, ' ').trim()
+    : '';
+  return new SignalError(isQuotaExhausted(status, body) ? 'ga4_quota_exhausted' : `ga4_journey_${status}`,
+    `GA4 journey "${definition.id}" report failed (${status})${reason ? `: ${reason}` : ''}`.slice(0, 500));
 }
 
 export function ga4JourneyResult(definition: JourneyDefinition, body: unknown): {
@@ -160,6 +170,7 @@ export async function runGa4Journeys(input: {
     ? new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted') : null;
   for (const definition of active) {
     const definitionId = journeyDefinitionId(definition);
+    let definitionHaltCause: SignalError | null = null;
     for (const period of journeyWindows(nowMs, target.timeZone)) {
       const request = ga4JourneyRequest(definition, period);
       const requestKey = await sha256Hex(new TextEncoder().encode(JSON.stringify({ definitionId, propertyId: target.propertyRef,
@@ -173,6 +184,7 @@ export async function runGa4Journeys(input: {
       try {
         if (target.timeZoneAssumed) throw new SignalError('ga4_journey_timezone_unknown', 'GA4 has not reported this property’s reporting time zone yet');
         if (haltCause !== null) throw haltCause;
+        if (definitionHaltCause !== null) throw definitionHaltCause;
         if (budget.remaining <= 0) throw new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted');
         const accessToken = typeof input.accessToken === 'string' ? input.accessToken : await input.accessToken();
         budget.remaining -= 1;
@@ -182,7 +194,7 @@ export async function runGa4Journeys(input: {
         });
         const body = await boundedResponseJson(response, 'Google', 8 * 1024 * 1024);
         if (!response.ok) {
-          throw new SignalError(isQuotaExhausted(response.status, body) ? 'ga4_quota_exhausted' : `ga4_journey_${response.status}`, `GA4 funnel report failed (${response.status})`);
+          throw journeyRequestError(response.status, body, definition, accessToken);
         }
         const quota = parseGa4PropertyQuota(body);
         if (funnelQuotaLow(asRecord(body)?.propertyQuota)) haltCause = new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted');
@@ -205,7 +217,9 @@ export async function runGa4Journeys(input: {
           providerTruncated: false, quota,
         }));
       } catch (error) {
-        haltCause ??= error;
+        // Invalid filters belong to one saved definition; quota, auth and transport failures stop the property.
+        if (error instanceof SignalError && error.code === 'ga4_journey_400') definitionHaltCause ??= error;
+        else haltCause ??= error;
         outcomes.push(await input.failed(report, period.endDate, error));
       }
     }
