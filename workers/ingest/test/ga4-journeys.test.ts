@@ -5,6 +5,7 @@ import { ga4JourneyRequest, ga4JourneyResult, journeyWindows, runGa4Journeys } f
 import { archiveCollectedDump, archivePart, runGa4JourneyDumps, runSignalDumps, type SignalDumpOutcome } from '../src/signal-dumps.js';
 import { EGRESS_DOWN_RULE_ID, EgressGate } from '../src/egress.js';
 import type { GooglePropertyTarget } from '../src/google-signals.js';
+import { SignalError } from '../src/signal-store.js';
 import { flagRows, pgAll, pgExecute, reset } from './helpers';
 import { providerDumpFetch } from './signal-dumps-fixture';
 
@@ -31,15 +32,15 @@ function outcome(report: string, end: string, status: 'unchanged' | 'error' = 'e
   return { asset: TARGET.asset, integration: 'ga4', report, reportDate: end, status,
     providerRows: 0, providerTruncated: false, objectKey: null, errorCode: status === 'error' ? 'failed' : null };
 }
-function collect(fetchImpl: typeof fetch, options: { nowMs?: number; definition?: JourneyDefinition; budget?: number; target?: GooglePropertyTarget } = {}) {
+function collect(fetchImpl: typeof fetch, options: { nowMs?: number; definition?: JourneyDefinition; definitions?: readonly JourneyDefinition[]; budget?: number; target?: GooglePropertyTarget; errors?: unknown[] } = {}) {
   const nowMs = options.nowMs ?? NOW;
   const target = options.target ?? TARGET;
-  return runGa4Journeys({ env, target, definitions: [options.definition ?? DEFINITION], nowMs, accessToken: 'test-token', fetchImpl,
+  return runGa4Journeys({ env, target, definitions: options.definitions ?? [options.definition ?? DEFINITION], nowMs, accessToken: 'test-token', fetchImpl,
     budget: { remaining: options.budget ?? 96 },
     archive: (report, end, collected) => archiveCollectedDump(env, { provider: 'google', target, report,
       reportDate: end, requestedAt: new Date(nowMs).toISOString(), dataState: 'revision-window', collected }),
     reuse: async (report, end) => outcome(report, end, 'unchanged'),
-    failed: async (report, end) => outcome(report, end), quota: async () => {},
+    failed: async (report, end, error) => { options.errors?.push(error); return outcome(report, end); }, quota: async () => {},
   });
 }
 
@@ -58,7 +59,7 @@ describe('GA4 ordered journey collection', () => {
     const request = ga4JourneyRequest(DEFINITION, journeyWindows(NOW, TARGET.timeZone)[0]!);
     expect(request).toMatchObject({ funnel: { isOpenFunnel: false, steps: [
       { name: 'view', isDirectlyFollowedBy: false, filterExpression: { orGroup: { expressions: [{ andGroup: { expressions: [
-        { funnelEventFilter: { eventName: 'page_view' } }, { funnelFieldFilter: { fieldName: 'pagePath', stringFilter: { value: '/join', matchType: 'EXACT', caseSensitive: true } } },
+        { funnelEventFilter: { eventName: 'page_view' } }, { funnelFieldFilter: { fieldName: 'unifiedPagePathScreen', stringFilter: { value: '/join', matchType: 'EXACT', caseSensitive: true } } },
       ] } }] } } },
       { name: 'complete', withinDurationFromPriorStep: '3600s', filterExpression: { orGroup: { expressions: [
         { funnelEventFilter: { eventName: 'sign_up' } },
@@ -67,6 +68,74 @@ describe('GA4 ordered journey collection', () => {
         ] } } } },
       ] } } },
     ] } });
+  });
+  it('collects exact page paths through the filter dimension accepted by Funnel conditions', async () => {
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      const request = String(init?.body);
+      if (request.includes('"fieldName":"pagePath"')) {
+        return Response.json({ error: { message: 'Dimension pagePath is not supported in funnel conditions.' } }, { status: 400 });
+      }
+      expect(request).toContain('"fieldName":"unifiedPagePathScreen","stringFilter":{"matchType":"EXACT","value":"/join","caseSensitive":true}');
+      return Response.json(response());
+    };
+    const request = JSON.stringify(ga4JourneyRequest(DEFINITION, journeyWindows(NOW, TARGET.timeZone)[0]!));
+    const legacy = await fetchImpl('https://fixture.invalid/', { body: request.replace('unifiedPagePathScreen', 'pagePath') });
+    expect(legacy.status).toBe(400);
+    const results = await collect(fetchImpl);
+    expect(results).toHaveLength(12);
+    expect(results.every((result) => result.status === 'success')).toBe(true);
+  });
+  it('stops the invalid definition after one 400 while collecting the next definition', async () => {
+    const invalid: JourneyDefinition = { ...DEFINITION, id: 'recipe-save', steps: [
+      { id: 'view', label: 'View', alternatives: [{ eventName: 'recipe_view' }] },
+      { id: 'complete', label: 'Save', alternatives: [{ eventName: 'recipe_save', parameters: [{ name: 'action', value: 'save' }] }] },
+    ] };
+    const requests: string[] = [];
+    const errors: unknown[] = [];
+    const results = await collect(async (_url, init) => {
+      const request = String(init?.body);
+      requests.push(request);
+      return request.includes('recipe_save')
+        ? Response.json({ error: { message: 'The event parameter action is not supported in this filter.' } }, { status: 400 })
+        : Response.json(response());
+    }, { definitions: [invalid, DEFINITION], errors });
+    expect(requests).toHaveLength(13);
+    expect(requests.filter((request) => request.includes('recipe_save'))).toHaveLength(1);
+    expect(results.slice(0, 12).every((result) => result.status === 'error')).toBe(true);
+    expect(results.slice(12).every((result) => result.status === 'success')).toBe(true);
+    expect(errors).toHaveLength(12);
+    expect(errors.every((error) => error instanceof SignalError && error.code === 'ga4_journey_400'
+      && error.message === 'GA4 journey "recipe-save" report failed (400): The event parameter action is not supported in this filter.')).toBe(true);
+  });
+  it('bounds the provider reason and removes credentials before retaining a diagnostic', async () => {
+    const errors: unknown[] = [];
+    await collect(async () => Response.json({
+      error: { message: `Invalid request test-token Bearer fixture-bearer refresh_token=fixture-refresh\n-----BEGIN PRIVATE KEY-----\nfixture-private\n-----END PRIVATE KEY----- ${'detail '.repeat(100)}` },
+      headers: { Authorization: 'fixture-raw-header' },
+    }, { status: 400 }), { errors });
+    const error = errors[0];
+    expect(error).toBeInstanceOf(SignalError);
+    const diagnostic = (error as SignalError).message;
+    expect(diagnostic).toContain('GA4 journey "signup" report failed (400): Invalid request');
+    expect(diagnostic.length).toBeLessThanOrEqual(500);
+    for (const secret of ['test-token', 'fixture-bearer', 'fixture-refresh', 'fixture-private', 'fixture-raw-header']) {
+      expect(diagnostic).not.toContain(secret);
+    }
+    expect(diagnostic).not.toMatch(/[\r\n]/);
+  });
+  it.each([401, 403, 429, 500, 'offline'] as const)('keeps a %s failure scoped to the whole property', async (failure) => {
+    let calls = 0;
+    const errors: unknown[] = [];
+    const definitions = [DEFINITION, { ...DEFINITION, id: 'another-signup' }];
+    const results = await collect(async () => {
+      calls += 1;
+      if (failure === 'offline') throw new Error('fixture network offline');
+      return Response.json({ error: { message: 'Fixture provider refusal.' } }, { status: failure });
+    }, { definitions, errors });
+    expect(calls).toBe(1);
+    expect(results).toHaveLength(24);
+    expect(results.every((result) => result.status === 'error')).toBe(true);
+    expect(errors.every((error) => error === errors[0])).toBe(true);
   });
   it('preserves measured zero, and refuses incomplete, malformed or increasing counts', () => {
     expect(ga4JourneyResult(DEFINITION, response([0, 0]))).toMatchObject({ quality: 'complete', steps: [{ users: 0 }, { users: 0 }] });
