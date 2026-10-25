@@ -431,7 +431,10 @@ test('ordered journey loss and weekly history retain their dates and planned sta
   await page.screenshot({ path: testInfo.outputPath('ordered-journey-history.png'), fullPage: true });
   if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
   await page.getByRole('button', { name: 'Switch to light theme' }).click();
-  if (testInfo.project.name === 'mobile') await expect(page.getByRole('button', { name: 'Open navigation', exact: true })).toBeVisible();
+  if (testInfo.project.name === 'mobile') {
+    await page.getByRole('dialog', { name: 'Navigation', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Navigation', exact: true })).toHaveCount(0);
+  }
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('ordered-journey-history-light.png'), fullPage: true });
   await monitor.getByRole('button', { name: /View this week/ }).click();
