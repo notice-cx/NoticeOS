@@ -10,7 +10,6 @@ import {
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import type { AnnotationItem } from "@shared/annotations";
 import type {
   DataForSeoQueryVisibilityRow,
   ExecutiveInsight,
@@ -61,7 +60,6 @@ import { ScheduledLanesPanel } from "@/components/ScheduledLanes";
 import { SeverityDot } from "@/components/SeverityDot";
 import { StateChip } from "@/components/StateChip";
 import { Tabs, type TabSpec } from "@/components/Tabs";
-import { Timeline } from "@/components/Timeline";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { PriorityBar } from "@/components/PriorityBar";
@@ -2462,106 +2460,6 @@ describe("AgeBadge amber threshold", () => {
   });
 });
 
-describe("Timeline — a cut history says it was cut", () => {
-  const events: AnnotationItem[] = [
-    { id: 9, at: hoursAgo(3), kind: "deploy", ref: "a1b2c3d", note: "ship cards" },
-    { id: 8, at: hoursAgo(50), kind: "config", ref: "flags@41", note: "raise alpha" },
-  ];
-
-  it("renders no truncation line when the page carries every change", () => {
-    const { container } = render(<Timeline items={events} nowMs={NOW} />);
-    expect(container.querySelectorAll("li")).toHaveLength(2);
-    expect(container.textContent).not.toContain("not shown");
-  });
-
-  it("names how many older changes are missing, as the line's last node", () => {
-    const { container } = render(
-      <Timeline items={events} nowMs={NOW} olderCount={52} />,
-    );
-    expect(container.querySelectorAll("li")).toHaveLength(3);
-    const last = container.querySelector("li:last-child");
-    expect(last?.getAttribute("data-timeline-older")).toBe("52");
-    expect(last?.textContent).toBe("52 older changes not shown");
-  });
-
-  it("counts one missing change in the singular", () => {
-    const { container } = render(
-      <Timeline items={events} nowMs={NOW} olderCount={1} />,
-    );
-    expect(container.textContent).toContain("1 older change not shown");
-  });
-
-  const filed: AnnotationItem[] = [
-    { id: 9, at: hoursAgo(3), kind: "deploy", ref: "md-1w2", note: "rewrote the opener" },
-    { id: 8, at: hoursAgo(50), kind: "config", ref: "a1b2c3d", note: "raise alpha" },
-  ];
-  const bead = {
-    kind: "query" as const,
-    key: "tornado kit specs",
-    beadId: "md-1w2",
-    status: "open" as const,
-    closedAt: null,
-  };
-
-  it("renders a resolved ref as the task, and an unresolved one as it always was", () => {
-    const { container } = render(
-      <Timeline items={filed} nowMs={NOW} beads={[bead]} />,
-      { wrapper: MemoryRouter },
-    );
-    const rows = [...container.querySelectorAll("li")];
-    expect(rows[0]!.querySelector("[data-handoff-bead-id]")).toHaveAttribute(
-      "data-handoff-bead-id",
-      "md-1w2",
-    );
-    expect(rows[0]!.textContent?.match(/md-1w2/g)).toHaveLength(1);
-    expect(rows[1]!.querySelector("[data-handoff-bead-id]")).toBeNull();
-    expect(rows[1]!.querySelector(".font-mono")?.textContent).toBe("a1b2c3d");
-  });
-
-  it("keeps a shipped task from reading as a proven outcome", () => {
-    const { container } = render(
-      <Timeline
-        items={filed}
-        nowMs={NOW}
-        beads={[{ ...bead, status: "closed", closedAt: "2026-07-29T00:00:00.000Z" }]}
-      />,
-      { wrapper: MemoryRouter },
-    );
-    expect(
-      container.querySelector('[title*="md-1w2"]')?.getAttribute("title"),
-    ).toContain("not proof of shipment or outcome");
-    expect(container.textContent).not.toMatch(/it worked|confirmed|resolved/i);
-  });
-
-  it("falls back to the plain ref when the register could not be asked", () => {
-    const { container } = render(<Timeline items={filed} nowMs={NOW} beads={null} />);
-    expect(container.querySelector("[data-handoff-bead-id]")).toBeNull();
-    expect(
-      [...container.querySelectorAll(".font-mono")].map((el) => el.textContent),
-    ).toEqual(["md-1w2", "a1b2c3d"]);
-  });
-
-  // A lifecycle move stores the two stages in its `ref` because that is the
-  // row's identity; the row must still read as English.
-  it("states a recorded lifecycle move in words instead of printing its ref", () => {
-    const moved: AnnotationItem[] = [
-      { id: 12, at: hoursAgo(2), kind: "config", ref: "lifecycle:baselining>retired", note: null },
-    ];
-    const { container } = render(<Timeline items={moved} nowMs={NOW} />);
-    expect(container.textContent).toContain("Stage moved from Baselining to Retired");
-    expect(container.textContent).not.toContain("lifecycle:baselining>retired");
-    expect(container.querySelector(".font-mono")).toBeNull();
-  });
-
-  it("leaves a ref that only looks like a move as the mono string it is", () => {
-    const odd: AnnotationItem[] = [
-      { id: 13, at: hoursAgo(2), kind: "config", ref: "lifecycle:live>nowhere", note: null },
-    ];
-    const { container } = render(<Timeline items={odd} nowMs={NOW} />);
-    expect(container.querySelector(".font-mono")?.textContent).toBe("lifecycle:live>nowhere");
-  });
-});
-
 describe("lifecycleStepper — assets.status → stepper spec", () => {
   it("maps each happy-path status to its step index, no terminal", () => {
     expect(lifecycleStepper("pre-launch")).toMatchObject({ activeIndex: 0, terminal: null });
@@ -3360,7 +3258,6 @@ describe("kitchen sink covers the registry", () => {
       "SerpPanelBoard",
       "PageDecisions",
       "AiOverviewGlyphs",
-      "Timeline",
       "Tabs",
       "TaskComposer / File task",
       "FactChip",

@@ -183,7 +183,6 @@ import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/tas
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
 import { Tabs } from "@/components/Tabs";
-import { Timeline } from "@/components/Timeline";
 import { WallLibraryPanel } from "@/components/wall/WallLibraryPanel";
 import { WallPreview } from "@/components/wall/WallPreview";
 import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
@@ -5631,69 +5630,6 @@ export function KitchenSinkRoute() {
               and the real slide-over opens over this page, prefilled, with a
               File task that resolves and nothing written.
             </p>
-          </Section>
-
-          <Section title="Timeline (events / from a task / truncated / lifecycle move / empty)">
-            <div className="w-80">
-              <Timeline
-                items={[
-                  { id: 1, at: iso(6 * HOUR), kind: "deploy", ref: "a1b2c3d", note: "ship CJ product cards" },
-                  { id: 2, at: iso(20 * DAY), kind: "model-change", ref: "builder=claude-opus-4-8", note: "builder model upgrade" },
-                  { id: 3, at: iso(30 * DAY), kind: "external", ref: "google-core-update", note: "Google June core update" },
-                ]}
-                nowMs={NOW}
-              />
-            </div>
-            {/* The join: the first two refs are tasks and render as the task that
-                caused the change, the third is a commit sha and stays mono. The
-                shipped one must not read as "and it worked". */}
-            <div className="w-80">
-              <Timeline
-                items={[
-                  { id: 1, at: iso(2 * HOUR), kind: "deploy", ref: "md-1w2", note: "rewrote the anvil opener" },
-                  { id: 2, at: iso(9 * DAY), kind: "deploy", ref: "md-33j", note: "July title batch — 240 recipe titles" },
-                  { id: 3, at: iso(21 * DAY), kind: "config", ref: "a1b2c3d", note: "raise alpha" },
-                ]}
-                beads={[
-                  { kind: "query", key: "anvil specs", beadId: "md-1w2", status: "open", closedAt: null },
-                  {
-                    kind: "finding",
-                    key: "search-striking-distance",
-                    beadId: "md-33j",
-                    status: "closed",
-                    closedAt: "2026-07-29T00:00:00.000Z",
-                  },
-                ]}
-                nowMs={NOW}
-              />
-            </div>
-            <div className="w-80">
-              <Timeline
-                items={[
-                  { id: 1, at: iso(6 * HOUR), kind: "deploy", ref: "a1b2c3d", note: "ship CJ product cards" },
-                  { id: 2, at: iso(20 * DAY), kind: "config", ref: "flags@41", note: "raise alpha" },
-                ]}
-                olderCount={7}
-                nowMs={NOW}
-              />
-            </div>
-            {/* A lifecycle move: the ref is machine text, so the row reads as a
-                sentence and the mono string is dropped. The second only looks
-                like a move, an unknown stage, and stays mono like an unresolved
-                task id. */}
-            <div className="w-80">
-              <Timeline
-                items={[
-                  { id: 1, at: iso(3 * HOUR), kind: "config", ref: "lifecycle:baselining>retired", note: null },
-                  { id: 2, at: iso(11 * DAY), kind: "config", ref: "lifecycle:onboarding>baselining", note: null },
-                  { id: 3, at: iso(30 * DAY), kind: "config", ref: "lifecycle:live>nowhere", note: null },
-                ]}
-                nowMs={NOW}
-              />
-            </div>
-            <div className="w-80">
-              <Timeline items={[]} nowMs={NOW} />
-            </div>
           </Section>
 
           <Section title="ChangeChip (one named change / several / none)">

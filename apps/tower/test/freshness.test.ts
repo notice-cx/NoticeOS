@@ -66,7 +66,6 @@ describe("formatAge", () => {
       { where: "PanelReviewBadge.tsx:78", render: (a) => a, nullable: true },
       { where: "PanelReviewBadge.tsx:85", render: (a) => a, nullable: true },
       { where: "EvidencePopover.tsx:151", render: (a) => `· ${a} ago`, nullable: false },
-      { where: "Timeline.tsx:103", render: (a) => `${a} ago`, nullable: false },
       { where: "AssetsBand.tsx:488", render: (a) => `Updated ${a} ago`, nullable: false },
       { where: "AttentionBand.tsx:491", render: (a) => `${a} ago`, nullable: false },
       { where: "AttentionBand.tsx:544", render: (a) => `3× in ${a}`, nullable: false },

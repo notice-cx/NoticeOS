@@ -397,7 +397,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "WorkflowStateLabel / WorkflowActivity / WorkflowStages / WorkflowScheduleTimeline / WorkflowStepOutputView",
     file: "components/WorkflowVisuals.tsx",
-    purpose: "Observed workflow execution vocabulary, hourly history, dependency-stage inspector and upcoming schedule density. The annotation Timeline and asset lifecycle Stepper do not represent execution attempts, parallel work or schedule forecasts. Green requires a recorded successful execution; failures are red; skipped, paused and unknown states keep distinct labels/glyphs. Stage layout follows declared dependencies and selection reveals actual attempt evidence. Legacy runs never acquire invented stage success. All chart details support hover, focus and tap through InfoTooltip.",
+    purpose: "Observed workflow execution vocabulary, hourly history, dependency-stage inspector and upcoming schedule density. Asset annotations and the lifecycle Stepper do not represent execution attempts, parallel work or schedule forecasts. Green requires a recorded successful execution; failures are red; skipped, paused and unknown states keep distinct labels/glyphs. Stage layout follows declared dependencies and selection reveals actual attempt evidence. Legacy runs never acquire invented stage success. All chart details support hover, focus and tap through InfoTooltip.",
     variants: ["succeeded", "failed", "running", "skipped", "paused", "never", "unknown", "waiting", "hourly history", "parallel stages", "legacy run", "upcoming schedule", "visual output", "missing output", "pending output"],
   },
   {
@@ -477,13 +477,6 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "One setting made legible: plain-language label + jargon, effective value, explainer, OwnerChip. The configuration/rules fact row.",
     variants: ["value-only", "with-explain", "with-owner", "with-scope"],
-  },
-  {
-    name: "Timeline",
-    file: "components/Timeline.tsx",
-    purpose:
-      "Annotation timeline (deploy, model change, config, incident, autonomy, external), relative time with the absolute on hover. An event whose ref resolves to a task in the asset's snapshot renders HandoffBeadBadge; an unresolved ref stays the mono string.",
-    variants: ["events", "empty", "task ref (open)", "task ref (shipped)", "unresolved ref (mono)", "no ref"],
   },
   {
     name: "StateChip",
@@ -574,7 +567,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ChangeChip",
     file: "components/ChangeChip.tsx",
     purpose:
-      "The 'something changed just before this' chip on an alert: the asset's timeline events inside the correlation window, named with Timeline's own glyph+word and dated against the alert ('deploy 14h before'). The glyph+word table is its own module, components/annotation-kind.ts, so the TV's alert rail does not import Timeline.tsx. Renders nothing when nothing correlates. Neutral by design — StateChip colors a state, this is context, and the severity dot already owns how-bad.",
+      "The 'something changed just before this' chip on an alert: the asset's timeline events inside the correlation window, named with the shared annotation glyph and word, and dated against the alert ('deploy 14h before'). The glyph and word table lives in components/annotation-kind.ts. Renders nothing when nothing correlates. Neutral by design — StateChip colors a state, this is context, and the severity dot already owns how-bad.",
     variants: ["single (dated)", "same kind (counted)", "mixed kinds", "none (silent)", "linked / plain"],
   },
   {
