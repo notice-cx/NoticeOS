@@ -113,7 +113,7 @@
   flex-wrap: wrap;
 }
 
-.journey-period,.journey-view-controls {
+.journey-period {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -123,14 +123,14 @@
   width: max-content;
 }
 
-.journey-period button,.journey-view-controls button {
+.journey-period button {
   font-size: .6875rem;
   padding: 5px 12px;
   min-height: 30px;
   border-radius: 4px;
 }
 
-.journey-period button[aria-pressed=true],.journey-view-controls button[aria-pressed=true] {
+.journey-period button[aria-pressed=true] {
   background: var(--card);
   color: var(--foreground);
   box-shadow: 0 1px 3px var(--glass-line);
@@ -248,10 +248,6 @@
 .journey-chart-heading>span {
   font-size: .6875rem;
   color: var(--muted-foreground);
-}
-
-.journey-view-controls {
-  margin: 0 6px 17px;
 }
 
 .journey-ruler {
@@ -1197,10 +1193,6 @@
     grid-row: 1/3;
   }
 
-  .journey-history-inspector>.inline-flex {
-    justify-self: start;
-  }
-
   .journey-data-table table {
     font-size: .6875rem;
   }
@@ -1239,7 +1231,7 @@
 }
 
 @media (pointer:coarse) {
-  .journey-goal,.journey-period button,.journey-view-controls button,.journey-heat-table button,.journey-compare {
+  .journey-goal,.journey-period button,.journey-heat-table button,.journey-compare {
     min-height: 44px;
   }
 
@@ -1254,4 +1246,52 @@
     transition: none !important;
     animation: none !important;
   }
+}
+
+.journey-history {
+  margin-top: 20px;
+}
+
+.journey-history-reading {
+  display: grid;
+  gap: 6px;
+  margin: 20px 6px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.journey-history-reading>div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.journey-history-reading strong {
+  font-size: 1.85rem;
+  line-height: 1.1;
+  letter-spacing: -.035em;
+  color: var(--journey-outcome);
+}
+
+.journey-history-reading span,.journey-history-reading p {
+  font-size: .6875rem;
+  color: var(--muted-foreground);
+}
+
+.journey-history-reading p[data-trend=positive] {
+  color: var(--trend-positive);
+}
+
+.journey-history-reading p[data-trend=negative] {
+  color: var(--trend-negative);
+}
+
+.journey-all-changes {
+  border-top: 1px solid var(--border);
+  padding: 14px 6px 4px;
+  font-size: .75rem;
+}
+
+.journey-all-changes>.journey-heat-heading {
+  border: 0;
 }
