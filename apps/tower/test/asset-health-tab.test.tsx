@@ -216,7 +216,7 @@ describe("the Health tab on the asset page", () => {
     await waitFor(() => expect(container.querySelector('[data-health-tab="watch"]')).not.toBeNull());
     expect(screen.getByRole("tab", { name: /^Health/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent?.replace(/\d+$/, "").trim())).toEqual([
-      "Overview", "Money", "Search", "Health", "Tasks", "Settings",
+      "Overview", "Journeys", "Money", "Search", "Health", "Tasks", "Settings",
     ]);
   });
 });
