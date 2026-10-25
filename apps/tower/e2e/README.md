@@ -131,8 +131,11 @@ functions; only their persistence is replaced by disposable document storage.
 The real task-lane handler reads saved project membership through the real
 project reader, pointed at an in-process stand-in for the ingest door (a
 non-routable origin and a synthetic bearer, serving the fixture's own
-`config/beads.json`), resolves it against `fixture-repo/installation/task-host.json`,
-and runs an injected, in-memory `bd` executor. It never starts `bd`, git or a
+`config/beads.json`), resolves it against the fixture's injected host inventory,
+and writes its task-client settings inside the server's temporary installation.
+The runner removes that installation after the server exits, including failed
+startup. An injected, in-memory `bd` executor accepts only those resolved task
+client directories. It never starts `bd`, git or a
 database client, and needs no secrets file: the suite runs the same from a fresh
 checkout, in CI and on the operator's machine.
 

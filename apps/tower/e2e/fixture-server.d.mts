@@ -6,6 +6,7 @@ import type { TestClusterHandle } from "../../../scripts/postgres-test-copies.mj
 export interface FixtureServer {
   readonly port: number;
   readonly origin: string;
+  readonly installationRoot: string;
   readonly child: ChildProcess;
   output(): string;
   violations(from?: number): string[];

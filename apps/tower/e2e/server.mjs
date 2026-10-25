@@ -17,6 +17,8 @@ import { checkedPort } from "./journey-port.mjs";
 const isolation = installIsolationGuard();
 const root = fileURLToPath(new URL("../", import.meta.url));
 const port = checkedPort(Number(process.env.JOURNEY_PORT ?? 4187));
+const installationRoot = process.env.JOURNEY_INSTALLATION_ROOT;
+if (!installationRoot || !path.isAbsolute(installationRoot)) throw new Error("The journey server requires its runner-owned installation root");
 let dispatch;
 let changes;
 let changeWatch;
@@ -127,7 +129,7 @@ const harness = createJourneyHarness({ forgetConfigCache, createAsset, moveAsset
   beginGoogleOAuth, completeGoogleOAuth, discoverGoogleProperties, GOOGLE_OAUTH_REVOKED_MESSAGE,
   runNotifier, runHygieneChecks, recordGa4Quota, recordTimeZoneChange, recordSignalSuccess, writeWatchWindow, runWatchWindows,
   runPullAdapter },
-  postgres);
+  postgres, installationRoot);
 await harness.ready();
 
 // Fail closed for provider/runner fetches. Node's HTTP listener is independent
