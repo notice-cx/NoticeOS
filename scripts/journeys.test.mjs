@@ -66,3 +66,17 @@ test('assets without journey declarations retain their existing executive snapsh
   const declared=buildExecutiveSnapshot({asset:'example.com',families:new Map(),archives:[],valueEvents:config,generatedAt:'2026-10-20T01:00:00Z'});
   assert.equal(declared.journeys.definitions.length,1);
 });
+
+
+test('visitor population remains optional and survives archives without changing funnel identity', () => {
+  const visitors = {users:500,quality:'complete'};
+  const snapshot = journeysSnapshot(families([archive(period(),{visitors})]),'example.com',config,'2026-10-20T01:00:00Z');
+  assert.deepEqual(snapshot.funnels[0].current7.visitors,visitors);
+  assert.equal(snapshot.funnels[0].definitionId,journeyDefinitionId(definition));
+  assert.ok(readJourneyPeriod({...period(),visitors}));
+  assert.ok(readJourneyPeriod({...period(),visitors:{users:null,quality:'unavailable',reason:'Provider unavailable'}}));
+  for (const visitors of [{users:50,quality:'complete'},{users:null,quality:'complete'},
+    {users:500,quality:'unavailable'},{users:-1,quality:'complete'},{users:500,quality:'complete',extra:true}]) {
+    assert.equal(readJourneyPeriod({...period(),visitors}),null);
+  }
+});

@@ -289,6 +289,7 @@ function flattenJourneys(archive) {
         typeof response.timeZone !== 'string') continue;
     const period = readJourneyPeriod({
       ...record(response.period), quality: response.quality, steps: response.steps,
+      ...(response.visitors === undefined ? {} : { visitors: response.visitors }),
       ...(response.reason === undefined ? {} : { reason: response.reason }),
       ...(response.sampling === undefined ? {} : { sampling: response.sampling }),
     });

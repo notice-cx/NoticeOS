@@ -31,8 +31,8 @@ export function funnelQuotaLow(raw: unknown): boolean {
   });
 }
 
-async function savedFunnelQuotaLow(env: IngestEnv, target: GooglePropertyTarget, nowMs: number): Promise<boolean> {
-  const object = await env.RAW_SIGNALS.get(await funnelQuotaKey(env, target.propertyRef));
+async function savedFunnelQuotaLow(env: IngestEnv, target: GooglePropertyTarget, nowMs: number, category = 'funnel'): Promise<boolean> {
+  const object = await env.RAW_SIGNALS.get(await funnelQuotaKey(env, target.propertyRef, category));
   if (!object) return false;
   const saved = asRecord(await boundedResponseJson(new Response(object.body), 'Saved GA4 funnel quota', 16 * 1024));
   const observedAt = typeof saved?.observedAt === 'string' ? Date.parse(saved.observedAt) : Number.NaN;
@@ -44,10 +44,10 @@ async function savedFunnelQuotaLow(env: IngestEnv, target: GooglePropertyTarget,
   return nowMs - observedAt < 3_600_000 && funnelQuotaLow(quota);
 }
 
-async function funnelQuotaKey(env: IngestEnv, propertyId: string): Promise<string> {
+async function funnelQuotaKey(env: IngestEnv, propertyId: string, category = 'funnel'): Promise<string> {
   const objects = await signalObjectScope(env);
   const key = await sha256Hex(new TextEncoder().encode(propertyId));
-  return objects.key(`checkpoints/ga4-funnel-quota/${key}.json`);
+  return objects.key(`checkpoints/ga4-${category}-quota/${key}.json`);
 }
 
 /** Each total is requested directly; unique users cannot be summed across days. */
@@ -83,6 +83,49 @@ export function ga4JourneyRequest(definition: JourneyDefinition, period: Journey
     })) },
     funnelVisualizationType: 'STANDARD_FUNNEL', limit: '100', returnPropertyQuota: true,
   };
+}
+
+type JourneyVisitors = NonNullable<JourneyPeriod['visitors']>;
+const unavailableVisitors = (reason: string): JourneyVisitors => ({ users: null, quality: 'unavailable', reason });
+
+export function ga4VisitorRequest(period: JourneyWindow): Record<string, unknown> {
+  return { dateRanges: [{ startDate: period.startDate, endDate: period.endDate }],
+    metrics: [{ name: 'activeUsers' }], returnPropertyQuota: true };
+}
+
+export function ga4VisitorResult(body: unknown, expectedTimeZone?: string): JourneyVisitors {
+  const report = asRecord(body);
+  const headers = Array.isArray(report?.metricHeaders) ? report.metricHeaders : [];
+  const metric = headers.findIndex((header) => asRecord(header)?.name === 'activeUsers');
+  const rows = Array.isArray(report?.rows) ? report.rows : [];
+  const row = asRecord(rows[0]);
+  const values = Array.isArray(row?.metricValues) ? row.metricValues : [];
+  const raw = asRecord(values[metric])?.value;
+  if (metric < 0 || rows.length !== 1 || (Array.isArray(report?.dimensionHeaders) && report.dimensionHeaders.length > 0) ||
+      typeof raw !== 'string' || !/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) {
+    return unavailableVisitors('GA4 did not return a complete visitor count');
+  }
+  const metadata = asRecord(report?.metadata);
+  if (expectedTimeZone !== undefined && metadata?.timeZone !== undefined && metadata.timeZone !== expectedTimeZone) {
+    return unavailableVisitors('GA4 visitor reporting time zone did not match the journey');
+  }
+  if (metadata?.subjectToThresholding === true || metadata?.dataLossFromOtherRow === true) {
+    return unavailableVisitors('GA4 reported thresholding or incomplete visitor data');
+  }
+  const samples = Array.isArray(metadata?.samplingMetadatas) ? metadata.samplingMetadatas : [];
+  if (samples.length > 0) {
+    if (samples.some((sample) => !/^\d+$/.test(String(asRecord(sample)?.samplesReadCount)) ||
+      !/^\d+$/.test(String(asRecord(sample)?.samplingSpaceSize)))) {
+      return unavailableVisitors('GA4 visitor sampling metadata was incomplete');
+    }
+    if (samples.some((sample) => BigInt(String(asRecord(sample)?.samplesReadCount)) > BigInt(String(asRecord(sample)?.samplingSpaceSize)))) {
+      return unavailableVisitors('GA4 visitor sampling metadata was invalid');
+    }
+    if (samples.some((sample) => BigInt(String(asRecord(sample)?.samplesReadCount)) < BigInt(String(asRecord(sample)?.samplingSpaceSize)))) {
+      return { users: Number(raw), quality: 'sampled', reason: 'GA4 sampled the visitor count' };
+    }
+  }
+  return { users: Number(raw), quality: 'complete' };
 }
 
 function journeyRequestError(status: number, body: unknown, definition: JourneyDefinition, accessToken: string): SignalError {
@@ -150,6 +193,19 @@ async function cachedJourney(store: WorkspaceStore, target: GooglePropertyTarget
   return confirmedDay === today || confirmedDay >= shiftCalendarDate(endDate, SETTLE_DAYS) ? row : null;
 }
 
+async function cachedVisitorsComplete(env: IngestEnv, cached: CachedJourney): Promise<boolean> {
+  try {
+    const object = await env.RAW_SIGNALS.get(cached.objectKey);
+    if (!object) return false;
+    const archive = asRecord(await boundedResponseJson(new Response(object.body.pipeThrough(new DecompressionStream('gzip'))),
+      'Saved GA4 journey', 8 * 1024 * 1024));
+    const pages = Array.isArray(archive?.pages) ? archive.pages : [];
+    return pages.some((page) => asRecord(asRecord(asRecord(page)?.response)?.visitors)?.quality === 'complete');
+  } catch {
+    return false;
+  }
+}
+
 export async function runGa4Journeys(input: {
   env: IngestEnv; target: GooglePropertyTarget; definitions: readonly JourneyDefinition[]; nowMs: number;
   accessToken: string | (() => Promise<string>); fetchImpl: typeof fetch; budget: JourneyBudget;
@@ -166,6 +222,8 @@ export async function runGa4Journeys(input: {
   const observedTimeZone = await previousTimeZone(env.STORE, target.asset, 'ga4', target.propertyRef);
   if (observedTimeZone && isValidTimeZone(observedTimeZone)) target = { ...target, timeZone: observedTimeZone, timeZoneAssumed: false };
   const objects = await signalObjectScope(env);
+  const visitorCounts = new Map<string, JourneyVisitors>();
+  let visitorQuotaLow = await savedFunnelQuotaLow(env, target, nowMs, 'core');
   let haltCause: unknown = await savedFunnelQuotaLow(env, target, nowMs)
     ? new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted') : null;
   for (const definition of active) {
@@ -174,10 +232,11 @@ export async function runGa4Journeys(input: {
     for (const period of journeyWindows(nowMs, target.timeZone)) {
       const request = ga4JourneyRequest(definition, period);
       const requestKey = await sha256Hex(new TextEncoder().encode(JSON.stringify({ definitionId, propertyId: target.propertyRef,
-        timeZone: target.timeZone, identity: 'ga4-active-users', kind: period.kind, request })));
+        timeZone: target.timeZone, identity: 'ga4-active-users', visitorProtocol: 1, kind: period.kind, request })));
       const report = `journeys-${requestKey}`;
       const cached = await cachedJourney(env.STORE, target, report, period.endDate, nowMs);
-      if (cached && objects.canReadArchive(cached.objectKey) && await env.RAW_SIGNALS.head(cached.objectKey)) {
+      if (cached && objects.canReadArchive(cached.objectKey) && await env.RAW_SIGNALS.head(cached.objectKey) &&
+          (haltCause !== null || visitorQuotaLow || await cachedVisitorsComplete(env, cached))) {
         outcomes.push(await input.reuse(report, period.endDate, cached));
         continue;
       }
@@ -207,12 +266,50 @@ export async function runGa4Journeys(input: {
         }
         await input.quota(quota);
         const result = ga4JourneyResult(definition, body);
+        const visitorKey = `${period.startDate}:${period.endDate}`;
+        let visitors = visitorCounts.get(visitorKey);
+        let visitorPage: { request: Record<string, unknown>; response: unknown } | undefined;
+        if (!visitors) {
+          if (haltCause !== null || visitorQuotaLow || budget.remaining <= 0) {
+            visitors = unavailableVisitors('Visitor collection request budget is exhausted');
+          } else {
+            const visitorRequest = ga4VisitorRequest(period);
+            try {
+              budget.remaining -= 1;
+              const visitorResponse = await input.fetchImpl(`https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(target.propertyRef)}:runReport`, {
+                method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(visitorRequest), signal: AbortSignal.timeout(30_000),
+              });
+              const visitorBody = await boundedResponseJson(visitorResponse, 'Google visitors', 1024 * 1024);
+              visitorPage = { request: visitorRequest, response: visitorResponse.ok ? visitorBody : { status: visitorResponse.status } };
+              if (!visitorResponse.ok) {
+                visitorQuotaLow = true;
+                visitors = unavailableVisitors(`GA4 visitor report failed (${visitorResponse.status})`);
+              } else {
+                visitors = ga4VisitorResult(visitorBody, target.timeZone);
+                visitorQuotaLow = funnelQuotaLow(asRecord(visitorBody)?.propertyQuota);
+                await env.RAW_SIGNALS.put(await funnelQuotaKey(env, target.propertyRef, 'core'), JSON.stringify({
+                  observedAt: new Date(nowMs).toISOString(), quota: asRecord(visitorBody)?.propertyQuota ?? null,
+                }), { httpMetadata: { contentType: 'application/json' } });
+              }
+            } catch {
+              visitorPage ??= { request: visitorRequest, response: { unavailable: true } };
+              visitorQuotaLow = true;
+              visitors = unavailableVisitors('GA4 visitor count could not be collected');
+            }
+          }
+          visitorCounts.set(visitorKey, visitors);
+        }
+        const visitorUsers = visitors.users;
+        if (typeof visitorUsers === 'number' && result.steps.some((step) => step.users !== null && step.users > visitorUsers)) {
+          visitors = unavailableVisitors('GA4 visitor count was lower than the ordered journey count');
+        }
         const { propertyQuota, ...rawResponse } = asRecord(body) ?? {};
         const normalized = { journeyId: definition.id, definitionId, definition, requestKey, propertyId: target.propertyRef,
-          timeZone: target.timeZone, identity: 'ga4-active-users', collectedAt: new Date(nowMs).toISOString(), period, ...result, rawResponse };
+          timeZone: target.timeZone, identity: 'ga4-active-users', collectedAt: new Date(nowMs).toISOString(), period, ...result, visitors, rawResponse };
         const { collectedAt: _collectedAt, ...canonical } = normalized;
         outcomes.push(await input.archive(report, period.endDate, {
-          pages: [{ request, response: { ...normalized, propertyQuota } }],
+          pages: [{ request, response: { ...normalized, propertyQuota } }, ...(visitorPage ? [visitorPage] : [])],
           canonicalPages: [{ request, response: canonical }], providerRows: result.quality === 'unavailable' ? 0 : result.steps.length,
           providerTruncated: false, quota,
         }));

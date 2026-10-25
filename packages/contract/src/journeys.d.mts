@@ -35,6 +35,11 @@ export interface JourneyPeriod {
         id: string;
         users: number | null;
     }[];
+    visitors?: {
+        users: number | null;
+        quality: 'complete' | 'sampled' | 'unavailable';
+        reason?: string;
+    };
     sampling?: {
         samplesReadCount: string;
         samplingSpaceSize: string;
