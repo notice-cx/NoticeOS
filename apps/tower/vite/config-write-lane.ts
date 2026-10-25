@@ -66,6 +66,7 @@ export interface ConfigStoreLane {
     ops: unknown[];
     slug: string;
     actor: string;
+    expectVersions?: Record<string, number | null>;
   }): Promise<ConfigStoreReply>;
 }
 
@@ -243,12 +244,17 @@ export async function handleConfigRequest(
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { status: 422, body: { error: "invalid_changeset", detail: "body must be a JSON object" } };
   }
-  const { ops, slug } = parsed as { ops?: unknown; slug?: unknown };
+  const { ops, slug, expectVersions } = parsed as { ops?: unknown; slug?: unknown; expectVersions?: unknown };
   if (!Array.isArray(ops)) {
     return { status: 422, body: { error: "invalid_changeset", detail: "ops must be an array" } };
   }
   if (slug !== undefined && typeof slug !== "string") {
     return { status: 422, body: { error: "invalid_changeset", detail: "slug must be a string" } };
+  }
+  if (expectVersions !== undefined && (expectVersions === null || typeof expectVersions !== "object"
+    || Array.isArray(expectVersions) || Object.values(expectVersions).some((version) =>
+      version !== null && (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1)))) {
+    return { status: 422, body: { error: "invalid_changeset", detail: "expectVersions must contain document versions or null" } };
   }
   if (ops.some((op) => (op as { kind?: unknown } | null)?.kind === "store-asset-set")) {
     return {
@@ -286,6 +292,7 @@ export async function handleConfigRequest(
       ops: changeset.ops,
       slug: changeset.slug,
       actor: "operator",
+      ...(expectVersions === undefined ? {} : { expectVersions: expectVersions as Record<string, number | null> }),
     }).catch(() => storeUnknownReply());
     if (reply.status >= 200 && reply.status < 300 && reply.body?.ok === true) {
       return exportAfterStoreWrite(changeset, reply, opts);

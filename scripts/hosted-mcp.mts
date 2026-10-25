@@ -23,6 +23,7 @@ import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopes
 import { TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS, type PanelOperations } from './panel-mcp.mjs';
+import { JOURNEY_MCP_TOOLS } from './journey-mcp.mjs';
 import type { HostedTaskOperations } from './hosted-task-operations.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
 
@@ -59,6 +60,8 @@ export interface HostedMcpOptions {
   readonly readModels?: (request: Request) => Promise<Response>;
   /** Reads published panels. Without it, the panel tools are not offered. */
   readonly panels?: PanelOperations;
+  /** Standalone only: the Tower's typed journey resource; never collects. */
+  readonly journeys?: (request: Request) => Promise<Response>;
 }
 
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });
@@ -83,6 +86,7 @@ const TASK_TOOLS = TASK_MCP_TOOLS.map(inWorkspace);
 const READ_TOOLS = READ_MODEL_TOOLS.map(tool => inWorkspace({ ...tool,
   annotations: Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false }) }));
 const PANEL_TOOLS = PANEL_MCP_TOOLS.map(inWorkspace);
+const JOURNEY_TOOLS = JOURNEY_MCP_TOOLS.map(inWorkspace);
 /** The scopes a call needs; list_workspaces needs only a valid token. */
 function scopesFor(name: string): readonly string[] {
   const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
@@ -98,10 +102,11 @@ function access(scopes: readonly string[], workspace: HostedMcpWorkspace): strin
 
 export function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response> {
   const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-  const { profile, operations, agents, readModels, panels } = options;
+  const { profile, operations, agents, readModels, panels, journeys } = options;
   if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
     || readModels !== undefined && typeof readModels !== 'function'
-    || panels !== undefined && typeof panels?.read !== 'function') throw new Error('MCP configuration refused');
+    || panels !== undefined && typeof panels?.read !== 'function'
+    || journeys !== undefined && (profile !== 'standalone' || typeof journeys !== 'function')) throw new Error('MCP configuration refused');
   /** The one workspace a demo or standalone endpoint serves. */
   const named = profile === 'demo' ? options.demoWorkspaceId : options.standaloneWorkspaceId;
   const only = profile !== 'hosted' && typeof named === 'string' && UUID.test(named) ? named : undefined;
@@ -109,7 +114,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       || (profile === 'demo' ? options.standaloneWorkspaceId : options.demoWorkspaceId) !== undefined)
     || profile === 'hosted' && (options.demoWorkspaceId !== undefined || options.standaloneWorkspaceId !== undefined || !agents
       || typeof agents.verify !== 'function' || typeof agents.workspaces !== 'function')) throw new Error('MCP configuration refused');
-  const tools: readonly McpTool[] = Object.freeze([LIST_WORKSPACES, GET_TASK_GUIDE, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
+  const tools: readonly McpTool[] = Object.freeze([LIST_WORKSPACES, GET_TASK_GUIDE, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : []), ...(journeys ? JOURNEY_TOOLS : [])]);
   const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
     { status: 400, headers: { 'cache-control': 'no-store' } });
   const refused = () => taskRefusal(null);
@@ -181,7 +186,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
         const guideVersion = guide.version;
         if (profile === 'demo') return { guideVersion, workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
         if (profile === 'standalone') return { guideVersion, workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
-          access: ['tasks:read', 'tasks:write', ...(readModels || panels ? ['evidence:read'] : [])] }] };
+          access: ['tasks:read', 'tasks:write', ...(readModels || panels ? ['evidence:read'] : []), ...(journeys ? ['journeys:read', 'journeys:write'] : [])] }] };
         const workspaces = await agents!.workspaces(original).catch(() => null);
         if (!workspaces) throw refused();
         return { guideVersion, workspaces: workspaces.map(workspace => ({ workspaceId: workspace.workspaceId, name: workspace.displayName,
@@ -193,9 +198,11 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       }
       const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
       const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
+      const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       try {
         if (task) return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
         if (panel) return await panel.run({ proof, workspaceId: workspace, operations: panels! }, rest);
+        if (journey) return await journey.run({ proof, workspaceId: workspace, transport: journeys! }, rest);
         return await readModel(original, name, workspace, rest);
       } catch (error) {
         if (agents && error instanceof AdmissionRefused) throw await accessRefusal(original, workspace, name, scopes!) ?? taskRefusal(error);

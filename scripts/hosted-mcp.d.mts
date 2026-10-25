@@ -32,5 +32,7 @@ export interface HostedMcpOptions {
     readonly readModels?: (request: Request) => Promise<Response>;
     /** Reads published panels. Without it, the panel tools are not offered. */
     readonly panels?: PanelOperations;
+    /** Standalone only: the Tower's typed journey resource; never collects. */
+    readonly journeys?: (request: Request) => Promise<Response>;
 }
 export declare function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response>;
