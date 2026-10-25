@@ -157,22 +157,26 @@ test('mcp at a terminal says how to connect it and runs nothing', (t) => {
   const dir = own.installation();
   // `script` gives the launcher a terminal for its input, as a person's shell would (util-linux and BSD spell it differently).
   const command = ['sh', path.join(dir, 'noticeos'), 'mcp'];
-  const args = process.platform === 'linux' ? ['-qec', command.join(' '), '/dev/null'] : ['-q', '/dev/null', ...command];
-  const result = spawnSync('script', args, { encoding: 'utf8',
-    env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
-  assert.equal(result.status, 0, result.stderr);
+  const terminal = (...extra) => {
+    const args = process.platform === 'linux' ? ['-qec', [...command, ...extra].join(' '), '/dev/null'] : ['-q', '/dev/null', ...command, ...extra];
+    const result = spawnSync('script', args, { encoding: 'utf8',
+      // BSD script accepts /dev/null, but rejects Node's socket-backed input pipe before allocating the child's terminal.
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
+    assert.equal(result.status, 0, result.error?.message ?? result.stderr);
+    return result;
+  };
+  const result = terminal();
   assert.match(result.stdout.replaceAll('\r', ''), new RegExp(`at a terminal it does not run\\.\\ninstallation\\.env names no Tower port, so connect this command instead:\\n  claude mcp add --scope user noticeos -- ${dir.replaceAll('.', '\\.')}/noticeos mcp --actor claude\\n`, 'u'),
     'an installation.env naming no Tower port has only the command');
   writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_PORT="5180"\n`);
-  const loopback = spawnSync('script', process.platform === 'linux' ? ['-qec', `${command.join(' ')} --actor dev-1`, '/dev/null'] : ['-q', '/dev/null', ...command, '--actor', 'dev-1'],
-    { encoding: 'utf8', env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
+  const loopback = terminal('--actor', 'dev-1');
   assert.match(loopback.stdout.replaceAll('\r', ''), /The Tower serves the same tools; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n/u);
   writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_BIND="0.0.0.0"\nNOTICEOS_TOWER_PORT="5180"\n`);
-  const network = spawnSync('script', process.platform === 'linux' ? ['-qec', command.join(' '), '/dev/null'] : ['-q', '/dev/null', ...command],
-    { encoding: 'utf8', env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
+  const network = terminal();
   assert.match(network.stdout.replaceAll('\r', ''), /The Tower serves the same tools; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: claude'\n/u,
     'a Tower on every interface answers on loopback too');
-  assert.equal(existsSync(path.join(own.base, 'docker.log')) && readFileSync(path.join(own.base, 'docker.log'), 'utf8').includes('"exec"'), false);
+  assert.equal(existsSync(path.join(own.base, 'docker.log')), false, 'no backend command runs at a terminal');
 });
 
 test('outside an installation folder, or with no or an unknown command, it says what to do and runs nothing', (t) => {
