@@ -1,4 +1,5 @@
 import { DailyMeasureChart } from "@/components/viz/DailyMeasureChart";
+import { JourneyMonitorDemo } from "./kitchen-sink/JourneyMonitorDemo";
 import { SourceHistory } from "@/components/viz/SourceHistory";
 import { DAILY_MEASURE_DEMO, DAILY_MEASURE_LANDMARKS, SOURCE_HISTORY_DOMAIN, SOURCE_HISTORY_NOW, SOURCE_HISTORY_ROWS, SOURCE_HISTORY_HEADLINE } from "./kitchen-sink/overview-visuals-demo";
 import { VisualKitGallery } from "@/routes/VisualKitRoute";
@@ -2970,6 +2971,9 @@ export function KitchenSinkRoute() {
           </Section>
           <Section title="Visual kit for an asset's tabs: ChangeRows, FunnelBars">
             <p className="text-xs text-muted-foreground">Staged in the gallery above, under Changes and funnels.</p>
+          </Section>
+          <Section title="JourneyMonitor and JourneyDefinitionEditor · ordered conversion and weekly history">
+            <div className="w-full min-w-0" id="journey-monitor-demo"><JourneyMonitorDemo /></div>
           </Section>
           <Section title="Visual kit for Tasks: TaskProgressBar, ProjectJourneys">
             <div className="flex w-full flex-col gap-5">

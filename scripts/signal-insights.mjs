@@ -3,6 +3,7 @@
 // provider reports and carries its own date window, evidence and limitations.
 // Missing rows never imply zero and never produce a deprecation recommendation.
 
+import { readJourneyDefinitions, readJourneyPeriod, readJourneySnapshot, journeyDefinitionId } from '../packages/contract/src/journeys.mjs';
 import { readProductUseStages } from '../packages/contract/src/product-use.mjs';
 import { marketLabel } from '../packages/contract/src/search-market.mjs';
 
@@ -146,6 +147,61 @@ function productUseMetric(definition, byEvent) {
 
 /** Exact rolling unique-user aggregates. These must come from one GA4 28-day
  * report: adding daily `totalUsers` would double-count returning people. */
+/** Select direct window aggregates; distinct users never add across periods. */
+export function journeysSnapshot(families, asset, declarations, generatedAt) {
+  const definitions = readJourneyDefinitions(record(declarations)?.assets?.[asset]?.journeys);
+  if (!definitions) return null;
+  const funnels = [];
+  for (const definition of definitions) {
+    if (definition.kind !== 'funnel' || definition.status !== 'active') continue;
+    const definitionId = journeyDefinitionId(definition);
+    const candidates = rows(families, 'ga4-journeys').filter((row) => row.asset === asset &&
+      row.journey_id === definition.id && row.definition_id === definitionId &&
+      row.identity === 'ga4-active-users' && !row.provider_truncated)
+      .sort((a,b) => String(b.collected_at).localeCompare(String(a.collected_at)));
+    const newest = candidates[0];
+    if (!newest) continue;
+    const matching = candidates.filter((row) => row.property_id === newest.property_id &&
+      row.property_time_zone === newest.property_time_zone && row.identity === newest.identity);
+    const periods = [];
+    const seen = new Set();
+    for (const row of matching) {
+      let period;
+      try { period = readJourneyPeriod(JSON.parse(row.period_json)); } catch { continue; }
+      if (!period || period.steps.length !== definition.steps.length ||
+          period.steps.some((step,index) => step.id !== definition.steps[index]?.id)) continue;
+      const key = `${period.kind}:${period.startDate}:${period.endDate}`;
+      if (seen.has(key)) continue;
+      seen.add(key); periods.push(period);
+    }
+    let expectedEnd;
+    try {
+      const parts = new Intl.DateTimeFormat('en', { timeZone: newest.property_time_zone,
+        year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(generatedAt));
+      const part = (type) => parts.find((part) => part.type === type)?.value;
+      const localDay = `${part('year')}-${part('month')}-${part('day')}`;
+      expectedEnd = new Date(Date.parse(`${localDay}T00:00:00Z`) - 2 * 86400000)
+        .toISOString().slice(0,10);
+    } catch { continue; }
+    const find = (kind) => periods.find((period) => period.kind === kind &&
+      (kind === 'current7' || kind === 'current28' ? period.endDate === expectedEnd : true)) ?? null;
+    const current7 = find('current7');
+    const current28 = find('current28');
+    const prior = (kind,current) => current ? periods.find((period) => period.kind === kind &&
+      Date.parse(current.startDate)-Date.parse(period.endDate) === 86400000) ?? null : null;
+    funnels.push({ journeyId: definition.id, definitionId, propertyId: newest.property_id,
+      timeZone: newest.property_time_zone, identity: 'ga4-active-users', collectedAt: newest.collected_at,
+      current7, prior7: prior('prior7',current7), current28, prior28: prior('prior28',current28),
+      weekly: periods.filter((period) => period.kind === 'week')
+        .sort((a,b) => a.startDate.localeCompare(b.startDate)).slice(-12),
+    });
+  }
+  return readJourneySnapshot({ source: 'ga4', countingUnit: 'activeUsers', generatedAt,
+    definitions, funnels,
+    exploration: { state: 'unsupported', reason: 'Ordered funnels measure defined sequences. Branching paths are not collected.' },
+  });
+}
+
 function productUseSnapshot(families, asset, declarations) {
   const stages = readProductUseStages(record(declarations)?.assets?.[asset]?.productUseStages);
   if (!stages?.length) return null;
@@ -5399,6 +5455,7 @@ export function buildExecutiveSnapshot({
   // PostHog's cards and the Growth tab's Product block come from one pass over
   // the same readings.
   const posthog = posthogProduct(families, archives);
+  const journeys = journeysSnapshot(families, asset, valueEvents, generatedAt);
   // Order inside a kind is the tie-break the eight-card cap uses, so it is a
   // priority list, not a call order. Measurement faults lead: if the ruler is
   // wrong, every card below it is bounded by that.
@@ -5460,6 +5517,7 @@ export function buildExecutiveSnapshot({
     // dates, the same bar the movers lanes are held to.
     searchPages: buildSearchPageTrends(families),
     productUse: productUseSnapshot(families, asset, valueEvents),
+    ...(journeys ? { journeys } : {}),
     channels: channelSnapshot(families),
     searchIntelligence: searchIntelligenceSnapshot(families),
     // Absent, not null, for a property with no panel: the key's presence is the

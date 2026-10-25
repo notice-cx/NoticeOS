@@ -388,6 +388,73 @@ async function addAssetByApi(page: Page) {
   expect((await page.request.put("/api/config", { headers, data: { ops: plan.ops, slug: plan.slug } })).ok()).toBe(true);
 }
 
+test('journey definitions save and Undo through the real settings flow', { tag: PR_SMOKE }, async ({ page, request }) => {
+  await addAssetByApi(page);
+  await page.goto(`/assets/${JOURNEY_ASSET}/journeys`);
+  await expect(page.getByRole('heading', { name: 'Define the steps that matter' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create journey', exact: true }).click();
+  const editor = page.getByRole('region', { name: 'Journey definition' });
+  await editor.getByLabel('Journey name *', { exact: true }).fill('Create account');
+  await editor.getByLabel('Goal *', { exact: true }).fill('Grow accounts');
+  await editor.getByLabel('GA4 event *', { exact: true }).nth(0).fill('page_view');
+  await editor.getByLabel('GA4 event *', { exact: true }).nth(1).fill('sign_up');
+  await page.route('**/api/config', (route) => route.fulfill({ status: 503, json: { error: 'Fixture save is unavailable.' } }), { times: 1 });
+  await editor.getByRole('button', { name: 'Save definition', exact: true }).click();
+  await expect(editor.getByRole('alert')).toBeVisible();
+  await expect(editor.getByLabel('Journey name *', { exact: true })).toHaveValue('Create account');
+  await editor.getByRole('button', { name: 'Save definition', exact: true }).click();
+  await expect(editor.getByRole('status')).toContainText('Saved');
+  const state = await (await request.get('/__journey/status')).json();
+  expect(state.documents['config/value-events.json'].assets[JOURNEY_ASSET].journeys).toHaveLength(1);
+  await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(editor.getByRole('status')).toContainText('Previous definition restored');
+  const restored = await (await request.get('/__journey/status')).json();
+  expect(restored.documents['config/value-events.json'].assets[JOURNEY_ASSET]?.journeys).toBeUndefined();
+  await assertNoPageOverflow(page);
+});
+
+test('ordered journey loss and weekly history retain their dates and planned states', { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
+  await addAssetByApi(page);
+  expect((await request.post('/__journey/ordered-journeys')).ok()).toBe(true);
+  await page.goto(`/assets/${JOURNEY_ASSET}/journeys`);
+  const monitor = page.locator('[data-journey-monitor]');
+  await expect(monitor.getByRole('heading', { name: 'Account growth', exact: true })).toBeVisible();
+  await expect(monitor).toContainText('Largest loss');
+  await expect(monitor).toContainText('5,800');
+  await expect(page.locator('#boot-splash')).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await assertNoPageOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('ordered-journey-steps.png'), fullPage: true });
+  await monitor.getByRole('button', { name: 'Over time', exact: true }).click();
+  await expect(monitor.getByRole('heading', { name: 'Where continuation changed' })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: testInfo.outputPath('ordered-journey-history.png'), fullPage: true });
+  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open navigation', exact: true }).click();
+  await page.getByRole('button', { name: 'Switch to light theme' }).click();
+  if (testInfo.project.name === 'mobile') await expect(page.getByRole('button', { name: 'Open navigation', exact: true })).toBeVisible();
+  await assertNoPageOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath('ordered-journey-history-light.png'), fullPage: true });
+  await monitor.getByRole('button', { name: /View this week/ }).click();
+  await expect(monitor).toContainText('Viewing week');
+  await expect(monitor).toContainText('Aug 24');
+  await monitor.getByRole('button', { name: 'Return to 28-day period' }).click();
+  await expect(monitor).toContainText('5,800');
+  await monitor.getByRole('button', { name: 'Definition', exact: true }).click();
+  const editor = page.getByRole('region', { name: 'Journey definition' });
+  await editor.getByLabel('Journey name *', { exact: true }).fill('Account conversion');
+  await editor.getByRole('button', { name: 'Save definition', exact: true }).click();
+  await expect(monitor.getByRole('heading', { name: 'Account conversion', exact: true })).toBeVisible();
+  await expect(monitor).toContainText('5,800');
+  await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(monitor.getByRole('heading', { name: 'Account growth', exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: 'Close', exact: true }).click();
+  await monitor.getByRole('button', { name: /Become a subscriber/ }).click();
+  await expect(monitor).toContainText('Planned journey');
+  await monitor.getByRole('button', { name: /Discover useful pages/ }).click();
+  await expect(monitor).toContainText('Session paths');
+  await assertNoPageOverflow(page);
+});
+
 test('asset order moves in the Wall editor, persists across every list, and supports guarded Undo', async ({ page, request }, testInfo) => {
   expect((await request.post('/__journey/wall-feed')).ok()).toBe(true);
   const wall = await (await request.get('/api/wall')).json();

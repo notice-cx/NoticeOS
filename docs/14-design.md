@@ -96,6 +96,10 @@ The families, and what each means:
   `chart-distorted` for a day a reporting-timezone change made incomparable
   (a caveat about the measurement, in a paler warn, never an alert), and
   `spark` for the neutral compact trend.
+  The journey chart uses blue `journey-continuation`, teal `journey-outcome`,
+  amber `journey-loss` and violet `journey-prior`. Weekly change cells use
+  `trend-positive` and `trend-negative` only for comparable percentage-point
+  changes; unavailable comparisons remain neutral.
 - **The visual kit's tokens.** `viz-track` is the empty track a bar or a band
   fills, `viz-grid` the thin line a grid or an axis is drawn with, and
   `shadow-raised` the one shadow a screen's main region may have. The Tower's
@@ -172,6 +176,7 @@ that can be read quickly, and the kit has a component for it:
 | open problems | one ranked panel: new since the operator last looked first, the long-standing ones collapsed | `IncidentList` |
 | several measures, each against its own earlier window | rows divided by thin lines: the figure, its days against the earlier level, the change as a bar from one shared zero line | `ChangeRows` |
 | a count narrowing step by step | bars on one scale, each with its share of the step before; a step with no measurement hatched | `FunnelBars` |
+| ordered conversion and its changes over time | vertically stacked bars from one baseline, the largest absolute loss highlighted, completion by week and an inspectable step continuation grid | `JourneyMonitor` |
 | why a task ranks | its card's figures in one row, read left to right, each with its unit a step lighter: the money at stake, the likelihood as a percent and ten bars, the operator's minutes, the time to signal, the kill date, the rank with its policy version | `WhyItRanks` |
 | one project's tasks by state | one row of equal segments, one per task, filled from the left as the work finishes, its counts as the bar's accessible sentence | `TaskProgressBar` |
 | projects on a time axis, with what waits on the operator drawn from the day it was asked | one row per project on an axis weeks either side of today: closes as dots, work in progress as a green span to today, the open question as a span in the warning colour from the day it was asked, and held, parked and kill-dated work just ahead of today | `ProjectJourneys` |

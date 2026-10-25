@@ -28,7 +28,7 @@ export interface SignalPanelsConfig {
 
 /** config/value-events.json, as the Tower reads it. */
 export interface ValueEventsConfig {
-  assets: Record<string, { valueEvents?: unknown; productUseStages?: unknown } | undefined>;
+  assets: Record<string, { valueEvents?: unknown; productUseStages?: unknown; journeys?: unknown } | undefined>;
 }
 
 /** config/ga4-custom-dimensions.json, as the Tower reads it. */

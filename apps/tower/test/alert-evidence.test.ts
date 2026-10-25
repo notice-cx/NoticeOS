@@ -63,6 +63,7 @@ describe("alert evidence is separate from lifecycle", () => {
     const flag = { ...base, ruleId: "ga4-quota-pressure" };
     expect(deriveAlertEvidence({ ...flag, ruleInputs: { lane: "google-signals", lastObservedAt: FRESH } }, NOW_MS).verification.state).toBe("unverified");
     expect(deriveAlertEvidence({ ...flag, ruleInputs: { lane: "signal-dumps", lastObservedAt: FRESH } }, NOW_MS).verification.state).toBe("confirmed");
+    expect(deriveAlertEvidence({ ...flag, ruleId: "ga4-funnel-quota-pressure", ruleInputs: { lane: "ga4-journeys", lastObservedAt: FRESH } }, NOW_MS).verification.state).toBe("confirmed");
     expect(deriveAlertEvidence({ ...flag, ruleInputs: { lane: "unknown", lastObservedAt: FRESH } }, NOW_MS).verification.state).toBe("unverified");
   });
   it("recorded closure is not verified recovery and decisions remain actionable", () => {

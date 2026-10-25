@@ -1,0 +1,264 @@
+/** Ordered user journeys are separate from independent event volumes. */
+export const JOURNEY_PERIOD_KINDS = ['current7', 'prior7', 'current28', 'prior28', 'week'] as const;
+export interface JourneyStepAlternative {
+  eventName: string;
+  pagePath?: string;
+  parameters?: {
+    name: string;
+    value: string;
+  }[];
+}
+export interface JourneyStep {
+  id: string;
+  label: string;
+  alternatives: JourneyStepAlternative[];
+  withinSeconds?: number;
+}
+export interface JourneyDefinition {
+  id: string;
+  label: string;
+  kind: 'funnel' | 'exploration';
+  status: 'active' | 'planned';
+  goal: string;
+  version: number;
+  steps: JourneyStep[];
+}
+export interface JourneyPeriod {
+  kind: (typeof JOURNEY_PERIOD_KINDS)[number];
+  startDate: string;
+  endDate: string;
+  complete: boolean;
+  quality: 'complete' | 'sampled' | 'unavailable';
+  reason?: string;
+  steps: {
+    id: string;
+    users: number | null;
+  }[];
+  sampling?: {
+    samplesReadCount: string;
+    samplingSpaceSize: string;
+  };
+}
+export interface JourneyFunnelResult {
+  journeyId: string;
+  definitionId: string;
+  propertyId: string;
+  timeZone: string;
+  identity: 'ga4-active-users';
+  collectedAt: string;
+  current7: JourneyPeriod | null;
+  prior7: JourneyPeriod | null;
+  current28: JourneyPeriod | null;
+  prior28: JourneyPeriod | null;
+  weekly: JourneyPeriod[];
+}
+export interface JourneySnapshot {
+  source: 'ga4';
+  countingUnit: 'activeUsers';
+  generatedAt: string | null;
+  definitions: JourneyDefinition[];
+  funnels: JourneyFunnelResult[];
+  exploration: {
+    state: 'unsupported';
+    reason: string;
+  };
+}
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+const text = (value: unknown, max = 120): value is string =>
+  typeof value === 'string' && value.length > 0 && value.length <= max && value.trim() === value;
+const id = (value: unknown): value is string =>
+  text(value, 60) && /^[a-zA-Z][a-zA-Z0-9_-]*$/.test(value);
+const keys = (value: Record<string, unknown>, allowed: string[]) =>
+  Object.keys(value).every((key) => allowed.includes(key));
+const eventName = (value: unknown): value is string =>
+  text(value, 40) && /^[A-Za-z][A-Za-z0-9_]*$/.test(value);
+
+function validAlternative(value: unknown): boolean {
+  if (!record(value) || !keys(value, ['eventName', 'pagePath', 'parameters']) ||
+      !eventName(value.eventName)) return false;
+  if (value.pagePath !== undefined && (!text(value.pagePath, 1000) ||
+      !value.pagePath.startsWith('/') || /[?#]/.test(value.pagePath))) return false;
+  if (value.parameters === undefined) return true;
+  if (!Array.isArray(value.parameters) || value.parameters.length > 4) return false;
+  const names = new Set<string>();
+  for (const parameter of value.parameters) {
+    if (!record(parameter) || !keys(parameter, ['name', 'value']) ||
+        !eventName(parameter.name) || !text(parameter.value, 100) ||
+        names.has(parameter.name)) return false;
+    names.add(parameter.name);
+  }
+  return true;
+}
+
+export function journeyDefinitionsRefusal(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length > 8) {
+    return 'Journeys must contain at most eight definitions';
+  }
+  const seen = new Set<string>();
+  for (const definition of value) {
+    if (!record(definition) ||
+        !keys(definition, ['id', 'label', 'kind', 'status', 'goal', 'version', 'steps']) ||
+        !id(definition.id) || !text(definition.label, 60) || !text(definition.goal) ||
+        !['funnel', 'exploration'].includes(String(definition.kind)) ||
+        !['active', 'planned'].includes(String(definition.status)) ||
+        !Number.isSafeInteger(definition.version) || Number(definition.version) < 1 ||
+        !Array.isArray(definition.steps) || definition.steps.length < 2 ||
+        definition.steps.length > 10) return 'Invalid journey definition';
+    if (seen.has(definition.id)) return 'Journey IDs must be unique';
+    seen.add(definition.id);
+    const stepIds = new Set<string>();
+    for (const [index, step] of definition.steps.entries()) {
+      if (!record(step) || !keys(step, ['id', 'label', 'alternatives', 'withinSeconds']) ||
+          !id(step.id) || !text(step.label, 60) || !Array.isArray(step.alternatives) ||
+          step.alternatives.length < 1 || step.alternatives.length > 8) {
+        return 'Invalid journey step';
+      }
+      if (step.withinSeconds !== undefined && (index === 0 ||
+          typeof step.withinSeconds !== 'number' || !Number.isSafeInteger(step.withinSeconds) ||
+          step.withinSeconds < 1 || step.withinSeconds > 7776000)) {
+        return 'Invalid journey transition duration';
+      }
+      if (stepIds.has(step.id)) return 'Journey step IDs must be unique';
+      stepIds.add(step.id);
+      if (!step.alternatives.every(validAlternative)) return 'Invalid exact journey condition';
+    }
+  }
+  return null;
+}
+
+export function readJourneyDefinitions(value: unknown): readonly JourneyDefinition[] | null {
+  return journeyDefinitionsRefusal(value) === null
+    ? JSON.parse(JSON.stringify(value)) as JourneyDefinition[] : null;
+}
+
+/** Exact identity avoids hash collisions and changes with measurement semantics. */
+export function journeyDefinitionId(definition: JourneyDefinition): string {
+  return JSON.stringify({
+    id: definition.id,
+    version: definition.version,
+    kind: definition.kind,
+    steps: definition.steps.map((step) => ({
+      id: step.id,
+      alternatives: step.alternatives.map((alternative) => ({
+        eventName: alternative.eventName,
+        ...(alternative.pagePath === undefined ? {} : { pagePath: alternative.pagePath }),
+        ...(alternative.parameters === undefined ? {} : {
+          parameters: [...alternative.parameters]
+            .sort((left, right) => left.name.localeCompare(right.name))
+            .map((parameter) => ({ name: parameter.name, value: parameter.value })),
+        }),
+      })),
+      ...(step.withinSeconds === undefined ? {} : { withinSeconds: step.withinSeconds }),
+    })),
+  });
+}
+
+const day = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return false;
+  const date = new Date(value + 'T00:00:00Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
+const timestamp = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
+const timeZone = (value: unknown): value is string => {
+  if (!text(value))
+    return false;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value });
+    return true;
+  }
+  catch {
+    return false;
+  }
+};
+export function readJourneyPeriod(value: unknown): JourneyPeriod | null {
+  if (!record(value) || !keys(value, ['kind', 'startDate', 'endDate', 'complete', 'quality', 'reason', 'steps', 'sampling']) ||
+    !JOURNEY_PERIOD_KINDS.includes(value.kind as JourneyPeriod['kind']) ||
+    !day(value.startDate) || !day(value.endDate) || value.startDate > value.endDate ||
+    value.complete !== true || !['complete', 'sampled', 'unavailable'].includes(String(value.quality)) ||
+    !Array.isArray(value.steps) || value.steps.length < 2 || value.steps.length > 10 ||
+    (value.reason !== undefined && !text(value.reason, 500)))
+    return null;
+  const expected = value.kind === 'current28' || value.kind === 'prior28' ? 28 : 7;
+  if ((Date.parse(value.endDate) - Date.parse(value.startDate)) / 86400000 + 1 !== expected)
+    return null;
+  const seen = new Set<string>();
+  let prior = Infinity;
+  for (const step of value.steps) {
+    if (!record(step) || !keys(step, ['id', 'users']) || !id(step.id) || seen.has(step.id) ||
+      !(step.users === null || typeof step.users === 'number' && Number.isSafeInteger(step.users) && step.users >= 0))
+      return null;
+    seen.add(step.id);
+    if (value.quality === 'unavailable' ? step.users !== null : step.users === null)
+      return null;
+    if (typeof step.users === 'number') {
+      if (step.users > prior)
+        return null;
+      prior = step.users;
+    }
+  }
+  if (value.sampling !== undefined && (!record(value.sampling) ||
+    !keys(value.sampling, ['samplesReadCount', 'samplingSpaceSize']) ||
+    typeof value.sampling.samplesReadCount !== 'string' || !/^\d+$/.test(value.sampling.samplesReadCount) ||
+    typeof value.sampling.samplingSpaceSize !== 'string' || !/^\d+$/.test(value.sampling.samplingSpaceSize)))
+    return null;
+  if (value.quality === 'sampled' && value.sampling === undefined)
+    return null;
+  if (value.quality === 'complete' && value.sampling !== undefined)
+    return null;
+  return JSON.parse(JSON.stringify(value)) as JourneyPeriod;
+}
+export function readJourneySnapshot(value: unknown): JourneySnapshot | null {
+  if (!record(value) || !keys(value, ['source', 'countingUnit', 'generatedAt', 'definitions', 'funnels', 'exploration']) ||
+    value.source !== 'ga4' || value.countingUnit !== 'activeUsers' ||
+    !(value.generatedAt === null || timestamp(value.generatedAt)) ||
+    !readJourneyDefinitions(value.definitions) || !Array.isArray(value.funnels) || value.funnels.length > 8 ||
+    !record(value.exploration) || !keys(value.exploration, ['state', 'reason']) ||
+    value.exploration.state !== 'unsupported' || !text(value.exploration.reason, 500))
+    return null;
+  const definitions = value.definitions as JourneyDefinition[];
+  const seen = new Set<string>();
+  for (const result of value.funnels) {
+    if (!record(result) || !keys(result, ['journeyId', 'definitionId', 'propertyId', 'timeZone', 'identity', 'collectedAt', 'current7', 'prior7', 'current28', 'prior28', 'weekly']) ||
+      !id(result.journeyId) || seen.has(result.journeyId) || !text(result.propertyId) || !timeZone(result.timeZone) ||
+      result.identity !== 'ga4-active-users' || !timestamp(result.collectedAt) ||
+      !Array.isArray(result.weekly) || result.weekly.length > 12)
+      return null;
+    seen.add(result.journeyId);
+    const definition = definitions.find((definition) => definition.id === result.journeyId);
+    if (!definition || definition.kind !== 'funnel' || definition.status !== 'active' ||
+      result.definitionId !== journeyDefinitionId(definition))
+      return null;
+    for (const kind of ['current7', 'prior7', 'current28', 'prior28'] as const) {
+      if (result[kind] !== null && (!readJourneyPeriod(result[kind]) || (result[kind] as JourneyPeriod).kind !== kind))
+        return null;
+    }
+    if (result.weekly.some((period) => !readJourneyPeriod(period) || (period as JourneyPeriod).kind !== 'week') ||
+      new Set(result.weekly.map((period) => (period as JourneyPeriod).startDate)).size !== result.weekly.length)
+      return null;
+    let lastWeekEnd = '';
+    for (const period of result.weekly as JourneyPeriod[]) {
+      if (new Date(period.startDate + 'T00:00:00Z').getUTCDay() !== 1 ||
+          period.startDate <= lastWeekEnd) return null;
+      lastWeekEnd = period.endDate;
+    }
+    const periods = [...result.weekly, result.current7, result.prior7, result.current28, result.prior28].filter((period) => period !== null) as JourneyPeriod[];
+    for (const period of periods) {
+      if (period.steps.length !== definition.steps.length ||
+        period.steps.some((step, index) => step.id !== definition.steps[index]?.id))
+        return null;
+    }
+    for (const [currentKey, priorKey] of [['current7', 'prior7'], ['current28', 'prior28']] as const) {
+      const current = result[currentKey] as JourneyPeriod | null;
+      const prior = result[priorKey] as JourneyPeriod | null;
+      if (prior && (!current || Date.parse(current.startDate) - Date.parse(prior.endDate) !== 86400000))
+        return null;
+    }
+    const current7 = result.current7 as JourneyPeriod | null;
+    const current28 = result.current28 as JourneyPeriod | null;
+    if (current7 && current28 && current7.endDate !== current28.endDate)
+      return null;
+  }
+  return JSON.parse(JSON.stringify(value)) as JourneySnapshot;
+}

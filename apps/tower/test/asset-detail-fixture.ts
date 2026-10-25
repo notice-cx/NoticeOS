@@ -104,6 +104,7 @@ const gscLane = {
  * snapshot. A tab that rendered its empty state would pin nothing. */
 export function everyTabPayload(): AssetDetailPayload {
   return {
+    journeys: null,
     generatedAt: "2026-07-05T12:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {

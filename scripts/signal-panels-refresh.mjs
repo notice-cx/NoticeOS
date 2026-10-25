@@ -61,6 +61,10 @@ const STABILITY_ARCHIVE_BYTES = 8 * 1024 * 1024;
  */
 export const UNCOLLECTED_FAMILIES = BING_AI_REPORTS.map((report) => ({ integration: BING_AI_INTEGRATION, report }));
 
+function reportFamily(integration, report) {
+  return integration === 'ga4' && report.startsWith('journeys-') ? 'journeys' : report;
+}
+
 function isUncollected(integration, report) {
   return UNCOLLECTED_FAMILIES.some(
     (family) => family.integration === integration && family.report === report,
@@ -111,7 +115,7 @@ export function familyCollection(asset, items) {
   for (const item of items) {
     const integration = ARCHIVE_MONITORS[item?.capability];
     if (item?.asset !== asset || !integration || typeof item.report !== 'string') continue;
-    const key = `${integration}/${item.report}`;
+    const key = `${integration}/${reportFamily(integration, item.report)}`;
     if (!byFamily.has(key)) byFamily.set(key, []);
     byFamily.get(key).push(item);
   }
@@ -337,7 +341,7 @@ export function freshnessReport(input) {
     }
     keepNewer(newest, row.integration, row.reportDate);
     if (!newestReports.has(row.integration)) newestReports.set(row.integration, new Map());
-    keepNewer(newestReports.get(row.integration), row.report, row.reportDate);
+    keepNewer(newestReports.get(row.integration), reportFamily(row.integration, row.report), row.reportDate);
   }
 
   const measure = (key, newestReportDate, extra) => {
@@ -372,8 +376,9 @@ export function freshnessReport(input) {
   const health = collection?.available ? familyCollection(asset, collection.items) : new Map();
   const archived = new Map();
   for (const row of manifest) {
-    const key = `${row.integration}/${row.report}`;
-    const held = archived.get(key) ?? { integration: row.integration, report: row.report, newestReportDate: null, archives: 0 };
+    const report = reportFamily(row.integration, row.report);
+    const key = `${row.integration}/${report}`;
+    const held = archived.get(key) ?? { integration: row.integration, report, newestReportDate: null, archives: 0 };
     held.archives += 1;
     if (held.newestReportDate === null || row.reportDate > held.newestReportDate) held.newestReportDate = row.reportDate;
     archived.set(key, held);
@@ -415,7 +420,7 @@ export function freshnessReport(input) {
 export async function localStabilityReport(downloadsRoot, asset, manifest) {
   const families = new Map();
   for (const row of mergeManifest([], manifest)) {
-    const family = `${row.integration}-${row.report}`;
+    const family = `${row.integration}-${reportFamily(row.integration, row.report)}`;
     if (!families.has(family)) families.set(family, []);
     const recent = families.get(family);
     recent.push(row);

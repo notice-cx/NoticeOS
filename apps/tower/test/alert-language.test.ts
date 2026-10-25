@@ -741,6 +741,21 @@ describe("asset checks and quota — a headline and its values, never the rule's
     ]);
   });
 
+  it("keeps funnel quota distinct from ordinary GA4 reports", () => {
+    const result = translateAlert({
+      ruleId: "ga4-funnel-quota-pressure", metric: "ga4-quota", message: "Quota low",
+      ruleInputs: {
+        lane: "ga4-journeys", pool: "funnel", lastObservedAt: AT,
+        pressured: [{ bucket: "tokensPerProjectPerHour", consumed: 12, remaining: 100, threshold: 2800 }],
+      },
+    });
+    expect(result.headline).toBe("GA4 hourly quota low — 100 tokens left");
+    expect(result.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "Quota", detail: "Funnel" }),
+      expect.objectContaining({ source: "Spent by", detail: "Journey reports" }),
+    ]));
+  });
+
   it("falls back to the stored headline when a row carries no inputs, never a blank", () => {
     for (const ruleId of ["hygiene-html-depth", "hygiene-robots-ai", "hygiene-page-directives", "hygiene-page-structure", "ga4-quota-pressure"]) {
       expect(translateAlert({ ruleId, metric: null, message: "stored words", ruleInputs: {} }).headline).toBe("stored words");

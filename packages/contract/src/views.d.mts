@@ -20,7 +20,7 @@ export type ViewNavPath = (typeof VIEW_NAV_PATHS)[number];
 export declare const HOME_MODULES: readonly ["money", "yesterday", "agents", "decide", "problems", "sites", "timeline", "health", "factory", "channels", "gaps"];
 export type HomeModuleId = (typeof HOME_MODULES)[number];
 /** The site page's tabs, in the Everything view's order. */
-export declare const SITE_TABS: readonly ["overview", "growth", "financials", "search", "codebase", "health", "alerts", "tasks", "activity", "sources", "settings"];
+export declare const SITE_TABS: readonly ["overview", "growth", "journeys", "financials", "search", "codebase", "health", "alerts", "tasks", "activity", "sources", "settings"];
 export type SiteTabId = (typeof SITE_TABS)[number];
 /** The word level a surface may use (docs/14 Lexicon): a business surface
  * uses money, people and verdict words only; an operational one may add

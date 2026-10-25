@@ -185,6 +185,7 @@ export interface ConfigRegister {
 }
 
 export type ConfigRegisterKey =
+  | 'journeys'
   | 'product-use-stages'
   | 'asset-integrations'
   | 'asset-lane'
@@ -669,6 +670,12 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         describe: 'verbatim as the asset emits it (calculation_complete, never "Calculation complete")',
       },
     ],
+  },
+  'journeys': {
+    file: 'config/value-events.json', container: `/assets/${ASSET_PARAM}/journeys`,
+    shape: 'array', keyField: 'id', addableContainer: true, seedUndo: 'list',
+    label: 'Journeys', describe: 'versioned ordered user journeys',
+    owner: 'config/value-events.README.md', surface: "the asset's Journeys tab", fields: null,
   },
   'product-use-stages': {
     file: 'config/value-events.json',

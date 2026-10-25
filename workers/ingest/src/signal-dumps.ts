@@ -55,7 +55,9 @@ import {
 } from './egress.js';
 import { depthBoundedReports, healthFailure } from './integration-health-store.js';
 import ga4CustomDimensionsJson from '../../../config/ga4-custom-dimensions.json';
+import valueEventsJson from '../../../config/value-events.json';
 import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } from './shared.js';
+import { assetJourneyDefinitions, GA4_JOURNEY_REQUEST_LIMIT, runGa4Journeys, type JourneyConfig } from './ga4-journeys.js';
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_REVISION_DAYS = 4;
@@ -429,6 +431,7 @@ export interface SignalDumpsOptions {
   revisionDays?: number;
   /** Override the built-in config/ga4-custom-dimensions.json (tests inject their own). */
   ga4CustomDimensions?: Ga4CustomDimensionConfig;
+  journeyConfig?: JourneyConfig;
   /** Override the compiled-in config/integrations.json mapping (tests). */
   laneRegister?: LaneRegister;
   /** Where this run's config came from, per file; reported on the completion line. */
@@ -516,6 +519,7 @@ export async function runSignalDumps(
     options.osTimeZone,
   ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister));
   const outcomes: SignalDumpOutcome[] = [];
+  const journeyBudget = { remaining: GA4_JOURNEY_REQUEST_LIMIT };
   // Every (property, family) -> the dates this run asks for, resolved before
   // this run writes any manifests, so a probe day's zero-row result cannot
   // narrow the same run's window.
@@ -622,6 +626,32 @@ export async function runSignalDumps(
             outcomes.push(outcome);
           }
         }
+        if (target.integration === 'ga4') {
+          outcomes.push(...await runGa4Journeys({
+            env, target, definitions: assetJourneyDefinitions(options.journeyConfig ?? valueEventsJson, target.asset), nowMs,
+            accessToken, fetchImpl: egress.transport.fetch, budget: journeyBudget,
+            archive: (report, reportDate, collected) => archiveCollectedDump(env, {
+              monitoring: googleMonitoring, provider: 'google', target, report, reportDate, requestedAt,
+              dataState: 'revision-window', collected,
+            }),
+            reuse: async (report, reportDate, cached) => {
+              await recordDumpSuccess(env.STORE, { monitoring: googleMonitoring, target, report, reportDate, requestedAt,
+                dataState: 'revision-window', status: 'unchanged',
+                requestCount: 0, providerTruncated: false, ...cached });
+              return { asset: target.asset, integration: 'ga4', report, reportDate, status: 'unchanged',
+                providerRows: cached.providerRows, providerTruncated: false, objectKey: cached.objectKey, errorCode: null };
+            },
+            failed: async (report, reportDate, error) => {
+              if (await egressExplains(egress.gate, egress.transport, error)) return unmeasuredDumpOutcome(egress.gate, target, report, reportDate);
+              const normalized = normalizeSignalError(error, 'GA4 journey collection failed.');
+              await recordDumpFailure(env.STORE, { monitoring: googleMonitoring, target, report, reportDate,
+                requestedAt, dataState: 'revision-window', error: normalized });
+              return failedOutcome(target, report, reportDate, normalized);
+            },
+            quota: (quota) => recordGa4Quota(env, { asset: target.asset, lane: 'ga4-journeys', propertyRef: target.propertyRef, quota, at: requestedAt })
+              .then(() => undefined).catch((error: unknown) => { throw localStoreError(error, 'google', 'journeys'); }),
+          }));
+        }
       }
     }
 
@@ -704,6 +734,7 @@ export async function runSignalDumps(
       ...configSourceLine(options.configSources, [
         'config/integrations.json',
         'config/ga4-custom-dimensions.json',
+        'config/value-events.json',
       ]),
       // Named for its reason, so a smaller `attempted` reads as "nothing new"
       // rather than as lost coverage.

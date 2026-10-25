@@ -48,6 +48,7 @@ import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
 import { type PullAssetConfig, runPullAdapter } from './pull.js';
 import { type Ga4CustomDimensionConfig, runSignalDumps } from './signal-dumps.js';
+import type { JourneyConfig } from './ga4-journeys.js';
 import { runSiteIcons } from './site-icons.js';
 import { runWatchWindows } from './watch-windows.js';
 import { createWorkflowRecorder, settleWorkflowSteps, type WorkflowRecorder } from '../../../scripts/workflow-trace.mjs';
@@ -61,6 +62,7 @@ import { recordManualRun, type JobRunOutcome } from './job-runs.js';
  * word per file, and the only thing about config that reaches a log line.
  */
 interface RunConfig {
+  journeyConfig: JourneyConfig | undefined;
   notificationRecovery?: boolean;
   pullEntries: PullAssetConfig[] | undefined;
   counters: CountersConfig | undefined;
@@ -93,6 +95,7 @@ function schedulePaused(constants: unknown, job: string): boolean {
  * shape-checked. */
 function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
   return {
+    journeyConfig: documents['config/value-events.json'] as JourneyConfig | undefined,
     pullEntries: documents['config/pull.json'] as PullAssetConfig[] | undefined,
     counters: documents['config/counters.json'] as CountersConfig | undefined,
     laneRegister: documents['config/integrations.json'] as LaneRegister | undefined,
@@ -180,6 +183,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
         runSignalDumps(env, {
           laneRegister: cfg.laneRegister,
           ga4CustomDimensions: cfg.ga4CustomDimensions,
+          journeyConfig: cfg.journeyConfig,
           osTimeZone: cfg.osTimeZone,
           configSources: cfg.configSources,
         }),

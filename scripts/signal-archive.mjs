@@ -76,6 +76,7 @@
 // nobody collected.
 
 import { createHash } from 'node:crypto';
+import { readJourneyDefinitions, readJourneyPeriod, journeyDefinitionId } from '../packages/contract/src/journeys.mjs';
 
 import {
   POSTHOG_FAMILIES as CONTRACT_POSTHOG_FAMILIES,
@@ -109,6 +110,7 @@ export function parseArchive(text, { asset, source }) {
 
 /** The family a checked archive's rows belong to. */
 export function archiveFamily(archive) {
+  if (archive.integration === 'ga4' && archive.report.startsWith('journeys-')) return 'ga4-journeys';
   return `${archive.integration}-${archive.report}`;
 }
 
@@ -139,6 +141,7 @@ export function archiveRows(archive, confirmations) {
   }
   if (archive.integration === 'gsc') return flattenGsc(archive);
   if (archive.integration === 'ga4') {
+    if (archive.report.startsWith('journeys-')) return flattenJourneys(archive);
     if (!GA4_ATTRIBUTION_REPORTS.has(archive.report)) return flattenGa4(archive);
     const provisional = ga4ProvisionalFlag(archive, confirmations);
     return flattenGa4(archive).map((row) => ({ ...row, provisional }));
@@ -273,6 +276,33 @@ function jsErrorMessageBucket(message) {
   return masked.length > MESSAGE_BUCKET_MAX
     ? `${masked.slice(0, MESSAGE_BUCKET_MAX)}…`
     : masked;
+}
+
+function flattenJourneys(archive) {
+  const output = [];
+  for (const page of array(archive.pages)) {
+    const response = record(record(page)?.response);
+    const definition = readJourneyDefinitions([response?.definition])?.[0];
+    if (!response || !definition || response.journeyId !== definition.id ||
+        response.definitionId !== journeyDefinitionId(definition) ||
+        response.identity !== 'ga4-active-users' || typeof response.propertyId !== 'string' ||
+        typeof response.timeZone !== 'string') continue;
+    const period = readJourneyPeriod({
+      ...record(response.period), quality: response.quality, steps: response.steps,
+      ...(response.reason === undefined ? {} : { reason: response.reason }),
+      ...(response.sampling === undefined ? {} : { sampling: response.sampling }),
+    });
+    if (!period || period.steps.some((step,index) => step.id !== definition.steps[index]?.id) ||
+        period.steps.length !== definition.steps.length) continue;
+    output.push({
+      ...baseRow(archive), journey_id: definition.id, definition_id: response.definitionId,
+      property_id: response.propertyId, property_time_zone: response.timeZone,
+      identity: response.identity, period_kind: period.kind,
+      window_start: period.startDate, window_end: period.endDate,
+      period_json: JSON.stringify(period),
+    });
+  }
+  return output;
 }
 
 function flattenGa4(archive) {

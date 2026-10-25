@@ -741,3 +741,13 @@ test('local stability bounds total archives and bytes, recording unavailable inp
   assert.equal(report.families.length, 70);
   assert.ok(report.families.every((family) => family.latest.comparisonKey === null));
 });
+
+
+test('versioned journey requests publish one bounded family instead of per-request hashes', () => {
+  const manifest = ['a','b','c'].map((hash,index) => ({integration:'ga4',report:`journeys-${hash}`,reportDate:`2026-10-${18+index}`}));
+  const report = freshnessReport({asset:'example.com',manifest,maxAgeDays:7,refreshedAt:'2026-10-22T00:00:00Z'});
+  assert.equal(report.families.length,1);
+  assert.equal(report.families[0].family,'ga4-journeys');
+  assert.equal(report.families[0].archives,3);
+  assert.deepEqual(report.sources[0].reports,[{report:'journeys',newestReportDate:'2026-10-20'}]);
+});

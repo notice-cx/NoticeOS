@@ -19,6 +19,7 @@ import { DEFAULT_RANGE, rangeFromParam } from "./useRange";
 export const ASSET_TABS = [
   "overview",
   "growth",
+  "journeys",
   "financials",
   "search",
   "codebase",
@@ -35,6 +36,7 @@ export type AssetTab = (typeof ASSET_TABS)[number];
 const TAB_LABEL: Record<AssetTab, string> = {
   overview: "Overview",
   growth: "Growth",
+  journeys: "Journeys",
   financials: "Money",
   search: "Search",
   codebase: "Codebase",
@@ -87,6 +89,7 @@ export const HASH_TAB: Record<string, AssetTab> = {
   "#search-performance": "growth",
   "#panel-scoreboard": "growth",
   "#product-use": "growth",
+  "#journeys": "journeys",
   // Anchors linked from a task page's "where this came from" and from saved
   // bookmarks keep resolving whichever tab their section is on now; a hash
   // that stopped working would be a broken link on every task ever filed from

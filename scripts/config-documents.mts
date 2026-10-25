@@ -55,6 +55,7 @@ export { CONFIG_KNOBS, CONFIG_REGISTERS, DOCUMENT_STAMPS } from './config-regist
 // has no `node:` import, so the bundle is safe.
 import { wallOpRefusal } from './wall-layout.mjs';
 import { schedulesOpRefusal } from './scheduled-jobs.mjs';
+import { journeyDefinitionsRefusal } from '../packages/contract/src/journeys.mjs';
 import { productUseStagesRefusal } from '../packages/contract/src/product-use.mjs';
 import { WORKSPACE_VIEW_POINTER, workspaceViewRefusal } from '../packages/contract/src/views.mjs';
 
@@ -571,6 +572,7 @@ function rowMatch(file: string, pointer: string, kind: string) {
 /** The rows of an addable container, judged whole: each key and each row by
  * the register's own rules, as a row insert would judge them one at a time. */
 function containerRefusal(match: Pick<RegisterMatch, 'key' | 'register'>, value: unknown): string | null {
+  if (match.key === 'journeys') return journeyDefinitionsRefusal(value);
   if (match.key === 'product-use-stages') return productUseStagesRefusal(value);
   if (match.register.shape === 'object') {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'The declared map must be an object';
@@ -1150,6 +1152,14 @@ export function applyDocumentOps(resolved: Resolved[], documents: Map<string, un
       if (value === MISSING) continue; // List Undo or holder deletion.
       const refusal = productUseStagesRefusal(value);
       if (refusal !== null) throw new ChangesetError(`${file} ${container} — ${refusal}`);
+    }
+  }
+  if (touched.has('config/value-events.json')) {
+    const doc = documents.get('config/value-events.json') as { assets?: Record<string, { journeys?: unknown }> } | undefined;
+    for (const holder of Object.values(doc?.assets ?? {})) {
+      if (holder?.journeys === undefined) continue;
+      const refusal = journeyDefinitionsRefusal(holder.journeys);
+      if (refusal !== null) throw new ChangesetError(refusal);
     }
   }
   const date = applyDate(at);

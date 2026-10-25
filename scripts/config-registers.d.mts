@@ -140,7 +140,7 @@ export interface ConfigRegister {
     /** Where an operator edits it. */
     surface: string;
 }
-export type ConfigRegisterKey = 'product-use-stages' | 'asset-integrations' | 'asset-lane' | 'asset-counters' | 'asset-pull' | 'domain-costs' | 'recurring-costs' | 'value-events' | 'value-events-assets' | 'ga4-event-params' | 'ga4-event-params-assets' | 'serp-panel-queries' | 'serp-panel-assets' | 'signal-panels' | 'task-hub-spokes' | 'data-source-catalog' | 'entities' | 'site-display';
+export type ConfigRegisterKey = 'journeys' | 'product-use-stages' | 'asset-integrations' | 'asset-lane' | 'asset-counters' | 'asset-pull' | 'domain-costs' | 'recurring-costs' | 'value-events' | 'value-events-assets' | 'ga4-event-params' | 'ga4-event-params-assets' | 'serp-panel-queries' | 'serp-panel-assets' | 'signal-panels' | 'task-hub-spokes' | 'data-source-catalog' | 'entities' | 'site-display';
 /**
  * What a collector reads for an asset that maps nothing on a lane, as a code
  * the card draws as a chip:

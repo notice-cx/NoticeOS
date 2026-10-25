@@ -14,6 +14,10 @@
       "types": "./src/cloudflare-d1.d.mts",
       "default": "./src/cloudflare-d1.mjs"
     },
+    "./journeys": {
+      "types": "./src/journeys.d.mts",
+      "default": "./src/journeys.mjs"
+    },
     "./product-use": {
       "types": "./src/product-use.d.mts",
       "default": "./src/product-use.mjs"
