@@ -37,18 +37,27 @@ async function seed(paused?: string) {
 
 function provider(status = 200) {
   const calls: string[] = [];
-  const fetchImpl: typeof fetch = async (input) => {
+  const requests: { url: string; body: { dateRanges?: unknown; dimensions?: unknown; metrics?: unknown } }[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     calls.push(url);
     if (url === TOKEN_URL) return Response.json({ access_token: 'synthetic-token', expires_in: 3600 });
-    if (!url.endsWith(':runFunnelReport')) throw new Error(`Unexpected provider request: ${url}`);
+    if (!url.endsWith(':runFunnelReport') && !url.endsWith(':runReport')) throw new Error(`Unexpected provider request: ${url}`);
+    const body = JSON.parse(String(init?.body)) as { dateRanges?: unknown; dimensions?: unknown; metrics?: unknown };
+    requests.push({ url, body });
     if (status !== 200) return Response.json({ error: { status: 'PERMISSION_DENIED' } }, { status });
+    if (url.endsWith(':runReport')) {
+      expect(body.metrics).toEqual([{ name: 'activeUsers' }]);
+      expect(body.dimensions).toBeUndefined();
+      return Response.json({ metricHeaders: [{ name: 'activeUsers' }],
+        rows: [{ metricValues: [{ value: '500' }] }], metadata: { timeZone: 'UTC' } });
+    }
     return Response.json({ funnelTable: {
       dimensionHeaders: [{ name: 'funnelStepName' }], metricHeaders: [{ name: 'activeUsers' }],
       rows: DEFINITION.steps.map((step, index) => ({ dimensionValues: [{ value: `${index + 1}. ${step.id}` }], metricValues: [{ value: String(100 - index * 75) }] })),
     } });
   };
-  return { calls, fetchImpl };
+  return { calls, requests, fetchImpl };
 }
 
 describe('manual GA4 journeys collection', () => {
@@ -68,11 +77,22 @@ describe('manual GA4 journeys collection', () => {
     expect(result).toMatchObject({ ok: true, provider: 'ga4', job: 'signal-dumps', sites: [
       { asset: 'meadow.example', outcome: 'collected', code: null, reports: 12 },
     ] });
-    expect(fake.calls.filter((url) => url !== TOKEN_URL)).toHaveLength(12);
-    expect(fake.calls.filter((url) => url !== TOKEN_URL).every((url) => url.includes('/properties/123456:runFunnelReport'))).toBe(true);
-    const { results: archives } = await pgAll<{ asset: string; integration: string; report: string }>('SELECT asset_id AS asset, integration, report FROM noticeos.archive_runs');
+    const funnels = fake.requests.filter(({ url }) => url.endsWith(':runFunnelReport'));
+    const visitors = fake.requests.filter(({ url }) => url.endsWith(':runReport'));
+    expect(funnels).toHaveLength(12);
+    expect(visitors).toHaveLength(12);
+    expect(fake.calls.filter((url) => url !== TOKEN_URL)).toHaveLength(24);
+    expect(fake.requests.every(({ url }) => /\/properties\/123456:run(?:Funnel)?Report$/.test(url))).toBe(true);
+    expect(visitors.map(({ body }) => body.dateRanges)).toEqual(funnels.map(({ body }) => body.dateRanges));
+    const { results: archives } = await pgAll<{ asset: string; integration: string; report: string; objectKey: string }>(
+      'SELECT r.asset_id AS asset, r.integration, r.report, o.object_key AS "objectKey" FROM noticeos.archive_runs r JOIN noticeos.archive_objects o USING (workspace_id, object_seq)');
     expect(archives).toHaveLength(12);
     expect(archives.every((row) => row.asset === 'meadow.example' && row.integration === 'ga4' && row.report.startsWith('journeys-'))).toBe(true);
+    const object = await env.RAW_SIGNALS.get(archives[0]!.objectKey);
+    const envelope = await new Response(object!.body.pipeThrough(new DecompressionStream('gzip'))).json() as {
+      pages: { response: { visitors?: { users: number; quality: string } } }[];
+    };
+    expect(envelope.pages[0]!.response.visitors).toEqual({ users: 500, quality: 'complete' });
     const { results: jobs } = await pgAll<{ job: string; outcome: string; detail: string }>('SELECT job, outcome, detail FROM noticeos.job_runs');
     expect(jobs).toEqual([{ job: jobRunName(SCHEDULED_JOBS.find((job) => job.id === 'signal-dumps')!), outcome: 'ran', detail: 'trigger:manual' }]);
     const priorCalls = fake.calls.length;

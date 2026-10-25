@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { JourneyDefinition } from '@noticeos/contract/journeys';
-import { ga4JourneyRequest, ga4JourneyResult, journeyWindows, runGa4Journeys } from '../src/ga4-journeys.js';
+import type { Ga4PropertyQuota } from '@noticeos/contract';
+import { ga4JourneyRequest, ga4JourneyResult, ga4VisitorRequest, ga4VisitorResult, journeyWindows, runGa4Journeys } from '../src/ga4-journeys.js';
 import { archiveCollectedDump, archivePart, runGa4JourneyDumps, runSignalDumps, type SignalDumpOutcome } from '../src/signal-dumps.js';
 import { EGRESS_DOWN_RULE_ID, EgressGate } from '../src/egress.js';
 import type { GooglePropertyTarget } from '../src/google-signals.js';
@@ -23,16 +24,20 @@ const TARGET: GooglePropertyTarget = {
 };
 const NOW = Date.parse('2026-10-25T12:15:00Z');
 function response(users = [100, 25], metadata: Record<string, unknown> = {}) {
-  return { funnelTable: {
+  return { metricHeaders: [{ name: 'activeUsers' }], rows: [{ metricValues: [{ value: '500' }] }], funnelTable: {
     dimensionHeaders: [{ name: 'funnelStepName' }], metricHeaders: [{ name: 'activeUsers' }], metadata,
     rows: DEFINITION.steps.map((step, index) => ({ dimensionValues: [{ value: `${index + 1}. ${step.id}` }], metricValues: [{ value: String(users[index]) }] })),
   }, propertyQuota: { tokensPerDay: { consumed: 2, remaining: 100000 }, tokensPerHour: { consumed: 2, remaining: 20000 } } };
+}
+function visitorResponse(users = 500, metadata: Record<string, unknown> = {}) {
+  return { metricHeaders: [{ name: 'activeUsers' }], rows: [{ metricValues: [{ value: String(users) }] }],
+    metadata, propertyQuota: response().propertyQuota };
 }
 function outcome(report: string, end: string, status: 'unchanged' | 'error' = 'error'): SignalDumpOutcome {
   return { asset: TARGET.asset, integration: 'ga4', report, reportDate: end, status,
     providerRows: 0, providerTruncated: false, objectKey: null, errorCode: status === 'error' ? 'failed' : null };
 }
-function collect(fetchImpl: typeof fetch, options: { nowMs?: number; definition?: JourneyDefinition; definitions?: readonly JourneyDefinition[]; budget?: number; target?: GooglePropertyTarget; errors?: unknown[] } = {}) {
+function collect(fetchImpl: typeof fetch, options: { nowMs?: number; definition?: JourneyDefinition; definitions?: readonly JourneyDefinition[]; budget?: number; target?: GooglePropertyTarget; errors?: unknown[]; quotas?: (Ga4PropertyQuota | null)[] } = {}) {
   const nowMs = options.nowMs ?? NOW;
   const target = options.target ?? TARGET;
   return runGa4Journeys({ env, target, definitions: options.definitions ?? [options.definition ?? DEFINITION], nowMs, accessToken: 'test-token', fetchImpl,
@@ -40,7 +45,7 @@ function collect(fetchImpl: typeof fetch, options: { nowMs?: number; definition?
     archive: (report, end, collected) => archiveCollectedDump(env, { provider: 'google', target, report,
       reportDate: end, requestedAt: new Date(nowMs).toISOString(), dataState: 'revision-window', collected }),
     reuse: async (report, end) => outcome(report, end, 'unchanged'),
-    failed: async (report, end, error) => { options.errors?.push(error); return outcome(report, end); }, quota: async () => {},
+    failed: async (report, end, error) => { options.errors?.push(error); return outcome(report, end); }, quota: async (quota) => { options.quotas?.push(quota); },
   });
 }
 
@@ -71,6 +76,7 @@ describe('GA4 ordered journey collection', () => {
   });
   it('collects exact page paths through the filter dimension accepted by Funnel conditions', async () => {
     const fetchImpl: typeof fetch = async (_url, init) => {
+      if (String(_url).endsWith(':runReport')) return Response.json(visitorResponse());
       const request = String(init?.body);
       if (request.includes('"fieldName":"pagePath"')) {
         return Response.json({ error: { message: 'Dimension pagePath is not supported in funnel conditions.' } }, { status: 400 });
@@ -99,7 +105,7 @@ describe('GA4 ordered journey collection', () => {
         ? Response.json({ error: { message: 'The event parameter action is not supported in this filter.' } }, { status: 400 })
         : Response.json(response());
     }, { definitions: [invalid, DEFINITION], errors });
-    expect(requests).toHaveLength(13);
+    expect(requests).toHaveLength(25);
     expect(requests.filter((request) => request.includes('recipe_save'))).toHaveLength(1);
     expect(results.slice(0, 12).every((result) => result.status === 'error')).toBe(true);
     expect(results.slice(12).every((result) => result.status === 'success')).toBe(true);
@@ -146,13 +152,110 @@ describe('GA4 ordered journey collection', () => {
     expect(ga4JourneyResult(DEFINITION, sampled)).toMatchObject({ quality: 'sampled', sampling: { samplesReadCount: '10', samplingSpaceSize: '100' } });
     expect(ga4JourneyResult(DEFINITION, response([100, 25], { subjectToThresholding: true }))).toMatchObject({ quality: 'unavailable', thresholding: 'reported', steps: [{ users: null }, { users: null }] });
   });
+  it('measures a separate exact-window visitor population without changing ordered entry conditions', () => {
+    const period = journeyWindows(NOW, TARGET.timeZone)[0]!;
+    expect(ga4VisitorRequest(period)).toEqual({ dateRanges: [{ startDate: period.startDate, endDate: period.endDate }],
+      metrics: [{ name: 'activeUsers' }], returnPropertyQuota: true });
+    expect(ga4VisitorResult(visitorResponse(0))).toEqual({ users: 0, quality: 'complete' });
+    expect(ga4VisitorResult(visitorResponse(500))).toEqual({ users: 500, quality: 'complete' });
+    expect(ga4VisitorResult(visitorResponse(500, { timeZone: 'UTC' }), TARGET.timeZone)).toMatchObject({ users: null, quality: 'unavailable' });
+    expect(ga4VisitorResult(visitorResponse(500, { samplingMetadatas: [{ samplesReadCount: '100', samplingSpaceSize: '100' }] }))).toEqual({ users: 500, quality: 'complete' });
+    expect(ga4VisitorResult(visitorResponse(500, { subjectToThresholding: true }))).toMatchObject({ users: null, quality: 'unavailable' });
+    expect(ga4VisitorResult(visitorResponse(500, { samplingMetadatas: [{ samplesReadCount: '10', samplingSpaceSize: '100' }] }))).toMatchObject({ quality: 'sampled' });
+    for (const body of [{}, visitorResponse(Number.NaN), visitorResponse(500, { samplingMetadatas: [{}] }), { ...visitorResponse(), rows: [] },
+      { ...visitorResponse(), dimensionHeaders: [{ name: 'date' }] }]) {
+      expect(ga4VisitorResult(body)).toMatchObject({ users: null, quality: 'unavailable' });
+    }
+  });
+  it('shares exact-window visitor calls across definitions and archives their independent quality', async () => {
+    let visitorCalls = 0;
+    let funnelCalls = 0;
+    const results = await collect(async (url) => {
+      if (String(url).endsWith(':runReport')) { visitorCalls += 1; return Response.json(visitorResponse(500)); }
+      funnelCalls += 1; return Response.json(response());
+    }, { definitions: [DEFINITION, { ...DEFINITION, id: 'second' }] });
+    expect(visitorCalls).toBe(12);
+    expect(funnelCalls).toBe(24);
+    for (const result of [results[0]!, results[12]!]) {
+      const object = await env.RAW_SIGNALS.get(result.objectKey!);
+      const envelope = await new Response(object!.body.pipeThrough(new DecompressionStream('gzip'))).json() as {
+        pages: { response: { visitors?: { users: number; quality: string } } }[];
+      };
+      expect(envelope.pages[0]!.response.visitors).toEqual({ users: 500, quality: 'complete' });
+    }
+  });
+  it('retries unavailable or sampled cached visitor counts even after a window has settled', async () => {
+    let visitorCalls = 0;
+    const fetchImpl: typeof fetch = async (url) => {
+      if (!String(url).endsWith(':runReport')) return Response.json(response());
+      visitorCalls += 1;
+      return Response.json(visitorResponse(500, { samplingMetadatas: [{ samplesReadCount: '10', samplingSpaceSize: '100' }] }));
+    };
+    await collect(fetchImpl);
+    expect(visitorCalls).toBe(12);
+    await collect(fetchImpl);
+    expect(visitorCalls).toBe(24);
+  });
+  it('recovers unavailable cached visitor counts while preserving previously collected ordered counts', async () => {
+    let visitorCalls = 0;
+    let healthy = false;
+    const fetchImpl: typeof fetch = async (url) => {
+      if (!String(url).endsWith(':runReport')) return Response.json(response());
+      visitorCalls += 1;
+      return healthy ? Response.json(visitorResponse()) : new Response('{}', { status: 503 });
+    };
+    await collect(fetchImpl);
+    expect(visitorCalls).toBe(1);
+    healthy = true;
+    await collect(fetchImpl);
+    expect(visitorCalls).toBe(13);
+    const cached = await collect(fetchImpl);
+    expect(cached.every((result) => result.status === 'unchanged')).toBe(true);
+    expect(visitorCalls).toBe(13);
+  });
+  it('reports only Funnel quota through the journey alert callback', async () => {
+    const quotas: (Ga4PropertyQuota | null)[] = [];
+    await collect(async (url) => {
+      if (!String(url).endsWith(':runReport')) return Response.json(response());
+      const body = visitorResponse(); body.propertyQuota.tokensPerHour.remaining = 0;
+      return Response.json(body);
+    }, { quotas });
+    expect(quotas).toHaveLength(12);
+    expect(quotas.every((quota) => quota?.tokensPerHour?.remaining === 20000)).toBe(true);
+  });
+  it('retains Core quota guards independently from ordered funnel collection', async () => {
+    let visitorCalls = 0;
+    let funnelCalls = 0;
+    const fetchImpl: typeof fetch = async (url) => {
+      if (!String(url).endsWith(':runReport')) { funnelCalls += 1; return Response.json(response()); }
+      visitorCalls += 1;
+      const body = visitorResponse(); body.propertyQuota.tokensPerHour.remaining = 0;
+      return Response.json(body);
+    };
+    await collect(fetchImpl);
+    await collect(fetchImpl, { definition: { ...DEFINITION, version: 2 } });
+    expect(visitorCalls).toBe(1);
+    expect(funnelCalls).toBe(24);
+  });
+  it('keeps ordered users when visitors fail or contradict the funnel', async () => {
+    for (const propertyRef of ['baseline-too-small', 'baseline-failed']) {
+      const results = await collect(async (url) => String(url).endsWith(':runReport')
+        ? propertyRef === 'baseline-too-small' ? Response.json(visitorResponse(50)) : new Response('{}', { status: 503 })
+        : Response.json(response()), { target: { ...TARGET, propertyRef } });
+      const object = await env.RAW_SIGNALS.get(results[0]!.objectKey!);
+      const envelope = await new Response(object!.body.pipeThrough(new DecompressionStream('gzip'))).json() as {
+        pages: { response: { visitors: unknown; steps: unknown } }[];
+      };
+      expect(envelope.pages[0]!.response).toMatchObject({ visitors: { users: null, quality: 'unavailable' }, steps: [{ users: 100 }, { users: 25 }] });
+    }
+  });
   it('archives each window directly and caches provider requests before fetching', async () => {
     let calls = 0;
     const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(response()); };
     const first = await collect(fetchImpl);
     expect(first).toHaveLength(12);
     expect(first.every((result) => result.status === 'success')).toBe(true);
-    expect(calls).toBe(12);
+    expect(calls).toBe(24);
     const object = await env.RAW_SIGNALS.get(first[0]!.objectKey!);
     const envelope = await new Response(object!.body.pipeThrough(new DecompressionStream('gzip'))).json() as {
       pages: { response: { definition: JourneyDefinition; identity: string; period: { endDate: string }; steps: { users: number }[] } }[];
@@ -164,22 +267,22 @@ describe('GA4 ordered journey collection', () => {
     expect(archives.every((archive) => archive.property_ref === TARGET.propertyRef)).toBe(true);
     const again = await collect(fetchImpl);
     expect(again.every((result) => result.status === 'unchanged')).toBe(true);
-    expect(calls).toBe(12);
-    await collect(fetchImpl, { definition: { ...DEFINITION, version: 2 } });
     expect(calls).toBe(24);
+    await collect(fetchImpl, { definition: { ...DEFINITION, version: 2 } });
+    expect(calls).toBe(48);
   });
   it('rechecks recent completed weeks until a real provider confirmation reaches four days', async () => {
     let calls = 0;
     const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(response()); };
     const tuesday = Date.parse('2026-10-27T12:15:00Z');
     await collect(fetchImpl, { nowMs: tuesday });
-    expect(calls).toBe(12);
-    await collect(fetchImpl, { nowMs: tuesday + 86_400_000 });
-    expect(calls).toBe(17);
-    await collect(fetchImpl, { nowMs: tuesday + 2 * 86_400_000 });
     expect(calls).toBe(22);
+    await collect(fetchImpl, { nowMs: tuesday + 86_400_000 });
+    expect(calls).toBe(32);
+    await collect(fetchImpl, { nowMs: tuesday + 2 * 86_400_000 });
+    expect(calls).toBe(42);
     await collect(fetchImpl, { nowMs: tuesday + 3 * 86_400_000 });
-    expect(calls).toBe(26);
+    expect(calls).toBe(50);
   });
   it('keeps a provider failure out of counts and stops spending after quota denial', async () => {
     let calls = 0;
@@ -281,6 +384,12 @@ describe('GA4 ordered journey collection', () => {
     let funnelRequests = 0;
     const fetchImpl: typeof fetch = async (url, init) => {
       if (String(url).endsWith(':runFunnelReport')) { funnelRequests += 1; return Response.json(response()); }
+      if (String(url).endsWith(':runReport')) {
+        const request = JSON.parse(String(init?.body)) as { dimensions?: unknown; metrics?: { name: string }[] };
+        if (request.dimensions === undefined && request.metrics?.length === 1 && request.metrics[0]?.name === 'activeUsers') {
+          return Response.json(visitorResponse());
+        }
+      }
       return ordinary.fetchImpl(url, init);
     };
     const options = { nowMs: NOW, fetchImpl, revisionDays: 1, rawConfig: JSON.stringify(accounts),

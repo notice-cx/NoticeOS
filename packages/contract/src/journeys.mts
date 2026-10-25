@@ -34,6 +34,11 @@ export interface JourneyPeriod {
     id: string;
     users: number | null;
   }[];
+  visitors?: {
+    users: number | null;
+    quality: 'complete' | 'sampled' | 'unavailable';
+    reason?: string;
+  };
   sampling?: {
     samplesReadCount: string;
     samplingSpaceSize: string;
@@ -173,7 +178,7 @@ const timeZone = (value: unknown): value is string => {
   }
 };
 export function readJourneyPeriod(value: unknown): JourneyPeriod | null {
-  if (!record(value) || !keys(value, ['kind', 'startDate', 'endDate', 'complete', 'quality', 'reason', 'steps', 'sampling']) ||
+  if (!record(value) || !keys(value, ['kind', 'startDate', 'endDate', 'complete', 'quality', 'reason', 'steps', 'sampling', 'visitors']) ||
     !JOURNEY_PERIOD_KINDS.includes(value.kind as JourneyPeriod['kind']) ||
     !day(value.startDate) || !day(value.endDate) || value.startDate > value.endDate ||
     value.complete !== true || !['complete', 'sampled', 'unavailable'].includes(String(value.quality)) ||
@@ -197,6 +202,17 @@ export function readJourneyPeriod(value: unknown): JourneyPeriod | null {
         return null;
       prior = step.users;
     }
+  }
+  if (value.visitors !== undefined) {
+    const visitors = value.visitors;
+    if (!record(visitors) || !keys(visitors, ['users', 'quality', 'reason']) ||
+      !['complete', 'sampled', 'unavailable'].includes(String(visitors.quality)) ||
+      (visitors.reason !== undefined && !text(visitors.reason, 500)) ||
+      (visitors.quality === 'unavailable' ? visitors.users !== null :
+        typeof visitors.users !== 'number' || !Number.isSafeInteger(visitors.users) || visitors.users < 0)) return null;
+    const visitorUsers = visitors.users;
+    if (typeof visitorUsers === 'number' && value.steps.some((step) =>
+      record(step) && typeof step.users === 'number' && step.users > visitorUsers)) return null;
   }
   if (value.sampling !== undefined && (!record(value.sampling) ||
     !keys(value.sampling, ['samplesReadCount', 'samplingSpaceSize']) ||
