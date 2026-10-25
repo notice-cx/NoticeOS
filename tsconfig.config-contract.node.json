@@ -27,6 +27,8 @@
     "scripts/hosted-task-operations.mts",
     "scripts/hosted-task-mcp.mts",
     "scripts/hosted-mcp.mts",
+    "scripts/journey-management.mts",
+    "scripts/journey-mcp.mts",
     "scripts/mcp-stdio.mts",
     "scripts/standalone-tasks.mts",
     "scripts/standalone-mcp.mts",

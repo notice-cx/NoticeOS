@@ -18,6 +18,7 @@ import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirect
 import { taskChildEnvironment } from './task-client.mjs';
 import { readTaskProjects, taskProjectDirectory } from './task-project-config.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
+import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
 import { createPanelOperations } from './panel-mcp.mjs';
 import { PANEL_REPORTS_ROOT } from './signal-panel-paths.mjs';
 /** The origin every request to the endpoint is addressed to, whatever carried it. */
@@ -131,6 +132,26 @@ export async function openStandaloneMcp(options) {
     const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;
     const handle = createHostedMcp({ profile: 'standalone', trustedOrigin: STANDALONE_MCP_ORIGIN, standaloneWorkspaceId: workspaceId,
         operations, readModels: async (request) => fetch(tower + MCP_PATH, { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }),
-        panels: createPanelOperations({ admission, root: () => panelRoot }) });
+        panels: createPanelOperations({ admission, root: () => panelRoot }),
+        journeys: async (request) => {
+            if (actorOf(request) === null)
+                return Response.json({ error: 'invalid actor' }, { status: 403 });
+            const url = new URL(request.url);
+            const target = new URL(tower + url.pathname);
+            const browserMarked = [...request.headers.keys()].some(name => name === 'origin' || name === 'referer' || name.startsWith('sec-fetch-'));
+            if (browserMarked) {
+                try {
+                    createBrowserRequestPolicy(target.origin).assertEffect(new Request(target, { method: request.method, headers: request.headers }));
+                    const referer = request.headers.get('referer');
+                    if (referer !== null && new URL(referer).origin !== target.origin)
+                        throw new Error('Cross-site referrer');
+                }
+                catch {
+                    return Response.json({ error: 'forbidden' }, { status: 403 });
+                }
+            }
+            return fetch(tower + url.pathname, { method: request.method, headers: request.headers,
+                ...(request.method === 'PUT' ? { body: await request.text() } : {}), signal: request.signal });
+        } });
     return Object.freeze({ handle, close });
 }

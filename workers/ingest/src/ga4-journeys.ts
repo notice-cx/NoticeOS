@@ -142,7 +142,7 @@ async function cachedJourney(store: WorkspaceStore, target: GooglePropertyTarget
 
 export async function runGa4Journeys(input: {
   env: IngestEnv; target: GooglePropertyTarget; definitions: readonly JourneyDefinition[]; nowMs: number;
-  accessToken: string; fetchImpl: typeof fetch; budget: JourneyBudget;
+  accessToken: string | (() => Promise<string>); fetchImpl: typeof fetch; budget: JourneyBudget;
   archive: (report: string, end: string, collected: CollectedDump) => Promise<SignalDumpOutcome>;
   reuse: (report: string, end: string, cached: CachedJourney) => Promise<SignalDumpOutcome>;
   failed: (report: string, end: string, error: unknown) => Promise<SignalDumpOutcome>;
@@ -156,7 +156,8 @@ export async function runGa4Journeys(input: {
   const observedTimeZone = await previousTimeZone(env.STORE, target.asset, 'ga4', target.propertyRef);
   if (observedTimeZone && isValidTimeZone(observedTimeZone)) target = { ...target, timeZone: observedTimeZone, timeZoneAssumed: false };
   const objects = await signalObjectScope(env);
-  let providerHalted = await savedFunnelQuotaLow(env, target, nowMs);
+  let haltCause: unknown = await savedFunnelQuotaLow(env, target, nowMs)
+    ? new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted') : null;
   for (const definition of active) {
     const definitionId = journeyDefinitionId(definition);
     for (const period of journeyWindows(nowMs, target.timeZone)) {
@@ -171,19 +172,20 @@ export async function runGa4Journeys(input: {
       }
       try {
         if (target.timeZoneAssumed) throw new SignalError('ga4_journey_timezone_unknown', 'GA4 has not reported this property’s reporting time zone yet');
-        if (providerHalted || budget.remaining <= 0) throw new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted');
+        if (haltCause !== null) throw haltCause;
+        if (budget.remaining <= 0) throw new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted');
+        const accessToken = typeof input.accessToken === 'string' ? input.accessToken : await input.accessToken();
         budget.remaining -= 1;
         const response = await input.fetchImpl(`https://analyticsdata.googleapis.com/v1alpha/properties/${encodeURIComponent(target.propertyRef)}:runFunnelReport`, {
-          method: 'POST', headers: { Authorization: `Bearer ${input.accessToken}`, 'Content-Type': 'application/json' },
+          method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(request), signal: AbortSignal.timeout(30_000),
         });
         const body = await boundedResponseJson(response, 'Google', 8 * 1024 * 1024);
         if (!response.ok) {
-          if (response.status === 429 || response.status === 401 || response.status === 403 || response.status >= 500) providerHalted = true;
           throw new SignalError(isQuotaExhausted(response.status, body) ? 'ga4_quota_exhausted' : `ga4_journey_${response.status}`, `GA4 funnel report failed (${response.status})`);
         }
         const quota = parseGa4PropertyQuota(body);
-        if (funnelQuotaLow(asRecord(body)?.propertyQuota)) providerHalted = true;
+        if (funnelQuotaLow(asRecord(body)?.propertyQuota)) haltCause = new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted');
         try {
           await env.RAW_SIGNALS.put(await funnelQuotaKey(env, target.propertyRef), JSON.stringify({
             observedAt: new Date(nowMs).toISOString(), quota: asRecord(body)?.propertyQuota ?? null,
@@ -203,7 +205,7 @@ export async function runGa4Journeys(input: {
           providerTruncated: false, quota,
         }));
       } catch (error) {
-        providerHalted = true;
+        haltCause ??= error;
         outcomes.push(await input.failed(report, period.endDate, error));
       }
     }

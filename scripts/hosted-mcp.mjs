@@ -24,6 +24,7 @@ import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopes
 import { TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS } from './panel-mcp.mjs';
+import { JOURNEY_MCP_TOOLS } from './journey-mcp.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
 export const MCP_PATH = AGENT_RESOURCE_PATH;
 /** Marks this endpoint's own forwarded call to the Worker's read-model tools,
@@ -55,6 +56,7 @@ const TASK_TOOLS = TASK_MCP_TOOLS.map(inWorkspace);
 const READ_TOOLS = READ_MODEL_TOOLS.map(tool => inWorkspace({ ...tool,
     annotations: Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false }) }));
 const PANEL_TOOLS = PANEL_MCP_TOOLS.map(inWorkspace);
+const JOURNEY_TOOLS = JOURNEY_MCP_TOOLS.map(inWorkspace);
 /** The scopes a call needs; list_workspaces needs only a valid token. */
 function scopesFor(name) {
     const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
@@ -71,10 +73,11 @@ function access(scopes, workspace) {
 }
 export function createHostedMcp(options) {
     const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-    const { profile, operations, agents, readModels, panels } = options;
+    const { profile, operations, agents, readModels, panels, journeys } = options;
     if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
         || readModels !== undefined && typeof readModels !== 'function'
-        || panels !== undefined && typeof panels?.read !== 'function')
+        || panels !== undefined && typeof panels?.read !== 'function'
+        || journeys !== undefined && (profile !== 'standalone' || typeof journeys !== 'function'))
         throw new Error('MCP configuration refused');
     /** The one workspace a demo or standalone endpoint serves. */
     const named = profile === 'demo' ? options.demoWorkspaceId : options.standaloneWorkspaceId;
@@ -84,7 +87,7 @@ export function createHostedMcp(options) {
         || profile === 'hosted' && (options.demoWorkspaceId !== undefined || options.standaloneWorkspaceId !== undefined || !agents
             || typeof agents.verify !== 'function' || typeof agents.workspaces !== 'function'))
         throw new Error('MCP configuration refused');
-    const tools = Object.freeze([LIST_WORKSPACES, GET_TASK_GUIDE, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
+    const tools = Object.freeze([LIST_WORKSPACES, GET_TASK_GUIDE, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : []), ...(journeys ? JOURNEY_TOOLS : [])]);
     const invalid = (message) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } }, { status: 400, headers: { 'cache-control': 'no-store' } });
     const refused = () => taskRefusal(null);
     /** Why admission refused a call, when the caller's own workspace list
@@ -178,7 +181,7 @@ export function createHostedMcp(options) {
                         return { guideVersion, workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
                     if (profile === 'standalone')
                         return { guideVersion, workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
-                                    access: ['tasks:read', 'tasks:write', ...(readModels || panels ? ['evidence:read'] : [])] }] };
+                                    access: ['tasks:read', 'tasks:write', ...(readModels || panels ? ['evidence:read'] : []), ...(journeys ? ['journeys:read', 'journeys:write'] : [])] }] };
                     const workspaces = await agents.workspaces(original).catch(() => null);
                     if (!workspaces)
                         throw refused();
@@ -191,11 +194,14 @@ export function createHostedMcp(options) {
                 }
                 const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
                 const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
+                const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
                 try {
                     if (task)
                         return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
                     if (panel)
                         return await panel.run({ proof, workspaceId: workspace, operations: panels }, rest);
+                    if (journey)
+                        return await journey.run({ proof, workspaceId: workspace, transport: journeys }, rest);
                     return await readModel(original, name, workspace, rest);
                 }
                 catch (error) {

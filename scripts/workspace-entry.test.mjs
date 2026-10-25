@@ -322,6 +322,8 @@ test('collection original fields and fixed methods bind one current workflow act
       { provider: 'bing-webmaster', assets: ['example.test'] }],
     ['/api/integrations/dataforseo/collect', 'collectNow', { assets: ['example.test'], families: ['serp-panel'] },
       { provider: 'dataforseo', assets: ['example.test'], families: ['serp-panel'] }],
+    ['/api/integrations/ga4/collect', 'collectNow', { assets: ['example.test'], families: ['journeys'] },
+      { provider: 'ga4', assets: ['example.test'], families: ['journeys'] }],
     ['/api/integrations/mediavine/sync', 'syncMediavine', { asset: 'example.test' }, { asset: 'example.test' }],
     ['/api/integrations/mediavine/sync', 'syncMediavine',
       { asset: 'example.test', start: '2026-09-01', end: '2026-09-02' },
@@ -351,7 +353,7 @@ test('collection original fields and fixed methods bind one current workflow act
     await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, make(path, body, demo), use, f.adapters));
     assert.equal(f.calls.opened, opened);
   }
-  assert.deepEqual(f.calls.stores, Array(8).fill(a));
+  assert.deepEqual(f.calls.stores, Array(10).fill(a));
 });
 
 test('Read again binds its one asset to the original path and a current workflow actor', async () => {

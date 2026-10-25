@@ -65,8 +65,29 @@ The task records the model beside the agent's name, the Wall's **Live feed** sho
 | `request_human_approval` | Request your approval before work on a task continues. The request is listed under **Your decisions**, and the task stays out of the ready list until you approve it; the response reports this. Calling it again with the same reason returns the same request |
 | `list_properties`, `property_report`, `property_history`, `research_lookup` | Read asset reports and stored research. `list_properties` gives each asset's last 28 days in totals: daily revenue per source, each source named with its provider and family, and traffic per provider and metric. `property_history` gives the days behind them for one asset or every asset (`days`, up to 365), and revenue per accounting month by source and booking state (`months`, up to 120) |
 | `list_panels`, `get_panel`, `query_panel`, `read_panel_document` | Read each asset's data panel: its Search Console, Analytics, Bing, DataForSEO, PostHog and Clarity reports as tables, rebuilt daily. `get_panel` shows how current each report is and what needs attention; `query_panel` runs one read-only SQL `SELECT` over a panel's tables. Each panel version stays readable for 14 days. See [Signal panels](../20-signal-panels.md#how-an-agent-reads-a-panel) |
+| `get_journeys`, `save_journey` | On a standalone installation, read and save an asset's Journey definitions. Saving preserves the other journeys and settings. Active funnels join the existing daily GA4 collection; planned journeys are saved without collection. These tools do not fetch provider data |
 
-Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
+Task creation, changes, claims, comments and closes take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
+
+### Set up journeys by asking the agent
+
+For example: “Check the events we already capture and create a journey from calculator start to a completed result.” The agent reads the asset's panel, checks the event meanings, and uses `save_journey`. You can review the saved steps and results on the asset's **Journeys** tab.
+
+`get_journeys` returns saved definitions, their `edit_token` values and event names from saved configuration. Those event names are suggestions; the panel contains the collected event evidence. `save_journey` takes the asset, a journey with exact event conditions, and `edit_token: null` for a new journey. An update takes the token from the current read. The server assigns measurement versions and rejects conflicting edits. `dry_run: true` validates a proposed change without saving it. Repeating an identical saved definition returns `unchanged: true` without another write.
+
+Each journey has a stable `id`, a short `label`, a `goal`, `kind` (`funnel` or `exploration`), `status` (`active` or `planned`), and two to ten `steps`. Each step has an `id`, a `label`, and `alternatives`: exact `eventName` conditions with a possible `pagePath` and exact event `parameters`. A transition's `withinSeconds` limits elapsed time from the preceding step; it does not require the same session. An asset holds up to eight journeys.
+
+The same standalone operations have HTTP endpoints:
+
+| Request | Behavior |
+| --- | --- |
+| `GET /api/assets/:asset/journeys` | Return saved definitions, edit tokens and collection behavior |
+| `PUT /api/assets/:asset/journeys/:id` | Save `{journey, edit_token, dry_run?}`; the journey's `id` must match the path |
+| `POST /api/integrations/ga4/collect` | Collect active funnels for `{assets: ["example.com"], families: ["journeys"]}` through the GA4 archive collector; the panel refresh publishes the results |
+
+Saving does not establish that a funnel is measurable. Browser and server events must identify the same person, and a completion event must represent the stated outcome. Ordered GA4 users are separate from session exploration, which requires a supported session-path source.
+
+Journey writes use the standalone operator's existing configuration access. Hosted and demo MCP connections do not offer these write tools; protected measurement permissions remain unchanged.
 
 An agent's client keeps the tool list it fetched when it connected. When the server has since gained an argument that takes an object, such as `choices`, that client sends the argument as text. The server reads text that holds a JSON object as the object, and the response starts with `staleClient`: the arguments that arrived as text, the server's guide version, and the fix, which is to reconnect the `noticeos` server in the agent (`/mcp` in Claude Code). Text that is not a JSON object is refused with the same line, followed by the argument's rule.
 

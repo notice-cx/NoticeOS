@@ -41,6 +41,7 @@ import { compressReplies } from "./vite/compress-replies";
 import { ownPort } from "./vite/own-port";
 import { builtClient } from "./vite/built-client";
 import { mcpLane } from "./vite/mcp-lane";
+import { journeyLane } from "./vite/journey-lane";
 import { installationLane } from "./vite/installation-lane";
 import { scheduledJobsLane } from "./vite/scheduled-jobs-lane";
 import { ingestDoor } from "./vite/runner-door";
@@ -204,6 +205,7 @@ export default defineConfig(({ command }) => {
     ...(serverProfile === "standalone" ? [changeLane()] : []),
     // Every MCP tool for an agent on this machine; the synthetic viewer stays read-only.
     ...(serverProfile === "standalone" && demoLaunch === null ? [mcpLane()] : []),
+    ...(serverProfile === "standalone" && demoLaunch === null ? [journeyLane()] : []),
     // Live source is a checkout's, updated with git; only a fixed version has a newer one to compare.
     ...(serverProfile === "standalone" ? [installationLane({ commit: appSourceVersion?.commit ?? null, live: process.env.NOTICEOS_IMMUTABLE_APP !== "1" })] : []),
     ...(serverProfile === "standalone" ? [envImportLane()] : []),

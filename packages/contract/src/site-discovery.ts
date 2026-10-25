@@ -99,8 +99,9 @@ export function siteHost(value: string | null | undefined): string | null {
 export interface CollectNowInput {
   provider: string;
   assets: string[];
-  /** DataForSEO only: collect just these report families for each site, even
-   * when they are not due. Absent: every family the site has. */
+  /** DataForSEO: collect just these report families, even when not due.
+   * GA4: ['journeys'] collects only ordered journeys for the named sites.
+   * Absent: the provider's default collection. */
   families?: string[];
 }
 
@@ -118,7 +119,7 @@ export interface CollectNowSite {
   asset: string;
   outcome: 'collected' | 'failed' | 'unmeasured' | 'skipped';
   code: string | null;
-  /** Reports the run stored, where the lane counts reports (DataForSEO). */
+  /** Reports the run stored, where the collector counts reports. */
   reports?: number;
   /** What the run cost, where the lane records a cost. */
   costUsd?: number;
