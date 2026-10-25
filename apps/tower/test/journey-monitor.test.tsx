@@ -14,14 +14,26 @@ afterEach(() => vi.unstubAllGlobals());
 describe("ordered journey presentation", () => {
   it("uses ordered users for completion, absolute largest loss and adjacent comparisons", () => {
     const reading = journeyReading(account, result.current28);
-    expect(reading.rate).toBe(22);
+    expect(reading.visitors).toBe(24000);
+    expect(reading.rateBasis).toBe("visitors");
+    expect(reading.rate).toBe(11);
     expect(reading.largestLoss).toBe(2);
     expect(reading.counts[1]! - reading.counts[2]!).toBe(5800);
-    expect(journeyComparison(account, result.current28, result.prior28)).toBe(2);
+    expect(journeyComparison(account, result.current28, result.prior28)).toBe(1);
     expect(journeyComparison(account, result.current7, result.prior28)).toBeNull();
     expect(journeyReading(account, { ...result.current28!, quality: "sampled" }).rate).toBeNull();
     expect(journeyReading(account, { ...result.current28!, complete: false }).rate).toBeNull();
     expect(journeyReading(account, { ...result.current28!, steps: result.current28!.steps.map((step, i) => ({ ...step, users: i === 1 ? 15000 : step.users })) }).rate).toBeNull();
+  });
+
+  it("keeps legacy, unavailable and incompatible visitor baselines distinct from measured reach", () => {
+    const legacy = { ...result.current28!, visitors: undefined };
+    expect(journeyReading(account, legacy)).toMatchObject({ visitors: null, rateBasis: "entrants", rate: 22 });
+    expect(journeyComparison(account, legacy, result.prior28)).toBeNull();
+    for (const visitors of [{ users: 100, quality: "complete" as const }, { users: 24000, quality: "sampled" as const }, { users: null, quality: "unavailable" as const }]) {
+      expect(journeyReading(account, { ...result.current28!, visitors }).visitors).toBeNull();
+    }
+    expect(journeyReading(account, { ...result.current28!, visitors: { users: 0, quality: "complete" }, steps: account.steps.map((step) => ({ id: step.id, users: 0 })) }).rate).toBeNull();
   });
 
   it("shows a measured regression and recovery only against adjacent complete weeks", () => {
@@ -54,12 +66,24 @@ describe("JourneyMonitor", () => {
     expect(container.querySelectorAll('[data-outcome="true"]')).toHaveLength(1);
     const first = container.querySelectorAll<HTMLElement>(".journey-current")[0]!;
     const last = container.querySelectorAll<HTMLElement>(".journey-current")[4]!;
-    expect(first.style.width).toBe("100%");
-    expect(last.style.width).toBe("22%");
+    expect(first.style.width).toBe("50%");
+    expect(last.style.width).toBe("11%");
+    expect(container.querySelector(".journey-baseline")!.textContent).toContain("24,000");
+    expect(container.querySelector(".journey-baseline")!.textContent).toContain("100%");
+    expect(container.querySelector('[data-step-index="0"]')!.textContent).toContain("50% did not enter");
+    expect(container.querySelector('[data-step-index="2"]')!.textContent).toContain("61.7% drop-off");
+    expect(container.querySelector('[data-step-index="4"]')!.textContent).toContain("11%of visitors");
     expect(screen.getByRole("heading", { name: "Choose save" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Inspect Visit calculator" }));
     expect(screen.getByRole("heading", { name: "Visit calculator" })).toBeInTheDocument();
     expect(screen.getByText("people entered")).toBeInTheDocument();
+  });
+
+  it("shows a missing visitor reference honestly without hiding the ordered funnel", () => {
+    render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, current28: { ...result.current28!, visitors: undefined } }] }} />);
+    expect(screen.getByText(/Visitor totals were not collected/)).toBeInTheDocument();
+    expect(screen.getAllByText("of entrants").length).toBeGreaterThan(0);
+    expect(screen.queryByText("starting point")?.parentElement?.textContent).toContain("—");
   });
 
   it("selects a week in the change grid and opens its actual weekly counts", () => {

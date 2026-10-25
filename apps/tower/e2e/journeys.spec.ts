@@ -421,6 +421,10 @@ test('ordered journey loss and weekly history retain their dates and planned sta
   await expect(monitor.getByRole('heading', { name: 'Account growth', exact: true })).toBeVisible();
   await expect(monitor).toContainText('Largest loss');
   await expect(monitor).toContainText('5,800');
+  await expect(monitor.locator('.journey-baseline')).toContainText('24,000');
+  await expect(monitor.locator('.journey-baseline')).toContainText('100%');
+  await expect(monitor.locator('[data-step-index="4"] .journey-step-count')).toContainText('11%');
+  await expect(monitor.locator('[data-largest-loss="true"] .journey-step-dropoff')).toContainText('61.7% drop-off');
   await expect(page.locator('#boot-splash')).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));
   await assertNoPageOverflow(page);

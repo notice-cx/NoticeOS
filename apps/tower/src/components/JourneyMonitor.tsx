@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Plus } from "lucide-react";
+import { ArrowDown, Plus, Users } from "lucide-react";
 import { type JourneyDefinition, type JourneyPeriod, type JourneySnapshot } from "@noticeos/contract/journeys";
 import { Button } from "@/components/ui/button";
 import { JourneyDefinitionEditor } from "@/components/JourneyDefinitionEditor";
@@ -59,7 +59,13 @@ function JourneySummary({ definition, reading, delta, prior, compare, available 
 }) {
     const loss = reading.largestLoss;
     const lost = loss === null ? null : reading.counts[loss - 1]! - reading.counts[loss]!;
+    const lossRate = lost !== null && loss !== null && reading.counts[loss - 1]! > 0 ? lost / reading.counts[loss - 1]! * 100 : null;
     return <div className="journey-summary" data-surface-hero>
+    <div className="journey-kpi journey-kpi-visitors">
+    <span className="journey-kpi-label"><Users aria-hidden/>Visitors</span>
+    <strong className="journey-kpi-number"><Count value={available ? reading.visitors : null}/></strong>
+    <p>{reading.visitors === null ? "Visitor baseline unavailable" : reading.visitors === 0 ? "No measured visitors" : "100% · all measured visitors"}</p>
+    </div>
     <div className="journey-kpi journey-kpi-outcome">
     <span className="journey-kpi-label">{definition.status === "planned" ? "Planned outcome" : "Completed"}</span>
     <div className="journey-summary-rate">
@@ -67,14 +73,15 @@ function JourneySummary({ definition, reading, delta, prior, compare, available 
     <Rate value={available ? reading.rate : null}/>
     </strong>
     </div>
-    <p>
+    <span className="journey-kpi-basis">of {reading.rateBasis}</span><p>
     <Count value={available ? reading.counts.at(-1) ?? null : null}/> · {definition.steps.at(-1)?.label}</p>
     </div>
     <div className="journey-kpi journey-kpi-loss">
-    <span className="journey-kpi-label">Largest loss</span>
+    <span className="journey-kpi-label">Largest step loss</span>
     <strong className="journey-kpi-number">
-    <Count value={available ? lost : null}/>
+    <Rate value={available ? lossRate : null}/>
     </strong>
+    <span className="journey-kpi-basis">step drop-off · <Count value={available ? lost : null}/> people</span>
     <p>{loss === null ? "No measured loss" : `${definition.steps[loss - 1]!.label} → ${definition.steps[loss]!.label}`}</p>
     </div>
     <div className="journey-kpi journey-kpi-change" data-trend={available && compare ? trend(delta) : "neutral"}>
@@ -101,7 +108,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     const weeklyPeriod = weeks.find((week) => week.startDate === weekKey) ?? null;
     const period = view === "history" ? selectedWeek : weeklyPeriod ?? (days === 7 ? result?.current7 : result?.current28) ?? null;
     const prior = period && (view === "history" || weeklyPeriod) ? previousJourneyWeek(period, weeks) : (days === 7 ? result?.prior7 : result?.prior28) ?? null;
-    const reading = definition ? journeyReading(definition, period) : { counts: [], rate: null, largestLoss: null, reason: null };
+    const reading = definition ? journeyReading(definition, period) : { counts: [], rate: null, largestLoss: null, reason: null, visitors: null, visitorReason: null, rateBasis: "entrants" as const };
     const before = definition ? journeyReading(definition, prior) : null;
     const delta = definition ? journeyComparison(definition, period, prior) : null;
     const stepIndex = definition ? Math.max(0, definition.steps.findIndex((step) => step.id === selectedStep)) : 0;
@@ -135,6 +142,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     <details className="journey-coverage">
     <summary>Data coverage</summary>
     <p>Conversions use ordered users from one GA4 property and reporting time zone. Independent event totals are not conversion counts.</p>
+    <p>Visitors are GA4 active users for the same dates. Visitor percentages show the reach of each ordered step. Step drop-off compares consecutive journey steps.</p>
     <p>Changed definitions start a separate series. Incomplete or sampled reports do not receive improvement or regression colours.</p>
     </details>
     </aside>
@@ -161,7 +169,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
         <section className="journey-chart" aria-label={view === "history" ? "Journey history" : "Journey steps"}>
         <div className="journey-chart-heading">
         <div>
-        <h3>{view === "history" ? "Completion over time" : definition.kind === "exploration" ? "Session destinations" : "Where people continue"}</h3>
+        <h3>{view === "history" ? "Completion over time" : definition.kind === "exploration" ? "Session destinations" : "From visitors to outcome"}</h3>
         <p>{view === "history" ? "Complete weeks · each point uses one ordered population" : scope}</p>
         </div>
         <span>{definition.kind === "exploration" ? "Sessions" : "People"}</span>
@@ -176,37 +184,42 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             <ol>{definition.steps.map((step) => <li key={step.id}>{step.label}</li>)}</ol>
             </div> : view === "history" ? <JourneyHistory definition={definition} weeks={weeks} selectedWeek={selectedWeek} selectedStep={selectedIndex} onSelect={(week, index) => { setSelectedWeekKey(week.startDate); if (index !== undefined)
                 setSelectedStep(definition.steps[index]!.id); }}/> : <>
-            <div className="journey-ruler" aria-hidden>
-            <span>0</span>
-            <span>{formatInt(Math.max(reading.counts[0] ?? 0, compare && delta !== null ? before?.counts[0] ?? 0 : 0) / 2)}</span>
-            <span>{formatInt(Math.max(reading.counts[0] ?? 0, compare && delta !== null ? before?.counts[0] ?? 0 : 0))}</span>
+            <div className="journey-baseline" data-available={reading.visitors !== null}>
+            <span className="journey-baseline-label"><Users aria-hidden/><span>Visitors<small><Count value={reading.visitors}/> people</small></span></span>
+            <span className="journey-baseline-plot"><i style={{ width: reading.visitors !== null && reading.visitors > 0 ? "100%" : "0%" }}/></span>
+            <span className="journey-step-count"><strong>{reading.visitors !== null && reading.visitors > 0 ? "100%" : "—"}</strong><small>starting point</small></span>
             </div>
+            <p className="journey-baseline-note">{reading.visitors === null ? `${reading.visitorReason} Step percentages use journey entrants.` : `${formatInt(reading.counts[0] ?? 0)} entered this journey · ${percent(reading.visitors > 0 ? (reading.counts[0] ?? 0) / reading.visitors * 100 : null)} of visitors`}</p>
+            <div className="journey-ruler" aria-hidden>{[0,25,50,75,100].map((value) => <span key={value}>{value}%</span>)}</div>
             <div className="journey-bars" ref={listRef}>
             <div className="journey-selected" style={{ height: highlight.height, transform: `translateY(${highlight.top}px)` }} data-loss={selectedIndex === reading.largestLoss}/>{definition.steps.map((step, index) => {
                     const count = reading.counts[index] ?? null;
-                    const previous = index > 0 ? reading.counts[index - 1] ?? null : null;
+                    const previous = index > 0 ? reading.counts[index - 1] ?? null : reading.visitors;
                     const lost = count !== null && previous !== null ? previous - count : null;
-                    const scale = Math.max(reading.counts[0] ?? 0, compare && delta !== null ? before?.counts[0] ?? 0 : 0, 1);
-                    const continuation = count !== null && previous !== null && previous > 0 ? count / previous * 100 : null;
+                    const scale = reading.visitors ?? reading.counts[0] ?? 0;
+                    const share = count !== null && scale > 0 ? count / scale * 100 : null;
+                    const priorScale = before?.visitors ?? before?.counts[0] ?? 0;
+                    const priorShare = before?.counts[index] !== undefined && priorScale > 0 ? before.counts[index]! / priorScale * 100 : null;
+                    const dropoff = lost !== null && previous !== null && previous > 0 ? lost / previous * 100 : null;
                     return <button type="button" key={step.id} data-step-index={index} data-largest-loss={index === reading.largestLoss} data-outcome={index === definition.steps.length - 1} aria-pressed={index === selectedIndex} className="journey-step" onClick={() => setSelectedStep(step.id)} aria-label={`Inspect ${step.label}`}>
                     <span className="journey-step-label">
                     <small>{String(index + 1).padStart(2, "0")}</small>
-                    <span>{step.label}<small className={index === reading.largestLoss ? "journey-loss-label" : undefined}>{index === 0 ? "Route entry" : `${index === reading.largestLoss ? "Largest loss · " : ""}${lost === null ? "—" : formatInt(lost)} did not continue`}</small>
+                    <span>{step.label}<small><Count value={count}/> people</small>{index === reading.largestLoss ? <small className="journey-loss-label">Largest loss</small> : null}
                     </span>
                     </span>
-                    <span className="journey-step-plot">{lost !== null && count !== null ? <span className="journey-loss-gap" style={{ left: `${count / scale * 100}%`, width: `${lost / scale * 100}%` }}/> : null}<span className="journey-current" style={{ width: `${(count ?? 0) / scale * 100}%` }}/>{compare && before?.counts[index] !== undefined && delta !== null ? <span className="journey-prior" style={{ width: `${before.counts[index]! / scale * 100}%` }}/> : null}</span>
+                    <span className="journey-step-plot">{lost !== null && count !== null && scale > 0 ? <span className="journey-loss-gap" style={{ left: `${share}%`, width: `${lost / scale * 100}%` }}/> : null}<span className="journey-current" style={{ width: `${share ?? 0}%` }}/>{compare && priorShare !== null && delta !== null ? <span className="journey-prior" style={{ width: `${priorShare}%` }}/> : null}<span className="journey-step-dropoff" data-loss={index === reading.largestLoss}>{index === 0 && reading.visitors === null ? "Journey entry" : <><ArrowDown aria-hidden/><b>{percent(dropoff)} {index === 0 ? "did not enter" : "drop-off"}</b><span>· {lost === null ? "—" : formatInt(lost)} people</span></>}</span></span>
                     <span className="journey-step-count">
                     <strong>
-                    <Count value={count}/>
+                    <Rate value={share}/>
                     </strong>
-                    <small>{index === 0 ? "entry" : `${percent(continuation)} continued`}</small>
+                    <small>of {reading.rateBasis}</small>
                     </span>
                     </button>;
                 })}</div>
             <div className="journey-legend">
             <span>
             <i />{weeklyPeriod ? "Selected week" : `${days} days`}</span>{compare && delta !== null ? <span>
-                <i className="journey-legend-prior"/>Prior period</span> : null}<span>
+                <i className="journey-legend-prior"/>Prior period share</span> : null}<span>
             <i className="journey-legend-loss"/>Did not continue</span>
             </div>
           </>}
@@ -255,7 +268,7 @@ function HistoryInspector({ definition, period, prior, index, onView }: {
     return <section className="journey-inspector journey-history-inspector" aria-live="polite">
     <div>
     <div className="journey-eyebrow">{formatCalendarRange(period.startDate, period.endDate)}</div>
-    <h3>{percent(reading.rate)} completed the journey</h3>{delta !== null ? <p data-trend={trend(delta)}>{delta >= 0 ? "+" : ""}{Number(delta.toFixed(1))} percentage points vs prior complete week</p> : <p>{reading.reason ?? "No matching prior complete week is available."}</p>}{index > 0 ? <p>{definition.steps[index]?.label}: {percent(journeyStepContinuation(definition, period, index))} continued{journeyStepChange(definition, period, prior, index) === null ? "" : ` · ${(journeyStepChange(definition, period, prior, index) ?? 0) >= 0 ? "+" : ""}${Number((journeyStepChange(definition, period, prior, index) ?? 0).toFixed(1))} pts vs prior week`}</p> : null}
+    <h3>{percent(reading.rate)} of {reading.rateBasis} completed</h3>{delta !== null ? <p data-trend={trend(delta)}>{delta >= 0 ? "+" : ""}{Number(delta.toFixed(1))} percentage points vs prior complete week</p> : <p>{reading.reason ?? "No matching prior complete week is available."}</p>}{index > 0 ? <p>{definition.steps[index]?.label}: {percent(journeyStepContinuation(definition, period, index))} continued{journeyStepChange(definition, period, prior, index) === null ? "" : ` · ${(journeyStepChange(definition, period, prior, index) ?? 0) >= 0 ? "+" : ""}${Number((journeyStepChange(definition, period, prior, index) ?? 0).toFixed(1))} pts vs prior week`}</p> : null}
     <div className="journey-week-counts">{definition.steps.map((step, i) => <span key={step.id} data-selected={i === index}>{step.label} {reading.counts[i] === undefined ? "—" : formatInt(reading.counts[i]!)}</span>)}</div>
     </div>
     <Button size="sm" onClick={onView}>View this week →</Button>
@@ -277,7 +290,8 @@ function JourneyHistory({ definition, weeks, selectedWeek, selectedStep, onSelec
         <strong>No complete weekly reports yet</strong>
         <p>Weekly history appears after ordered collection. Definition changes remain separate.</p>
         </div>;
-    const rates = weeks.map((week) => journeyReading(definition, week).rate);
+    const basis = journeyReading(definition, selectedWeek).rateBasis;
+    const rates = weeks.map((week) => { const reading = journeyReading(definition, week); return reading.rateBasis === basis ? reading.rate : null; });
     const real = rates.filter((rate): rate is number => rate !== null);
     const min = Math.max(0, Math.floor(((real.length ? Math.min(...real) : 0) - 3) / 5) * 5);
     const max = Math.min(100, Math.max(min + 5, Math.ceil(((real.length ? Math.max(...real) : 20) + 3) / 5) * 5));
@@ -296,7 +310,7 @@ function JourneyHistory({ definition, weeks, selectedWeek, selectedStep, onSelec
     const ticks = width < 440 ? [...new Set([0, Math.round((weeks.length - 1) / 3), Math.round((weeks.length - 1) * 2 / 3), weeks.length - 1])] : weeks.map((_, i) => i);
     return <>
     <div ref={ref} className="journey-history-plot">{width > 0 ? <svg viewBox={`0 0 ${w} 225`} height="225" role="img" aria-label="Weekly ordered completion rate">
-        <text x={left} y="14">Completion rate (%)</text>{[min, (min + max) / 2, max].map((tick) => <g key={tick}>
+        <text x={left} y="14">Completed (% of {basis})</text>{[min, (min + max) / 2, max].map((tick) => <g key={tick}>
             <line className="journey-grid-line" x1={left} x2={right} y1={y(tick)} y2={y(tick)}/>
             <text x={left - 9} y={y(tick) + 4} textAnchor="end">{tick}%</text>
             </g>)}<path className="journey-trend-line" d={line}/>
@@ -334,7 +348,7 @@ function JourneyHistory({ definition, weeks, selectedWeek, selectedStep, onSelec
     <p className="journey-heat-key">↑ Improved · ↓ Regressed · darker shades mean larger changes. The smaller figure is continuation. Gaps stay unmeasured.</p>
     <details className="journey-data-table">
     <summary>Weekly counts and comparability</summary>
-    <p>Only complete, unsampled reports with the same definition and adjacent equal-length periods receive comparison colours.</p>
+    <p>Only complete, unsampled reports with the same definition, percentage baseline and adjacent equal-length periods receive comparison colours. Weeks without the selected baseline appear as gaps.</p>
     <table>
     <thead>
     <tr>

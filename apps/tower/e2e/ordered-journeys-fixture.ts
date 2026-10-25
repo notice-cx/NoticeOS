@@ -25,6 +25,7 @@ export function orderedJourneyFixture(): JourneySnapshot {
   const period = (kind: JourneyPeriod['kind'], startDate: string, endDate: string, counts: number[]): JourneyPeriod => ({
     kind, startDate, endDate, complete: true, quality: 'complete',
     steps: counts.map((users, index) => ({ id: definition.steps[index]!.id, users })),
+    visitors: { users: counts[0]! * 2, quality: 'complete' },
   });
   const counts = [
     [2600,1900,650,550,500], [2700,2000,670,560,510], [2800,2100,710,600,550], [2900,2200,820,690,640],

@@ -5,11 +5,14 @@ export interface JourneyReading {
   rate: number | null;
   largestLoss: number | null;
   reason: string | null;
+  visitors: number | null;
+  visitorReason: string | null;
+  rateBasis: "visitors" | "entrants";
 }
 
-/** A conversion uses the same ordered population; independent event counts never enter here. */
+/** Ordered completion and reach use distinct, explicitly labelled denominators. */
 export function journeyReading(definition: JourneyDefinition, period: JourneyPeriod | null): JourneyReading {
-  const missing = { counts: [], rate: null, largestLoss: null };
+  const missing = { counts: [], rate: null, largestLoss: null, visitors: null, visitorReason: null, rateBasis: "entrants" as const };
   if (definition.kind === "exploration") return { ...missing, reason: "Session paths require separate collection." };
   if (!period) return { ...missing, reason: "No ordered report has been collected for this period." };
   if (!period.complete || period.quality !== "complete") return { ...missing, reason: period.reason ?? (period.quality === "sampled" ? "This report is sampled. Conversion comparisons are unavailable." : "This period has no complete ordered report.") };
@@ -17,9 +20,13 @@ export function journeyReading(definition: JourneyDefinition, period: JourneyPer
     return { ...missing, reason: "These step counts cannot be compared." };
   }
   const counts = period.steps.map((step) => step.users!);
+  const baseline = period.visitors;
+  const visitors = baseline?.quality === "complete" && baseline.users !== null && Number.isSafeInteger(baseline.users) && baseline.users >= counts[0]! ? baseline.users : null;
+  const visitorReason = visitors !== null ? null : baseline?.reason ?? (baseline?.quality === "sampled" ? "The visitor total is sampled." : baseline ? "The visitor total cannot be compared with this journey." : "Visitor totals were not collected for this report.");
+  const denominator = visitors ?? counts[0]!;
   let largestLoss: number | null = null;
   for (let i = 1; i < counts.length; i++) if (counts[i - 1]! - counts[i]! > 0 && (largestLoss === null || counts[i - 1]! - counts[i]! > counts[largestLoss - 1]! - counts[largestLoss]!)) largestLoss = i;
-  return { counts, rate: counts[0]! > 0 ? counts.at(-1)! / counts[0]! * 100 : null, largestLoss, reason: counts[0] === 0 ? "No people entered this journey in this period." : null };
+  return { counts, visitors, visitorReason, rateBasis: visitors === null ? "entrants" : "visitors", rate: denominator > 0 ? counts.at(-1)! / denominator * 100 : null, largestLoss, reason: counts[0] === 0 ? "No people entered this journey in this period." : null };
 }
 
 export function matchingJourneyResult(definition: JourneyDefinition, results: readonly JourneyFunnelResult[]): JourneyFunnelResult | null {
@@ -35,8 +42,11 @@ export function journeyComparison(definition: JourneyDefinition, period: Journey
   if (!period || !prior) return null;
   const span = (p: JourneyPeriod) => Date.parse(p.endDate) - Date.parse(p.startDate);
   if (span(period) !== span(prior) || Date.parse(period.startDate) - Date.parse(prior.endDate) !== 86_400_000) return null;
-  const current = journeyReading(definition, period).rate;
-  const before = journeyReading(definition, prior).rate;
+  const reading = journeyReading(definition, period);
+  const earlier = journeyReading(definition, prior);
+  if (reading.rateBasis !== earlier.rateBasis) return null;
+  const current = reading.rate;
+  const before = earlier.rate;
   return current === null || before === null ? null : current - before;
 }
 
