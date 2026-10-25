@@ -305,13 +305,18 @@ the same way, in the migration that says so.
 workspace and number column (`workspace_counters`), advanced by the trigger
 `number_in_workspace` inside the inserting transaction. The row lock that
 takes makes a second writer of the same workspace's same number wait until
-the first commits or rolls back, so two transactions never get one number,
-and a rolled-back or refused insert gives its number back. Another
-workspace's counter is another row, which neither waits nor counts. A counter
+the first commits or rolls back, so two stored rows never share one number.
+A rolled-back insert, including a statement rejected by a constraint, rolls
+back its counter change too. Another workspace's counter is another row,
+which neither waits nor counts. A counter
 never moves back (`workspace_counter_never_moves_back`), so a number whose row
-left under retention is still never reused. An insert that `ON CONFLICT` finds
-its row already there has used a number, so a workspace's numbers may skip,
-only ever for its own writes.
+left under retention is still never reused. `ON CONFLICT DO NOTHING` skips a
+conflicting row after the numbering trigger has advanced the counter. If the
+transaction commits, that number stays consumed. For example, a competing
+ledger correction skipped by the one-successor unique index leaves a gap; the
+next booked entry gets the following number. A gap does not imply a missing
+ledger entry or a change to the money total, and reflects only that workspace's
+own writes.
 
 **Who picks a number.** The application never does: a row it inserts with
 one is refused, and it cannot change one. Only the owner may supply a
@@ -621,7 +626,8 @@ real schema, as the application role unless the case says maintenance:
 | Maintenance changing any row, adding one, removing an asset or money | Refused |
 | Each workspace's first row of every numbered table; B's first alert, whose shared identity is not 1 | Number 1 |
 | Rows written in A; B's next number | A's numbers run on; B's is unchanged, and B sees only its own counters |
-| An insert refused after it was numbered | Its number goes to the next insert |
+| An insert rejected by a constraint after it was numbered | Its counter change rolls back; the next insert can use that number |
+| A ledger correction skipped by `ON CONFLICT DO NOTHING` | No row or money is booked; its number is consumed, and the next entry remains unique |
 | The application bringing its own number, changing one, moving a counter back or advancing another workspace's | Refused |
 | The owner supplying a number during recovery; the same number again; the store's next | Accepted; refused; past it |
 | The owner bringing an asset's place; the next new asset; retiring an asset | Accepted; the place after it; the place kept |

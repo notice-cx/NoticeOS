@@ -1236,6 +1236,52 @@ BEGIN
   ASSERT n = 0, 'A advanced B''s counter';
 END $$;
 
+-- A conflict skip retains the numbering trigger's counter update unless the
+-- transaction rolls back; the skipped correction books no row or money.
+DO $$
+DECLARE original bigint; correction bigint; before_skip bigint; after_skip bigint;
+        skipped bigint; booked bigint; n bigint; distinct_numbers bigint; total numeric;
+BEGIN
+  INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor,
+    currency, booking_state, external_id)
+  VALUES (noticeos.current_workspace_id(), 'revenue', 'a.example', '2026-07-01', 'ads', 100,
+    'USD', 'estimated', 'edge:numbering-original')
+  RETURNING entry_id INTO original;
+  INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor,
+    currency, booking_state, supersedes_id, external_id)
+  VALUES (noticeos.current_workspace_id(), 'revenue', 'a.example', '2026-07-01', 'ads', 90,
+    'USD', 'reconciled', original, 'edge:numbering-correction')
+  RETURNING entry_id, entry_number INTO correction, before_skip;
+
+  INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor,
+    currency, booking_state, supersedes_id, external_id)
+  VALUES (noticeos.current_workspace_id(), 'revenue', 'a.example', '2026-07-01', 'ads', 80,
+    'USD', 'reconciled', original, 'edge:numbering-skipped')
+  ON CONFLICT (workspace_id, supersedes_id) WHERE supersedes_id IS NOT NULL DO NOTHING
+  RETURNING entry_number INTO skipped;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0 AND skipped IS NULL, 'the second successor is skipped, returning no booked entry';
+  SELECT last_number INTO after_skip FROM noticeos.workspace_counters WHERE counter = 'entry_number';
+  ASSERT after_skip = before_skip + 1, 'a conflict-skipped insert consumes exactly one workspace number';
+  SELECT count(*) INTO n FROM noticeos.ledger_entries WHERE entry_number = after_skip;
+  ASSERT n = 0, 'the consumed number has no ledger row';
+
+  INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor,
+    currency, booking_state, supersedes_id, external_id)
+  VALUES (noticeos.current_workspace_id(), 'revenue', 'a.example', '2026-07-01', 'ads', 85,
+    'USD', 'reconciled', correction, 'edge:numbering-next')
+  RETURNING entry_number INTO booked;
+  ASSERT booked = after_skip + 1, 'the next booked entry advances past the skipped number';
+  SELECT count(*), count(DISTINCT entry_number) INTO n, distinct_numbers FROM noticeos.ledger_entries
+   WHERE external_id LIKE 'edge:numbering-%';
+  ASSERT n = 3 AND distinct_numbers = 3, 'only the three booked entries exist, each with a unique number';
+  SELECT count(*), sum(amount_minor) INTO n, total FROM noticeos.ledger_entries l
+   WHERE l.external_id LIKE 'edge:numbering-%'
+     AND NOT EXISTS (SELECT 1 FROM noticeos.ledger_entries s
+                      WHERE s.workspace_id = l.workspace_id AND s.supersedes_id = l.entry_id);
+  ASSERT n = 1 AND total = 85, 'the skipped correction contributes no money to the current chain';
+END $$;
+
 -- The importer runs as the owner and keeps the numbers a legacy store handed
 -- out (mapping.json `conversions`).
 SET LOCAL ROLE noticeos_owner;
