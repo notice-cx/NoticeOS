@@ -465,6 +465,68 @@ function taskOf(value: unknown): Record<string, unknown> {
   return presentTask(toLiveTask(Array.isArray(value) ? value[0] : value, new Set()), false);
 }
 
+type HistoryFields = Record<string, { readonly old: unknown; readonly new: unknown }>;
+const historyRecord = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const historyText = (value: unknown): string | null => typeof value === 'string' && value ? value : null;
+function changedFields(before: unknown, after: unknown, path = '', result: HistoryFields = {}): HistoryFields {
+  if (JSON.stringify(before) === JSON.stringify(after)) return result;
+  const left = historyRecord(before), right = historyRecord(after);
+  if (Object.keys(left).length || Object.keys(right).length) {
+    for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+      const field = path ? `${path}.${key}` : key;
+      // Receipt identity repeats the proposal and answer already represented by their fields.
+      if (field === 'metadata.noticeos_maintenance.identity') continue;
+      changedFields(left[key], right[key], field, result);
+    }
+  } else result[path] = { old: before ?? null, new: after ?? null };
+  return result;
+}
+function eventFields(event: Record<string, unknown>): HistoryFields {
+  const field = event.event_type === 'status_changed' ? 'status' : event.event_type === 'claimed' ? 'assignee'
+    : event.event_type === 'commented' ? 'comment' : event.event_type === 'dependency_added' || event.event_type === 'dependency_removed' ? 'dependency' : 'value';
+  return { [field]: { old: event.old_value ?? null, new: event.new_value ?? event.comment ?? null } };
+}
+/** Snapshots establish field changes; audit events establish actions and actors.
+ * Equal-time revisions cannot be matched uniquely, so their events stay separate. */
+function compactHistory(history: readonly unknown[], audit: readonly unknown[], limit: number, exhausted: boolean): readonly Record<string, unknown>[] {
+  const versions = history.map(historyRecord), events = audit.map(historyRecord);
+  const second = (value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? Math.floor(Date.parse(value) / 1000) : null;
+  const used = new Set<Record<string, unknown>>();
+  const changes: Record<string, unknown>[] = versions.slice(0, limit).map((row, index) => {
+    const at = historyText(row.CommitDate), time = second(at);
+    const matched = time !== null && versions.filter(other => second(other.CommitDate) === time).length === 1
+      ? events.filter(event => second(event.created_at) === time) : [];
+    for (const event of matched) used.add(event);
+    const task = taskOf(row.Issue), previous = versions[index + 1];
+    const knownBaseline = previous !== undefined || exhausted;
+    const fields = knownBaseline ? changedFields(previous ? taskOf(previous.Issue) : {}, task) : {};
+    const actors = new Set(matched.map(event => historyText(event.actor)).filter(value => value !== null));
+    const committer = historyText(row.Committer);
+    const actor = actors.size === 1 ? [...actors][0]! : actors.size > 1 || committer === 'beads' ? null : committer;
+    const actions = [...new Set(matched.map(event => historyText(event.event_type)).filter(value => value !== null))];
+    if (!actions.length) actions.push(fields.status?.new === 'closed' ? 'closed'
+      : fields.status?.new === 'in_progress' && fields.assignee ? 'claimed'
+      : fields.status ? 'status_changed' : !previous && exhausted ? 'created' : 'updated');
+    for (const event of matched) {
+      if (event.event_type === 'commented' || event.event_type === 'dependency_added' || event.event_type === 'dependency_removed') {
+        Object.assign(fields, eventFields(event));
+      }
+    }
+    const metadata = historyRecord(task.metadata);
+    const model = actions.includes('claimed') && actor === task.assignee ? historyText(metadata.noticeos_claimed_model)
+      : actions.includes('created') && actor === metadata.noticeos_filed_by ? historyText(metadata.noticeos_filed_model)
+      : actions.includes('closed') && actor === metadata.noticeos_closed_by ? historyText(metadata.noticeos_closed_model) : null;
+    return { revision: historyText(row.CommitHash), at, actor, model, actions, fields,
+      ...(!knownBaseline ? { baselineUnavailable: true } : {}) };
+  });
+  for (const event of events.filter(event => !used.has(event))) {
+    changes.push({ revision: null, eventId: historyText(event.id), at: historyText(event.created_at), actor: historyText(event.actor),
+      model: null, actions: [historyText(event.event_type) ?? 'updated'], fields: eventFields(event) });
+  }
+  return changes.sort((a, b) => String(b.at ?? '').localeCompare(String(a.at ?? ''))).slice(0, limit);
+}
+
 // ─── Tools ────────────────────────────────────────────────────────────────────
 export interface ToolContext {
   readonly proof: Request; readonly workspaceId: string; readonly operations: HostedTaskOperations;
@@ -765,16 +827,24 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       return { project: detail.project, readAt: detail.readAt, task: presentTask(detail.task as LiveTask, true),
         comments: detail.comments, proposal: detail.proposal };
     } },
-  { name: 'get_task_history', description: 'Read how one task changed, newest first.',
+  { name: 'get_task_history', description: 'Read changed fields, old/new values, recorded actors and actions, newest first. Unmatched audit events have no revision; unknown models remain null. Set snapshots for full task versions.',
     inputSchema: schema({ project: PROJECT, task: TASK,
-      limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most this many changes (default 50).' } }, ['project', 'task']),
+      limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most this many changes (default 50).' },
+      snapshots: { type: 'boolean', description: 'Include full task snapshots instead of compact field changes (default false).' } }, ['project', 'task']),
     annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
-      only(args, ['project', 'task', 'limit']);
+      only(args, ['project', 'task', 'limit', 'snapshots']);
       const limit = args.limit ?? 50;
       if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 200) refuse('invalid arguments: limit (1–200)');
-      const history = await operations.history(proof, workspaceId, project(args), task(args), limit);
+      if (args.snapshots !== undefined && typeof args.snapshots !== 'boolean') refuse('invalid arguments: snapshots (true or false)');
+      const count = args.snapshots ? limit : Math.min(limit + 1, HOSTED_TASK_LIMITS.rows);
+      const history = await operations.history(proof, workspaceId, project(args), task(args), count);
       if (!Array.isArray(history)) refuse('unavailable: history could not be read');
+      if (!args.snapshots) {
+        const events = await operations.history(proof, workspaceId, project(args), task(args), HOSTED_TASK_LIMITS.rows, true);
+        if (events !== null && !Array.isArray(events)) refuse('unavailable: task audit events could not be read; retry or request snapshots: true');
+        return { changes: compactHistory(history, events ?? [], limit, history.length < count) };
+      }
       return { changes: history.map(entry => {
         const row = (entry ?? {}) as Record<string, unknown>;
         return { revision: typeof row.CommitHash === 'string' ? row.CommitHash : null,

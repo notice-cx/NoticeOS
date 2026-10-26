@@ -36,6 +36,7 @@ const cases = [
   [{ kind: 'show', taskId: 'tt-a.1' }, true, ['show', '--', 'tt-a.1']],
   [{ kind: 'find', taskIds: ['tt-a', 'tt-b.1'] }, true, ['list', '--all', '--include-gates', '--limit=0', '--id=tt-a,tt-b.1']],
   [{ kind: 'history', taskId: 'tt-a', limit: 5 }, true, ['history', '--limit=5', '--', 'tt-a']],
+  [{ kind: 'history', taskId: 'tt-a', limit: 5, events: true }, true, ['history', '--events', '--limit=5', '--', 'tt-a']],
   [{ kind: 'comments', taskId: 'tt-a' }, true, ['comments', '--', 'tt-a']],
   [{ kind: 'ready' }, true, ['ready', '--limit=0']],
   [{ kind: 'epics' }, true, ['epic', 'status']],

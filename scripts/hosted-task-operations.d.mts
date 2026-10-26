@@ -65,7 +65,7 @@ export interface HostedTaskOperations {
     /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
     board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
     task(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<Record<string, unknown>>;
-    history(proof: Request, workspaceId: string, projectId: string, taskId: string, limit: number): Promise<unknown>;
+    history(proof: Request, workspaceId: string, projectId: string, taskId: string, limit: number, events?: boolean): Promise<unknown>;
     write(proof: Request, workspaceId: string, request: HostedTaskRequest, idempotencyKey?: string): Promise<HostedTaskWriteOutcome>;
     /** Opens a human gate the task waits on, or returns the open one already
      * asking the same thing, so a retried request never asks a person twice. */

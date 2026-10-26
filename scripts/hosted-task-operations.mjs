@@ -396,10 +396,10 @@ export function createHostedTaskOperations(options) {
                 return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors, proposal: taskProposal(raw) };
             }, taskId));
         },
-        history(proof, workspaceId, projectId, taskId, limit) {
+        history(proof, workspaceId, projectId, taskId, limit, events = false) {
             return explained(proof, workspaceId, projectId, [taskId], () => read(proof, workspaceId, projectId, async (_project, run, _readAt, actorsOf) => {
                 await actorsOf();
-                return run({ kind: 'history', taskId, limit });
+                return run({ kind: 'history', taskId, limit, ...(events ? { events: true } : {}) });
             }, taskId));
         },
         approval(proof, workspaceId, projectId, taskId, reason) {

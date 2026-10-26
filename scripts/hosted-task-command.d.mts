@@ -93,6 +93,7 @@ export type HostedTaskOperation = TaskMaintenance | {
     readonly kind: 'history';
     readonly taskId: string;
     readonly limit: number;
+    readonly events?: true;
 } | {
     readonly kind: 'comments';
     readonly taskId: string;

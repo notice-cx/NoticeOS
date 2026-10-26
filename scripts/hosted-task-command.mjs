@@ -407,8 +407,10 @@ function command(input) {
             break;
         }
         case 'history':
-            keys(op, ['kind', 'taskId', 'limit']);
-            argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
+            keys(op, ['kind', 'taskId', 'limit'], ['events']);
+            if (Object.hasOwn(op, 'events') && op.events !== true)
+                invalid();
+            argv.push('history', ...(op.events ? ['--events'] : []), `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
             break;
         case 'comments':
             keys(op, ['kind', 'taskId']);

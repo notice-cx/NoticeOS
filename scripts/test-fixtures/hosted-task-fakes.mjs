@@ -42,7 +42,7 @@ export function memoryReceipts(clock) {
 /** An executor over one in-memory project. `principal()` is the admitted actor,
  * as the real executor passes it to every command. */
 export function fakeTaskExecutor({ principal, clock }) {
-  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [], attributions = [];
+  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [], attributions = [], histories = new Map(), auditEvents = new Map();
   let fail = null, hold = null;
   const row = task => ({ issue_type: 'task', ...task, schema_version: 1 });
   // As show embeds them: the whole other task, with the edge's type.
@@ -188,12 +188,12 @@ export function fakeTaskExecutor({ principal, clock }) {
         value = { total: operation.taskIds.length, issues: results.length, results: results.length ? results : null }; break;
       }
       case 'comments': value = comments.filter(comment => comment.issue_id === operation.taskId); break;
-      case 'history': value = [{ CommitHash: 'abc123', Committer: 'beads', CommitDate: '2026-10-07T12:00:00.000Z',
-        Issue: row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }) }]; break;
+      case 'history': value = (operation.events ? auditEvents.get(operation.taskId) ?? [] : histories.get(operation.taskId) ?? [{ CommitHash: 'abc123', Committer: 'beads', CommitDate: '2026-10-07T12:00:00.000Z',
+        Issue: row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }) }]).slice(0, operation.limit); break;
       default: value = [];
     }
     if (fail === 'after') { fail = null; throw new Error('reply lost after the effect'); }
     return value;
   } };
-  return { executor, tasks, comments, edges, effects, calls, attributions, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
+  return { executor, tasks, comments, edges, effects, calls, attributions, histories, auditEvents, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
 }

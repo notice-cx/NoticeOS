@@ -109,7 +109,7 @@ export type HostedTaskOperation =
   | { readonly kind: 'show'; readonly taskId: string }
   /** Which of these task ids the project holds, closed or not: an absent one is not listed. */
   | { readonly kind: 'find'; readonly taskIds: readonly string[] }
-  | { readonly kind: 'history'; readonly taskId: string; readonly limit: number }
+  | { readonly kind: 'history'; readonly taskId: string; readonly limit: number; readonly events?: true }
   | { readonly kind: 'comments'; readonly taskId: string }
   | { readonly kind: 'ready' }
   | { readonly kind: 'epics' }
@@ -489,8 +489,9 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     }
     case 'history':
-      keys(op, ['kind', 'taskId', 'limit']);
-      argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
+      keys(op, ['kind', 'taskId', 'limit'], ['events']);
+      if (Object.hasOwn(op, 'events') && op.events !== true) invalid();
+      argv.push('history', ...(op.events ? ['--events'] : []), `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
       break;
     case 'comments':
       keys(op, ['kind', 'taskId']);

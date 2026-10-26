@@ -930,6 +930,55 @@ test('lint advises a person\'s task whose description offers lettered options as
   assert.deepEqual(settled.lint, { missing: [] });
 });
 
+test('history returns changed fields and recorded actions while full snapshots remain available', async () => {
+  const f = fixture();
+  const base = { id: 'tt-1', title: 'Synthetic investigation', issue_type: 'task', status: 'open', description: 'Evidence '.repeat(400).trim(),
+    metadata: { noticeos_filed_by: PERSON, noticeos_filed_model: 'Example Model' } };
+  const at = i => `2026-10-07T12:00:${String(i).padStart(2, '0')}.000Z`;
+  const history = Array.from({ length: 30 }, (_, i) => ({ CommitHash: `revision-${i}`, Committer: PERSON, CommitDate: at(i),
+    Issue: { ...base, status: i > 0 ? 'in_progress' : 'open', assignee: i > 0 ? PERSON : '',
+      priority: i > 2 ? 1 : 2, metadata: { ...base.metadata, ...(i ? { noticeos_claimed_model: 'Example Model' } : {}) } } })).reverse();
+  f.histories.set('tt-1', history);
+  f.auditEvents.set('tt-1', [
+    { id: 'event-4', issue_id: 'tt-1', event_type: 'status_changed', actor: PERSON, old_value: 'in_progress', new_value: 'blocked', created_at: at(31) },
+    { id: 'event-3', issue_id: 'tt-1', event_type: 'dependency_added', actor: PERSON, new_value: 'tt-gate', created_at: at(2) },
+    { id: 'event-2', issue_id: 'tt-1', event_type: 'commented', actor: PERSON, comment: 'Owner declined the separate read.', created_at: at(1) },
+    { id: 'event-1', issue_id: 'tt-1', event_type: 'claimed', actor: PERSON, old_value: '', new_value: PERSON, created_at: at(1) },
+  ]);
+  const args = { workspace: A, project: P, task: 'tt-1' };
+  const compact = (await call(f, 'get_task_history', args)).structuredContent;
+  assert.ok(compact.changes.every(change => !('task' in change)));
+  assert.ok(compact.changes.some(change => change.actions.includes('claimed') && change.model === 'Example Model'));
+  assert.ok(compact.changes.some(change => change.actions.includes('commented')));
+  assert.ok(compact.changes.some(change => change.actions.includes('dependency_added')));
+  assert.ok(compact.changes.some(change => change.fields.status?.old === 'in_progress' && change.fields.status.new === 'blocked'));
+  const full = (await call(f, 'get_task_history', { ...args, snapshots: true })).structuredContent;
+  assert.equal(full.changes[0].task.description, base.description);
+  assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length / 4);
+  const limited = (await call(f, 'get_task_history', { ...args, limit: 1 })).structuredContent;
+  assert.equal(limited.changes.length, 1);
+});
+
+test('history keeps same-time audit events separate and names a truncated baseline instead of inventing old values', async () => {
+  const f = fixture();
+  const at = '2026-10-07T12:00:00Z';
+  f.histories.set('tt-1', [
+    { CommitHash: 'new', CommitDate: at, Issue: { id: 'tt-1', status: 'in_progress' } },
+    { CommitHash: 'old', CommitDate: at, Issue: { id: 'tt-1', status: 'open' } },
+  ]);
+  f.auditEvents.set('tt-1', [{ id: 'comment-1', created_at: at, actor: PERSON, event_type: 'commented', comment: 'Separate event' }]);
+  const result = (await call(f, 'get_task_history', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  const comment = result.changes.find(change => change.eventId === 'comment-1');
+  assert.equal(comment.revision, null); assert.equal(comment.actor, PERSON);
+  assert.ok(!result.changes.filter(change => change.revision).some(change => change.actions.includes('commented')));
+  f.auditEvents.set('tt-1', []);
+  f.histories.set('tt-1', Array.from({ length: 201 }, (_, i) => ({ CommitHash: `revision-${i}`, CommitDate: at, Issue: { id: 'tt-1', priority: i % 5 } })));
+  const bounded = (await call(f, 'get_task_history', { workspace: A, project: P, task: 'tt-1', limit: 200 })).structuredContent;
+  assert.equal(bounded.changes.length, 200);
+  assert.equal(bounded.changes.at(-1).baselineUnavailable, true);
+  assert.deepEqual(bounded.changes.at(-1).fields, {});
+});
+
 test('decision lint uses stored choices as alternatives and requests the outcome only after a choice', async () => {
   const f = fixture();
   const choices = { question: 'Which local layout?', options: [
