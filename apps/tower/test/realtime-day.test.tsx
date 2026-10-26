@@ -25,8 +25,10 @@ function retained(): Ga4RealtimePayload {
 describe('the retained realtime day on the Wall', () => {
   it('shows minute activity instead of the delayed hourly chart, with gaps and no invented baseline or total', () => {
     const { container } = render(<SiteRows assets={wallFixturePayload().assets} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
-    expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue —');
+    expect(container.querySelector('[data-site-today-total]')).toHaveTextContent('2.5');
+    expect(container.querySelector('[data-site-today-total]')).toHaveAccessibleName('2.5 average active users per minute today so far');
+    expect(container.querySelector('[data-site-today-total]')?.closest('.wall-metric-primary')).toHaveTextContent('avg users/min');
     expect(container.querySelector('[data-site-today-chart] [data-realtime-today]')).not.toBeNull();
     const line = container.querySelector('[data-realtime-today]')!;
     expect(line.querySelectorAll('path').length).toBeLessThanOrEqual(1);
@@ -39,8 +41,8 @@ describe('the retained realtime day on the Wall', () => {
   it('uses retained realtime data in the same tile for one asset', () => {
     const asset = wallFixturePayload().assets[0]!;
     const { container } = render(<SiteRows assets={[asset]} ga4Realtime={retained()} nowMs={NOW} />);
-    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue 1,788');
-    expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('887');
+    expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('h3')?.textContent).toBe('Todayvs last Tue —');
+    expect(container.querySelector('[data-site-today-total]')?.textContent).toBe('2.5');
     expect(container.querySelector('[data-realtime-today]')).not.toBeNull();
     expect(container.querySelector('[data-site-today]')?.textContent).toBe('Last week pending');
   });
@@ -79,6 +81,36 @@ describe('the retained realtime day on the Wall', () => {
 
 
 describe('hourly activity and day-so-far pace', () => {
+  it('updates the headline from realtime minutes while the delayed daily count stays unchanged', () => {
+    const assets = wallFixturePayload().assets.slice(0, 1);
+    const payload = retained();
+    const { container, rerender } = render(<SiteRows assets={assets} ga4Realtime={payload} nowMs={NOW} />);
+    const total = () => container.querySelector('[data-site-today-total]');
+    expect(total()).toHaveTextContent('2.5');
+    const next = structuredClone(payload);
+    const snapshot = next.assets.find(asset => asset.asset === assets[0]!.id);
+    if (snapshot?.status !== 'success' || !snapshot.realtimeDay) throw new Error('expected retained day');
+    snapshot.realtimeDay.minutes[MINUTE - 1] = 6;
+    rerender(<SiteRows assets={assets} ga4Realtime={next} nowMs={NOW} />);
+    expect(total()).toHaveTextContent('4');
+    snapshot.realtimeDay.minutes.fill(null);
+    rerender(<SiteRows assets={assets} ga4Realtime={structuredClone(next)} nowMs={NOW} />);
+    expect(total()).toHaveTextContent('—');
+    expect(total()).toHaveAccessibleName('Average active users per minute today unavailable');
+    snapshot.realtimeDay.minutes[MINUTE - 1] = 0;
+    rerender(<SiteRows assets={assets} ga4Realtime={structuredClone(next)} nowMs={NOW} />);
+    expect(total()).toHaveTextContent('0');
+  });
+
+  it('uses matching minutes for both headline figures when comparison coverage is incomplete', () => {
+    const history = day();
+    history.minutes[0] = 10;
+    history.minutes[1] = 2;
+    history.sameDayLastWeek = Array<number | null>(1440).fill(null);
+    history.sameDayLastWeek[1] = 4;
+    expect(realtimeActivity(history, NOW)).toMatchObject({ todayAverage: 6, pairedTodayAverage: 2, priorAverage: 4, observedMinutes: 2, comparedMinutes: 1 });
+  });
+
   it('keeps the day-so-far deficit when the latest plotted hour has recovered', () => {
     const history = day();
     history.sameDayLastWeek = Array<number | null>(1440).fill(10);
@@ -99,6 +131,9 @@ describe('hourly activity and day-so-far pace', () => {
     expect(activity.hours[2]).toMatchObject({ today: 3, prior: 2, observedMinutes: 60 });
     expect(activity.hours[1]?.today).toBeNull();
     expect(activity.comparedMinutes).toBe(60);
+    expect(activity.todayAverage).toBe(3);
+    expect(activity.pairedTodayAverage).toBe(3);
+    expect(activity.priorAverage).toBe(2);
     expect(activity.change).toBe(50);
     expect(activity.through).toBe(new Date(START + 180 * 60_000).toISOString());
   });
@@ -132,6 +167,8 @@ describe('hourly activity and day-so-far pace', () => {
     const { container } = render(<SiteRows assets={wallFixturePayload().assets} ga4Realtime={payload} nowMs={NOW} />);
     expect(container.querySelector('[data-realtime-prior]')).not.toBeNull();
     expect(container.querySelector('[data-site-today]')?.textContent).toContain('50%');
+    expect(container.querySelector('[data-site-today-total]')).toHaveTextContent('3');
+    expect(container.querySelector('[data-site-today-reference]')).toHaveTextContent('2');
     expect(container.querySelector('[data-site-today]')?.closest('.wall-metric')?.querySelector('.wall-site-axis')?.textContent).toContain('avg users/min');
   });
 

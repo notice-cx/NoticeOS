@@ -110,13 +110,22 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
   const reference = !binding?.configured || binding.tile.reference !== false;
   const daily = todayUserCounts(asset, snapshot, nowMs);
   const retained = daily.activityDateMatches ? currentRealtimeDay(snapshot, nowMs) : null;
+  const minute = Math.floor(nowMs / 60_000);
+  const activity = useMemo(() => retained ? realtimeActivity(retained, minute * 60_000) : null, [retained, minute]);
+  const total = activity ? activity.pairedTodayAverage ?? activity.todayAverage : daily.today;
+  const prior = activity ? activity.priorAverage : daily.reference;
+  const formatActivity = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  const formatValue = activity ? formatActivity : formatInt;
+  const totalMeaning = activity
+    ? "Provisional average active users per minute today so far. Excludes unreported and incomplete minutes; uses matching minutes when last week is available. Not distinct daily users."
+    : "Reported distinct active users today so far; delayed by GA4 processing.";
   const current = daily.activityDateMatches ? currentHourlyReading(snapshot, nowMs) : null;
   const pace = intradayUsersPace(asset, current ?? undefined);
   const hourly = current?.status === "success" ? current.hourlyActiveUsers : null;
   const nowHour = current?.status === "success" ? clockHourNow(nowMs, current.timeZone) : null;
   return <SparklineCompareMetric title="Today" icon={TrendingUp}
-    primary={{ value: <span data-site-today-total title="Distinct active users today so far" aria-label={daily.today === null ? "Daily active users today unavailable" : `${formatInt(daily.today)} daily active users today so far`}>{daily.today === null ? <span aria-label="Unavailable">—</span> : formatInt(daily.today)}</span> }}
-    referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`Daily active users on ${daily.referenceDate}`}>{formatInt(daily.reference)}</span> }}
+    primary={{ value: <span data-site-today-total title={totalMeaning} aria-label={total === null ? activity ? "Average active users per minute today unavailable" : "Daily active users today unavailable" : `${formatValue(total)} ${activity ? "average active users per minute" : "daily active users"} today so far`}>{total === null ? <span aria-label="Unavailable">—</span> : formatValue(total)}</span>, unit: activity ? "avg users/min" : "reported users" }}
+    referenceFact={{ label: `vs ${lastWeekdayLabel(retained?.timeZone ?? daily.timeZone, nowMs)}`, value: prior === null ? null : <span data-site-today-reference title={activity ? "Average active users per minute last week, across matching observed minutes" : `Daily active users on ${daily.referenceDate}`}>{formatValue(prior)}</span> }}
     secondary={
     <span data-site-today>
       {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : <span className="wall-metric-note">Comparison unavailable</span>}
