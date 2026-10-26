@@ -6,6 +6,7 @@ import { revenueCalendarDate } from "@shared/daily-revenue";
 import { useMemo } from "react";
 import { createDisplayCache } from "@/lib/display-cache";
 import { isGa4RealtimePayload } from "@/lib/api";
+import { calendarDayStart } from '@shared/reporting-calendar';
 
 
 /** Realtime is isolated from the Wall read model: a slow provider must never
@@ -89,7 +90,7 @@ export function keepReadingsInProgress(
     if (asset.hourlyErrorCode !== READ_IN_PROGRESS || !hoursStillToday(kept, asset.timeZone, next.generatedAt)) return asset;
     return {
       ...asset,
-      hourlyActiveUsers: kept.hourlyActiveUsers,
+      hourlyActiveUsers: retainedHours(kept, asset.timeZone, next.generatedAt),
       hourlyErrorCode: kept.hourlyErrorCode,
       hourlyObservedAt: kept.hourlyObservedAt,
       hourlyNextAttemptAt: kept.hourlyNextAttemptAt,
@@ -102,10 +103,28 @@ export function keepReadingsInProgress(
  * reading without its own hourly time was read with its live count, as
  * `currentHourlyReading` dates it. */
 function hoursStillToday(kept: Reading, timeZone: string, nowIso: string): boolean {
-  if (kept.hourlyActiveUsers === null || kept.timeZone !== timeZone) return false;
+  if (kept.hourlyActiveUsers === null) return false;
   try {
     return revenueCalendarDate(new Date(kept.hourlyObservedAt ?? kept.observedAt), timeZone) === revenueCalendarDate(new Date(nowIso), timeZone);
   } catch {
     return false;
   }
+}
+
+/** A saved display-clock change moves retained hourly buckets rather than
+ * dropping a usable reading while collection is in progress. */
+function retainedHours(kept: Reading, timeZone: string, nowIso: string): Reading['hourlyActiveUsers'] {
+  if (kept.timeZone === timeZone || kept.hourlyActiveUsers === null) return kept.hourlyActiveUsers;
+  const sourceDate = revenueCalendarDate(new Date(kept.hourlyObservedAt ?? kept.observedAt), kept.timeZone);
+  const today = revenueCalendarDate(new Date(nowIso), timeZone);
+  const start = calendarDayStart(sourceDate, kept.timeZone);
+  const clock = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', hourCycle: 'h23' });
+  const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, today: null as number | null, sameDayLastWeek: 0 }));
+  for (const point of kept.hourlyActiveUsers) {
+    const at = new Date(start + point.hour * 3_600_000);
+    if (revenueCalendarDate(at, timeZone) !== today) continue;
+    const hour = Number(clock.format(at)) % 24;
+    hours[hour] = { hour, today: point.today, sameDayLastWeek: point.sameDayLastWeek };
+  }
+  return hours;
 }

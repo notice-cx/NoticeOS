@@ -174,7 +174,7 @@ describe("periodDelta", () => {
     expect(periodDelta(daily("2026-09-05", 14, () => 1), 0)).toBeNull();
   });
 
-  it("withdraws comparable when a reporting timezone change is inside the window", () => {
+  it("keeps comparisons available across adjusted reporting timezone boundaries", () => {
     const series = [...daily("2026-08-29", 7, () => 1), ...daily("2026-09-05", 7, () => 2)];
     const clean = periodDelta(series, 7, [
       { effectiveOn: "2026-06-01", from: "UTC", to: "America/New_York" },
@@ -183,9 +183,8 @@ describe("periodDelta", () => {
     const straddled = periodDelta(series, 7, [
       { effectiveOn: "2026-09-01", from: "UTC", to: "America/New_York" },
     ])!;
-    expect(straddled.comparable).toBe(false);
-    // The figures and the direction survive; only the verdict is withdrawn.
-    expect(straddled.change).toBe(7);
+    expect(straddled.comparable).toBe(true);
+    expect(straddled.change).toBeGreaterThan(0);
     expect(straddled.tone).toBe("up");
   });
 
@@ -242,7 +241,7 @@ describe("deltaMeaning", () => {
     const straddled = periodDelta(series, 7, [
       { effectiveOn: "2026-09-01", from: "UTC", to: "America/New_York" },
     ])!;
-    expect(deltaMeaning(straddled)).toBe("the last 7 days vs the 7 days before · reporting timezone changed");
+    expect(deltaMeaning(straddled)).toBe("the last 7 days vs the 7 days before");
 
     const gappy = [
       ...daily("2026-08-29", 7, () => 1).filter((point) => point.t !== "2026-08-25"),

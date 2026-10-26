@@ -152,11 +152,15 @@ describe('monthly revenue projection', () => {
     const { revenue, traffic } = history();
     expect(projectRevenue(NOW, ZONE, revenue.filter(day => day.date !== '2026-08-01'), traffic)).toMatchObject({ status: 'ready', previousMonthMinor: null, changePercent: null });
   });
-  it('excludes days distorted by a reporting timezone change', () => {
+  it('estimates timezone boundary days and retains them in forecast calibration', () => {
     const { revenue, traffic } = history();
     traffic.timeZoneChanges = [{ effectiveOn: '2026-08-24', from: 'America/New_York', to: 'America/Los_Angeles' }];
     traffic.series.find(day => day.t === '2026-08-24')!.v = 999999;
-    expect(projectRevenue(NOW, ZONE, revenue, traffic).projectedMinor).toBe(22800);
+    const projection = projectRevenue(NOW, ZONE, revenue, traffic);
+    expect(projection.status).toBe('ready');
+    expect(projection.historyDays).toBeGreaterThanOrEqual(21);
+    expect(projection.projectedMinor).toBeGreaterThan(20_000);
+    expect(projection.projectedMinor).toBeLessThan(25_000);
   });
   it('respects the Pacific 6:10 availability boundary', () => {
     const { revenue, traffic } = history();

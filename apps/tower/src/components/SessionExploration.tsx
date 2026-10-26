@@ -12,7 +12,7 @@ const percent = (count: number, total: number) => total > 0 ? `${Number((count /
 const endingLabel = { exit: "Exited", continued: "Continued beyond this path", unknown: "Next destination unknown" };
 const distinct = (path: ExplorationPath) => new Set(path.surfaces).size;
 const usable = (period: SessionExplorationPeriod) => period.quality !== "unavailable" && period.sessions !== null && period.sessions > 0;
-const sameDefinition = (a: SessionExplorationPeriod, b: SessionExplorationPeriod) => a.definitionId !== null && a.definitionId === b.definitionId && a.timeZone === b.timeZone && a.sessionTimeoutMinutes === b.sessionTimeoutMinutes;
+const sameDefinition = (a: SessionExplorationPeriod, b: SessionExplorationPeriod) => a.definitionId !== null && a.definitionId === b.definitionId && a.sessionTimeoutMinutes === b.sessionTimeoutMinutes;
 
 /** Prefixes preserve observed order: the same surface at two positions is a return, not a new session. */
 export function explorationBranches(period: SessionExplorationPeriod): Branch[] {
@@ -120,7 +120,7 @@ export function SessionExploration({ snapshot, rangeDays }: SessionExplorationPr
     }
   }
   return <div className="session-exploration" data-session-exploration>
-    <header className="session-heading"><div><h2>Where sessions go</h2><p>{formatCalendarRange(period.startDate, period.endDate)} · {period.timeZone ?? "Reporting time zone unavailable"}</p></div><span className="session-unit">Sessions</span></header>
+    <header className="session-heading"><div><h2>Where sessions go</h2><p>{formatCalendarRange(period.startDate, period.endDate)} · {period.timeZone ?? "Reporting time zone unavailable"}{period.estimatedDays ? ` · ${period.estimatedDays} estimated days` : ''}</p></div><span className="session-unit">Sessions</span></header>
     {!available ? <div className="session-empty"><h3>{total === 0 ? "No sessions in this period" : "Session paths are unavailable"}</h3><p>{period.reason ?? (total === 0 ? "The report records zero sessions for these dates." : "No complete session-path report has been received for these dates.")}</p></div> : <>
       <div className="session-summary">
         <div><span>{period.coveredDays < period.expectedDays ? "All reported sessions" : "All sessions"}</span><strong>{formatInt(total!)}</strong><p>100% · all reported sessions</p></div>

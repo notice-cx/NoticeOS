@@ -1,4 +1,5 @@
 /** Daily, mutually exclusive session-path counts; no raw visitor or session identifiers. */
+import { reportingCalendarTrend } from './reporting-calendar.mjs';
 export interface ExplorationPath { surfaces: string[]; sessions: number; ending: 'exit' | 'continued' | 'unknown' }
 export interface ExplorationSurface { id: string; label: string }
 export interface SessionExplorationReport {
@@ -11,6 +12,7 @@ export interface SessionExplorationPeriod {
   coveredDays: number; expectedDays: number; sessions: number | null; observedSessions: number | null;
   paths: ExplorationPath[]; surfaces: ExplorationSurface[]; definitionId: string | null;
   timeZone: string | null; sessionTimeoutMinutes: number | null;
+  estimatedDays?: number;
 }
 export interface SessionExplorationSnapshot {
   journeyId: string; generatedAt: string | null;
@@ -75,25 +77,64 @@ export function explorationFacts(p: SessionExplorationPeriod) {
   const exploredSessions = p.paths.filter(path => new Set(path.surfaces).size >= 2).reduce((n, path) => n + path.sessions, 0);
   const uncertainSessions = unobservedSessions + p.paths.filter(path => new Set(path.surfaces).size < 2 && path.ending !== 'exit').reduce((n, path) => n + path.sessions, 0);
   const exitSessions = p.paths.filter(path => path.ending === 'exit').reduce((n, path) => n + path.sessions, 0);
-  return {exploredSessions, unobservedSessions, uncertainSessions, exitSessions, explorationRate: p.sessions > 0 ? exploredSessions / p.sessions : null, exact: p.quality === 'complete' && uncertainSessions === 0};
+  return {exploredSessions, unobservedSessions, uncertainSessions, exitSessions, explorationRate: p.sessions > 0 ? exploredSessions / p.sessions : null, exact: p.quality === 'complete' && uncertainSessions === 0 && !p.estimatedDays};
 }
 /** A percentage-point verdict requires complete adjacent windows with matching measurement semantics. */
 export function explorationComparison(current: SessionExplorationPeriod, prior: SessionExplorationPeriod): number | null {
   const a = explorationFacts(current), b = explorationFacts(prior);
-  if (!a.exact || !b.exact || a.explorationRate === null || b.explorationRate === null ||
-    current.definitionId === null || current.definitionId !== prior.definitionId || current.timeZone !== prior.timeZone ||
+  if (current.quality !== 'complete' || prior.quality !== 'complete' || a.uncertainSessions !== 0 || b.uncertainSessions !== 0 || a.explorationRate === null || b.explorationRate === null ||
+    current.definitionId === null || current.definitionId !== prior.definitionId ||
     current.sessionTimeoutMinutes !== prior.sessionTimeoutMinutes || current.expectedDays !== prior.expectedDays ||
     current.startDate !== explorationDateOffset(prior.endDate,1)) return null;
   return (a.explorationRate - b.explorationRate) * 100;
 }
-function period(reports: SessionExplorationReport[], startDate: string, days: number): SessionExplorationPeriod {
+type DisplayReport = SessionExplorationReport & { estimated?: true };
+
+/** Rebin each mutually exclusive path on the display calendar; use the same
+ * daily-boundary averages as traffic without altering publisher reports. */
+function displayReports(reports: SessionExplorationReport[], timeZone: string): DisplayReport[] {
+  const groups = new Map<string, SessionExplorationReport[]>();
+  for (const report of reports) {
+    const key = `${report.definitionId}:${report.sessionTimeoutMinutes}`;
+    const group = groups.get(key) ?? [];
+    group.push(report); groups.set(key, group);
+  }
+  return [...groups.values()].flatMap(group => {
+    group.sort((a, b) => a.date.localeCompare(b.date));
+    const latest = group.at(-1)!;
+    const timeZoneChanges = group.flatMap((report, index) => index > 0 && report.timeZone !== group[index - 1]!.timeZone
+      ? [{ effectiveOn: report.date, from: group[index - 1]!.timeZone, to: report.timeZone }] : []);
+    const base = { timeZone: latest.timeZone, timeZoneChanges };
+    const totals = reportingCalendarTrend({ ...base, series: group.map(report => ({ t: report.date, v: report.sessions })) }, timeZone);
+    const kinds = new Map(group.flatMap(report => report.paths.map(path => [JSON.stringify([path.surfaces, path.ending]), path] as const)));
+    const counts = [...kinds].map(([key, path]) => ({ path, values: new Map(reportingCalendarTrend({ ...base, series: group.map(report => ({ t: report.date,
+      v: report.paths.find(candidate => JSON.stringify([candidate.surfaces, candidate.ending]) === key)?.sessions ?? 0 })) }, timeZone).series.map(point => [point.t, point.v])) }));
+    const surfaces = [...new Map(group.flatMap(report => report.surfaces.map(surface => [surface.id, surface] as const))).values()];
+    return totals.series.map(point => {
+      const paths = counts.flatMap(({ path, values }) => (values.get(point.t) ?? 0) > 0 ? [{ ...path, sessions: values.get(point.t)! }] : []);
+      // Independent rounding may add a session to several paths. Apportion
+      // that remainder so paths never exceed the estimated session total.
+      let remaining = point.v;
+      const represented = paths.reduce((sum, path) => sum + path.sessions, 0);
+      for (const [index, path] of paths.entries()) {
+        path.sessions = Math.min(remaining, represented > point.v ? Math.round(path.sessions / represented * point.v) : path.sessions);
+        if (index === paths.length - 1 && represented >= point.v) path.sessions = remaining;
+        remaining -= path.sessions;
+      }
+      return { ...latest, date: point.t, timeZone, sessions: point.v, surfaces, paths: paths.filter(path => path.sessions > 0),
+        ...(totals.estimatedDates?.includes(point.t) ? { estimated: true as const } : {}) };
+    });
+  });
+}
+
+function period(reports: DisplayReport[], startDate: string, days: number): SessionExplorationPeriod {
   const endDate = explorationDateOffset(startDate, days - 1);
   const rows = reports.filter(r => r.date >= startDate && r.date <= endDate);
   const blank: SessionExplorationPeriod = {startDate, endDate, quality: 'unavailable', reason: 'No session-path reports received for these dates.', coveredDays: rows.length, expectedDays: days,
     sessions: null, observedSessions: null, paths: [], surfaces: [], definitionId: null, timeZone: null, sessionTimeoutMinutes: null};
   const first = rows[0];
   if (!first) return blank;
-  if (rows.some(r => r.definitionId !== first.definitionId || r.timeZone !== first.timeZone || r.sessionTimeoutMinutes !== first.sessionTimeoutMinutes))
+  if (rows.some(r => r.definitionId !== first.definitionId || r.sessionTimeoutMinutes !== first.sessionTimeoutMinutes))
     return {...blank, reason: 'Session definitions changed within this period. Choose dates with one definition.'};
   const surfaces = new Map<string, ExplorationSurface>(), paths = new Map<string, ExplorationPath>();
   let sessions = 0;
@@ -106,11 +147,13 @@ function period(reports: SessionExplorationReport[], startDate: string, days: nu
   const shown = [...paths.values()].sort((a,b) => b.sessions - a.sessions || JSON.stringify(a).localeCompare(JSON.stringify(b))).slice(0,128);
   const observedSessions = shown.reduce((n,p) => n + p.sessions,0);
   const complete = rows.length === days && observedSessions === sessions && shown.every(p => p.ending === 'exit');
+  const estimatedDays = rows.filter(row => row.estimated).length;
   return {startDate, endDate, quality: complete ? 'complete' : 'partial', ...(complete ? {} : {reason: rows.length !== days ? 'Some days have no session report. Percentages use reported sessions only.' : 'Some session destinations or later steps are unknown. Displayed reach is a lower bound.'}),
-    coveredDays: rows.length, expectedDays: days, sessions, observedSessions, paths: shown, surfaces: [...surfaces.values()].sort((a,b) => a.id.localeCompare(b.id)), definitionId: first.definitionId, timeZone: first.timeZone, sessionTimeoutMinutes: first.sessionTimeoutMinutes};
+    coveredDays: rows.length, expectedDays: days, sessions, observedSessions, paths: shown, surfaces: [...surfaces.values()].sort((a,b) => a.id.localeCompare(b.id)), definitionId: first.definitionId, timeZone: first.timeZone, sessionTimeoutMinutes: first.sessionTimeoutMinutes,
+    ...(estimatedDays ? { estimatedDays } : {})};
 }
 /** Latest received revision per journey/day wins. Repeated reports never add sessions. */
-export function buildSessionExplorationSnapshot(journeyId: string, receipts: SessionReportReceipt[], now: Date): SessionExplorationSnapshot {
+export function buildSessionExplorationSnapshot(journeyId: string, receipts: SessionReportReceipt[], now: Date, displayTimeZone?: string): SessionExplorationSnapshot {
   const days = new Map<string, SessionExplorationReport>();
   let generatedAt: string | null = null;
   for (const receipt of [...receipts].sort((a,b) => b.receivedAt.localeCompare(a.receivedAt) || b.generatedAt.localeCompare(a.generatedAt))) {
@@ -120,9 +163,10 @@ export function buildSessionExplorationSnapshot(journeyId: string, receipts: Ses
       days.set(r.date, r); generatedAt ??= receipt.generatedAt;
     }
   }
-  const reports = [...days.values()];
-  const latest = [...reports].sort((a,b) => b.date.localeCompare(a.date))[0];
-  const today = dayAt(now.getTime(), latest?.timeZone ?? 'UTC');
+  const latest = [...days.values()].sort((a,b) => b.date.localeCompare(a.date))[0];
+  const zone = displayTimeZone ?? latest?.timeZone ?? 'UTC';
+  const reports = displayReports([...days.values()], zone);
+  const today = dayAt(now.getTime(), zone);
   const current7 = period(reports, explorationDateOffset(today,-7),7), prior7 = period(reports, explorationDateOffset(today,-14),7);
   const current28 = period(reports, explorationDateOffset(today,-28),28), prior28 = period(reports, explorationDateOffset(today,-56),28);
   // Complete Monday–Sunday weeks; never compare a partial current week with a full one.

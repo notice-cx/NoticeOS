@@ -2,9 +2,7 @@ import { windowSpansTimeZoneChange, type TimeZoneChangePoint } from "@shared/wal
 
 /**
  * Marks a comparison whose window straddles a reporting-timezone change.
- * Providers do not reprocess history when the timezone changes, so the window
- * subtracts days bucketed in two zones. The figure is still shown, marked,
- * and its delta chip goes neutral wherever this glyph appears.
+ * Derived daily boundaries use estimates; the comparison remains usable.
  */
 export function TimeZoneCaveat({
   trend,
@@ -17,12 +15,12 @@ export function TimeZoneCaveat({
   if (!change) return null;
   return (
     <span
-      className="shrink-0 text-warn"
+      className="shrink-0 text-muted-foreground"
       data-time-zone-caveat={change.effectiveOn}
-      title={`Timezone changed ${change.effectiveOn}: ${change.from} → ${change.to} · not like-for-like`}
-      aria-label={`Comparison spans a timezone change on ${change.effectiveOn}`}
+      title={`Timezone adjusted ${change.effectiveOn}: ${change.from} → ${change.to} · estimated daily boundaries`}
+      aria-label={`Comparison uses estimated timezone boundaries on ${change.effectiveOn}`}
     >
-      ⚠
+      ≈
     </span>
   );
 }

@@ -106,8 +106,9 @@ technical failure checks keep their existing timing.
   against frozen seeds and acceptance criteria. It does not establish live
   outcome performance.
 - Provider reporting-timezone changes do not alter these asset-reported
-  counters. Rules using provider-bucketed daily series must exclude distorted
-  dates using `distortedDays()` in `workers/ingest/src/time-zone-change.ts`.
+  counters. Displayed provider-bucketed daily series use the operator-selected timezone.
+  Boundary days and gaps introduced by a timezone change use estimated averages;
+  timezone changes do not disable comparisons or forecast calibration.
 
 The future-observation interval includes residual and fitted-trend uncertainty
 ([NIST](https://www.itl.nist.gov/div898/handbook/pmd/section5/pmd512.htm)).

@@ -286,7 +286,7 @@ describe("loadSignalTrends — one provider resource per series", () => {
       { t: "2026-07-01", v: 11 },
       { t: "2026-07-02", v: 12 },
       { t: "2026-07-03", v: 14 },
-      { t: "2026-07-04", v: 15 },
+      { t: "2026-07-04", v: 12 },
       { t: "2026-07-05", v: 16 },
     ]);
     expect(trend.activeUsers.timeZoneChanges).toEqual([
@@ -297,6 +297,7 @@ describe("loadSignalTrends — one provider resource per series", () => {
       },
     ]);
     expect(trend.activeUsers.timeZone).toBe("America/New_York");
+    expect(trend.activeUsers.estimatedDates).toContain('2026-07-04');
   });
 });
 

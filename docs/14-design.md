@@ -93,8 +93,8 @@ The families, and what each means:
   dot and the word. `glass` is for chrome only, never for a surface showing
   numbers.
 - **Chart tokens.** `chart-week-band` for alternating calendar weeks,
-  `chart-distorted` for a day a reporting-timezone change made incomparable
-  (a caveat about the measurement, in a paler warn, never an alert), and
+  `chart-distorted` for estimated reporting-day boundaries after a timezone change
+  (an annotation, never an alert), and
   `spark` for the neutral compact trend.
   Session exploration uses categorical `asset-1` through `asset-4` colours for named sections and neutral grey for exits. Repeated section positions retain the same colour.
   The journey chart uses blue `journey-continuation`, teal `journey-outcome`,
@@ -325,7 +325,8 @@ grid cell or a graph node that opens the page for what it represents.
 projection is dashed and neutral; a day the measurement cannot compare is
 bracketed on the axis and its good-or-bad colour removed; a shipped change or
 a timezone move is a mark on the axis with an explanation on hover, focus and
-tap. A missing figure is shown as a word ("never", "unknown", "no report
+tap. Reporting-day boundaries use the selected display timezone; missing timezone
+boundaries use estimated averages without disabling comparisons or direction colour. A missing figure is shown as a word ("never", "unknown", "no report
 owed"), never a made-up zero and never a bare dash in a labelled slot; a
 *measured* zero is a number and is drawn. A failed poll keeps the last good
 values with their age and shows that it is reconnecting. A comparison the

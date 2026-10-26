@@ -158,7 +158,7 @@ describe('GA4 ordered journey collection', () => {
       metrics: [{ name: 'activeUsers' }], returnPropertyQuota: true });
     expect(ga4VisitorResult(visitorResponse(0))).toEqual({ users: 0, quality: 'complete' });
     expect(ga4VisitorResult(visitorResponse(500))).toEqual({ users: 500, quality: 'complete' });
-    expect(ga4VisitorResult(visitorResponse(500, { timeZone: 'UTC' }), TARGET.timeZone)).toMatchObject({ users: null, quality: 'unavailable' });
+    expect(ga4VisitorResult(visitorResponse(500, { timeZone: 'UTC' }), TARGET.timeZone)).toMatchObject({ users: 500, quality: 'complete' });
     expect(ga4VisitorResult(visitorResponse(500, { samplingMetadatas: [{ samplesReadCount: '100', samplingSpaceSize: '100' }] }))).toEqual({ users: 500, quality: 'complete' });
     expect(ga4VisitorResult(visitorResponse(500, { subjectToThresholding: true }))).toMatchObject({ users: null, quality: 'unavailable' });
     expect(ga4VisitorResult(visitorResponse(500, { samplingMetadatas: [{ samplesReadCount: '10', samplingSpaceSize: '100' }] }))).toMatchObject({ quality: 'sampled' });
@@ -300,14 +300,14 @@ describe('GA4 ordered journey collection', () => {
     await collect(fetchImpl, { definition: { ...DEFINITION, version: 2 } });
     expect(calls).toBe(1);
   });
-  it('bounds requests and refuses an assumed property timezone without provider access', async () => {
+  it('bounds requests while using the configured timezone before provider metadata arrives', async () => {
     let calls = 0;
     const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(response()); };
     await collect(fetchImpl, { budget: 2 });
     expect(calls).toBe(2);
-    const results = await collect(fetchImpl, { target: { ...TARGET, propertyRef: '654321', timeZoneAssumed: true } });
-    expect(calls).toBe(2);
-    expect(results.every((result) => result.status === 'error')).toBe(true);
+    const results = await collect(fetchImpl, { target: { ...TARGET, propertyRef: '654321', timeZoneAssumed: true }, budget: 2 });
+    expect(calls).toBe(4);
+    expect(results.some((result) => result.status === 'success')).toBe(true);
   });
   it('keeps exact outage obligations blocked by saved quota and clears only a reused window for the selected asset', async () => {
     const low = response();

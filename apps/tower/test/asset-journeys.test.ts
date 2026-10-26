@@ -59,10 +59,10 @@ describe('asset journey read model', () => {
     expect(model(JSON.stringify({ asset: 'example.com', journeys: invalid }), [definition]).funnels).toEqual([]);
   });
 
-  it('withholds results after a property, reporting time zone or asset change', () => {
+  it('retains results after a timezone change but withholds different properties or assets', () => {
     const raw = JSON.stringify({ asset: 'example.com', journeys: snapshot() });
     expect(assetJourneys(raw, [definition], { ...binding, propertyId: '654321' }).funnels).toEqual([]);
-    expect(assetJourneys(raw, [definition], { ...binding, timeZone: 'Etc/GMT+1' }).funnels).toEqual([]);
+    expect(assetJourneys(raw, [definition], { ...binding, timeZone: 'Etc/GMT+1' }).funnels).toHaveLength(1);
     expect(assetJourneys(raw, [definition], { ...binding, propertyId: null }).funnels).toEqual([]);
     expect(assetJourneys(raw, [definition], { ...binding, asset: 'another.example' }).funnels).toEqual([]);
   });

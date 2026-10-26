@@ -26,16 +26,17 @@ export interface RevenueHeroProps {
   /** The Wall's clock, which "yesterday" is asked on; this render's own when
    * absent. */
   nowMs?: number;
+  timeZone?: string;
   /** The words of the view the TV is drawn for: "business" calls an estimate
    * "so far", as Home's money does; the other levels say "est.". */
   wordLevel?: WordLevel;
   widget?: WallWidget;
 }
 
-export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational", widget }: RevenueHeroProps) {
+export function RevenueHero({ portfolio, assets, nowMs, timeZone, wordLevel = "operational", widget }: RevenueHeroProps) {
   const business = wordLevel === "business";
   const model = monthRevenue(portfolio, assets);
-  const yesterday = yesterdayTotal(assets, nowMs ?? Date.now());
+  const yesterday = yesterdayTotal(assets, nowMs ?? Date.now(), timeZone);
 
   if (model === null) {
     return (
@@ -103,11 +104,6 @@ export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational
 /** Provider reporting dates and coverage stay with the amount they qualify. */
 function yesterdayFact(total: YesterdayTotal, business: boolean): NonNullable<CumulativeCompareMetricProps["secondary"]>[number] {
   const basis = total.basis ? `${formatSeriesDate(total.basis.date)} · ${total.basis.label ?? total.basis.timeZone}` : "provider days";
-  if (total.mixedBasis) return {
-    label: "Yesterday", dividerBefore: true,
-    value: <span data-revenue-yesterday="mixed">—</span>,
-    note: `Mixed report days · ${total.reported} of ${total.sites} assets · no total`,
-  };
   if (total.amount === null) return {
     label: "Yesterday", dividerBefore: true, size: "detail",
     value: <span data-revenue-yesterday="none">Not reported yet</span>, note: basis,

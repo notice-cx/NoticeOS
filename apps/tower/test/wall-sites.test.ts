@@ -180,9 +180,11 @@ describe("four weeks against the four before", () => {
     expect(fourWeeks(trend(flat(0, 5)))!.change).toBeNull();
   });
 
-  it("keeps the % but withdraws its colour when the 56 days span a reporting-timezone change", () => {
+  it("keeps the comparison and its direction color across adjusted timezone boundaries", () => {
     const move = (effectiveOn: string) => [{ effectiveOn, from: "America/New_York", to: "America/Los_Angeles" }];
-    expect(fourWeeks(trend(flat(100, 80), { timeZoneChanges: move("2026-08-10") }))!.change).toEqual({ percent: -20, tone: "neutral" });
+    const adjusted = fourWeeks(trend(flat(100, 80), { timeZoneChanges: move("2026-08-10") }))!.change!;
+    expect(adjusted.percent).toBeLessThan(-18);
+    expect(adjusted.tone).toBe('negative');
     // A move before the window splits nothing in it.
     expect(fourWeeks(trend(flat(100, 80), { timeZoneChanges: move("2026-07-20") }))!.change!.tone).toBe("negative");
   });

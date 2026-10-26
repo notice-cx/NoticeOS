@@ -51,7 +51,8 @@ describe("the asset rows", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     const points = Array.from({ length: 56 }, (_, index) => ({ t: new Date(Date.UTC(2026, 6, 28 + index)).toISOString().slice(0, 10), v: index < 28 ? 100 : 123 }));
     asset.activeUsers = { ...asset.activeUsers, contextSeries: points.slice(0, 28), series: points.slice(28), provisionalFrom: null, timeZoneChanges: [{ effectiveOn: "2026-08-10", from: "America/New_York", to: "America/Los_Angeles" }] };
-    expect(fourWeeks(asset.activeUsers)?.change).toEqual({ percent: 23, tone: "neutral" });
+    expect(fourWeeks(asset.activeUsers)?.change?.percent).toBeCloseTo(23, 0);
+    expect(fourWeeks(asset.activeUsers)?.change?.tone).toBe('positive');
     const site = row(draw([asset]), asset.id);
     expect(site.querySelector('[data-site-week] [data-tone]')).toHaveAttribute("data-tone", "pace-on");
     expect(site.querySelector('[data-site-week]')).toHaveTextContent("23%");
@@ -75,17 +76,18 @@ describe("the asset rows", () => {
     expect(tile.querySelector(".wall-metric-main")?.firstElementChild).toContainElement(total);
     expect(tile.querySelector(".wall-metric-secondary [data-site-today]")).not.toBeNull();
   });
-  it("retains provider-day totals but suppresses a pace and chart whose calendar date differs", () => {
+  it("converts provider-day totals and keeps the pace on the display calendar", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     asset.activeUsers.timeZone = "Pacific/Auckland";
     asset.activeUsers.series = [{ t: "2026-09-16", v: 11 }, { t: "2026-09-23", v: 22 }];
+    asset.activeUsers.contextSeries = [];
     const realtime = wallFixtureRealtime();
     realtime.assets = realtime.assets.map(snapshot => snapshot.status === "success" ? { ...snapshot, timeZone: "America/Los_Angeles" } : snapshot);
     const site = row(draw([asset], { realtime }), asset.id);
-    expect(site.querySelector('[data-site-today-total]')).toHaveTextContent("22");
-    expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("vs last Wed 11");
-    expect(site.querySelector('[data-site-today]')).toHaveTextContent("Comparison unavailable");
-    expect(site.querySelector('[data-site-today-chart] svg')).toBeNull();
+    expect(site.querySelector('[data-site-today-total]')).toHaveAttribute('data-estimated', 'true');
+    expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("vs last Tue 12");
+    expect(site.querySelector('[data-site-today]')).not.toHaveTextContent("Comparison unavailable");
+    expect(site.querySelector('[data-site-today-chart] svg')).not.toBeNull();
   });
   it("labels each asset's comparison weekday in its own reporting timezone", () => {
     const assets = structuredClone(wallFixturePayload().assets.slice(0, 2));

@@ -102,12 +102,12 @@ function YesterdayRevenue({ total, business }: { total: YesterdayTotal | null; b
   const title = basis ? `${formatSeriesDate(basis.date)} · ${basis.label ?? basis.timeZone}` : undefined;
   return (
     <Link to="/financials" title={title} className="text-sm tabular-nums text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-home-yesterday="">
-      Yesterday {total?.amount != null && !total.mixedBasis ? (
+      Yesterday {total?.amount != null ? (
         <>
           <b className="font-semibold text-foreground">{cents(total.amount)}</b> {business ? "so far" : "est."}
           {total.reported < total.sites ? ` · ${total.reported} of ${total.sites} assets` : null}
         </>
-      ) : total?.mixedBasis ? "· mixed report days · no total" : "· not reported yet"}
+      ) : "· not reported yet"}
     </Link>
   );
 }

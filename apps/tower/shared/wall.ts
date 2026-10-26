@@ -258,6 +258,10 @@ export interface CardDataSource {
 export interface SignalTrend {
   /** Reporting timezone stored with the latest provider observation. */
   timeZone?: string;
+  /** Display values have been converted to this calendar; stored observations remain unchanged. */
+  calendarAdjusted?: true;
+  /** Dates containing estimated timezone boundaries or filled timezone gaps. */
+  estimatedDates?: string[];
   /**
    * The days immediately before `series`, in the same grain. They supply
    * prior-week and rolling-average context for the first visible date, and
@@ -274,8 +278,8 @@ export interface SignalTrend {
   /**
    * Reporting-timezone changes inside this series' date range. A provider
    * buckets each event into a day using the asset's reporting timezone and
-   * does not reprocess history, so a change leaves one series carrying two
-   * units. Empty for the assets and periods that never changed.
+    * does not reprocess history. Display derivations adjust boundary days;
+    * the dated changes remain available for annotations.
    */
   timeZoneChanges: TimeZoneChangePoint[];
 }
@@ -358,7 +362,7 @@ export function distortedDayNote(
       ? "boundary moved"
       : `boundary ${formatHourCount(Math.abs(shift))} ${shift > 0 ? "earlier" : "later"}`;
   const day = date === change.effectiveOn ? "day gained hours" : "day lost its last hours";
-  return `Timezone ${change.from} → ${change.to}, ${boundary} · ${day} · value unaltered, not comparable`;
+  return `Timezone ${change.from} → ${change.to}, ${boundary} · ${day} · daily boundaries adjusted with estimates`;
 }
 
 function formatHourCount(hours: number): string {
@@ -428,6 +432,9 @@ export function mergeSignalTrends(trends: readonly SignalTrend[]): SignalTrend {
     provisionalFrom: provisional[0] ?? null,
     collectedAt: collected[0] ?? null,
     timeZoneChanges: trends.flatMap((trend) => trend.timeZoneChanges),
+    ...(trends.every(trend => trend.calendarAdjusted || trend.timeZoneChanges.length === 0) ? { calendarAdjusted: true as const } : {}),
+    ...(trends[0]?.timeZone && trends.every(trend => trend.timeZone === trends[0]!.timeZone) ? { timeZone: trends[0].timeZone } : {}),
+    ...(trends.some(trend => trend.estimatedDates?.length) ? { estimatedDates: [...new Set(trends.flatMap(trend => trend.estimatedDates ?? []))].sort() } : {}),
   };
 }
 
@@ -1057,6 +1064,8 @@ export interface WallAttentionTasks {
 export interface WallPayload {
   /** When the Worker assembled this payload (ISO). */
   generatedAt: string;
+  /** Selected calendar for displayed daily metrics; absent from older payloads. */
+  osTimeZone?: string;
   portfolio: PortfolioBand;
   system: SystemBand;
   /** File-owned Home/Wall widgets. Included in the polled read model so a

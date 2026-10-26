@@ -109,20 +109,21 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
   const { binding } = useWallMetricBinding();
   const reference = !binding?.configured || binding.tile.reference !== false;
   const daily = todayUserCounts(asset, snapshot, nowMs);
-  const retained = daily.activityDateMatches ? currentRealtimeDay(snapshot, nowMs) : null;
+  const retained = currentRealtimeDay(snapshot, nowMs, daily.timeZone ?? undefined);
   const minute = Math.floor(nowMs / 60_000);
   const estimate = useMemo(() => estimatedTodayUsers(asset, snapshot, minute * 60_000), [asset, snapshot, minute]);
   const total = estimate?.users ?? daily.today;
+  const estimated = estimate !== null || daily.todayEstimated;
   const totalMeaning = estimate
-    ? `Estimated active users today so far, through ${estimate.through}. Calibrated from last week's daily users and minute activity; assumes similar repeat activity per user. ${estimate.estimatedMinutes} missing minutes estimated from last week's activity profile. GA4 processing may revise this estimate.`
-    : "Reported distinct active users today so far; delayed by GA4 processing.";
+    ? `Estimated active users today so far, through ${estimate.through}, on ${daily.timeZone}. Calibrated from last week's daily users and minute activity; assumes similar repeat activity per user. ${estimate.estimatedMinutes} current minutes estimated from last week's activity profile; ${estimate.estimatedReferenceMinutes} missing comparison minutes filled with average activity. Reporting-day boundaries are adjusted to this timezone. GA4 processing may revise this estimate.`
+    : daily.todayEstimated ? `Estimated active users today so far on ${daily.timeZone}; reporting-day boundaries adjusted from provider reports.` : "Reported distinct active users today so far; delayed by GA4 processing.";
   const current = daily.activityDateMatches ? currentHourlyReading(snapshot, nowMs) : null;
   const pace = intradayUsersPace(asset, current ?? undefined);
   const hourly = current?.status === "success" ? current.hourlyActiveUsers : null;
   const nowHour = current?.status === "success" ? clockHourNow(nowMs, current.timeZone) : null;
   return <SparklineCompareMetric title="Today" icon={TrendingUp}
-    primary={{ value: <span data-site-today-total data-estimated={estimate ? true : undefined} title={totalMeaning} aria-label={total === null ? "Daily active users today unavailable" : `${formatInt(total)} ${estimate ? "estimated" : "daily"} active users today so far`}>{total === null ? <span aria-label="Unavailable">—</span> : formatInt(total)}</span>, unit: <>{estimate ? "estimated users" : "reported users"}{estimate && nowMs - Date.parse(estimate.through) > 3 * 60_000 ? <AgeBadge iso={estimate.through} cadenceHours={1 / 60} nowMs={nowMs} /> : null}</> }}
-    referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`Reported full-day active users on ${daily.referenceDate}`}>{formatInt(daily.reference)}</span> }}
+    primary={{ value: <span data-site-today-total data-estimated={estimated ? true : undefined} title={totalMeaning} aria-label={total === null ? "Daily active users today unavailable" : `${formatInt(total)} ${estimated ? "estimated" : "daily"} active users today so far`}>{total === null ? <span aria-label="Unavailable">—</span> : formatInt(total)}</span>, unit: <>{estimated ? "estimated users" : "reported users"}{estimate && nowMs - Date.parse(estimate.through) > 3 * 60_000 ? <AgeBadge iso={estimate.through} cadenceHours={1 / 60} nowMs={nowMs} /> : null}</> }}
+    referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`${daily.referenceEstimated ? 'Estimated' : 'Reported'} full-day active users on ${daily.referenceDate}, ${daily.timeZone}`}>{formatInt(daily.reference)}</span> }}
     secondary={
     <span data-site-today>
       {retained ? <ActivityPace day={retained} nowMs={nowMs} /> : pace ? <PaceFigure pace={pace} /> : <span className="wall-metric-note">Comparison unavailable</span>}
@@ -207,7 +208,7 @@ function ActivityPace({ day, nowMs }: { day: Ga4RealtimeDay; nowMs: number }) {
   const activity = useMemo(() => realtimeActivity(day, minute * 60_000), [day, minute]);
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, weekday: "short" }).format(new Date(nowMs));
   const through = activity.through ? new Intl.DateTimeFormat("en-US", { timeZone: day.timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(activity.through)) : null;
-  const meaning = `Provisional activity today so far vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Includes earlier hours; the chart shows each hour separately. Per-minute active users, not distinct hourly or daily users. Unreported minutes are excluded; GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
+  const meaning = `Provisional activity today so far vs last ${weekday}, across ${activity.comparedMinutes} matching minutes${through ? `, to ${through}` : ""}. Includes earlier hours; the chart shows each hour separately. Per-minute active users, not distinct hourly or daily users. Unreported current minutes are excluded; ${activity.estimatedComparisonMinutes} comparison minutes use average activity. GA4 processing can revise recent data.${day.comparisonError ? " The historical comparison refresh is unavailable." : ""}`;
   return activity.change !== null ? (
     <span className="inline-flex flex-col items-end" title={meaning}>
       <DeltaChip value={activity.change} render={value => `${Math.round(value)}%`} tone={wallTrafficTone(activity.change)} meaning={meaning} />

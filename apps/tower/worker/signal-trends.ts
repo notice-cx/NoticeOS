@@ -8,6 +8,7 @@
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { signalEvidenceFloor } from "./integration-evidence";
 import type { SignalTrend, SignalTrendSet, TimeZoneChangePoint } from "../shared/wall";
+import { reportingCalendarTrend } from '../shared/reporting-calendar';
 
 /** Compact asset cards keep four complete weeks legible at every viewport.
  * This is the drawn window. */
@@ -41,6 +42,8 @@ function toNum(v: unknown): number | null {
  * `includeSecondarySeries`: the GA4 volume metrics and the two Search Console
  * rate metrics, which only the asset page's supporting row reads. */
 export interface SignalTrendOptions {
+  /** The operator-selected calendar used by displayed daily metrics. */
+  timeZone?: string;
   includeWebSearch?: boolean;
   includeSecondarySeries?: boolean;
   includeSessions?: boolean;
@@ -260,6 +263,7 @@ export async function loadSignalTrends(
     asset,
     assets,
     nowMs = Date.now(),
+    timeZone,
   }: SignalTrendOptions = {},
 ): Promise<Map<string, SignalTrendSet>> {
   // The assets the read is narrowed to, or null for the whole portfolio.
@@ -331,6 +335,9 @@ export async function loadSignalTrends(
       trend.timeZoneChanges = first
         ? changes.filter((change) => change.effectiveOn > first)
         : [];
+      Object.assign(trend, reportingCalendarTrend(trend, timeZone ?? trend.timeZone,
+        trend === entry.searchCtr || trend === entry.searchPosition ? 'average' : 'total'));
+      if (timeZone && trend.timeZone === timeZone) trend.calendarAdjusted = true;
       const bounded = trend.series.slice(-historyDays);
       const visibleStart = Math.max(0, bounded.length - boundedChartDays);
       trend.contextSeries = bounded.slice(

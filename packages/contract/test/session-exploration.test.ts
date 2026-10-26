@@ -50,9 +50,26 @@ describe('stored session history', () => {
     expect(s.weekly).toHaveLength(8);expect(s.weekly.every(p=>p.quality==='complete')).toBe(true);
     expect(explorationFacts(s.current7).explorationRate).toBeNull();
   });
-  it.each([{definitionId:'sections-v2'},{timeZone:'Etc/GMT+1'},{sessionTimeoutMinutes:60}])('withholds mixed measurement definitions %j', change => {
+  it.each([{definitionId:'sections-v2'},{sessionTimeoutMinutes:60}])('withholds mixed measurement definitions %j', change => {
     const s=buildSessionExplorationSnapshot('explore',[receipt(report('2026-10-24')),receipt({...report(),...change})],now);
     expect(s.current7.quality).toBe('unavailable'); expect(s.current7.sessions).toBeNull();
+  });
+  it('keeps the same session definition usable across a reporting timezone change', () => {
+    const s=buildSessionExplorationSnapshot('explore',[receipt(report('2026-10-24')),receipt({...report(),timeZone:'Etc/GMT+1'})],now);
+    expect(s.current7.sessions).toBeGreaterThan(0);
+    expect(s.current7.quality).toBe('partial');
+  });
+  it('fills a missing transition day and displays session paths on the selected timezone', () => {
+    const receipts=Array.from({length:14},(_,i) => {
+      const date=explorationDateOffset('2026-10-12',i);
+      return receipt({...report(date),timeZone:i < 7 ? 'America/New_York' : 'America/Los_Angeles'});
+    }).filter((_,i)=>i!==6);
+    const s=buildSessionExplorationSnapshot('explore',receipts,now,'America/Los_Angeles');
+    expect(s.current7.timeZone).toBe('America/Los_Angeles');
+    expect(s.prior7.estimatedDays).toBeGreaterThan(0);
+    expect(s.prior7.coveredDays).toBe(7);
+    expect(s.prior7.paths.reduce((sum,path)=>sum+path.sessions,0)).toBeLessThanOrEqual(s.prior7.sessions!);
+    expect(s.current7.timeZone).toBe(s.prior7.timeZone);
   });
   it('never converts unknown prefixes or truncated paths into exits', () => {
     const r={...report(),paths:[{surfaces:['guides'],sessions:100,ending:'continued' as const}]};
@@ -63,6 +80,7 @@ describe('stored session history', () => {
     const receipts=Array.from({length:56},(_,i)=>receipt({...report(explorationDateOffset('2026-08-31',i)),paths:[{surfaces:['guides','recipes'],sessions:100,ending:'exit'}]}));
     const s=buildSessionExplorationSnapshot('explore',receipts,now);
     expect(explorationComparison(s.current28,s.prior28)).toBe(0);
+    expect(explorationComparison(s.current28,{...s.prior28,timeZone:'Etc/GMT+1'})).toBe(0);
     expect(explorationComparison(s.current28,{...s.prior28,definitionId:'other'})).toBeNull();
     expect(explorationComparison(s.current28,{...s.prior28,quality:'partial'})).toBeNull();
     expect(explorationComparison(s.current7,s.prior28)).toBeNull();

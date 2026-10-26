@@ -89,7 +89,6 @@ export async function collectComparison(property: string, accessToken: string, f
     minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(day.date, -1), 'today'),
     minuteReport(property, accessToken, fetchImpl, nowMs, shiftCalendarDate(priorDate, -1), shiftCalendarDate(priorDate, 1)),
   ]);
-  if (current.zone !== lastWeek.zone) throw refused('malformed_time_zone');
   const propertyZone = current.zone;
   const start = Date.parse(day.startAt), priorStart = zonedHourStartMs(priorDate, 0, zone);
   const priorEnd = zonedHourStartMs(shiftCalendarDate(priorDate, 1), 0, zone);
@@ -99,7 +98,7 @@ export async function collectComparison(property: string, accessToken: string, f
   const clocks = new Map<string, Intl.DateTimeFormat>();
   const hours = new Map<string, number>();
   /** A row's instant, count and any other instant its local clock repeats at. */
-  const placed = (rawRow: unknown, seen: Set<string>) => {
+  const placed = (rawRow: unknown, seen: Set<string>, providerZone: string) => {
     const row = asRecord(rawRow), dims = arrayField(row, 'dimensionValues'), metrics = arrayField(row, 'metricValues');
     const stamp = stringField(asRecord(dims[0]), 'value'), count = stringField(asRecord(metrics[0]), 'value');
     if (dims.length !== 1 || metrics.length !== 1) throw refused('malformed_row');
@@ -110,7 +109,7 @@ export async function collectComparison(property: string, accessToken: string, f
     const date = `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}`;
     const hour = Number(stamp.slice(8, 10)), minute = Number(stamp.slice(10));
     if (hour > 23 || minute > 59) throw refused('malformed_minute');
-    const reportZone = reportingTimeZoneOn(changes, date, propertyZone, providerToday);
+    const reportZone = reportingTimeZoneOn(changes, date, providerZone, providerToday);
     const hourKey = `${reportZone}:${date}:${hour}`;
     let hourStart = hours.get(hourKey);
     if (hourStart === undefined) {
@@ -131,7 +130,7 @@ export async function collectComparison(property: string, accessToken: string, f
   };
   const seenToday = new Set<string>();
   for (const row of current.rows) {
-    const { at, count, repeated } = placed(row, seenToday);
+    const { at, count, repeated } = placed(row, seenToday, current.zone);
     const index = (at - start) / MINUTE;
     if (index < 0 || index >= day.minutes.length) continue;
     today.set(index, count);
@@ -142,7 +141,7 @@ export async function collectComparison(property: string, accessToken: string, f
   }
   const seenLastWeek = new Set<string>();
   for (const row of lastWeek.rows) {
-    const { at, count } = placed(row, seenLastWeek);
+    const { at, count } = placed(row, seenLastWeek, lastWeek.zone);
     const previous = (at - priorStart) / MINUTE;
     if (previous >= 0 && previous < prior.length) prior[previous] = count;
   }

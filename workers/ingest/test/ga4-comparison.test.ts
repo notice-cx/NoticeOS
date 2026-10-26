@@ -93,10 +93,12 @@ describe('GA4 activity comparison backfill', () => {
       .rejects.toMatchObject({ code: `ga4_comparison_${check}` });
   });
 
-  it('refuses ranges that report different property clocks', async () => {
+  it('converts each range using its reported property clock after a timezone change', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => Response.json(answer([], {
       timeZone: JSON.parse(String(init?.body)).dateRanges[0].endDate === 'today' ? 'UTC' : 'America/Los_Angeles' })));
-    await expect(collectComparison('123456', 'synthetic', fetchImpl, NOW, 'UTC')).rejects.toMatchObject({ code: 'ga4_comparison_malformed_time_zone' });
+    const result = await collectComparison('123456', 'synthetic', fetchImpl, NOW, 'UTC');
+    expect(result.day.timeZone).toBe('UTC');
+    expect(result.day.sameDayLastWeek).toHaveLength(1440);
   });
 
   it('logs the refusal code with the attempt it stored', async () => {

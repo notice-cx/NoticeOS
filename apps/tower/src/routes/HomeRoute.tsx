@@ -167,7 +167,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const draw: Record<HomeModuleId, () => ReactNode> = {
     money: () => money || !visitorsInOverview ? (
       <div className={cn("@3xl:col-span-2", stacks ? "@6xl:col-span-8" : "@6xl:col-span-12")} data-surface-hero="">
-        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs)} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
+        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs, data.osTimeZone)} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
       </div>
     ) : null,
     yesterday: () => (

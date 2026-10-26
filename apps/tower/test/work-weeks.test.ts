@@ -200,13 +200,13 @@ describe("workWeeks: the states from the daily history", () => {
 });
 
 describe("sumWorkWeeks", () => {
-  it("sums complete cumulative evidence and rejects mismatched weeks or clocks", () => {
+  it("sums matching calendar weeks across timezone metadata and rejects mismatched weeks", () => {
     const one = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");
     expect(one.done.history).toEqual([{ t: "2026-10-12", v: 1 }, { t: "2026-10-13", v: 3 }, { t: "2026-10-14", v: 5 }]);
     expect(sumWorkWeeks([one, one])?.done.history?.map(point => point.v)).toEqual([2, 6, 10]);
     expect(sumWorkWeeks([one, undefined])?.done.history).toBeUndefined();
     expect(sumWorkWeeks([one, { ...one, weekStart: "2026-10-05" }])?.done.now).toBeNull();
-    expect(sumWorkWeeks([one, { ...one, timeZone: "UTC" }])?.done.now).toBeNull();
+    expect(sumWorkWeeks([one, { ...one, timeZone: "UTC" }])?.done.now).toBe(10);
     const partial = { ...one, done: { ...one.done, history: undefined } };
     expect(sumWorkWeeks([one, partial])?.done.history).toBeUndefined();
     expect(sumWorkWeeks([one, partial])?.done.now).toBe(10);
