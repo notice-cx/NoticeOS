@@ -2,6 +2,7 @@
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from './wall-layout.mjs';
 import { generateDemoScenario, demoScenarioHash, demoProperties, demoRecurringCost, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { deepEqual } from './config-documents.mjs';
+import { demoJourneyDefinitions } from './demo-journeys.mjs';
 import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -37,11 +38,6 @@ export function generateDemoDisplay(scenario: DemoScenario) {
   const siteWidget = wallLayoutWidgets(layout).find(widget => widget.type === 'sites');
   if (!siteWidget) throw new Error('The released Wall has no asset region.');
   siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event!]])) };
-  // The live feed takes the work tile's place, so a visitor sees the
-  // simulator's agents claim and close tasks; the loop above keeps the counts.
-  const workWidget = wallLayoutWidgets(layout).find(widget => widget.type === 'work');
-  if (!workWidget) throw new Error('The released Wall has no work region.');
-  Object.assign(workWidget, { id: 'feed', type: 'feed' });
   const labels: Record<string, string> = {
     brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks', recipe_saves: 'Recipe saves', route_downloads: 'Route downloads',
   };
@@ -58,6 +54,9 @@ export function generateDemoDisplay(scenario: DemoScenario) {
       }])),
     },
     'config/recurring-costs.json': { costs: demoRecurringCosts(scenario) },
+    'config/value-events.json': {
+      assets: Object.fromEntries(sites.map(asset => [asset.id, { journeys: demoJourneyDefinitions(asset) }])),
+    },
   };
 }
 

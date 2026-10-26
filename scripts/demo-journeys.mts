@@ -1,0 +1,78 @@
+// Synthetic ordered-user aggregates, independent of the nightly event totals.
+import { journeyDefinitionId, type JourneyDefinition, type JourneyPeriod, type JourneySnapshot } from '../packages/contract/src/journeys.mjs';
+import { demoProperties, shiftDemoDay, type DemoSite } from './demo-scenario.mjs';
+
+interface JourneyShape {
+  label: string;
+  goal: string;
+  steps: readonly (readonly [id: string, label: string, eventName: string, pagePath?: string])[];
+  continuation: readonly number[];
+  /** A continuing synthetic conversion change, in percentage points a week. */
+  weeklyChange: number;
+}
+const SHAPES: Readonly<Record<string, JourneyShape>> = {
+  lb: { label: 'First brief export', goal: 'Export a first brief',
+    steps: [['visit', 'Visited', 'page_view', '/'], ['signup', 'Signed up', 'sign_up'], ['created', 'Created a brief', 'brief_created'], ['export', 'Exported it', 'brief_exports']],
+    continuation: [0.24, 0.72, 0.68], weeklyChange: 0.006 },
+  pw: { label: 'Save a source', goal: 'Save a source to a collection',
+    steps: [['library', 'Opened library', 'page_view', '/library'], ['source', 'Opened a source', 'source_opened'], ['save', 'Saved it', 'source_saves'], ['collection', 'Added to collection', 'collection_added']],
+    continuation: [0.7, 0.26, 0.82], weeklyChange: -0.012 },
+  wp: { label: 'Recipe to sign-up', goal: 'Sign up after saving a recipe',
+    steps: [['visit', 'Visited', 'page_view'], ['recipe', 'Opened a recipe', 'recipe_opened'], ['save', 'Saved it', 'recipe_saves'], ['signup', 'Signed up', 'sign_up']],
+    continuation: [0.58, 0.12, 0.24], weeklyChange: 0.004 },
+  tn: { label: 'Download a route', goal: 'Download a trail route',
+    steps: [['trails', 'Browsed trails', 'page_view', '/trails'], ['route', 'Opened a route', 'route_opened'], ['download', 'Downloaded it', 'route_downloads']],
+    continuation: [0.52, 0.32], weeklyChange: -0.007 },
+  fr: { label: 'First file check', goal: 'Complete a first file check',
+    steps: [['check', 'Opened checker', 'page_view', '/check'], ['upload', 'Uploaded a file', 'file_uploaded'], ['complete', 'Completed check', 'completed_checks']],
+    continuation: [0.64, 0.78], weeklyChange: 0.008 },
+};
+
+export function demoJourneyDefinitions(asset: Pick<DemoSite, 'prefix'>): JourneyDefinition[] {
+  const shape = SHAPES[asset.prefix];
+  if (!shape) return [];
+  return [{ id: `${asset.prefix}-activation`, label: shape.label, kind: 'funnel', status: 'active', goal: shape.goal, version: 1,
+    steps: shape.steps.map(([id, label, eventName, pagePath], index) => ({ id, label,
+      alternatives: [{ eventName, ...(pagePath ? { pagePath } : {}) }], ...(index ? { withinSeconds: 86400 } : {}) })),
+  }];
+}
+
+/** Each period models repeat visitors explicitly; daily unique users are never
+ * summed and presented as a measured period's unique users. These invented
+ * aggregates represent a separate synthetic GA4 funnel response. */
+export function demoJourneySnapshot(asset: DemoSite, at: string, referenceDate: string,
+  sessionsOn: (date: string) => number): JourneySnapshot {
+  const definitions = demoJourneyDefinitions(asset);
+  const shape = SHAPES[asset.prefix]!;
+  const definition = definitions[0]!;
+  const end = shiftDemoDay(at.slice(0, 10), -2);
+  const period = (kind: JourneyPeriod['kind'], endDate: string, days: number): JourneyPeriod | null => {
+    const startDate = shiftDemoDay(endDate, 1 - days);
+    if (startDate < asset.createdAt.slice(0, 10)) return null;
+    let sessions = 0;
+    for (let date = startDate; date <= endDate; date = shiftDemoDay(date, 1)) sessions += sessionsOn(date);
+    const visitors = Math.round(sessions * (days === 28 ? 0.48 : 0.64));
+    const weeks = (Date.parse(endDate) - Date.parse(referenceDate)) / (7 * 86400000);
+    // A bounded wave preserves differing weekly rates throughout the demo's life.
+    const movement = shape.weeklyChange * 5 * Math.sin(weeks / 5);
+    let reached = Math.round(visitors * 0.76);
+    const steps = definition.steps.map((step, index) => {
+      if (index) reached = Math.round(reached * Math.max(0.02, Math.min(0.96,
+        shape.continuation[index - 1]! + (index === 2 ? movement : movement / 3))));
+      return { id: step.id, users: reached };
+    });
+    return { kind, startDate, endDate, complete: true, quality: 'complete', steps,
+      visitors: { users: visitors, quality: 'complete' } };
+  };
+  // Last completed Monday–Sunday week whose end is no later than the settled cutoff.
+  const sunday = shiftDemoDay(end, -new Date(`${end}T00:00:00Z`).getUTCDay());
+  const weekly = Array.from({ length: 12 }, (_, index) => period('week', shiftDemoDay(sunday, (index - 11) * 7), 7))
+    .filter((week): week is JourneyPeriod => week !== null);
+  const current7 = period('current7', end, 7), current28 = period('current28', end, 28);
+  return { source: 'ga4', countingUnit: 'activeUsers', generatedAt: at, definitions,
+    funnels: [{ journeyId: definition.id, definitionId: journeyDefinitionId(definition), propertyId: demoProperties(asset).ga4,
+      timeZone: 'UTC', identity: 'ga4-active-users', collectedAt: at, current7,
+      prior7: current7 ? period('prior7', shiftDemoDay(current7.startDate, -1), 7) : null,
+      current28, prior28: current28 ? period('prior28', shiftDemoDay(current28.startDate, -1), 28) : null, weekly }],
+    exploration: { state: 'unsupported', reason: 'Synthetic ordered funnels; no analytics provider was called. Session paths are not collected.' } };
+}

@@ -68,6 +68,13 @@ export declare function generateDemoDisplay(scenario: DemoScenario): {
             from: string;
         }[];
     };
+    'config/value-events.json': {
+        assets: {
+            [k: string]: {
+                journeys: import("@noticeos/contract").JourneyDefinition[];
+            };
+        };
+    };
 };
 /** The sources the scenario actually collects, declared live from each
  * site's first day and mapped to the properties its runs name: GA4 and
@@ -134,6 +141,13 @@ export declare function seedDemoDisplay({ home, installation, scenario, capabili
                 amountUsdPerMonth: number;
                 from: string;
             }[];
+        };
+        'config/value-events.json': {
+            assets: {
+                [k: string]: {
+                    journeys: import("@noticeos/contract").JourneyDefinition[];
+                };
+            };
         };
     };
 }>;
