@@ -930,6 +930,23 @@ test('lint advises a person\'s task whose description offers lettered options as
   assert.deepEqual(settled.lint, { missing: [] });
 });
 
+test('decision lint uses stored choices as alternatives and requests the outcome only after a choice', async () => {
+  const f = fixture();
+  const choices = { question: 'Which local layout?', options: [
+    { key: 'a', label: 'Compact', recommended: true }, { key: 'b', label: 'Wide' }] };
+  const made = await call(f, 'create_task', { workspace: A, project: P, title: 'Choose a layout', type: 'decision', labels: ['human'],
+    description: 'ASK: Pick a layout.\nWHAT: Choose the local layout.\nWHY: Keep the summary visible.\nWHERE: src/layout.ts', choices,
+    idempotency_key: 'decision-lint-before-choice' });
+  assert.deepEqual(made.structuredContent.lint.missing, []);
+  f.tasks.get(made.structuredContent.id).metadata.noticeos_choice = { option: 'a', label: 'Compact', by: PERSON, at: '2026-10-07T12:00:00Z' };
+  const updated = await call(f, 'update_task', { workspace: A, project: P, task: made.structuredContent.id,
+    priority: 1, idempotency_key: 'decision-lint-after-choice' });
+  assert.deepEqual(updated.structuredContent.lint.missing, ['## Decision', '## Rationale']);
+  const complete = await call(f, 'update_task', { workspace: A, project: P, task: made.structuredContent.id,
+    description: '## Decision\nCompact.\n## Rationale\nKeeps the summary visible.', idempotency_key: 'decision-lint-outcome-written' });
+  assert.deepEqual(complete.structuredContent.lint.missing, []);
+});
+
 test('an agent names its model on claim and close; the task shows who closed it with that model', async () => {
   const f = fixture();
   await call(f, 'create_task', { workspace: A, project: P, title: 'Fix the export button', idempotency_key: 'agent-create-0101' });

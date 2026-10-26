@@ -11,6 +11,7 @@ import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES, type TaskReceipt, type Task
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
+import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
 import { hostedTaskAction, HumanDecisionRefused, readRelatedTasks, recordedTaskCard, refusalFromState, shippedTaskCard, taskProposal, TaskMaintenanceRefused, TaskStateRefused,
   type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type RelatedTaskRef, type TaskProjectName } from './hosted-task-command.mjs';
@@ -445,6 +446,16 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
           if (typeof row.id !== 'string' || !missing.has(row.id)) continue;
           if (seen.has(row.id) || !Array.isArray(row.missing) || row.missing.some(item => typeof item !== 'string')) invalid();
           seen.add(row.id); missing.set(row.id, Object.freeze([...row.missing] as string[]));
+        }
+        const tasks = rows(await run({ kind: 'find', taskIds })).map(record);
+        for (const task of tasks) {
+          if (task.issue_type !== 'decision' || readTaskChoices(task.metadata) === null || typeof task.id !== 'string') continue;
+          const outcome = /^(?:##\s*)?(?:Decision|Rationale|Alternatives Considered)$/iu;
+          const sections = (missing.get(task.id) ?? []).filter(section => !outcome.test(section));
+          if (readTaskChoice(task.metadata) !== null) for (const section of ['Decision', 'Rationale']) {
+            if (!new RegExp(`^#{1,6}\\s+${section}\\s*#*\\s*$`, 'imu').test(String(task.description ?? ''))) sections.push(`## ${section}`);
+          }
+          missing.set(task.id, Object.freeze(sections));
         }
         return missing;
       });

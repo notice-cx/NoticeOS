@@ -107,6 +107,7 @@ export function fakeTaskExecutor({ principal, clock }) {
         }
         if (operation.card?.kill) task.due_at = `${operation.card.kill.date}T00:00:00Z`;
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
+        if (operation.description !== undefined) task.description = operation.description;
         if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
         if (operation.addLabels) task.labels = [...new Set([...(task.labels ?? []), ...operation.addLabels])];
         if (operation.removeLabels) task.labels = (task.labels ?? []).filter(label => !operation.removeLabels.includes(label));
