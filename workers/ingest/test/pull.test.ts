@@ -51,6 +51,8 @@ describe('supplemental session reports', () => {
     expect(first).toMatchObject({ failed: 1 });
     expect(second.outcomes[0]).toMatchObject({ ok: false, resolved: 0 });
     expect(await openPullFailures('meadow.example')).toBe(1);
+    const failed = await pullFailureFlag('meadow.example');
+    expect(JSON.parse(failed!.rule_inputs)).toMatchObject({ url: reportUrl, status: failure === 'unavailable' ? 503 : 200 });
     expect((await storedEnvelope('meadow.example'))?.metrics.signups?.last24h).toBe(7);
     const recovered = await runPullAdapter(env, { entries: [entry()], nowMs: NOW, fetchImpl: stubFetch({
       [MEADOW_URL]: () => new Response(meadowBody(7)), [reportUrl]: () => Response.json(body),

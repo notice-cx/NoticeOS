@@ -15,6 +15,7 @@
 //               pnpm signals:refresh -- --asset example.com
 // Run by the runner: scripts/runner/config.mjs CONFIG.panelRefreshCron.
 
+import { applyProductDataAvailability, productDataRows } from './product-data-pack.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -339,6 +340,7 @@ export function freshnessReport(input) {
       keepNewer(newestUncollected, `${row.integration}/${row.report}`, row.reportDate);
       continue;
     }
+    if (row.integration === 'product-data' && row.report === 'metrics-collection') continue;
     keepNewer(newest, row.integration, row.reportDate);
     if (!newestReports.has(row.integration)) newestReports.set(row.integration, new Map());
     keepNewer(newestReports.get(row.integration), reportFamily(row.integration, row.report), row.reportDate);
@@ -414,6 +416,36 @@ export function freshnessReport(input) {
     collection: { readAt: collection?.readAt ?? null, available: collection?.available === true },
     families,
   };
+}
+
+/** Availability is read from the newest local product document, without contacting its asset. */
+export async function localProductDataAvailability(downloadsRoot, asset, manifest, report = 'metrics-availability') {
+  const matching = manifest.filter(row => row.integration === 'product-data' && row.report === report);
+  const stamp = row => /\/(\d{8}T\d{9}Z)-[a-f0-9]{16}\.json\.gz$/.exec(row.objectKey ?? '')?.[1] ?? null;
+  const legacy = matching.filter(row => stamp(row) === null);
+  if (legacy.length > 128) throw new Error('Product availability archives lack collection ordering; refresh their manifest before reading more than 128 legacy reports');
+  const latestKeyed = matching.filter(row => stamp(row) !== null).sort((a, b) => stamp(b).localeCompare(stamp(a)))[0];
+  const candidates = latestKeyed ? [...legacy, latestKeyed] : legacy;
+  let newest = null;
+  for (const candidate of candidates) {
+    const handle = await fs.open(archivePath(downloadsRoot, asset, candidate), 'r');
+    try {
+      const bytes = Buffer.alloc(16 * 1024 + 1);
+      let length = 0;
+      while (length < bytes.length) {
+        const chunk = await handle.read(bytes, length, bytes.length - length, null);
+        if (!chunk.bytesRead) break;
+        length += chunk.bytesRead;
+      }
+      if (length === bytes.length) throw new Error('Product availability archive exceeds its limit');
+      const archive = parseArchive(bytes.subarray(0, length).toString('utf8'), { asset, source: 'product availability' });
+      if (archive.integration !== 'product-data' || archive.report !== report || archive.reportDate !== candidate.reportDate || !Number.isFinite(Date.parse(archive.collectedAt))) throw new Error('Product availability archive identity differs');
+      if (!newest || Date.parse(archive.collectedAt) > Date.parse(newest.collectedAt)) newest = archive;
+    } finally {
+      await handle.close();
+    }
+  }
+  return newest ? productDataRows(newest).map(row => ({ ...row, collected_at: newest.collectedAt })) : [];
 }
 
 /** Bounded local evidence only; unavailable archives remain unknown. */
@@ -595,6 +627,8 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     refreshedAt,
     collection,
   });
+  applyProductDataAvailability(freshness, await localProductDataAvailability(options.downloadsRoot, asset, merged),
+    (await localProductDataAvailability(options.downloadsRoot, asset, merged, 'metrics-collection'))[0] ?? null);
   freshness.stability = await localStabilityReport(options.downloadsRoot, asset, merged);
   const history = await writeHistory({ asset, input: downloadsDir, output: historyDir });
   const analysisStartedAt = now();

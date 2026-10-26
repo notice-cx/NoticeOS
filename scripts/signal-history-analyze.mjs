@@ -65,6 +65,7 @@
 // (`readValueEvents`, `market`) reads nothing but the history folder, which is
 // how every test runs it. The supervisor runs the refresh in a separate child process.
 //
+import { productDataColumns } from './product-data-pack.mjs';
 import { fork } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -271,7 +272,8 @@ export async function writeReport({
   const datasets = [];
   const place = (name) => path.relative(REPO_ROOT, path.join(output, name));
   for (const [name, rows] of [...families.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    const emptyHeaders = name.startsWith('posthog-') ? posthogColumns(name.slice('posthog-'.length)) : null;
+    const emptyHeaders = name.startsWith('posthog-') ? posthogColumns(name.slice('posthog-'.length))
+      : name.startsWith('product-data-') ? productDataColumns(name.slice('product-data-'.length)) : null;
     await write(`${name}.csv`, toCsv(rows, emptyHeaders));
     datasets.push({ name, rows: rows.length, file: place(`${name}.csv`) });
   }

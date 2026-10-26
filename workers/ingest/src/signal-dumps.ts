@@ -369,13 +369,14 @@ interface SignalDumpEnvelope {
   providerQuota?: Ga4PropertyQuota | null;
 }
 
-export type DumpProvider = 'google' | 'microsoft' | 'dataforseo' | 'posthog';
+export type DumpProvider = 'asset' | 'google' | 'microsoft' | 'dataforseo' | 'posthog';
 export type DumpIntegration =
   | GoogleIntegrationId
   | 'bing-webmaster'
   | 'dataforseo'
   | 'clarity'
-  | 'posthog';
+  | 'posthog'
+  | 'product-data';
 export type DumpDataState =
   | 'provider-final'
   | 'revision-window'
@@ -1319,6 +1320,7 @@ async function storeCollectedDump(
 }
 
 function providerName(provider: DumpProvider): string {
+  if (provider === 'asset') return 'Product data';
   if (provider === 'google') return 'Google';
   // Bing Webmaster and Clarity share this provider; the report name carries the rest.
   if (provider === 'microsoft') return 'Microsoft';

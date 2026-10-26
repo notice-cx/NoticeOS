@@ -9,6 +9,7 @@
 // static bearer token from env.ASSET_TOKENS, the same entry the push lane
 // checks inbound pulses against.
 
+import { collectProductData } from './product-data.js';
 import { PulseEnvelope, type Metric } from '@noticeos/contract';
 import { ingestPulseEnvelope, pulseDay, type WritePulseResult } from './db.js';
 import { EgressGate, type EgressRunOutcome } from './egress.js';
@@ -35,7 +36,7 @@ interface PullAssetBase {
 
 export interface SupplementalPullConfig {
   url: string;
-  format: 'envelope';
+  format: 'envelope' | 'product-data';
   enabled: boolean;
 }
 
@@ -476,6 +477,8 @@ async function pullOne(
 ): Promise<PullAssetOutcome> {
   const at = iso(nowMs);
   let status: number | null = null;
+  let failureUrl = entry.url;
+  let primaryResponded = false;
   // Whether a request was put on the wire. A missing token also leaves
   // `status` null, and that failure is configuration, not connectivity: it
   // must still flag while the house internet is out.
@@ -488,6 +491,7 @@ async function pullOne(
     attempted = true;
     const res = await fetchScrape(fetchImpl, entry.url, token, accept);
     status = res.status;
+    primaryResponded = true;
 
     // Obtain the contract-envelope body per wire format; the shared path below
     // is identical for both (validate → upsert → flags → central rules).
@@ -501,22 +505,28 @@ async function pullOne(
 
     // One daily revision keeps metrics and session paths together. A failed
     // supplemental endpoint must neither discard fresh metrics nor resolve its alert.
-    let supplementalFailure: Error | undefined;
+    let supplementalFailure: { error: Error; url: string; status: number | null } | undefined;
     if (entry.additionalEndpoints?.some(endpoint => endpoint.enabled)) {
       const primary = PulseEnvelope.safeParse(body);
       if (!primary.success) throw new Error(`pulled envelope failed contract validation (${summarizeParseError(primary.error)})`);
       let merged = primary.data;
       for (const endpoint of entry.additionalEndpoints.filter(endpoint => endpoint.enabled)) {
+        let supplementalStatus: number | null = null;
         try {
+          if (endpoint.format === 'product-data') {
+            await collectProductData(env, entry.asset, endpoint.url, token, fetchImpl, nowMs);
+            continue;
+          }
           const response = await fetchScrape(fetchImpl, endpoint.url, token, 'application/json');
-          const raw = await envelopeFromResponse({ ...endpoint, asset: entry.asset }, response);
+          supplementalStatus = response.status;
+          const raw = await envelopeFromResponse({ ...endpoint, format: 'envelope', asset: entry.asset }, response);
           const supplemental = PulseEnvelope.safeParse(raw);
           if (!supplemental.success) throw new Error(`supplemental envelope failed contract validation (${summarizeParseError(supplemental.error)})`);
           if (pulseDay(supplemental.data.generatedAt) !== pulseDay(merged.generatedAt)) throw new Error('supplemental envelope must use the primary report day');
           if (Object.keys(supplemental.data.metrics).some(name => Object.hasOwn(merged.metrics, name))) throw new Error('supplemental envelope repeats a primary metric');
           const combined = PulseEnvelope.safeParse({
             ...merged,
-            generatedAt: merged.generatedAt > supplemental.data.generatedAt ? merged.generatedAt : supplemental.data.generatedAt,
+            generatedAt: Date.parse(merged.generatedAt) > Date.parse(supplemental.data.generatedAt) ? merged.generatedAt : supplemental.data.generatedAt,
             capabilities: [...new Set([...merged.capabilities, ...supplemental.data.capabilities])],
             metrics: { ...merged.metrics, ...supplemental.data.metrics },
             flags: [...(merged.flags ?? []), ...(supplemental.data.flags ?? [])],
@@ -526,7 +536,7 @@ async function pullOne(
           if (!combined.success) throw new Error(`combined envelope failed contract validation (${summarizeParseError(combined.error)})`);
           merged = combined.data;
         } catch (error) {
-          supplementalFailure ??= new Error(`supplemental endpoint ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`);
+          supplementalFailure ??= { error: error instanceof Error ? error : new Error(String(error)), url: endpoint.url, status: supplementalStatus };
         }
       }
       body = merged;
@@ -538,7 +548,11 @@ async function pullOne(
       throw new Error(`${label} failed contract validation (${summarizeParseError(outcome.error)})`);
     }
 
-    if (supplementalFailure) throw supplementalFailure;
+    if (supplementalFailure) {
+      status = supplementalFailure.status;
+      failureUrl = supplementalFailure.url;
+      throw supplementalFailure.error;
+    }
 
     const resolved = await resolvePullFailure(env, entry.asset, at);
     return { asset: entry.asset, ok: true, status, fired: 0, refreshed: 0, resolved, result: outcome.result };
@@ -548,7 +562,7 @@ async function pullOne(
     // A pull that came back with no status is the one failure that may not be
     // the property's. Any status the endpoint returned proves the request got
     // there, and is never gated.
-    if (status === null && attempted && (await gate.isDown())) {
+    if (status === null && attempted && !primaryResponded && (await gate.isDown())) {
       gate.recordUnmeasured(entry.asset);
       return {
         asset: entry.asset,
@@ -564,7 +578,7 @@ async function pullOne(
     const { fired, refreshed, evidence } = await firePullFailure(
       env,
       entry.asset,
-      entry.url,
+      failureUrl,
       status,
       error,
       provider,
