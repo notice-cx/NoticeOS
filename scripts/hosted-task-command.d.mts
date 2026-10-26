@@ -62,10 +62,21 @@ export interface HostedTaskLink {
     readonly type: 'blocked-by' | 'blocks' | 'related' | 'discovered-from';
     readonly taskId: string;
 }
+export interface RelatedTaskRef {
+    readonly projectId: string;
+    readonly taskId: string;
+}
+export declare function readRelatedTasks(metadata: unknown): readonly RelatedTaskRef[];
 export type HostedTaskOperation = TaskMaintenance | {
     readonly kind: 'record-maintenance';
     readonly taskId: string;
     readonly value: Readonly<Record<string, unknown>>;
+}
+/** Server-composed, nonblocking references; merged under the project's mutation reservation. */
+ | {
+    readonly kind: 'relate';
+    readonly taskId: string;
+    readonly related: readonly RelatedTaskRef[];
 } | {
     readonly kind: 'list';
     readonly limit: number;
@@ -116,6 +127,8 @@ export type HostedTaskOperation = TaskMaintenance | {
     readonly acceptance?: string;
     readonly metadata?: Readonly<Record<string, string>>;
     readonly links?: readonly HostedTaskLink[];
+    /** Server-only, validated against the current workspace catalog. */
+    readonly related?: readonly RelatedTaskRef[];
     /** The options a person picks from, kept on the task (task-choices.mts). */
     readonly choices?: TaskChoices;
     /** Why the task is worth doing (task-card.mts). Its kill date is also the task's due date. */
@@ -132,6 +145,7 @@ export type HostedTaskOperation = TaskMaintenance | {
     readonly kind: 'update';
     readonly taskId: string;
     readonly status?: HostedTaskStatus;
+    readonly related?: readonly string[];
     readonly priority?: number;
     readonly title?: string;
     readonly description?: string;

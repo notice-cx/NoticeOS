@@ -553,7 +553,7 @@ const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK
     acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body, description: 'What proves it done.' },
     depends_on: TASK_IDS('Tasks this one waits on: it is not ready until they close.'),
     blocks: TASK_IDS('Tasks that wait on this one.'),
-    related: TASK_IDS('Tasks it relates to, without waiting on them.'),
+    related: TASK_IDS('Tasks it relates to, without waiting on them; may name another project in this workspace.'),
     discovered_from: TASK_IDS('Tasks whose work turned this one up.'),
     approval: { type: 'string', maxLength: GATE_REASON_MAX,
         description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' },
@@ -916,6 +916,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
             defer: { type: 'string', description: 'YYYY-MM-DD to hide it until then, or "" to clear.' },
             acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body },
             add_labels: { type: 'array', items: { type: 'string' } }, remove_labels: { type: 'array', items: { type: 'string' } },
+            related: TASK_IDS('Add nonblocking related tasks in this workspace, including other projects.'),
             choices: { ...CHOICES, type: ['object', 'null'],
                 description: 'A whole new set of choices, or null to take them off. Refused once a person has chosen.' },
             card: { ...CARD, type: ['object', 'null'],
@@ -926,7 +927,13 @@ export const TASK_MCP_TOOLS = Object.freeze([
         annotations: WRITE,
         async run(context, args) {
             only(args, ['project', 'task', 'status', 'priority', 'title', 'description', 'assignee', 'parent', 'defer',
-                'acceptance', 'add_labels', 'remove_labels', 'choices', 'card', 'change_class', 'idempotency_key']);
+                'acceptance', 'add_labels', 'remove_labels', 'choices', 'card', 'change_class', 'related', 'idempotency_key']);
+            let related;
+            if (args.related !== undefined) {
+                if (!Array.isArray(args.related) || !args.related.length || args.related.length > HOSTED_TASK_LIMITS.links)
+                    refuse('invalid arguments: related (1–32 task ids)');
+                related = args.related.map(id => task({ task: id }));
+            }
             const operation = defined({ kind: 'update', taskId: task(args),
                 status: choice(args, 'status', STATUSES.filter(status => status !== 'closed')), priority: priority(args),
                 title: textArg(args, 'title', HOSTED_TASK_LIMITS.title, false),
@@ -935,6 +942,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
                 parent: args.parent === undefined || args.parent === '' ? args.parent : task(args, 'parent'),
                 defer: deferArg(args), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
                 addLabels: labels(args, 'add_labels', 1), removeLabels: labels(args, 'remove_labels', 1),
+                related,
                 choices: args.choices === null ? null : choicesArg(args), card: args.card === null ? null : cardArg(args),
                 changeClass: args.change_class === null ? null : choice(args, 'change_class', TASK_CHANGE_CLASSES) });
             if (Object.keys(operation).length === 2)

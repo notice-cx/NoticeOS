@@ -143,6 +143,23 @@ function fixture({ admit = () => true, trustedSources = true } = {}) {
 }
 const inProject = args => ({ project: PROJECT, ...args });
 
+test('cross-project related links use each project’s guarded metadata write and merge existing links', async () => {
+  const f = fixture();
+  f.put('ex-work'); f.put('ex-other'); f.put('sh-one'); f.put('sh-two');
+  for (const remote of ['sh-one', 'sh-two']) {
+    const linked = await f.call('add_dependency', inProject({ task: 'ex-work', depends_on: remote, type: 'related' }));
+    assert.equal(linked.isError, undefined, JSON.stringify(linked));
+  }
+  const update = await f.call('update_task', inProject({ task: 'ex-other', related: ['sh-one'], idempotency_key: 'cross-update-related' }));
+  assert.equal(update.isError, undefined, JSON.stringify(update));
+  const local = (await f.call('get_task', inProject({ task: 'ex-work' }))).structuredContent.task;
+  assert.equal(local.dependencies.length, 2); assert.equal(local.ready, true);
+  const remote = (await f.call('get_task', { project: OTHER, task: 'sh-one' })).structuredContent.task;
+  assert.deepEqual(remote.dependencies.map(edge => edge.id), ['ex-work', 'ex-other']);
+  assert.ok(f.commands.some(argv => argv.some(word => word.startsWith('--metadata=') && word.includes('noticeos_related_tasks'))));
+  assert.ok(!f.commands.some(argv => argv.includes('dep') && argv.some(word => word === 'sh-one')));
+});
+
 const choices = { question: 'Which local layout should we build?', options: [
   { key: 'a', label: 'Compact layout', detail: 'Build the compact local layout.', recommended: true },
   { key: 'b', label: 'Wide layout' },

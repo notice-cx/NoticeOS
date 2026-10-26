@@ -409,6 +409,47 @@ test('a changed, claimed or closed task comes back whole, with its parent and li
   assert.deepEqual([closed.task.parent, closed.task.status, closed.task.ready], ['tt-1', 'closed', false]);
 });
 
+test('related tasks cross projects in one workspace, read in both directions and never block readiness', async () => {
+  const Q = '77777777-1111-4111-8111-111111111111';
+  const other = fakeTaskExecutor({ principal: () => PERSON, clock: () => Date.parse('2026-10-07T12:00:00Z') });
+  other.tasks.set('sh-1', { id: 'sh-1', title: 'Shared collector', status: 'open' });
+  const f = fixture({ more: [{ catalog: { projectId: Q, logicalKey: 'shop.example', displayName: 'Shop', prefix: 'sh' }, executor: other.executor }] });
+  const args = { workspace: A, project: P, title: 'Local change', related: ['sh-1'], idempotency_key: 'cross-project-related' };
+  const made = await call(f, 'create_task', args);
+  assert.equal(made.isError, undefined, JSON.stringify(made));
+  assert.equal((await call(f, 'create_task', args)).structuredContent.replayed, true);
+  const local = (await call(f, 'get_task', { workspace: A, project: P, task: made.structuredContent.id })).structuredContent.task;
+  const remote = (await call(f, 'get_task', { workspace: A, project: Q, task: 'sh-1' })).structuredContent.task;
+  assert.deepEqual(local.dependencies, [{ id: 'sh-1', type: 'related', title: 'Shared collector', status: 'open', projectId: Q, project: 'shop.example', projectName: 'Shop' }]);
+  assert.equal(remote.dependencies[0].projectName, 'Example');
+  assert.equal(remote.dependencies[0].id, local.id);
+  assert.equal(local.ready, true);
+  for (const fields of [{ depends_on: ['sh-1'] }, { related: ['zz-1'] }]) {
+    const result = await call(f, 'create_task', { ...args, related: undefined, ...fields, idempotency_key: `cross-refused-${Object.keys(fields)[0]}` });
+    assert.equal(result.isError, true);
+  }
+});
+
+test('retrying a partially linked cross-project create repairs its backlink without filing another task', async () => {
+  const Q = '77777777-1111-4111-8111-111111111111';
+  const other = fakeTaskExecutor({ principal: () => PERSON, clock: () => Date.parse('2026-10-07T12:00:00Z') });
+  other.tasks.set('sh-1', { id: 'sh-1', title: 'Shared collector', status: 'open' });
+  let fail = true;
+  const f = fixture({ more: [{ catalog: { projectId: Q, logicalKey: 'shop.example', displayName: 'Shop', prefix: 'sh' },
+    executor: { async execute(...args) {
+      if (fail && args[2].operation.kind === 'relate') { fail = false; throw new Error('Interrupted backlink'); }
+      return other.executor.execute(...args);
+    } } }] });
+  const args = { workspace: A, project: P, title: 'Local change', related: ['sh-1'], idempotency_key: 'cross-project-interrupted' };
+  assert.equal((await call(f, 'create_task', args)).isError, true);
+  assert.equal(f.tasks.size, 1);
+  const retry = await call(f, 'create_task', args);
+  assert.equal(retry.isError, undefined, JSON.stringify(retry));
+  assert.equal(f.tasks.size, 1);
+  const remote = (await call(f, 'get_task', { workspace: A, project: Q, task: 'sh-1' })).structuredContent.task;
+  assert.equal(remote.dependencies[0].id, retry.structuredContent.id);
+});
+
 test('create_task files a decision with its links and an approval in one call, and a retry files neither twice', async () => {
   const f = fixture();
   const create = filer(f);

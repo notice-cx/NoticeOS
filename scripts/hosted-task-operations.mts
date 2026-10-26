@@ -12,8 +12,8 @@ import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, shippedTaskCard, taskProposal, TaskMaintenanceRefused, TaskStateRefused,
-  type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
+import { hostedTaskAction, HumanDecisionRefused, readRelatedTasks, recordedTaskCard, refusalFromState, shippedTaskCard, taskProposal, TaskMaintenanceRefused, TaskStateRefused,
+  type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type RelatedTaskRef, type TaskProjectName } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsPayload, type AgentStatsProject } from '../packages/contract/src/agent-stats.mjs';
 
@@ -104,7 +104,7 @@ export const CLOSED_HISTORY_DAYS = 56;
 function invalid(): never { throw new Error('Hosted task operation refused'); }
 /** The task ids a write names, which a refusal checks the project for. */
 function tasksNamed(operation: HostedTaskOperation): string[] {
-  const ids = operation.kind === 'create' ? [operation.parent, ...(operation.links ?? []).map(link => link.taskId)]
+  const ids = operation.kind === 'create' ? [operation.parent, ...(operation.links ?? []).filter(link => link.type !== 'related').map(link => link.taskId)]
     : operation.kind === 'update' ? [operation.taskId, operation.parent]
     : operation.kind === 'close' || operation.kind === 'dismiss' || operation.kind === 'maintain' ? [operation.taskId, operation.duplicateOf]
     : operation.kind === 'depend' || operation.kind === 'undepend' ? [operation.taskId, operation.dependsOn]
@@ -237,6 +237,28 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       return work(project, operation => executor.execute(proof, workspaceId, { projectId, operation }, controls), readAt, actorsOf);
     });
   }
+  async function relatedEdges(proof: Request, workspaceId: string, metadata: unknown) {
+    const refs = readRelatedTasks(metadata);
+    if (!refs.length) return [];
+    return admitted(proof, workspaceId, 'tasks.read', async (_context, catalog) => {
+      const edges = [];
+      for (const ref of refs) {
+        const project = catalog.find(entry => entry.projectId === ref.projectId && ref.taskId.startsWith(`${entry.prefix}-`));
+        if (!project) continue;
+        let other: Record<string, unknown> = {};
+        try { other = await read(proof, workspaceId, ref.projectId, async (_project, run) => {
+          const shown = await run({ kind: 'show', taskId: ref.taskId });
+          const row = record(Array.isArray(shown) ? shown[0] : shown);
+          return row.id === ref.taskId ? row : {};
+        }, ref.taskId); } catch { /* A temporarily unavailable project keeps the link with unknown state. */ }
+        edges.push({ id: ref.taskId, type: 'related', title: typeof other.title === 'string' ? other.title : null,
+          status: typeof other.status === 'string' ? other.status : null, projectId: project.projectId,
+          project: project.logicalKey, projectName: project.displayName });
+      }
+      return edges;
+    });
+  }
+
   /** A created task as both adapters answer it. */
   function created(value: unknown, project: TaskProjectCatalogEntry): { readonly id: string; readonly project: string } {
     const row = record(Array.isArray(value) ? value[0] : value);
@@ -384,6 +406,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         const raw = record(Array.isArray(shown) ? shown[0] : shown);
         const task = toLiveTask(raw, ready);
         if (task.id !== taskId) invalid();
+        task.dependencies.push(...await relatedEdges(proof, workspaceId, raw.metadata));
         const comments = rows(await run({ kind: 'comments', taskId })).map(toComment);
         return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors, proposal: taskProposal(raw) };
       }, taskId));
@@ -430,7 +453,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       // The planner's grammar validates the operation and names its action.
       const action = hostedTaskAction(request.operation);
       const kind = request.operation.kind;
-      if (kind === 'create' && (Object.hasOwn(request.operation, 'operationId') || Object.hasOwn(request.operation, 'filedBy'))) invalid();
+      if (kind === 'create' && ['operationId', 'filedBy', 'related'].some(key => Object.hasOwn(request.operation, key))) invalid();
       if (idempotencyKey !== undefined) {
         if (typeof idempotencyKey !== 'string' || !IDEMPOTENCY_KEY.test(idempotencyKey) || !RECEIPTED.includes(kind)) invalid();
         if (!receipts) throw new HostedTaskReceiptsUnavailable();
@@ -439,6 +462,32 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       return explained(proof, workspaceId, request.projectId, tasksNamed(request.operation),
         () => admitted(proof, workspaceId, action, async (context, catalog): Promise<HostedTaskWriteOutcome> => {
         const project = await selected(workspaceId, catalog, request.projectId, primary);
+        const cross: RelatedTaskRef[] = [];
+        const links = request.operation.kind === 'create' ? request.operation.links ?? []
+          : request.operation.kind === 'depend' ? [{ type: request.operation.type, taskId: request.operation.dependsOn }]
+          : request.operation.kind === 'update' ? (request.operation.related ?? []).map(taskId => ({ type: 'related', taskId })) : [];
+        for (const link of links) {
+          const owner = catalog.find(entry => link.taskId.startsWith(`${entry.prefix}-`));
+          if (!owner || owner.projectId === project.projectId || link.type !== 'related') {
+            await selected(workspaceId, catalog, project.projectId, link.taskId);
+            const found = rows(await executor.execute(proof, workspaceId, { projectId: project.projectId,
+              operation: { kind: 'find', taskIds: [link.taskId] } })).some(row => record(row).id === link.taskId);
+            if (!found) throw new TaskStateRefused(link.taskId, 'other', { kind: 'missing', project: named(project) });
+            continue;
+          }
+          const found = rows(await executor.execute(proof, workspaceId, { projectId: owner.projectId,
+            operation: { kind: 'find', taskIds: [link.taskId] } })).some(row => record(row).id === link.taskId);
+          if (!found) throw new TaskStateRefused(link.taskId, 'other', { kind: 'missing', project: named(owner) });
+          cross.push({ projectId: owner.projectId, taskId: link.taskId });
+        }
+        const linkBoth = async (taskId: string) => {
+          for (const ref of cross) {
+            await executor.execute(proof, workspaceId, { projectId: project.projectId,
+              operation: { kind: 'relate', taskId, related: [ref] } });
+            await executor.execute(proof, workspaceId, { projectId: ref.projectId,
+              operation: { kind: 'relate', taskId: ref.taskId, related: [{ projectId: project.projectId, taskId }] } });
+          }
+        };
         // Another project's task is refused by name, as a primary task is.
         if ((request.operation.kind === 'close' || request.operation.kind === 'dismiss') && request.operation.duplicateOf !== undefined) {
           await selected(workspaceId, catalog, request.projectId, request.operation.duplicateOf);
@@ -446,7 +495,24 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         const answer = (value: unknown) => kind === 'create' ? created(value, project) : value;
         const effect = async (planned: HostedTaskRequest) => {
           await duplicateLinked(proof, workspaceId, planned, project);
-          const value = await executor.execute(proof, workspaceId, planned);
+          let native = planned;
+          if (cross.length && planned.operation.kind === 'create') {
+            const { links: sent, ...fields } = planned.operation;
+            const local = sent?.filter(link => !cross.some(ref => ref.taskId === link.taskId));
+            native = { ...planned, operation: { ...fields, ...(local?.length ? { links: local } : {}), related: cross } };
+          }
+          if (planned.operation.kind === 'update' && planned.operation.related) {
+            const { related: _related, ...fields } = planned.operation;
+            native = { ...planned, operation: fields };
+          }
+          const skip = cross.length && planned.operation.kind === 'depend'
+            || planned.operation.kind === 'update' && planned.operation.related && Object.keys(native.operation).length === 2;
+          const value = skip ? {} : await executor.execute(proof, workspaceId, native);
+          if (planned.operation.kind === 'update') for (const link of links.filter(link => !cross.some(ref => ref.taskId === link.taskId))) {
+            await executor.execute(proof, workspaceId, { projectId: project.projectId,
+              operation: { kind: 'depend', taskId: planned.operation.taskId, dependsOn: link.taskId, type: 'related' } });
+          }
+          if (cross.length) await linkBoth(planned.operation.kind === 'create' ? created(value, project).id : primary!);
           await attribute(proof, workspaceId, planned, value, context.principalId);
           return answer(value);
         };
@@ -473,6 +539,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
           // The last attempt ended, or was abandoned, without a recorded outcome.
           const found = await evidence(proof, workspaceId, request, project, receipt, context.principalId);
           if (found !== undefined) {
+            if (cross.length) await linkBoth(kind === 'create' ? record(found).id as string : primary!);
             const value = recordable(found, request);
             return await receipts.finish(workspaceId, identity, receipt, value)
               ? { status: 'done', value, replayed: true } : { status: 'pending' };

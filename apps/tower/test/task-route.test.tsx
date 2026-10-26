@@ -638,6 +638,16 @@ describe("every task row opens its task from anywhere on the row", () => {
 });
 
 describe("a link that keeps no work from being ready reads as Related, never as a blocker", () => {
+  it("names the other project beside its related task and links to that project", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ dependencies: [{ id: "ex-123", type: "related", title: "Shared collector",
+      status: "open", projectId: "77777777-1111-4111-8111-111111111111", project: "example.com", projectName: "Example" }] }) }));
+    api.fetchTasks.mockResolvedValue({ ...board(), tasks: [] });
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector('[data-related-task="ex-123"]')).not.toBeNull());
+    const related = container.querySelector('[data-related-task="ex-123"]') as HTMLElement;
+    expect(within(related).getByText("Example")).toBeInTheDocument();
+    expect(within(related).getByRole("link")).toHaveAttribute("href", "/tasks/ex-123?project=example.com");
+  });
   it("draws only the blocks edge under Blocked by, and related and discovered-from links from either end under Related", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ dependencies: [
       { id: "ro-l1ed", type: "parent-child", title: "The epic", status: "open" },

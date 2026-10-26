@@ -41,6 +41,28 @@ export const HOSTED_TASK_LIMITS = Object.freeze({
     /** The longest closed read: the Agents page's eight weeks and the day it starts in. */
     closedDays: 57,
 });
+function relatedList(value) {
+    return entries(value, 1, HOSTED_TASK_LIMITS.links).map(entry => {
+        const ref = record(entry);
+        keys(ref, ['projectId', 'taskId']);
+        return { projectId: uuid(ref.projectId), taskId: task(ref.taskId) };
+    });
+}
+export function readRelatedTasks(metadata) {
+    const value = metadata && typeof metadata === 'object' ? metadata[TASK_METADATA.relatedTasks.name] : undefined;
+    if (!Array.isArray(value))
+        return [];
+    return value.slice(0, HOSTED_TASK_LIMITS.links).flatMap(entry => {
+        try {
+            const ref = record(entry);
+            keys(ref, ['projectId', 'taskId']);
+            return [{ projectId: uuid(ref.projectId), taskId: task(ref.taskId) }];
+        }
+        catch {
+            return [];
+        }
+    });
+}
 function invalid() { throw new Error('Invalid hosted task plan input.'); }
 /** Data properties only: malformed JavaScript callers cannot smuggle getters. */
 function record(input) {
@@ -281,7 +303,7 @@ function command(input) {
     const op = record(input);
     const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
         'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate',
-        'choose', 'record-choice', 'hand-back', 'maintain', 'record-maintenance']);
+        'choose', 'record-choice', 'hand-back', 'maintain', 'record-maintenance', 'relate']);
     const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
@@ -360,6 +382,12 @@ function command(input) {
             keys(op, ['kind', 'taskId', 'value']);
             argv.push('update', `--metadata=${JSON.stringify({ [TASK_METADATA.maintenance.name]: record(op.value) })}`, '--', task(op.taskId));
             break;
+        case 'relate': {
+            keys(op, ['kind', 'taskId', 'related']);
+            const related = relatedList(op.related);
+            argv.push('update', `--metadata=${JSON.stringify({ [TASK_METADATA.relatedTasks.name]: related })}`, '--', task(op.taskId));
+            break;
+        }
         case 'list':
             keys(op, ['kind', 'limit'], ['status']);
             argv.push('list', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`);
@@ -442,7 +470,7 @@ function command(input) {
         }
         case 'create': {
             keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'card',
-                'changeClass', 'model', 'operationId', 'filedBy', 'due']);
+                'changeClass', 'model', 'operationId', 'filedBy', 'due', 'related']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
                 argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
@@ -472,11 +500,12 @@ function command(input) {
             if (due !== undefined)
                 argv.push(`--due=${due}`);
             // In the create itself, so a task, its filer, its choices and its card land together.
-            if (['metadata', 'operationId', 'filedBy', 'model', ...FIELD_METADATA.map(([field]) => field)].some(key => Object.hasOwn(op, key))) {
+            if (['metadata', 'operationId', 'filedBy', 'model', 'related', ...FIELD_METADATA.map(([field]) => field)].some(key => Object.hasOwn(op, key))) {
                 const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
                     ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}),
                     ...(Object.hasOwn(op, 'filedBy') ? { [TASK_METADATA.filedBy.name]: text(op.filedBy, HOSTED_TASK_LIMITS.identifier) } : {}),
                     ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}),
+                    ...(Object.hasOwn(op, 'related') ? { [TASK_METADATA.relatedTasks.name]: relatedList(op.related) } : {}),
                     ...Object.fromEntries(FIELD_METADATA.filter(([field]) => Object.hasOwn(op, field)).map(([field, name, read]) => [name, read(op[field])])) };
                 argv.push(`--metadata=${JSON.stringify(metadata)}`);
             }
@@ -484,11 +513,13 @@ function command(input) {
             break;
         }
         case 'update': {
-            const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels',
+            const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels', 'related',
                 ...FIELD_METADATA.map(([field]) => field)];
             keys(op, ['kind', 'taskId'], [...fields, 'model']);
             if (!fields.some(key => Object.hasOwn(op, key)) || Object.hasOwn(op, 'model') && op.claim !== true)
                 invalid();
+            if (Object.hasOwn(op, 'related'))
+                entries(op.related, 1, HOSTED_TASK_LIMITS.links).forEach(task);
             const kept = FIELD_METADATA.filter(([field]) => Object.hasOwn(op, field));
             const removed = kept.filter(([field]) => op[field] === null);
             // The task client takes one --metadata object, merged, or --unset-metadata
@@ -688,6 +719,8 @@ export function sameActor(a, b) { return a === b || canonicalActor(a) === canoni
  * change of assignee, of choices or of the card. A caller's forced close is a
  * service closing for the agent it named, and decides for itself. */
 function stateGuarded(operation) {
+    if (operation.kind === 'relate')
+        return true;
     if (operation.kind === 'close')
         return operation.force !== true;
     return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined || operation.choices !== undefined
@@ -729,6 +762,12 @@ export function guardedWrite(operation, row, actor) {
         return operation;
     if (!row || row.id !== operation.taskId)
         invalid();
+    if (operation.kind === 'relate') {
+        const refs = new Map([...readRelatedTasks(row.metadata), ...operation.related].map(ref => [`${ref.projectId}:${ref.taskId}`, ref]));
+        if (refs.size > HOSTED_TASK_LIMITS.links)
+            throw new TaskMaintenanceRefused('A task may have at most 32 related tasks in other projects. Remove an old link before adding another.');
+        return { ...operation, related: [...refs.values()] };
+    }
     const attempted = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim'
         : operation.assignee !== undefined ? 'reassign' : 'other';
     const refuse = (reason) => { throw new TaskStateRefused(operation.taskId, attempted, reason); };

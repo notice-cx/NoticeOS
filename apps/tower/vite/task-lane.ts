@@ -29,7 +29,8 @@ import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../.
 import { TASK_CHANGE_CLASSES, isTaskChangeClass, type TaskChangeClass } from "../../../packages/contract/src/task-change-class.mjs";
 import type { TaskCard } from "../../../packages/contract/src/task-card.mjs";
 import { choiceSteps, closerMetadata, decisionRefusal, guardedWrite, ownerResponseSteps, recordedTaskCard, sentTaskCard, shippedTaskCard,
-  TaskMaintenanceRefused, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+  readRelatedTasks, TaskMaintenanceRefused, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+import { standaloneProjectId } from "../../../scripts/standalone-tasks.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
@@ -248,6 +249,7 @@ export interface Spoke {
   prefix: string;
   /** As configured, relative to the repo root — what the page shows. */
   repo: string;
+  database?: string | null;
   unavailableReason?: string;
   cwd?: string;
 }
@@ -553,7 +555,7 @@ function listedText(task: LiveTask): LiveTask {
   return waitsOnPerson(task) ? task : { ...task, description: "", acceptance: "" };
 }
 
-function showTask(id: string, spoke: Spoke, opts: Resolved): LiveTaskDetail {
+async function showTask(id: string, spoke: Spoke, opts: Resolved): Promise<LiveTaskDetail> {
   const { json } = runVerb("show", [id], spoke, opts);
   // `bd show --json` answers with an array even for one id.
   const row = Array.isArray(json) ? json[0] : json;
@@ -562,12 +564,30 @@ function showTask(id: string, spoke: Spoke, opts: Resolved): LiveTaskDetail {
   }
   const ready = readReady(spoke, opts);
   const { json: commentJson } = runVerb("comments", [id], spoke, opts);
+  const task = toLiveTask(row, ready);
+  const refs = readRelatedTasks(task.metadata);
+  if (refs.length) {
+    const projects = await opts.readProjects();
+    for (const ref of refs) {
+      const other = projects.find(project => project.database && standaloneProjectId(project.database) === ref.projectId
+        && ref.taskId.startsWith(`${project.prefix}-`));
+      if (!other) continue;
+      let linked: Record<string, unknown> = {};
+      try {
+        const { json } = runVerb("show", [ref.taskId], other, opts);
+        const value = Array.isArray(json) ? json[0] : json;
+        if (value?.id === ref.taskId) linked = value;
+      } catch { /* The project link remains when its task store is unavailable. */ }
+      task.dependencies.push({ id: ref.taskId, type: "related", title: text(linked.title) || null,
+        status: text(linked.status) || null, projectId: ref.projectId, project: other.asset, projectName: other.asset });
+    }
+  }
   return {
     project: spoke.asset,
     prefix: spoke.prefix,
     repo: spoke.repo,
     readAt: opts.now().toISOString(),
-    task: toLiveTask(row, ready),
+    task,
     comments: rows(commentJson).map(toComment),
   };
 }
@@ -1067,7 +1087,7 @@ async function route(
     const id = beadId(one[1] ?? "");
     if (method === "GET") {
       const spoke = await spokeById(id, opts);
-      return { status: 200, body: showTask(id, spoke, opts) as unknown as Record<string, unknown> };
+      return { status: 200, body: await showTask(id, spoke, opts) as unknown as Record<string, unknown> };
     }
     if (method === "PATCH") return updateTask(id, request, opts);
     return { status: 405, body: { error: "method_not_allowed" } };

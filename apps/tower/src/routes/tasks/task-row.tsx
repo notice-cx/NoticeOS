@@ -11,6 +11,8 @@ export interface TaskRowFacts {
   id: string;
   title: string | null;
   status: string | null;
+  project?: string;
+  projectName?: string;
   priority?: number | null;
   /** Who holds it and the model they named. */
   holder?: { name: string; model: string | null } | null;
@@ -46,7 +48,7 @@ export function TaskRow({
   className?: string;
 }) {
   const ids = useId();
-  const name = `${ids}-id ${ids}-title`;
+  const name = `${ids}-id ${ids}-title${task.projectName ? ` ${ids}-project` : ""}`;
   const said = taskRowSaid(task);
   return (
     <li className={cn("min-w-0 list-none", className)} {...marks}>
@@ -78,6 +80,7 @@ export function TaskRow({
               {task.title}
             </span>
           ) : null}
+          {task.projectName ? <span id={`${ids}-project`} className="text-xs text-muted-foreground">{task.projectName}</span> : null}
         </span>
         <span aria-hidden className="flex shrink-0 items-center gap-2">
           {task.holder ? (

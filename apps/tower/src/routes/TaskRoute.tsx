@@ -1390,7 +1390,7 @@ function Related({ rows }: { rows: TaskRowFacts[] }) {
       <SectionLabelRow title="Related" caption={formatInt(rows.length)} />
       <ul className="-mx-2 flex flex-col">
         {rows.map((row) => (
-          <TaskRow key={row.id} task={row} href={taskHref(row.id)} marks={{ "data-related-task": row.id }} />
+          <TaskRow key={row.id} task={row} href={row.project ? taskPath(row.id, row.project) : taskHref(row.id)} marks={{ "data-related-task": row.id }} />
         ))}
       </ul>
     </section>
@@ -1739,7 +1739,8 @@ function relating(dep: TaskDependency): boolean {
  * priority and holder to what the task's own read names. */
 function edgeRow(dep: TaskDependency, known: readonly LiveTask[], actors: readonly TaskActor[] | undefined): TaskRowFacts {
   const other = known.find((row) => row.id === dep.id);
-  return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status };
+  return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status,
+    ...(dep.project ? { project: dep.project, projectName: dep.projectName } : {}) };
 }
 
 /** What this task waits on. */

@@ -1,4 +1,4 @@
-import { answerSteps, choiceSteps, closerMetadata } from '../hosted-task-command.mjs';
+import { answerSteps, choiceSteps, closerMetadata, readRelatedTasks } from '../hosted-task-command.mjs';
 
 // Shared fakes for the hosted task operation, HTTP and MCP tests.
 // The receipt store keeps packages/postgres/src/task-receipts.mts's
@@ -67,6 +67,7 @@ export function fakeTaskExecutor({ principal, clock }) {
           ...(operation.labels?.length ? { labels: [...operation.labels] } : {}), ...(operation.parent ? { parent: operation.parent } : {}),
           ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}), created_at: at, updated_at: at,
           metadata: { ...structuredClone(operation.metadata ?? {}), ...(operation.operationId ? { noticeos_operation_id: operation.operationId } : {}),
+            ...(operation.related ? { noticeos_related_tasks: structuredClone(operation.related) } : {}),
             ...(operation.filedBy ? { noticeos_filed_by: operation.filedBy } : {}),
             ...(operation.model ? { noticeos_filed_model: operation.model } : {}),
             ...(operation.choices ? { noticeos_choices: structuredClone(operation.choices) } : {}),
@@ -84,6 +85,12 @@ export function fakeTaskExecutor({ principal, clock }) {
         const comment = { id: `c-${comments.length + 1}`, issue_id: operation.taskId, author: principal(), text: operation.text,
           created_at: new Date(clock()).toISOString().replace(/\.\d{3}Z$/u, 'Z'), schema_version: 1 };
         comments.push(comment); effects.push(['comment', comment.id]); value = comment; break;
+      }
+      case 'relate': {
+        const task = tasks.get(operation.taskId);
+        const refs = new Map([...readRelatedTasks(task.metadata), ...operation.related].map(ref => [`${ref.projectId}:${ref.taskId}`, ref]));
+        task.metadata = { ...task.metadata, noticeos_related_tasks: [...refs.values()] };
+        value = [row(task)]; break;
       }
       case 'update': case 'close': {
         const task = tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open', priority: 2 };
