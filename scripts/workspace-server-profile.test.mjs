@@ -117,12 +117,12 @@ test('actual production Vite composition omits host lanes and pins both final Wo
 });
 
 test('pinned plugin conversion keeps the reserved binding across local sources and refuses a changed one', async () => {
-  // This is the public conversion API used by vite-plugin 1.64.0 after its
+  // This is the public conversion API used by vite-plugin 1.65.0 after its
   // config callback, and that plugin restarts the dev server, running the
   // callback again, when a local secret file changes. A dependency upgrade
   // must review this compatibility pin.
-  assert.equal(JSON.parse(readFileSync(new URL('../apps/tower/node_modules/@cloudflare/vite-plugin/package.json', import.meta.url), 'utf8')).version, '1.64.0');
-  assert.equal(JSON.parse(readFileSync(towerRequire.resolve('wrangler/package.json'), 'utf8')).version, '4.151.2');
+  assert.equal(JSON.parse(readFileSync(new URL('../apps/tower/node_modules/@cloudflare/vite-plugin/package.json', import.meta.url), 'utf8')).version, '1.65.0');
+  assert.equal(JSON.parse(readFileSync(towerRequire.resolve('wrangler/package.json'), 'utf8')).version, '4.152.0');
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-profile-'));
   const keys = ['CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV', 'CLOUDFLARE_INCLUDE_PROCESS_ENV', 'CLOUDFLARE_ENV', selector];
   const before = Object.fromEntries(keys.map(key => [key, process.env[key]]));
