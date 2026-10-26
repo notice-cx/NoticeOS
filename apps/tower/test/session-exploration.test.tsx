@@ -63,13 +63,22 @@ describe("session exploration", () => {
     expect(container.querySelector(".session-inspection")).toHaveTextContent("300 sessions");
   });
 
-  it("keeps missing destinations distinct from exits and partial history unavailable", () => {
+  it("keeps missing destinations distinct from exits and complete history visible", () => {
     const partial = { ...period, quality: "partial" as const, coveredDays: 5, paths: period.paths.slice(0, 3) };
     render(<SessionExploration snapshot={{ ...snapshot, current7: partial }} rangeDays={7}/>);
     expect(screen.getByText("Partial coverage")).toBeInTheDocument();
     expect(screen.getByText("10% · destinations not reported")).toBeInTheDocument();
     expect(screen.getByText(/90% have a recorded exit/)).toHaveTextContent("100 sessions have an unresolved destination or later path.");
-    expect(screen.getByText("Comparable weekly history is unavailable.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /weekly percentage of all sessions/ })).toBeInTheDocument();
+  });
+
+  it("shows compatible complete weeks when the current period is unavailable and retains historical gaps", () => {
+    const empty = { ...period, quality: "unavailable" as const, definitionId: null, sessions: null, observedSessions: null, paths: [] };
+    const gap = { ...period, quality: "partial" as const, coveredDays: 6 };
+    render(<SessionExploration snapshot={{ ...snapshot, current7: empty, weekly: [snapshot.weekly[0]!, gap] }} rangeDays={7}/>);
+    expect(screen.getByText("Session paths are unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /weekly percentage of all sessions/ })).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
   });
 
   it("limits the diagram to eight paths while keeping the remainder inspectable and distinct from missing destinations", () => {

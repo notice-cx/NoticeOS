@@ -4,7 +4,7 @@ import { journeyDefinitionId, journeyDefinitionsRefusal } from '../packages/cont
 import { CONFIG_REGISTERS, resolveContainer } from './config-registers.mjs';
 const register = CONFIG_REGISTERS.journeys;
 const COLLECTION = Object.freeze({ source: 'ga4', schedule: 'daily', immediateFetch: false,
-    detail: 'Active funnels are collected by the daily GA4 collection. Saving does not fetch data.' });
+    detail: 'Active GA4 funnels are collected by the daily GA4 collection. Saving does not fetch data. First-party session paths are supplied by asset reports.' });
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 function canonical(value) {
     if (Array.isArray(value))

@@ -38,7 +38,7 @@ export function explorationBranches(period: SessionExplorationPeriod): Branch[] 
 }
 
 function selectionCount(period: SessionExplorationPeriod, selection: Selection | null, reference: SessionExplorationPeriod): number | null {
-  if (!usable(period) || !sameDefinition(period, reference) || period.quality !== "complete" || reference.quality !== "complete" || period.paths.reduce((sum, path) => sum + path.sessions, 0) !== period.sessions) return null;
+  if (!usable(period) || !sameDefinition(period, reference) || period.quality !== "complete" || period.paths.reduce((sum, path) => sum + path.sessions, 0) !== period.sessions) return null;
   if (!selection) return period.paths.filter((path) => distinct(path) >= 2).reduce((sum, path) => sum + path.sessions, 0);
   if (selection.kind === "surface") return period.paths.filter((path) => path.surfaces.includes(selection.id)).reduce((sum, path) => sum + path.sessions, 0);
   const selected = reference.paths.find(path => pathKey(path) === selection.key);
@@ -48,7 +48,8 @@ function selectionCount(period: SessionExplorationPeriod, selection: Selection |
 
 function History({ periods, reference, selection, label }: { periods: SessionExplorationPeriod[]; reference: SessionExplorationPeriod; selection: Selection | null; label: string }) {
   const weeks = [...periods].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  const values = weeks.map((period) => { const count = selectionCount(period, selection, reference); return count === null ? null : count / period.sessions! * 100; });
+  const baseline = reference.definitionId === null && selection === null ? weeks.findLast(week => week.quality === "complete") ?? reference : reference;
+  const values = weeks.map((period) => { const count = selectionCount(period, selection, baseline); return count === null ? null : count / period.sessions! * 100; });
   const domain = journeyRateDomain(values);
   const x = (index: number) => 62 + index / Math.max(1, weeks.length - 1) * 640;
   const y = (value: number) => 150 - (value - domain.min) / (domain.max - domain.min) * 125;
@@ -148,8 +149,8 @@ export function SessionExploration({ snapshot, rangeDays }: SessionExplorationPr
       <p className="session-scroll-hint">Scroll to follow later destinations →</p>
       <div className="session-surface-controls" aria-label="Inspect a section">{period.surfaces.map((surface) => <button type="button" key={surface.id} style={tone(surface.id)} aria-label={`${surface.label} · ${percent(period.paths.filter((path) => path.surfaces.includes(surface.id)).reduce((sum, path) => sum + path.sessions, 0), total!)} of all sessions`} aria-pressed={selection?.kind === "surface" && selection.id === surface.id} onClick={() => setSelection({ kind: "surface", id: surface.id })}>{surface.label}<strong>{percent(period.paths.filter((path) => path.surfaces.includes(surface.id)).reduce((sum, path) => sum + path.sessions, 0), total!)}</strong></button>)}</div>
       <div className="session-inspection" aria-live="polite"><div><span className="session-eyebrow">{selection ? "SELECTED" : "SESSION EXPLORATION"}</span><h3>{selectionLabel}</h3><strong>{percent(count, total!)} <small>of all sessions · {formatInt(count)} sessions</small></strong><p>{selection?.kind === "surface" ? "Each session counts once here, including sessions that return to this section." : selectedPath ? `${selectedPath.surfaces.map((id) => names.get(id) ?? id).join(" → ")} · ${endingLabel[selectedPath.ending]}` : `${percent(exits, total!)} have a recorded exit. ${uncertain > 0 ? `${formatInt(uncertain)} sessions have an unresolved destination or later path.` : "Every displayed path has a recorded ending."}`}</p></div>{selection && <button type="button" onClick={() => setSelection(null)}>Clear selection</button>}</div>
-      <History periods={snapshot.weekly} reference={period} selection={selection} label={selectionLabel}/>
       <section className="session-path-list"><div className="session-section-heading"><h3>Recorded paths</h3><span>Each session appears in one path</span></div>{(showAll ? period.paths : period.paths.slice(0, 6)).map((path) => <button type="button" key={`${path.surfaces.join("/")}-${path.ending}`} aria-pressed={selection?.kind === "path" && selection.key === pathKey(path)} onClick={() => setSelection({ kind: "path", key: pathKey(path) })}><span>{path.surfaces.map((id) => names.get(id) ?? id).join(" → ")}<small>{endingLabel[path.ending]}{distinct(path) < path.surfaces.length ? " · includes a return" : ""}</small></span><span className="session-path-value"><strong>{percent(path.sessions, total!)}</strong><small>{formatInt(path.sessions)} sessions</small><i style={{ "--session-share": `${path.sessions / total! * 100}%` } as CSSProperties}/></span></button>)}{period.paths.length > 6 && <button className="session-show-all" type="button" onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer paths" : `Show all ${period.paths.length} paths`}</button>}</section>
     </>}
+    <History periods={snapshot.weekly} reference={period} selection={selection} label={selectionLabel}/>
   </div>;
 }

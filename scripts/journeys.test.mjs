@@ -80,3 +80,25 @@ test('visitor population remains optional and survives archives without changing
     assert.equal(readJourneyPeriod({...period(),visitors}),null);
   }
 });
+
+
+test('first-party exploration has no invented GA4 steps and preserves legacy definitions', () => {
+  const exploration = { id: 'section-exploration', label: 'Section exploration', goal: 'First-party session paths between site sections', kind: 'exploration', source: 'first-party', status: 'planned', version: 1, steps: [] };
+  assert.equal(journeyDefinitionsRefusal([exploration]), null);
+  assert.equal(journeyDefinitionsRefusal([{ ...definition, kind: 'exploration' }]), null);
+  assert.notEqual(journeyDefinitionsRefusal([{ ...exploration, source: undefined }]), null);
+  assert.notEqual(journeyDefinitionsRefusal([{ ...exploration, kind: 'funnel' }]), null);
+  assert.notEqual(journeyDefinitionsRefusal([{ ...exploration, source: 'ga4' }]), null);
+  assert.notEqual(journeyDefinitionsRefusal([{ ...exploration, steps: definition.steps }]), null);
+  assert.notEqual(journeyDefinitionId(exploration), journeyDefinitionId({ ...exploration, source: undefined }));
+  assert.equal(journeyDefinitionId(exploration), journeyDefinitionId({ ...exploration, label: 'Renamed', goal: 'Other goal' }));
+});
+
+
+test('only first-party exploration may declare a bounded reporting delay', () => {
+  const exploration = { id: 'sections', label: 'Sections', goal: 'Section paths', kind: 'exploration', source: 'first-party', status: 'planned', version: 1, steps: [] };
+  for (const reportingLagDays of [1, 2, 14]) assert.equal(journeyDefinitionsRefusal([{ ...exploration, reportingLagDays }]), null);
+  for (const reportingLagDays of [0, 15, 1.5, '2', null]) assert.notEqual(journeyDefinitionsRefusal([{ ...exploration, reportingLagDays }]), null);
+  assert.notEqual(journeyDefinitionsRefusal([{ ...definition, reportingLagDays: 2 }]), null);
+  assert.notEqual(journeyDefinitionId(exploration), journeyDefinitionId({ ...exploration, reportingLagDays: 2 }));
+});

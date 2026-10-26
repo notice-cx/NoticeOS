@@ -190,3 +190,24 @@ test('store refusals pass through and transport uncertainty does not claim a rol
   assert.equal(result.body.error, 'save_unconfirmed');
   assert.doesNotMatch(JSON.stringify(result), /operator-secret/);
 });
+
+
+test('first-party exploration creates without GA4 conditions and source changes version', async () => {
+  const exploration = { id: 'section-exploration', label: 'Section exploration', goal: 'First-party session paths between site sections', kind: 'exploration', source: 'first-party', reportingLagDays: 2, status: 'planned', steps: [] };
+  const { state, management } = fixture();
+  const created = await management.save(ASSET, input(exploration));
+  assert.equal(created.status, 200);
+  assert.deepEqual(created.body.definition, { ...exploration, version: 1 });
+  assert.deepEqual(created.body.eventNames, []);
+  assert.deepEqual(state.body.assets[ASSET].journeys, [{ ...exploration, version: 1 }]);
+  const renamed = await management.save(ASSET, input({ ...exploration, label: 'Site section paths' }, created.body.edit_token));
+  assert.equal(renamed.body.definition.version, 1);
+  const legacy = { ...journey('section-exploration'), kind: 'exploration' };
+  const changed = await management.save(ASSET, input(legacy, renamed.body.edit_token));
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.definition.version, 2);
+  const restored = await management.save(ASSET, input(exploration, changed.body.edit_token));
+  assert.equal(restored.body.definition.version, 3);
+  const delayed = await management.save(ASSET, input({ ...exploration, reportingLagDays: 3 }, restored.body.edit_token));
+  assert.equal(delayed.body.definition.version, 4);
+});

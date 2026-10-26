@@ -192,3 +192,26 @@ test('standalone journey writes reject cross-site browser proof before the Tower
   assert.equal(forwarded.length, 1);
   for (const [name, value] of Object.entries(valid)) assert.equal(forwarded[0].headers.get(name), value, name);
 });
+
+
+test('save schema and transport admit first-party exploration without GA4 event conditions', async () => {
+  let forwarded;
+  const handle = endpoint(async request => { forwarded = await request.json(); return Response.json({ saved: true }); });
+  const listed = (await rpc(handle, 'tools/list')).result.tools;
+  const journeySchema = listed.find(tool => tool.name === 'save_journey').inputSchema.properties.journey;
+  assert.equal(journeySchema.anyOf.length, 2);
+  assert.deepEqual(journeySchema.anyOf[1].properties.source.enum, ['first-party']);
+  assert.deepEqual(journeySchema.anyOf[1].properties.kind.enum, ['exploration']);
+  assert.equal(journeySchema.anyOf[1].properties.steps.maxItems, 0);
+  assert.deepEqual(journeySchema.anyOf[1].properties.reportingLagDays, { type: 'integer', minimum: 1, maximum: 14, description: 'Complete-report delay in days; defaults to one.' });
+  assert.ok(journeySchema.anyOf[1].required.includes('source'));
+  const journey = { id: 'section-exploration', label: 'Section exploration', goal: 'First-party session paths between site sections', kind: 'exploration', source: 'first-party', reportingLagDays: 2, status: 'planned', steps: [] };
+  const reply = await call(handle, 'save_journey', { workspace: WORKSPACE, asset: 'example.com', journey, edit_token: null, dry_run: true });
+  assert.equal(reply.result.structuredContent.saved, true);
+  assert.deepEqual(forwarded, { journey, edit_token: null, dry_run: true });
+  for (const invalid of [{ ...journey, reportingLagDays: 0 }, { ...journey, reportingLagDays: 15 }, { ...journey, source: 'ga4' }, { ...journey, kind: 'funnel' }, { ...journey, steps: definition().steps }]) {
+    forwarded = null;
+    assert.equal((await call(handle, 'save_journey', { workspace: WORKSPACE, asset: 'example.com', journey: invalid, edit_token: null })).result.isError, true);
+    assert.equal(forwarded, null);
+  }
+});

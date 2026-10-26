@@ -36,6 +36,18 @@ describe('session aggregate contract', () => {
   });
 });
 describe('stored session history', () => {
+  it('uses explicit publisher lag for settled windows without hiding overdue gaps', () => {
+    const receipts=Array.from({length:63},(_,i)=>receipt({...report(explorationDateOffset('2026-08-23',i)),paths:[{surfaces:['guides','recipes'],sessions:100,ending:'exit'}]}));
+    const s=buildSessionExplorationSnapshot('explore',receipts,now,'UTC',2);
+    expect(s.current7).toMatchObject({startDate:'2026-10-18',endDate:'2026-10-24',quality:'complete',sessions:700});
+    expect(s.current28).toMatchObject({endDate:'2026-10-24',quality:'complete',sessions:2800});
+    expect(explorationComparison(s.current28,s.prior28)).toBe(0);
+    expect(s.weekly.every(week=>week.quality==='complete')).toBe(true);
+    const missing=buildSessionExplorationSnapshot('explore',receipts.filter(r=>r.reports[0]!.date!=='2026-10-23'),now,'UTC',2);
+    expect(missing.current7).toMatchObject({quality:'partial',coveredDays:6,endDate:'2026-10-24'});
+    const stale=buildSessionExplorationSnapshot('explore',receipts.slice(0,-3),now,'UTC',2);
+    expect(stale.current7).toMatchObject({quality:'partial',coveredDays:4,endDate:'2026-10-24'});
+  });
   it('uses latest revisions, ignores repeated deliveries and keeps missing destinations separate from exits', () => {
     const old=report(), corrected={...old,sessions:120};
     const s=buildSessionExplorationSnapshot('explore',[receipt(old),receipt(corrected,'2026-10-26T02:00:00Z'),receipt(old,'2026-10-26T00:00:00Z')],now);

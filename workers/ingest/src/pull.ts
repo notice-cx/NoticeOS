@@ -9,7 +9,7 @@
 // static bearer token from env.ASSET_TOKENS, the same entry the push lane
 // checks inbound pulses against.
 
-import type { Metric, PulseEnvelope } from '@noticeos/contract';
+import { PulseEnvelope, type Metric } from '@noticeos/contract';
 import { ingestPulseEnvelope, pulseDay, type WritePulseResult } from './db.js';
 import { EgressGate, type EgressRunOutcome } from './egress.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
@@ -28,6 +28,14 @@ interface PullAssetBase {
   asset: string;
   /** self-report endpoint fetched with a Bearer token from env.ASSET_TOKENS. */
   url: string;
+  enabled: boolean;
+  /** Supplemental reports share the asset's token and daily metrics report. */
+  additionalEndpoints?: SupplementalPullConfig[];
+}
+
+export interface SupplementalPullConfig {
+  url: string;
+  format: 'envelope';
   enabled: boolean;
 }
 
@@ -491,11 +499,46 @@ async function pullOne(
       body = await prometheusToEnvelope(env, entry, await res.text(), nowMs);
     }
 
+    // One daily revision keeps metrics and session paths together. A failed
+    // supplemental endpoint must neither discard fresh metrics nor resolve its alert.
+    let supplementalFailure: Error | undefined;
+    if (entry.additionalEndpoints?.some(endpoint => endpoint.enabled)) {
+      const primary = PulseEnvelope.safeParse(body);
+      if (!primary.success) throw new Error(`pulled envelope failed contract validation (${summarizeParseError(primary.error)})`);
+      let merged = primary.data;
+      for (const endpoint of entry.additionalEndpoints.filter(endpoint => endpoint.enabled)) {
+        try {
+          const response = await fetchScrape(fetchImpl, endpoint.url, token, 'application/json');
+          const raw = await envelopeFromResponse({ ...endpoint, asset: entry.asset }, response);
+          const supplemental = PulseEnvelope.safeParse(raw);
+          if (!supplemental.success) throw new Error(`supplemental envelope failed contract validation (${summarizeParseError(supplemental.error)})`);
+          if (pulseDay(supplemental.data.generatedAt) !== pulseDay(merged.generatedAt)) throw new Error('supplemental envelope must use the primary report day');
+          if (Object.keys(supplemental.data.metrics).some(name => Object.hasOwn(merged.metrics, name))) throw new Error('supplemental envelope repeats a primary metric');
+          const combined = PulseEnvelope.safeParse({
+            ...merged,
+            generatedAt: merged.generatedAt > supplemental.data.generatedAt ? merged.generatedAt : supplemental.data.generatedAt,
+            capabilities: [...new Set([...merged.capabilities, ...supplemental.data.capabilities])],
+            metrics: { ...merged.metrics, ...supplemental.data.metrics },
+            flags: [...(merged.flags ?? []), ...(supplemental.data.flags ?? [])],
+            negativeByPage: [...(merged.negativeByPage ?? []), ...(supplemental.data.negativeByPage ?? [])],
+            sessionExploration: [...(merged.sessionExploration ?? []), ...(supplemental.data.sessionExploration ?? [])],
+          });
+          if (!combined.success) throw new Error(`combined envelope failed contract validation (${summarizeParseError(combined.error)})`);
+          merged = combined.data;
+        } catch (error) {
+          supplementalFailure ??= new Error(`supplemental endpoint ${endpoint.url}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      body = merged;
+    }
+
     const outcome = await ingestPulseEnvelope(env, body);
     if (!outcome.ok) {
       const label = entry.format === 'envelope' ? 'pulled envelope' : 'mapped envelope';
       throw new Error(`${label} failed contract validation (${summarizeParseError(outcome.error)})`);
     }
+
+    if (supplementalFailure) throw supplementalFailure;
 
     const resolved = await resolvePullFailure(env, entry.asset, at);
     return { asset: entry.asset, ok: true, status, fired: 0, refreshed: 0, resolved, result: outcome.result };

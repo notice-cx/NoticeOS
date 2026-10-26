@@ -26,5 +26,5 @@ export async function readAssetSessionExploration(store: WorkspaceStore, asset: 
       if (reports) receipts.push({generatedAt, receivedAt, reports: reports.filter(r => current.some(d => d.id === r.journeyId && d.version === r.journeyVersion))});
     } catch { /* Invalid historical reports remain unavailable. */ }
   }
-  return current.map(d => buildSessionExplorationSnapshot(d.id, receipts, now, timeZone));
+  return current.map(d => buildSessionExplorationSnapshot(d.id, receipts, now, timeZone, d.reportingLagDays));
 }

@@ -34,13 +34,18 @@ export function journeyDefinitionsRefusal(value) {
     const seen = new Set();
     for (const definition of value) {
         if (!record(definition) ||
-            !keys(definition, ['id', 'label', 'kind', 'status', 'goal', 'version', 'steps']) ||
+            !keys(definition, ['id', 'label', 'kind', 'source', 'reportingLagDays', 'status', 'goal', 'version', 'steps']) ||
             !id(definition.id) || !text(definition.label, 60) || !text(definition.goal) ||
             !['funnel', 'exploration'].includes(String(definition.kind)) ||
             !['active', 'planned'].includes(String(definition.status)) ||
             !Number.isSafeInteger(definition.version) || Number(definition.version) < 1 ||
-            !Array.isArray(definition.steps) || definition.steps.length < 2 ||
-            definition.steps.length > 10)
+            (definition.source !== undefined && definition.source !== 'first-party') ||
+            (definition.source === 'first-party' && definition.kind !== 'exploration') ||
+            (definition.reportingLagDays !== undefined && (definition.source !== 'first-party' ||
+                !Number.isSafeInteger(definition.reportingLagDays) || Number(definition.reportingLagDays) < 1 || Number(definition.reportingLagDays) > 14)) ||
+            !Array.isArray(definition.steps) ||
+            (definition.source === 'first-party' ? definition.steps.length !== 0 :
+                definition.steps.length < 2 || definition.steps.length > 10))
             return 'Invalid journey definition';
         if (seen.has(definition.id))
             return 'Journey IDs must be unique';
@@ -76,6 +81,8 @@ export function journeyDefinitionId(definition) {
         id: definition.id,
         version: definition.version,
         kind: definition.kind,
+        ...(definition.source === undefined ? {} : { source: definition.source }),
+        ...(definition.reportingLagDays === undefined ? {} : { reportingLagDays: definition.reportingLagDays }),
         steps: definition.steps.map((step) => ({
             id: step.id,
             alternatives: step.alternatives.map((alternative) => ({
