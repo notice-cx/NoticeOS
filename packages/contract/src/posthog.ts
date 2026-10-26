@@ -97,6 +97,9 @@ export const posthogWebDailyRowSchema = z.strictObject({
   /** Unique people within that day. */
   people: count,
   sessions: count,
+  estimatedPageviews: count.optional(),
+  estimatedSessions: count.optional(),
+  sampledEvents: count.optional(),
 } satisfies PosthogRowShape<'web-daily'>);
 
 export const posthogEventsRowSchema = z.strictObject({
@@ -106,6 +109,8 @@ export const posthogEventsRowSchema = z.strictObject({
   /** First and last day the event was seen, inside the window. */
   firstSeen: isoDate,
   lastSeen: isoDate,
+  estimatedCount: count.optional(),
+  sampledEvents: count.optional(),
 } satisfies PosthogRowShape<'events'>);
 
 export const posthogExceptionsRowSchema = z.strictObject({
@@ -139,6 +144,11 @@ export const posthogRageclicksRowSchema = z.strictObject({
   tabletClicks: count,
   /** Unique people with a $pageview on that path in the window. */
   pagePeople: count,
+  estimatedClicks: count.optional(),
+  estimatedDesktopClicks: count.optional(),
+  estimatedMobileClicks: count.optional(),
+  estimatedTabletClicks: count.optional(),
+  sampledEvents: count.optional(),
 } satisfies PosthogRowShape<'rageclicks'>);
 
 export const posthogWebVitalsRowSchema = z.strictObject({
@@ -191,6 +201,7 @@ export const posthogFunnelsRowSchema = z.strictObject({
   path: z.string().nullable(),
   /** Unique people who reached this step in order within the window. */
   people: count,
+  sampledEvents: count.optional(),
 } satisfies PosthogRowShape<'funnels'>);
 
 export type PosthogWebDailyRow = z.infer<typeof posthogWebDailyRowSchema>;

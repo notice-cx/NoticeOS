@@ -96,7 +96,14 @@ function parseDay(value: unknown): ProductDay | null {
   const pageviews = nullableFinite(raw.pageviews);
   const sessions = nullableFinite(raw.sessions);
   if (!people.ok || !pageviews.ok || !sessions.ok) return null;
-  return { date, people: people.value, pageviews: pageviews.value, sessions: sessions.value };
+  const estimates: Partial<ProductDay> = {};
+  for (const key of ["estimatedPageviews", "estimatedSessions", "sampledEvents"] as const) {
+    if (raw[key] === undefined) continue;
+    const parsed = nullableFinite(raw[key]);
+    if (!parsed.ok || (parsed.value !== null && parsed.value < 0)) return null;
+    estimates[key] = parsed.value;
+  }
+  return { date, people: people.value, pageviews: pageviews.value, sessions: sessions.value, ...estimates };
 }
 
 function parseWebDaily(value: unknown): ProductWebDaily | null {
@@ -157,6 +164,7 @@ function parseFunnel(value: unknown): ProductFunnel | null {
     steps,
     conversion: conversion.value,
     largestDrop: parseDrop(raw.largestDrop),
+    ...(raw.sampled === true ? { sampled: true } : {}),
     prior: parsePrior(raw.prior),
   };
 }

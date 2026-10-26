@@ -371,10 +371,11 @@ function productTrend(days: readonly ProductDay[], pick: (day: ProductDay) => nu
  * tab's Product section names it: people are a daily count of distinct people
  * (a mean, never a sum); page views and sessions add up. */
 function productMetrics(days: readonly ProductDay[], range: number): SignalKpi[] {
+  const sampled = days.some((day) => (day.sampledEvents ?? 0) > 0);
   return [
     signalKpi({
       key: "people",
-      label: "People a day",
+      label: sampled ? "Observed people a day" : "People a day",
       chartLabel: "People",
       kind: "mean",
       trends: [{ name: "PostHog", tone: "primary", trend: productTrend(days, (day) => day.people) }],
@@ -383,21 +384,23 @@ function productMetrics(days: readonly ProductDay[], range: number): SignalKpi[]
     }),
     signalKpi({
       key: "pageviews",
-      label: "Page views",
+      label: sampled ? "Estimated page views" : "Page views",
       kind: "sum",
-      trends: [{ name: "PostHog", tone: "primary", trend: productTrend(days, (day) => day.pageviews) }],
+      trends: [{ name: "PostHog", tone: "primary", trend: productTrend(days, (day) => day.estimatedPageviews ?? day.pageviews) }],
       days: range,
       format: formatCompact,
     }),
     signalKpi({
       key: "productSessions",
-      label: "Sessions",
+      label: sampled ? "Estimated sessions" : "Sessions",
       kind: "sum",
-      trends: [{ name: "PostHog", tone: "primary", trend: productTrend(days, (day) => day.sessions) }],
+      trends: [{ name: "PostHog", tone: "primary", trend: productTrend(days, (day) => day.estimatedSessions ?? day.sessions) }],
       days: range,
       format: formatCompact,
     }),
-  ];
+  ].map((metric) => sampled && metric.key === "people"
+    ? { ...metric, delta: null, note: "Observed sample; comparison unavailable" }
+    : metric);
 }
 
 function signalKpi({

@@ -5064,7 +5064,8 @@ function funnelsIn(snapshotRows) {
   for (const row of snapshotRows) {
     const id = text(row.funnel_id);
     if (!id) continue;
-    const entry = byId.get(id) ?? { id, name: text(row.name) || id, steps: [] };
+    const entry = byId.get(id) ?? { id, name: text(row.name) || id, steps: [], sampled: false };
+    entry.sampled ||= number(row.sampled_events) > 0;
     entry.steps.push({
       step: number(row.step),
       event: text(row.event),
@@ -5095,8 +5096,9 @@ function funnelsIn(snapshotRows) {
       name: funnel.name,
       steps,
       start,
-      conversion: start > 0 && steps.length > 1 ? steps.at(-1).people / start : null,
-      largestDrop,
+      conversion: !funnel.sampled && start > 0 && steps.length > 1 ? steps.at(-1).people / start : null,
+      largestDrop: funnel.sampled ? null : largestDrop,
+      ...(funnel.sampled ? { sampled: true } : {}),
     };
   });
 }
@@ -5127,9 +5129,10 @@ function posthogFunnels(families, snapshot) {
       windowStart: snapshot.window.start,
       windowEnd: snapshot.window.end,
       steps: funnel.steps,
+      ...(funnel.sampled ? { sampled: true } : {}),
       conversion: funnel.conversion,
       largestDrop: funnel.largestDrop,
-      prior: earlier
+      prior: earlier && !earlier.sampled && !funnel.sampled
         ? {
             windowStart: prior.window.start,
             windowEnd: prior.window.end,
@@ -5157,7 +5160,9 @@ function posthogFunnels(families, snapshot) {
         key,
         label,
         'not-enough-data',
-        `No funnel’s first step reached ${formatInt(FUNNEL_MIN_START_PEOPLE)} people in this window.`,
+        current.some((funnel) => funnel.sampled)
+          ? 'These steps include sampled events. Conversion and comparisons are unavailable.'
+          : `No funnel’s first step reached ${formatInt(FUNNEL_MIN_START_PEOPLE)} people in this window.`,
       ),
       cards: [],
       block,
@@ -5244,6 +5249,9 @@ function productWebDaily(families, snapshot) {
       people: nullableNumber(row.people),
       pageviews: nullableNumber(row.pageviews),
       sessions: nullableNumber(row.sessions),
+      ...(nullableNumber(row.estimated_pageviews) === null ? {} : { estimatedPageviews: nullableNumber(row.estimated_pageviews) }),
+      ...(nullableNumber(row.estimated_sessions) === null ? {} : { estimatedSessions: nullableNumber(row.estimated_sessions) }),
+      ...(nullableNumber(row.sampled_events) === null ? {} : { sampledEvents: nullableNumber(row.sampled_events) }),
     }))
     .sort((left, right) => left.date.localeCompare(right.date))
     .slice(-PRODUCT_DAY_LIMIT);

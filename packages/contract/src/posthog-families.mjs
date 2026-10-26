@@ -21,15 +21,16 @@ export const POSTHOG_FAMILIES = [
 ];
 /** Every family's row grain and contract fields. */
 export const POSTHOG_FAMILY_ROWS = {
-    'web-daily': { grain: 'day', fields: ['date', 'pageviews', 'people', 'sessions'] },
-    events: { grain: 'event', fields: ['event', 'count', 'people', 'firstSeen', 'lastSeen'] },
+    'web-daily': { grain: 'day', fields: ['date', 'pageviews', 'people', 'sessions', 'estimatedPageviews', 'estimatedSessions', 'sampledEvents'] },
+    events: { grain: 'event', fields: ['event', 'count', 'people', 'firstSeen', 'lastSeen', 'estimatedCount', 'sampledEvents'] },
     exceptions: {
         grain: 'exception-message',
         fields: ['type', 'message', 'count', 'people', 'sessions', 'maxPerSession', 'hasSourceFile', 'topPath', 'topBrowser'],
     },
     rageclicks: {
         grain: 'page-element',
-        fields: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktopClicks', 'mobileClicks', 'tabletClicks', 'pagePeople'],
+        fields: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktopClicks', 'mobileClicks', 'tabletClicks', 'pagePeople',
+            'estimatedClicks', 'estimatedDesktopClicks', 'estimatedMobileClicks', 'estimatedTabletClicks', 'sampledEvents'],
     },
     'web-vitals': {
         grain: 'page-device-os',
@@ -40,5 +41,5 @@ export const POSTHOG_FAMILY_ROWS = {
         fields: ['path', 'device', 'os', 'target', 'interactionType', 'measurements', 'inpP75', 'inputDelayP75',
             'processingP75', 'presentationDelayP75'],
     },
-    funnels: { grain: 'funnel-step', fields: ['funnelId', 'name', 'step', 'event', 'path', 'people'] },
+    funnels: { grain: 'funnel-step', fields: ['funnelId', 'name', 'step', 'event', 'path', 'people', 'sampledEvents'] },
 };

@@ -88,6 +88,41 @@ describe("shared/product — the section's arithmetic", () => {
 });
 
 describe("ProductJourney", () => {
+  it("charts weighted totals while labelling people and funnels as observed", () => {
+    const product: ProductSnapshot = {
+      ...PRODUCT,
+      webDaily: {
+        ...PRODUCT.webDaily!,
+        days: ["2026-09-20", "2026-09-21", "2026-09-22"].map((date) => ({
+          date, pageviews: 3, people: 2, sessions: 2,
+          estimatedPageviews: 11, estimatedSessions: 6, sampledEvents: 2,
+        })),
+      },
+    };
+    const { container } = renderJourney(product);
+    const section = container.querySelector("[data-product-journey]")!;
+    expect(section.textContent).toContain("Estimated page views33");
+    expect(section.textContent).toContain("Estimated sessions18");
+    expect(section.textContent).toContain("Observed people a day2");
+    expect(section.textContent).toContain("funnel steps show only observed activity");
+    expect(within(section as HTMLElement).getByRole("img", { name: "Estimated page views trend" })).toBeInTheDocument();
+    expect(section.querySelector("[data-funnel-conversion]")!.textContent).toBe("6.5% finish · 8.2% the week before");
+  });
+
+  it("shows sampled funnel steps without unsupported percentages or a drop warning", () => {
+    const product: ProductSnapshot = {
+      ...PRODUCT,
+      funnels: PRODUCT.funnels.map((funnel) => ({ ...funnel, sampled: true, conversion: null, largestDrop: null, prior: null })),
+    };
+    const { container } = renderJourney(product);
+    const funnel = container.querySelector('[data-product-funnel="calculator"]')!;
+    expect(funnel.textContent).toContain("Observed people · conversion unavailable with sampling");
+    expect(funnel.textContent).not.toContain("%");
+    expect(funnel.querySelector("[data-funnel-conversion]")).toBeNull();
+    expect(funnel.querySelector("[data-largest-drop]")).toBeNull();
+    expect(funnel.querySelectorAll("[data-funnel-step]")).toHaveLength(4);
+  });
+
   it("answers the question in one strip, one funnel and three rows", () => {
     const { container } = renderJourney(PRODUCT);
     const section = container.querySelector("[data-product-journey]")!;

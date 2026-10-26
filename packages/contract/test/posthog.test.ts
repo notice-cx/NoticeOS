@@ -117,8 +117,8 @@ describe('PostHog family fields — one definition', () => {
     const extra = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number(), bounces: z.number() } satisfies PosthogRowShape<'web-daily'>;
     // @ts-expect-error `sessions` is a web-daily field, so the shape may not omit it.
     const missing = { date: z.string(), pageviews: z.number(), people: z.number() } satisfies PosthogRowShape<'web-daily'>;
-    const exact = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number() } satisfies PosthogRowShape<'web-daily'>;
-    expect([Object.keys(extra).length, Object.keys(missing).length, Object.keys(exact).length]).toEqual([5, 3, 4]);
+    const exact = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number(), estimatedPageviews: z.number().optional(), estimatedSessions: z.number().optional(), sampledEvents: z.number().optional() } satisfies PosthogRowShape<'web-daily'>;
+    expect([Object.keys(extra).length, Object.keys(missing).length, Object.keys(exact).length]).toEqual([5, 3, 7]);
   });
 });
 
