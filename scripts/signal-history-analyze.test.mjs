@@ -112,8 +112,8 @@ test('every report file matches the frozen retired-analyzer reference over one r
   assert.equal(Object.keys(reference.files).length, 47);
   assert.deepEqual([...ours.keys()], [...Object.keys(reference.files), REPORT_RECORD].sort());
   for (const [name, originalHash] of Object.entries(reference.files)) {
-    // CSVs retain the frozen data reference; prose-bearing JSON pins current copy.
-    const hash = reference.copyFiles?.[name] ?? originalHash;
+    // Current-format hashes cover added columns and copy; frozen originals remain available.
+    const hash = reference.currentFiles?.[name] ?? originalHash;
     assert.equal(createHash('sha256').update(ours.get(name)).digest('hex'), hash, name);
   }
 
