@@ -12,6 +12,9 @@ import { monthRevenue } from '../src/lib/wall-revenue';
 import { homeMoney } from '../src/lib/home-money';
 import { portfolioHeadline } from '../src/lib/portfolio-headline';
 import { createTestStore, type TestStore } from './postgres-store';
+import { createDemoActivity } from '../../../scripts/demo-activity.mjs';
+import { generateDemoDisplay, demoIntegrationAssets } from '../../../scripts/demo-display.mjs';
+import { writeInsightSnapshots } from './provider-reports';
 
 const INPUT = { seed: 'portfolio-v1', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 const NOW = new Date(INPUT.cutoff);
@@ -27,9 +30,32 @@ let fixture: TestStore;
 beforeAll(async () => {
   fixture = await createTestStore({ scope: 'suite' });
   await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+  await writeInsightSnapshots(fixture.call, createDemoActivity(scenario).seededReports().map(report => ({
+    id: `demo-coverage-${report.asset}`, asset: report.asset, generated_at: report.generatedAt, payload: JSON.stringify(report),
+  })));
 }, 30_000);
 afterAll(async () => {
   await fixture?.close();
+});
+
+it('stored demo reports populate the redesigned Wall and each asset’s Journeys tab', async () => {
+  const integrations = { catalog: [], assets: demoIntegrationAssets(scenario) };
+  const valueEvents = generateDemoDisplay(scenario)['config/value-events.json'];
+  const wall = await buildWallPayload(fixture.call, { now: NOW, osTimeZone: 'UTC', constants: { dataUsd: 25 }, integrations, pullConfig: [], dashboard: {}, serpPanel: { assets: {} } });
+  const sites = scenario.assets.filter(asset => !asset.isOs);
+  for (const asset of sites) {
+    expect(wall.assets.find(card => card.id === asset.id)?.channels?.rows.length).toBeGreaterThan(0);
+    const page = await buildAssetDetailPayload(fixture.call, asset.id, { ...detail, integrations, valueEvents });
+    expect(page?.journeys?.definitions).toEqual(valueEvents.assets[asset.id]!.journeys);
+    const result = page?.journeys?.funnels[0];
+    expect(result?.current7?.steps.at(-1)?.users).toBeGreaterThan(0);
+    if (asset.prefix === 'fr') {
+      expect(result?.weekly.length).toBeGreaterThan(0);
+      expect(result?.weekly.length).toBeLessThan(4);
+    } else expect(result?.weekly).toHaveLength(12);
+    expect(Boolean(result?.current28)).toBe(asset.prefix !== 'fr');
+  }
+  expect(wall.assets.find(card => card.id === 'weeknightpantry.example')?.product?.funnel?.largestDrop?.lostPeople).toBeGreaterThan(0);
 });
 
 it('ordinary financials and Wall read the same integer-cents ledger without counting estimates twice', async () => {

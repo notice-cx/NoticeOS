@@ -458,8 +458,8 @@ test('dated generation has finite work/output and rejects malformed or historica
   const lastDay = activity.day(last);
   assert.ok(lastDay.assets.every(asset => !asset.pulse || Object.values(asset.pulse.metrics).every(metric => Number.isSafeInteger(metric.total) && metric.total >= 0)));
   assert.ok(Buffer.byteLength(JSON.stringify(lastDay)) < 32768);
-  // A Monday carries every site's weekly report as well.
-  assert.ok(Buffer.byteLength(JSON.stringify(activity.day('2026-10-26'))) < 40960);
+  // A Monday also carries five reports with twelve weeks of ordered journeys.
+  assert.ok(Buffer.byteLength(JSON.stringify(activity.day('2026-10-26'))) < 73728);
   assert.throws(() => activity.day(shiftDemoDay(last, 1)));
 });
 

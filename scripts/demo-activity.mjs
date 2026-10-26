@@ -6,6 +6,7 @@ import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
+import { demoJourneySnapshot } from './demo-journeys.mjs';
 import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoRecurringCost, demoInferenceCostMinor, demoSubscriptionMinor } from './demo-scenario.mjs';
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
@@ -376,7 +377,7 @@ export function createDemoActivity(input) {
         const week = dayIndex / 7;
         const currentStart = shiftDemoDay(date, -7), currentEnd = shiftDemoDay(date, -1);
         const previousStart = shiftDemoDay(date, -14), previousEnd = shiftDemoDay(date, -8);
-        for (const { asset, rows, search, sessionsOn } of assetInputs) {
+        for (const { asset, rows, search, sessionsOn, count } of assetInputs) {
             const weekly = (from) => Array.from({ length: 7 }, (_, i) => search(from + i).impressions).reduce((a, b) => a + b, 0);
             const current = weekly(ordinal - 7), previous = weekly(ordinal - 14);
             const movers = QUERIES[asset.prefix].map((query, k) => {
@@ -407,13 +408,17 @@ export function createDemoActivity(input) {
             const since = Math.max(ordinal - CHANNEL_WINDOW_DAYS, -rows.length);
             const channels = channelSplit(seed, asset, week, visits(since, ordinal), shiftDemoDay(date, since - ordinal), currentEnd);
             const product = PRODUCT_SITES.includes(asset.prefix) ? productWeek(seed, asset, visits(ordinal - 7, ordinal), currentStart, currentEnd, date) : undefined;
+            const journeys = demoJourneySnapshot(asset, `${date}T05:30:00.000Z`, referenceDate, day => {
+                const n = dateNumber(day) - anchor;
+                return n < 0 ? rows.at(n).sessions : count(n, 'sessions');
+            });
             const items = [leadItem, ...opportunities(asset.prefix, movers, channels, product, currentStart, currentEnd)];
             reports.push({ schemaVersion: 1, asset: asset.id, generatedAt: `${date}T05:30:00.000Z`, windowStart: previousStart, windowEnd: currentEnd, sourceArchiveCount: 14,
                 items, suppressedItems: [], methodology: ['Synthetic weekly report derived from the demo scenario; no provider was called.'],
                 searchQueries: { google: { provider: 'google', currentStart, currentEnd, previousStart, previousEnd, daysPerWindow: 7, movers,
                         evidence: [{ label: 'Grounding queries excluded', value: '0', detail: 'No quoted-literal queries in this window' }],
                         source: 'Synthetic search report', caveat: 'Synthetic query movements; no real search data.' }, bing: null, dataforseo: null },
-                channels, ...(product ? { product } : {}) });
+                channels, journeys, ...(product ? { product } : {}) });
         }
         return reports;
     };

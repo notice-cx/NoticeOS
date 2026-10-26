@@ -45,6 +45,7 @@
     "scripts/installation.mts",
     "scripts/demo-scenario.mts",
     "scripts/demo-activity.mts",
+    "scripts/demo-journeys.mts",
     "scripts/demo-realtime.mts",
     "scripts/demo-calendar.mts",
     "scripts/demo-display.mts",

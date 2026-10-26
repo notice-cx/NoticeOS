@@ -9,7 +9,7 @@ import { taskChoicesProblem } from '../packages/contract/src/task-choices.mjs';
 const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 test('one scenario names six real task projects and all cross-store story identities', () => {
   const scenario = generateDemoScenario(input);
-  assert.equal(scenario.manifest.scenarioVersion, 13);
+  assert.equal(scenario.manifest.scenarioVersion, 14);
   assert.equal(scenario.manifest.taskProjects.length, 6);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 220);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 12);

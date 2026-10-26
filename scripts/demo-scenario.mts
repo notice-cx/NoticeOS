@@ -5,7 +5,7 @@ import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import type { CodebaseMeasureKey } from '../packages/contract/src/codebase-measures.js';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 
-export const SCENARIO_VERSION = 13;
+export const SCENARIO_VERSION = 14;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';

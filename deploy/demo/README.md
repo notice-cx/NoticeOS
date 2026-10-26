@@ -133,6 +133,14 @@ env file. Both values come from the project's tracking code: `sc_project` and
 The server adds Statcounter's tag to each page, and the tag counts every in-app
 view. When the line is unset, the pages carry no analytics. No account is named in the source.
 
+Each asset has a saved ordered journey on its Journeys tab, with synthetic
+visitor totals, step counts and conversion comparisons. Mature assets have
+7-day and 28-day periods and twelve complete weeks of history; the weeks-old
+product shows only periods since launch. The weekly simulator refreshes these
+reports, including improving and declining conversion rates. Session paths
+remain uncollected. The Everything Wall keeps Work this week, Attention ticker,
+Portfolio, Revenue this month and one Live feed in the release's default layout.
+
 The scenario is versioned. A release whose scenario version differs from a
 running demo's rejects that demo's stored scenario at startup. Such a release
 needs a fresh setup with a new project name and volumes, which
