@@ -979,6 +979,25 @@ test('history keeps same-time audit events separate and names a truncated baseli
   assert.deepEqual(bounded.changes.at(-1).fields, {});
 });
 
+test('native history uses update patches for fields and models and includes comments absent from audit events', async () => {
+  const f = fixture();
+  const before = { id: 'tt-1', issue_type: 'task', title: 'Synthetic native history', description: 'Long evidence '.repeat(300).trim(), status: 'open' };
+  const patch = { status: 'in_progress', assignee: PERSON, metadata: { noticeos_claimed_model: 'Example Model' } };
+  f.tasks.set('tt-1', { ...before, ...patch });
+  f.histories.set('tt-1', [{ CommitHash: 'claim', CommitDate: '2026-10-07T12:00:01.500Z', Committer: 'beads', Issue: { ...before, status: 'in_progress', assignee: PERSON } },
+    { CommitHash: 'create', CommitDate: '2026-10-07T12:00:00Z', Committer: 'beads', Issue: before }]);
+  f.auditEvents.set('tt-1', [{ id: 'claimed-event', issue_id: 'tt-1', event_type: 'updated', actor: PERSON,
+    old_value: JSON.stringify(before), new_value: JSON.stringify(patch), created_at: '2026-10-07T12:00:01Z' }]);
+  f.comments.push({ id: 'comment-1', issue_id: 'tt-1', author: PERSON, text: 'Synthetic comment outside the event table', created_at: '2026-10-07T12:00:02Z' });
+  const result = (await call(f, 'get_task_history', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  const claim = result.changes.find(change => change.actions.includes('claimed'));
+  assert.equal(claim.model, 'Example Model');
+  assert.deepEqual(claim.fields.status, { old: 'open', new: 'in_progress' });
+  assert.equal(claim.fields.description, undefined);
+  assert.ok(result.changes.some(change => change.actions.includes('commented') && change.fields.comment.new.includes('outside the event table')));
+  assert.ok(result.changes.every(change => !Object.hasOwn(change.fields, 'value')));
+});
+
 test('decision lint uses stored choices as alternatives and requests the outcome only after a choice', async () => {
   const f = fixture();
   const choices = { question: 'Which local layout?', options: [

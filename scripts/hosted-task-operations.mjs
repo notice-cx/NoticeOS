@@ -399,7 +399,7 @@ export function createHostedTaskOperations(options) {
         history(proof, workspaceId, projectId, taskId, limit, events = false) {
             return explained(proof, workspaceId, projectId, [taskId], () => read(proof, workspaceId, projectId, async (_project, run, _readAt, actorsOf) => {
                 await actorsOf();
-                return run({ kind: 'history', taskId, limit, ...(events ? { events: true } : {}) });
+                return events === 'comments' ? run({ kind: 'comments', taskId }) : run({ kind: 'history', taskId, limit, ...(events ? { events: true } : {}) });
             }, taskId));
         },
         approval(proof, workspaceId, projectId, taskId, reason) {

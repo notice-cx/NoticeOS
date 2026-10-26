@@ -512,9 +512,44 @@ function changedFields(before, after, path = '', result = {}) {
     return result;
 }
 function eventFields(event) {
+    const before = historyJson(event.old_value), after = historyJson(event.new_value);
+    if (after && (event.event_type === 'updated' || event.event_type === 'created')) {
+        const names = { issue_type: 'type', acceptance_criteria: 'acceptance', created_at: 'createdAt',
+            updated_at: 'updatedAt', started_at: 'startedAt', closed_at: 'closedAt', close_reason: 'closeReason', defer_until: 'deferUntil' };
+        const previous = {}, next = {};
+        for (const [key, value] of Object.entries(after)) {
+            const field = names[key] ?? key;
+            previous[field] = before?.[key];
+            next[field] = value;
+        }
+        return changedFields(previous, next);
+    }
     const field = event.event_type === 'status_changed' ? 'status' : event.event_type === 'claimed' ? 'assignee'
         : event.event_type === 'commented' ? 'comment' : event.event_type === 'dependency_added' || event.event_type === 'dependency_removed' ? 'dependency' : 'value';
     return { [field]: { old: event.old_value ?? null, new: event.new_value ?? event.comment ?? null } };
+}
+function historyJson(value) {
+    if (typeof value !== 'string')
+        return null;
+    try {
+        const parsed = JSON.parse(value);
+        return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    }
+    catch {
+        return null;
+    }
+}
+function eventAction(event) {
+    const fields = eventFields(event);
+    return event.event_type === 'updated' && fields.status?.new === 'in_progress' && fields.assignee ? 'claimed'
+        : historyText(event.event_type) ?? 'updated';
+}
+function eventModel(event) {
+    const state = { ...historyJson(event.old_value), ...historyJson(event.new_value) };
+    const metadata = historyRecord(state.metadata);
+    return eventAction(event) === 'claimed' && state.assignee === event.actor ? historyText(metadata.noticeos_claimed_model)
+        : state.created_by === event.actor && event.event_type === 'created' ? historyText(metadata.noticeos_filed_model)
+            : metadata.noticeos_closed_by === event.actor ? historyText(metadata.noticeos_closed_model) : null;
 }
 /** Snapshots establish field changes; audit events establish actions and actors.
  * Equal-time revisions cannot be matched uniquely, so their events stay separate. */
@@ -534,18 +569,17 @@ function compactHistory(history, audit, limit, exhausted) {
         const actors = new Set(matched.map(event => historyText(event.actor)).filter(value => value !== null));
         const committer = historyText(row.Committer);
         const actor = actors.size === 1 ? [...actors][0] : actors.size > 1 || committer === 'beads' ? null : committer;
-        const actions = [...new Set(matched.map(event => historyText(event.event_type)).filter(value => value !== null))];
+        const actions = [...new Set(matched.map(eventAction))];
         if (!actions.length)
             actions.push(fields.status?.new === 'closed' ? 'closed'
                 : fields.status?.new === 'in_progress' && fields.assignee ? 'claimed'
                     : fields.status ? 'status_changed' : !previous && exhausted ? 'created' : 'updated');
         for (const event of matched) {
-            if (event.event_type === 'commented' || event.event_type === 'dependency_added' || event.event_type === 'dependency_removed') {
-                Object.assign(fields, eventFields(event));
-            }
+            Object.assign(fields, eventFields(event));
         }
         const metadata = historyRecord(task.metadata);
-        const model = actions.includes('claimed') && actor === task.assignee ? historyText(metadata.noticeos_claimed_model)
+        const recordedModels = new Set(matched.map(eventModel).filter(value => value !== null));
+        const model = recordedModels.size === 1 ? [...recordedModels][0] : actions.includes('claimed') && actor === task.assignee ? historyText(metadata.noticeos_claimed_model)
             : actions.includes('created') && actor === metadata.noticeos_filed_by ? historyText(metadata.noticeos_filed_model)
                 : actions.includes('closed') && actor === metadata.noticeos_closed_by ? historyText(metadata.noticeos_closed_model) : null;
         return { revision: historyText(row.CommitHash), at, actor, model, actions, fields,
@@ -553,7 +587,7 @@ function compactHistory(history, audit, limit, exhausted) {
     });
     for (const event of events.filter(event => !used.has(event))) {
         changes.push({ revision: null, eventId: historyText(event.id), at: historyText(event.created_at), actor: historyText(event.actor),
-            model: null, actions: [historyText(event.event_type) ?? 'updated'], fields: eventFields(event) });
+            model: eventModel(event), actions: [eventAction(event)], fields: eventFields(event) });
     }
     return changes.sort((a, b) => String(b.at ?? '').localeCompare(String(a.at ?? ''))).slice(0, limit);
 }
@@ -889,7 +923,16 @@ export const TASK_MCP_TOOLS = Object.freeze([
                 const events = await operations.history(proof, workspaceId, project(args), task(args), HOSTED_TASK_LIMITS.rows, true);
                 if (events !== null && !Array.isArray(events))
                     refuse('unavailable: task audit events could not be read; retry or request snapshots: true');
-                return { changes: compactHistory(history, events ?? [], limit, history.length < count) };
+                const comments = await operations.history(proof, workspaceId, project(args), task(args), HOSTED_TASK_LIMITS.rows, 'comments');
+                if (!Array.isArray(comments))
+                    refuse('unavailable: task comments could not be read; retry or request snapshots: true');
+                const audit = (events ?? []);
+                for (const entry of comments.map(historyRecord)) {
+                    if (audit.some(event => event.event_type === 'commented' && event.actor === entry.author && event.comment === entry.text && event.created_at === entry.created_at))
+                        continue;
+                    audit.push({ id: entry.id, event_type: 'commented', actor: entry.author, comment: entry.text, created_at: entry.created_at });
+                }
+                return { changes: compactHistory(history, audit, limit, history.length < count) };
             }
             return { changes: history.map(entry => {
                     const row = (entry ?? {});
