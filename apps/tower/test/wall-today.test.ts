@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { todayUserCounts } from "@/lib/wall-today";
+import { estimatedTodayUsers, todayUserCounts } from "@/lib/wall-today";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
 describe("the Today daily distinct-user totals", () => {
@@ -67,4 +67,74 @@ describe("the Today daily distinct-user totals", () => {
     asset.activeUsers.timeZone = "Invalid/Provider";
     expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ date: null, referenceDate: null, today: null, reference: null });
   });
+});
+
+describe('estimated users today so far', () => {
+  const nowMs = Date.parse('2026-09-22T02:00:00Z');
+  function fixture() {
+    const asset = structuredClone(wallFixturePayload().assets[0]!);
+    const snapshot = structuredClone(wallFixtureRealtime().assets[0]!);
+    if (snapshot.status !== 'success') throw new Error('expected success');
+    asset.activeUsers = { ...asset.activeUsers, timeZone: 'UTC', timeZoneChanges: [], contextSeries: [],
+      series: [{ t: '2026-09-15', v: 1440 }] };
+    snapshot.realtimeDay = { date: '2026-09-22', timeZone: 'UTC', startAt: '2026-09-22T00:00:00Z', endAt: '2026-09-23T00:00:00Z',
+      minutes: Array<number | null>(1440).fill(null), sameDayLastWeek: Array<number>(1440).fill(2) };
+    for (let i = 0; i < 120; i++) snapshot.realtimeDay.minutes[i] = 4;
+    return { asset, snapshot, day: snapshot.realtimeDay };
+  }
+  it('calibrates user-minutes into users rather than summing duplicate appearances or projecting the whole day', () => {
+    const { asset, snapshot } = fixture();
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)).toMatchObject({ users: 240, observedMinutes: 120, estimatedMinutes: 0, through: '2026-09-22T02:00:00.000Z' });
+  });
+  it('estimates missing minutes with the historical profile rather than silently treating them as zero', () => {
+    const { asset, snapshot, day } = fixture();
+    for (let i = 0; i < 60; i++) day.minutes[i] = null;
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)).toMatchObject({ users: 240, observedMinutes: 60, estimatedMinutes: 60 });
+    // A busier missing hour contributes more than a flat time extrapolation.
+    day.sameDayLastWeek![0] = 122;
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)?.users).toBe(346);
+  });
+  it('preserves observed zero, stays above reported users, and accepts later GA4 revisions', () => {
+    const { asset, snapshot, day } = fixture();
+    for (let i = 0; i < 120; i++) day.minutes[i] = 0;
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)?.users).toBe(0);
+    asset.activeUsers.series.push({ t: '2026-09-22', v: 300 });
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)?.users).toBe(300);
+    asset.activeUsers.series[1]!.v = 250;
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)?.users).toBe(250);
+  });
+  it('ignores partial and future minutes and never grows an estimate just because the clock advanced', () => {
+    const { asset, snapshot, day } = fixture();
+    day.minutes[120] = 99999;
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)?.users).toBe(240);
+    day.minutes[120] = null;
+    expect(estimatedTodayUsers(asset, snapshot, nowMs + 60 * 60_000)).toMatchObject({ users: 240, through: '2026-09-22T02:00:00.000Z' });
+    expect(estimatedTodayUsers(asset, snapshot, Date.parse(day.endAt))).toBeNull();
+  });
+  it.each([
+    ['2026-03-08', '2026-03-01', '2026-03-08T08:00:00Z', '2026-03-09T07:00:00Z'],
+    ['2026-03-10', '2026-03-03', '2026-03-10T07:00:00Z', '2026-03-11T07:00:00Z'],
+    ['2026-11-01', '2026-10-25', '2026-11-01T07:00:00Z', '2026-11-02T08:00:00Z'],
+    ['2026-11-03', '2026-10-27', '2026-11-03T08:00:00Z', '2026-11-04T08:00:00Z'],
+  ])('does not treat a clock-aligned DST comparison as a full daily calibration on %s', (date, referenceDate, startAt, endAt) => {
+    const { asset, snapshot, day } = fixture();
+    asset.activeUsers.timeZone = 'America/Los_Angeles';
+    asset.activeUsers.series = [{ t: referenceDate, v: 1440 }];
+    Object.assign(day, { date, timeZone: 'America/Los_Angeles', startAt, endAt });
+    expect(estimatedTodayUsers(asset, snapshot, Date.parse(startAt) + 4 * 60 * 60_000)).toBeNull();
+  });
+  it.each(['missing-reference', 'zero-reference', 'incomplete-prior', 'zero-prior', 'too-few-minutes', 'no-minutes', 'different-zone', 'changed-zone', 'invalid-minute'])(
+    'declines an unsupported calibration: %s', mode => {
+      const { asset, snapshot, day } = fixture();
+      if (mode === 'missing-reference') asset.activeUsers.series = [];
+      if (mode === 'zero-reference') asset.activeUsers.series[0]!.v = 0;
+      if (mode === 'incomplete-prior') day.sameDayLastWeek![700] = null;
+      if (mode === 'zero-prior') day.sameDayLastWeek!.fill(0);
+      if (mode === 'too-few-minutes') day.minutes.fill(null, 14);
+      if (mode === 'no-minutes') day.minutes.fill(null);
+      if (mode === 'different-zone') asset.activeUsers.timeZone = 'Europe/London';
+      if (mode === 'changed-zone') asset.activeUsers.timeZoneChanges = [{ effectiveOn: '2026-09-20', from: 'Europe/London', to: 'UTC' }];
+      if (mode === 'invalid-minute') day.minutes[0] = NaN;
+      expect(estimatedTodayUsers(asset, snapshot, nowMs)).toBeNull();
+    });
 });
