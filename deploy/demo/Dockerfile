@@ -1,5 +1,5 @@
 # Compiled preview image; build only the public source of one exact commit.
-FROM node:26.11.1-bookworm-slim@sha256:86f07bc9c5dce4578cf37e5a418b7bfc7f817cda25cde66e2b66e95ed86c4567
+FROM node:26.12.1-bookworm-slim@sha256:28147155d47dc31abe0a46e0d12b59b2fb3d0a2dcc5dc65fce76a074180b16fe
 ARG TARGETARCH
 ARG NOTICEOS_SOURCE_COMMIT
 LABEL org.opencontainers.image.revision=$NOTICEOS_SOURCE_COMMIT
