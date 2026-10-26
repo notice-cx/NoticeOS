@@ -14,6 +14,9 @@ import { MEDIAVINE_REPORTING_CLOCK } from "../../../packages/mediavine/src/index
 import { revenueExpectedThrough, shiftRevenueDate } from "../shared/revenue-projection";
 import { bookLedger } from '../test/money';
 import { writeInsightSnapshots } from '../test/provider-reports';
+import { SESSION_EXPLORATION_DEMO_REPORTS } from '../src/components/SessionExploration.fixtures';
+import { explorationDateOffset } from '@noticeos/contract/session-exploration';
+import { storeReports } from '../test/alert-rows';
 import { ORDERED_JOURNEY_DEFINITIONS, orderedJourneyFixture } from './ordered-journeys-fixture';
 import { storeCodebaseReports, weeklyStoredReports } from '../test/codebase-fixture';
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
@@ -1360,6 +1363,19 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         }]);
         response = Response.json({ seeded: true });
       }
+    } else if (url.pathname === "/__journey/session-exploration" && request.method === "POST") {
+      const config = documents['config/value-events.json'] as {assets:Record<string,{journeys:typeof ORDERED_JOURNEY_DEFINITIONS}>};
+      const exploration = config.assets[JOURNEY_ASSET]?.journeys.find(d => d.kind === 'exploration');
+      if (exploration) exploration.status = 'active';
+      versions.set('config/value-events.json',(versions.get('config/value-events.json') ?? 0)+1);
+      const offset = Math.round((Date.parse(JOURNEY_NOW.slice(0,10)) - Date.parse('2026-10-26')) / 86_400_000);
+      const reports = SESSION_EXPLORATION_DEMO_REPORTS.map(r => ({...r, journeyId:'exploration', date:explorationDateOffset(r.date,offset)}));
+      await storeReports(postgres.current().store, reports.map(r => {
+        const date = explorationDateOffset(r.date,1), generatedAt = `${date}T01:00:00Z`;
+        return {asset:JOURNEY_ASSET,date,generatedAt,receivedAt:generatedAt,capabilities:['sessionExploration'],
+          envelope:{asset:JOURNEY_ASSET,generatedAt,capabilities:['sessionExploration'],metrics:{},sessionExploration:[r]}};
+      }));
+      response = Response.json({seeded:true});
     } else if (url.pathname === "/__journey/finding" && request.method === "POST") {
       // One saved finding on the fixture asset, after the real wizard created it.
       if (!await siteStored(JOURNEY_ASSET)) {

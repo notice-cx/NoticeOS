@@ -372,3 +372,7 @@ the only copy. The store's own ingest freshness is a Tower metric
 ([doc 06](06-operations.md)) — a push cron that stopped three weeks ago with
 no alert must raise an `error` flag on NoticeOS's own asset (`is_os`), not be
 found later by chance.
+
+## Session exploration
+
+Assets can include daily session-path aggregates in their existing report envelope. The [session exploration contract](reference/session-exploration.md) defines the session denominator, category paths, limits, corrections and stored history. Ordered GA4 user funnels retain their separate counting unit.

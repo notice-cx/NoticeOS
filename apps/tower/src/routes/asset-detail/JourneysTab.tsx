@@ -44,5 +44,5 @@ export function JourneysTab({ data }: { data: AssetDetailFor<"journeys"> }) {
     });
   }
 
-  return <div id="journeys" className="scroll-mt-4"><JourneyMonitor definitions={definitions} snapshot={data.journeys} onSave={writable ? write : undefined} readOnlyReason={reason} eventNames={events} /></div>;
+  return <div id="journeys" className="scroll-mt-4"><JourneyMonitor definitions={definitions} snapshot={data.journeys} sessionExploration={data.sessionExploration} onSave={writable ? write : undefined} readOnlyReason={reason} eventNames={events} /></div>;
 }

@@ -17,7 +17,7 @@ export const JOURNEY_DEMO_DEFINITIONS: JourneyDefinition[] = [
     { id: "checkout", label: "Begin checkout", alternatives: [{ eventName: "begin_checkout" }], withinSeconds: 2592000 },
     { id: "paid", label: "First payment confirmed", alternatives: [{ eventName: "purchase", parameters: [{ name: "payment_kind", value: "initial_paid" }] }], withinSeconds: 2592000 },
   ] },
-  { id: "explore", label: "Where visitors go next", goal: "Exploration", kind: "exploration", status: "planned", version: 1, steps: [
+  { id: "explore", label: "Where visitors go next", goal: "Exploration", kind: "exploration", status: "active", version: 1, steps: [
     { id: "entry", label: "Useful page", alternatives: [{ eventName: "page_view" }] },
     { id: "destination", label: "Next useful destination", alternatives: [{ eventName: "page_view", pagePath: "/recipes" }, { eventName: "page_view", pagePath: "/guides" }] },
   ] },

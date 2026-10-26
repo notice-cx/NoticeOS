@@ -96,6 +96,7 @@ The families, and what each means:
   `chart-distorted` for a day a reporting-timezone change made incomparable
   (a caveat about the measurement, in a paler warn, never an alert), and
   `spark` for the neutral compact trend.
+  Session exploration uses categorical `asset-1` through `asset-4` colours for named sections and neutral grey for exits. Repeated section positions retain the same colour.
   The journey chart uses blue `journey-continuation`, teal `journey-outcome`,
   amber `journey-loss` and violet `journey-prior`. Weekly change cells use
   `trend-positive` and `trend-negative` only for comparable percentage-point
@@ -176,6 +177,7 @@ that can be read quickly, and the kit has a component for it:
 | open problems | one ranked panel: new since the operator last looked first, the long-standing ones collapsed | `IncidentList` |
 | several measures, each against its own earlier window | rows divided by thin lines: the figure, its days against the earlier level, the change as a bar from one shared zero line | `ChangeRows` |
 | a count narrowing step by step | bars on one scale, each with its share of the step before; a step with no measurement hatched | `FunnelBars` |
+| session exploration | a 100% session reference, proportional branches across ordered sections, recorded exits, returns, reach of the selected section and weekly history on an adaptive percentage axis; missing paths and incomplete days retain their coverage labels | `SessionExploration` |
 | ordered conversion and its changes over time | a measured visitor reference at 100%, aligned bars with each step's percentage of visitors and its drop-off, the largest absolute step loss highlighted, the selected step’s weekly reach below the funnel on an adaptive percentage axis and an inspectable continuation grid; reports without visitor totals show percentages of journey entrants | `JourneyMonitor` |
 | why a task ranks | its card's figures in one row, read left to right, each with its unit a step lighter: the money at stake, the likelihood as a percent and ten bars, the operator's minutes, the time to signal, the kill date, the rank with its policy version | `WhyItRanks` |
 | one project's tasks by state | one row of equal segments, one per task, filled from the left as the work finishes, its counts as the bar's accessible sentence | `TaskProgressBar` |
@@ -904,7 +906,9 @@ coinages, each with the word to use instead, and the operational and technical
 words banned on the business surfaces) and `scripts/ui-noun.test.mjs` (never
 *site* or *property* for an asset). Both check shipped text only — string literals and
 JSX text — and both are exact lists, so widening either is a deliberate
-decision, made in the same commit that widens the list.
+decision, made in the same commit that widens the list. The SQL reference
+`FROM noticeos.pulses` remains literal because session history reads retained
+report revisions from that table; this reference is not displayed on a page.
 
 ## Components
 

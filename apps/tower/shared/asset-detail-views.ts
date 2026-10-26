@@ -37,7 +37,7 @@ export const RESTORE_HASH = "#restore";
 
 /** The payload fields each section supplies. */
 interface SectionFields {
-  journeys: Pick<AssetDetailPayload, "journeys">;
+  journeys: Pick<AssetDetailPayload, "journeys" | "sessionExploration">;
   /** The 90-day provider trends (the heaviest read on the page). */
   performance: Pick<AssetDetailPayload, "performance">;
   /** The saved analysis and its source attempts. */
@@ -91,7 +91,7 @@ export const ASSET_VIEW_SECTIONS = {
 
 /** The top-level payload fields a section owns outright, for the runtime check. */
 export const ASSET_SECTION_FIELDS: { [S in AssetDetailSection]: readonly (keyof AssetDetailPayload)[] } = {
-  journeys: ["journeys"],
+  journeys: ["journeys", "sessionExploration"],
   performance: ["performance"],
   executive: ["executive", "recommendationEvidence"],
   metrics: ["metrics"],

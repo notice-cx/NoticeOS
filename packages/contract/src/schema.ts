@@ -7,6 +7,7 @@
 // worker writes and the Tower reads.
 
 import { z } from 'zod';
+import { readSessionExplorationReports, type SessionExplorationReport } from './session-exploration.mjs';
 import { isSupportedCurrency, majorToMinorUnits } from './money.js';
 
 // ISO-8601 datetime, accepting a trailing Z or a numeric offset.
@@ -70,6 +71,9 @@ export const PulseEnvelope = z.object({
   metrics: z.record(z.string(), Metric),
   negativeByPage: z.array(NegativeByPage).optional(),
   flags: z.array(InTransitFlag).optional(),
+  sessionExploration: z.custom<SessionExplorationReport[]>((value) => readSessionExplorationReports(value) !== null, 'Invalid session exploration reports').optional(),
+}).refine((value) => value.sessionExploration === undefined || readSessionExplorationReports(value.sessionExploration, value.generatedAt) !== null, {
+  path: ['sessionExploration'], message: 'Session exploration reports must cover closed local days, including the inactivity timeout',
 });
 export type PulseEnvelope = z.infer<typeof PulseEnvelope>;
 

@@ -419,7 +419,7 @@ test('ordered journey loss and weekly history retain their dates and planned sta
   await page.goto(`/assets/${JOURNEY_ASSET}/journeys`);
   const monitor = page.locator('[data-journey-monitor]');
   await expect(monitor.getByRole('heading', { name: 'Account growth', exact: true })).toBeVisible();
-  await expect(monitor).toContainText('Largest loss');
+  await expect(monitor).toContainText('Largest step loss');
   await expect(monitor).toContainText('5,800');
   await expect(monitor.locator('.journey-baseline')).toContainText('24,000');
   await expect(monitor.locator('.journey-baseline')).toContainText('100%');
@@ -465,6 +465,34 @@ test('ordered journey loss and weekly history retain their dates and planned sta
   await monitor.getByRole('button', { name: /Discover useful pages/ }).click();
   await expect(monitor).toContainText('Session paths');
   await assertNoPageOverflow(page);
+});
+
+test('session exploration preserves branches, common percentages and selected-section history', { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
+  await addAssetByApi(page);
+  expect((await request.post('/__journey/ordered-journeys')).ok()).toBe(true);
+  expect((await request.post('/__journey/session-exploration')).ok()).toBe(true);
+  await page.goto(`/assets/${JOURNEY_ASSET}/journeys`);
+  const monitor=page.locator('[data-journey-monitor]');
+  await monitor.getByRole('button',{name:/Discover useful pages/}).click();
+  const exploration=monitor.locator('[data-session-exploration]');
+  await expect(exploration.getByRole('heading',{name:'Where sessions go'})).toBeVisible();
+  await expect(exploration.locator('.session-summary')).toContainText('100%');
+  await expect(exploration.locator('.session-coverage')).toContainText('28 of 28 complete days');
+  await expect(exploration).toContainText('Largest recorded exit');
+  await exploration.locator('.session-surface-controls').getByRole('button',{name:/^Tools/}).click();
+  await expect(exploration.getByRole('heading',{name:'Tools over time',exact:true})).toBeVisible();
+  await expect(exploration.getByRole('img',{name:/Tools, weekly percentage of all sessions/})).toBeVisible();
+  await expect(exploration.locator('.session-inspection')).toContainText('Each session counts once');
+  const clear=exploration.getByRole('button',{name:'Clear selection'});
+  await clear.focus(); await page.keyboard.press('Enter');
+  await expect(exploration.getByRole('heading',{name:'Explored beyond one section over time'})).toBeVisible();
+  await monitor.getByRole('button',{name:'7 days',exact:true}).click();
+  await expect(exploration.locator('.session-coverage')).toContainText('7 of 7 complete days');
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await expect(page.locator('#boot-splash')).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0,0));
+  await assertNoPageOverflow(page);
+  await page.screenshot({path:testInfo.outputPath('session-exploration.png'),fullPage:true});
 });
 
 test('asset order moves in the Wall editor, persists across every list, and supports guarded Undo', async ({ page, request }, testInfo) => {
