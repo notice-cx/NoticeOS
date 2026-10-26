@@ -3,7 +3,7 @@ import { buildSessionExplorationSnapshot, readSessionExplorationReports, type Se
 import type { WorkspaceStore } from '@noticeos/postgres';
 
 /** Read stored asset reports only; viewing a journey never queries an analytics provider. */
-export async function readAssetSessionExploration(store: WorkspaceStore, asset: string, definitions: unknown, now: Date): Promise<SessionExplorationSnapshot[]> {
+export async function readAssetSessionExploration(store: WorkspaceStore, asset: string, definitions: unknown, now: Date, timeZone?: string): Promise<SessionExplorationSnapshot[]> {
   const current = (readJourneyDefinitions(definitions) ?? []).filter(d => d.kind === 'exploration');
   if (current.length === 0) return [];
   const rows = await store.read(tx => tx.query<{report: string; generatedAt: string; receivedAt: string}>(
@@ -26,5 +26,5 @@ export async function readAssetSessionExploration(store: WorkspaceStore, asset: 
       if (reports) receipts.push({generatedAt, receivedAt, reports: reports.filter(r => current.some(d => d.id === r.journeyId && d.version === r.journeyVersion))});
     } catch { /* Invalid historical reports remain unavailable. */ }
   }
-  return current.map(d => buildSessionExplorationSnapshot(d.id, receipts, now));
+  return current.map(d => buildSessionExplorationSnapshot(d.id, receipts, now, timeZone));
 }

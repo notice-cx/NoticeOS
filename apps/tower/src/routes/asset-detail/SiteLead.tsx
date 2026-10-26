@@ -271,8 +271,8 @@ function RankingsLead({ snapshot, aside }: { snapshot: SearchIntelligenceSnapsho
 }
 
 /** "Latest 7 days vs the 7 before" beside the daily-users chart. A window
- * across a reporting-timezone change keeps its number and loses its colour,
- * with the ⚠ saying why. */
+ * across a reporting-timezone change retains its number and colour; the
+ * estimate marker identifies adjusted boundaries. */
 function WeeklyChange({ weekly }: { weekly: WeeklyComparison }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-weekly-change>
@@ -280,7 +280,7 @@ function WeeklyChange({ weekly }: { weekly: WeeklyComparison }) {
       <DeltaChip
         value={weekly.change}
         render={(value) => `${formatPercent(value)}%`}
-        tone={weekly.distorted ? "neutral" : performanceTone(weekly.change)}
+        tone={performanceTone(weekly.change)}
         className="text-xs"
       />
       {weekly.distorted ? <TimeZoneCaveat trend={weekly.trend} window={weekly.distorted} /> : null}

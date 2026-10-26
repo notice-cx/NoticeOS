@@ -93,7 +93,7 @@ export function ga4VisitorRequest(period: JourneyWindow): Record<string, unknown
     metrics: [{ name: 'activeUsers' }], returnPropertyQuota: true };
 }
 
-export function ga4VisitorResult(body: unknown, expectedTimeZone?: string): JourneyVisitors {
+export function ga4VisitorResult(body: unknown, _expectedTimeZone?: string): JourneyVisitors {
   const report = asRecord(body);
   const headers = Array.isArray(report?.metricHeaders) ? report.metricHeaders : [];
   const metric = headers.findIndex((header) => asRecord(header)?.name === 'activeUsers');
@@ -106,9 +106,6 @@ export function ga4VisitorResult(body: unknown, expectedTimeZone?: string): Jour
     return unavailableVisitors('GA4 did not return a complete visitor count');
   }
   const metadata = asRecord(report?.metadata);
-  if (expectedTimeZone !== undefined && metadata?.timeZone !== undefined && metadata.timeZone !== expectedTimeZone) {
-    return unavailableVisitors('GA4 visitor reporting time zone did not match the journey');
-  }
   if (metadata?.subjectToThresholding === true || metadata?.dataLossFromOtherRow === true) {
     return unavailableVisitors('GA4 reported thresholding or incomplete visitor data');
   }
@@ -241,7 +238,6 @@ export async function runGa4Journeys(input: {
         continue;
       }
       try {
-        if (target.timeZoneAssumed) throw new SignalError('ga4_journey_timezone_unknown', 'GA4 has not reported this property’s reporting time zone yet');
         if (haltCause !== null) throw haltCause;
         if (definitionHaltCause !== null) throw definitionHaltCause;
         if (budget.remaining <= 0) throw new SignalError('ga4_journey_budget_exhausted', 'Journey collection request budget is exhausted');

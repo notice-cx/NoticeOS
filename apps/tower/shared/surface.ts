@@ -166,9 +166,8 @@ export interface SurfaceWindow {
  * What a KPI's delta claims: this range's total against the same length of
  * time immediately before it. `comparable` is separate from `tone`: tone is
  * the direction the figures moved, always true; comparable is whether the two
- * sides are the same measurement, false when a reporting-timezone change
- * moved hours across the window's days or the two sides do not cover the same
- * number of observed periods. A page colours the delta only while comparable.
+ * sides cover the same number of periods. Timezone boundaries use derived
+ * estimates and do not suppress an otherwise available comparison.
  */
 export interface PeriodDelta {
   /** The range this compares, in the series' own grain. */
@@ -194,7 +193,7 @@ export interface PeriodDelta {
 export function periodDelta(
   series: readonly SeriesPoint[],
   length: number,
-  timeZoneChanges: readonly TimeZoneChangePoint[] = [],
+  _timeZoneChanges: readonly TimeZoneChangePoint[] = [],
   provisionalFrom: string | null = null,
 ): PeriodDelta | null {
   // The delta excludes the day the provider has not closed: a day still being
@@ -226,10 +225,6 @@ export function periodDelta(
   const priorTotal = total(prior);
   const change = currentTotal - priorTotal;
 
-  const straddles = timeZoneChanges.some(
-    (point) => point.effectiveOn >= priorWindow.start && point.effectiveOn <= window.end,
-  );
-
   return {
     length,
     currentTotal,
@@ -237,7 +232,7 @@ export function periodDelta(
     change,
     percent: priorTotal === 0 ? null : (change / priorTotal) * 100,
     tone: change > 0 ? "up" : change < 0 ? "down" : "flat",
-    comparable: !straddles && current.length === prior.length,
+    comparable: current.length === prior.length,
     currentPeriods: current.length,
     priorPeriods: prior.length,
     window,
@@ -254,9 +249,7 @@ export function deltaMeaning(delta: PeriodDelta, grain: SeriesGrain = "daily"): 
   if (delta.comparable) return windows;
   // Why it is not like-for-like, as the fact itself: the reader already sees
   // "Not comparable" and needs which of the two things broke it.
-  return delta.currentPeriods !== delta.priorPeriods
-    ? `${windows} · ${delta.currentPeriods} vs ${delta.priorPeriods} ${unit}s reported`
-    : `${windows} · reporting timezone changed`;
+  return `${windows} · ${delta.currentPeriods} vs ${delta.priorPeriods} ${unit}s reported`;
 }
 
 /** The first point the provider has not finished, or `-1`. `provisionalFrom`

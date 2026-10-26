@@ -19,6 +19,7 @@
 import type { AssetCard, PortfolioBand } from "@shared/wall";
 import { portfolioRevenueComparison, type PortfolioRevenueComparison, type RevenueProjection } from "@shared/revenue-projection";
 import { yesterdayRevenue } from "@shared/daily-revenue";
+import { reportingCalendarTrend } from '@shared/reporting-calendar';
 import { portfolioHeadline } from "@/lib/portfolio-headline";
 
 /** One calendar day of the covered sites' month, cumulative. */
@@ -225,45 +226,50 @@ export interface YesterdayTotal {
   sites: number;
   /** One common provider day/clock, never an assumed operator or provider day. */
   basis: { date: string; timeZone: string; label?: string } | null;
-  /** Received reports use incompatible dates/clocks, so no total is valid. */
-  mixedBasis?: true;
+  /** At least one reporting boundary was estimated on the selected calendar. */
+  estimated?: true;
 }
 
-/**
- * Yesterday's revenue across the sites, or `null` when no site has a revenue
- * source. A summary counts only while it still describes yesterday: the
- * Worker dates it on its provider's reporting clock
- * (`DailyRevenueSummary.timeZone`), and a last-good payload the Wall is still
- * holding can cross midnight, so "yesterday" is asked again at `nowMs` on
- * that same clock.
- */
+/** Yesterday on the selected display calendar. Fresh provider reports and
+ * their stored history supply estimates for shifted daily boundaries. */
 export function yesterdayTotal(
   assets: readonly Pick<AssetCard, "revenueProjection" | "dailyRevenue">[],
   nowMs: number,
+  timeZone?: string,
 ): YesterdayTotal | null {
   const sources = assets.filter(hasRevenueSource);
   if (sources.length === 0) return null;
+  const displayZone = timeZone ?? sources.find(source => source.dailyRevenue)?.dailyRevenue?.timeZone;
+  if (!displayZone) return { amount: null, reported: 0, sites: sources.length, basis: null };
+  const date = yesterdayOn(displayZone, nowMs);
+  if (!date) return { amount: null, reported: 0, sites: sources.length, basis: null };
   let amountMinor = 0;
   let reported = 0;
-  const bases = sources.flatMap(({ dailyRevenue: summary }) => {
-    if (!summary) return [];
-    const date = yesterdayOn(summary.timeZone, nowMs);
-    return date ? [{ date, timeZone: summary.timeZone, ...(summary.timeZoneLabel ? { label: summary.timeZoneLabel } : {}) }] : [];
-  });
-  const basis = bases[0] && bases.every(value => value.date === bases[0]!.date && value.timeZone === bases[0]!.timeZone) ? bases[0] : null;
-  let reportedBasis: { date: string; timeZone: string; label?: string } | null = null;
-  let mixedBasis = false;
-  for (const { dailyRevenue: summary } of sources) {
+  let estimated = false;
+  const label = sources.find(source => source.dailyRevenue?.timeZone === displayZone)?.dailyRevenue?.timeZoneLabel;
+  const basis = { date, timeZone: displayZone, ...(label ? { label } : {}) };
+  for (const { dailyRevenue: summary, revenueProjection } of sources) {
     if (!summary || summary.amountMinor === null || summary.date !== yesterdayOn(summary.timeZone, nowMs)) continue;
-    if (reportedBasis && (reportedBasis.date !== summary.date || reportedBasis.timeZone !== summary.timeZone)) {
-      mixedBasis = true;
+    if (summary.timeZone === displayZone) {
+      amountMinor += summary.amountMinor;
+    } else {
+      let previous = 0;
+      const series = (revenueProjection?.points ?? []).filter(point => !point.projected).map(point => {
+        const value = point.cumulativeMinor - previous;
+        previous = point.cumulativeMinor;
+        return { t: point.date, v: value };
+      }).filter(point => point.t !== summary.date);
+      series.push({ t: summary.date, v: summary.amountMinor });
+      series.sort((a, b) => a.t.localeCompare(b.t));
+      const adjusted = reportingCalendarTrend({ series, timeZone: summary.timeZone, timeZoneChanges: [], provisionalFrom: null, collectedAt: null }, displayZone);
+      const value = [...(adjusted.contextSeries ?? []), ...adjusted.series].find(point => point.t === date)?.v;
+      if (value === undefined) continue;
+      amountMinor += value;
+      estimated = true;
     }
-    reportedBasis = { date: summary.date, timeZone: summary.timeZone, ...(summary.timeZoneLabel ? { label: summary.timeZoneLabel } : {}) };
-    amountMinor += summary.amountMinor;
     reported += 1;
   }
-  if (mixedBasis) return { amount: null, reported, sites: sources.length, basis: null, mixedBasis: true };
-  return { amount: reported > 0 ? amountMinor / 100 : null, reported, sites: sources.length, basis: reported > 0 ? reportedBasis : basis };
+  return { amount: reported > 0 ? amountMinor / 100 : null, reported, sites: sources.length, basis, ...(estimated ? { estimated: true as const } : {}) };
 }
 
 /** Yesterday's date at `nowMs` on the clock a summary was dated on; `null` for

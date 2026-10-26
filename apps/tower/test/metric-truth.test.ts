@@ -56,10 +56,10 @@ describe("period metrics retain their real denominators", () => {
     expect(weightedMetricWindow(trend([1, 1]), trend([10, 10]), 7, "ratio").value).toBeNull();
   });
 
-  it("keeps timezone comparisons neutral", () => {
+  it("keeps timezone-adjusted comparisons available", () => {
     const values = trend([1, 1, 1, 2, 2, 2]);
     values.timeZoneChanges = [{ effectiveOn: "2026-08-03", from: "UTC", to: "America/Los_Angeles" }];
-    expect(weightedMetricWindow(values, trend([10, 10, 10, 10, 10, 10]), 3, "ratio").delta?.comparable).toBe(false);
+    expect(weightedMetricWindow(values, trend([10, 10, 10, 10, 10, 10]), 3, "ratio").delta?.comparable).toBe(true);
   });
 
   it("labels people per day and compares daily averages despite missing days", () => {

@@ -535,7 +535,7 @@ function sumObservedHistory(histories: readonly (readonly SeriesPointOrGap[] | u
 export function sumWorkWeeks(readings: readonly (WorkWeeks | null | undefined)[]): WorkWeeks | null {
   const first = readings.find((reading): reading is WorkWeeks => reading !== null && reading !== undefined);
   if (!first) return null;
-  const all = readings.map((reading) => reading && reading.weekStart === first.weekStart && reading.daysIn === first.daysIn && reading.timeZone === first.timeZone ? reading : null);
+  const all = readings.map((reading) => reading && reading.weekStart === first.weekStart && reading.daysIn === first.daysIn ? reading : null);
   const state = (metric: Exclude<WorkWeekMetric, "done">): WorkStateWeek => {
     const now = knownSum(all.map((reading) => reading?.[metric].now ?? null));
     const before = knownSum(all.map((reading) => reading?.[metric].before ?? null));

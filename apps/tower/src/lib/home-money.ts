@@ -100,9 +100,9 @@ export interface YesterdayMoney {
 
 /** Yesterday's revenue across the sites with its week-ago day, or null when
  * yesterday has not been reported on one clock. */
-export function yesterdayMoney(assets: readonly AssetCard[], nowMs: number, days: readonly BarStripPoint[]): YesterdayMoney | null {
-  const total = yesterdayTotal(assets, nowMs);
-  if (!total || total.amount === null || total.mixedBasis || !total.basis) return null;
+export function yesterdayMoney(assets: readonly AssetCard[], nowMs: number, days: readonly BarStripPoint[], timeZone?: string): YesterdayMoney | null {
+  const total = yesterdayTotal(assets, nowMs, timeZone);
+  if (!total || total.amount === null || !total.basis) return null;
   const date = total.basis.date;
   const weekAgo = days.find((day) => day.t === shiftRevenueDate(date, -7))?.v ?? null;
   return {

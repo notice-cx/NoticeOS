@@ -81,8 +81,8 @@ export interface WeeklyComparisonTrend {
 /**
  * The predicate for "this week-on-week comparison straddles a
  * reporting-timezone change". Every aggregate 7-vs-7 chip asks it and gets
- * one answer: the color verdict is withdrawn, the percentage stays, the ⚠
- * appears. It lives next to the arithmetic it qualifies, so no surface can
+ * one answer: estimated timezone boundaries are annotated while the percentage
+ * and direction colour remain available. It lives next to the arithmetic it qualifies, so no surface can
  * retype the window (from the raw latest point, say) and drift from the
  * comparison it is speaking about. `null` means there is nothing to qualify.
  * A reporting timezone is a setting on one provider's property, so each

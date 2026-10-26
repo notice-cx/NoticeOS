@@ -158,15 +158,15 @@ describe("yesterday on the revenue widget", () => {
     expect(figure.closest('[data-metric-fact="Yesterday"]')).toHaveAttribute("data-fact-size", "figure");
   });
 
-  it("states received reports with incompatible bases without inventing a total or missing reports", () => {
+  it("shows an estimated total on the display calendar when provider clocks differ", () => {
     const data = withYesterday([4_318, 1_207]);
     const sources = data.assets.filter(asset => asset.dailyRevenue);
     sources[1]!.dailyRevenue = { ...sources[1]!.dailyRevenue!, timeZone: "UTC" };
     const { container } = render(<RevenueHero {...data} nowMs={NOW} />);
     const yesterday = container.querySelector("[data-revenue-yesterday]")!;
-    expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("mixed");
-    expect(yesterday.closest('[data-metric-fact="Yesterday"]')?.textContent).toBe("Yesterday—Mixed report days · 2 of 2 assets · no total");
-    expect(yesterday.querySelector("[data-revenue-yesterday-figure]")).toBeNull();
+    expect(yesterday.getAttribute("data-revenue-yesterday")).toBe("all");
+    expect(yesterday.closest('[data-metric-fact="Yesterday"]')?.textContent).toContain('Sep 21 · Pacific · est.');
+    expect(yesterday.querySelector("[data-revenue-yesterday-figure]")).not.toBeNull();
     expect(yesterday.textContent).not.toContain("not reported");
   });
 

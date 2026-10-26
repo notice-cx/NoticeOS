@@ -184,7 +184,7 @@ export function WallCanvas({
       case "loop":
         return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
-        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} wordLevel={wordLevel} widget={widget} />;
+        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} timeZone={payload.osTimeZone} wordLevel={wordLevel} widget={widget} />;
       case "timeline": {
         const assets = filterWallAssets(data.assets, widget.settings);
         // Its marks are the feed's, read on its own like the feed column's.

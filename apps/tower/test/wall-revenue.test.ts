@@ -219,16 +219,18 @@ describe("yesterday's revenue on the Wall", () => {
     expect(yesterdayTotal([site(day(0)), site(day(null))], NOW)).toEqual({ amount: 0, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
     expect(yesterdayTotal([site(day(0))], NOW)).toEqual({ amount: 0, reported: 1, sites: 1, basis: { date: "2026-09-21", timeZone: TZ } });
   });
-  it("does not combine incompatible provider reporting days into one same-day figure", () => {
+  it("converts different provider reporting dates into the selected calendar", () => {
     const at = Date.parse("2026-09-22T00:30:00Z");
     const pacific = day(100, "2026-09-20");
     const utc = { ...day(200, "2026-09-21"), timeZone: "UTC" };
-    expect(yesterdayTotal([site(pacific), site(utc), site(day(0, "2026-09-20")), site(day(null))], at))
-      .toEqual({ amount: null, reported: 3, sites: 4, basis: null, mixedBasis: true });
+    const source = { ...paced, points: [] };
+    expect(yesterdayTotal([site(pacific, source), site(utc, source), site(day(0, "2026-09-20"), source), site(day(null), source)], at, TZ))
+      .toEqual({ amount: 3, reported: 3, sites: 4, basis: { date: '2026-09-20', timeZone: TZ }, estimated: true });
   });
-  it("keeps different reporting clocks separate even when their date labels agree", () => {
-    expect(yesterdayTotal([site(day(100)), site({ ...day(200), timeZone: "UTC" })], NOW))
-      .toEqual({ amount: null, reported: 2, sites: 2, basis: null, mixedBasis: true });
+  it("keeps the total available across different reporting clocks", () => {
+    const source = { ...paced, points: [] };
+    expect(yesterdayTotal([site(day(100), source), site({ ...day(200), timeZone: "UTC" }, source)], NOW, TZ))
+      .toEqual({ amount: 3, reported: 2, sites: 2, basis: { date: '2026-09-21', timeZone: TZ }, estimated: true });
   });
 
   it("preserves a received partial report's basis when another source's clock has no report", () => {

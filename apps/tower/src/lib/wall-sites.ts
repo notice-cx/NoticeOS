@@ -8,34 +8,33 @@ import type { Ga4RealtimeAsset, Ga4RealtimeDay } from "@noticeos/contract";
 import { revenueCalendarDate, type DailyRevenueSummary } from "@shared/daily-revenue";
 import type { RevenueProjection } from "@shared/revenue-projection";
 import {
-  distortedByTimeZoneChange,
-  windowSpansTimeZoneChange,
   type AssetCard,
   type SeriesPoint,
   type SignalTrend,
 } from "@shared/wall";
 import { intradayUsersPace, type IntradayUsersPace } from "@/lib/intraday-pace";
 import { performanceTone, type PerformanceTone } from "@/components/DeltaChip";
-import { rollingDailyAverage, rollingWeeklyChange, shiftDate, spannedTimeZoneChange } from "@/lib/series";
+import { rollingDailyAverage, rollingWeeklyChange, shiftDate } from "@/lib/series";
+import { reportingCalendarTrend } from '@shared/reporting-calendar';
 
 import { currentRealtimeDay } from "@/lib/realtime-day";
 
 export type HourlyActiveUsers = NonNullable<Extract<Ga4RealtimeAsset, { status: "success" }>["hourlyActiveUsers"]>;
 
 /** The latest complete 7 days against the 7 before, as a percent and the tone
- * it may wear: neutral when the window spans a reporting-timezone change; the
- * number stays, only the verdict goes. */
+ * its direction colour after reporting-day boundaries have been adjusted. */
 export interface WeeklyChange {
   percent: number;
   tone: PerformanceTone;
 }
 
 export function weeklyChange(trend: SignalTrend): WeeklyChange | null {
+  trend = reportingCalendarTrend(trend);
   const percent = rollingWeeklyChange(
     rollingDailyAverage([...(trend.contextSeries ?? []), ...trend.series], 7, trend.provisionalFrom),
   );
   if (percent === null) return null;
-  return { percent, tone: spannedTimeZoneChange(trend) ? "neutral" : performanceTone(percent) };
+  return { percent, tone: performanceTone(percent) };
 }
 
 /** The days a provider has finished counting: the day still filling left out. */
@@ -62,8 +61,7 @@ export interface FourWeekDay {
  * days ending on the newest day the provider has finished counting.
  * `hasPrior` is true only when all 28 earlier days were reported. `change`
  * compares the two spans' totals, exists only when both are whole and the
- * earlier one is not zero, and is neutral when the 56 days span a
- * reporting-timezone change.
+ * earlier one is not zero. Timezone changes retain the comparison and colour.
  */
 export interface FourWeeks {
   days: FourWeekDay[];
@@ -72,6 +70,7 @@ export interface FourWeeks {
 }
 
 export function fourWeeks(trend: SignalTrend): FourWeeks | null {
+  trend = reportingCalendarTrend(trend);
   const finished = [...(trend.contextSeries ?? []), ...trend.series].filter(
     (point) => CALENDAR_DAY.test(point.t) && (trend.provisionalFrom === null || point.t < trend.provisionalFrom),
   );
@@ -87,14 +86,10 @@ export function fourWeeks(trend: SignalTrend): FourWeeks | null {
   const now = days.reduce((sum, day) => sum + (day.value ?? 0), 0);
   const before = days.reduce((sum, day) => sum + (day.prior ?? 0), 0);
   const percent = whole && before > 0 ? ((now - before) / before) * 100 : null;
-  const spansMove = windowSpansTimeZoneChange(trend.timeZoneChanges, {
-    start: shiftDate(end, -(2 * FOUR_WEEKS - 1)),
-    end,
-  });
   return {
     days,
     hasPrior,
-    change: percent === null ? null : { percent, tone: spansMove ? "neutral" : performanceTone(percent) },
+    change: percent === null ? null : { percent, tone: performanceTone(percent) },
   };
 }
 
@@ -199,7 +194,7 @@ export function latestFinishedUsers(trend: SignalTrend): SeriesPoint | null {
 }
 
 export function todayTile(asset: AssetCard, snapshot: Ga4RealtimeAsset | undefined, nowMs: number): TodayTile | null {
-  const retained = currentRealtimeDay(snapshot, nowMs);
+  const retained = currentRealtimeDay(snapshot, nowMs, asset.activeUsers.calendarAdjusted ? asset.activeUsers.timeZone : undefined);
   if (retained && snapshot?.status === "success") return { snapshot, hourly: null, pace: null, todayUsers: null, realtimeDay: retained };
   snapshot = currentHourlyReading(snapshot, nowMs) ?? undefined;
   if (snapshot?.status !== "success" || snapshot.hourlyActiveUsers === null) return null;
@@ -223,7 +218,7 @@ function daysInMonth(period: string): number {
 const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function visitorsTile(asset: AssetCard): VisitorsTile | null {
-  const users = asset.activeUsers;
+  const users = reportingCalendarTrend(asset.activeUsers);
   const revenue = revenueByDay(asset.revenueProjection, asset.dailyRevenue);
   const period =
     asset.revenueProjection?.period ?? users.series.filter((point) => CALENDAR_DAY.test(point.t)).at(-1)?.t.slice(0, 7);
@@ -245,11 +240,10 @@ export function visitorsTile(asset: AssetCard): VisitorsTile | null {
     };
   });
 
-  // Revenue per 1,000 visitors: a like-for-like day only — the report and a
-  // finished count, on a day a reporting-timezone move did not distort.
+  // Revenue per 1,000 visitors uses finished counts, including adjusted timezone boundaries.
   const finished = new Map(
     [...(users.contextSeries ?? []), ...completeDays(users)]
-      .filter((point) => point.v > 0 && distortedByTimeZoneChange(users.timeZoneChanges, point.t) === null)
+      .filter((point) => point.v > 0)
       .map((point) => [point.t, point.v]),
   );
   const rateDate = [...revenue.keys()].filter((date) => finished.has(date)).sort().at(-1);

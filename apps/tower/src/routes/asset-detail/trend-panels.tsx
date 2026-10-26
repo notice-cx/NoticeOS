@@ -274,15 +274,7 @@ export function MovementChip({ delta, percent, className }: {
     tone={performanceTone(percent)} meaning={deltaMeaning(delta)} className={className} />;
 }
 
-/**
- * The one ⚠ a section owes, or nothing.
- *
- * Only a TIMEZONE change earns the glyph. `comparable` is also false when the
- * two windows cover different numbers of reported days, and that is a different
- * caveat with a different sentence — `deltaMeaning` already carries that one
- * into the chip's own hover, and a ⚠ that meant two things would tell the
- * reader neither.
- */
+/** Identify estimated timezone boundaries inside the section's comparison. */
 export function sectionCaveat(
   trends: readonly SignalTrend[],
   days: RangeDays,
@@ -323,7 +315,7 @@ export function SectionCaption({
     <span className="inline-flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
       <InfoTooltip label={label}>{text}</InfoTooltip>
       {caveat ? (
-        <span className="text-chart-distorted" data-time-zone-caveat={caveat.change.effectiveOn}>Timezone changed · Not comparable</span>
+        <span className="text-muted-foreground" data-time-zone-caveat={caveat.change.effectiveOn}>Timezone adjusted · estimated boundaries</span>
       ) : null}
     </span>
   );

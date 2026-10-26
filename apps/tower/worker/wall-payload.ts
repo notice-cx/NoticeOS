@@ -718,6 +718,7 @@ export async function buildWallPayload(
   // two providers merged into one card field. Secondary series stay off: no
   // desk table asks a row for them.
   const signalTrendsByAsset = await loadSignalTrends(store, WALL_SIGNAL_CHART_DAYS, {
+    timeZone: osTimeZone,
     includeWebSearch: true,
     nowMs,
   });
@@ -736,7 +737,7 @@ export async function buildWallPayload(
   // Skip the longer traffic read until a daily revenue source has supplied
   // history, and read it only for the assets that have: `projectRevenue`
   // answers "no revenue" before it looks at traffic.
-  const revenueTraffic = revenueHistories.size ? await loadSignalTrends(store, REVENUE_HISTORY_DAYS, { includeWebSearch: false, includeSessions: true, assets: [...revenueHistories.keys()], nowMs }) : new Map<string, SignalTrendSet>();
+  const revenueTraffic = revenueHistories.size ? await loadSignalTrends(store, REVENUE_HISTORY_DAYS, { includeWebSearch: false, includeSessions: true, assets: [...revenueHistories.keys()], nowMs, timeZone: osTimeZone }) : new Map<string, SignalTrendSet>();
   // The desk's per-asset ledger history, from the same grouping /financials'
   // by-asset table is built from (`./ledger-history`).
   const ledgerMonthsByAsset = await loadAssetMonths(store);
@@ -932,6 +933,7 @@ export async function buildWallPayload(
 
   return {
     generatedAt: now.toISOString(),
+    osTimeZone,
     portfolio,
     system,
     dashboard,

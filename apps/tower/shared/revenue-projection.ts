@@ -1,4 +1,5 @@
-import { distortedByTimeZoneChange, type SignalTrend } from './wall';
+import type { SignalTrend } from './wall';
+import { reportingCalendarTrend } from './reporting-calendar';
 
 const DAY = 86_400_000;
 export const REVENUE_HISTORY_DAYS = 84;
@@ -61,6 +62,7 @@ export function revenueExpectedThrough(now: Date, clock: RevenueReportingClock):
  * month is projected and which reports are expected; ledger booking periods
  * and ordinary timestamps remain independent. */
 export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue: RevenueDay[], traffic: SignalTrend, holidays: RevenueHoliday[] = []): RevenueProjection {
+  traffic = reportingCalendarTrend(traffic, clock.timeZone);
   const { today } = revenueClock(now, clock.timeZone);
   const period = today.slice(0, 7);
   const monthStart = `${period}-01`;
@@ -81,7 +83,7 @@ export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue:
   if (reportedThrough < expectedThrough || !completeCurrent) return { ...base, status: 'waiting-revenue', reason: 'Waiting for complete revenue reports.' };
   if (!traffic.collectedAt || !Number.isFinite(Date.parse(traffic.collectedAt)) || now.getTime() - Date.parse(traffic.collectedAt) > 2 * DAY || Date.parse(traffic.collectedAt) > now.getTime()) return { ...base, status: 'waiting-traffic', reason: 'Waiting for a fresh traffic report.' };
   const sessions = new Map([...(traffic.contextSeries ?? []), ...traffic.series]
-    .filter(point => point.t >= historyStart && point.t < today && (traffic.provisionalFrom === null || point.t < traffic.provisionalFrom) && Number.isFinite(point.v) && point.v >= 0 && !distortedByTimeZoneChange(traffic.timeZoneChanges, point.t))
+    .filter(point => point.t >= historyStart && point.t < today && (traffic.provisionalFrom === null || point.t < traffic.provisionalFrom) && Number.isFinite(point.v) && point.v >= 0)
     .map(point => [point.t, point.v]));
   const latestTraffic = [...sessions.keys()].sort().at(-1);
   // GA4 keeps a day provisional until it is collected two days later, so

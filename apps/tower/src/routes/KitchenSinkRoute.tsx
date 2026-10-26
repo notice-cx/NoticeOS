@@ -6449,7 +6449,7 @@ const OPEN_ALERTS = plumeDays(
 const TIMEZONE_MARK: SurfaceAnnotation[] = [
   {
     date: "2026-09-01",
-    label: "GA4 reporting timezone changed; the days either side are not the same measurement",
+    label: "GA4 reporting timezone changed; daily boundaries use estimates",
   },
 ];
 
@@ -6944,7 +6944,7 @@ function SurfaceSections() {
             <div className="relative h-16 border-b border-border">
               <ChartEventMarkers events={[{
                 date: "2026-09-01", position: 50, label: "Reporting timezone changed", glyph: "▲",
-                detail: "The provider switched its daily reporting boundary. This date is not comparable with an ordinary full day.",
+                detail: "The provider switched its daily reporting boundary. This date uses an estimated daily value.",
               }]} />
             </div>
           </Card>

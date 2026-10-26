@@ -160,7 +160,7 @@ export async function loadPropertyHistories(store: WorkspaceStore, options: Prop
         assets ? [firstMonth, assets] : [firstMonth]),
     })),
     loadRevenueHistories(store, { now, days, fallback, ...(assets ? { assets } : {}) }),
-    loadSignalTrends(store, days, { includeWebSearch: true, includeSecondarySeries: true, nowMs: now.getTime(), ...(asset ? { asset } : {}) }),
+    loadSignalTrends(store, days, { includeWebSearch: true, includeSecondarySeries: true, nowMs: now.getTime(), timeZone: osTimeZone, ...(asset ? { asset } : {}) }),
   ]);
   const named = new Map(vocabulary.map((row) => [`${row.integration}\u0000${row.metric}`, row]));
   const monthsOf = new Map<string, RevenueMonth[]>();

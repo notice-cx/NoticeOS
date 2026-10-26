@@ -137,14 +137,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "DeltaChip",
     file: "components/DeltaChip.tsx",
     purpose:
-      "Trend direction glyph and magnitude, neutral by default, with opt-in green/red intensity for completed like-for-like comparisons; paceTone and paceDirectionLabel colour and name today's comparable-hours pace. A reporting-timezone change withdraws the colour verdict and callers pair the still-visible percentage with TimeZoneCaveat.",
-    variants: ["neutral", "positive subtle/clear/strong", "negative subtle/clear/strong", "flat", "verdict withdrawn (window spans a timezone change)", "pace on / a little behind / far behind"],
+      "Trend direction glyph and magnitude, neutral by default, with opt-in green/red intensity for completed like-for-like comparisons; paceTone and paceDirectionLabel colour and name today's comparable-hours pace. Timezone-adjusted comparisons retain direction colour; TimeZoneCaveat identifies estimated daily boundaries.",
+    variants: ["neutral", "positive subtle/clear/strong", "negative subtle/clear/strong", "flat", "estimated timezone boundaries", "pace on / a little behind / far behind"],
   },
   {
     name: "TimeZoneCaveat",
     file: "components/TimeZoneCaveat.tsx",
     purpose:
-      "The shared warning glyph for a comparison whose window straddles a reporting-timezone change: the figure still shows, the glyph says it is not like-for-like and the title names the change.",
+      "The shared estimate marker for a comparison across a reporting-timezone change; its title names the adjusted daily boundaries.",
     variants: ["window spans a timezone change", "clean window (renders nothing)"],
   },
   {

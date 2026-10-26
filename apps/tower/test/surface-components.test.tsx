@@ -147,12 +147,10 @@ describe("Kpi", () => {
         />
       </KpiStrip>,
     );
-    const withdrawn = screen.getByLabelText(/reporting timezone changed/);
-    expect(withdrawn).toHaveAttribute("data-tone", "neutral");
-    expect(withdrawn).toHaveTextContent("Not comparable");
-    fireEvent.focus(screen.getByRole("button", { name: "About Active users" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("reporting timezone changed");
-    expect(withdrawn).not.toHaveTextContent("%");
+    const adjusted = screen.getByLabelText(/the last 28 days vs the 28 days before/);
+    expect(adjusted).toHaveAttribute('data-tone', 'positive-strong');
+    expect(adjusted).toHaveTextContent('%');
+    expect(adjusted).toHaveAttribute('title', 'the last 28 days vs the 28 days before');
     expect(screen.getByText("1,234")).toBeVisible();
   });
 

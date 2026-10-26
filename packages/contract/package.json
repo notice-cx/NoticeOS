@@ -90,6 +90,10 @@
       "types": "./src/signal-families.d.mts",
       "default": "./src/signal-families.mjs"
     },
+    "./reporting-calendar": {
+      "types": "./src/reporting-calendar.d.mts",
+      "default": "./src/reporting-calendar.mjs"
+    },
     "./session-exploration": {
       "types": "./src/session-exploration.d.mts",
       "default": "./src/session-exploration.mjs"

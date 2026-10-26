@@ -1731,7 +1731,7 @@ async function assembleAssetDetail(
     // `asset` narrows the same query the Wall runs — one derivation, one
     // ordering, one set of window semantics.
     wants("performance")
-      ? loadSignalTrends(store, PROPERTY_SIGNAL_CHART_DAYS, { includeSecondarySeries: true, asset: id, nowMs })
+      ? loadSignalTrends(store, PROPERTY_SIGNAL_CHART_DAYS, { includeSecondarySeries: true, asset: id, nowMs, timeZone: osTimeZone })
           .then((map) => map.get(id) ?? emptySignalTrendSet())
       : null,
     // Only the analyzer's bounded snapshot crosses into this read model: the
@@ -1756,7 +1756,7 @@ async function assembleAssetDetail(
               recommendationEvidence: executive ? await readRecommendationSources(store, id, nowMs) : null,
             } : {}),
             ...(wants("journeys") ? {
-              sessionExploration: await readAssetSessionExploration(store, id, valueEvents.assets[id]?.journeys, now),
+              sessionExploration: await readAssetSessionExploration(store, id, valueEvents.assets[id]?.journeys, now, osTimeZone),
               journeys: assetJourneys(row?.payload ?? null, valueEvents.assets[id]?.journeys,
                 await readJourneyBinding(store, id, integrations.assets[id]?.ga4)),
             } : {}),

@@ -3539,11 +3539,15 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const head = container.querySelector('[data-growth-chart="Sessions"] [data-growth-delta]')!;
     const supporting = container.querySelector('[data-collected-delta="page-views"]')!;
     for (const movement of [head, supporting]) {
+      if (reason === 'timezone change') {
+        expect(movement.textContent).toContain('%');
+        expect(movement.textContent).not.toContain('Not comparable');
+        continue;
+      }
       expect(movement.textContent).toContain("Not comparable");
       expect(movement.textContent).not.toContain("%");
       const evidence = movement.querySelector('[aria-label^="Not comparable:"]')!;
-      expect(evidence.getAttribute("aria-label")).toContain(reason === "unequal coverage"
-        ? "7 vs 6 days reported" : "reporting timezone changed");
+      expect(evidence.getAttribute("aria-label")).toContain('7 vs 6 days reported');
       expect(evidence).toHaveAttribute("data-tone", "neutral");
     }
   });
@@ -3639,7 +3643,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const event = screen.getByRole("tooltip");
     expect(event).toHaveTextContent("Jun 12, 2026");
     expect(event).toHaveTextContent("America/Los_Angeles → America/New_York");
-    expect(event).toHaveTextContent("value unaltered, not comparable");
+    expect(event).toHaveTextContent('daily boundaries adjusted with estimates');
     expect(container.querySelector("[data-about]")).toBeNull();
     const position = container.querySelector("#growth-moves")!;
     expect(position.textContent).not.toContain("⚠");
@@ -3692,14 +3696,14 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
     await findByText("Audience");
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
-    expect(sessions.querySelector("[data-growth-delta]")?.textContent).toBe("Not comparable");
+    expect(sessions.querySelector("[data-growth-delta]")?.textContent).toContain('%');
     expect(
       sessions.querySelector("[data-growth-delta] [data-tone]")?.getAttribute("data-tone"),
-    ).toBe("neutral");
+    ).not.toBe("neutral");
     expect(sessions.querySelector("[data-time-zone-caveat]")).toBeNull();
     const caveat = container.querySelector("#performance [data-time-zone-caveat]");
     expect(caveat?.getAttribute("data-time-zone-caveat")).toBe("2026-06-16");
-    expect(caveat?.textContent).toContain("Timezone changed · Not comparable");
+    expect(caveat?.textContent).toContain('Timezone adjusted · estimated boundaries');
 
     const position = container.querySelector(
       '[data-collected-delta="search-position"]',
@@ -3803,9 +3807,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(
       container.querySelector('[data-growth-chart="Active users"] [data-growth-delta]')
         ?.textContent,
-    ).toBe("Not comparable");
-    expect(tone("Active users")).toBe("neutral");
-    expect(tone("Clicks")).toBe("neutral");
+    ).toContain('%');
+    expect(tone("Active users")).not.toBe("neutral");
+    expect(tone("Clicks")).not.toBe("neutral");
     expect(tone("Impressions")).not.toBe("neutral");
 
     const caveats = [...container.querySelectorAll("[data-time-zone-caveat]")];

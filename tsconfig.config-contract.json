@@ -22,6 +22,7 @@
     "packages/contract/src/product-use.mts",
     "packages/contract/src/journeys.mts",
     "packages/contract/src/session-exploration.mts",
+    "packages/contract/src/reporting-calendar.mts",
     "packages/contract/src/ledger-coverage.mts",
     "packages/contract/src/revenue-sources.mts",
     "packages/contract/src/posthog-families.mts",

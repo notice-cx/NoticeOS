@@ -2,20 +2,26 @@ import type { Ga4RealtimeAsset } from "@noticeos/contract";
 import type { AssetCard } from "@shared/wall";
 import { revenueCalendarDate } from "@shared/daily-revenue";
 import { offsetCalendarDate } from "./intraday-pace";
-import { completedRealtimeMinutes, currentRealtimeDay } from "./realtime-day";
+import { completedRealtimeMinutes, currentRealtimeDay, realtimeComparison } from "./realtime-day";
+import { calendarDayStart, calendarOffset, reportingCalendarTrend } from '@shared/reporting-calendar';
 
-/** Daily distinct users come only from an exact daily observation, never summed activity buckets. */
+/** Daily users on the display calendar; shifted reporting boundaries are estimates. */
 export function todayUserCounts(asset: AssetCard, snapshot: Ga4RealtimeAsset | undefined, nowMs: number) {
-  const activityZone = currentRealtimeDay(snapshot, nowMs)?.timeZone ?? (snapshot?.status === "success" ? snapshot.timeZone : null);
-  const timeZone = asset.activeUsers.timeZone ?? null;
+  const displayZone = asset.activeUsers.calendarAdjusted ? asset.activeUsers.timeZone : undefined;
+  const activityZone = currentRealtimeDay(snapshot, nowMs, displayZone)?.timeZone ?? displayZone ?? (snapshot?.status === "success" ? snapshot.timeZone : null);
+  const trend = reportingCalendarTrend(asset.activeUsers, activityZone ?? asset.activeUsers.timeZone);
+  const timeZone = trend.timeZone ?? null;
   let date: string | null = null;
   try { if (timeZone) date = revenueCalendarDate(new Date(nowMs), timeZone); } catch { date = null; }
   let activityDate: string | null = null;
   try { if (activityZone) activityDate = revenueCalendarDate(new Date(nowMs), activityZone); } catch { activityDate = null; }
   const referenceDate = date ? offsetCalendarDate(date, -7) : null;
-  const daily = new Map([...(asset.activeUsers.contextSeries ?? []), ...asset.activeUsers.series].map(point => [point.t, point.v]));
+  const daily = new Map([...(trend.contextSeries ?? []), ...trend.series].map(point => [point.t, point.v]));
   const count = (day: string | null) => { const value = day ? daily.get(day) : null; return value != null && Number.isFinite(value) && value >= 0 ? value : null; };
-  return { date, referenceDate, timeZone, today: count(date), reference: count(referenceDate), activityDateMatches: date !== null && activityDate === date };
+  return { date, referenceDate, timeZone, today: count(date), reference: count(referenceDate),
+    todayEstimated: date !== null && (trend.estimatedDates?.includes(date) ?? false),
+    referenceEstimated: referenceDate !== null && (trend.estimatedDates?.includes(referenceDate) ?? false),
+    activityDateMatches: date !== null && activityDate === date };
 }
 
 /** Convert activity to an approximate user count using last week's measured
@@ -23,20 +29,15 @@ export function todayUserCounts(asset: AssetCard, snapshot: Ga4RealtimeAsset | u
  * scaled by activity on matching minutes, rather than counting gaps as zero. */
 export function estimatedTodayUsers(asset: AssetCard, snapshot: Ga4RealtimeAsset | undefined, nowMs: number) {
   const daily = todayUserCounts(asset, snapshot, nowMs);
-  const day = currentRealtimeDay(snapshot, nowMs);
+  const day = currentRealtimeDay(snapshot, nowMs, daily.timeZone ?? undefined);
   if (!day || day.timeZone !== daily.timeZone || day.date !== daily.date || daily.reference === null || daily.reference <= 0) return null;
-  if (asset.activeUsers.timeZoneChanges.some(change => change.effectiveOn > daily.referenceDate! && change.effectiveOn <= day.date)) return null;
-  // Clock-aligned comparison arrays omit/repeat minutes across a DST change,
-  // so they cannot calibrate against a full daily distinct-user observation.
-  const offsets = new Intl.DateTimeFormat('en-US', { timeZone: day.timeZone, timeZoneName: 'longOffset' });
-  const offset = (at: number) => offsets.formatToParts(at).find(part => part.type === 'timeZoneName')?.value;
-  const start = Date.parse(day.startAt);
-  if (offset(start) !== offset(start - 7 * 86_400_000) || offset(start) !== offset(Date.parse(day.endAt) - 1)) return null;
-  const prior = day.sameDayLastWeek;
+  const comparison = realtimeComparison(day);
   const valid = (value: number | null): value is number => value !== null && Number.isFinite(value) && value >= 0;
-  // A full-day calibration cannot use an incomplete or DST-ambiguous baseline.
-  if (!prior || prior.length !== day.minutes.length || !prior.every(valid)) return null;
-  const baseline = prior.reduce((sum, value) => sum + value, 0);
+  if (!comparison) return null;
+  const prior = comparison.minutes;
+  // Compare against the prior calendar day's actual length, including DST.
+  const referenceMinutes = (calendarDayStart(calendarOffset(daily.referenceDate!, 1), day.timeZone) - calendarDayStart(daily.referenceDate!, day.timeZone)) / 60_000;
+  const baseline = prior.reduce((sum, value) => sum + value, 0) * referenceMinutes / prior.length;
   if (baseline <= 0) return null;
   const minutes = completedRealtimeMinutes(day, nowMs);
   const through = minutes.findLastIndex(value => value !== null);
@@ -59,5 +60,6 @@ export function estimatedTodayUsers(asset: AssetCard, snapshot: Ga4RealtimeAsset
     through: new Date(Date.parse(day.startAt) + (through + 1) * 60_000).toISOString(),
     observedMinutes,
     estimatedMinutes: through + 1 - observedMinutes,
+    estimatedReferenceMinutes: comparison.estimatedMinutes,
   };
 }

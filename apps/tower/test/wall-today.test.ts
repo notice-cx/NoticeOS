@@ -42,12 +42,12 @@ describe("the Today daily distinct-user totals", () => {
     asset.activeUsers.contextSeries = [];
     expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ today: null, reference: null });
   });
-  it("prefers the daily provider calendar when the realtime OS clock is on a different date", () => {
+  it("converts provider days to the selected display calendar when their dates differ", () => {
     const { asset, snapshot } = fixture();
     asset.activeUsers.timeZone = "America/Los_Angeles";
     snapshot.timeZone = "Pacific/Auckland";
     asset.activeUsers.series = [{ t: "2026-09-15", v: 71 }, { t: "2026-09-16", v: 82 }, { t: "2026-09-22", v: 123 }, { t: "2026-09-23", v: 456 }];
-    expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ timeZone: "America/Los_Angeles", date: "2026-09-22", today: 123, reference: 71, activityDateMatches: false });
+    expect(todayUserCounts(asset, snapshot, nowMs)).toMatchObject({ timeZone: "Pacific/Auckland", date: "2026-09-23", todayEstimated: true, referenceEstimated: true, activityDateMatches: true });
     expect(todayUserCounts(asset, undefined, nowMs)).toMatchObject({ today: 123, reference: 71 });
   });
   it.each([
@@ -60,7 +60,10 @@ describe("the Today daily distinct-user totals", () => {
     asset.activeUsers.timeZone = "America/Los_Angeles";
     snapshot.timeZone = "UTC";
     asset.activeUsers.series = [{ t: referenceDate, v: 10 }, { t: date, v: 20 }];
-    expect(todayUserCounts(asset, snapshot, Date.parse(instant))).toMatchObject({ date, referenceDate, today: 20, reference: 10 });
+    const counts = todayUserCounts(asset, snapshot, Date.parse(instant));
+    expect(counts).toMatchObject({ date, referenceDate, todayEstimated: true, referenceEstimated: true });
+    expect(counts.today).toBeGreaterThan(0);
+    expect(counts.reference).toBeGreaterThan(0);
   });
   it("keeps an invalid stored provider timezone unknown instead of replacing it with a different valid calendar", () => {
     const { asset, snapshot } = fixture();
@@ -116,24 +119,35 @@ describe('estimated users today so far', () => {
     ['2026-03-10', '2026-03-03', '2026-03-10T07:00:00Z', '2026-03-11T07:00:00Z'],
     ['2026-11-01', '2026-10-25', '2026-11-01T07:00:00Z', '2026-11-02T08:00:00Z'],
     ['2026-11-03', '2026-10-27', '2026-11-03T08:00:00Z', '2026-11-04T08:00:00Z'],
-  ])('does not treat a clock-aligned DST comparison as a full daily calibration on %s', (date, referenceDate, startAt, endAt) => {
+  ])('keeps a calibrated estimate available across DST on %s', (date, referenceDate, startAt, endAt) => {
     const { asset, snapshot, day } = fixture();
     asset.activeUsers.timeZone = 'America/Los_Angeles';
     asset.activeUsers.series = [{ t: referenceDate, v: 1440 }];
     Object.assign(day, { date, timeZone: 'America/Los_Angeles', startAt, endAt });
-    expect(estimatedTodayUsers(asset, snapshot, Date.parse(startAt) + 4 * 60 * 60_000)).toBeNull();
+    expect(estimatedTodayUsers(asset, snapshot, Date.parse(startAt) + 4 * 60 * 60_000)?.users).toBeGreaterThan(0);
   });
-  it.each(['missing-reference', 'zero-reference', 'incomplete-prior', 'zero-prior', 'too-few-minutes', 'no-minutes', 'different-zone', 'changed-zone', 'invalid-minute'])(
+  it.each(['incomplete-prior', 'different-zone', 'changed-zone'])('keeps usable estimates across %s', mode => {
+    const { asset, snapshot, day } = fixture();
+    if (mode === 'incomplete-prior') day.sameDayLastWeek![700] = null;
+    if (mode === 'different-zone') asset.activeUsers.timeZone = 'Europe/London';
+    if (mode === 'changed-zone') asset.activeUsers.timeZoneChanges = [{ effectiveOn: '2026-09-20', from: 'Europe/London', to: 'UTC' }];
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)).toMatchObject({ users: 240, estimatedReferenceMinutes: mode === 'incomplete-prior' ? 1 : 0 });
+  });
+  it('estimates a Pacific Today from New York daily users after an old timezone change', () => {
+    const { asset, snapshot } = fixture();
+    asset.activeUsers.timeZone = 'America/New_York';
+    asset.activeUsers.timeZoneChanges = [{ effectiveOn: '2026-09-01', from: 'America/Los_Angeles', to: 'America/New_York' }];
+    asset.activeUsers.series = [{ t: '2026-09-14', v: 1440 }, { t: '2026-09-15', v: 1440 }];
+    expect(estimatedTodayUsers(asset, snapshot, nowMs)).toMatchObject({ users: 240 });
+  });
+  it.each(['missing-reference', 'zero-reference', 'zero-prior', 'too-few-minutes', 'no-minutes', 'invalid-minute'])(
     'declines an unsupported calibration: %s', mode => {
       const { asset, snapshot, day } = fixture();
       if (mode === 'missing-reference') asset.activeUsers.series = [];
       if (mode === 'zero-reference') asset.activeUsers.series[0]!.v = 0;
-      if (mode === 'incomplete-prior') day.sameDayLastWeek![700] = null;
       if (mode === 'zero-prior') day.sameDayLastWeek!.fill(0);
       if (mode === 'too-few-minutes') day.minutes.fill(null, 14);
       if (mode === 'no-minutes') day.minutes.fill(null);
-      if (mode === 'different-zone') asset.activeUsers.timeZone = 'Europe/London';
-      if (mode === 'changed-zone') asset.activeUsers.timeZoneChanges = [{ effectiveOn: '2026-09-20', from: 'Europe/London', to: 'UTC' }];
       if (mode === 'invalid-minute') day.minutes[0] = NaN;
       expect(estimatedTodayUsers(asset, snapshot, nowMs)).toBeNull();
     });

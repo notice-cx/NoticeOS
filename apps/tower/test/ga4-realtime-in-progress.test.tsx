@@ -99,7 +99,7 @@ describe("a read in progress keeps what the Wall drew", () => {
     expect(reading(hoursRefused).hourlyErrorCode).toBe("ga4_intraday_http_429");
   });
 
-  it("never carries yesterday's hours past midnight, or hours bucketed on another clock", () => {
+  it("expires yesterday's hours and converts retained hours after a display-clock change", () => {
     // Read at 11:55 PM on the fixture's clock; the next poll is after midnight.
     const lateEvening = Date.parse("2026-09-23T06:55:00.000Z");
     const before = drawn(lateEvening);
@@ -112,7 +112,9 @@ describe("a read in progress keeps what the Wall drew", () => {
     // A saved clock change re-buckets the hours: the old clock's are not kept.
     const today = drawn();
     const moved = nextPoll(today, (last) => ({ ...hoursInProgress(last), timeZone: "America/New_York" }));
-    expect(reading(keepReadingsInProgress(today, moved)).hourlyActiveUsers).toBeNull();
+    const converted = reading(keepReadingsInProgress(today, moved));
+    expect(converted.hourlyActiveUsers).not.toBeNull();
+    expect(converted.timeZone).toBe('America/New_York');
   });
 
   it("changes nothing on the first answer, with nothing drawn yet", () => {

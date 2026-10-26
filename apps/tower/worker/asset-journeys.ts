@@ -55,8 +55,7 @@ export function assetJourneys(payload: string | null, definitions: unknown, bind
     funnels: (stored?.funnels ?? []).filter((result) => current.some((definition) =>
       definition.id === result.journeyId && definition.kind === 'funnel'
       && definition.status === 'active' && journeyDefinitionId(definition) === result.definitionId)
-      && result.propertyId === binding.propertyId
-      && (binding.timeZone === null || result.timeZone === binding.timeZone)),
+      && result.propertyId === binding.propertyId),
     exploration: {
       state: 'unsupported',
       reason: 'Session paths need a source that records the order of pages within each visit.',

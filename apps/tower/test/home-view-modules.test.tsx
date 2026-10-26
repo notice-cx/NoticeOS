@@ -162,7 +162,7 @@ describe("Home's combined revenue card", () => {
     expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent(label);
   });
 
-  it("labels partial reporting and withholds a total across different reporting clocks", () => {
+  it("labels partial reporting and keeps an estimated total across reporting clocks", () => {
     const first = healthy("first.example.com", { revenueProjection, dailyRevenue });
     const second = healthy("second.example.com", { revenueProjection });
     state.payload = wall([first, second]);
@@ -170,7 +170,7 @@ describe("Home's combined revenue card", () => {
     expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 assets");
     state.payload = wall([first, { ...second, dailyRevenue: { ...dailyRevenue, timeZone: "Europe/London" } }]);
     rerender(tree(<HomeRoute />));
-    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent("Yesterday · mixed report days · no total");
+    expect(container.querySelector("[data-home-yesterday]")).toHaveTextContent('Yesterday $23.07 est.');
   });
 });
 
