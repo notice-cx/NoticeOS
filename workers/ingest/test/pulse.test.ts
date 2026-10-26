@@ -84,6 +84,22 @@ describe('POST /api/pulse — validation', () => {
   });
 });
 
+describe('POST /api/pulse — session exploration', () => {
+  const report = {schemaVersion:1,source:'first-party',journeyId:'explore',journeyVersion:1,definitionId:'sections-v1',date:'2026-07-04',timeZone:'UTC',sessionTimeoutMinutes:30,sessions:10,
+    surfaces:[{id:'guides',label:'Guides'},{id:'recipes',label:'Recipes'}],paths:[{surfaces:['guides','recipes','guides'],sessions:10,ending:'exit'}]};
+  it('stores optional session aggregates verbatim through the existing authenticated report route', async () => {
+    const res=await call(pulseRequest({...validEnvelope(),sessionExploration:[report]},ASSET_TOKENS[MEADOW]));
+    expect(res.status).toBe(201);
+    const [stored]=await pgRows<{reports:string}>(`SELECT (envelope->'sessionExploration')::text AS reports FROM noticeos.current_pulses WHERE asset_id=$1`,[MEADOW]);
+    expect(JSON.parse(stored!.reports)).toEqual([report]);
+  });
+  it('rejects overcounted paths without persisting a report', async () => {
+    const res=await call(pulseRequest({...validEnvelope(),sessionExploration:[{...report,sessions:9}]},ASSET_TOKENS[MEADOW]));
+    expect(res.status).toBe(422);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.pulses WHERE asset_id=$1`,[MEADOW])).toBe(0);
+  });
+});
+
 describe('POST /api/pulse — write + flag explosion + central rules', () => {
   const legacy = { severity: 'warn', kind: 'anomaly', metric: 'plansSaved', msg: 'last24h 0 vs avg7d 6.2 (rule poisson-24h, P<=0.002)' };
 

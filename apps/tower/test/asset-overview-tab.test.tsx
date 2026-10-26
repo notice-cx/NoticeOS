@@ -56,6 +56,7 @@ const emptyTrend = () => ({
 function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
   return {
     journeys: null,
+    sessionExploration: [],
     generatedAt: "2026-07-06T11:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {

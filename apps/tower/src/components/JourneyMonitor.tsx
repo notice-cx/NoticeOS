@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { JourneyDefinitionEditor } from "@/components/JourneyDefinitionEditor";
 import { formatCalendarDate, formatCalendarRange, formatInt, formatTimestamp } from "@/lib/format";
 import { journeyComparison, journeyRateDomain, journeyReading, journeyStepChange, journeyStepContinuation, journeyStepReach, journeyStepReachChange, journeyWindow, matchingJourneyResult, previousJourneyWeek, type JourneyReading } from "@/lib/journey-presentation";
+import type { SessionExplorationSnapshot } from "@noticeos/contract/session-exploration";
+import { SessionExploration } from "./SessionExploration";
 import "./JourneyMonitor.css";
 export interface JourneySaveOutcome {
     saved: boolean;
@@ -17,6 +19,7 @@ export interface JourneySaveOutcome {
 export interface JourneyMonitorProps {
     definitions: readonly JourneyDefinition[];
     snapshot: JourneySnapshot | null;
+    sessionExploration?: readonly SessionExplorationSnapshot[];
     onSave?: (next: JourneyDefinition[]) => Promise<JourneySaveOutcome>;
     readOnlyReason?: string | null;
     eventNames?: readonly string[];
@@ -97,7 +100,7 @@ function JourneySummary({ definition, reading, delta, prior, compare, available 
   </div>;
 }
 /** Ordered users and same-session exploration retain separate measurement states. */
-export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false }: JourneyMonitorProps) {
+export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [] }: JourneyMonitorProps) {
     const [selectedId, setSelectedId] = useState(definitions[0]?.id ?? "");
     const [days, setDays] = useState<7 | 28>(28);
     const [compare, setCompare] = useState(true);
@@ -105,6 +108,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     const [selectedStep, setSelectedStep] = useState<string | null>(null);
     const [editing, setEditing] = useState<JourneyDefinition | "new" | null>(null);
     const definition = definitions.find((item) => item.id === selectedId) ?? definitions[0] ?? null;
+    const sessionSnapshot = sessionExploration.find(item => item.journeyId === definition?.id);
     const result = definition ? matchingJourneyResult(definition, snapshot?.funnels ?? []) : null;
     const weeks = [...(result?.weekly ?? [])].sort((a, b) => a.startDate.localeCompare(b.startDate));
     const weeklyPeriod = weeks.find((week) => week.startDate === weekKey) ?? null;
@@ -149,6 +153,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     <summary>Data coverage</summary>
     <p>Conversions use ordered users from one GA4 property and reporting time zone. Independent event totals are not conversion counts.</p>
     <p>Visitors are GA4 active users for the same dates. Visitor percentages show the reach of each ordered step. Step drop-off compares consecutive journey steps.</p>
+    <p>Exploration uses eligible sessions reported by the asset. A session counts once in each section it reaches; section audiences can overlap. GA4 visitors and ad impressions are separate measures.</p>
     <p>Changed definitions start a separate series. Incomplete or sampled reports do not receive improvement or regression colours.</p>
     </details>
     </aside>
@@ -157,7 +162,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     <div>
     <div className="journey-eyebrow">{definition?.goal ?? "JOURNEYS"}</div>
     <h2>{definition?.label ?? "Measure a journey"}</h2>
-    <p>{definition?.kind === "exploration" ? "Session paths · separate collection required" : "Google Analytics 4 · ordered users"}</p>
+    <p>{definition?.kind === "exploration" ? "Session paths · visits across sections" : "Google Analytics 4 · ordered users"}</p>
     </div>
     <div className="journey-heading-actions">{illustrative ? <span className="journey-sample">Illustrative design data</span> : null}{definition ? <Button size="sm" variant="outline" onClick={() => setEditing(definition)}>Definition</Button> : null}</div>
     </div>
@@ -166,11 +171,12 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
         <p>Create an account, activation or another outcome journey. Its ordered report will appear after collection.</p>
         <Button onClick={() => setEditing("new")} disabled={!onSave}>Create journey</Button>
         </div> : <>
-        <div className="journey-toolbar">{weeklyPeriod ? <div className="journey-week-scope">
+        <div className="journey-toolbar">{weeklyPeriod && definition.kind === "funnel" ? <div className="journey-week-scope">
             <strong>Viewing week · {scope}</strong>
             <Button size="sm" variant="ghost" onClick={() => setWeekKey(null)}>Return to {days}-day period</Button>
-            </div> : <div className="journey-period" aria-label="Journey reporting period">{([28, 7] as const).map((value) => <button type="button" key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{value} days</button>)}</div>}<label className="journey-compare">
-            <input type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)}/>Compare prior period</label></div>
+            </div> : <div className="journey-period" aria-label="Journey reporting period">{([28, 7] as const).map((value) => <button type="button" key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{value} days</button>)}</div>}{definition.kind === "funnel" ? <label className="journey-compare">
+            <input type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)}/>Compare prior period</label> : null}</div>
+        {definition.kind === "exploration" && sessionSnapshot ? <SessionExploration key={definition.id} snapshot={sessionSnapshot} rangeDays={days}/> : <>
         {definition.kind === "funnel" ? <JourneySummary definition={definition} reading={reading} delta={delta} prior={prior} compare={compare} available={!!canRead}/> : null}
         <section className="journey-chart" aria-label="Journey steps">
         <div className="journey-chart-heading">
@@ -238,6 +244,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
           }}/>
         </section> : null}
         <div className="journey-scope">{definition.kind === "exploration" ? "Session exploration · not an ordered user funnel" : journeyWindow(definition)}{result ? ` · ${result.timeZone} · GA4 active users` : ""}{result ? ` · collected ${formatTimestamp(result.collectedAt, result.timeZone)}` : snapshot?.generatedAt ? ` · snapshot ${formatTimestamp(snapshot.generatedAt)}` : ""}{illustrative ? " · synthetic fixture" : ""}</div>
+        </>}
       </>}
       {editing ? <JourneyDefinitionEditor key={editing === "new" ? "new" : editing.id} definition={editing === "new" ? null : editing} definitions={definitions} eventNames={eventNames} onSave={onSave} readOnlyReason={readOnlyReason} onClose={() => setEditing(null)} onSelected={setSelectedId}/> : null}
     </div>

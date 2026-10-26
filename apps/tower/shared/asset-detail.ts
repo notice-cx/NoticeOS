@@ -1579,6 +1579,7 @@ export interface FetchFailure extends FlagReading {
 
 export interface AssetDetailPayload {
   journeys: import('@noticeos/contract/journeys').JourneySnapshot | null;
+  sessionExploration: import('@noticeos/contract/session-exploration').SessionExplorationSnapshot[];
   generatedAt: string;
   asset: AssetInfo;
   /** Complete latest-run matrix on asset #0; null on ordinary assets. */

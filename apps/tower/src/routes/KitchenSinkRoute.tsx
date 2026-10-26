@@ -2971,7 +2971,7 @@ export function KitchenSinkRoute() {
           <Section title="Visual kit for an asset's tabs: ChangeRows, FunnelBars">
             <p className="text-xs text-muted-foreground">Staged in the gallery above, under Changes and funnels.</p>
           </Section>
-          <Section title="JourneyMonitor and JourneyDefinitionEditor · ordered conversion and weekly history">
+          <Section title="JourneyMonitor, JourneyDefinitionEditor and SessionExploration · conversion, session paths and weekly history">
             <div className="w-full min-w-0" id="journey-monitor-demo"><JourneyMonitorDemo /></div>
           </Section>
           <Section title="Visual kit for Tasks: TaskProgressBar, ProjectJourneys">

@@ -124,6 +124,7 @@ const ALLOWED_PHRASES = [
   'wall-tile-transparency', // the Wall appearance range control's DOM id
   // 3. SQL. A `lanes(…)` CTE is the store's own name.
   'lanes(integration)',
+  'FROM noticeos.pulses', // stored report revisions; a SQL table reference, never visible copy
   'lanes.integration',
   'JOIN lanes',
   // Hosted job SQL keeps its stored lane column (doc 14); no UI label does.

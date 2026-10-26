@@ -22,6 +22,13 @@ export interface RegistryEntry {
 
 export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
+    name: "SessionExploration",
+    file: "components/SessionExploration.tsx",
+    purpose: "Session paths on a shared percentage scale, with distinct-section reach, returns, recorded exits, selected-section history and explicit missing coverage. Mutually exclusive path counts preserve order and repeated sections.",
+    variants: ["complete paths", "partial coverage", "unavailable", "zero sessions", "returns", "selected section", "selected path", "weekly history"],
+    demo: "Select Exploration in the JourneyMonitor gallery. Partial, zero and unavailable states are covered by session-exploration.test.tsx.",
+  },
+  {
     name: "JourneyMonitor",
     file: "components/JourneyMonitor.tsx",
     purpose: "An asset's ordered-user journeys: common-baseline step counts, the largest absolute loss, adjacent-period comparisons and weekly completion with continuation cells. Sampled, missing and planned reports retain explicit states; session exploration is separate.",
