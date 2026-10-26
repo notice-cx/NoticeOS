@@ -149,14 +149,17 @@ function UseStrip({ product }: { product: ProductSnapshot }) {
   const series = (pick: (day: (typeof days)[number]) => number | null): SeriesPointOrGap[] =>
     days.map((day) => ({ t: day.date, v: pick(day) }));
   const people = dailyMean(days.map((day) => day.people));
-  const pageviews = dailyTotal(days.map((day) => day.pageviews));
-  const sessions = dailyTotal(days.map((day) => day.sessions));
+  const sampled = days.some((day) => (day.sampledEvents ?? 0) > 0);
+  const pageviews = dailyTotal(days.map((day) => day.estimatedPageviews ?? day.pageviews));
+  const sessions = dailyTotal(days.map((day) => day.estimatedSessions ?? day.sessions));
   const missing = product.webDaily ? "fewer than 3 days" : "not collected";
 
   return (
+    <>
+    {sampled ? <p className="m-0 text-xs text-muted-foreground">Some visits are sampled. Page views and sessions are estimates; people and funnel steps show only observed activity.</p> : null}
     <SmallMultipleStrip columns={3}>
       <SmallMultiple
-        label="People a day"
+        label={sampled ? "Observed people a day" : "People a day"}
         value={people === null ? "—" : formatInt(Math.round(people))}
         secondary={people === null ? missing : `daily average, ${formatInt(days.length)} days`}
         secondaryBelow
@@ -165,26 +168,27 @@ function UseStrip({ product }: { product: ProductSnapshot }) {
         format={formatInt}
       />
       <SmallMultiple
-        label="Page views"
+        label={sampled ? "Estimated page views" : "Page views"}
         value={pageviews === null ? "—" : formatCompact(pageviews)}
         secondary={pageviews === null ? missing : `total, ${formatInt(days.length)} days`}
         secondaryBelow
-        spark={product.webDaily ? series((day) => day.pageviews) : undefined}
+        spark={product.webDaily ? series((day) => day.estimatedPageviews ?? day.pageviews) : undefined}
         sparkAverage={false}
         format={formatInt}
       />
       <SmallMultiple
-        label="Sessions"
+        label={sampled ? "Estimated sessions" : "Sessions"}
         value={sessions === null ? "—" : formatCompact(sessions)}
         secondary={sessions === null ? missing : `total, ${formatInt(days.length)} days`}
         secondaryBelow
-        spark={product.webDaily ? series((day) => day.sessions) : undefined}
+        spark={product.webDaily ? series((day) => day.estimatedSessions ?? day.sessions) : undefined}
         sparkAverage={false}
         format={formatInt}
         // Three cells in a phone's two columns would leave a hole in the strip.
         className="col-span-2 sm:col-span-1"
       />
     </SmallMultipleStrip>
+    </>
   );
 }
 
@@ -259,7 +263,7 @@ function FunnelBlock({ funnel }: { funnel: ProductFunnel }) {
         )}
       </div>
       <div className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground sm:text-end">
-        People · share of the step before
+        {funnel.sampled ? "Observed people · conversion unavailable with sampling" : "People · share of the step before"}
       </div>
       <ol className="m-0 grid list-none gap-1.5 p-0">
         {funnel.steps.map((step, index) => {
@@ -290,7 +294,7 @@ function FunnelBlock({ funnel }: { funnel: ProductFunnel }) {
               />
               <span className="col-start-2 row-start-1 text-end text-xs tabular-nums sm:col-start-auto sm:row-start-auto">
                 <span className="font-semibold text-foreground">{formatInt(step.people)}</span>
-                {previous !== null && previous > 0 ? (
+                {!funnel.sampled && previous !== null && previous > 0 ? (
                   <span className={cn("ms-1.5", isDrop ? "font-semibold text-foreground" : "text-muted-foreground")}>
                     {percent(step.people / previous, 0)}
                   </span>

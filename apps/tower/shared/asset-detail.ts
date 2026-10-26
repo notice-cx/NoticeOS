@@ -935,6 +935,9 @@ export interface ProductDay {
   people: number | null;
   pageviews: number | null;
   sessions: number | null;
+  estimatedPageviews?: number | null;
+  estimatedSessions?: number | null;
+  sampledEvents?: number | null;
 }
 
 export interface ProductWebDaily {
@@ -961,6 +964,7 @@ export interface ProductFunnelDrop {
 }
 
 export interface ProductFunnel {
+  sampled?: boolean;
   id: string;
   name: string;
   windowStart: string;

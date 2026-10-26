@@ -219,7 +219,9 @@ function peopleMeasure(data: AssetDetailFor<"overview">, days: RangeDays): Measu
   const product = data.executive?.product?.webDaily?.days ?? [];
   const people = productTrend(product, (day) => day.people);
   if (!hasPoints(people)) return null;
-  return trafficMeasure({ key: "people", name: "People a day", unit: "people", kind: "mean", sources: [{ name: "PostHog", trend: people }], days });
+  const sampled = product.some((day) => (day.sampledEvents ?? 0) > 0);
+  const measure = trafficMeasure({ key: "people", name: sampled ? "Observed people a day" : "People a day", unit: "people", kind: "mean", sources: [{ name: "PostHog", trend: people }], days });
+  return sampled ? { ...measure, comparison: null, usual: null } : measure;
 }
 
 function searchMeasure(data: AssetDetailFor<"overview">, days: RangeDays): Measure | null {

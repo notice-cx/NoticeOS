@@ -11,11 +11,11 @@ export interface PosthogFamilyRow {
 export declare const POSTHOG_FAMILY_ROWS: {
     readonly 'web-daily': {
         readonly grain: "day";
-        readonly fields: readonly ["date", "pageviews", "people", "sessions"];
+        readonly fields: readonly ["date", "pageviews", "people", "sessions", "estimatedPageviews", "estimatedSessions", "sampledEvents"];
     };
     readonly events: {
         readonly grain: "event";
-        readonly fields: readonly ["event", "count", "people", "firstSeen", "lastSeen"];
+        readonly fields: readonly ["event", "count", "people", "firstSeen", "lastSeen", "estimatedCount", "sampledEvents"];
     };
     readonly exceptions: {
         readonly grain: "exception-message";
@@ -23,7 +23,7 @@ export declare const POSTHOG_FAMILY_ROWS: {
     };
     readonly rageclicks: {
         readonly grain: "page-element";
-        readonly fields: readonly ["path", "tag", "text", "attr", "clicks", "people", "desktopClicks", "mobileClicks", "tabletClicks", "pagePeople"];
+        readonly fields: readonly ["path", "tag", "text", "attr", "clicks", "people", "desktopClicks", "mobileClicks", "tabletClicks", "pagePeople", "estimatedClicks", "estimatedDesktopClicks", "estimatedMobileClicks", "estimatedTabletClicks", "sampledEvents"];
     };
     readonly 'web-vitals': {
         readonly grain: "page-device-os";
@@ -35,7 +35,7 @@ export declare const POSTHOG_FAMILY_ROWS: {
     };
     readonly funnels: {
         readonly grain: "funnel-step";
-        readonly fields: readonly ["funnelId", "name", "step", "event", "path", "people"];
+        readonly fields: readonly ["funnelId", "name", "step", "event", "path", "people", "sampledEvents"];
     };
 };
 /** The contract field names of one family's rows. */

@@ -544,13 +544,13 @@ test('the flattener flattens exactly the contract families and fields', () => {
 /** Each family's CSV header as the flattener writes it: the base columns, then
  * the metadata and contract fields sorted by name. */
 const POSTHOG_CSV_HEADERS = {
-  'web-daily': 'asset,report_date,collected_at,data_state,provider_truncated,date,pageviews,people,project_time_zone,row_grain,row_limit,sessions,window_end,window_start',
-  events: 'asset,report_date,collected_at,data_state,provider_truncated,count,event,first_seen,last_seen,people,project_time_zone,row_grain,row_limit,window_end,window_start',
+  'web-daily': 'asset,report_date,collected_at,data_state,provider_truncated,date,estimated_pageviews,estimated_sessions,pageviews,people,project_time_zone,row_grain,row_limit,sampled_events,sessions,window_end,window_start',
+  events: 'asset,report_date,collected_at,data_state,provider_truncated,count,estimated_count,event,first_seen,last_seen,people,project_time_zone,row_grain,row_limit,sampled_events,window_end,window_start',
   exceptions: 'asset,report_date,collected_at,data_state,provider_truncated,count,has_source_file,max_per_session,message,people,project_time_zone,row_grain,row_limit,sessions,top_browser,top_path,type,window_end,window_start',
-  rageclicks: 'asset,report_date,collected_at,data_state,provider_truncated,attr,clicks,desktop_clicks,mobile_clicks,page_people,path,people,project_time_zone,row_grain,row_limit,tablet_clicks,tag,text,window_end,window_start',
+  rageclicks: 'asset,report_date,collected_at,data_state,provider_truncated,attr,clicks,desktop_clicks,estimated_clicks,estimated_desktop_clicks,estimated_mobile_clicks,estimated_tablet_clicks,mobile_clicks,page_people,path,people,project_time_zone,row_grain,row_limit,sampled_events,tablet_clicks,tag,text,window_end,window_start',
   'web-vitals': 'asset,report_date,collected_at,data_state,provider_truncated,cls_p75,device,fcp_p75,inp_p75,lcp_p75,measurements,os,path,project_time_zone,row_grain,row_limit,window_end,window_start',
   'inp-targets': 'asset,report_date,collected_at,data_state,provider_truncated,device,inp_p75,input_delay_p75,interaction_type,measurements,os,path,presentation_delay_p75,processing_p75,project_time_zone,row_grain,row_limit,target,window_end,window_start',
-  funnels: 'asset,report_date,collected_at,data_state,provider_truncated,event,funnel_id,name,path,people,project_time_zone,row_grain,row_limit,step,window_end,window_start',
+  funnels: 'asset,report_date,collected_at,data_state,provider_truncated,event,funnel_id,name,path,people,project_time_zone,row_grain,row_limit,sampled_events,step,window_end,window_start',
 };
 
 test('every PostHog CSV keeps its column order, with rows and without', async () => {
@@ -682,4 +682,67 @@ test('freshness.json lists PostHog as a collected source with its newest report 
   });
   assert.deepEqual(stalled.stale, ['posthog']);
   assert.equal(stalled.fresh, false);
+});
+
+
+test('sampling estimates survive archives and CSV into chart days without replacing observed counts or rates', async () => {
+  const archives = acceptanceArchives();
+  archives['web-daily.json'] = posthogArchive('web-daily', {
+    window: { start: '2026-09-20', end: '2026-09-22' },
+    rows: ['2026-09-20', '2026-09-21', '2026-09-22'].map((date) => ({
+      date, pageviews: 4, people: 2, sessions: 2,
+      estimatedPageviews: 12, estimatedSessions: 6, sampledEvents: 2,
+    })),
+  });
+  // Fully collected and unweighted server events keep count one; sampled
+  // public events contribute five only to the additive estimate.
+  archives['events.json'].pages[0].response.rows = [
+    { event: 'calculation_complete', count: 4, people: 2, firstSeen: '2026-09-20', lastSeen: '2026-09-22', estimatedCount: 12, sampledEvents: 2 },
+  ];
+  archives['rageclicks.json'].pages[0].response.rows = [{
+    path: '/calculator', tag: 'button', text: 'Next', attr: null,
+    clicks: 100, people: 60, pagePeople: 1000, desktopClicks: 80, mobileClicks: 20, tabletClicks: 0,
+    estimatedClicks: 500, estimatedDesktopClicks: 400, estimatedMobileClicks: 100, estimatedTabletClicks: 0, sampledEvents: 100,
+  }];
+  await withPanel(archives, async ({ executive, read }) => {
+    const day = executive.product.webDaily.days.find((row) => row.date === '2026-09-20');
+    assert.deepEqual(day, { date: '2026-09-20', pageviews: 4, people: 2, sessions: 2, estimatedPageviews: 12, estimatedSessions: 6, sampledEvents: 2 });
+    const [event] = csvRows(await read('posthog-events.csv'));
+    assert.equal(event.count, '4');
+    assert.equal(event.estimated_count, '12');
+    const [rage] = csvRows(await read('posthog-rageclicks.csv'));
+    assert.equal(rage.clicks, '100');
+    assert.equal(rage.estimated_clicks, '500');
+    assert.equal(executive.product.rageClicks.clusters[0].share, 60 / 1000);
+    assert.equal(executive.product.funnels[0].conversion, 1232 / 18826);
+  });
+});
+
+
+test('sampled funnel steps stay observed while conversion and week comparisons are unavailable', async () => {
+  const archives = acceptanceArchives();
+  const funnelArchives = Object.values(archives).filter((archive) => archive.report === 'funnels');
+  const current = funnelArchives.sort((a, b) => a.reportDate.localeCompare(b.reportDate)).at(-1);
+  current.pages[0].response.rows = current.pages[0].response.rows.map((row) => ({ ...row, sampledEvents: 100 }));
+  await withPanel(archives, async ({ executive }) => {
+    const funnel = executive.product.funnels[0];
+    assert.equal(funnel.sampled, true);
+    assert.equal(funnel.steps[0].people, 18826);
+    assert.equal(funnel.conversion, null);
+    assert.equal(funnel.largestDrop, null);
+    assert.equal(funnel.prior, null);
+    assert.ok(!executive.items.some((item) => item.key.startsWith('posthog-funnel-drop-')));
+    assert.match(executive.product.checks.find((check) => check.key === 'posthog-funnel-drop').detail, /conversion and comparisons are unavailable/i);
+  });
+});
+
+test('a fully collected funnel cannot compare against a sampled earlier week', async () => {
+  const archives = acceptanceArchives();
+  const earlier = Object.values(archives).filter((archive) => archive.report === 'funnels').sort((a, b) => a.reportDate.localeCompare(b.reportDate))[0];
+  earlier.pages[0].response.rows = earlier.pages[0].response.rows.map((row) => ({ ...row, sampledEvents: 100 }));
+  await withPanel(archives, async ({ executive }) => {
+    const funnel = executive.product.funnels[0];
+    assert.equal(funnel.conversion, 1232 / 18826);
+    assert.equal(funnel.prior, null);
+  });
 });

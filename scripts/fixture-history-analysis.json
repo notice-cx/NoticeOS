@@ -58,8 +58,12 @@
     "gsc-query.csv": "8ed28fa223b5a35b4b8116baf732be7751e307b90c0fb6bef04df0e4b8d7fba7",
     "executive.json": "122f7685e1422163105acdf0de4992b493d6b7c3b0c2402054648c887b34f98d"
   },
-  "copyFiles": {
+  "currentFiles": {
     "executive.json": "c6b9fcfefc13f7608651e743f45a1922131fb90cdc83aef9a59204dd52d2131d",
+    "posthog-events.csv": "56da07e41d8a8df64868147d71b6f08ba1e60ac28f6c9c6c956fcd932a014ae2",
+    "posthog-funnels.csv": "4685a0e57c2dd4fc0a91322ba8b08e886206e1529890678a5d34e9c2bbe4d539",
+    "posthog-rageclicks.csv": "9d924ecbc20e6192620c4500855cdc4d01e5a94e7423edc1036fe3bb0c16ab68",
+    "posthog-web-daily.csv": "692e31b924c20bf73136b010a278f377a04f0fa22c1b03d590dc16fdd7e32697",
     "summary.json": "6f0a847d985e1a09aa0720d971f9ffd2d220db2ed83bf928871b1f5610433f5a"
   },
   "panelCopyFiles": {

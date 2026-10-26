@@ -1,3 +1,6 @@
+import { parseProductSnapshot } from "@shared/product-snapshot";
+import posthogProductJson from "@/routes/kitchen-sink/posthog-product.json";
+import { siteLead } from "@/routes/asset-detail/SiteLead";
 import { describe, expect, it } from "vitest";
 import type { AssetDetailPayload, FlagRecord } from "@shared/asset-detail";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -177,6 +180,31 @@ describe("which measure the chart opens on", () => {
 });
 
 describe("the hero row's measures", () => {
+  it("does not compare observed people across a sampling change", () => {
+    const data = overview((body) => {
+      body.performance.activeUsers = trend([]);
+      body.performance.sessions = trend([]);
+      body.performance.webSearchClicks = { google: trend([]), bing: trend([]) };
+      body.performance.webSearchImpressions = { google: trend([]), bing: trend([]) };
+      body.dailyRevenue = undefined;
+      const product = parseProductSnapshot(posthogProductJson)!;
+      product.webDaily!.days = days(56, (index) => index < 28 ? 100 : 20).map((point, index) => ({
+        date: point.t, people: point.v, pageviews: point.v * 2, sessions: point.v,
+        estimatedPageviews: 200, estimatedSessions: 100, sampledEvents: index < 28 ? 0 : 20,
+      }));
+      body.executive!.product = product;
+    });
+    const measure = overviewMeasures(data, 28, NOW).find((one) => one.key === "people")!;
+    expect(measure.name).toBe("Observed people a day");
+    expect(measure.comparison).toBeNull();
+    expect(measure.usual).toBeNull();
+    const lead = siteLead(data, 28, NOW);
+    expect(lead.kind).toBe("traffic");
+    if (lead.kind !== "traffic") throw new Error("expected product traffic");
+    expect(lead.metrics.find((metric) => metric.key === "people")?.delta).toBeNull();
+    expect(lead.metrics.find((metric) => metric.key === "pageviews")?.label).toBe("Estimated page views");
+  });
+
   it("leads with money, then people, search and the product figure, leaving out what the asset lacks", () => {
     const keys = (data: AssetDetailFor<"overview">) => overviewMeasures(data, 28, NOW).map((measure) => measure.key);
     expect(keys(overview())).toEqual(["money", "people", "search", "product"]);

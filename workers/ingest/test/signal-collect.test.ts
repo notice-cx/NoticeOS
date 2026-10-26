@@ -411,20 +411,20 @@ const PH_REGISTER = {
 function posthogProvider(): { fetchImpl: typeof fetch; queries: string[] } {
   const queries: string[] = [];
   const columns: Record<string, string[]> = {
-    'web-daily': ['date', 'pageviews', 'people', 'sessions'],
-    events: ['event', 'count', 'people', 'first_seen', 'last_seen'],
+    'web-daily': ['date', 'pageviews', 'people', 'sessions', 'estimated_pageviews', 'sampled_events', 'estimated_sessions'],
+    events: ['event', 'count', 'people', 'first_seen', 'last_seen', 'estimated_count', 'sampled_events'],
     exceptions: ['exception_type', 'exception_message', 'occurrences', 'people', 'sessions', 'max_per_session', 'has_source_file', 'top_path', 'top_browser'],
-    rageclicks: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktop_clicks', 'mobile_clicks', 'tablet_clicks', 'page_people'],
+    rageclicks: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktop_clicks', 'mobile_clicks', 'tablet_clicks', 'page_people', 'estimated_clicks', 'estimated_desktop_clicks', 'estimated_mobile_clicks', 'estimated_tablet_clicks', 'sampled_events'],
     'web-vitals': ['path', 'device', 'os', 'lcp_p75', 'inp_p75', 'cls_p75', 'fcp_p75', 'measurements'],
     'inp-targets': ['path', 'device', 'os', 'target', 'interaction_type', 'measurements', 'inp_p75', 'input_delay_p75', 'processing_p75', 'presentation_delay_p75'],
-    funnels: ['funnel_1_step_1', 'funnel_1_step_2'],
+    funnels: ['funnel_1_step_1', 'funnel_1_step_2', 'sampled_events'],
   };
   const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (init?.method !== 'POST') return Response.json({ id: 424242, timezone: 'America/New_York' });
     const body = JSON.parse(String(init.body)) as { name: string; query: { query: string } };
     queries.push(body.query.query);
     const family = body.name.slice('noticeos:posthog-'.length);
-    return Response.json({ results: family === 'funnels' ? [[18826, 15864]] : [], columns: columns[family] });
+    return Response.json({ results: family === 'funnels' ? [[18826, 15864, 0]] : [], columns: columns[family] });
   }) as typeof fetch;
   return { fetchImpl, queries };
 }

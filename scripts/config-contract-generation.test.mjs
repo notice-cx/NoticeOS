@@ -5,6 +5,7 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ASSET_ID_RE, CONFIG_ASSET_KEY_RE } from '../packages/contract/src/configuration.mjs';
+import { POSTHOG_FAMILY_ROWS } from '../packages/contract/src/posthog-families.mjs';
 import { CONFIG_DOCUMENT_FILES } from './config-documents.mjs';
 import { runCommand } from './run-command.mjs';
 
@@ -149,7 +150,7 @@ describe('generation on a changed copy', { concurrency: true }, () => {
     await withGenerationRoot(async (root, run) => {
       const source = path.join(root, 'packages/contract/src/posthog-families.mts');
       const before = readFileSync(source, 'utf8');
-      const edited = before.replace("fields: ['date', 'pageviews', 'people', 'sessions']", "fields: ['date', 'pageviews', 'people', 'sessions', 'bounces']");
+      const edited = before.replace(/('web-daily':\s*\{[^}]*fields:\s*\[)([^\]]+)(\])/u, "$1$2, 'bounces'$3");
       assert.notEqual(edited, before, 'the web-daily field list is where the test expects it');
       writeFileSync(source, edited);
 
@@ -163,13 +164,13 @@ describe('generation on a changed copy', { concurrency: true }, () => {
       assert.match(incomplete.stdout, /posthog\.ts.*error TS[\s\S]*bounces/u,
         'the row schema must match the changed family before generation can succeed');
       edit(root, 'packages/contract/src/posthog.ts',
-        "  sessions: count,\n} satisfies PosthogRowShape<'web-daily'>);",
-        "  sessions: count,\n  bounces: count,\n} satisfies PosthogRowShape<'web-daily'>);");
+        "} satisfies PosthogRowShape<'web-daily'>);",
+        "  bounces: count,\n} satisfies PosthogRowShape<'web-daily'>);");
       const regeneratedOutput = await run();
       assert.equal(regeneratedOutput.status, 0, regeneratedOutput.stdout + regeneratedOutput.stderr);
       assert.equal((await run('--check')).status, 0);
       const regenerated = await import(pathToFileURL(path.join(root, 'packages/contract/src/posthog-families.mjs')).href);
-      assert.deepEqual(regenerated.POSTHOG_FAMILY_ROWS['web-daily'].fields, ['date', 'pageviews', 'people', 'sessions', 'bounces']);
+      assert.deepEqual(regenerated.POSTHOG_FAMILY_ROWS['web-daily'].fields, [...POSTHOG_FAMILY_ROWS['web-daily'].fields, 'bounces']);
     });
   });
 });

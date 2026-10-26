@@ -9,6 +9,8 @@ import {
   claimPosthogLease,
   posthogLeaseKey,
   posthogQuery,
+  parseFamilyRows,
+  POSTHOG_SAMPLE_WEIGHT_SQL,
   runPosthogDumps as collectPosthogDumps,
   type PosthogDumpsOptions,
   windowFor,
@@ -109,19 +111,30 @@ const FIXTURE_ROWS: Record<string, unknown[][]> = {
   funnels: [[18826, 15864, 15394]],
 };
 
+// Historical fixtures are full collection; estimates equal observed counts.
+FIXTURE_ROWS['web-daily'] = FIXTURE_ROWS['web-daily']!.map((row) => [...row, row[1], 0, row[3]]);
+FIXTURE_ROWS.events = FIXTURE_ROWS.events!.map((row) => [...row, row[1], 0]);
+FIXTURE_ROWS.rageclicks = FIXTURE_ROWS.rageclicks!.map((row) => [...row, row[4], row[6], row[7], row[8], 0]);
+
 const FIXTURE_COLUMNS: Record<string, string[]> = {
-  'web-daily': ['date', 'pageviews', 'people', 'sessions'],
-  events: ['event', 'count', 'people', 'first_seen', 'last_seen'],
+  'web-daily': ['date', 'pageviews', 'people', 'sessions', 'estimated_pageviews', 'sampled_events', 'estimated_sessions'],
+  events: ['event', 'count', 'people', 'first_seen', 'last_seen', 'estimated_count', 'sampled_events'],
   exceptions: ['exception_type', 'exception_message', 'occurrences', 'people', 'sessions', 'max_per_session', 'has_source_file', 'top_path', 'top_browser'],
-  rageclicks: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktop_clicks', 'mobile_clicks', 'tablet_clicks', 'page_people'],
+  rageclicks: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktop_clicks', 'mobile_clicks', 'tablet_clicks', 'page_people', 'estimated_clicks', 'estimated_desktop_clicks', 'estimated_mobile_clicks', 'estimated_tablet_clicks', 'sampled_events'],
   'web-vitals': ['path', 'device', 'os', 'lcp_p75', 'inp_p75', 'cls_p75', 'fcp_p75', 'measurements'],
   'inp-targets': ['path', 'device', 'os', 'target', 'interaction_type', 'measurements', 'inp_p75', 'input_delay_p75', 'processing_p75', 'presentation_delay_p75'],
-  funnels: ['funnel_1_step_1', 'funnel_1_step_2', 'funnel_1_step_3'],
+  funnels: ['funnel_1_step_1', 'funnel_1_step_2', 'funnel_1_step_3', 'sampled_events'],
 };
 
 function posthogBody(family: string, rows: unknown[][] = FIXTURE_ROWS[family]!) {
   return {
-    results: rows,
+    results: rows.map((row) => {
+      if (family === 'funnels' && row.length === 3) return [...row, 0];
+      if (family === 'web-daily' && row.length === 4) return [...row, row[1], 0, row[3]];
+      if (family === 'events' && row.length === 5) return [...row, row[1], 0];
+      if (family === 'rageclicks' && row.length === 10) return [...row, row[4], row[6], row[7], row[8], 0];
+      return row;
+    }),
     columns: FIXTURE_COLUMNS[family],
     types: [],
     hasMore: false,
@@ -252,7 +265,7 @@ describe('PostHog product analytics archive', () => {
     expect(bodies.get('funnels')).toMatchObject({ window: { start: '2026-09-16', end: '2026-09-22' }, rowLimit: 3 });
 
     // The acceptance readings survive parsing verbatim.
-    expect((bodies.get('events')!.rows as unknown[])).toContainEqual({ event: 'first_meal_logged', count: 1597, people: 527, firstSeen: '2026-09-08', lastSeen: '2026-09-22' });
+    expect((bodies.get('events')!.rows as unknown[])).toContainEqual({ event: 'first_meal_logged', count: 1597, people: 527, firstSeen: '2026-09-08', lastSeen: '2026-09-22', estimatedCount: 1597, sampledEvents: 0 });
     expect((bodies.get('exceptions')!.rows as unknown[])[0]).toEqual({
       type: 'TypeError', message: 'Load failed', count: 40975, people: 1314, sessions: 2210, maxPerSession: 402,
       hasSourceFile: false, topPath: '/calculator', topBrowser: 'Mobile Safari',
@@ -275,9 +288,9 @@ describe('PostHog product analytics archive', () => {
         inpP75: 144, inputDelayP75: null, processingP75: null, presentationDelayP75: null },
     ]);
     expect(bodies.get('funnels')!.rows).toEqual([
-      { funnelId: 'calculator', name: 'Calculator', step: 1, event: '$pageview', path: '/calculator', people: 18826 },
-      { funnelId: 'calculator', name: 'Calculator', step: 2, event: 'form_start', path: null, people: 15864 },
-      { funnelId: 'calculator', name: 'Calculator', step: 3, event: 'calculation_complete', path: null, people: 15394 },
+      { funnelId: 'calculator', name: 'Calculator', step: 1, event: '$pageview', path: '/calculator', people: 18826, sampledEvents: 0 },
+      { funnelId: 'calculator', name: 'Calculator', step: 2, event: 'form_start', path: null, people: 15864, sampledEvents: 0 },
+      { funnelId: 'calculator', name: 'Calculator', step: 3, event: 'calculation_complete', path: null, people: 15394, sampledEvents: 0 },
     ]);
   });
 
@@ -1217,6 +1230,26 @@ describe('PostHog queries', () => {
     expect(posthogQuery('web-daily', window).text).toContain("event = '$pageview'");
   });
 
+  it('weights additive counts, deduplicates session inclusion and leaves observed people and conversions intact', () => {
+    const daily = posthogQuery('web-daily', window).text;
+    expect(daily).toContain(`sum(${POSTHOG_SAMPLE_WEIGHT_SQL}) AS estimated_pageviews`);
+    expect(daily).toContain(`min(${POSTHOG_SAMPLE_WEIGHT_SQL}) AS session_weight`);
+    expect(daily).toContain('GROUP BY date, session_id');
+    expect(daily).toContain("HAVING session_id IS NOT NULL AND countIf(event = '$pageview') > 0");
+    expect(daily).toContain('sum(session_weight) AS estimated_sessions');
+    expect(daily).toContain('uniq(person_id) AS people');
+    expect(POSTHOG_SAMPLE_WEIGHT_SQL).toContain("'^[1-9][0-9]{0,5}$'");
+    for (const family of ['web-vitals', 'inp-targets'] as const) {
+      expect(posthogQuery(family, window, [CALCULATOR]).text).not.toContain('sample_weight');
+    }
+    const parsed = parseFamilyRows('web-daily', [['2026-09-20', 4, 2, 2, 12, 2, 6]]).rows[0];
+    expect(parsed).toEqual({ date: '2026-09-20', pageviews: 4, people: 2, sessions: 2, estimatedPageviews: 12, sampledEvents: 2, estimatedSessions: 6 });
+    expect(parseFamilyRows('events', [['signup', 3, 2, '2026-09-20', '2026-09-22', 7, 1]]).rows[0]).toMatchObject({ count: 3, people: 2, estimatedCount: 7, sampledEvents: 1 });
+    for (const malformed of [-1, 'NaN', null, Infinity, 1.5]) {
+      expect(() => parseFamilyRows('web-daily', [['2026-09-20', 4, 2, 2, malformed, 2, 6]])).toThrow();
+    }
+  });
+
   it('filters event type and dates before decoding properties in every table scan', () => {
     for (const family of POSTHOG_FAMILIES) {
       const query = posthogQuery(family, window, [CALCULATOR]).text;
@@ -1235,7 +1268,7 @@ describe('PostHog queries', () => {
   it('builds one ordered funnel query from the declared steps', () => {
     const second: PosthogFunnel = { id: 'save', name: 'Save a plan', steps: [{ event: 'calculation_complete' }, { event: 'plan_save' }] };
     const query = posthogQuery('funnels', { start: '2026-09-16', end: '2026-09-22' }, [CALCULATOR, second]);
-    expect(query.columns).toEqual(['funnel_1_step_1', 'funnel_1_step_2', 'funnel_1_step_3', 'funnel_2_step_1', 'funnel_2_step_2']);
+    expect(query.columns).toEqual(['funnel_1_step_1', 'funnel_1_step_2', 'funnel_1_step_3', 'funnel_2_step_1', 'funnel_2_step_2', 'sampled_events']);
     expect(query.text).toContain(
       "windowFunnel(604800)(toDateTime(timestamp), event = '$pageview' AND toString(properties.$pathname) = '/calculator', event = 'form_start', event = 'calculation_complete') AS funnel_1",
     );

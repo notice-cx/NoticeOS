@@ -141,6 +141,33 @@ describe("JourneyMonitor", () => {
     } finally { measured.mockRestore(); }
   });
 
+  it.each([7, 28] as const)("opens available weekly counts explicitly when the current %i-day report is missing", (days) => {
+    const { container } = render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, current7: null, current28: null }] }} />);
+    fireEvent.click(screen.getByRole("button", { name: `${days} days` }));
+    expect(screen.getByText(`No current ${days}-day report is available. Weekly reports are collected separately.`)).toBeInTheDocument();
+    expect(container.querySelectorAll(".journey-step")).toHaveLength(0);
+    expect(screen.getByText(/Complete weeks are ready for collection on Tuesday/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View week · Oct 12–18, 2026" }));
+    expect(screen.getByText("Viewing week · Oct 12–18, 2026")).toBeInTheDocument();
+    expect(container.querySelectorAll(".journey-step")).toHaveLength(account.steps.length);
+    expect(container.querySelector('[data-step-index="0"]')!.textContent).toContain("3,200");
+    expect(screen.queryByText("Ordered conversion is unavailable")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `Return to ${days}-day period` }));
+    expect(screen.getByText(`No current ${days}-day report is available. Weekly reports are collected separately.`)).toBeInTheDocument();
+    expect(container.querySelectorAll(".journey-step")).toHaveLength(0);
+  });
+
+  it("offers the latest complete week and excludes sampled or invalid weeks from the shortcut", () => {
+    const weekly = result.weekly.slice(-2).map((week, index) => index === 1 ? { ...week, quality: "sampled" as const } : week);
+    const { rerender } = render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, current28: null, weekly }] }} />);
+    expect(screen.getByRole("button", { name: "View week · Oct 5–11, 2026" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View week · Oct 12–18, 2026" })).not.toBeInTheDocument();
+    const invalid = { ...weekly[0]!, steps: account.steps.map((step, index) => ({ id: step.id, users: index + 1 })) };
+    rerender(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, current28: null, weekly: [invalid, weekly[1]!] }] }} />);
+    expect(screen.queryByRole("button", { name: /View week/ })).not.toBeInTheDocument();
+    expect(screen.getByText("No ordered report has been collected for this period.")).toBeInTheDocument();
+  });
+
   it("preserves a known zero count and displays a small nonzero weekly change", () => {
     const zero = { ...result.weekly[7]!, visitors: { users: 0, quality: "complete" as const }, steps: account.steps.map((step) => ({ id: step.id, users: 0 })) };
     const { container, rerender } = render(<JourneyMonitor definitions={[account]} snapshot={{ ...JOURNEY_DEMO_SNAPSHOT, funnels: [{ ...result, weekly: [zero] }] }} />);

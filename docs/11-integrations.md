@@ -791,7 +791,33 @@ counts the ones left for the next run in `retryNotAsked`.
   privacy choice, not missing data.
 - Events behind consent arrive only after consent, so they are a floor.
 - Events whose `$lib` is the asset's own worker (e.g. `example-worker`) are server-side and use different ids.
-- `people` is `uniq(person_id)`, PostHog's own unique-person count. A manual
+- Public browser sampling is carried by each event's `sample_weight`, an
+  integer inverse inclusion probability from 1 to 999999. Missing, zero,
+  negative, fractional, nonnumeric or larger values count as 1. The additive
+  estimates sum this weight: `estimatedPageviews`, `estimatedCount` and the
+  rage-click `estimated*Clicks` fields. Original counts stay observed, and
+  `sampledEvents` records how many rows carried a valid weight above 1.
+  Old archives have no estimate fields and continue to show observed counts.
+- Daily `estimatedSessions` deduplicates nonempty session IDs within each day
+  and includes sessions with a page view. Its weight is the minimum valid
+  page-view weight in that session: a fully collected page view gives the
+  session weight 1; otherwise the sampled session contributes its inverse inclusion
+  probability once. This requires a stable browser sampling draw and session
+  ID, with a common inclusion probability within a sampled session. It is an
+  estimate, not an exact visitor count. Missing session IDs stay uncounted.
+- The Product daily strip and PostHog traffic summary use the additive daily
+  estimates and show “Estimated” when the displayed data includes sampled
+  page views. People remain observed; person IDs can merge multiple browsers
+  and fully collected signed-in events, so event weights alone cannot recover
+  unique-person inclusion probabilities. Funnel steps, rates and web-vitals percentiles remain unscaled. A
+  `sampledEvents` count on funnel rows records sampling across the selected
+  funnel event set. If any selected event is sampled, observed step counts
+  remain available, while conversion, largest-drop findings and prior-window
+  comparisons are unavailable; fully collected funnels also exclude a sampled
+  prior window from comparison. A sampled public step followed by
+  a fully collected signed-in step does not establish a weighted conversion.
+  Sampling changes can therefore affect observed people and funnel comparisons.
+- `people` is `uniq(person_id)`, PostHog's approximate count of observed unique people. A manual
   reading that counts `distinct_id` instead differs slightly wherever PostHog
   has merged a person across ids.
 - Web-vitals percentiles use `quantileExact`, so a re-run gives the same
