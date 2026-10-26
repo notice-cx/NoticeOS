@@ -65,6 +65,7 @@
 // (`readValueEvents`, `market`) reads nothing but the history folder, which is
 // how every test runs it. The supervisor runs the refresh in a separate child process.
 //
+import { productDataColumns } from './product-data-pack.mjs';
 import { fork } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -245,6 +246,7 @@ function summaryCaveats(market) {
     'DataForSEO rankings, backlinks, and LLM mentions are weekly provider snapshots; analysis compares stored snapshots and never repulls history.',
     'DataForSEO API cost is preserved on each report family so the metered lane remains auditable.',
     `The tracked SERP panel is a top-20 read in ${marketPhrase(market)} of hand-picked head terms on BOTH devices: one row per query per \`device\`, so nothing may be summed across devices without filtering first. An empty rank means no result inside that depth, and an empty AI Overview column means unknown, never absent.`,
+    'GA4 content groups include only events carrying content_group. Missing values remain (not set); sessions may appear in more than one group and must not be summed across groups.',
     'PostHog families (posthog-*.csv) are server-side aggregates over each archive\'s own trailing window (window_start–window_end, inclusive, in the PostHog project\'s timezone): read one report_date at a time, and never add `people` across rows, days or report dates — it is a unique-person count over that row\'s window. posthog-web-daily is resolved newest-archive-wins per date. provider_truncated=true means the family hit its row limit and is a top-N read. An empty file is PostHog answering with no rows; a missing file is a family nobody collected.',
     'PostHog undercounts in known directions: browsers that block it are invisible, so its totals run below GA4; its browser library drops known bots that GA4 keeps, so a GA4-only spike can be a crawler; signed-in events arrive only after consent, so they are a floor; server-side events (any `$lib` other than the browser library) use account ids that do not join browser ids; and an asset that sends its first-party events by name only has events with no properties by design, not by defect.',
   ];
@@ -271,7 +273,8 @@ export async function writeReport({
   const datasets = [];
   const place = (name) => path.relative(REPO_ROOT, path.join(output, name));
   for (const [name, rows] of [...families.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    const emptyHeaders = name.startsWith('posthog-') ? posthogColumns(name.slice('posthog-'.length)) : null;
+    const emptyHeaders = name.startsWith('posthog-') ? posthogColumns(name.slice('posthog-'.length))
+      : name.startsWith('product-data-') ? productDataColumns(name.slice('product-data-'.length)) : null;
     await write(`${name}.csv`, toCsv(rows, emptyHeaders));
     datasets.push({ name, rows: rows.length, file: place(`${name}.csv`) });
   }

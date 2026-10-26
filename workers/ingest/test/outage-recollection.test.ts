@@ -111,13 +111,17 @@ it('re-collects an outage night and leaves no network failure on Google, Bing, C
     await pgAll(`SELECT integration, count(*)::int AS n FROM ${ARCHIVE_RUNS}
         WHERE requested_at = '2026-09-14T12:15:00.000Z' AND error_code = 'request_failed'
         GROUP BY integration ORDER BY integration`),
-  ).toMatchObject({ results: [{ integration: 'bing-webmaster', n: 26 }, { integration: 'ga4', n: 66 }, { integration: 'gsc', n: 80 }] });
+  ).toMatchObject({ results: [{ integration: 'bing-webmaster', n: 26 }, { integration: 'ga4', n: 82 }, { integration: 'gsc', n: 80 }] });
 
   const stuck = await readIntegrationHealth(env, Date.now() + 1000);
   // Google: every property's oldest window date, plus the rolling family's
   // newest — the two report windows the page shows.
   const google = networkItems(stuck, 'google');
-  expect(google).toHaveLength(2 * (8 + 1 + 10));
+  expect(google).toHaveLength(2 * (10 + 1 + 10));
+  for (const report of ['content-groups', 'event-source']) {
+    expect(google.filter((item) => item.report === report)).toHaveLength(2);
+  }
+  expect(google.some((item) => item.report === 'event-state')).toBe(false);
   expect(new Set(google.map((item) => item.detail?.split(' · ')[1]))).toEqual(new Set(['2026-09-10', '2026-09-13']));
   expect(google.every((item) => item.state === 'failing')).toBe(true);
   // Bing and Clarity can only ever answer "now", and have answered since.

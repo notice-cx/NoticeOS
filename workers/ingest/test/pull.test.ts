@@ -7,6 +7,66 @@ import { flagRows, insertPulse, pgCount, pgRows, promBody, reset, stubFetch } fr
 
 beforeEach(reset);
 
+describe('supplemental session reports', () => {
+  const reportUrl = 'https://meadow.example/api/internal/report';
+  const entry = (): PullAssetConfig => ({ ...MEADOW_ENTRY, additionalEndpoints: [{ url: reportUrl, format: 'envelope', enabled: true }] });
+  const report = () => ({
+    asset: 'meadow.example', generatedAt: '2026-07-05T02:00:00.000Z', capabilities: ['sessionExploration'], metrics: {},
+    sessionExploration: [{ schemaVersion: 1, source: 'first-party', journeyId: 'section-exploration', journeyVersion: 1,
+      definitionId: 'sections-v1', date: '2026-07-04', timeZone: 'UTC', sessionTimeoutMinutes: 30, sessions: 4,
+      surfaces: [{ id: 'articles', label: 'Articles' }, { id: 'tools', label: 'Tools' }],
+      paths: [{ surfaces: ['articles', 'tools'], sessions: 3, ending: 'exit' }] }],
+  });
+  it('keeps both endpoints in one daily revision and authenticates the report with the asset token', async () => {
+    const seen: { url: string; bearer: string | null; accept: string | null }[] = [];
+    const result = await runPullAdapter(env, { entries: [entry()], nowMs: NOW, fetchImpl: (async (input, init) => {
+      const url = String(input), headers = new Headers(init?.headers);
+      seen.push({ url, bearer: headers.get('authorization'), accept: headers.get('accept') });
+      return url === reportUrl ? Response.json(report()) : new Response(meadowBody(7));
+    }) as typeof fetch });
+    expect(result).toMatchObject({ succeeded: 1, failed: 0 });
+    expect(seen[1]).toEqual({ url: reportUrl, bearer: `Bearer ${ASSET_TOKENS['meadow.example']}`, accept: 'application/json' });
+    const [row] = await pgRows<{ envelope: string }>(`SELECT envelope::text AS envelope FROM noticeos.current_pulses WHERE asset_id=$1`, ['meadow.example']);
+    expect(JSON.parse(row!.envelope)).toMatchObject({ metrics: { signups: { last24h: 7 } }, sessionExploration: report().sessionExploration });
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.pulses WHERE asset_id=$1`, ['meadow.example'])).toBe(1);
+  });
+  it('accepts an envelope before its publisher configures exploration', async () => {
+    const { sessionExploration: _, ...unconfigured } = report();
+    const result = await runPullAdapter(env, { entries: [entry()], nowMs: NOW, fetchImpl: stubFetch({
+      [MEADOW_URL]: () => new Response(meadowBody(7)), [reportUrl]: () => Response.json(unconfigured),
+    }) });
+    expect(result).toMatchObject({ succeeded: 1, failed: 0 });
+    expect((await storedEnvelope('meadow.example'))?.metrics.signups?.last24h).toBe(7);
+  });
+  it.each(['unavailable', 'wrong-asset', 'invalid-count', 'duplicate-metric'])('retains metrics and flags %s supplemental reports', async failure => {
+    const body = report();
+    const raw = failure === 'wrong-asset' ? { ...body, asset: 'northwind.example' }
+      : failure === 'invalid-count' ? { ...body, sessionExploration: [{ ...body.sessionExploration[0], sessions: 1 }] }
+      : failure === 'duplicate-metric' ? { ...body, metrics: { signups: { last24h: 99, avg7d: 99, total: 99 } } } : body;
+    const fetchImpl = stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(7)),
+      [reportUrl]: () => failure === 'unavailable' ? Response.json({ error: 'not_ready' }, { status: 503 }) : Response.json(raw),
+    });
+    const first = await runPullAdapter(env, { entries: [entry()], nowMs: NOW, fetchImpl });
+    const second = await runPullAdapter(env, { entries: [entry()], nowMs: NOW, fetchImpl });
+    expect(first).toMatchObject({ failed: 1 });
+    expect(second.outcomes[0]).toMatchObject({ ok: false, resolved: 0 });
+    expect(await openPullFailures('meadow.example')).toBe(1);
+    const failed = await pullFailureFlag('meadow.example');
+    expect(JSON.parse(failed!.rule_inputs)).toMatchObject({ url: reportUrl, status: failure === 'unavailable' ? 503 : 200 });
+    expect((await storedEnvelope('meadow.example'))?.metrics.signups?.last24h).toBe(7);
+    const recovered = await runPullAdapter(env, { entries: [entry()], nowMs: NOW, fetchImpl: stubFetch({
+      [MEADOW_URL]: () => new Response(meadowBody(7)), [reportUrl]: () => Response.json(body),
+    }) });
+    expect(recovered.outcomes[0]).toMatchObject({ ok: true, resolved: 1 });
+  });
+  it('never requests a disabled supplemental endpoint', async () => {
+    const config = entry(); config.additionalEndpoints![0]!.enabled = false;
+    const result = await runPullAdapter(env, { entries: [config], nowMs: NOW,
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(7)) }) });
+    expect(result).toMatchObject({ succeeded: 1, failed: 0 });
+  });
+});
+
 // A fixed clock so the pulse day and the seeded prior days are deterministic.
 const NOW = Date.parse('2026-07-05T02:30:00.000Z'); // pulse day 2026-07-05
 const MEADOW_URL = 'https://meadow.example/api/internal/metrics';

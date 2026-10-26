@@ -598,3 +598,46 @@ the section names the spending cap that already exists (the portfolio's
   page roster and a rotation policy before it can exist.
 - An asset is off the roster until its collectors go live, so that an empty dir
   is never mistaken for an asset whose traffic fell to zero.
+
+## Product data from an asset
+
+A supplemental pull endpoint with `format: "product-data"` collects the asset's
+aggregate JSON document with its existing asset bearer token. It is disabled
+until the owner approves its first live read. The collector accepts at most
+2 MiB, 20,000 aggregate rows and 64 scalar columns per row, with a 30-second
+request timeout. Redirects are refused.
+
+The `product-data-metrics.csv` report retains the complete document in
+`document_json`. Named aggregate blocks produce
+`product-data-metrics-<block>.csv` (with names such as
+`first-results`, `first-results-by-intent` and `new-accounts-daily`): `headline`, `cohorts`, `adoption`,
+`weeklyActive`, `firstLogWeeks`, `trackerDaily`, `emailContactSync`,
+`firstResults`, `firstResultsByIntent` and `newAccountsDaily`. Each report
+retains the source columns and adds `generated_at` alongside the archive
+provenance columns. The report date comes from the document's `generatedAt`;
+collecting an old document does not make its measurements current. Collection
+failures create failed archive attempts and retain previous successful reports.
+`product-data-metrics-collection.csv` records the latest collection outcome and
+attempt time, including archive-write failures; its date never contributes to
+measurement freshness. A collection failure remains visible beside the prior
+measurements. Availability is read from the most recently collected document,
+even when that document has an older source timestamp.
+
+`product-data-metrics-availability.csv` records one row per supported block:
+`available` with its row count, `null` with an unknown row count, or `missing`
+with an unknown row count. An available empty block has zero rows. Null or
+missing blocks are unknown; they are never zero measurements. The per-family
+freshness record retains this availability separately from collection failures. New source
+fields remain in the raw document even when no normalized report supports them.
+
+The source defines each count, denominator and time window. In particular,
+first-result paths can overlap, weekly first results and all-time signup-intent
+counts cover different windows, and current stored-account counts can change
+after account or result deletion. Read the archived `definitions` before
+comparing them. The collector calculates no conversion or retention rates.
+
+## GA4 content groups
+
+GA4 content groups include only events carrying `content_group`. Missing values
+remain `(not set)`. Sessions may appear in more than one group and must not be
+summed across groups.

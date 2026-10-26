@@ -153,7 +153,7 @@ function period(reports: DisplayReport[], startDate: string, days: number): Sess
     ...(estimatedDays ? { estimatedDays } : {})};
 }
 /** Latest received revision per journey/day wins. Repeated reports never add sessions. */
-export function buildSessionExplorationSnapshot(journeyId: string, receipts: SessionReportReceipt[], now: Date, displayTimeZone?: string): SessionExplorationSnapshot {
+export function buildSessionExplorationSnapshot(journeyId: string, receipts: SessionReportReceipt[], now: Date, displayTimeZone?: string, reportingLagDays = 1): SessionExplorationSnapshot {
   const days = new Map<string, SessionExplorationReport>();
   let generatedAt: string | null = null;
   for (const receipt of [...receipts].sort((a,b) => b.receivedAt.localeCompare(a.receivedAt) || b.generatedAt.localeCompare(a.generatedAt))) {
@@ -166,7 +166,8 @@ export function buildSessionExplorationSnapshot(journeyId: string, receipts: Ses
   const latest = [...days.values()].sort((a,b) => b.date.localeCompare(a.date))[0];
   const zone = displayTimeZone ?? latest?.timeZone ?? 'UTC';
   const reports = displayReports([...days.values()], zone);
-  const today = dayAt(now.getTime(), zone);
+  const lag = Number.isSafeInteger(reportingLagDays) && reportingLagDays >= 1 && reportingLagDays <= 14 ? reportingLagDays : 1;
+  const today = explorationDateOffset(dayAt(now.getTime(), zone), 1 - lag);
   const current7 = period(reports, explorationDateOffset(today,-7),7), prior7 = period(reports, explorationDateOffset(today,-14),7);
   const current28 = period(reports, explorationDateOffset(today,-28),28), prior28 = period(reports, explorationDateOffset(today,-56),28);
   // Complete Monday–Sunday weeks; never compare a partial current week with a full one.

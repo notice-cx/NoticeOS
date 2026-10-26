@@ -237,3 +237,16 @@ describe("JourneyDefinitionEditor", () => {
     expect(within(editor).getByLabelText("Exact value *")).toHaveValue("new_account");
   });
 });
+
+
+it("edits first-party exploration without GA4 conditions", async () => {
+  const definition: JourneyDefinition = { id: "section-exploration", label: "Section exploration", goal: "First-party session paths between site sections", kind: "exploration", source: "first-party", reportingLagDays: 2, status: "planned", version: 1, steps: [] };
+  const onSave = vi.fn().mockResolvedValue({ saved: true });
+  render(<JourneyDefinitionEditor definition={definition} definitions={[definition]} eventNames={[]} onSave={onSave} onClose={() => {}} onSelected={() => {}}/>);
+  expect(screen.getByText(/First-party session paths are supplied by asset reports/)).toBeInTheDocument();
+  expect(screen.queryByLabelText("GA4 event *")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Add step" })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Measurement")).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save definition" }));
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith([definition]));
+});

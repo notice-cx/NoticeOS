@@ -21,6 +21,8 @@ describe('asset stored session exploration',()=>{
    expect(s?.current7).toMatchObject({quality:'complete',coveredDays:7,sessions:720,observedSessions:720});
    expect(s?.current7.paths.find(p=>p.surfaces.length===3)?.sessions).toBe(240);
    expect(s?.prior7.sessions).toBeNull();
+   const [firstParty]=await readAssetSessionExploration(f.call,'example.com',[{...definition,source:'first-party',steps:[]}],now);
+   expect(firstParty?.current7).toMatchObject({quality:'complete',coveredDays:7,sessions:720});
    const [changed]=await readAssetSessionExploration(f.call,'example.com',[{...definition,version:2}],now);
    expect(changed?.current7.sessions).toBeNull();
  });

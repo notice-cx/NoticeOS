@@ -22,7 +22,7 @@ export interface JourneyManagement {
 type State = { version: number; holderExists: boolean; listExists: boolean; definitions: JourneyDefinition[]; declaredEventNames: string[]; eventNames: string[] };
 const register = CONFIG_REGISTERS.journeys;
 const COLLECTION = Object.freeze({ source: 'ga4', schedule: 'daily', immediateFetch: false,
-  detail: 'Active funnels are collected by the daily GA4 collection. Saving does not fetch data.' });
+  detail: 'Active GA4 funnels are collected by the daily GA4 collection. Saving does not fetch data. First-party session paths are supplied by asset reports.' });
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;

@@ -105,6 +105,7 @@
 // How a generation is written, published, locked and kept is shared with every
 // writer of a history folder: scripts/history-files.mjs.
 
+import { productDataSchema } from './product-data-pack.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -167,6 +168,7 @@ export {
  * them is a new derivation, and the next run rebuilds every dataset. */
 export const DERIVATION_FILES = [
   'scripts/signal-archive.mjs',
+  'scripts/product-data-pack.mjs',
   'packages/contract/src/posthog-families.mjs',
   'packages/contract/src/journeys.mjs',
   'scripts/signal-downloads.mjs',
@@ -258,6 +260,9 @@ function familySchema(name, observations) {
   const merged = new Map();
   for (const columns of observations) {
     for (const [column, type] of Object.entries(columns)) merged.set(column, mergeType(merged.get(column), type));
+  }
+  if (name.startsWith('product-data-')) for (const [column, type] of Object.entries(productDataSchema(name.slice('product-data-'.length)))) {
+    if (!merged.has(column) || merged.get(column) === 'NULL') merged.set(column, type);
   }
   const reserved = LINEAGE_COLUMNS.filter((column) => merged.has(column));
   if (reserved.length > 0) {

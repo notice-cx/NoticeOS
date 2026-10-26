@@ -19,6 +19,8 @@ export interface JourneyDefinition {
     id: string;
     label: string;
     kind: 'funnel' | 'exploration';
+    source?: 'first-party';
+    reportingLagDays?: number;
     status: 'active' | 'planned';
     goal: string;
     version: number;

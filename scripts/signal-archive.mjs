@@ -1,3 +1,4 @@
+import { productDataRows } from './product-data-pack.mjs';
 // One reading of the provider archive.
 //
 // A signal archive is one provider answer as a collector stored it: an envelope
@@ -149,6 +150,7 @@ export function archiveRows(archive, confirmations) {
   if (archive.integration === 'bing-webmaster') return flattenBing(archive);
   if (archive.integration === 'clarity') return flattenClarity(archive);
   if (archive.integration === 'posthog') return flattenPosthog(archive);
+  if (archive.integration === 'product-data') return productDataRows(archive).map(row => ({ ...row, ...baseRow(archive) }));
   return flattenDataForSeo(archive);
 }
 
@@ -487,7 +489,7 @@ const FAMILY_RESOLVERS = new Map([
 
 /** Every integration these rules can flatten. `parseArchive` refuses an archive
  * from anything else, so the analyzer stops before a single file is replaced. */
-const FLATTENED_INTEGRATIONS = ['ga4', 'gsc', 'bing-webmaster', 'dataforseo', 'clarity', 'posthog'];
+const FLATTENED_INTEGRATIONS = ['ga4', 'gsc', 'bing-webmaster', 'dataforseo', 'clarity', 'posthog', 'product-data'];
 
 /**
  * `index-coverage.csv` — what a provider says it has indexed, as opposed to

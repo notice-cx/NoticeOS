@@ -8,6 +8,38 @@ Include `sessionExploration` in the existing report envelope sent to `POST /api/
 
 Create or read an exploration journey through the existing journey API or MCP tools, and use its `id` and `version` in `journeyId` and `journeyVersion`. A report for an earlier saved version remains stored but is excluded from the current journey. `definitionId` is a separate publisher version: change it whenever session eligibility, classification, consent coverage or session rules change. Do not reuse a version for different measurement semantics.
 
+For a new first-party definition, use `kind: "exploration"`, `source: "first-party"`
+and `steps: []`. No GA4 event conditions are required. The journey service assigns
+version 1 on creation; include `edit_token: null` and `dry_run: true` to prepare
+the definition before saving it. Keep its status `planned` until collection is approved.
+Set `reportingLagDays` to the publisher's declared delay: `2` means the latest
+settled report date is two calendar days before today. The default is `1`.
+The 7- and 28-day windows use that fixed cutoff, display their dates, and retain
+overdue missing days as gaps. Complete compatible weekly history remains visible
+when the current period is incomplete.
+
+An asset with an existing metrics scrape can add a separate report endpoint
+inside the same pull row:
+
+```json
+{
+  "asset": "example.com",
+  "url": "https://example.com/api/internal/metrics",
+  "format": "prometheus",
+  "enabled": true,
+  "metrics": {"signups": {"counter": "profiles"}},
+  "additionalEndpoints": [{
+    "url": "https://example.com/api/internal/report",
+    "format": "envelope",
+    "enabled": false
+  }]
+}
+```
+
+The supplemental endpoint uses the same asset token. An envelope without
+`sessionExploration` is valid before the publisher configures its journey.
+Enable the endpoint only after approval for its first live read.
+
 ```json
 {
   "asset": "example.com",

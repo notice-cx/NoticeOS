@@ -176,12 +176,12 @@ export function JourneyDefinitionEditor({ definition, definitions, eventNames, o
     <option value="planned">Planned</option>
     </select>
     </label>
-    <label>Measurement<select className={fieldClass} disabled={disabled} value={draft.kind} onChange={(event) => setDraft({ ...draft, kind: event.target.value as JourneyDefinition["kind"] })}>
+    <label>Measurement<select className={fieldClass} disabled={disabled || draft.source === "first-party"} value={draft.kind} onChange={(event) => setDraft({ ...draft, kind: event.target.value as JourneyDefinition["kind"] })}>
     <option value="funnel">Ordered users</option>
     <option value="exploration">Session exploration</option>
     </select>
     </label>
-    </div><p className="journey-editor-note">Active journeys are collected with the daily Google Analytics report. Planned journeys are saved without collection.</p>{draft.kind === "exploration" ? <p className="journey-editor-note">Session paths require separate collection. These definitions do not produce ordered user conversion reports.</p> : <p className="journey-editor-note">Each step may match any of its event alternatives. A page path matches exactly. Time limits apply from the preceding step.</p>}<p className="journey-editor-note">Event suggestions come from this asset’s declarations. Enter other GA4 event names directly.</p><datalist id={eventId}>{eventNames.map((event) => <option key={event} value={event}/>)}</datalist>
+    </div>{draft.source === "first-party" ? <p className="journey-editor-note">First-party session paths are supplied by asset reports. This definition has no GA4 event conditions. Complete reports end {draft.reportingLagDays ?? 1} {(draft.reportingLagDays ?? 1) === 1 ? "day" : "days"} before today.</p> : <><p className="journey-editor-note">Active journeys are collected with the daily Google Analytics report. Planned journeys are saved without collection.</p>{draft.kind === "exploration" ? <p className="journey-editor-note">Session paths require separate collection. These definitions do not produce ordered user conversion reports.</p> : <p className="journey-editor-note">Each step may match any of its event alternatives. A page path matches exactly. Time limits apply from the preceding step.</p>}<p className="journey-editor-note">Event suggestions come from this asset’s declarations. Enter other GA4 event names directly.</p><datalist id={eventId}>{eventNames.map((event) => <option key={event} value={event}/>)}</datalist></>}
     <ol className="journey-editor-steps">{draft.steps.map((step, index) => <li key={step.id}>
         <div className="journey-edit-step-heading">
         <span>{index + 1}</span>
@@ -199,8 +199,8 @@ export function JourneyDefinitionEditor({ definition, definitions, eventNames, o
             </label> : null}</div>
         </li>)}</ol>
     <div className="journey-editor-footer">
-    <Button variant="outline" size="sm" disabled={disabled || draft.steps.length >= 10} onClick={() => { let id = `step-${draft.steps.length + 1}`; while (draft.steps.some((step) => step.id === id))
+    {draft.source !== "first-party" ? <Button variant="outline" size="sm" disabled={disabled || draft.steps.length >= 10} onClick={() => { let id = `step-${draft.steps.length + 1}`; while (draft.steps.some((step) => step.id === id))
         id += "-new"; setDraft({ ...draft, steps: [...draft.steps, { id, label: "", alternatives: [{ eventName: "" }], withinSeconds: 86400 }] }); }}>
-    <Plus aria-hidden/>Add step</Button>
+    <Plus aria-hidden/>Add step</Button> : null}
     <Button size="sm" disabled={disabled} onClick={() => void save()}>{saving ? "Saving…" : "Save definition"}</Button>{definition ? <Button size="sm" variant="ghost" disabled={disabled} onClick={() => void remove()}>Remove journey</Button> : null}{undo ? <Button size="sm" variant="ghost" disabled={saving} onClick={() => void revert()}>Undo</Button> : null}{message ? <span data-status-for="field:journeys" role={failed ? "alert" : "status"} className={failed ? "text-error" : "text-muted-foreground"}>{message}</span> : null}</div>{!onSave ? <p className="journey-editor-note">{readOnlyReason ?? "Settings cannot be saved right now."}</p> : null}</section>;
 }

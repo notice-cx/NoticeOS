@@ -73,4 +73,4 @@ export declare function explorationFacts(p: SessionExplorationPeriod): {
 /** A percentage-point verdict requires complete adjacent windows with matching measurement semantics. */
 export declare function explorationComparison(current: SessionExplorationPeriod, prior: SessionExplorationPeriod): number | null;
 /** Latest received revision per journey/day wins. Repeated reports never add sessions. */
-export declare function buildSessionExplorationSnapshot(journeyId: string, receipts: SessionReportReceipt[], now: Date, displayTimeZone?: string): SessionExplorationSnapshot;
+export declare function buildSessionExplorationSnapshot(journeyId: string, receipts: SessionReportReceipt[], now: Date, displayTimeZone?: string, reportingLagDays?: number): SessionExplorationSnapshot;

@@ -191,6 +191,21 @@ const GSC_REPORTS: GscReportSpec[] = [
 // what a metric meant at collection time.
 const GA4_REPORTS: Ga4ReportSpec[] = [
   {
+    name: 'content-groups',
+    dimensions: ['contentGroup'],
+    metrics: [{ name: 'screenPageViews' }, { name: 'sessions' }],
+  },
+  {
+    name: 'event-source',
+    dimensions: ['eventName', `${GA4_CUSTOM_EVENT_PREFIX}source`],
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+  },
+  {
+    name: 'event-state',
+    dimensions: ['eventName', `${GA4_CUSTOM_EVENT_PREFIX}state`],
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+  },
+  {
     name: 'pages-screens',
     dimensions: ['unifiedPagePathScreen'],
     metrics: [
@@ -369,13 +384,14 @@ interface SignalDumpEnvelope {
   providerQuota?: Ga4PropertyQuota | null;
 }
 
-export type DumpProvider = 'google' | 'microsoft' | 'dataforseo' | 'posthog';
+export type DumpProvider = 'asset' | 'google' | 'microsoft' | 'dataforseo' | 'posthog';
 export type DumpIntegration =
   | GoogleIntegrationId
   | 'bing-webmaster'
   | 'dataforseo'
   | 'clarity'
-  | 'posthog';
+  | 'posthog'
+  | 'product-data';
 export type DumpDataState =
   | 'provider-final'
   | 'revision-window'
@@ -1319,6 +1335,7 @@ async function storeCollectedDump(
 }
 
 function providerName(provider: DumpProvider): string {
+  if (provider === 'asset') return 'Product data';
   if (provider === 'google') return 'Google';
   // Bing Webmaster and Clarity share this provider; the report name carries the rest.
   if (provider === 'microsoft') return 'Microsoft';
