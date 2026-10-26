@@ -442,12 +442,14 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         // A task with nothing missing is absent from the results, which are then null.
         const missing = new Map<string, readonly string[]>(taskIds.map(id => [id, Object.freeze([])]));
         const seen = new Set<string>();
+        const decisions: string[] = [];
         for (const row of report.results === null ? [] : rows(report.results).map(record)) {
           if (typeof row.id !== 'string' || !missing.has(row.id)) continue;
           if (seen.has(row.id) || !Array.isArray(row.missing) || row.missing.some(item => typeof item !== 'string')) invalid();
           seen.add(row.id); missing.set(row.id, Object.freeze([...row.missing] as string[]));
+          if (row.type === 'decision' || row.issue_type === 'decision') decisions.push(row.id);
         }
-        const tasks = rows(await run({ kind: 'find', taskIds })).map(record);
+        const tasks = decisions.length ? rows(await run({ kind: 'find', taskIds: decisions })).map(record) : [];
         for (const task of tasks) {
           if (task.issue_type !== 'decision' || readTaskChoices(task.metadata) === null || typeof task.id !== 'string') continue;
           const outcome = /^(?:##\s*)?(?:Decision|Rationale|Alternatives Considered)$/iu;

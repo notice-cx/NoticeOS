@@ -429,6 +429,7 @@ export function createHostedTaskOperations(options) {
                 // A task with nothing missing is absent from the results, which are then null.
                 const missing = new Map(taskIds.map(id => [id, Object.freeze([])]));
                 const seen = new Set();
+                const decisions = [];
                 for (const row of report.results === null ? [] : rows(report.results).map(record)) {
                     if (typeof row.id !== 'string' || !missing.has(row.id))
                         continue;
@@ -436,8 +437,10 @@ export function createHostedTaskOperations(options) {
                         invalid();
                     seen.add(row.id);
                     missing.set(row.id, Object.freeze([...row.missing]));
+                    if (row.type === 'decision' || row.issue_type === 'decision')
+                        decisions.push(row.id);
                 }
-                const tasks = rows(await run({ kind: 'find', taskIds })).map(record);
+                const tasks = decisions.length ? rows(await run({ kind: 'find', taskIds: decisions })).map(record) : [];
                 for (const task of tasks) {
                     if (task.issue_type !== 'decision' || readTaskChoices(task.metadata) === null || typeof task.id !== 'string')
                         continue;
