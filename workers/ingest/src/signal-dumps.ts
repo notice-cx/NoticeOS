@@ -191,6 +191,21 @@ const GSC_REPORTS: GscReportSpec[] = [
 // what a metric meant at collection time.
 const GA4_REPORTS: Ga4ReportSpec[] = [
   {
+    name: 'content-groups',
+    dimensions: ['contentGroup'],
+    metrics: [{ name: 'screenPageViews' }, { name: 'sessions' }],
+  },
+  {
+    name: 'event-source',
+    dimensions: ['eventName', `${GA4_CUSTOM_EVENT_PREFIX}source`],
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+  },
+  {
+    name: 'event-state',
+    dimensions: ['eventName', `${GA4_CUSTOM_EVENT_PREFIX}state`],
+    metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+  },
+  {
     name: 'pages-screens',
     dimensions: ['unifiedPagePathScreen'],
     metrics: [

@@ -394,6 +394,9 @@ export function freshnessReport(input) {
     .map(([key, held]) => ({
       family: `${held.integration}-${held.report}`,
       ...held,
+      ...(held.integration === 'ga4' && held.report === 'content-groups' ? {
+        notes: ['Only page views carrying content_group appear under a section. Landing pages remain unassigned until the initial page view includes it. Sessions can appear in multiple sections; do not sum sessions across sections.'],
+      } : {}),
       role: isUncollected(held.integration, held.report) ? 'imported' : 'collected',
       collection: health.get(key) ?? null,
     }));

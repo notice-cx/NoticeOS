@@ -108,8 +108,8 @@ describe('analysis-grade signal dumps', () => {
       ).toBe(0);
       expect(result).toMatchObject({
         attempted: EXPECTED_ATTEMPTS,
-        succeeded: EXPECTED_ATTEMPTS - GOOGLE_PROPERTIES.length,
-        failed: GOOGLE_PROPERTIES.length,
+        succeeded: EXPECTED_ATTEMPTS - 2 * GOOGLE_PROPERTIES.length,
+        failed: 2 * GOOGLE_PROPERTIES.length,
       });
     });
 
@@ -136,11 +136,10 @@ describe('analysis-grade signal dumps', () => {
       expect(
         await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE report = 'js-errors'`),
       ).toBe(0);
-      // Its neighbours are untouched — one fewer family on each property,
-      // nothing else changed.
+      // Both parameter families are skipped on each unregistered property.
       expect(result).toMatchObject({
-        attempted: EXPECTED_ATTEMPTS - GOOGLE_PROPERTIES.length,
-        succeeded: EXPECTED_ATTEMPTS - GOOGLE_PROPERTIES.length,
+        attempted: EXPECTED_ATTEMPTS - 2 * GOOGLE_PROPERTIES.length,
+        succeeded: EXPECTED_ATTEMPTS - 2 * GOOGLE_PROPERTIES.length,
         failed: 0,
       });
     });

@@ -21,10 +21,10 @@ export const BING_WEEKLY_ATTEMPTS = BING_PROPERTIES * BING_WEEKLY_FAMILIES;
  * one are different numbers: a loop that breaks where it should continue, or
  * a candidate list read as `[0]`, fails here. */
 export const GOOGLE_PROPERTIES = ['meadow.example', 'northwind.example'] as const;
-/** Ten GSC families and nine GA4 families, both properties buying the same set —
- * `js-errors` included, since config/ga4-custom-dimensions.json registers the
+/** Ten GSC families and eleven GA4 families, both properties buying the same set —
+ * `js-errors` and `event-source` included, since config/ga4-custom-dimensions.json registers the
  * event parameters for both. */
-export const GOOGLE_FAMILIES = 19;
+export const GOOGLE_FAMILIES = 21;
 export const GOOGLE_ATTEMPTS = GOOGLE_PROPERTIES.length * GOOGLE_FAMILIES;
 export const EXPECTED_ATTEMPTS = BING_ATTEMPTS + GOOGLE_ATTEMPTS;
 

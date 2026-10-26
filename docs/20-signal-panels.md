@@ -635,3 +635,9 @@ first-result paths can overlap, weekly first results and all-time signup-intent
 counts cover different windows, and current stored-account counts can change
 after account or result deletion. Read the archived `definitions` before
 comparing them. The collector calculates no conversion or retention rates.
+
+## GA4 content groups
+
+GA4 content groups include only events carrying `content_group`. Missing values
+remain `(not set)`. Sessions may appear in more than one group and must not be
+summed across groups.
