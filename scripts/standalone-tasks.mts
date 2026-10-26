@@ -114,7 +114,8 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
         const plan = createHostedTaskPlanner([{ workspaceId, projectId: project.projectId, capability: Symbol() }])(workspaceId, request);
         admission.assertContext(context, action);
         const client = async (argv: readonly string[]) => {
-          const result = await run(argv, project.cwd);
+          let result: Awaited<ReturnType<typeof run>>;
+          try { result = await run(argv, project.cwd); } catch { throw new TaskStoreFailed(false, 'launch'); }
           // Admitted, in a linked project: what failed is the task client itself.
           if (result.code !== 0) throw new TaskStoreFailed(result.timedOut === true, result.timedOut ? 'timeout' : 'exit');
           try { return JSON.parse(result.stdout) as unknown; } catch { throw new TaskStoreFailed(false, 'invalid-output'); }
@@ -131,7 +132,7 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
           const duplicate = operation.duplicateOf === undefined ? undefined : await read(operation.duplicateOf);
           const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
             ? await client(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
-          const verified = operation.action === 'answer' && operation.answerMode !== 'direct' && commentProposalMatches(operation, before, comments, history)
+          const verified = (operation.action === 'answer' || operation.action === 'declined') && operation.answerMode !== 'direct' && commentProposalMatches(operation, before, comments, history)
             && await options.verifyOwnerAnswer?.(workspaceId, request.projectId, operation, before, comments) === true;
           const steps = maintenanceSteps(operation, before, comments, context.principalId, new Date().toISOString(), duplicate, verified);
           const execute = async (step: HostedTaskOperation) => {
@@ -144,7 +145,7 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
             try { await execute(step); } catch (error) { taskStoreStepFailure(error, step.kind); }
             if (step.kind === 'close') {
               const after = await read(operation.taskId);
-              if (after.status !== 'closed') refuse();
+              if (after.status !== 'closed') throw new TaskStoreFailed(false, 'failed', 'close');
               if (typeof after.closed_at === 'string') await execute({ kind: 'attribute', taskId: operation.taskId,
                 closedBy: context.principalId, closedAt: after.closed_at, ...(operation.model ? { model: operation.model } : {}),
                 ...(step.resolution ? { resolution: step.resolution } : {}), ...(step.duplicateOf ? { duplicateOf: step.duplicateOf } : {}) });

@@ -3,7 +3,7 @@ import { type TaskChoice, type TaskChoiceKey, type TaskChoices } from '../packag
 import { type TaskResolution } from '../packages/contract/src/task-resolution.mjs';
 import { type TaskCard, type TaskCardProblem, type TaskCardShipped } from '../packages/contract/src/task-card.mjs';
 import { type TaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
-export declare const MAINTENANCE_ACTIONS: readonly ["answer", "completed", "obsolete", "superseded", "duplicate", "routine", "release"];
+export declare const MAINTENANCE_ACTIONS: readonly ["answer", "declined", "completed", "obsolete", "superseded", "duplicate", "routine", "release"];
 export interface TaskMaintenance {
     readonly kind: 'maintain';
     readonly taskId: string;

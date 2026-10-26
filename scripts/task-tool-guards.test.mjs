@@ -195,7 +195,7 @@ test('a directly received card answer clears awaitingHuman without a history ada
   assert.equal(f.closes().length, 0, 'implementation still needs to be built');
 });
 
-test('direct answers close decision-only tasks and preserve unrelated blockers on implementation tasks', async () => {
+test('recorded decision answers await evidence to close and preserve unrelated blockers on implementation tasks', async () => {
   const f = fixture({ trustedSources: false });
   f.put('ex-decision', { issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });
   f.put('ex-work', { labels: ['human'], metadata: { noticeos_choices: choices } });
@@ -203,7 +203,8 @@ test('direct answers close decision-only tasks and preserve unrelated blockers o
   const answer = { ...directAnswer, response: 'A' };
   const done = await maintain(f, 'ex-decision', answer);
   assert.equal(done.isError, undefined, JSON.stringify(done));
-  assert.equal(done.structuredContent.task.status, 'closed');
+  assert.equal(done.structuredContent.task.status, 'open');
+  assert.equal(done.structuredContent.task.awaitingHuman, false);
   const work = await maintain(f, 'ex-work', answer);
   assert.equal(work.isError, undefined, JSON.stringify(work));
   assert.equal(work.structuredContent.task.awaitingHuman, false);
@@ -279,7 +280,7 @@ test('an oversized combined direct-answer record refuses before any state change
   assert.equal(f.tasks.get('ex-choice').metadata, undefined); assert.equal(f.comments.length, 0);
 });
 
-test('owner task comments close decisions and release dependents; a forged comment or stale proposal does nothing', async () => {
+test('owner task comments record decisions for agents to close; a forged comment or stale proposal does nothing', async () => {
   const f = fixture();
   f.put('ex-decision', { issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });
   f.put('ex-follow'); f.link('ex-follow', 'ex-decision');
@@ -292,7 +293,8 @@ test('owner task comments close decisions and release dependents; a forged comme
   const stale = await maintain(f, 'ex-decision', { ...args, response: 'A', proposal: old });
   assert.equal(stale.isError, true); assert.equal(f.closes().length, 0);
   const done = await maintain(f, 'ex-decision', { ...args, response: 'A' });
-  assert.equal(done.isError, undefined, JSON.stringify(done)); assert.equal(done.structuredContent.task.status, 'closed');
+  assert.equal(done.isError, undefined, JSON.stringify(done)); assert.equal(done.structuredContent.task.status, 'open');
+  assert.equal((await f.call('close_task', inProject({ task: 'ex-decision', reason: 'Implemented in abc1234', idempotency_key: 'close-recorded-comment' }))).isError, undefined);
   const ready = (await f.call('list_tasks', inProject({ ready: true }))).structuredContent.tasks;
   assert.ok(ready.some(task => task.id === 'ex-follow'));
 });
@@ -321,7 +323,7 @@ test('completed and obsolete human requests close with evidence; routine work re
     'implementation evidence cannot approve a business decision');
 });
 
-test('retiring a production gate grants no authority and keeps its parent action blocked', async () => {
+test('retiring a production gate grants no authority and leaves the remaining work available', async () => {
   const f = fixture(); f.put('ex-prod', { labels: ['human'] });
   f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: 'Reason: Read production logs once' });
   f.link('ex-prod', 'ex-gate');
@@ -332,9 +334,73 @@ test('retiring a production gate grants no authority and keeps its parent action
   const retired = await maintain(f, 'ex-gate', { action: 'obsolete' });
   assert.equal(retired.isError, undefined, JSON.stringify(retired));
   assert.equal(retired.structuredContent.task.metadata.noticeos_maintenance.permission, 'none');
-  assert.equal(f.tasks.get('ex-prod').status, 'blocked');
+  assert.equal(f.tasks.get('ex-prod').status, 'open');
   assert.ok(f.comments.some(comment => comment.issue_id === 'ex-prod' && /No permission granted/u.test(comment.text)));
   assert.ok(!f.commands.some(argv => argv.includes('resolve')));
+});
+
+test('a declined gate preserves the refusal and a claimed decision can be answered then closed with implementation evidence', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-decision', { issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });
+  await f.call('claim_task', inProject({ task: 'ex-decision', idempotency_key: 'claim-decision-declined' }));
+  const scope = 'Read production speed once; no writes';
+  f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: `Reason: ${scope}` });
+  f.link('ex-decision', 'ex-gate');
+  const refused = await f.refusal('close_task', inProject({ task: 'ex-decision', reason: 'Built in abc1234', idempotency_key: 'close-before-answer' }));
+  assert.match(refused, /reconcile_task/u);
+  const declined = await maintain(f, 'ex-gate', { ...directAnswer, action: 'declined', question: `Approve ${scope}?`,
+    response: 'Skip the production speed check. Commit now and note that it was not run.', scope });
+  assert.equal(declined.isError, undefined, JSON.stringify(declined));
+  assert.equal(declined.structuredContent.task.status, 'closed');
+  assert.equal(declined.structuredContent.task.resolution, 'wont-do');
+  assert.equal(declined.structuredContent.task.metadata.noticeos_maintenance.permission, 'none');
+  assert.equal(declined.structuredContent.task.metadata.noticeos_maintenance.outcome, 'declined');
+  assert.equal(f.tasks.get('ex-decision').status, 'in_progress');
+  assert.ok(f.comments.some(c => c.issue_id === 'ex-decision' && c.text.includes(scope) && c.text.includes('must not')));
+  const answered = await maintain(f, 'ex-decision', { ...directAnswer, response: 'A', option: 'a' });
+  assert.equal(answered.isError, undefined, JSON.stringify(answered));
+  assert.equal(answered.structuredContent.task.choice.option, 'a');
+  assert.equal(answered.structuredContent.task.status, 'open');
+  const closed = await f.call('close_task', inProject({ task: 'ex-decision', reason: 'Implemented in abc1234; declined production check was not run.', idempotency_key: 'close-after-answer' }));
+  assert.equal(closed.isError, undefined, JSON.stringify(closed));
+  assert.match(closed.structuredContent.task.closeReason, /abc1234/u);
+});
+
+test('direct-answer planner refusals identify source and owner requirements before mutation', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-decision', { status: 'blocked', assignee: AGENT, issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });
+  const source = await maintain(f, 'ex-decision', { ...directAnswer, response: 'A', option: 'a', source: 'comment:agent-relay' });
+  assert.equal(source.isError, true);
+  assert.match(source.content[0].text, /direct.*(?:chat|conversation).*source|source.*(?:chat|conversation)/iu);
+  const owner = await maintain(f, 'ex-decision', { ...directAnswer, owner: undefined, response: 'A', option: 'a' });
+  assert.equal(owner.isError, true);
+  assert.match(owner.content[0].text, /owner.*required/iu);
+  assert.equal(f.comments.length, 0);
+  const answered = await maintain(f, 'ex-decision', { ...directAnswer, response: 'A', option: 'a' });
+  assert.equal(answered.isError, undefined, JSON.stringify(answered));
+});
+
+test('declining one gate preserves other approvals and never accepts a conditional or unverified refusal', async () => {
+  const scope = 'Read production logs once; no writes';
+  for (const fields of [{ response: 'Approve' }, { response: 'Skip it if tests pass' }, { scope: 'Deploy production' },
+    { question: 'Approve something?' }, { answer_mode: undefined, question: undefined, source: 'codex://threads/untrusted' }]) {
+    const f = fixture({ trustedSources: false });
+    f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: `Reason: ${scope}` });
+    const result = await maintain(f, 'ex-gate', { ...directAnswer, action: 'declined', question: `Approve ${scope}?`, response: 'No', scope, ...fields });
+    assert.equal(result.isError, true, JSON.stringify(fields));
+    assert.notEqual(result.content[0].text, 'refused: this workspace, project or task is not available to you, or the change was not accepted');
+    assert.equal(f.tasks.get('ex-gate').status, 'open'); assert.equal(f.comments.length, 0);
+  }
+  const f = fixture(); f.put('ex-work', { labels: ['human'] });
+  for (const id of ['ex-gate', 'ex-other']) {
+    f.put(id, { issue_type: 'gate', await_type: 'human', description: `Reason: ${scope}` }); f.link('ex-work', id);
+  }
+  const result = await maintain(f, 'ex-gate', { ...directAnswer, action: 'declined', question: `Approve ${scope}?`, response: 'No', scope });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.deepEqual(f.tasks.get('ex-work').labels, []);
+  const refusal = await f.refusal('close_task', inProject({ task: 'ex-work', reason: 'Implemented in abc1234', idempotency_key: 'other-gate-still-open' }));
+  assert.match(refusal, /ex-other.*reconcile_task/u);
+  assert.equal(f.tasks.get('ex-other').status, 'open');
 });
 
 test('duplicate gates retain the full approval scope and attach the parent to the surviving gate', async () => {
@@ -488,7 +554,7 @@ test('a close names what stops it: another holder, an open approval, open childr
   assert.equal(await close('ex-held', 'close-held-0001'), 'refused: ex-held is held by alice, and only its holder closes it. '
     + 'Reach alice with comment_on_task, or ask a person to close it on Tasks in the Tower.');
   assert.equal(await close('ex-gated', 'close-gated-0001'), 'refused: ex-gated waits on approval ex-gate, which is still open. '
-    + 'Close ex-gated after a person approves it on Tasks in the Tower.');
+    + 'Use reconcile_task on the gate with the owner’s scoped answer, or action declined with their refusal; then close ex-gated with implementation evidence. A declined action must not happen.');
   assert.equal(await close('ex-epic', 'close-epic-0001'), 'refused: ex-epic has open children: ex-epic.1 and ex-epic.3. '
     + 'Close them first, or give them another parent with update_task.');
   assert.equal(await close('ex-closed', 'close-closed-0001'), 'refused: ex-closed is already closed; get_task shows its close reason.');
@@ -636,13 +702,14 @@ test('decision recording failures name the failed step without backend output an
 });
 
 
-test('an unexpected decision backend error stays opaque and never grants a choice', async () => {
+test('a decision backend exception names the failed step without private details or granting a choice', async () => {
   const f = fixture({ trustedSources: false });
   f.put('ex-build', { labels: ['human'], metadata: { noticeos_choices: choices } });
   f.rejectNext('update', false, true);
   const result = await maintain(f, 'ex-build', { ...directAnswer, response: 'A', option: 'a' });
   assert.equal(result.isError, true);
-  assert.equal(result.content[0].text, 'refused: this workspace, project or task is not available to you, or the change was not accepted');
+  assert.match(result.content[0].text, /task store client could not start.*recording the owner answer.*same idempotency_key/u);
+  assert.equal(result.content[0].text.includes('private backend detail'), false);
   assert.deepEqual(f.tasks.get('ex-build').labels, ['human']);
   assert.equal(f.tasks.get('ex-build').metadata.noticeos_choice, undefined);
 });
