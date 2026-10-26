@@ -79,12 +79,17 @@ describe("the asset rows", () => {
   it("converts provider-day totals and keeps the pace on the display calendar", () => {
     const asset = structuredClone(wallFixturePayload().assets[0]!);
     asset.activeUsers.timeZone = "Pacific/Auckland";
-    asset.activeUsers.series = [{ t: "2026-09-16", v: 11 }, { t: "2026-09-23", v: 22 }];
+    asset.activeUsers.series = [
+      { t: "2026-09-15", v: 16 }, { t: "2026-09-16", v: 11 },
+      { t: "2026-09-22", v: 32 }, { t: "2026-09-23", v: 22 },
+    ];
     asset.activeUsers.contextSeries = [];
     const realtime = wallFixtureRealtime();
     realtime.assets = realtime.assets.map(snapshot => snapshot.status === "success" ? { ...snapshot, timeZone: "America/Los_Angeles" } : snapshot);
     const site = row(draw([asset], { realtime }), asset.id);
     expect(site.querySelector('[data-site-today-total]')).toHaveAttribute('data-estimated', 'true');
+    // Pacific days contain five hours of one Auckland report and nineteen of the next.
+    expect(site.querySelector('[data-site-today-total]')).toHaveTextContent('24');
     expect(site.querySelector('[data-site-today-total]')?.closest(".wall-metric")?.querySelector(".wall-metric-context")).toHaveTextContent("vs last Tue 12");
     expect(site.querySelector('[data-site-today]')).not.toHaveTextContent("Comparison unavailable");
     expect(site.querySelector('[data-site-today-chart] svg')).not.toBeNull();

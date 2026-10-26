@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { estimatedTodayUsers, todayUserCounts } from "@/lib/wall-today";
+import { offsetCalendarDate } from "@/lib/intraday-pace";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
 describe("the Today daily distinct-user totals", () => {
@@ -51,19 +52,23 @@ describe("the Today daily distinct-user totals", () => {
     expect(todayUserCounts(asset, undefined, nowMs)).toMatchObject({ today: 123, reference: 71 });
   });
   it.each([
-    ["2026-03-08T09:30:00Z", "2026-03-08", "2026-03-01"],
-    ["2026-03-08T10:30:00Z", "2026-03-08", "2026-03-01"],
-    ["2026-11-01T08:30:00Z", "2026-11-01", "2026-10-25"],
-    ["2026-11-01T09:30:00Z", "2026-11-01", "2026-10-25"],
-  ])("keeps daily dates correct across daylight saving changes at %s", (instant, date, referenceDate) => {
+    ["2026-03-08T09:30:00Z", "2026-03-08", "2026-03-01", 21],
+    ["2026-03-08T10:30:00Z", "2026-03-08", "2026-03-01", 21],
+    ["2026-11-01T08:30:00Z", "2026-11-01", "2026-10-25", 19],
+    ["2026-11-01T09:30:00Z", "2026-11-01", "2026-10-25", 19],
+  ])("keeps daily dates correct across daylight saving changes at %s", (instant, date, referenceDate, today) => {
     const { asset, snapshot } = fixture();
     asset.activeUsers.timeZone = "America/Los_Angeles";
     snapshot.timeZone = "UTC";
-    asset.activeUsers.series = [{ t: referenceDate, v: 10 }, { t: date, v: 20 }];
+    asset.activeUsers.contextSeries = [];
+    asset.activeUsers.provisionalFrom = null;
+    asset.activeUsers.series = [
+      { t: offsetCalendarDate(referenceDate, -1), v: 10 }, { t: referenceDate, v: 10 },
+      { t: offsetCalendarDate(date, -1), v: 20 }, { t: date, v: 20 },
+    ];
     const counts = todayUserCounts(asset, snapshot, Date.parse(instant));
-    expect(counts).toMatchObject({ date, referenceDate, todayEstimated: true, referenceEstimated: true });
-    expect(counts.today).toBeGreaterThan(0);
-    expect(counts.reference).toBeGreaterThan(0);
+    // UTC overlaps two provider days, including the 23- or 25-hour DST day.
+    expect(counts).toMatchObject({ date, referenceDate, today, reference: 10, timeZone: "UTC", todayEstimated: true, referenceEstimated: true });
   });
   it("keeps an invalid stored provider timezone unknown instead of replacing it with a different valid calendar", () => {
     const { asset, snapshot } = fixture();

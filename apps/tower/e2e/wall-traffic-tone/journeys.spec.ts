@@ -10,7 +10,7 @@ test("Wall traffic colors follow visible direction across timezone changes", { t
   const changes = [23, -5, -15, -30];
   for (const [index, asset] of payload.assets.entries()) {
     const points = Array.from({ length: 56 }, (_, day) => ({ t: new Date(Date.parse(WALL_FIXTURE_NOW.slice(0, 10)) - (56 - day) * 86_400_000).toISOString().slice(0, 10), v: day < 28 ? 100 : 100 + changes[index]! }));
-    asset.activeUsers = { ...asset.activeUsers, contextSeries: points.slice(0, 28), series: points.slice(28), provisionalFrom: null,
+    asset.activeUsers = { ...asset.activeUsers, timeZone: "Europe/London", contextSeries: points.slice(0, 28), series: points.slice(28), provisionalFrom: null,
       timeZoneChanges: [{ effectiveOn: points[30]!.t, from: "Etc/UTC", to: "Europe/London" }] };
   }
   await page.route("**/api/wall", route => route.fulfill({ json: payload }));
@@ -18,10 +18,12 @@ test("Wall traffic colors follow visible direction across timezone changes", { t
   await expect(page.locator("#boot-splash")).toHaveCount(0);
   const tones = ["pace-on", "pace-behind", "wall-traffic-decline", "pace-far-behind"];
   const tokens = ["--trend-positive", "--warn", "--urgent", "--trend-negative"];
+  // These displayed changes include the estimates at the reporting-calendar boundary.
+  const displayedChanges = [22, -4.7, -14, -29];
   for (const [index, asset] of payload.assets.entries()) {
     const chip = page.locator(`[data-site-row="${asset.id}"] [data-site-trend] [data-tone]`);
     await expect(chip).toHaveAttribute("data-tone", tones[index]!);
-    await expect(chip).toContainText(`${Math.abs(changes[index]!)}%`);
+    await expect(chip).toContainText(`${Math.abs(displayedChanges[index]!)}%`);
     const expectedColor = await chip.evaluate((element, token) => {
       const probe = document.createElement("span");
       probe.style.color = `var(${token})`;
