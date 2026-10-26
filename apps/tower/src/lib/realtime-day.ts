@@ -25,15 +25,11 @@ export function realtimeActivity(day: Ga4RealtimeDay, nowMs: number) {
   const clock = new Intl.DateTimeFormat('en-GB', { timeZone: day.timeZone, hour: '2-digit', hourCycle: 'h23' });
   const buckets = Array.from({ length: 24 }, () => ({ today: [] as number[], prior: [] as number[], pairedToday: [] as number[], pairedPrior: [] as number[] }));
   let todaySum = 0, priorSum = 0, comparedMinutes = 0, through = -1;
-  let observedSum = 0, observedMinutes = 0;
   for (let index = 0; index < minutes.length; index++) {
     const hour = Number(clock.format(start + index * 60_000));
     const bucket = buckets[hour]!;
     const today = minutes[index] ?? null, prior = day.sameDayLastWeek?.[index] ?? null;
-    if (today !== null) {
-      bucket.today.push(today);
-      observedSum += today; observedMinutes++;
-    }
+    if (today !== null) bucket.today.push(today);
     if (prior !== null) bucket.prior.push(prior);
     if (today !== null && prior !== null) {
       bucket.pairedToday.push(today); bucket.pairedPrior.push(prior);
@@ -42,11 +38,6 @@ export function realtimeActivity(day: Ga4RealtimeDay, nowMs: number) {
   }
   const mean = (values: number[]) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
   return {
-    todayAverage: observedMinutes ? observedSum / observedMinutes : null,
-    // Both comparison figures cover the same minutes as the pace percentage.
-    pairedTodayAverage: comparedMinutes ? todaySum / comparedMinutes : null,
-    priorAverage: comparedMinutes ? priorSum / comparedMinutes : null,
-    observedMinutes,
     hours: buckets.map((bucket, hour) => ({ hour,
       today: mean(bucket.pairedToday.length ? bucket.pairedToday : bucket.today),
       prior: mean(bucket.pairedPrior.length ? bucket.pairedPrior : bucket.prior),
