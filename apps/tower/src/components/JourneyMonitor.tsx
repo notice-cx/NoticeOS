@@ -118,6 +118,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     const prior = period && weeklyPeriod ? previousJourneyWeek(period, weeks) : (days === 7 ? result?.prior7 : result?.prior28) ?? null;
     const reading = definition ? journeyReading(definition, period) : { counts: [], rate: null, largestLoss: null, reason: null, visitors: null, visitorReason: null, rateBasis: "entrants" as const };
     const historyReference = definition ? [reportingPeriod, ...[...weeks].reverse()].find((item) => journeyReading(definition, item ?? null).counts.length > 0) ?? null : null;
+    const latestReadableWeek = definition ? [...weeks].reverse().find((week) => journeyReading(definition, week).counts.length > 0) ?? null : null;
     const historyBasis = definition ? journeyReading(definition, historyReference).rateBasis : "entrants";
     const before = definition ? journeyReading(definition, prior) : null;
     const delta = definition ? journeyComparison(definition, period, prior) : null;
@@ -141,7 +142,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     }, [selectedIndex, definition?.id, days, weekKey, reading?.counts.length]);
     function choose(id: string) { setSelectedId(id); setWeekKey(null); setSelectedStep(null); setEditing(null); }
     const canRead = definition?.status === "active" && definition.kind === "funnel";
-    const qualityReason = definition?.kind === "exploration" ? snapshot?.exploration.reason ?? "Session paths require separate collection. Ordered user funnels do not measure session destinations." : definition?.status === "planned" ? "This journey is planned. Activate its definition when collection is ready." : reading.reason;
+    const qualityReason = definition?.kind === "exploration" ? snapshot?.exploration.reason ?? "Session paths require separate collection. Ordered user funnels do not measure session destinations." : definition?.status === "planned" ? "This journey is planned. Activate its definition when collection is ready." : period === null && latestReadableWeek ? `No current ${days}-day report is available. Weekly reports are collected separately.` : reading.reason;
     return <div className="journey-monitor" data-journey-monitor data-ready={ready} data-kind={definition?.kind}>
     <aside className="journey-goals" aria-label="Journey goals">
     <div className="journey-eyebrow">BUSINESS GOALS</div>
@@ -189,6 +190,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
           {!canRead || !reading?.counts.length ? <div className="journey-quality" data-surface-hero={definition.kind === "exploration" ? "" : undefined} role="status" data-status-for="read:journeys">
             <strong>{definition.kind === "exploration" ? "Session paths are not collected" : definition.status === "planned" ? "Planned journey" : "Ordered conversion is unavailable"}</strong>
             <p>{qualityReason}</p>
+            {canRead && period === null && latestReadableWeek ? <Button size="sm" variant="outline" onClick={() => setWeekKey(latestReadableWeek.startDate)}>View week · {formatCalendarRange(latestReadableWeek.startDate, latestReadableWeek.endDate)}</Button> : null}
             <ol>{definition.steps.map((step) => <li key={step.id}>{step.label}</li>)}</ol>
             </div> : <>
             <div className="journey-baseline" data-available={reading.visitors !== null}>
@@ -237,6 +239,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             <div><div className="journey-eyebrow">SELECTED STEP</div><h3>{definition.steps[selectedIndex]?.label} over time</h3><p>Weekly reach · percentage of {historyBasis}</p></div>
             <span>People</span>
           </div>
+          <p>Dates mark the start of each Monday–Sunday week. Complete weeks are ready for collection on Tuesday, after a two-day reporting delay.</p>
           <JourneyHistory definition={definition} weeks={weeks} basis={historyBasis} selectedWeek={selectedWeek} selectedStep={selectedIndex} onSelect={(week, index) => {
             if (index !== undefined) setSelectedStep(definition.steps[index]!.id);
             else setSelectedStep(definition.steps[selectedIndex]!.id);

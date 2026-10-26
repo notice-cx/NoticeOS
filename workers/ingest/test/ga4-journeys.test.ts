@@ -60,6 +60,14 @@ describe('GA4 ordered journey collection', () => {
     expect(periods.filter((p) => p.kind === 'week')).toHaveLength(8);
     expect(periods[4]).toMatchObject({ startDate: '2026-10-12', endDate: '2026-10-18' });
   });
+  it('makes a completed week eligible on Tuesday in the property time zone', () => {
+    const before = journeyWindows(Date.parse('2026-10-27T03:59:59Z'), 'America/New_York');
+    const after = journeyWindows(Date.parse('2026-10-27T04:00:00Z'), 'America/New_York');
+    expect(before[0]!.endDate).toBe('2026-10-24');
+    expect(before[4]).toMatchObject({ startDate: '2026-10-12', endDate: '2026-10-18' });
+    expect(after[0]!.endDate).toBe('2026-10-25');
+    expect(after[4]).toMatchObject({ startDate: '2026-10-19', endDate: '2026-10-25' });
+  });
   it('requests a closed ordered funnel with exact OR alternatives, parameter and time rules', () => {
     const request = ga4JourneyRequest(DEFINITION, journeyWindows(NOW, TARGET.timeZone)[0]!);
     expect(request).toMatchObject({ funnel: { isOpenFunnel: false, steps: [
