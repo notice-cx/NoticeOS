@@ -323,5 +323,46 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
       all.tasks.filter(task => task.assignee === BOB).map(task => task.id));
     assert.deepEqual((await ok('list_tasks', { assignee: 'me', limit: 200 })).tasks.map(task => task.id),
       here.tasks.filter(task => task.assignee === ALICE).map(task => task.id), 'one project');
+
+    {
+      const localChoices = { question: 'Which local layout?', options: [
+        { key: 'a', label: 'Compact', recommended: true }, { key: 'b', label: 'Wide' }] };
+      const decision = await ok('create_task', { title: 'Synthetic layout decision', type: 'decision', labels: ['human'], choices: localChoices,
+        description: 'ASK: Pick a layout.\nWHAT: Choose the local layout.\nWHY: Keep the summary visible.\nWHERE: src/layout.ts',
+        idempotency_key: 'compose-declined-decision' });
+      assert.deepEqual(decision.lint.missing, []);
+      await ok('claim_task', { task: decision.id, model: 'Example Model', idempotency_key: 'compose-declined-claim' });
+      await ok('comment_on_task', { task: decision.id, text: 'Synthetic owner selected option a.', idempotency_key: 'compose-declined-owner-note' });
+      const scope = 'Read the synthetic production speed page once; no writes';
+      const gate = await ok('request_human_approval', { task: decision.id, reason: scope });
+      const relay = { answer_mode: 'direct', owner: 'Synthetic Owner', source: 'codex://threads/synthetic-fixture',
+        explanation: 'The synthetic owner answered this exact proposal.', evidence: 'Synthetic fixture conversation only.' };
+      await ok('reconcile_task', { task: gate.approval.id, action: 'declined', ...relay,
+        proposal: (await ok('get_task', { task: gate.approval.id })).proposal,
+        question: `Approve ${scope}?`, response: 'Skip the production speed check. Commit the local work.', scope,
+        idempotency_key: 'compose-declined-gate' });
+      const declined = (await ok('get_task', { task: gate.approval.id })).task;
+      assert.deepEqual([declined.status, declined.resolution, declined.metadata.noticeos_maintenance.permission], ['closed', 'wont-do', 'none']);
+      assert.equal((await ok('get_task', { task: decision.id })).task.status, 'in_progress');
+      await ok('reconcile_task', { task: decision.id, action: 'answer', ...relay,
+        proposal: (await ok('get_task', { task: decision.id })).proposal,
+        question: localChoices.question, response: 'A', option: 'a', scope: 'Local layout only; no production access',
+        idempotency_key: 'compose-declined-answer' });
+      const lint = await ok('update_task', { task: decision.id, priority: 1, idempotency_key: 'compose-decision-outcome-lint' });
+      assert.deepEqual(lint.lint.missing, ['## Decision', '## Rationale']);
+      const completed = await ok('close_task', { task: decision.id, reason: 'Local fixture implemented in abc1234; declined check was not run.',
+        model: 'Example Model', idempotency_key: 'compose-declined-complete' });
+      assert.deepEqual([completed.task.status, completed.task.choice.option], ['closed', 'a']);
+      const linked = await anywhere('create_task', { project: second.projectId, title: 'Related synthetic task', related: [decision.id],
+        idempotency_key: 'compose-cross-project-link' });
+      assert.ok((await anywhere('get_task', { project: second.projectId, task: linked.id })).task.dependencies
+        .some(edge => edge.id === decision.id && edge.projectName === 'Example'));
+      assert.ok((await ok('get_task', { task: decision.id })).task.dependencies.some(edge => edge.id === linked.id && edge.projectName === 'Second'));
+      const compact = await ok('get_task_history', { task: decision.id });
+      assert.ok(compact.changes.length > 1);
+      assert.ok(compact.changes.every(change => !Object.hasOwn(change, 'task')));
+      assert.ok(compact.changes.some(change => change.actions.includes('commented')));
+      assert.ok(compact.changes.some(change => change.actions.includes('claimed')));
+    }
   }, { projects: PROJECTS });
 });

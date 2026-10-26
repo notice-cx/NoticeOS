@@ -765,10 +765,11 @@ test('the Wall states the month on pace from the store\'s projection, and draws 
   await expect(comparison).toHaveAttribute('data-tone', expected.tone);
   // At 05:00 Pacific the 06:10 reporting cutoff has not passed. Yesterday
   // stays unknown; a retained Sep4 estimate cannot masquerade as Sep5.
-  const yesterday = new Date(Date.parse(`${seed.reportingToday}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
-  expect(seed.through).not.toBe(yesterday);
+  const providerYesterday = new Date(Date.parse(`${seed.reportingToday}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  expect(seed.through).not.toBe(providerYesterday);
+  const displayYesterday = new Date(Date.parse(`${seed.today}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
   await expect(revenue.locator('[data-revenue-yesterday="none"]')).toHaveText('Not reported yet');
-  await expect(revenue.locator('[data-metric-fact="Yesterday"]')).toContainText(`${formatSeriesDate(yesterday)} · Pacific`);
+  await expect(revenue.locator('[data-metric-fact="Yesterday"]')).toContainText(`${formatSeriesDate(displayYesterday)} · ${seed.timeZone}`);
   await expect(revenue.locator('[data-revenue-yesterday-figure]')).toHaveCount(0);
   await expect(revenue).not.toContainText(' a day');
   await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();

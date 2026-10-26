@@ -1,4 +1,4 @@
-import { answerSteps, choiceSteps, closerMetadata } from '../hosted-task-command.mjs';
+import { answerSteps, choiceSteps, closerMetadata, readRelatedTasks } from '../hosted-task-command.mjs';
 
 // Shared fakes for the hosted task operation, HTTP and MCP tests.
 // The receipt store keeps packages/postgres/src/task-receipts.mts's
@@ -42,7 +42,7 @@ export function memoryReceipts(clock) {
 /** An executor over one in-memory project. `principal()` is the admitted actor,
  * as the real executor passes it to every command. */
 export function fakeTaskExecutor({ principal, clock }) {
-  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [], attributions = [];
+  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [], attributions = [], histories = new Map(), auditEvents = new Map();
   let fail = null, hold = null;
   const row = task => ({ issue_type: 'task', ...task, schema_version: 1 });
   // As show embeds them: the whole other task, with the edge's type.
@@ -67,6 +67,7 @@ export function fakeTaskExecutor({ principal, clock }) {
           ...(operation.labels?.length ? { labels: [...operation.labels] } : {}), ...(operation.parent ? { parent: operation.parent } : {}),
           ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}), created_at: at, updated_at: at,
           metadata: { ...structuredClone(operation.metadata ?? {}), ...(operation.operationId ? { noticeos_operation_id: operation.operationId } : {}),
+            ...(operation.related ? { noticeos_related_tasks: structuredClone(operation.related) } : {}),
             ...(operation.filedBy ? { noticeos_filed_by: operation.filedBy } : {}),
             ...(operation.model ? { noticeos_filed_model: operation.model } : {}),
             ...(operation.choices ? { noticeos_choices: structuredClone(operation.choices) } : {}),
@@ -85,6 +86,12 @@ export function fakeTaskExecutor({ principal, clock }) {
           created_at: new Date(clock()).toISOString().replace(/\.\d{3}Z$/u, 'Z'), schema_version: 1 };
         comments.push(comment); effects.push(['comment', comment.id]); value = comment; break;
       }
+      case 'relate': {
+        const task = tasks.get(operation.taskId);
+        const refs = new Map([...readRelatedTasks(task.metadata), ...operation.related].map(ref => [`${ref.projectId}:${ref.taskId}`, ref]));
+        task.metadata = { ...task.metadata, noticeos_related_tasks: [...refs.values()] };
+        value = [row(task)]; break;
+      }
       case 'update': case 'close': {
         const task = tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open', priority: 2 };
         if (operation.kind === 'close') Object.assign(task, { status: 'closed', close_reason: operation.reason,
@@ -100,6 +107,7 @@ export function fakeTaskExecutor({ principal, clock }) {
         }
         if (operation.card?.kill) task.due_at = `${operation.card.kill.date}T00:00:00Z`;
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
+        if (operation.description !== undefined) task.description = operation.description;
         if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
         if (operation.addLabels) task.labels = [...new Set([...(task.labels ?? []), ...operation.addLabels])];
         if (operation.removeLabels) task.labels = (task.labels ?? []).filter(label => !operation.removeLabels.includes(label));
@@ -180,12 +188,12 @@ export function fakeTaskExecutor({ principal, clock }) {
         value = { total: operation.taskIds.length, issues: results.length, results: results.length ? results : null }; break;
       }
       case 'comments': value = comments.filter(comment => comment.issue_id === operation.taskId); break;
-      case 'history': value = [{ CommitHash: 'abc123', Committer: 'beads', CommitDate: '2026-10-07T12:00:00.000Z',
-        Issue: row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }) }]; break;
+      case 'history': value = (operation.events ? auditEvents.get(operation.taskId) ?? [] : histories.get(operation.taskId) ?? [{ CommitHash: 'abc123', Committer: 'beads', CommitDate: '2026-10-07T12:00:00.000Z',
+        Issue: row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }) }]).slice(0, operation.limit); break;
       default: value = [];
     }
     if (fail === 'after') { fail = null; throw new Error('reply lost after the effect'); }
     return value;
   } };
-  return { executor, tasks, comments, edges, effects, calls, attributions, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
+  return { executor, tasks, comments, edges, effects, calls, attributions, histories, auditEvents, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
 }

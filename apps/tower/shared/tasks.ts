@@ -36,6 +36,9 @@ export interface TaskDependency {
    * (`bd show`); null on a plain edge. A closed blocker is no longer in the
    * way, and the task page has to be able to say so. */
   status: string | null;
+  projectId?: string;
+  project?: string;
+  projectName?: string;
 }
 
 /** One task as the lane reads it live: everything `WorkItem` has, plus what

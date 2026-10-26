@@ -409,6 +409,47 @@ test('a changed, claimed or closed task comes back whole, with its parent and li
   assert.deepEqual([closed.task.parent, closed.task.status, closed.task.ready], ['tt-1', 'closed', false]);
 });
 
+test('related tasks cross projects in one workspace, read in both directions and never block readiness', async () => {
+  const Q = '77777777-1111-4111-8111-111111111111';
+  const other = fakeTaskExecutor({ principal: () => PERSON, clock: () => Date.parse('2026-10-07T12:00:00Z') });
+  other.tasks.set('sh-1', { id: 'sh-1', title: 'Shared collector', status: 'open' });
+  const f = fixture({ more: [{ catalog: { projectId: Q, logicalKey: 'shop.example', displayName: 'Shop', prefix: 'sh' }, executor: other.executor }] });
+  const args = { workspace: A, project: P, title: 'Local change', related: ['sh-1'], idempotency_key: 'cross-project-related' };
+  const made = await call(f, 'create_task', args);
+  assert.equal(made.isError, undefined, JSON.stringify(made));
+  assert.equal((await call(f, 'create_task', args)).structuredContent.replayed, true);
+  const local = (await call(f, 'get_task', { workspace: A, project: P, task: made.structuredContent.id })).structuredContent.task;
+  const remote = (await call(f, 'get_task', { workspace: A, project: Q, task: 'sh-1' })).structuredContent.task;
+  assert.deepEqual(local.dependencies, [{ id: 'sh-1', type: 'related', title: 'Shared collector', status: 'open', projectId: Q, project: 'shop.example', projectName: 'Shop' }]);
+  assert.equal(remote.dependencies[0].projectName, 'Example');
+  assert.equal(remote.dependencies[0].id, local.id);
+  assert.equal(local.ready, true);
+  for (const fields of [{ depends_on: ['sh-1'] }, { related: ['zz-1'] }]) {
+    const result = await call(f, 'create_task', { ...args, related: undefined, ...fields, idempotency_key: `cross-refused-${Object.keys(fields)[0]}` });
+    assert.equal(result.isError, true);
+  }
+});
+
+test('retrying a partially linked cross-project create repairs its backlink without filing another task', async () => {
+  const Q = '77777777-1111-4111-8111-111111111111';
+  const other = fakeTaskExecutor({ principal: () => PERSON, clock: () => Date.parse('2026-10-07T12:00:00Z') });
+  other.tasks.set('sh-1', { id: 'sh-1', title: 'Shared collector', status: 'open' });
+  let fail = true;
+  const f = fixture({ more: [{ catalog: { projectId: Q, logicalKey: 'shop.example', displayName: 'Shop', prefix: 'sh' },
+    executor: { async execute(...args) {
+      if (fail && args[2].operation.kind === 'relate') { fail = false; throw new Error('Interrupted backlink'); }
+      return other.executor.execute(...args);
+    } } }] });
+  const args = { workspace: A, project: P, title: 'Local change', related: ['sh-1'], idempotency_key: 'cross-project-interrupted' };
+  assert.equal((await call(f, 'create_task', args)).isError, true);
+  assert.equal(f.tasks.size, 1);
+  const retry = await call(f, 'create_task', args);
+  assert.equal(retry.isError, undefined, JSON.stringify(retry));
+  assert.equal(f.tasks.size, 1);
+  const remote = (await call(f, 'get_task', { workspace: A, project: Q, task: 'sh-1' })).structuredContent.task;
+  assert.equal(remote.dependencies[0].id, retry.structuredContent.id);
+});
+
 test('create_task files a decision with its links and an approval in one call, and a retry files neither twice', async () => {
   const f = fixture();
   const create = filer(f);
@@ -887,6 +928,91 @@ test('lint advises a person\'s task whose description offers lettered options as
   assert.equal(advice(marked.lint).length, 1);
   const settled = (await call(f, 'update_task', { workspace: A, project: P, task: id, choices: PICK, idempotency_key: 'agent-update-0802' })).structuredContent;
   assert.deepEqual(settled.lint, { missing: [] });
+});
+
+test('history returns changed fields and recorded actions while full snapshots remain available', async () => {
+  const f = fixture();
+  const base = { id: 'tt-1', title: 'Synthetic investigation', issue_type: 'task', status: 'open', description: 'Evidence '.repeat(400).trim(),
+    metadata: { noticeos_filed_by: PERSON, noticeos_filed_model: 'Example Model' } };
+  const at = i => `2026-10-07T12:00:${String(i).padStart(2, '0')}.000Z`;
+  const history = Array.from({ length: 30 }, (_, i) => ({ CommitHash: `revision-${i}`, Committer: PERSON, CommitDate: at(i),
+    Issue: { ...base, status: i > 0 ? 'in_progress' : 'open', assignee: i > 0 ? PERSON : '',
+      priority: i > 2 ? 1 : 2, metadata: { ...base.metadata, ...(i ? { noticeos_claimed_model: 'Example Model' } : {}) } } })).reverse();
+  f.histories.set('tt-1', history);
+  f.auditEvents.set('tt-1', [
+    { id: 'event-4', issue_id: 'tt-1', event_type: 'status_changed', actor: PERSON, old_value: 'in_progress', new_value: 'blocked', created_at: at(31) },
+    { id: 'event-3', issue_id: 'tt-1', event_type: 'dependency_added', actor: PERSON, new_value: 'tt-gate', created_at: at(2) },
+    { id: 'event-2', issue_id: 'tt-1', event_type: 'commented', actor: PERSON, comment: 'Owner declined the separate read.', created_at: at(1) },
+    { id: 'event-1', issue_id: 'tt-1', event_type: 'claimed', actor: PERSON, old_value: '', new_value: PERSON, created_at: at(1) },
+  ]);
+  const args = { workspace: A, project: P, task: 'tt-1' };
+  const compact = (await call(f, 'get_task_history', args)).structuredContent;
+  assert.ok(compact.changes.every(change => !('task' in change)));
+  assert.ok(compact.changes.some(change => change.actions.includes('claimed') && change.model === 'Example Model'));
+  assert.ok(compact.changes.some(change => change.actions.includes('commented')));
+  assert.ok(compact.changes.some(change => change.actions.includes('dependency_added')));
+  assert.ok(compact.changes.some(change => change.fields.status?.old === 'in_progress' && change.fields.status.new === 'blocked'));
+  const full = (await call(f, 'get_task_history', { ...args, snapshots: true })).structuredContent;
+  assert.equal(full.changes[0].task.description, base.description);
+  assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length / 4);
+  const limited = (await call(f, 'get_task_history', { ...args, limit: 1 })).structuredContent;
+  assert.equal(limited.changes.length, 1);
+});
+
+test('history keeps same-time audit events separate and names a truncated baseline instead of inventing old values', async () => {
+  const f = fixture();
+  const at = '2026-10-07T12:00:00Z';
+  f.histories.set('tt-1', [
+    { CommitHash: 'new', CommitDate: at, Issue: { id: 'tt-1', status: 'in_progress' } },
+    { CommitHash: 'old', CommitDate: at, Issue: { id: 'tt-1', status: 'open' } },
+  ]);
+  f.auditEvents.set('tt-1', [{ id: 'comment-1', created_at: at, actor: PERSON, event_type: 'commented', comment: 'Separate event' }]);
+  const result = (await call(f, 'get_task_history', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  const comment = result.changes.find(change => change.eventId === 'comment-1');
+  assert.equal(comment.revision, null); assert.equal(comment.actor, PERSON);
+  assert.ok(!result.changes.filter(change => change.revision).some(change => change.actions.includes('commented')));
+  f.auditEvents.set('tt-1', []);
+  f.histories.set('tt-1', Array.from({ length: 201 }, (_, i) => ({ CommitHash: `revision-${i}`, CommitDate: at, Issue: { id: 'tt-1', priority: i % 5 } })));
+  const bounded = (await call(f, 'get_task_history', { workspace: A, project: P, task: 'tt-1', limit: 200 })).structuredContent;
+  assert.equal(bounded.changes.length, 200);
+  assert.equal(bounded.changes.at(-1).baselineUnavailable, true);
+  assert.deepEqual(bounded.changes.at(-1).fields, {});
+});
+
+test('native history uses update patches for fields and models and includes comments absent from audit events', async () => {
+  const f = fixture();
+  const before = { id: 'tt-1', issue_type: 'task', title: 'Synthetic native history', description: 'Long evidence '.repeat(300).trim(), status: 'open' };
+  const patch = { status: 'in_progress', assignee: PERSON, metadata: { noticeos_claimed_model: 'Example Model' } };
+  f.tasks.set('tt-1', { ...before, ...patch });
+  f.histories.set('tt-1', [{ CommitHash: 'claim', CommitDate: '2026-10-07T12:00:01.500Z', Committer: 'beads', Issue: { ...before, status: 'in_progress', assignee: PERSON } },
+    { CommitHash: 'create', CommitDate: '2026-10-07T12:00:00Z', Committer: 'beads', Issue: before }]);
+  f.auditEvents.set('tt-1', [{ id: 'claimed-event', issue_id: 'tt-1', event_type: 'updated', actor: PERSON,
+    old_value: JSON.stringify(before), new_value: JSON.stringify(patch), created_at: '2026-10-07T12:00:01Z' }]);
+  f.comments.push({ id: 'comment-1', issue_id: 'tt-1', author: PERSON, text: 'Synthetic comment outside the event table', created_at: '2026-10-07T12:00:02Z' });
+  const result = (await call(f, 'get_task_history', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  const claim = result.changes.find(change => change.actions.includes('claimed'));
+  assert.equal(claim.model, 'Example Model');
+  assert.deepEqual(claim.fields.status, { old: 'open', new: 'in_progress' });
+  assert.equal(claim.fields.description, undefined);
+  assert.ok(result.changes.some(change => change.actions.includes('commented') && change.fields.comment.new.includes('outside the event table')));
+  assert.ok(result.changes.every(change => !Object.hasOwn(change.fields, 'value')));
+});
+
+test('decision lint uses stored choices as alternatives and requests the outcome only after a choice', async () => {
+  const f = fixture();
+  const choices = { question: 'Which local layout?', options: [
+    { key: 'a', label: 'Compact', recommended: true }, { key: 'b', label: 'Wide' }] };
+  const made = await call(f, 'create_task', { workspace: A, project: P, title: 'Choose a layout', type: 'decision', labels: ['human'],
+    description: 'ASK: Pick a layout.\nWHAT: Choose the local layout.\nWHY: Keep the summary visible.\nWHERE: src/layout.ts', choices,
+    idempotency_key: 'decision-lint-before-choice' });
+  assert.deepEqual(made.structuredContent.lint.missing, []);
+  f.tasks.get(made.structuredContent.id).metadata.noticeos_choice = { option: 'a', label: 'Compact', by: PERSON, at: '2026-10-07T12:00:00Z' };
+  const updated = await call(f, 'update_task', { workspace: A, project: P, task: made.structuredContent.id,
+    priority: 1, idempotency_key: 'decision-lint-after-choice' });
+  assert.deepEqual(updated.structuredContent.lint.missing, ['## Decision', '## Rationale']);
+  const complete = await call(f, 'update_task', { workspace: A, project: P, task: made.structuredContent.id,
+    description: '## Decision\nCompact.\n## Rationale\nKeeps the summary visible.', idempotency_key: 'decision-lint-outcome-written' });
+  assert.deepEqual(complete.structuredContent.lint.missing, []);
 });
 
 test('an agent names its model on claim and close; the task shows who closed it with that model', async () => {

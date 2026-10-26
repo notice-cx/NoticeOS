@@ -14,7 +14,7 @@ import { TASK_RESOLUTIONS } from '../packages/contract/src/task-resolution.mjs';
 import { readTaskCard, readTaskCardShipped, TASK_CARD_LIMITS, taskCardOf, taskCardProblem, taskCardShippedOf } from '../packages/contract/src/task-card.mjs';
 import { isTaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
 import { TASK_BLOCKING_DEPENDENCIES as BLOCKING } from '../packages/contract/src/task-gate.mjs';
-export const MAINTENANCE_ACTIONS = ['answer', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'];
+export const MAINTENANCE_ACTIONS = ['answer', 'declined', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'];
 /** Compare a human comment with the proposal at its timestamp. A later task
  * edit cannot turn an old “A” into approval of replacement options. */
 export function commentProposalMatches(operation, row, comments, history) {
@@ -41,6 +41,28 @@ export const HOSTED_TASK_LIMITS = Object.freeze({
     /** The longest closed read: the Agents page's eight weeks and the day it starts in. */
     closedDays: 57,
 });
+function relatedList(value) {
+    return entries(value, 1, HOSTED_TASK_LIMITS.links).map(entry => {
+        const ref = record(entry);
+        keys(ref, ['projectId', 'taskId']);
+        return { projectId: uuid(ref.projectId), taskId: task(ref.taskId) };
+    });
+}
+export function readRelatedTasks(metadata) {
+    const value = metadata && typeof metadata === 'object' ? metadata[TASK_METADATA.relatedTasks.name] : undefined;
+    if (!Array.isArray(value))
+        return [];
+    return value.slice(0, HOSTED_TASK_LIMITS.links).flatMap(entry => {
+        try {
+            const ref = record(entry);
+            keys(ref, ['projectId', 'taskId']);
+            return [{ projectId: uuid(ref.projectId), taskId: task(ref.taskId) }];
+        }
+        catch {
+            return [];
+        }
+    });
+}
 function invalid() { throw new Error('Invalid hosted task plan input.'); }
 /** Data properties only: malformed JavaScript callers cannot smuggle getters. */
 function record(input) {
@@ -281,69 +303,91 @@ function command(input) {
     const op = record(input);
     const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
         'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate',
-        'choose', 'record-choice', 'hand-back', 'maintain', 'record-maintenance']);
+        'choose', 'record-choice', 'hand-back', 'maintain', 'record-maintenance', 'relate']);
     const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
         case 'maintain': {
-            keys(op, ['kind', 'taskId', 'action', 'proposal', 'explanation', 'evidence'], ['model', 'duplicateOf', 'response', 'owner', 'source', 'scope', 'answerMode', 'question', 'option', 'holder', 'inactive', 'activityCheck', 'progress']);
-            task(op.taskId);
-            choice(op.action, MAINTENANCE_ACTIONS);
-            text(op.proposal, 30000);
-            text(op.explanation, 800);
-            text(op.evidence, 800);
-            if (op.model !== undefined)
-                model(op.model);
-            if (op.action === 'answer') {
-                text(op.response, 1000);
-                text(op.owner, HOSTED_TASK_LIMITS.identifier);
-                text(op.source, 512);
-                text(op.scope, 1000);
-                // A source must identify a comment or an explicitly linked conversation.
-                if (!/^(?:comment:|https:\/\/|codex:\/\/threads\/)/u.test(String(op.source)))
-                    invalid();
-                if (op.answerMode !== undefined) {
-                    choice(op.answerMode, ['direct']);
-                    text(op.question, 1000);
-                    let source;
+            try {
+                const checked = (name, limit) => {
                     try {
-                        source = new URL(String(op.source));
+                        return text(op[name], limit);
                     }
                     catch {
-                        return invalid();
+                        return maintenanceRefused(`${name} is required, must be text without control characters and must fit within ${limit} characters. Send that field again with the same owner words.`);
                     }
-                    if (source.username || source.password || !source.hostname || source.pathname === '/'
-                        || !(source.protocol === 'https:' || source.protocol === 'codex:' && source.hostname === 'threads'))
+                };
+                keys(op, ['kind', 'taskId', 'action', 'proposal', 'explanation', 'evidence'], ['model', 'duplicateOf', 'response', 'owner', 'source', 'scope', 'answerMode', 'question', 'option', 'holder', 'inactive', 'activityCheck', 'progress']);
+                task(op.taskId);
+                choice(op.action, MAINTENANCE_ACTIONS);
+                text(op.proposal, 30000);
+                text(op.explanation, 800);
+                text(op.evidence, 800);
+                if (op.model !== undefined)
+                    model(op.model);
+                if (op.action === 'answer' || op.action === 'declined') {
+                    checked('response', 1000);
+                    checked('owner', HOSTED_TASK_LIMITS.identifier);
+                    checked('source', 512);
+                    checked('scope', 1000);
+                    // A source must identify a comment or an explicitly linked conversation.
+                    if (!/^(?:comment:|https:\/\/|codex:\/\/threads\/)/u.test(String(op.source)))
+                        maintenanceRefused('source must name an owner comment (comment:<id>) or an explicitly linked https:// or codex://threads/ conversation. Send the original source.');
+                    if (op.answerMode !== undefined) {
+                        choice(op.answerMode, ['direct']);
+                        checked('question', 1000);
+                        let source;
+                        try {
+                            source = new URL(String(op.source));
+                        }
+                        catch {
+                            return maintenanceRefused('A direct answer requires its chat conversation URL as source. Send the https:// or codex://threads/ URL; use source-verified mode for an owner-authored task comment.');
+                        }
+                        if (source.username || source.password || !source.hostname || source.pathname === '/'
+                            || !(source.protocol === 'https:' || source.protocol === 'codex:' && source.hostname === 'threads'))
+                            maintenanceRefused('A direct answer requires its chat conversation URL as source. Send the https:// or codex://threads/ URL; use source-verified mode for an owner-authored task comment.');
+                        if (op.option !== undefined)
+                            choice(op.option, TASK_CHOICE_KEYS);
+                    }
+                    else if (['question', 'option'].some(key => Object.hasOwn(op, key)))
                         invalid();
-                    if (op.option !== undefined)
-                        choice(op.option, TASK_CHOICE_KEYS);
                 }
-                else if (['question', 'option'].some(key => Object.hasOwn(op, key)))
+                else if (['response', 'owner', 'source', 'scope', 'answerMode', 'question', 'option'].some(key => Object.hasOwn(op, key))) {
+                    maintenanceRefused('Owner-answer fields require action answer or declined. Omit those fields for maintenance without an owner answer.');
+                }
+                if (op.action === 'release') {
+                    text(op.holder, HOSTED_TASK_LIMITS.identifier);
+                    text(op.activityCheck, 800);
+                    text(op.progress, 1000);
+                    if (op.inactive !== true)
+                        maintenanceRefused('Assignment release requires inactive: true after checking the holder stopped, with holder, activity_check and preserved progress. Send that evidence; age alone is insufficient.');
+                }
+                else if (['holder', 'inactive', 'activityCheck', 'progress'].some(key => Object.hasOwn(op, key)))
+                    invalid();
+                if (op.action === 'duplicate') {
+                    if (task(op.duplicateOf) === op.taskId)
+                        invalid();
+                }
+                else if (Object.hasOwn(op, 'duplicateOf'))
                     invalid();
             }
-            else if (['response', 'owner', 'source', 'scope', 'answerMode', 'question', 'option'].some(key => Object.hasOwn(op, key)))
-                invalid();
-            if (op.action === 'release') {
-                text(op.holder, HOSTED_TASK_LIMITS.identifier);
-                text(op.activityCheck, 800);
-                text(op.progress, 1000);
-                if (op.inactive !== true)
-                    invalid();
+            catch (error) {
+                if (error instanceof TaskMaintenanceRefused)
+                    throw error;
+                return maintenanceRefused('Reconciliation fields do not match the selected action or their documented limits. Read get_task_guide and resend the required fields for that action; use get_task’s current proposal.');
             }
-            else if (['holder', 'inactive', 'activityCheck', 'progress'].some(key => Object.hasOwn(op, key)))
-                invalid();
-            if (op.action === 'duplicate') {
-                if (task(op.duplicateOf) === op.taskId)
-                    invalid();
-            }
-            else if (Object.hasOwn(op, 'duplicateOf'))
-                invalid();
             break;
         }
         case 'record-maintenance':
             keys(op, ['kind', 'taskId', 'value']);
             argv.push('update', `--metadata=${JSON.stringify({ [TASK_METADATA.maintenance.name]: record(op.value) })}`, '--', task(op.taskId));
             break;
+        case 'relate': {
+            keys(op, ['kind', 'taskId', 'related']);
+            const related = relatedList(op.related);
+            argv.push('update', `--metadata=${JSON.stringify({ [TASK_METADATA.relatedTasks.name]: related })}`, '--', task(op.taskId));
+            break;
+        }
         case 'list':
             keys(op, ['kind', 'limit'], ['status']);
             argv.push('list', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`);
@@ -363,8 +407,10 @@ function command(input) {
             break;
         }
         case 'history':
-            keys(op, ['kind', 'taskId', 'limit']);
-            argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
+            keys(op, ['kind', 'taskId', 'limit'], ['events']);
+            if (Object.hasOwn(op, 'events') && op.events !== true)
+                invalid();
+            argv.push('history', ...(op.events ? ['--events'] : []), `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
             break;
         case 'comments':
             keys(op, ['kind', 'taskId']);
@@ -426,7 +472,7 @@ function command(input) {
         }
         case 'create': {
             keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'card',
-                'changeClass', 'model', 'operationId', 'filedBy', 'due']);
+                'changeClass', 'model', 'operationId', 'filedBy', 'due', 'related']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
                 argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
@@ -456,11 +502,12 @@ function command(input) {
             if (due !== undefined)
                 argv.push(`--due=${due}`);
             // In the create itself, so a task, its filer, its choices and its card land together.
-            if (['metadata', 'operationId', 'filedBy', 'model', ...FIELD_METADATA.map(([field]) => field)].some(key => Object.hasOwn(op, key))) {
+            if (['metadata', 'operationId', 'filedBy', 'model', 'related', ...FIELD_METADATA.map(([field]) => field)].some(key => Object.hasOwn(op, key))) {
                 const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
                     ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}),
                     ...(Object.hasOwn(op, 'filedBy') ? { [TASK_METADATA.filedBy.name]: text(op.filedBy, HOSTED_TASK_LIMITS.identifier) } : {}),
                     ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}),
+                    ...(Object.hasOwn(op, 'related') ? { [TASK_METADATA.relatedTasks.name]: relatedList(op.related) } : {}),
                     ...Object.fromEntries(FIELD_METADATA.filter(([field]) => Object.hasOwn(op, field)).map(([field, name, read]) => [name, read(op[field])])) };
                 argv.push(`--metadata=${JSON.stringify(metadata)}`);
             }
@@ -468,11 +515,13 @@ function command(input) {
             break;
         }
         case 'update': {
-            const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels',
+            const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels', 'related',
                 ...FIELD_METADATA.map(([field]) => field)];
             keys(op, ['kind', 'taskId'], [...fields, 'model']);
             if (!fields.some(key => Object.hasOwn(op, key)) || Object.hasOwn(op, 'model') && op.claim !== true)
                 invalid();
+            if (Object.hasOwn(op, 'related'))
+                entries(op.related, 1, HOSTED_TASK_LIMITS.links).forEach(task);
             const kept = FIELD_METADATA.filter(([field]) => Object.hasOwn(op, field));
             const removed = kept.filter(([field]) => op[field] === null);
             // The task client takes one --metadata object, merged, or --unset-metadata
@@ -672,6 +721,8 @@ export function sameActor(a, b) { return a === b || canonicalActor(a) === canoni
  * change of assignee, of choices or of the card. A caller's forced close is a
  * service closing for the agent it named, and decides for itself. */
 function stateGuarded(operation) {
+    if (operation.kind === 'relate')
+        return true;
     if (operation.kind === 'close')
         return operation.force !== true;
     return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined || operation.choices !== undefined
@@ -713,6 +764,12 @@ export function guardedWrite(operation, row, actor) {
         return operation;
     if (!row || row.id !== operation.taskId)
         invalid();
+    if (operation.kind === 'relate') {
+        const refs = new Map([...readRelatedTasks(row.metadata), ...operation.related].map(ref => [`${ref.projectId}:${ref.taskId}`, ref]));
+        if (refs.size > HOSTED_TASK_LIMITS.links)
+            throw new TaskMaintenanceRefused('A task may have at most 32 related tasks in other projects. Remove an old link before adding another.');
+        return { ...operation, related: [...refs.values()] };
+    }
     const attempted = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim'
         : operation.assignee !== undefined ? 'reassign' : 'other';
     const refuse = (reason) => { throw new TaskStateRefused(operation.taskId, attempted, reason); };
@@ -861,6 +918,10 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
     const identity = JSON.stringify(operation);
     const same = previous?.identity === identity && previous?.by === actor;
     const gate = row.issue_type === 'gate';
+    const ownerAnswer = operation.action === 'answer' || operation.action === 'declined';
+    const declined = operation.action === 'declined';
+    if (declined && !gate)
+        return maintenanceRefused('The declined outcome is only for an approval gate. Send action answer with the owner’s choice for a decision task.');
     const retiring = ['completed', 'obsolete', 'superseded', 'duplicate'].includes(operation.action);
     const closed = row.status === 'closed';
     if (closed && !same)
@@ -872,7 +933,7 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
         return maintenanceRefused('A completed implementation does not prove a business decision was approved. Record its owner answer or why the decision is obsolete.');
     }
     const holder = stringOf(row.assignee);
-    if (operation.action !== 'answer' && operation.action !== 'release' && holder && !sameActor(holder, actor)) {
+    if (!ownerAnswer && operation.action !== 'release' && holder && !sameActor(holder, actor)) {
         return maintenanceRefused(`Check ${holder}’s activity and release its abandoned assignment before maintaining this task.`);
     }
     if (operation.action === 'release' && holder !== operation.holder && !(same && holder === '')) {
@@ -880,11 +941,11 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
     }
     const steps = [];
     let answered = [];
-    if (operation.action === 'answer') {
+    if (ownerAnswer) {
         if (!ownerVerified && operation.answerMode !== 'direct')
             return maintenanceRefused('The owner answer could not be authenticated from its source. For an answer received directly in your chat, use answer_mode: direct with the exact question and reply; otherwise keep the answer and connect its trusted source.');
         if (sameActor(operation.owner, actor))
-            return maintenanceRefused('An agent cannot supply its own answer as the owner’s.');
+            return maintenanceRefused('An agent cannot supply its own answer as the owner’s. Send the human owner’s identity and original answer source.');
         if (operation.source.startsWith('comment:')) {
             const source = rowsOf(comments).find(comment => String(comment.id) === operation.source.slice(8));
             if (!source || source.author !== operation.owner || source.text !== operation.response) {
@@ -892,7 +953,7 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
             }
         }
         if (!isHumanDecision(row) && !same)
-            return maintenanceRefused('This task has no unresolved human request.');
+            return maintenanceRefused('This task has no unresolved human request. Read get_task; use close_task with implementation evidence for completed work.');
         const choices = readTaskChoices(row.metadata);
         const option = replyOption(operation.response, choices, operation.taskId, operation.option);
         if (gate) {
@@ -902,29 +963,37 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
             if (operation.answerMode === 'direct' && !operation.question.includes(scope)) {
                 return maintenanceRefused('The question shown to the owner must include this approval’s complete action, environment and verification.');
             }
-            if (!/^(?:yes|approve|approved|yes[, ]+(?:your |the )?recommendation)[.!]?$/iu.test(operation.response.trim())) {
+            if (declined ? /\b(?:if|unless|until|provided|maybe|perhaps)\b/iu.test(operation.response) || !/^(?:no|decline|declined|reject|rejected|cancel|cancelled|skip\b[^?]*|do not\b[^?]*|don't\b[^?]*)[.!]?$/iu.test(operation.response.trim())
+                : !/^(?:yes|approve|approved|yes[, ]+(?:your |the )?recommendation)[.!]?$/iu.test(operation.response.trim())) {
+                if (declined)
+                    return maintenanceRefused('This reply does not explicitly decline the named action. Send the owner’s exact refusal and scope; keep the action blocked while uncertain.');
                 return maintenanceRefused('This is not an explicit approval of the named action. Keep the action blocked and clarify only its approval.');
             }
-            answered = [decisionClose(row, operation.taskId, 'Owner approved the recorded scope', operation.owner, reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); })];
+            const close = decisionClose(row, operation.taskId, declined ? 'Owner declined the recorded scope; the action must not happen' : 'Owner approved the recorded scope', operation.owner, reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); });
+            answered = [{ ...close, ...(declined ? { resolution: 'wont-do' } : {}) }];
         }
         else if (option !== null && !closed && !(same && row.status === 'open' && !labelsOf(row).includes('human'))) {
-            answered = choiceSteps({ kind: 'choose', taskId: operation.taskId, option }, row, comments, operation.owner, at)
+            if (row.issue_type === 'decision')
+                decisionClose(row, operation.taskId, 'Record owner answer', actor, reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); });
+            answered = choiceSteps({ kind: 'choose', taskId: operation.taskId, option }, { ...row, issue_type: 'task' }, comments, operation.owner, at)
                 .filter(step => step.kind !== 'comment');
         }
         else if (!closed && !(same && row.status === 'open' && !labelsOf(row).includes('human'))) {
-            answered = row.issue_type === 'decision'
-                ? [decisionClose(row, operation.taskId, 'Owner answered the recorded proposal', actor, reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); })]
-                : [handBack(row, operation.taskId)];
+            if (row.issue_type === 'decision')
+                decisionClose(row, operation.taskId, 'Record owner answer', actor, reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); });
+            answered = [handBack(row, operation.taskId)];
         }
     }
     const value = same ? previous : { identity, by: actor, at, ...operation,
-        ...(operation.action === 'answer' ? { verification: operation.answerMode === 'direct' ? 'agent-recorded' : 'source-verified' } : {}),
+        ...(ownerAnswer ? { verification: operation.answerMode === 'direct' ? 'agent-recorded' : 'source-verified' } : {}),
+        ...(declined ? { outcome: 'declined' } : {}),
         permission: operation.action === 'answer' && gate ? 'approved-scope-only' : 'none' };
     const note = `Task maintenance: ${operation.action}. ${operation.explanation}\nEvidence: ${operation.evidence}`
-        + (operation.action === 'answer' ? `\nOwner: ${operation.owner}\nSource: ${operation.source}\nAnswer: ${operation.response}\nScope: ${operation.scope}` : '')
+        + (ownerAnswer ? `\nOwner: ${operation.owner}\nSource: ${operation.source}\nAnswer: ${operation.response}\nScope: ${operation.scope}` : '')
         + (operation.answerMode === 'direct' ? `\nQuestion: ${operation.question}\nRecorded by: ${actor} (direct chat answer; not independently authenticated)` : '')
         + (operation.action === 'release' ? `\nActivity checked: ${operation.activityCheck}\nProgress preserved: ${operation.progress}` : '')
-        + (gate && retiring ? '\nRequest retired. No permission to perform the action was granted.' : '');
+        + (gate && retiring ? '\nRequest retired. No permission to perform the action was granted.' : '')
+        + (declined ? '\nApproval declined. The recorded action must not happen. Continue only the remaining authorized work.' : '');
     if (note.length > HOSTED_TASK_LIMITS.comment)
         return maintenanceRefused('The combined decision record is too long for a task comment. Shorten the explanation and evidence while preserving the exact question, answer and scope.');
     if (!same)
@@ -941,13 +1010,18 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
         }
         steps.push({ kind: 'depend', taskId: operation.taskId, dependsOn: operation.duplicateOf, type: 'related' });
     }
-    if (gate && retiring && !closed) {
+    if (gate && (retiring || declined) && !closed) {
         for (const dependent of rowsOf(row.dependents).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && edge.status !== 'closed')) {
             if (operation.action === 'duplicate')
                 steps.push({ kind: 'depend', taskId: stringOf(dependent.id), dependsOn: operation.duplicateOf, type: 'blocks' });
-            else
-                steps.push({ kind: 'update', taskId: stringOf(dependent.id), status: 'blocked' });
-            steps.push({ kind: 'comment', taskId: stringOf(dependent.id), text: `Approval request ${operation.taskId} retired: ${operation.explanation}. No permission granted; obtain a new action-specific approval before proceeding.` });
+            const text = `Approval request ${operation.taskId} ${declined ? 'declined' : 'retired'}: ${operation.explanation}. `
+                + `The action must not happen without a new action-specific owner approval. Continue only the remaining authorized work. No permission granted.`
+                + `\nExcluded action: ${stringOf(row.description)}`;
+            steps.push({ kind: 'comment', taskId: stringOf(dependent.id), text });
+            if (operation.action !== 'duplicate' && labelsOf(dependent).includes('human')
+                && dependent.issue_type !== 'decision' && dependent.issue_type !== 'gate' && readTaskChoices(dependent.metadata) === null) {
+                steps.push(handBack(dependent, stringOf(dependent.id)));
+            }
         }
     }
     if (!closed && retiring) {
@@ -958,8 +1032,8 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
             invalid();
         steps.push({ ...close, resolution, ...(operation.duplicateOf ? { duplicateOf: operation.duplicateOf } : {}), ...(operation.model ? { model: operation.model } : {}) });
     }
-    else if (operation.action === 'answer') {
-        if (gate && !closed) {
+    else if (ownerAnswer) {
+        if (gate && !closed && !declined) {
             for (const dependent of rowsOf(row.dependents).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type))
                 && edge.status !== 'closed' && labelsOf(edge).includes('human')
                 && edge.issue_type !== 'decision' && edge.issue_type !== 'gate' && readTaskChoices(edge.metadata) === null)) {
@@ -972,7 +1046,7 @@ export function maintenanceSteps(operation, row, comments, actor, at, duplicate,
         steps.push({ kind: 'hand-back', taskId: operation.taskId, holder, removeHuman: operation.action === 'routine',
             ...(operation.action === 'release' && row.status !== 'in_progress' ? { preserveStatus: row.status } : {}) });
     }
-    if (closed && same && retiring && typeof row.closed_at === 'string') {
+    if (closed && same && (retiring || declined) && typeof row.closed_at === 'string') {
         const resolution = operation.action === 'duplicate' ? 'duplicate' : operation.action === 'completed' ? 'already-handled' : 'wont-do';
         steps.push({ kind: 'attribute', taskId: operation.taskId, closedBy: actor, closedAt: row.closed_at,
             resolution, ...(operation.duplicateOf ? { duplicateOf: operation.duplicateOf } : {}), ...(operation.model ? { model: operation.model } : {}) });

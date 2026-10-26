@@ -53,6 +53,8 @@ export const TASK_METADATA = Object.freeze({
     duplicateOf: Object.freeze({ name: "noticeos_duplicate_of", legacy: "noticeos_duplicate_of" }),
     /** Evidence and scope of the last task maintenance operation. Never grants authority by itself. */
     maintenance: Object.freeze({ name: "noticeos_maintenance", legacy: "noticeos_maintenance" }),
+    /** Nonblocking links to tasks in other projects of the same workspace. */
+    relatedTasks: Object.freeze({ name: "noticeos_related_tasks", legacy: "noticeos_related_tasks" }),
     /** Why the task is worth doing, as the task tools validated it
      * (task-card.mts): the figures the ranking reads. Written by whoever files
      * or edits the task, so it has no older name. */
@@ -70,7 +72,7 @@ export const TASK_METADATA = Object.freeze({
 export const SERVER_TASK_METADATA = Object.freeze([TASK_METADATA.operation, TASK_METADATA.claimedModel,
     TASK_METADATA.closedBy, TASK_METADATA.closedModel, TASK_METADATA.closedAt, TASK_METADATA.filedBy,
     TASK_METADATA.filedModel, TASK_METADATA.choices, TASK_METADATA.choice, TASK_METADATA.resolution,
-    TASK_METADATA.duplicateOf, TASK_METADATA.maintenance, TASK_METADATA.cardShipped].map(field => field.name));
+    TASK_METADATA.duplicateOf, TASK_METADATA.maintenance, TASK_METADATA.relatedTasks, TASK_METADATA.cardShipped].map(field => field.name));
 /** How far apart a recorded close time and the task's own may be and still
  * name one close: the server copies the task's close time when it records it. */
 const SAME_CLOSE_MS = 1000;

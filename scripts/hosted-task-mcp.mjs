@@ -78,10 +78,12 @@ export const TASK_WORKFLOW = Object.freeze([
     '5. close_task with what shipped and its evidence (the commit hash or URL), naming your model.',
     '6. Found work goes to create_task, or create_tasks for several, in the project that owns it.',
     '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. The owner may answer on Tasks or in an explicitly linked conversation.',
-    '8. A person\'s answer or pick on a task of yours takes off its human label and returns it to ready work, with the answer as a comment and the pick as choice; claim it again to carry on. A decision closes on the answer or pick instead.',
+    '8. reconcile_task records the owner answer, takes off the human label and returns the task to agents, preserving the selected choice. Claim it to carry on, then close_task with the implementation commit. A person answering a decision directly on Tasks closes it on the answer instead.',
     '9. Use get_task then reconcile_task to record an existing owner answer and its exact scope; do not ask the owner to close the task or release an old assignment. For an answer received directly from the owner in your chat, set answer_mode: direct, include the exact question, reply and chat source, and map a decision-card selection with option when its label differs from the stored choice. This records your relay, not independent authentication. Other sources require verification. Match short replies to the proposal the owner saw. Apply a clearly scoped batch answer only to its named tasks. If ambiguous, ask one clarification only for the ambiguity.',
     '10. With concrete evidence and a plain explanation, reconcile_task may close completed outcomes, obsolete requests, explicitly superseded decisions or duplicates that retain complete scope elsewhere; routine work loses its human label. Code existing does not prove a business decision was approved. Keep history; update_task can reopen a closed task.',
     '11. Assignments are reservations: investigate an old assignment, verify its holder is no longer working and preserve progress before reconcile_task action release. Age alone never proves abandonment.',
+    '12. When the owner declines an approval gate, use reconcile_task on the gate with action: declined, its current proposal, the exact owner response, owner identity, original source and full requested scope. For a direct chat answer include answer_mode: direct and the exact question with the action, environment and verification. This closes the gate as wont-do, records the declined action on its task, and leaves remaining authorized work available. The declined action must not happen. Retiring an obsolete gate also grants no permission and does not block the remaining work. Other open approvals still block closing.',
+    '13. Direct answers require an https:// or codex://threads/ conversation source and the human owner field. A comment:<id> source is for a source-verified answer authored by the owner with their exact response; an agent comment quoting an owner is a relay, not an owner-authored source. Preserve the original chat link for a direct relay. A changed proposal requires checking the actual question the owner saw; never replace their words to pass validation.',
     'These tools are the task interface: never run bd, bv or br in a project folder.',
 ]);
 /** What get_task_guide names in its description and the instructions point at. */
@@ -129,7 +131,7 @@ function stateRefusal({ taskId: id, attempted, reason }) {
             + (reason.blockers.length ? ` It depends on ${listed(reason.blockers)}, still open.` : '')
             + ` To work on it now, set its status to open with update_task, then claim it.`;
         case 'gate': return reason.human
-            ? `refused: ${id} waits on approval ${listed(reason.gates)}, which is still open. Close ${id} after a person approves it on Tasks in the Tower.`
+            ? `refused: ${id} waits on approval ${listed(reason.gates)}, which is still open. Use reconcile_task on the gate with the owner’s scoped answer, or action declined with their refusal; then close ${id} with implementation evidence. A declined action must not happen.`
             : `refused: ${id} waits on gate ${listed(reason.gates)}, which is still open. Close ${id} after it resolves.`;
         case 'children': return `refused: ${id} has open children: ${listed(reason.children)}. Close them first, or give them another parent with update_task.`;
         case 'linked': return `refused: ${id} already depends on ${reason.dependsOn} as ${reason.type}, and a dependency keeps the type it was `
@@ -490,6 +492,105 @@ const PAGE = 50;
 function taskOf(value) {
     return presentTask(toLiveTask(Array.isArray(value) ? value[0] : value, new Set()), false);
 }
+const historyRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
+const historyText = (value) => typeof value === 'string' && value ? value : null;
+function changedFields(before, after, path = '', result = {}) {
+    if (JSON.stringify(before) === JSON.stringify(after))
+        return result;
+    const left = historyRecord(before), right = historyRecord(after);
+    if (Object.keys(left).length || Object.keys(right).length) {
+        for (const key of new Set([...Object.keys(left), ...Object.keys(right)])) {
+            const field = path ? `${path}.${key}` : key;
+            // Receipt identity repeats the proposal and answer already represented by their fields.
+            if (field === 'metadata.noticeos_maintenance.identity')
+                continue;
+            changedFields(left[key], right[key], field, result);
+        }
+    }
+    else
+        result[path] = { old: before ?? null, new: after ?? null };
+    return result;
+}
+function eventFields(event) {
+    const before = historyJson(event.old_value), after = historyJson(event.new_value);
+    if (after && (event.event_type === 'updated' || event.event_type === 'created')) {
+        const names = { issue_type: 'type', acceptance_criteria: 'acceptance', created_at: 'createdAt',
+            updated_at: 'updatedAt', started_at: 'startedAt', closed_at: 'closedAt', close_reason: 'closeReason', defer_until: 'deferUntil' };
+        const previous = {}, next = {};
+        for (const [key, value] of Object.entries(after)) {
+            const field = names[key] ?? key;
+            previous[field] = before?.[key];
+            next[field] = value;
+        }
+        return changedFields(previous, next);
+    }
+    const field = event.event_type === 'status_changed' ? 'status' : event.event_type === 'claimed' ? 'assignee'
+        : event.event_type === 'commented' ? 'comment' : event.event_type === 'dependency_added' || event.event_type === 'dependency_removed' ? 'dependency' : 'value';
+    return { [field]: { old: event.old_value ?? null, new: event.new_value ?? event.comment ?? null } };
+}
+function historyJson(value) {
+    if (typeof value !== 'string')
+        return null;
+    try {
+        const parsed = JSON.parse(value);
+        return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+    }
+    catch {
+        return null;
+    }
+}
+function eventAction(event) {
+    const fields = eventFields(event);
+    return event.event_type === 'updated' && fields.status?.new === 'in_progress' && fields.assignee ? 'claimed'
+        : historyText(event.event_type) ?? 'updated';
+}
+function eventModel(event) {
+    const state = { ...historyJson(event.old_value), ...historyJson(event.new_value) };
+    const metadata = historyRecord(state.metadata);
+    return eventAction(event) === 'claimed' && state.assignee === event.actor ? historyText(metadata.noticeos_claimed_model)
+        : state.created_by === event.actor && event.event_type === 'created' ? historyText(metadata.noticeos_filed_model)
+            : metadata.noticeos_closed_by === event.actor ? historyText(metadata.noticeos_closed_model) : null;
+}
+/** Snapshots establish field changes; audit events establish actions and actors.
+ * Equal-time revisions cannot be matched uniquely, so their events stay separate. */
+function compactHistory(history, audit, limit, exhausted) {
+    const versions = history.map(historyRecord), events = audit.map(historyRecord);
+    const second = (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)) ? Math.floor(Date.parse(value) / 1000) : null;
+    const used = new Set();
+    const changes = versions.slice(0, limit).map((row, index) => {
+        const at = historyText(row.CommitDate), time = second(at);
+        const matched = time !== null && versions.filter(other => second(other.CommitDate) === time).length === 1
+            ? events.filter(event => second(event.created_at) === time) : [];
+        for (const event of matched)
+            used.add(event);
+        const task = taskOf(row.Issue), previous = versions[index + 1];
+        const knownBaseline = previous !== undefined || exhausted;
+        const fields = knownBaseline ? changedFields(previous ? taskOf(previous.Issue) : {}, task) : {};
+        const actors = new Set(matched.map(event => historyText(event.actor)).filter(value => value !== null));
+        const committer = historyText(row.Committer);
+        const actor = actors.size === 1 ? [...actors][0] : actors.size > 1 || committer === 'beads' ? null : committer;
+        const actions = [...new Set(matched.map(eventAction))];
+        if (!actions.length)
+            actions.push(fields.status?.new === 'closed' ? 'closed'
+                : fields.status?.new === 'in_progress' && fields.assignee ? 'claimed'
+                    : fields.status ? 'status_changed' : !previous && exhausted ? 'created' : 'updated');
+        for (const event of matched) {
+            Object.assign(fields, eventFields(event));
+        }
+        const metadata = historyRecord(task.metadata);
+        const recordedModels = new Set(matched.map(eventModel).filter(value => value !== null));
+        const model = recordedModels.size === 1 ? [...recordedModels][0] : actions.includes('claimed') && actor === task.assignee ? historyText(metadata.noticeos_claimed_model)
+            : actions.includes('created') && actor === metadata.noticeos_filed_by ? historyText(metadata.noticeos_filed_model)
+                : actions.includes('closed') && actor === metadata.noticeos_closed_by ? historyText(metadata.noticeos_closed_model) : null;
+        return { revision: historyText(row.CommitHash), at, actor, model, actions, fields,
+            ...(!knownBaseline ? { baselineUnavailable: true } : {}) };
+    });
+    for (const event of events.filter(event => !used.has(event))) {
+        changes.push({ revision: null, eventId: historyText(event.id), at: historyText(event.created_at), actor: historyText(event.actor),
+            model: eventModel(event), actions: [eventAction(event)], fields: eventFields(event) });
+    }
+    return changes.sort((a, b) => String(b.at ?? '').localeCompare(String(a.at ?? ''))).slice(0, limit);
+}
 const PROJECT = { type: 'string', description: 'The projectId from list_projects.' };
 const TASK = { type: 'string', description: 'The task id, such as abc-1x2.' };
 /** Optional on a new task, a claim and a close: the Tower credits the work to this model as well as to the agent. */
@@ -551,7 +652,7 @@ const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK
     acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body, description: 'What proves it done.' },
     depends_on: TASK_IDS('Tasks this one waits on: it is not ready until they close.'),
     blocks: TASK_IDS('Tasks that wait on this one.'),
-    related: TASK_IDS('Tasks it relates to, without waiting on them.'),
+    related: TASK_IDS('Tasks it relates to, without waiting on them; may name another project in this workspace.'),
     discovered_from: TASK_IDS('Tasks whose work turned this one up.'),
     approval: { type: 'string', maxLength: GATE_REASON_MAX,
         description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' },
@@ -655,7 +756,7 @@ function readingText(tool) {
 }
 export const TASK_MCP_TOOLS = Object.freeze([
     { name: 'reconcile_task', description: 'Record an existing owner answer, retire a completed/obsolete/superseded/duplicate human request, '
-            + 'remove a routine human label, or release a confirmed inactive assignment. Read get_task first and send its proposal snapshot. '
+            + 'record a declined approval gate, remove a routine human label, or release a confirmed inactive assignment. Read get_task first and send its proposal snapshot. '
             + 'Evidence and a plain explanation are required. For an answer received directly from the owner in this chat, use answer_mode: direct with the exact question and reply; your authenticated agent identity is recorded as the recorder. Otherwise verify owner identity and the exact proposal in the linked source. Never invent an answer. '
             + 'For batch replies, call once per explicitly named task within the answered scope. '
             + 'Retirement grants no permission; production reads/writes, spending, messages, destructive actions and material commitments still require explicit action-specific approval.',
@@ -664,8 +765,8 @@ export const TASK_MCP_TOOLS = Object.freeze([
             proposal: { type: 'string', description: 'The exact proposal snapshot from get_task for the proposal the owner saw.' },
             explanation: { type: 'string', maxLength: 800, description: 'Plain-language reason for this disposition.' },
             evidence: { type: 'string', maxLength: 800, description: 'Concrete commit, task, test or source reference proving the reason; code alone never proves approval.' },
-            response: { type: 'string', maxLength: 1000, description: 'For answer: exact owner words. A, a recommendation reply or a clear free-text direction.' },
-            owner: { type: 'string', description: 'For answer: verified human author of the cited source, never the relaying agent.' },
+            response: { type: 'string', maxLength: 1000, description: 'For answer or declined: exact owner words. A, a recommendation reply, a clear direction or the explicit refusal.' },
+            owner: { type: 'string', description: 'Required for answer or declined: the human owner, never the relaying agent.' },
             source: { type: 'string', description: 'For answer: comment:<id> on this task, or an explicitly linked https:// or codex://threads/ conversation.' },
             scope: { type: 'string', maxLength: 1000, description: 'For answer: exactly what the owner authorized. An approval gate requires its exact full Reason text.' },
             answer_mode: { type: 'string', enum: ['direct'], description: 'Only for an answer received directly from the human owner in your chat. Records an agent relay without independent history verification. Omit for source-verified answers.' },
@@ -802,18 +903,37 @@ export const TASK_MCP_TOOLS = Object.freeze([
             return { project: detail.project, readAt: detail.readAt, task: presentTask(detail.task, true),
                 comments: detail.comments, proposal: detail.proposal };
         } },
-    { name: 'get_task_history', description: 'Read how one task changed, newest first.',
+    { name: 'get_task_history', description: 'Read changed fields, old/new values, recorded actors and actions, newest first. Unmatched audit events have no revision; unknown models remain null. Set snapshots for full task versions.',
         inputSchema: schema({ project: PROJECT, task: TASK,
-            limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most this many changes (default 50).' } }, ['project', 'task']),
+            limit: { type: 'integer', minimum: 1, maximum: 200, description: 'At most this many changes (default 50).' },
+            snapshots: { type: 'boolean', description: 'Include full task snapshots instead of compact field changes (default false).' } }, ['project', 'task']),
         annotations: READ,
         async run({ proof, workspaceId, operations }, args) {
-            only(args, ['project', 'task', 'limit']);
+            only(args, ['project', 'task', 'limit', 'snapshots']);
             const limit = args.limit ?? 50;
             if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 200)
                 refuse('invalid arguments: limit (1–200)');
-            const history = await operations.history(proof, workspaceId, project(args), task(args), limit);
+            if (args.snapshots !== undefined && typeof args.snapshots !== 'boolean')
+                refuse('invalid arguments: snapshots (true or false)');
+            const count = args.snapshots ? limit : Math.min(limit + 1, HOSTED_TASK_LIMITS.rows);
+            const history = await operations.history(proof, workspaceId, project(args), task(args), count);
             if (!Array.isArray(history))
                 refuse('unavailable: history could not be read');
+            if (!args.snapshots) {
+                const events = await operations.history(proof, workspaceId, project(args), task(args), HOSTED_TASK_LIMITS.rows, true);
+                if (events !== null && !Array.isArray(events))
+                    refuse('unavailable: task audit events could not be read; retry or request snapshots: true');
+                const comments = await operations.history(proof, workspaceId, project(args), task(args), HOSTED_TASK_LIMITS.rows, 'comments');
+                if (!Array.isArray(comments))
+                    refuse('unavailable: task comments could not be read; retry or request snapshots: true');
+                const audit = (events ?? []);
+                for (const entry of comments.map(historyRecord)) {
+                    if (audit.some(event => event.event_type === 'commented' && event.actor === entry.author && event.comment === entry.text && event.created_at === entry.created_at))
+                        continue;
+                    audit.push({ id: entry.id, event_type: 'commented', actor: entry.author, comment: entry.text, created_at: entry.created_at });
+                }
+                return { changes: compactHistory(history, audit, limit, history.length < count) };
+            }
             return { changes: history.map(entry => {
                     const row = (entry ?? {});
                     return { revision: typeof row.CommitHash === 'string' ? row.CommitHash : null,
@@ -914,6 +1034,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
             defer: { type: 'string', description: 'YYYY-MM-DD to hide it until then, or "" to clear.' },
             acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body },
             add_labels: { type: 'array', items: { type: 'string' } }, remove_labels: { type: 'array', items: { type: 'string' } },
+            related: TASK_IDS('Add nonblocking related tasks in this workspace, including other projects.'),
             choices: { ...CHOICES, type: ['object', 'null'],
                 description: 'A whole new set of choices, or null to take them off. Refused once a person has chosen.' },
             card: { ...CARD, type: ['object', 'null'],
@@ -924,7 +1045,13 @@ export const TASK_MCP_TOOLS = Object.freeze([
         annotations: WRITE,
         async run(context, args) {
             only(args, ['project', 'task', 'status', 'priority', 'title', 'description', 'assignee', 'parent', 'defer',
-                'acceptance', 'add_labels', 'remove_labels', 'choices', 'card', 'change_class', 'idempotency_key']);
+                'acceptance', 'add_labels', 'remove_labels', 'choices', 'card', 'change_class', 'related', 'idempotency_key']);
+            let related;
+            if (args.related !== undefined) {
+                if (!Array.isArray(args.related) || !args.related.length || args.related.length > HOSTED_TASK_LIMITS.links)
+                    refuse('invalid arguments: related (1–32 task ids)');
+                related = args.related.map(id => task({ task: id }));
+            }
             const operation = defined({ kind: 'update', taskId: task(args),
                 status: choice(args, 'status', STATUSES.filter(status => status !== 'closed')), priority: priority(args),
                 title: textArg(args, 'title', HOSTED_TASK_LIMITS.title, false),
@@ -933,6 +1060,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
                 parent: args.parent === undefined || args.parent === '' ? args.parent : task(args, 'parent'),
                 defer: deferArg(args), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
                 addLabels: labels(args, 'add_labels', 1), removeLabels: labels(args, 'remove_labels', 1),
+                related,
                 choices: args.choices === null ? null : choicesArg(args), card: args.card === null ? null : cardArg(args),
                 changeClass: args.change_class === null ? null : choice(args, 'change_class', TASK_CHANGE_CLASSES) });
             if (Object.keys(operation).length === 2)
@@ -993,7 +1121,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
         } },
     { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL, and naming your model. '
             + 'When nothing shipped, pass the resolution that says why; the reason still cites the evidence. '
-            + 'A task it depends on may still be open; an approval it waits on must be given first.',
+            + 'A task it depends on may still be open; an approval it waits on must first be answered or retired. A declined action must not happen.',
         inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },
             resolution: { type: 'string', enum: TASK_RESOLUTIONS, description: 'How it ended: done (the default) when the work shipped; wont-do, '
                     + 'duplicate, cant-reproduce or already-handled when nothing did.' },

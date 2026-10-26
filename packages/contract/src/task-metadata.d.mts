@@ -114,6 +114,11 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_maintenance";
         legacy: "noticeos_maintenance";
     }>;
+    /** Nonblocking links to tasks in other projects of the same workspace. */
+    relatedTasks: Readonly<{
+        name: "noticeos_related_tasks";
+        legacy: "noticeos_related_tasks";
+    }>;
     /** Why the task is worth doing, as the task tools validated it
      * (task-card.mts): the figures the ranking reads. Written by whoever files
      * or edits the task, so it has no older name. */
