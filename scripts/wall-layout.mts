@@ -9,8 +9,8 @@
 //
 // The layout lives in `config/tower.json` at pointer `/wall`, as a
 // `WallConfig`: the current layout plus the versions it replaced, newest first.
-// Absent, the Wall is the workspace view's preset (`WALL_PRESETS`), and
-// `DEFAULT_WALL_LAYOUT` for the Everything view.
+// Absent, the Wall draws `DEFAULT_WALL_LAYOUT`, independently of personal
+// and workspace views. `WALL_PRESETS` are explicit editor starting layouts.
 //
 // Retired widgets. A layout saved before the current Wall may name widgets it
 // no longer has. Reading one is never refused and never blank: the Wall draws
@@ -34,7 +34,6 @@
 // module, and importing one string through the registers would download all
 // of them to `/wall`.
 import { CONFIG_ASSET_KEY_SOURCE as ASSET_ID_SOURCE } from '../packages/contract/src/configuration.mjs';
-import type { ViewId } from '../packages/contract/src/views.mjs';
 
 /** The asset-id rule the rest of config validation already uses. */
 const ASSET_ID_RE = new RegExp(`^${ASSET_ID_SOURCE}$`);
@@ -637,12 +636,14 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
 };
 
 /**
- * The Wall each founder view starts from when nothing is saved
- * (`config/tower.json` `/view`), and the editor's Start from choices. A saved
- * layout always wins over a preset. Written in the validator's own key order,
+ * The editor's independent Start from choices. Preset keys remain stable for
+ * existing editor links and saved version descriptions. A saved layout always
+ * wins. Written in the validator's own key order,
  * so `sameWallLayout` recognises one after a round trip through the store.
  */
-export const WALL_PRESETS: Readonly<Record<ViewId, WallLayout>> = {
+export type WallPresetId = 'business' | 'product' | 'everything';
+
+export const WALL_PRESETS: Readonly<Record<WallPresetId, WallLayout>> = {
   // What needs a decision, is every site healthy, is the money on pace and
   // what the agents did. The decisions come first, across the TV under the
   // strip, the width at which Next up is shortest.

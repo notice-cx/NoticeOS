@@ -1,4 +1,4 @@
-import { useBrowserContext, useDemoReadonly, useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserContext, useOwnerPreferences } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, Menu, Moon, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
@@ -30,7 +30,7 @@ import {
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { DemoViewerStatus } from '@/components/DemoViewerStatus';
-import { DemoViewSwitch } from '@/components/DemoViewSwitch';
+import { ViewBar } from "@/components/ViewBar";
 import { SeverityDot } from "@/components/SeverityDot";
 import { openAlertsLabel } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
@@ -524,7 +524,7 @@ export function AppShell({
   onPrefetch?: (to: string) => void;
 } = {}) {
   const { theme, toggle } = useTheme();
-  const demoReadonly = useDemoReadonly();
+  const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // The shell mounts with the first desk page under it, so this is the desk's
@@ -581,7 +581,8 @@ export function AppShell({
             <WorkspaceButton className="ml-auto max-w-44" />
           </div>
 
-          <DemoViewerStatus viewSwitch={demoReadonly ? <DemoViewSwitch /> : undefined} />
+          <DemoViewerStatus />
+          {!pathname.startsWith("/wall") ? <ViewBar /> : null}
           {/* `page-arrive`: each page fades in as it replaces the last. */}
           <main className="page-arrive min-w-0 flex-1">
             <Outlet />

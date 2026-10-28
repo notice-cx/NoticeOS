@@ -1,11 +1,10 @@
 import { UserRoundCheck } from "lucide-react";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { type AssetDetailCore, RESTORE_HASH } from "@shared/asset-detail-views";
 import { sourceReadings, sourcesSummary } from "@shared/connection-status";
 import { SeverityDot } from "@/components/SeverityDot";
 import { Tabs, type TabSpec } from "@/components/Tabs";
 import { useConnections } from "@/hooks/useConnections";
-import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
 import { DEFAULT_RANGE, rangeFromParam } from "./useRange";
 
@@ -151,12 +150,7 @@ export function AssetTabs({
   const pathFor = useAssetTabPath();
   const { data: work } = useWork();
   const { credentials, items } = useConnections();
-  const { view } = useView();
-  const current = tabFromParam(useParams().tab);
-  // The view's tabs in this bar's order; a deep link to a tab the view leaves
-  // out still opens, and its tab is drawn last so the open panel has a label.
-  const shown: AssetTab[] = ASSET_TABS.filter((key) => view.siteTabs.includes(key));
-  if (!shown.includes(current)) shown.push(current);
+  const shown = ASSET_TABS;
   const openAlerts = data.flags.open.length;
   const openWatches = data.watches.open.length;
   const worst = data.asset.worstOpenSeverity;

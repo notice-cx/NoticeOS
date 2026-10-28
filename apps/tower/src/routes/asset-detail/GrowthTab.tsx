@@ -1,3 +1,4 @@
+import { PurposeSections } from "./purpose-presentation";
 import type { CSSProperties } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type {
@@ -61,10 +62,10 @@ export function GrowthTab({
   const moves = growthMoves(performance, days);
 
   return (
-    <div id="growth-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
-      {moves.length > 0 ? <Moves moves={moves} days={days} /> : null}
+    <PurposeSections surface="growth" id="growth-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
+      {moves.length > 0 ? <Moves key="moves" moves={moves} days={days} /> : null}
 
-      <section
+      <section key="audience"
         id="performance"
         // With no series to compare, the audience pair is the answer
         // (`audit:surfaces` wants exactly one hero per tab).
@@ -105,7 +106,7 @@ export function GrowthTab({
         </div>
       </section>
 
-      <SearchPair
+      <SearchPair key="search"
         performance={performance}
         days={days}
         asset={data.asset.displayName}
@@ -115,18 +116,18 @@ export function GrowthTab({
 
       {/* The analysis's age is Search's to state, beside the findings it
           dates; Growth draws the numbers. */}
-      <PanelSummary panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
+      <PanelSummary key="panel" panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
 
-      <ProductUse snapshot={data.executive?.productUse ?? null} />
+      <ProductUse key="product" snapshot={data.executive?.productUse ?? null} />
 
       {/* What people do once they arrive, and where it breaks. Its header
           names PostHog as the source, so its numbers are never read as
           Google's. */}
-      <ProductJourney
+      <ProductJourney key="journey"
         product={data.executive?.product ?? null}
         connection={productConnection(data.integrations.lanes)}
       />
-    </div>
+    </PurposeSections>
   );
 }
 

@@ -55,6 +55,7 @@ export type {
   WallColumnRow,
   WallConfig,
   WallLayout,
+  WallPresetId,
   WallWeatherSettings,
   WallTvPreset,
   WallTvPreview,

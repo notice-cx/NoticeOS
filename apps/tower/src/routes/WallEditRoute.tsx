@@ -7,7 +7,7 @@ import { siteDisplayOf } from "@shared/site-display";
 import {
   EMPTY_WALL_CONFIG,
   WALL_LAYOUT_POINTER,
-  WALL_PRESETS,
+  DEFAULT_WALL_LAYOUT,
   WALL_RETIRED_WARNING,
   nextWallWidgetId,
   parseWallConfig,
@@ -22,7 +22,6 @@ import {
   type WallLayout,
   type WallWidgetType,
 } from "@shared/wall-layout";
-import { DEFAULT_VIEW } from "@shared/views";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
@@ -81,7 +80,7 @@ const SLUG = "wall-layout";
  * default drawn in its place, with the value as stored in
  * `dashboard.refused.wall` as the guard: a Save guarded by the default would
  * be refused by a store that never held it. With nothing saved, the editor
- * starts from the workspace view's preset, as the TV draws it.
+ * starts from the default Wall layout, as the TV draws it.
  */
 export function readWallConfig(dashboard: DashboardConfig): {
   raw: JsonValue;
@@ -93,7 +92,7 @@ export function readWallConfig(dashboard: DashboardConfig): {
   const raw = refusedByStore ? (refusedByStore.saved as JsonValue) : shown;
   try {
     const config = shown === null
-      ? { layout: WALL_PRESETS[dashboard.view?.default ?? DEFAULT_VIEW], history: [] }
+      ? { layout: DEFAULT_WALL_LAYOUT, history: [] }
       : parseWallConfig(shown);
     return { raw, config: { ...config, layout: wallWithAttentionStrip(config.layout) }, refused: refusedByStore?.reason ?? null };
   } catch (err) {

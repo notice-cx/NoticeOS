@@ -1,4 +1,4 @@
-import { render, screen, within } from "./render";
+import { fireEvent, render, screen, waitFor, within } from "./render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -80,6 +80,12 @@ function wall(assets: AssetCard[]): WallPayload {
   } as unknown as WallPayload;
 }
 
+vi.mock("@/lib/api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/api")>(),
+  fetchTasksCapabilities: async () => ({ live: true, reason: null }),
+  fetchTaskProjects: async () => [],
+}));
+
 vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: state.payload, isError: false, isPending: false }) }));
 vi.mock("@/hooks/useWork", () => ({ useWork: () => ({ data: state.work, isError: false, isPending: state.work === undefined }) }));
 vi.mock("@/hooks/useIntegrationProviders", () => ({
@@ -103,6 +109,7 @@ import { ChannelsModule, channelShares } from "@/routes/home/ChannelsModule";
 import { FactoryModule } from "@/routes/home/FactoryModule";
 import { GapsModule } from "@/routes/home/GapsModule";
 import { HealthModule } from "@/routes/home/HealthModule";
+import { useView } from "@/hooks/useView";
 import { storageKey } from "@/lib/browser-storage";
 
 afterEach(() => {
@@ -138,18 +145,18 @@ const revenueProjection: RevenueProjection = {
 describe("Home's combined revenue card", () => {
   const dailyRevenue = { date: "2026-10-18", amountMinor: 1176, reportedThrough: "2026-10-18", timeZone: "UTC" };
 
-  it.each(["everything", "business", "product"])("shows yesterday within the month card in the %s view", (view) => {
+  it.each(["overview", "revenue"])("shows yesterday within the month card in the %s view", (view) => {
     state.payload = wall([healthy("first.example.com", { revenueProjection, dailyRevenue })]);
     storeView(view);
     const { container } = renderHome();
     const hero = container.querySelector<HTMLElement>("[data-money-hero]")!;
-    const yesterday = within(hero).getByRole("link", { name: `Yesterday $11.76 ${view === "business" ? "so far" : "est."}` });
+    const yesterday = within(hero).getByRole("link", { name: `Yesterday $11.76 est.` });
     expect(yesterday).toHaveAttribute("href", "/financials");
     expect(yesterday.getAttribute("title")).toContain("UTC");
     expect(hero.textContent?.match(/projected/gi)).toHaveLength(1);
     expect(within(hero).getByRole("img", { name: /^Revenue a day, October/ })).toBeInTheDocument();
     expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
-    expect(container.querySelector('[data-stat="Visitors in the last 28 days"]') !== null).toBe(view === "everything");
+    expect(container.querySelector('[data-stat="Visitors in the last 28 days"]') !== null).toBe(view === "overview");
   });
 
   it.each([
@@ -256,109 +263,119 @@ describe("the views draw their modules", () => {
     expect(container.querySelector("[data-home-answer] h2")!.textContent).toBe("October so far $45 est. Nothing is broken.");
   });
 
-  it("draws health, money, the agents' week and decide for the business view, in that order", () => {
-    storeView("business");
+  it.each([
+    ["growth", ["channels", "gaps", "problems", "yesterday", "decide", "sites"]],
+    ["revenue", ["money", "problems", "decide", "sites", "timeline"]],
+    ["delivery", ["factory", "problems", "decide", "agents", "timeline"]],
+    ["reliability", ["health", "problems", "decide", "timeline"]],
+  ])("draws the %s modules with alerts and decisions", (view, modules) => {
+    storeView(view as string);
     state.payload = wall([healthy("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
-
-    expect(modulesDrawn(container)).toEqual(["health", "money", "factory", "decide"]);
-    // Health is a row of its own; money and the agents' week stack on the
-    // left, Decide on the right.
-    expect(rowsOf(container)).toEqual([{ full: "health" }, { wide: ["money", "factory"], narrow: ["decide"] }]);
+    expect(modulesDrawn(container)).toEqual(modules);
     expectContentHeight(container);
+    expect(container.querySelector("[data-decision-queue]")).not.toBeNull();
+    expect(container.querySelector("[data-incident-list]")).not.toBeNull();
   });
 
-  it("puts the agents' week first for the business view's agents pick", () => {
-    storeView("business", ["agents"]);
+  it("puts an existing focus first when its module belongs to the purpose", () => {
+    storeView("revenue", ["money"]);
     state.payload = wall([healthy("first.example.com")]);
     const { container } = renderHome();
-
-    expect(modulesDrawn(container)).toEqual(["factory", "health", "money", "decide"]);
-  });
-
-  it("draws money, channels, gaps, problems, decide and the assets for the product view", () => {
-    storeView("product");
-    state.payload = wall([card("first.example.com"), card("second.example.com")]);
-    const { container } = renderHome();
-
-    // Problems under money and channels, so the left column is not the short one.
-    expect(modulesDrawn(container)).toEqual(["money", "channels", "problems", "gaps", "decide", "sites"]);
     expect(rowsOf(container)).toEqual([
-      { wide: ["money", "channels", "problems"], narrow: ["gaps", "decide"] },
+      { wide: ["money", "problems"], narrow: ["decide"] },
       { full: "sites" },
-    ]);
-    expectContentHeight(container);
-  });
-
-  it("stacks the business view's agents pick in its own row above health", () => {
-    storeView("business", ["agents"]);
-    state.payload = wall([healthy("first.example.com")]);
-    const { container } = renderHome();
-
-    expect(rowsOf(container)).toEqual([
-      { wide: ["factory"], narrow: [] },
-      { full: "health" },
-      { wide: ["money"], narrow: ["decide"] },
+      { full: "timeline" },
     ]);
   });
 
-  it("leads the business view's answer with the assets' health", () => {
-    storeView("business");
+  it("leads Reliability with measured asset health without adding financial figures", () => {
+    storeView("reliability");
     state.payload = wall([
       healthy("first.example.com", { displayName: "First Asset" }),
-      healthy("second.example.com", { displayName: "Second Site", product: product({ speed: "fired" }) }),
+      healthy("second.example.com", { displayName: "Second Asset", product: product({ speed: "fired" }) }),
       card("third.example.com", { status: "pre-launch" }),
     ]);
     const { container } = renderHome();
-
     const answer = container.querySelector("[data-home-answer-health]")!;
-    expect(answer.textContent).toBe("1 of 2 assets are fine. Second Site: slow for 1 in 4 visitors. October so far $45.");
+    expect(answer.textContent?.trim()).toBe("1 of 2 assets are fine. Second Asset: slow for 1 in 4 visitors.");
     expect(answer.firstElementChild).toHaveClass("text-warn");
+    expect(answer).not.toHaveTextContent("October");
   });
 
   it("names an asset whose nightly report is late, and never calls it fine", () => {
-    storeView("business");
-    // 49 hours before the clock (12:05): past twice the nightly cadence.
+    storeView("reliability");
     state.payload = wall([
       healthy("brief.example.com", { displayName: "Brief Asset", pulseReceivedAt: "2026-10-17T11:05:00.000Z" }),
-      healthy("second.example.com", { displayName: "Second Site" }),
+      healthy("second.example.com", { displayName: "Second Asset" }),
     ]);
     const { container } = renderHome();
-
     expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^1 of 2 assets are fine\. Brief Asset: no report for 2 days\./);
     const row = container.querySelector<HTMLElement>('[data-site-health-row="brief.example.com"]')!;
     expect(row).toHaveAttribute("data-tech-health", "watch");
     expect(row.querySelector("[data-site-health-note]")!.textContent).toBe("No report for 2 days");
   });
 
-  it("calls an estimated month \"so far\" in the business view and \"est.\" elsewhere", () => {
+  it.each(["overview", "revenue"])("keeps technical revenue detail in the %s view", (view) => {
+    storeView(view);
     state.payload = wall([healthy("first.example.com")]);
-    storeView("business");
-    const business = renderHome();
-    expect(business.container.querySelector("[data-money-figure]")!.textContent).toBe("$45so far");
-    // "So far" once: beside the figure, not in the label above it, and no "est." in the answer.
-    expect(business.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October");
-    expect(business.container.querySelector("[data-home-answer-health]")!.textContent).toContain("October so far $45.");
-    expect(business.container.querySelector("[data-home-answer-health]")!.textContent).not.toContain("est.");
-    business.unmount();
-
-    storeView("product");
-    const product = renderHome();
-    expect(product.container.querySelector("[data-money-figure]")!.textContent).toBe("$45est.");
-    expect(product.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
-    expect(product.container.querySelector("[data-home-answer] h2")!.textContent).toMatch(/^October so far \$45 est\. /);
-    product.unmount();
-
-    storeView("everything");
-    const everything = renderHome();
-    expect(everything.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
+    const { container } = renderHome();
+    expect(container.querySelector("[data-money-figure]")!.textContent).toBe("$45est.");
+    expect(container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
+    expect(container.querySelector("[data-home-answer] h2")!.textContent).toMatch(/^October so far \$45 est\. /);
   });
 
-  it("says every measured asset is fine when none needs a look", () => {
-    storeView("business");
+  it("leads Growth with observed visitor and channel counts", () => {
+    storeView("growth");
+    state.payload = wall([healthy("first.example.com", {
+      activeUsers: clicks(10),
+      channels: { windowStart: "2026-09-21", windowEnd: "2026-10-18", rows: [{ channel: "Organic Search", sessions: 60, share: 0.6 }, { channel: "Direct", sessions: 40, share: 0.4 }] },
+    })]);
+    const { container } = renderHome();
+    const answer = container.querySelector('[data-home-purpose="growth"]')!;
+    expect(answer).toHaveTextContent("280 visitors in the last 28 days.");
+    expect(answer).toHaveTextContent("Organic Search accounts for 60% of reported sessions.");
+    expect(answer).not.toHaveTextContent("October");
+  });
+
+  it("keeps unreported Growth, Delivery and Reliability readings unknown", () => {
+    state.payload = wall([card("first.example.com")]);
+    for (const [view, words] of [
+      ["growth", "Visitors have not been reported yet."],
+      ["delivery", "Work in progress has not been counted yet. Finished work this week has not been counted yet."],
+      ["reliability", "Asset health has not been measured yet."],
+    ]) {
+      storeView(view!);
+      const result = renderHome();
+      expect(result.container.querySelector("[data-home-answer] h2")).toHaveTextContent(words!);
+      result.unmount();
+    }
+  });
+
+  it("preserves an open gap task draft when the purpose changes", async () => {
+    storeView("growth");
+    state.payload = wall([card("first.example.com")]);
+    function ChangePurpose() {
+      const { setChoice } = useView();
+      return <button onClick={() => setChoice({ view: "revenue", focus: [] })}>Switch to Revenue</button>;
+    }
+    const { container } = render(tree(<><HomeRoute /><ChangePurpose /></>));
+    const trigger = screen.getByRole("button", { name: "Make a task for first.example.com earns nothing" });
+    await waitFor(() => expect(trigger).toBeEnabled());
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Title" }), { target: { value: "Keep this draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Switch to Revenue" }));
+    expect(container.querySelector('[data-home-purpose="revenue"]')).not.toBeNull();
+    expect(container.querySelector("[data-home-gaps]")).toBeNull();
+    expect(screen.getByRole("dialog")).toBe(dialog);
+    expect(within(dialog).getByRole("textbox", { name: "Title" })).toHaveValue("Keep this draft");
+  });
+
+  it("reports measured healthy assets in Reliability", () => {
+    storeView("reliability");
     state.payload = wall([healthy("first.example.com"), healthy("second.example.com")]);
     const { container } = renderHome();
-
     expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^All 2 assets are fine\./);
   });
 });

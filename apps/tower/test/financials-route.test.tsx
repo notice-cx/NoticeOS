@@ -8,6 +8,7 @@ import {
   type FinancialsPayload,
   type RecurringCost,
 } from "@shared/financials";
+import { OperatingViewChoice } from "./operating-view-choice";
 
 // The month is a URL, the page opens on the latest one holding rows, and the
 // header says so when that is not this month.
@@ -129,13 +130,14 @@ function renderRefusal(error: unknown, entry: string) {
  * watch the financials read being thrown away after a save. */
 let client: QueryClient;
 
-function renderPage(data: FinancialsPayload | undefined, entry = "/financials") {
+function renderPage(data: FinancialsPayload | undefined, entry = "/financials", chooseView = false) {
   state.data = data;
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[entry]}>
         <FinancialsRoute />
+        {chooseView ? <OperatingViewChoice /> : null}
         <Location />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -285,6 +287,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.localStorage.clear();
   state.data = undefined;
   state.error = null;
   state.asked = [];
@@ -1903,6 +1906,26 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
 });
 
 describe("/financials — New price", () => {
+  it("retains the accounting month, totals, open cost panel and price draft across purposes", async () => {
+    stubLane();
+    const { container } = renderPage(withCosts(), "/financials?period=2026-08", true);
+    const form = await openPrice();
+    fillPrice(form);
+    const net = container.querySelector("[data-money-net]")?.textContent;
+    for (const view of ["growth", "revenue", "delivery", "reliability", "overview"]) {
+      fireEvent.click(screen.getByRole("button", { name: `Choose ${view}` }));
+      expect(picker()).toHaveValue("2026-08");
+      expect(screen.getByTestId("search")).toHaveTextContent("?period=2026-08");
+      expect(container.querySelector("[data-money-net]")?.textContent).toBe(net);
+      expect(screen.getByRole("dialog", { name: "New price · Claude Code (Max)" })).toBe(form);
+      expect(within(form).getByLabelText("USD / month")).toHaveValue(250);
+      expect(within(form).getByLabelText("First month")).toHaveValue("2026-10");
+      if (view === "growth") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Revenue increasing");
+      if (view === "revenue") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Positive asset net");
+      if (view === "delivery") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Metered cost groups");
+      if (view === "reliability") expect(container.querySelector("[data-money-view]")).toHaveTextContent("Missing revenue reports");
+    }
+  });
   async function openPrice() {
     const table = editor("recurring-costs");
     fireEvent.click(within(table).getByRole("button", { name: "New price for Claude Code (Max)" }));

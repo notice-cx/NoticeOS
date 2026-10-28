@@ -16,7 +16,10 @@ export interface JourneySaveOutcome {
         refusal?: string;
     }>;
 }
+export type JourneySummaryMetric = "visitors" | "completion" | "loss" | "change";
+
 export interface JourneyMonitorProps {
+    summaryOrder?: readonly JourneySummaryMetric[];
     definitions: readonly JourneyDefinition[];
     snapshot: JourneySnapshot | null;
     sessionExploration?: readonly SessionExplorationSnapshot[];
@@ -57,7 +60,8 @@ function Count({ value }: {
 function Rate({ value }: {
     value: number | null;
 }) { const current = useAnimatedNumber(value); return <>{percent(current)}</>; }
-function JourneySummary({ definition, reading, delta, prior, compare, available }: {
+function JourneySummary({ definition, reading, delta, prior, compare, available, order }: {
+    order?: readonly JourneySummaryMetric[];
     definition: JourneyDefinition;
     reading: JourneyReading;
     delta: number | null;
@@ -68,13 +72,13 @@ function JourneySummary({ definition, reading, delta, prior, compare, available 
     const loss = reading.largestLoss;
     const lost = loss === null ? null : reading.counts[loss - 1]! - reading.counts[loss]!;
     const lossRate = lost !== null && loss !== null && reading.counts[loss - 1]! > 0 ? lost / reading.counts[loss - 1]! * 100 : null;
-    return <div className="journey-summary" data-surface-hero>
-    <div className="journey-kpi journey-kpi-visitors">
+    const metrics = {
+      visitors: (<div key="visitors" className="journey-kpi journey-kpi-visitors">
     <span className="journey-kpi-label"><Users aria-hidden/>Visitors</span>
     <strong className="journey-kpi-number"><Count value={available ? reading.visitors : null}/></strong>
     <p>{reading.visitors === null ? "Visitor baseline unavailable" : reading.visitors === 0 ? "No measured visitors" : "100% · all measured visitors"}</p>
-    </div>
-    <div className="journey-kpi journey-kpi-outcome">
+    </div>),
+      completion: (<div key="completion" className="journey-kpi journey-kpi-outcome">
     <span className="journey-kpi-label">{definition.status === "planned" ? "Planned outcome" : "Completed"}</span>
     <div className="journey-summary-rate">
     <strong>
@@ -83,24 +87,25 @@ function JourneySummary({ definition, reading, delta, prior, compare, available 
     </div>
     <span className="journey-kpi-basis">of {reading.rateBasis}</span><p>
     <Count value={available ? reading.counts.at(-1) ?? null : null}/> · {definition.steps.at(-1)?.label}</p>
-    </div>
-    <div className="journey-kpi journey-kpi-loss">
+    </div>),
+      loss: (<div key="loss" className="journey-kpi journey-kpi-loss">
     <span className="journey-kpi-label">Largest step loss</span>
     <strong className="journey-kpi-number">
     <Rate value={available ? lossRate : null}/>
     </strong>
     <span className="journey-kpi-basis">step drop-off · <Count value={available ? lost : null}/> people</span>
     <p>{loss === null ? "No measured loss" : `${definition.steps[loss - 1]!.label} → ${definition.steps[loss]!.label}`}</p>
-    </div>
-    <div className="journey-kpi journey-kpi-change" data-trend={available && compare ? trend(delta) : "neutral"}>
+    </div>),
+      change: (<div key="change" className="journey-kpi journey-kpi-change" data-trend={available && compare ? trend(delta) : "neutral"}>
     <span className="journey-kpi-label">Change in completion</span>
     <strong className="journey-kpi-number">{available && compare && delta !== null ? `${delta >= 0 ? "+" : ""}${rateNumber(delta)} pts` : "—"}</strong>
     <p>{!compare ? "Comparison off" : prior && delta !== null ? `vs ${formatCalendarRange(prior.startDate, prior.endDate)}` : "No comparable prior period"}</p>
-    </div>
-  </div>;
+    </div>)
+    };
+    return <div className="journey-summary" data-surface-hero>{(order ?? ["visitors", "completion", "loss", "change"]).map((key) => metrics[key])}</div>;
 }
 /** Ordered users and same-session exploration retain separate measurement states. */
-export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [] }: JourneyMonitorProps) {
+export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, eventNames = [], illustrative = false, sessionExploration = [], summaryOrder }: JourneyMonitorProps) {
     const [selectedId, setSelectedId] = useState(definitions[0]?.id ?? "");
     const [days, setDays] = useState<7 | 28>(28);
     const [compare, setCompare] = useState(true);
@@ -178,7 +183,7 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             </div> : <div className="journey-period" aria-label="Journey reporting period">{([28, 7] as const).map((value) => <button type="button" key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{value} days</button>)}</div>}{definition.kind === "funnel" ? <label className="journey-compare">
             <input type="checkbox" checked={compare} onChange={(event) => setCompare(event.target.checked)}/>Compare prior period</label> : null}</div>
         {definition.kind === "exploration" && sessionSnapshot ? <SessionExploration key={definition.id} snapshot={sessionSnapshot} rangeDays={days}/> : <>
-        {definition.kind === "funnel" ? <JourneySummary definition={definition} reading={reading} delta={delta} prior={prior} compare={compare} available={!!canRead}/> : null}
+        {definition.kind === "funnel" ? <JourneySummary order={summaryOrder} definition={definition} reading={reading} delta={delta} prior={prior} compare={compare} available={!!canRead}/> : null}
         <section className="journey-chart" aria-label="Journey steps">
         <div className="journey-chart-heading">
         <div>

@@ -9,6 +9,7 @@ import type { LiveTask, LiveTaskDetail } from '@shared/tasks';
 
 const notices = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('sonner', () => ({ toast: notices }));
+vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: { assets: [] } }) }));
 vi.mock('@/hooks/useWork', () => ({ useWork: () => ({ data: undefined }) }));
 vi.mock('@/hooks/useTaskSource', () => import('./task-source-mock'));
 const runtimes: ReturnType<typeof createBrowserRuntime>[] = [];

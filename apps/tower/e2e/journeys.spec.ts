@@ -1420,17 +1420,17 @@ test.describe(() => {
     });
   }
 
-  // The business view's preset, drawn with nothing saved: Next up across the
+  // The independent Health and decisions preset, saved explicitly: Next up across the
   // TV under the strip, then Site health over revenue beside Needs attention
   // over the agents' week. It fits 1920×1080 and every laptop `pnpm
   // audit:wall-fit -- --viewports laptops` measures, by that tool's own
   // function, with the fixture's longest task titles, healthy, on fire and
   // with eight sites; on the TV every widget keeps its editor floor.
   for (const [width, height] of [[1920, 1080], [1280, 720], [1366, 768], [1440, 900], [1470, 830], [1512, 860], [1728, 1000]] as const) {
-    test(`the business view's Wall fits ${width}×${height} with Next up across the top, cutting off no text`, desktopOnly("a TV or laptop size of its own"), async ({ page }, testInfo) => {
+    test(`the Health and decisions Wall preset fits ${width}×${height} with Next up across the top, cutting off no text`, desktopOnly("a TV or laptop size of its own"), async ({ page }, testInfo) => {
       const preset = WALL_PRESETS.business;
       const widgets = wallLayoutWidgets(preset);
-      const scene = await wallScene(page, "six", { view: "business" });
+      const scene = await wallScene(page, "six", { layout: WALL_PRESETS.business });
       for (const variant of ["six", "fire", "eight"] as const) {
         scene.variant = variant;
         const at = `${variant} at ${width}×${height}`;
@@ -4004,4 +4004,68 @@ test('Wall hourly activity compares last week, shows pace and refreshes without 
   } finally { if (complete) await complete(); }
   await expect(live.locator('[data-live-age]')).toHaveCount(0);
   expect(await live.locator('[data-live-count]').boundingBox()).toEqual(before);
+});
+
+// The shared fixture supplies every read; changing purpose stays a personal
+// presentation preference and never changes the stored TV document.
+test("global purpose switching preserves routes, filters and asset tabs while the Wall stays separate", { tag: PR_SMOKE }, async ({ page, request }, testInfo) => {
+  await addAssetByApi(page);
+  expect((await request.post("/__journey/task-source")).ok()).toBe(true);
+  expect((await request.post("/__journey/tasks-snapshot")).ok()).toBe(true);
+  const documentsBefore = (await (await request.get("/__journey/status")).json()).documents;
+  const wallBefore = documentsBefore["config/tower.json"]?.wall ?? null;
+  const workspaceBefore = documentsBefore["config/tower.json"]?.view ?? null;
+  const phone = testInfo.project.name === "mobile";
+  async function choose(label: string) {
+    const bar = page.locator("[data-view-bar]");
+    await expect(bar).toBeVisible();
+    if (phone) {
+      await bar.getByRole("button", { name: /^View:/ }).click();
+      await page.getByRole("group", { name: "Views", exact: true }).getByRole("button", { name: new RegExp(`^${label}`) }).click();
+      await expect(bar.getByRole("button", { name: `View: ${label}`, exact: true })).toBeVisible();
+    } else {
+      await bar.getByRole("button", { name: label, exact: true }).click();
+      await expect(bar.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-pressed", "true");
+    }
+  }
+
+  const taskUrl = `/tasks/all?status=open&project=${JOURNEY_ASSET}`;
+  await page.goto(taskUrl);
+  await expect(page.locator("[data-tasks-filters]")).toBeVisible();
+  for (const purpose of ["Growth", "Revenue", "Delivery", "Reliability", "Overview"]) {
+    await choose(purpose);
+    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(taskUrl);
+    await expect(page.locator("[data-tasks-filters]")).toBeVisible();
+    await assertNoPageOverflow(page);
+  }
+
+  await page.goto("/tasks/jt-review");
+  await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
+  await choose("Delivery");
+  await expect(page).toHaveURL(/\/tasks\/jt-review$/);
+  await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
+
+  await page.goto(`/assets/${JOURNEY_ASSET}/search`);
+  const tabs = page.locator('main [role="tablist"]').first();
+  await expect(tabs.getByRole("tab", { name: "Search", exact: true })).toHaveAttribute("aria-selected", "true");
+  const tabPaths = () => tabs.getByRole("tab").evaluateAll(elements => elements.map(element => element.getAttribute("href")));
+  const pathsBefore = await tabPaths();
+  await choose("Reliability");
+  await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET.replaceAll(".", "\\.")}/search$`));
+  expect(await tabPaths()).toEqual(pathsBefore);
+  await choose("Growth");
+  expect(await tabPaths()).toEqual(pathsBefore);
+
+  await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
+  await page.goto("/wall?view=business");
+  await expect(page.locator("[data-wall-canvas]")).toBeVisible();
+  await expect(page.locator("[data-view-bar], [data-demo-view-switch]")).toHaveCount(0);
+  await expect(page.locator('[data-wall-slot="channels"]')).toHaveCount(1);
+  await expect(page.locator('[data-wall-slot="health"]')).toHaveCount(0);
+  await page.goto("/wall/edit");
+  await expect(page.getByRole("heading", { name: /TV layout|Wall layout/ })).toBeVisible();
+  await expect(page.locator("[data-view-bar]")).toHaveCount(0);
+  const after = (await (await request.get("/__journey/status")).json()).documents["config/tower.json"];
+  expect(after?.wall ?? null).toEqual(wallBefore);
+  expect(after?.view ?? null).toEqual(workspaceBefore);
 });

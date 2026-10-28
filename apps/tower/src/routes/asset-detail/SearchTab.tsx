@@ -1,3 +1,4 @@
+import { PurposeSections } from "./purpose-presentation";
 import type { ReactNode } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { Link } from "react-router-dom";
@@ -70,10 +71,10 @@ export function SearchTab({
   const hero = moved ? "moves" : panel ? "panel" : hasDecisions ? "decisions" : "context";
 
   return (
-    <div id="search-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
-      {data.executive ? <AnalysisEvidence snapshot={data.executive} /> : null}
+    <PurposeSections surface="search" id="search-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
+      {data.executive ? <AnalysisEvidence key="analysis" snapshot={data.executive} /> : null}
       {moved ? (
-        <div data-surface-hero="">
+        <div key="moves" data-surface-hero="">
           <ChangeRows
             id="search-moves"
             title="Queries that moved"
@@ -88,7 +89,7 @@ export function SearchTab({
         // and its own collection line. The one thing this tab owes it that
         // the board cannot know is where the panel's trend lives, and that
         // goes beside the board rather than over it.
-        <section id="serp-panel" {...(hero === "panel" ? { "data-surface-hero": "" } : {})} className="scroll-mt-4 min-w-0">
+        <section key="panel" id="serp-panel" {...(hero === "panel" ? { "data-surface-hero": "" } : {})} className="scroll-mt-4 min-w-0">
           <SerpPanelBoard panel={panel} collapsed />
           <Link
             to={`${pathFor(data.asset.id, "growth")}#panel-scoreboard`}
@@ -102,7 +103,7 @@ export function SearchTab({
       {hasDecisions ? (
         // No card around the pair: both lists already carry their own rules
         // and their own hairlines.
-        <div className="grid min-w-0 gap-3.5" {...(hero === "decisions" ? { "data-surface-hero": "" } : {})}>
+        <div key="decisions" className="grid min-w-0 gap-3.5" {...(hero === "decisions" ? { "data-surface-hero": "" } : {})}>
           <QueryVisibilityRankings
             trends={data.executive?.searchQueries ?? null}
             asset={data.asset}
@@ -125,12 +126,12 @@ export function SearchTab({
         </div>
       ) : null}
 
-      <SearchContext snapshot={intelligence} hero={hero === "context"} />
+      <SearchContext key="context" snapshot={intelligence} hero={hero === "context"} />
 
       {/* What the panel buys is on Settings, with the spend meter. Search keeps
           the board, the evidence, which is what this tab is for. */}
 
-    </div>
+    </PurposeSections>
   );
 }
 

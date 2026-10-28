@@ -13,13 +13,13 @@ Tabs across the top, the same as on an asset's page, open on **General**. Each t
 
 ### General
 
-**Your view** is the first panel. It shows three choices, each with one line under it: **I run the business**, **I build the product** and **Everything**. The chosen view sets which pages the sidebar lists, which parts of Home are shown and in what order (see [Home](/tower/home#your-view)), and which tabs an asset's page shows. The choice changes nothing another person sees. A hosted workspace keeps it per person, so it is the same on every device you sign in on; a standalone installation keeps it in this browser. Search (**⌘K**) lists every page in every view.
+The shortcuts above the settings tabs follow the current purpose: Growth links to collection and alert rules; Revenue to budget, ownership and clock; Delivery to task projects and budget; Reliability to alert rules, collection and available installation settings. Switching purpose preserves the current tab and any draft fields.
 
-**At the top of Home** lists your picks from **What matters most?**, in the order you picked them, such as **Money · Costs**, or **Nothing picked**. Each pick moves its part of Home to the top when your view shows that part.
+**Your view** offers **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**, matching the global **View** bar. It changes each page's emphasis and context while keeping navigation, asset tabs and feature access stable. The choice changes nothing another person sees. A hosted workspace keeps it per person across signed-in devices; a standalone installation and the demo keep it in this browser.
 
-![The General tab of Settings in the synthetic demo: Your view with I run the business, I build the product and Everything, Everything chosen; At the top of Home with Nothing picked and Change; and Workspace default · new people and the TV start from, set to Everything, with a lock.](../images/tower-settings-your-view.webp)
+**At the top of Home** lists optional saved Home picks in order, such as **Money · Costs**, or **Nothing picked**. Each pick promotes a matching module when your view includes it. These advanced preferences are separate from the purpose choice.
 
-**Workspace default · new people and the TV start from** shows the view a person sees before choosing one, and the view whose preset the TV shows while no TV layout is saved ([TV dashboard](/tower/wall#what-you-see)): the saved view, or **Everything** when none is saved. It is stored in `config/tower.json` at `/view`.
+**Workspace default · for new people** shows the initial view for someone who has not chosen one: the saved purpose, or **Overview** when none is saved. It is stored in `config/tower.json` at `/view` and changes only through an explicit workspace save. The Wall uses its own layout, independent of this setting.
 
 **Time zone.** Every daily figure is calculated in one zone, including which date is yesterday's revenue and which month is current. Your device's zone is first in the list, marked **· this device**. The preview shows **Now**, **Yesterday's revenue** and **Current month** in the chosen zone.
 
@@ -69,7 +69,7 @@ Shown only when this installation manages members: where people are invited to t
 
 - **Your view**: choosing a view saves it at once, with **Saved · Undo** beside the choices. **Undo** puts back your previous view; when you had not chosen one before, it removes your choice and the workspace default applies again.
 - **At the top of Home**: **Change** shows the five picks, **Money**, **Visitors**, **Asset health**, **The agents' work** and **Costs**. Each press adds or removes one pick and saves it, with **Saved · Undo**. **Done** hides the picks.
-- **Workspace default**: **Change** shows the three views. Pressing one saves it for the whole workspace, with **Saved · Undo** beside the row. **Cancel** hides the views.
+- **Workspace default**: **Change** shows the five purpose views. Pressing one saves it for the whole workspace, with **Saved · Undo** beside the row. **Cancel** hides the views.
 - **Time zone**: picking a zone saves it, with **Saved · Undo** beside the field.
 - **Monthly data cap** and **Value of your time** have an explicit **Save**; they are never saved automatically.
 - **Alert rules**: change the three thresholds after reading the replay.

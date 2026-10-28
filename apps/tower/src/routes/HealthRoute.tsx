@@ -1,5 +1,6 @@
 import { FlowGraph } from "@/components/viz/FlowGraph";
 import { useWall } from "@/hooks/useWall";
+import { useView } from "@/hooks/useView";
 import { systemFlow } from "@/lib/system-flow";
 import { Link } from "react-router-dom";
 import { TabPanel } from "@/components/Tabs";
@@ -26,7 +27,7 @@ import {
   type UnblockerKind,
   unusedWithoutConnectPath,
 } from "@shared/integrations";
-import { laneProvider, laneStatus, type ConnectionKind } from "@shared/connection-status";
+import { CONNECTION_LABELS, laneProvider, laneStatus, type ConnectionKind } from "@shared/connection-status";
 import { legacyEnvProviders } from "@shared/integrations-page";
 import { ageMs, formatAge } from "@shared/freshness";
 import { evidenceInstant } from "@shared/signal-liveness";
@@ -48,6 +49,7 @@ import { useIntegrations } from "@/hooks/useIntegrations";
 import { useNow } from "@/hooks/useNow";
 import { formatPeriodMonth, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { connectionUrgency, SOURCE_CONTEXT, sourceInView } from "@/routes/operating-views";
 
 function FreshnessChart({
   sources,
@@ -127,6 +129,7 @@ function JobRuns({ nowMs }: { nowMs: number }) {
 }
 
 export function HealthRoute() {
+  const { choice } = useView();
   const { data, isPending, isError, refetch } = useIntegrations();
   const { providers, monitoring, credentials, items } = useConnections();
   const onEnv = legacyEnvProviders(providers.data);
@@ -144,6 +147,7 @@ export function HealthRoute() {
       <HealthNavigation />
       <TabPanel idBase="health-view" id="health-view-panel" activeKey="overview" className="space-y-6">
       <ServiceOverview dataCurrent={current} degraded={wiring?.failing ?? 0} unverified={wiring?.unchecked ?? 0} setup={wiring?.setup ?? 0} integrations={monitoring.status} />
+      {data && choice.view !== "overview" ? <HealthViewInputs matrix={data} credentials={credentials} items={items} nowMs={now} /> : null}
       <SystemMap credentials={credentials} items={items} nowMs={now} />
       <JobRuns nowMs={now} />
       <IntegrationHealthPanel data={monitoring.data} isError={monitoring.isError} nowMs={now} providers={providers.data?.providers} />
@@ -184,6 +188,49 @@ export function HealthRoute() {
       </StatusBanner>
       </TabPanel>
     </div>
+  );
+}
+
+function HealthViewInputs({ matrix, credentials, items, nowMs }: {
+  matrix: IntegrationsMatrix;
+  credentials: ReadonlyMap<string, CredentialSummary> | undefined;
+  items: IntegrationHealthItem[] | null;
+  nowMs: number;
+}) {
+  const { choice } = useView();
+  const context = SOURCE_CONTEXT[choice.view];
+  const lanes = lanesOf(matrix);
+  const rows = allCells(matrix).filter((cell) => sourceInView(cell.laneId, choice.view)).map((cell) => ({
+    cell,
+    status: laneStatus({ laneId: cell.laneId, assetId: cell.assetId, cell, scope: lanes.get(cell.laneId)?.scope, credentials, items, nowMs }),
+  })).filter(({ status }) => status.kind !== "not-applicable");
+  const working = rows.filter(({ status }) => status.kind === "working").length;
+  const attention = rows.filter(({ status }) => connectionUrgency(status.kind) > 0).length;
+  const unverified = rows.filter(({ status }) => status.kind === "unknown" || status.kind === "not-checked").length;
+  const shown = [...rows].sort((a, b) => connectionUrgency(b.status.kind) - connectionUrgency(a.status.kind)).slice(0, 5);
+  return (
+    <section aria-label={context.title} data-health-view={choice.view} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
+      <SectionLabel title={context.title} caption={context.detail} className="px-5 pt-4 pb-3" />
+      <KpiStrip columns={4}>
+        <Kpi label="Applicable sources" value={rows.length} caption="asset and source pairs" />
+        <Kpi label="Working" value={working} caption="observed successful collection" />
+        <Kpi label="Need attention" value={attention} valueTone={attention > 0 ? "warn" : "default"} caption="failing or overdue" />
+        <Kpi label="Unverified" value={unverified} caption="unknown or not checked" />
+      </KpiStrip>
+      {shown.length === 0 ? <p className="px-5 py-3 text-xs text-muted-foreground">No applicable sources are recorded for this purpose.</p> : (
+        <ul className="divide-y divide-border/60 px-5">
+          {shown.map(({ cell, status }) => (
+            <li key={`${cell.assetId}:${cell.laneId}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
+              <Link className="min-h-9 content-center underline underline-offset-4" to={`/assets/${encodeURIComponent(cell.assetId)}/sources`}>
+                {matrix.assets.find((asset) => asset.id === cell.assetId)?.displayName ?? cell.assetId} · {shortLaneName(cell.laneId, lanes.get(cell.laneId)?.label ?? cell.laneId)}
+              </Link>
+              <StateChip label={status.kind === "not-applicable" ? "Not applicable" : CONNECTION_LABELS[status.kind]} tone={status.kind === "failing" ? "critical" : status.kind === "overdue" ? "caution" : "na"} subject={`source:${cell.assetId}:${cell.laneId}`} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {rows.length > shown.length ? <p className="px-5 pb-3 text-xs text-muted-foreground">{rows.length - shown.length} more in Every source below.</p> : null}
+    </section>
   );
 }
 
@@ -327,6 +374,7 @@ function Layers({
   expiring: number | null;
   credentialCount: number;
 }) {
+  const { choice } = useView();
   const lanes = lanesOf(matrix);
   const statusOf = (cell: IntegrationCellBase): ConnectionKind | "not-applicable" =>
     laneStatus({ laneId: cell.laneId, assetId: cell.assetId, cell, scope: lanes.get(cell.laneId)?.scope, credentials, items, nowMs }).kind;
@@ -338,7 +386,10 @@ function Layers({
   }
   const applicable = cells.length - (counts["not-applicable"] ?? 0);
   const todo = otherSources(matrix);
-  const reports = lastReports(matrix, nowMs);
+  const reports = lastReports(matrix, nowMs).sort((a, b) => {
+    const urgency = (id: string) => Math.max(0, ...cells.filter((cell) => cell.laneId === id).map((cell) => connectionUrgency(statusOf(cell))));
+    return urgency(b.id) - urgency(a.id) || Number(sourceInView(b.id, choice.view)) - Number(sourceInView(a.id, choice.view)) || a.at.localeCompare(b.at);
+  });
   const spend = matrix.dataSpend;
   const atCap = spend.capUsd > 0 && spend.spentUsd >= spend.capUsd;
 

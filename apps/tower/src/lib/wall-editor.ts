@@ -40,6 +40,7 @@ import {
   type WallColumn,
   type WallColumnRow,
   type WallLayout,
+  type WallPresetId,
   type WallTvPreview,
   type WallWeatherSettings,
   type WallRow,
@@ -49,7 +50,6 @@ import {
   type WallWidgetSpec,
   type WallWidgetType,
 } from "@shared/wall-layout";
-import { VIEW_LIBRARY, type ViewId } from "@shared/views";
 
 export interface WallEditorState {
   /** What the operator is composing — what the preview draws. */
@@ -138,7 +138,7 @@ export type WallEditorAction =
   | { type: "redo" }
   /** Back to the saved layout, as one more step Undo can take back. */
   | { type: "discard" }
-  /** Start from another layout (a view's preset): one step Undo takes back,
+  /** Start from another layout (a Wall preset): one step Undo takes back,
    * unsaved until Save. */
   | { type: "replace"; layout: WallLayout }
   /** A newly saved layout arriving from the poll, or a Revert. */
@@ -306,7 +306,7 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
   if (JSON.stringify(before.tvPreview) !== JSON.stringify(after.tvPreview) && sameWallLayout({ ...before, tvPreview: undefined }, { ...after, tvPreview: undefined })) return "Updated TV preview settings";
   if ((before.tileTransparency ?? 0) !== (after.tileTransparency ?? 0) && sameWallLayout({ ...before, tileTransparency: 0 }, { ...after, tileTransparency: 0 })) return `Tile transparency ${after.tileTransparency ?? 0}%`;
   if ((before.tileSurfaces ?? true) !== (after.tileSurfaces ?? true) && sameWallLayout({ ...before, tileSurfaces: true }, { ...after, tileSurfaces: true })) return `Tile backgrounds and borders ${after.tileSurfaces === false ? "hidden" : "shown"}`;
-  // A layout that is exactly a view's preset was started from it.
+  // A layout that is exactly a Wall preset was started from it.
   const preset = sameWallLayout(before, after) ? undefined : wallPresetOf(after);
   if (preset) return `Started from ${preset.label}`;
   /** Where a widget is: its top-level row, its column there (if any), its
@@ -394,14 +394,17 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** The editor's Start from choices: each founder view's preset, by the
- * view's own label, in the views' order. */
-export function wallPresetOptions(): { view: ViewId; label: string; layout: WallLayout }[] {
-  return VIEW_LIBRARY.map((spec) => ({ view: spec.id, label: spec.label, layout: WALL_PRESETS[spec.id] }));
+/** Independent Wall arrangements offered by the editor. */
+export function wallPresetOptions(): { view: WallPresetId; label: string; layout: WallLayout }[] {
+  return [
+    { view: "business", label: "Health and decisions", layout: WALL_PRESETS.business },
+    { view: "product", label: "Revenue and visitors", layout: WALL_PRESETS.product },
+    { view: "everything", label: "Portfolio overview", layout: WALL_PRESETS.everything },
+  ];
 }
 
-/** The view whose preset this layout is, or null. */
-export function wallPresetOf(layout: WallLayout): { view: ViewId; label: string } | null {
+/** The preset matching this layout, or null. */
+export function wallPresetOf(layout: WallLayout): { view: WallPresetId; label: string } | null {
   const found = wallPresetOptions().find((option) => sameWallLayout(option.layout, layout));
   return found ? { view: found.view, label: found.label } : null;
 }

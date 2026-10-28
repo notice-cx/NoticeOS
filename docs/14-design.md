@@ -349,18 +349,25 @@ money chart.
 only line, so an empty list and a finished list look the same, and neither is
 a blank panel.
 
-**A person's view sets what the Tower draws first; every page exists in
-every view.** A person chooses one of three views on Home's first run ("Which
-describes you?") or in Settings → General → "Your view": "I run the
-business", "I build the product" or "Everything". The view sets the sidebar's
-entries, Home's modules and their order, and an asset's tabs; each "What
-matters most?" pick moves one Home module to the front. The registry is
-`packages/contract/src/views.mts` (`VIEW_LIBRARY`, `FOCUS_LIBRARY`) and
-`useView` reads it: the person's own choice, stored in the browser, else the
-workspace default (`config/tower.json` `/view`), else "Everything", which
-draws every page, module and tab. A page the view leaves out of the sidebar still opens: Search (⌘K)
-lists every page in every view and adds a "Switch to · \<view>" row for each
-other view, and a deep link opens a page whatever the view.
+**A person's view changes presentation throughout the Tower.** The five
+purposes are "Overview", "Growth", "Revenue", "Delivery" and "Reliability".
+A horizontal View bar below the header appears on every normal and demo
+page; on a phone it becomes a picker. It updates the current route in place,
+preserving the asset, selected tab, filters and open details. Every page
+changes its emphasis, summary context or supporting detail for the purpose.
+Navigation and asset tabs keep the same entries and order. View selection
+never gates features or vocabulary by skill level. The registry is
+`packages/contract/src/views.mts` (`VIEW_LIBRARY`); `useView` reads the personal
+choice, else the workspace default (`config/tower.json` `/view`), else
+"Overview". Hosted preferences belong to the person; standalone and demo
+preferences belong to the browser. Legacy choices normalize to Overview
+without rewriting stored workspace values until an explicit save.
+
+Home's optional "What do you want to focus on?" offers one purpose choice;
+"Skip" dismisses it without writing preferences. Onboarding never changes the
+workspace default. Settings retains optional advanced Home-order picks,
+independent of purpose. Search (⌘K) lists every page and the other four views.
+The Wall and its editor use an independent layout and have no View bar.
 
 **Home shows how the business is doing, what is broken and what needs the
 operator's attention**, in that order, each as a chart or graphic. A small muted label
@@ -392,13 +399,12 @@ narrow window or a portrait monitor gets a layout made for it instead of a
 squeezed desktop one.
 
 **Home is drawn from modules, in the order the person's view lists them**
-(`HOME_MODULES`, `routes/home/modules.tsx`); the paragraph above is the
-"Everything" view. "I run the business" draws Asset health, the money, the
-agents' week and the decisions; "I build the product" draws the money,
-visitors by channel, "Worth a look", the problems, the decisions and the
-assets. Each module keeps its own column span, and a list that holds a new
-module packs the grid densely, so a four-column module fills the space an
-eight-column one leaves.
+(`HOME_MODULES`, `routes/home/modules.tsx`). Overview shows the combined
+performance, work and decisions summary. Growth starts with visitors by
+channel; Revenue starts with money; Delivery starts with the agents' week;
+Reliability starts with Asset health. Existing advanced Home-order picks
+promote modules already included in that purpose. Each module retains its
+own column span and the grid fills available space.
 
 - **Asset health** (`HealthModule`) is one row per asset with five dots under
   "Up", "Speed", "Errors", "Search" and "Code", from `techHealth`
@@ -420,11 +426,11 @@ eight-column one leaves.
   the assets lack as a business, ranked: no income source, no data feeds, no
   task project, no code report, then the newest readings' opportunities. Each
   row's "Make a task" opens the task composer with the row as its title.
-- **In the business view the summary sentence starts with the assets'
+- **In Reliability the summary sentence starts with the assets'
   health**: "All 3 assets are fine.", or "2 of 3 assets are fine." and the asset
   most in need of a look with its first problem, red when that asset is down
-  and amber otherwise. The money follows, and the count of broken things is
-  drawn only when there is one.
+  and amber otherwise. The count of broken things is drawn only when there
+  is one.
 
 **An asset's Overview starts with the asset's health**: the header shows one
 health word (`siteHealth` in `lib/site-health.ts`, the same calculation Home,
@@ -600,25 +606,23 @@ the Wall's bottom and shows only whole entries. Asset-related entries use
 the asset's favicon as the primary icon, with an event-kind badge. The entry
 header shows the event label, the agent's small icon and model when present,
 and a clock time. The body allows three lines; commit and link evidence
-remains below it without a separate model row. This is the "Everything" preset,
+remains below it without a separate model row. This is the "Portfolio overview" preset,
 `DEFAULT_WALL_LAYOUT`. The loop, Last 24 hours, Asset health, the agents,
 Visitors by channel and Next up remain available in the widget library.
 
 Attention ticker uses a fixed 40 px strip and 18 px message text at 1080p. It scrolls every canonical Home problem and stored urgent task, with severity glyphs and linked titles. It pauses on pointer hover, focus or its pause control. Reduced motion uses a stationary horizontal list. The list includes assets hidden from Portfolio rows; an explicit ticker asset filter narrows it. The standard saved composition moves its attention row between Work and Portfolio without replacing metric settings. Custom compositions retain their positions. Portfolio uses slim asset headers and compact metric tiles to keep four assets visible.
 
-**Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
-"I run the business": the strip, "Next up" across the TV, then Asset health
-over the revenue beside Attention ticker over "The agents"; the decisions are
-the view's subject, and at the TV's full width "Next up" is at its shortest.
-"I build the product": the strip, then the
-revenue over "Visitors by channel" beside the asset rows over the work.
-"Everything": the default above. With no layout saved, the TV and the editor
-draw the preset of the workspace default view (`config/tower.json` `/view`);
-a saved layout always wins. The editor's Add a widget drawer holds "Start
-from", which lists the three presets by the view's label and checks the one
-already on the TV. Picking one replaces the whole arrangement as one step
-Undo reverses, nothing reaches the TV until Save, and a version saved as a
-preset with no note is named "Started from \<view>".
+**The Wall has independent editor presets** (`WALL_PRESETS` in
+`scripts/wall-layout.mts`). "Health and decisions" places the strip, Next up,
+Asset health, revenue, Attention ticker and The agents. "Revenue and visitors"
+places the strip, revenue, Visitors by channel, Portfolio and Work.
+"Portfolio overview" is the default composition above. Their stable
+`WallPresetId` keys are separate from the five purpose views. With no saved
+layout, the TV and editor use `DEFAULT_WALL_LAYOUT`. Personal preferences,
+workspace defaults and `?view=` never change the Wall, including in the demo.
+"Add a widget" → "Start from" lists these layouts and checks the current
+match. A selection replaces the draft as one undoable step; Save applies it.
+An unnamed preset version uses "Started from \<layout>".
 
 Asset health on the TV is one row per asset with the same five dots as Home's
 module and the worst problem's note beside the row, with "+N" for the row's
@@ -827,17 +831,15 @@ from its starting point to its result:
 - **File a task from a finding** — the asset page: File task on the finding,
   prefilled.
 - **File a task** — Tasks → New task.
-- **Choose a view on the first run** — fresh install, Home: a view under
-  "Which describes you?", one pick under "What matters most?", Continue; the
-  sidebar shows the view's five pages.
-- **Switch the view** — Settings → General → Your view: a view picked is saved
-  on change and the sidebar follows at once, then Undo.
-- **Read an asset's health, in the business view** — Settings → General → Your
-  view, "I run the business"; Home's Asset health row opens the asset; its
-  Health tab shows every fact's readings below the five words.
-- **See where the money comes from, in the product view** — Settings →
-  General → Your view, "I build the product"; Home shows the money by asset,
-  visitors by channel and "Worth a look"; "Make a task" on a row, File task.
+- **Choose a view on the first run** — fresh install, Home: one choice under
+  "What do you want to focus on?" saves the personal purpose. Skip dismisses
+  it without writes.
+- **Switch the view** — the global View bar or phone picker changes the
+  current page in place, with navigation and asset tabs preserved.
+- **Read an asset's health in Reliability** — choose Reliability; Home's Asset
+  health row opens the asset; its Health tab shows every fact's readings.
+- **See visitor opportunities in Growth** — choose Growth; Home shows visitors
+  by channel and Worth a look; Make a task on a row, File task.
 - **Change the time zone** — Settings → General: saved on change, then Undo.
 - **Change a portfolio setting** — Settings: the monthly data budget.
 - **Change how often data is collected** — Integrations → a source's Manage
@@ -852,8 +854,8 @@ from its starting point to its result:
 - **Arrange the TV Wall** — Edit beside the TV entry: on a desktop, drag a
   widget onto another's top edge to stack them; move the strip down through
   its Move menu (the phone's whole path); save.
-- **Start the TV from a view's preset** — Edit beside the TV entry: Add a
-  widget, Start from, "I run the business"; the preview shows Asset health;
+- **Start the TV from a Wall preset** — Edit beside the TV entry: Add a
+  widget, Start from, "Health and decisions"; the preview shows Asset health;
   Undo.
 - **Screen survey** — every main screen, populated: a pass that measures each
   page's statuses and lists, not a flow.
@@ -897,10 +899,10 @@ technical one, never a more technical one: a business surface shows "being
 watched · verdict in 3 days", not "watch window"; "still counting", not
 "provisional"; "people a day", not "GA4 users". A provider's name appears on a
 business surface only as a key beside its own mark: a chart key beside its
-line, or the header of its own column in a data-source grid. The "I run the
-business" view uses the business word level on every surface it shows, and
-the view choice itself, on Home's first run and in Settings, is written at the
-business level.
+line, or the header of its own column in a data-source grid. Purpose views
+do not change this vocabulary policy or classify a person by skill. Every
+view keeps the same words for the same facts. The purpose controls use plain
+labels and short descriptions.
 
 The enforced word lists are `scripts/ui-lexicon.test.mjs` (the banned
 coinages, each with the word to use instead, and the operational and technical

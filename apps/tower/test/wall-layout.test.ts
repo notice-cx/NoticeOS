@@ -134,8 +134,8 @@ describe("the default layout", () => {
   });
 });
 
-describe("the founder views' presets", () => {
-  it("draws the default for Everything", () => {
+describe("the independent Wall presets", () => {
+  it("uses the default for Portfolio overview", () => {
     expect(WALL_PRESETS.everything).toBe(DEFAULT_WALL_LAYOUT);
   });
 

@@ -1,17 +1,20 @@
 /**
- * The founder's view: which sidebar entries, Home modules, site tabs, TV
- * preset and word level a person sees. One registry read by the Tower, by the
+ * Purpose views set emphasis while retaining every navigation entry, asset
+ * tab and technical evidence. One registry read by the Tower, by the
  * config pipeline (the workspace default is a config document) and by the
  * tests. A view changes what is drawn first and never what is collected,
  * how outcomes are measured, or what another person sees.
  */
 
-export const VIEW_IDS = ["business", "product", "everything"] as const;
+export const VIEW_IDS = ["overview", "growth", "revenue", "delivery", "reliability"] as const;
+export const LEGACY_VIEW_IDS = ["business", "product", "everything"] as const;
+export type LegacyViewId = (typeof LEGACY_VIEW_IDS)[number];
+export type StoredViewId = ViewId | LegacyViewId;
 export type ViewId = (typeof VIEW_IDS)[number];
 
 /** What a fresh installation shows before anyone answers the question, and
- * what every existing installation keeps: today's screens. */
-export const DEFAULT_VIEW: ViewId = "everything";
+ * what an existing installation uses until a purpose is chosen. */
+export const DEFAULT_VIEW: ViewId = "overview";
 
 /** The sidebar entries, by path, in the sidebar's order. */
 export const VIEW_NAV_PATHS = [
@@ -28,9 +31,8 @@ export const VIEW_NAV_PATHS = [
 ] as const;
 export type ViewNavPath = (typeof VIEW_NAV_PATHS)[number];
 
-/** Home's modules. The first seven, in this order, are what the Everything
- * view draws; the rest are drawn only by the views that name them. `answer`
- * is the one-line summary every view keeps at the top. */
+/** Home's modules. The first seven, in this order, are what the Overview
+ * view draws; the rest are drawn only by the views that name them. */
 export const HOME_MODULES = [
   "money",
   "yesterday",
@@ -46,7 +48,7 @@ export const HOME_MODULES = [
 ] as const;
 export type HomeModuleId = (typeof HOME_MODULES)[number];
 
-/** The site page's tabs, in the Everything view's order. */
+/** The site page's tabs, in the Overview view's order. */
 export const SITE_TABS = [
   "overview",
   "growth",
@@ -102,35 +104,31 @@ export interface ViewSpec {
   wordLevel: WordLevel;
 }
 
-export const VIEW_LIBRARY: readonly ViewSpec[] = [
-  {
-    id: "business",
-    label: "I run the business",
-    detail: "Is my asset healthy and easy to find? In plain words.",
-    nav: ["/", "/assets", "/financials", "/tasks", "/settings"],
-    home: ["health", "money", "factory", "decide"],
-    siteTabs: ["overview", "journeys", "financials", "search", "health", "tasks", "settings"],
-    wordLevel: "business",
-  },
-  {
-    id: "product",
-    label: "I build the product",
-    detail: "Where does the money come from, and where do people drop off?",
-    nav: ["/", "/assets", "/alerts", "/tasks", "/financials", "/health", "/integrations", "/settings"],
-    home: ["money", "channels", "gaps", "problems", "decide", "sites"],
-    siteTabs: ["overview", "growth", "journeys", "financials", "search", "codebase", "health", "tasks", "sources", "settings"],
-    wordLevel: "operational",
-  },
-  {
-    id: "everything",
-    label: "Everything",
-    detail: "Every page and every figure.",
-    nav: [...VIEW_NAV_PATHS],
-    home: ["money", "yesterday", "agents", "decide", "problems", "sites", "timeline"],
-    siteTabs: [...SITE_TABS],
-    wordLevel: "technical",
-  },
+const PURPOSE_VIEWS: readonly Pick<ViewSpec, "id" | "label" | "detail" | "home">[] = [
+  { id: "overview", label: "Overview", detail: "Review performance, work and decisions.",
+    home: ["money", "yesterday", "agents", "decide", "problems", "sites", "timeline"] },
+  { id: "growth", label: "Growth", detail: "Find opportunities to reach and keep visitors.",
+    home: ["channels", "yesterday", "gaps", "problems", "decide", "sites"] },
+  { id: "revenue", label: "Revenue", detail: "Review earnings, costs and financial opportunities.",
+    home: ["money", "problems", "decide", "sites", "timeline"] },
+  { id: "delivery", label: "Delivery", detail: "Review work, progress and results.",
+    home: ["factory", "decide", "agents", "problems", "timeline"] },
+  { id: "reliability", label: "Reliability", detail: "Review health, failures and recovery.",
+    home: ["health", "problems", "decide", "timeline"] },
 ];
+
+export const VIEW_LIBRARY: readonly ViewSpec[] = PURPOSE_VIEWS.map((spec) => ({
+  ...spec, nav: [...VIEW_NAV_PATHS], siteTabs: [...SITE_TABS], wordLevel: "technical",
+}));
+
+/** Legacy identities have no equivalent purpose; all begin at Overview. */
+export function normalizeViewId(value: unknown): ViewId {
+  return isViewId(value) ? value : DEFAULT_VIEW;
+}
+
+export function isStoredViewId(value: unknown): value is StoredViewId {
+  return isViewId(value) || (typeof value === "string" && (LEGACY_VIEW_IDS as readonly string[]).includes(value));
+}
 
 export function isViewId(value: unknown): value is ViewId {
   return typeof value === "string" && (VIEW_IDS as readonly string[]).includes(value);
@@ -150,26 +148,29 @@ export function viewSpec(id: ViewId): ViewSpec {
 export interface ViewChoice {
   view: ViewId;
   focus: readonly FocusId[];
+  /** Read-only migration signal; never serialized into a new preference. */
+  needsPurposeChoice?: true;
 }
 
 export const DEFAULT_VIEW_CHOICE: ViewChoice = Object.freeze({ view: DEFAULT_VIEW, focus: [] });
 
 /**
- * A stored choice, read back: `{ "view": "business", "focus": ["money"] }`.
+ * A stored choice, read back: `{ "view": "revenue", "focus": ["money"] }`.
  * Anything else reads as nothing stored, never as a guess; an unknown focus
  * is dropped, an unknown view refuses the whole choice.
  */
 export function parseViewChoice(value: unknown): ViewChoice | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (!isViewId(record.view)) return null;
+  if (!isStoredViewId(record.view)) return null;
   const focus: FocusId[] = [];
   if (Array.isArray(record.focus)) {
     for (const one of record.focus) if (isFocusId(one) && !focus.includes(one)) focus.push(one);
   } else if (record.focus !== undefined) {
     return null;
   }
-  return { view: record.view, focus };
+  return { view: normalizeViewId(record.view), focus,
+    ...(record.view === "business" || record.view === "product" || record.needsPurposeChoice === true ? { needsPurposeChoice: true as const } : {}) };
 }
 
 /** The stored form of a choice, one line, keys in a fixed order. */
@@ -201,7 +202,7 @@ export const WORKSPACE_VIEW_POINTER = "/view";
 
 /** The workspace's default view as the document holds it: `{ "default": <id> }`. */
 export interface WorkspaceViewConfig {
-  default: ViewId;
+  default: StoredViewId;
 }
 
 /** A present `/view`, read whole: well formed, or refused with the reason. */
@@ -213,7 +214,7 @@ export function parseWorkspaceView(value: unknown): WorkspaceViewConfig {
   for (const key of Object.keys(record)) {
     if (key !== "default") throw new Error(`config/tower.json view.${key} is not a setting`);
   }
-  if (!isViewId(record.default)) {
+  if (!isStoredViewId(record.default)) {
     throw new Error(`config/tower.json view.default must be one of ${VIEW_IDS.join(", ")}`);
   }
   return { default: record.default };

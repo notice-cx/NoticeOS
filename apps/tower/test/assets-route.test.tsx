@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "./render";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { SiteDisplay } from "@shared/site-display";
@@ -24,6 +24,7 @@ vi.mock("@/hooks/useConnections", () => ({
   useConnections: () => ({ credentials: undefined, items: null }),
 }));
 
+import { ViewBar } from "@/components/ViewBar";
 import { AssetsRoute } from "@/routes/AssetsRoute";
 
 function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
@@ -155,14 +156,14 @@ function payload(assets: AssetCard[]): WallPayload {
   };
 }
 
-function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS, sites?: SiteDisplay) {
+function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS, sites?: SiteDisplay, controls = false) {
   const read = payload(assets);
   state.data = sites === undefined ? read : { ...read, dashboard: { ...read.dashboard, sites } };
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
         <Routes>
-          <Route path="/assets" element={<AssetsRoute />} />
+          <Route path="/assets" element={<>{controls ? <><ViewBar /><PathProbe /></> : null}<AssetsRoute /></>} />
           <Route path="/assets/*" element={<p>Asset page</p>} />
         </Routes>
       </MemoryRouter>
@@ -189,6 +190,7 @@ function pressed(group: string): string[] {
 afterEach(() => {
   state.data = null;
   state.isPending = false;
+  window.localStorage.clear();
 });
 
 describe("/assets — which asset needs attention, and how each is doing", () => {
@@ -489,5 +491,68 @@ describe("/assets — the comparison arrives with a second site", () => {
     expect(shownMachinery.order).not.toBeNull();
     expect(shownMachinery.stage).not.toBeNull();
     expect(shown(container)).toEqual(["meadow.example", "northwind.example"]);
+  });
+});
+
+function PathProbe() {
+  const location = useLocation();
+  return <output data-testid="portfolio-path">{location.pathname}{location.search}{location.hash}</output>;
+}
+
+function pickView(name: string) {
+  fireEvent.click(within(screen.getByRole("group", { name: "View" })).getByRole("button", { name }));
+}
+
+function comparisonColumns(container: HTMLElement): string[] {
+  return [...container.querySelectorAll('[role="columnheader"][data-portfolio-column]')].map((cell) => cell.getAttribute("data-portfolio-column")!);
+}
+
+describe("Portfolio purpose views", () => {
+  it("compares actual people, money and source evidence in different priorities", () => {
+    const { container } = renderAssets("/assets", [ASSETS[2]!, ASSETS[1]!, ASSETS[0]!], undefined, true);
+    pickView("Growth");
+    expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example"]);
+    expect(comparisonColumns(container)).toEqual(["people", "revenue", "share", "sources"]);
+    pickView("Revenue");
+    expect(pressed("Order")).toEqual(["Money"]);
+    expect(comparisonColumns(container)).toEqual(["revenue", "share", "people", "sources"]);
+    pickView("Reliability");
+    expect(pressed("Order")).toEqual(["Needs attention"]);
+    expect(comparisonColumns(container)).toEqual(["sources", "people", "revenue", "share"]);
+    expect(screen.getByTestId("portfolio-path")).toHaveTextContent("/assets");
+  });
+
+  it("retains filters, unrelated query state, and an explicit saved order across view changes", () => {
+    const { container } = renderAssets("/assets?status=live&health=at-risk&sort=seed&range=7#comparison", ASSETS, undefined, true);
+    pickView("Growth");
+    pickView("Revenue");
+    pickView("Reliability");
+    expect(shown(container)).toEqual(["northwind.example"]);
+    expect(pressed("Order")).toEqual(["Your order"]);
+    expect(screen.getByRole("combobox", { name: "Stage" })).toHaveValue("live");
+    expect(screen.getByTestId("portfolio-path")).toHaveTextContent("/assets?status=live&health=at-risk&sort=seed&range=7#comparison");
+    fireEvent.click(screen.getByRole("link", { name: "Clear" }));
+    expect(screen.getByTestId("portfolio-path")).toHaveTextContent("/assets?sort=seed&range=7");
+    expect(shown(container)).toEqual(ASSETS.map((asset) => asset.id));
+  });
+
+  it("records an explicit Your order press so a later purpose cannot replace it", () => {
+    const { container } = renderAssets("/assets", [ASSETS[2]!, ASSETS[0]!, ASSETS[1]!], undefined, true);
+    pickView("Growth");
+    fireEvent.click(within(screen.getByRole("group", { name: "Order" })).getByRole("button", { name: "Your order" }));
+    expect(screen.getByTestId("portfolio-path")).toHaveTextContent("sort=seed");
+    pickView("Reliability");
+    expect(shown(container)).toEqual(["acorn.example", "meadow.example", "northwind.example"]);
+  });
+
+  it("compares measured delivery counts and leaves unmeasured work unknown", () => {
+    const work = { open: 4, highPriority: null, inProgress: 2, blocked: 3, closedRecent: 5, priorities: null, capturedAt: "2026-08-01T11:00:00Z" };
+    const { container } = renderAssets("/assets", [ASSETS[2]!, { ...ASSETS[0]!, work }], undefined, true);
+    pickView("Delivery");
+    expect(shown(container)).toEqual(["meadow.example", "acorn.example"]);
+    expect(comparisonColumns(container)[0]).toBe("work");
+    expect(row(container, "meadow.example")).toHaveTextContent("2 in progress");
+    expect(row(container, "meadow.example")).toHaveTextContent("3 blocked · 5 done this week");
+    expect(row(container, "acorn.example")).toHaveTextContent("not measured");
   });
 });

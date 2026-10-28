@@ -35,6 +35,7 @@ import {
   type EnvImportAvailability,
   type EnvImportResult,
 } from "@shared/env-import";
+import { OperatingViewChoice } from "./operating-view-choice";
 
 // The API is mocked: these tests are the proof for the page's half of the
 // credential contract.
@@ -88,6 +89,7 @@ import { IntegrationsRoute } from "@/routes/IntegrationsRoute";
 import { componentAt } from "./route-table";
 
 beforeEach(() => {
+  window.localStorage.clear();
   payload.health = undefined;
   api.save.mockReset();
   api.remove.mockReset();
@@ -213,17 +215,57 @@ function page(
   };
 }
 
-function renderPage(data: IntegrationCredentialsPayload, at = "/integrations") {
+function renderPage(data: IntegrationCredentialsPayload, at = "/integrations", chooseView = false) {
   payload.data = data;
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[at]}>
         <IntegrationsRoute />
+        {chooseView ? <OperatingViewChoice /> : null}
         <CurrentAddress />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
+
+it("emphasizes relevant provider coverage while retaining the full catalog and severity first", () => {
+  const { container } = renderPage(page([
+    status("dataforseo", DATAFORSEO_FIELDS, {}),
+    status("mediavine", [], {}, [], { lanes: ["ad-network"] }),
+    status("discord", [], { source: "store", fields: ["WEBHOOK"], lastUsedAt: new Date(NOW).toISOString(), lastError: "Rejected" }, [], { lanes: ["discord-webhooks"] }),
+  ]), "/integrations", true);
+  const answer = container.querySelector("[data-integrations-answer]")?.textContent;
+  const providerIds = () => [...container.querySelectorAll("[data-integration-tile]")].map((row) => row.getAttribute("data-integration-tile"));
+  const providers = providerIds();
+  for (const view of ["growth", "revenue", "delivery", "reliability", "overview"]) {
+    fireEvent.click(screen.getByRole("button", { name: `Choose ${view}` }));
+    expect(container.querySelector("[data-integrations-answer]")?.textContent).toBe(answer);
+    expect(providerIds().sort()).toEqual([...providers].sort());
+    expect(providerIds()[0]).toBe("discord");
+    const focus = container.querySelector("[data-integration-view]");
+    if (view === "growth") expect(focus).toHaveTextContent(/dataforseo/i);
+    if (view === "revenue") expect(focus).toHaveTextContent(/mediavine/i);
+    if (view === "delivery") expect(focus).toHaveTextContent(/discord/i);
+    if (view === "overview") expect(focus).toBeNull();
+  }
+  window.localStorage.clear();
+});
+
+it("keeps a provider form and its draft when the purpose changes", () => {
+  renderPage(page([status("dataforseo", DATAFORSEO_FIELDS, {})]), "/integrations?provider=dataforseo&setup=page", true);
+  fireEvent.click(document.querySelector("[data-connect-toggle]") as HTMLElement);
+  const login = screen.getByLabelText(/^Login/);
+  const password = screen.getByLabelText(/^Password/);
+  fireEvent.change(login, { target: { value: "ops@example.com" } });
+  fireEvent.change(password, { target: { value: "synthetic-draft" } });
+  fireEvent.click(screen.getByRole("button", { name: "Choose revenue" }));
+  expect(screen.getByLabelText(/^Login/)).toBe(login);
+  expect(login).toHaveValue("ops@example.com");
+  expect(password).toHaveValue("synthetic-draft");
+  expect(screen.getByRole("heading", { name: /dataforseo/i })).toBeInTheDocument();
+  expect(api.save).not.toHaveBeenCalled();
+  window.localStorage.clear();
+});
 
 /** The address the route leaves the browser at, for the deep-link cases. */
 function CurrentAddress() {

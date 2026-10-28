@@ -1,4 +1,6 @@
 import { useId, useState, type ReactNode } from "react";
+import { useView } from "@/hooks/useView";
+import { prioritize, PurposeSections } from "./purpose-presentation";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { CodebaseMeasureKey, CodebaseReport, CodebaseSlice } from "@shared/codebase";
 import type { SignalTrend } from "@shared/wall";
@@ -59,6 +61,7 @@ import { timelineAnnotations } from "@/routes/asset-detail/shared";
  */
 export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">; nowMs: number }) {
   const slice = data.codebase;
+  const { view } = useView();
   const answerId = useId();
   const visitors = visitorsChange(data.performance.activeUsers);
   const answer = codebaseAnswer(slice, visitors);
@@ -78,12 +81,14 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
   const report = slice.latest.report;
   const today = new Date(nowMs).toISOString().slice(0, 10);
   const deploys = timelineAnnotations(data.annotations.items.filter((item) => item.kind === "deploy"));
-  const widgets = codebaseWidgets(slice);
+  const widgets = prioritize(codebaseWidgets(slice), view.id === "reliability"
+    ? ["vulnerable", "tests", "complex", "unused", "repeated", "size", "build", "testRun"]
+    : view.id === "delivery" ? ["tests", "complex", "unused", "repeated", "size", "build", "testRun", "vulnerable"] : []);
   const strip = (name: CodebaseWidget["strip"]) => widgets.filter((widget) => widget.strip === name);
 
   return (
-    <div className="@container flex flex-col gap-5" data-codebase="report">
-      <section data-surface-hero="" aria-labelledby={answerId} className="flex flex-col gap-4">
+    <PurposeSections surface="codebase" className="@container flex flex-col gap-5" data-codebase="report">
+      <section key="hero" data-surface-hero="" aria-labelledby={answerId} className="flex flex-col gap-4">
         <PageAnswer id={answerId} answer={answer.answer} detail={answer.detail} marks={{ "data-codebase-answer": "" }} />
         <Card className="overflow-hidden">
           <KpiStrip columns={5}>
@@ -103,10 +108,10 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
         </Card>
       </section>
 
-      <Languages report={report} />
+      <Languages key="languages" report={report} />
 
-      <Findings slice={slice} report={report} assetId={data.asset.id} site={data.asset.displayName} />
-    </div>
+      <Findings key="findings" slice={slice} report={report} assetId={data.asset.id} site={data.asset.displayName} />
+    </PurposeSections>
   );
 }
 

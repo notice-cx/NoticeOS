@@ -29,9 +29,9 @@ export interface DashboardConfig {
    */
   sites?: SiteDisplay;
   /**
-   * Optional: the view new people and the TV start from (`config/tower.json`
+   * Optional: the view new people start from (`config/tower.json`
    * at `/view`, read by `parseWorkspaceView`). Absent, the workspace starts
-   * on Everything, and a person's own choice still wins.
+   * on Overview, and a person's own choice still wins.
    */
   view?: WorkspaceViewConfig;
   /**

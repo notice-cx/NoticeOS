@@ -1,5 +1,5 @@
 /**
- * The founder's view: a typed re-export only. The runtime lives in
+ * The global view: a typed re-export only. The runtime lives in
  * `packages/contract/src/views.mts` so the config pipeline validates the
  * workspace default with the same list the Tower draws from.
  */
@@ -19,6 +19,8 @@ export {
   homeModulesFor,
   isFocusId,
   isViewId,
+  isStoredViewId,
+  normalizeViewId,
   parseViewChoice,
   parseWorkspaceView,
   serializeViewChoice,
@@ -33,6 +35,8 @@ export type {
   SiteTabId,
   ViewChoice,
   ViewId,
+  StoredViewId,
+  LegacyViewId,
   ViewNavPath,
   ViewSpec,
   WordLevel,

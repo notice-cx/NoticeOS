@@ -639,6 +639,7 @@ test('the workspace default view is written whole, with an id the Tower draws', 
   const write = (op) => validateSchemaAndSafety(changeset([op]));
   const set = (pointer, value, expect = null) => ({ kind: 'file-json-set', file: TOWER, pointer, expect, value });
 
+  for (const id of ['overview', 'growth', 'revenue', 'delivery', 'reliability']) write(set('/view', { default: id }));
   write(set('/view', { default: 'business' }));
   write(set('/view', { default: 'everything' }, { default: 'business' }));
   write({ kind: 'file-json-insert', file: TOWER, pointer: '/view', value: { default: 'product' } });
@@ -650,7 +651,7 @@ test('the workspace default view is written whole, with an id the Tower draws', 
     [set('/view', 'business'), /view, when present, must be an object/],
     [set('/view', ['business']), /view, when present, must be an object/],
     [set('/view', { default: 'business', focus: ['money'] }), /view\.focus is not a setting/],
-    [set('/view', { default: 'founder' }), /view\.default must be one of business, product, everything/],
+    [set('/view', { default: 'founder' }), /view\.default must be one of overview, growth, revenue, delivery, reliability/],
     [set('/view', {}), /view\.default must be one of/],
     [{ kind: 'file-json-insert', file: TOWER, pointer: '/view', value: { default: 'founder' } }, /view\.default must be one of/],
     [set('/view/default', 'business', 'everything'), /saved whole, at \/view, never in pieces/],

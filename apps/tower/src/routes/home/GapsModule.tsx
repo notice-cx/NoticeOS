@@ -1,6 +1,6 @@
 import type { AssetCard } from "@shared/wall";
 import { ListPanel, ListRow } from "@/components/surface/ListPanel";
-import { FileTaskButton } from "@/components/TaskComposer";
+import { FileTaskButton, type TaskComposerPrefill } from "@/components/TaskComposer";
 import { businessGaps } from "@/lib/business-gaps";
 import { formatInt } from "@/lib/format";
 
@@ -10,7 +10,7 @@ import { formatInt } from "@/lib/format";
  * Each row files a task through the same composer a finding files one with,
  * opened on the gap's site's project with the gap as its title.
  */
-export function GapsModule({ cards }: { cards: readonly AssetCard[] }) {
+export function GapsModule({ cards, onFileTask }: { cards: readonly AssetCard[]; onFileTask?: (prefill: TaskComposerPrefill) => void }) {
   const gaps = businessGaps(cards);
   return (
     <div data-home-gaps={gaps.length}>
@@ -27,6 +27,7 @@ export function GapsModule({ cards }: { cards: readonly AssetCard[] }) {
                 label="Make a task"
                 subject={gap.title}
                 prefill={{ ...(gap.siteId ? { project: gap.siteId } : {}), title: gap.title }}
+                onOpen={onFileTask ? () => onFileTask({ ...(gap.siteId ? { project: gap.siteId } : {}), title: gap.title }) : undefined}
               />
             }
           />

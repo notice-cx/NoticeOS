@@ -44,25 +44,23 @@ Weather data comes from [Open-Meteo](https://open-meteo.com/), with approximate 
 
 Select **Use full Wall layout** to replace a narrow saved arrangement with the full composition in the draft. The full composition shows four asset rows at a 1920×1080 viewport. **Undo** restores the previous arrangement; **Save** applies the new one. Opening the editor never replaces a saved arrangement automatically.
 
-## Start from a view's preset
+## Start from a Wall preset
 
-Each of the three views has a ready-made layout:
+The editor offers three independent ready-made layouts:
 
 | Start from | Layout |
 |---|---|
-| **I run the business** | **Top strip**, then **Next up** across the TV, then **Asset health** over **Revenue** on the left, beside **Attention ticker** over **The agents** on the right |
-| **I build the product** | **Top strip**, then **Revenue** over **Visitors by channel** on the left, beside **Portfolio** over **Work** on the right |
-| **Everything** | the default layout |
+| **Health and decisions** | **Top strip**, then **Next up** across the TV, then **Asset health** over **Revenue** on the left, beside **Attention ticker** over **The agents** on the right |
+| **Revenue and visitors** | **Top strip**, then **Revenue** over **Visitors by channel** on the left, beside **Portfolio** over **Work** on the right |
+| **Portfolio overview** | the default layout |
 
 1. Select **Add a widget**.
 2. Select **Start from**, beside the drawer's title.
-3. Select a view. The one already on the TV is ticked and cannot be selected.
+3. Select a layout. The one already on the TV is ticked and cannot be selected.
 
-![The TV layout page in a test installation with one asset: Add a widget open beside the copy of the TV, with the Start from menu listing I run the business, I build the product and Everything, Everything ticked.](../images/wall-start-from.webp)
+The whole arrangement on the TV copy is replaced by the preset. It is not on the TV until you select **Save**, and **Undo** puts back the arrangement you had. A version saved this way with no note is named **Started from Health and decisions**, or the layout you chose.
 
-The whole arrangement on the TV copy is replaced by the preset. It is not on the TV until you select **Save**, and **Undo** puts back the arrangement you had. A version saved this way with no note is named **Started from I run the business**, or the view you chose.
-
-Until any layout is saved, the TV shows the preset of the workspace's default view (Settings > General > **Your view**), and the editor opens on it.
+Until any layout is saved, the TV and editor use the default Wall composition. Personal views and workspace defaults never change the Wall, including in the demo.
 
 ## Move a widget
 
@@ -104,7 +102,7 @@ When rendered content clips, the widget shows **Too narrow for Portfolio** (or *
 ## Undo and save
 
 - **Undo** and **Redo** (⌘Z and ⇧⌘Z, or Ctrl on Windows and Linux) step through every change since you opened the page, a whole resize drag as one step. **Discard** goes back to what is on the TV, and can itself be undone.
-- In **Version note**, type a note if you want one. Leave it empty and the version is named by what changed, or **Started from \<view>** when the layout is a view's preset.
+- In **Version note**, type a note if you want one. Leave it empty and the version is named by what changed, or **Started from \<layout>** when the layout is a Wall preset.
 - Select **Save**. The bar shows **On the TV** again, and the TV redraws the next time it refreshes its data.
 
 If you leave the page with unsaved changes, you are asked to confirm first.

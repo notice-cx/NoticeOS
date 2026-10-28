@@ -76,30 +76,31 @@ refused by every door that could write one — `pnpm config:apply`, the Worker's
 the validator's own sentence, and fails the build if it lands by any other
 route.
 
-## Default view — `null` until somebody picks one
+## Default view — `null` until explicitly saved
 
-`view` holds the view a new person and the TV start from:
-`{ "default": "business" | "product" | "everything" }`. The list of views and
-the reader are [`packages/contract/src/views.mts`](../packages/contract/src/views.mts),
-with [`apps/tower/shared/views.ts`](../apps/tower/shared/views.ts) as the
-typed re-export.
+`view` holds the initial purpose for a person with no personal choice:
+`{ "default": "overview" | "growth" | "revenue" | "delivery" | "reliability" }`.
+The registry and reader are
+[`packages/contract/src/views.mts`](../packages/contract/src/views.mts), with
+[`apps/tower/shared/views.ts`](../apps/tower/shared/views.ts) as the typed
+re-export. Legacy `business`, `product` and `everything` values remain readable
+and normalize to Overview without changing the stored value until an explicit save.
 
-**`null` or no key at all both mean no default has been saved**, and the
-Tower shows the Everything view, which is every page and every figure. The
-shipped file holds `"view": null`, and a stored `null` reads as absent the
-same way it does for `wall` (`readsAsUnsaved`).
+**`null` or no key means no default has been saved**, so the Tower starts in
+Overview. The shipped file holds `"view": null`; a stored `null` reads as
+absent (`readsAsUnsaved`). The Wall uses its own saved layout or
+`DEFAULT_WALL_LAYOUT`, independently of this setting.
 
-It is written from **Settings** → **General** → **Your view** and by the
-first-run step that asks which view to start from. Both save the whole value
-at the `/view` pointer, which is declared in `ADDABLE_DOCUMENTS`
-(`scripts/config-documents.mts`) exactly as narrowly as `/wall` is: this
-file, this pointer, nothing under it. Every write door checks the value with
-`parseWorkspaceView` and refuses a value that is not an object, a key other
-than `default`, or an id not in the list, with the parser's sentence.
+Only **Settings** → **General** → **Workspace default · for new people** writes
+this document. Home onboarding and the global View bar save the person's
+preference without changing it. The explicit workspace save replaces the
+whole value at `/view`, declared in `ADDABLE_DOCUMENTS`
+(`scripts/config-documents.mts`). Every write path checks it with
+`parseWorkspaceView`, which rejects extra keys and unrecognized IDs.
 
-A view changes which pages and figures are drawn first. It does not change
-what is collected, how outcomes are measured or what another person's own
-choice shows.
+Views change page emphasis, context and supporting details. Navigation,
+asset tabs, collection and measurements stay stable, and each person's
+choice remains independent.
 
 ## Where each asset shows — `sites`
 

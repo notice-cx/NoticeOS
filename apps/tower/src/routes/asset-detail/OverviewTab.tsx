@@ -1,3 +1,4 @@
+import { MEASURE_PRIORITY, prioritize, PurposeSections } from "./purpose-presentation";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -83,6 +84,7 @@ import { DailyMeasureChart } from "@/components/viz/DailyMeasureChart";
 import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
 import { SourceHistory } from "@/components/viz/SourceHistory";
 import { sourceHistoryHeadline, sourceHistoryRowSummary } from "./source-history-presentation";
+import { useView } from "@/hooks/useView";
 import { useRange } from "@/routes/asset-detail/useRange";
 import { ReadbackLink, watchRef } from "@/routes/asset-detail/WatchComposer";
 import { askFace } from "@/routes/tasks/task-face";
@@ -105,6 +107,7 @@ export function OverviewTab({
   onWatch: (seed: WatchSeed) => void;
 }) {
   const { days } = useRange();
+  const { view } = useView();
   const assetTabPath = useAssetTabPath();
   const [allFindings, setAllFindings] = useState(false);
   const [picked, setPicked] = useState<MeasureKey | null>(null);
@@ -134,7 +137,7 @@ export function OverviewTab({
   const reportLate = reportCell?.state === "failing" || reportCell?.state === "overdue";
   const history = sourceHistory(data, sourceRow, sourceColumns([card]), revenueCalendarDate(new Date(nowMs), data.osTimeZone));
 
-  const measures = overviewMeasures(data, days, nowMs, reportLate);
+  const measures = prioritize(overviewMeasures(data, days, nowMs, reportLate), MEASURE_PRIORITY[view.id]);
   const charted = chartedMeasure(measures, picked, nowMs);
   // A site with no daily traffic, revenue or product analytics but a rolling
   // session report or a weekly ranking keeps that report beside its numbers.
@@ -159,11 +162,11 @@ export function OverviewTab({
     }));
 
   return (
-    <div className="@container flex flex-col gap-5" data-site-overview="">
+    <PurposeSections surface="overview" className="@container flex flex-col gap-5" data-site-overview="">
       {/* `#setup` lands here (`HASH_TAB`): the checklist is on Sources, so the
           banner saying where it is is what a deep link scrolls to. */}
       {setup ? (
-        <div id="setup" className="scroll-mt-4">
+        <div key="setup" id="setup" className="scroll-mt-4">
           <StatusBanner
             lead="Data setup"
             subject={`asset-setup:${data.asset.id}`}
@@ -185,10 +188,10 @@ export function OverviewTab({
       {/* The verdict line: three facts joined by dots under the header's
           verdict word, money, alerts, bets, each from the read this tab
           already makes. Never a sentence. */}
-      <VerdictLine money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
+      <VerdictLine key="verdict" money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
 
       {measures.length > 0 || (report.kind !== "clarity" && report.kind !== "rankings") ? (
-        <Numbers
+        <Numbers key="numbers"
           data={data}
           measures={measures}
           charted={charted}
@@ -197,9 +200,9 @@ export function OverviewTab({
           onPick={setPicked}
         />
       ) : null}
-      {report.kind === "clarity" || report.kind === "rankings" ? <SiteLead data={data} days={days} nowMs={nowMs} /> : null}
+      {report.kind === "clarity" || report.kind === "rankings" ? <SiteLead key="lead" data={data} days={days} nowMs={nowMs} /> : null}
 
-      <div className="grid gap-5 @6xl:grid-cols-12 [&>*]:min-w-0">
+      <div key="sources" className="grid gap-5 @6xl:grid-cols-12 [&>*]:min-w-0">
         <SourceHistory
           rows={history.rows.map((row) => ({ ...row, summary: sourceHistoryRowSummary(row) }))}
           headline={sourceHistoryHeadline(history.rows, nowMs)}
@@ -221,7 +224,7 @@ export function OverviewTab({
         ) : null}
       </div>
 
-      <div className="grid gap-5 @4xl:grid-cols-2 [&>*]:min-w-0">
+      <div key="work" className="grid gap-5 @4xl:grid-cols-2 [&>*]:min-w-0">
         <NeedsYou assetId={data.asset.id} operator={data.operator} nowMs={nowMs} />
         {/* `#insights` is the findings' saved anchor; it names the panel. */}
         <div id="insights" className="min-w-0 scroll-mt-4">
@@ -234,20 +237,20 @@ export function OverviewTab({
         </div>
       </div>
 
-      <div className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
+      <div key="bets" className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
         <Bets watches={data.watches} beads={data.handoffBeads} assetId={data.asset.id} nowMs={nowMs} />
         <SearchMovers trends={data.executive?.searchQueries ?? null} assetId={data.asset.id} />
       </div>
 
       {/* The product figure the hero row leads with is not stated twice. */}
-      <ProductUse assetId={data.asset.id}
+      <ProductUse key="product" assetId={data.asset.id}
         metrics={data.metrics.filter((metric) => metric.name !== product?.metric)}
         reportDate={data.wiring.lastPulseDate} receivedAt={data.wiring.lastPulseReceivedAt} nowMs={nowMs} />
 
-      <SiteTotals counters={data.counters} nowMs={nowMs} />
+      <SiteTotals key="totals" counters={data.counters} nowMs={nowMs} />
 
       {data.executive && data.executive.items.length > 0 ? (
-        <details
+        <details key="findings"
           open={allFindings}
           onToggle={(event) => setAllFindings(event.currentTarget.open)}
           data-all-findings
@@ -274,7 +277,7 @@ export function OverviewTab({
 
       {/* No "about these numbers": each fact is drawn on the surface that
           owns it. */}
-    </div>
+    </PurposeSections>
   );
 }
 

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 export interface WallLibraryPanelProps {
   layout: WallLayout;
   onAdd: (type: WallWidgetType) => void;
-  /** Replace the whole arrangement with a view's preset; absent offers no
+  /** Replace the whole arrangement with a Wall preset; absent offers no
    * Start from. */
   onStart?: (layout: WallLayout, label: string) => void;
   /** Close the drawer; absent where the library is always shown. */
@@ -29,7 +29,7 @@ export interface WallLibraryPanelProps {
  * it shows now. An offered widget is dragged onto the TV, where its landing
  * line shows where it goes, or added with one press to the spot that suits
  * it; a refused one shows why in the button's place ("On the TV" or "TV
- * full"). Start from replaces the whole arrangement with a view's preset,
+ * full"). Start from replaces the whole arrangement with a Wall preset,
  * one step Undo takes back.
  */
 export function WallLibraryPanel({
@@ -69,7 +69,7 @@ export function WallLibraryPanel({
 }
 
 /**
- * Start from: each view's preset as one menu item, by the view's own label.
+ * Start from: each independent Wall preset as one menu item.
  * The one the TV already shows is checked and not offered.
  */
 function StartFrom({

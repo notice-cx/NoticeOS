@@ -1,3 +1,4 @@
+import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Route, RouterProvider, Routes, createMemoryRouter, useLocation } from "react-router-dom";
@@ -245,6 +246,7 @@ function renderBoard({
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[entry]}>
+        <ExecutionViewSwitch />
         <Routes>
           <Route path="/tasks/:id" element={<TaskDestination />} />
           {/* The board is the All tasks tab; a filtered `/tasks` link forwards there. */}
@@ -344,6 +346,7 @@ function answerLine(container: HTMLElement): string {
 }
 
 afterEach(() => {
+  window.localStorage.clear();
   resetTaskSourceMock();
   state.work = null;
   state.isPending = false;
@@ -2670,4 +2673,18 @@ it("keeps an asset search pinned despite a conflicting URL project and after Cle
   expect(row(container, "md-1w2")).toBeInTheDocument();
   expect(container.querySelector("[data-tasks-board]")).toHaveAttribute("data-tasks-board", "meadow.example");
   expect(screen.queryByRole("combobox", { name: "Project" })).toBeNull();
+});
+
+it('retains task filters, explicit tab and unsaved composer values across purpose views', () => {
+  renderBoard({ live: true, boards: { 'meadow.example': board([liveTask()]) }, entry: '/tasks/all?project=meadow.example&status=open&priority=all&new=1' });
+  const title = screen.getByRole('textbox', { name: 'Title' });
+  fireEvent.change(title, { target: { value: 'Keep the draft while reviewing evidence' } });
+  for (const view of ['growth', 'revenue', 'delivery', 'reliability', 'overview']) {
+    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
+    expect(screen.getByRole('textbox', { name: 'Title' })).toBe(title);
+    expect(title).toHaveValue('Keep the draft while reviewing evidence');
+    expect(screen.getByRole('tab', { name: /^All tasks/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/tasks/all?project=meadow.example&status=open&priority=all&new=1');
+  }
+  expect(api.createTask).not.toHaveBeenCalled();
 });

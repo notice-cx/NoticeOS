@@ -1,3 +1,4 @@
+import { PurposeSections } from "./purpose-presentation";
 import { useDemoReadonly } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { Ban, Check } from "lucide-react";
@@ -105,35 +106,35 @@ export function SourcesTab({
     />
   );
   return (
-    <div className="flex flex-col gap-3.5">
-      <SavesPaused />
+    <PurposeSections surface="sources" className="flex flex-col gap-3.5">
+      <SavesPaused key="paused" />
       {/* The hero is whichever block answers the tab's question TODAY. While the
           asset is still being set up that is what is still owed; once it is live
           there is no checklist at all, and the question becomes "are my sources
           working". */}
-      <Hero>{sources}</Hero>
+      <Hero key="sources">{sources}</Hero>
       {/* Closed on arrival, a new site's included: each source row above
           already carries its own Connect, so the checklist is the count, not
           the next step. */}
-      {setup ? <SetupChecklistPanel setup={setup} /> : null}
+      {setup ? <SetupChecklistPanel key="setup" setup={setup} /> : null}
       {data.scheduledLanes !== null ? (
-        <ScheduledLanesPanel lanes={data.scheduledLanes} nowMs={nowMs} />
+        <ScheduledLanesPanel key="scheduled" lanes={data.scheduledLanes} nowMs={nowMs} />
       ) : null}
       {/* Only a site whose report the OS fetches has fetches to fail. */}
-      {data.wiring.pull ? <FetchFailuresPanel failures={data.fetchFailures} nowMs={nowMs} /> : null}
+      {data.wiring.pull ? <FetchFailuresPanel key="failures" failures={data.fetchFailures} nowMs={nowMs} /> : null}
       {/* Nothing to show until the first nightly report: its absence is the
           header's "Nightly report · never" and the Nightly report source row,
           so an empty panel here would say it a third time. */}
       {data.metrics.length > 0 || data.freshness.pulseReceivedAt !== null ? (
-        <PulseMetricsSection
+        <PulseMetricsSection key="metrics"
           metrics={data.metrics}
           reportDate={data.wiring.lastPulseDate}
           pulseReceivedAt={data.freshness.pulseReceivedAt}
           nowMs={nowMs}
         />
       ) : null}
-      <SiteHealthSection hygiene={data.hygiene} nowMs={nowMs} />
-    </div>
+      <SiteHealthSection key="health" hygiene={data.hygiene} nowMs={nowMs} />
+    </PurposeSections>
   );
 }
 

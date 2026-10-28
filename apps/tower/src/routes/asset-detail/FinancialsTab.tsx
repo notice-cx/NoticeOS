@@ -1,3 +1,4 @@
+import { PurposeSections } from "./purpose-presentation";
 import { useId } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { revenueCalendarDate, revenueNoun, revenueTimeZone, siteRevenueWindow } from "@shared/daily-revenue";
@@ -31,9 +32,9 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
   // never moves: the newest day the source owes.
   const estimateMonth = history.to.slice(0, 7);
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <PurposeSections surface="financials" className="flex min-w-0 flex-col gap-5">
       {money && equation ? (
-        <SiteMonth
+        <SiteMonth key="month"
           money={money}
           equation={equation}
           forecast={forecastBeside(data, money)}
@@ -43,14 +44,14 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
           lastMonth={siteLastMonth(data.ledger, equation)}
         />
       ) : (
-        <PageAnswer answer="No money recorded yet" marks={{ "data-surface-hero": "", "data-site-money-answer": "none" }} />
+        <PageAnswer key="month" answer="No money recorded yet" marks={{ "data-surface-hero": "", "data-site-money-answer": "none" }} />
       )}
       {/* The month's figures are the hero's; the panel draws the range. */}
-      <DailyRevenuePanel history={history} range={days} totals={false} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
-      <div id="pnl"><div id="ledger">
+      <DailyRevenuePanel key="daily" history={history} range={days} totals={false} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
+      <div key="ledger" id="pnl"><div id="ledger">
         <AssetLedger ledger={data.ledger} ledgerRecordedAt={data.freshness.ledgerRecordedAt} nowMs={nowMs} />
       </div></div>
-    </div>
+    </PurposeSections>
   );
 }
 

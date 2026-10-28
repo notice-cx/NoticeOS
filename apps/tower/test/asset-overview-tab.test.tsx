@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { AssetDetailPayload } from "@shared/asset-detail";
 import { shiftLabel } from "@shared/surface";
 import type { SeriesPoint } from "@shared/wall";
+import { ViewBar } from "@/components/ViewBar";
 import { AssetDetailRoute } from "@/routes/AssetDetailRoute";
 import { leadMetric } from "@/routes/asset-detail/overview-metrics";
 import { everyTabPayload } from "./asset-detail-fixture";
@@ -299,7 +300,7 @@ function LocationProbe() {
   return <span data-testid="url" data-return-to={location.state?.returnTo}>{`${location.pathname}${location.search}`}</span>;
 }
 
-function renderOverview() {
+function renderOverview(controls = false) {
   return render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
@@ -311,6 +312,7 @@ function renderOverview() {
             path="/assets/:id/:tab?"
             element={
               <>
+                {controls ? <ViewBar /> : null}
                 <AssetDetailRoute />
                 <LocationProbe />
               </>
@@ -1045,5 +1047,26 @@ describe("Asset Overview — the two lists", () => {
     const empty = matters.lastElementChild as HTMLElement;
     expect(empty.textContent).toBe(state);
     expect(matters.textContent).not.toMatch(/archive analysis|has not run|in this saved analysis/u);
+  });
+});
+
+describe("Asset Overview purpose emphasis", () => {
+  it("reorders real metrics while keeping the asset, range and explicit chart selection", async () => {
+    const { container } = renderOverview(true);
+    await screen.findByRole("tablist");
+    const metrics = () => [...container.querySelectorAll("[data-overview-numbers] [data-measure]")].map((node) => node.getAttribute("data-measure"));
+    const pick = (name: string) => fireEvent.click(within(screen.getByRole("group", { name: "View" })).getByRole("button", { name }));
+    pick("Growth");
+    expect(metrics()[0]).toBe("people");
+    const search = measure(container, "search");
+    fireEvent.click(search);
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "search");
+    pick("Revenue");
+    expect(metrics()[0]).toBe("money");
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "search");
+    pick("Reliability");
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "search");
+    expect(container.querySelector("[data-source-history]")!.compareDocumentPosition(container.querySelector("[data-overview-numbers]")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("url")).toHaveTextContent("/assets/meadow.example");
   });
 });

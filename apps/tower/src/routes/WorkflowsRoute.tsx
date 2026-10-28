@@ -1,3 +1,6 @@
+import { useView } from "@/hooks/useView";
+import type { ViewId } from "@shared/views";
+import { WorkflowViewEvidence, workflowDefaultSort, workflowViewFigures } from "./workflows/workflow-view";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { BackupExecutionDetails, BackupRunDetails } from './workflows/BackupRunDetails';
@@ -50,9 +53,9 @@ export function workflowsAnswer(states: readonly WorkflowState[], noun: string):
   return { answer: `No ${noun} need attention`, detail: tally(['running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'clear' };
 }
 
-function WorkflowsAnswer({ states, noun }: { states: readonly WorkflowState[]; noun: string }) {
+function WorkflowsAnswer({ states, noun, view }: { states: readonly WorkflowState[]; noun: string; view: ViewId }) {
   const answer = workflowsAnswer(states, noun);
-  return <PageAnswer answer={answer.answer} detail={answer.detail || undefined} marks={{ 'data-workflows-answer': answer.mark }} />;
+  return <PageAnswer answer={answer.answer} detail={answer.detail || undefined} figures={workflowViewFigures(view, states)} marks={{ 'data-workflows-answer': answer.mark }} />;
 }
 
 function NextRun({ workflow, data, showCadence = true }: { workflow: WorkflowDefinition; data: WorkflowsPayload; showCadence?: boolean }) {
@@ -75,6 +78,7 @@ export default function WorkflowsRoute({ surface = 'workflow' }: { surface?: Wor
 }
 
 function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: WorkflowSurface }) {
+  const { view } = useView();
   const system = surface === 'system';
   const base = workflowBasePath(surface);
   const noun = system ? 'operations' : 'workflows';
@@ -84,7 +88,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
   const filter = search.get('state') ?? 'all';
   const term = search.get('q') ?? '';
   const group = search.get('group') ?? 'all';
-  const sort = search.get('sort') ?? 'latest';
+  const sort = search.get('sort') ?? workflowDefaultSort(view.id);
   const grouped = search.get('view') !== 'flat';
   const setFilter = (key: string, value: string) => { const next = new URLSearchParams(search); if (!value || value === 'all') next.delete(key); else next.set(key, value); setSearch(next, { replace: key === 'q' }); };
   const data = query.data ? { ...query.data, runtimeFresh: query.data.runtimeFresh && !query.isError && now - Date.parse(query.data.generatedAt) < 45_000 } : undefined;
@@ -120,7 +124,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
       <RuntimeNotice data={data} />
       {/* The one answer: what needs you, else that nothing does, with the
           rest counted once in the states' own words. */}
-      <WorkflowsAnswer states={all.map((row) => row.state)} noun={noun} />
+      <WorkflowsAnswer states={all.map((row) => row.state)} noun={noun} view={view.id} />
       <Tabs label={system ? 'Operation views' : 'Workflow views'} idBase="workflow-view" panelId="workflow-view-panel" tabs={[{ key: 'overview', to: `${base}${suffix}`, label: 'Activity', end: true }, { key: 'schedule', to: `${base}/schedule${suffix}`, label: 'Schedule', end: true }]} />
       <TabPanel idBase="workflow-view" id="workflow-view-panel" activeKey={tab}>
         <div className="space-y-4">
@@ -169,6 +173,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
 }
 
 function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface }) {
+  const { view } = useView();
   const ExecutionContainer = id === 'backup' ? BackupExecutionDetails : Fragment;
   const demoReadonly = useDemoReadonly();
   const base = workflowBasePath(surface);
@@ -206,6 +211,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     {!data && query.isError ? <ReadFailed title={`Couldn't load this ${surface === 'system' ? 'operation' : 'workflow'}`} subject={`read:${surface === 'system' ? 'operation' : 'workflow'}`} error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />
       : !data || !summary ? <p className="text-sm text-muted-foreground">Loading workflow…</p> : <>
       <RuntimeNotice data={data} />
+      <WorkflowViewEvidence view={view.id} run={selected ?? null} />
       {id === 'backup' && <BackupRunDetails run={selected} captured={data.backup} pending={query.isPlaceholderData || Boolean(defaultRun && !runId)} />}
       <div className="flex flex-wrap items-start justify-between gap-4 border-y border-border py-4">
         <div className="flex flex-wrap gap-x-10 gap-y-3"><div><p className="mb-1 text-xs text-muted-foreground">{definition.triggerKind === 'event' ? 'Recovery check · Local time' : 'Schedule · Local time'}</p><p className="text-sm font-medium tabular-nums">{saved?.enabled ? scheduleLabel(saved.cron, scheduleTimezone(saved)) : 'Paused'}</p></div><div><p className="mb-1 text-xs text-muted-foreground">{definition.triggerKind === 'event' ? 'Trigger' : 'Next execution'}</p><NextRun workflow={definition} data={data} showCadence={false} /></div><div><p className="mb-1 text-xs text-muted-foreground">Category</p><p className="text-sm">{definition.group}</p></div></div>
