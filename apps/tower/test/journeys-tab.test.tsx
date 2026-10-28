@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "./render";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { JourneyMonitorProps } from "@/components/JourneyMonitor";
 import { JourneysTab } from "@/routes/asset-detail/JourneysTab";
@@ -6,6 +6,7 @@ import { JOURNEY_DEMO_DEFINITIONS } from "@/routes/kitchen-sink/journey-fixture"
 import { everyTabPayload } from "./asset-detail-fixture";
 
 const calls = vi.hoisted(() => ({ save: vi.fn(), seed: vi.fn() }));
+vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: undefined }) }));
 vi.mock("@/hooks/useConfigSave", () => ({ useFieldConfigSave: () => calls.save }));
 vi.mock("@/hooks/useCollectionSave", () => ({ useFieldCollectionSave: () => calls.seed }));
 vi.mock("@/hooks/useConfigWritable", () => ({ useConfigWritable: () => ({ writable: true, reason: null }) }));
