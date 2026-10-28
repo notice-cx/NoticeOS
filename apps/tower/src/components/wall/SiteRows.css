@@ -59,6 +59,7 @@
 
 .wall-portfolio .wall-metric-today:not(.wall-metric-number) { height: auto; min-height: var(--metric-height); padding: .375rem; gap: .125rem; }
 .wall-metric-today:not(.wall-metric-number) .wall-metric-main { flex-wrap: wrap; align-items: center; row-gap: 0; }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-secondary { flex: 1 1 0; min-width: min-content; }
 .wall-metric-today:not(.wall-metric-number) .wall-metric-primary { flex: none; flex-direction: row; align-items: center; gap: var(--metric-gap); }
 .wall-metric-today:not(.wall-metric-number) .wall-metric-value { flex: none; }
 .wall-metric-today:not(.wall-metric-number) .wall-metric-primary > .wall-metric-note { max-width: 5em; }
