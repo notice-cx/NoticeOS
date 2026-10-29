@@ -39,6 +39,8 @@
   .wall-portfolio .wall-metric { --metric-height: 8.25rem; --metric-padding: .625rem; --metric-gap: .25rem; --metric-value-size: 2.25rem; --metric-chart-height: 1.75rem; }
 }
   .wall-root[data-wall-compact] .wall-portfolio .wall-metric {
+    /* Wrapped facts keep their label floors and readable chart height. */
+    --metric-height: max(8.25rem, calc(7.5rem / var(--wall-scale, 1)));
     --metric-padding: .625rem;
     --metric-gap: .25rem;
     --metric-title-size: max(1.0625rem, calc(12px / var(--wall-scale, 1)));
@@ -54,3 +56,19 @@
   .wall-portfolio-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); width: 100%; }
   .wall-portfolio-metrics > .wall-metric, .wall-portfolio-metrics > [data-live], .wall-portfolio-metrics > [data-site-work] { width: 100%; }
 }
+
+.wall-portfolio .wall-metric-today:not(.wall-metric-number) { height: auto; min-height: var(--metric-height); padding: .375rem; gap: .125rem; }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-main { flex-wrap: wrap; align-items: center; row-gap: 0; }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-secondary { flex: 1 1 0; min-width: min-content; }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-primary { flex: none; flex-direction: row; align-items: center; gap: var(--metric-gap); }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-value { flex: none; }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-primary > .wall-metric-note { max-width: 5em; }
+.wall-portfolio .wall-metric-today .wall-site-chart { min-height: calc(21px / var(--wall-scale, 1)); }
+
+.wall-root[data-wall-compact] .wall-metric-today:not(.wall-metric-number) { padding: .25rem; gap: .0625rem; }
+@container wall (width >= 80rem) {
+  .wall-metric-today:not(.wall-metric-number) .wall-metric-value { font-size: 2rem; }
+}
+
+.wall-metric-today:not(.wall-metric-number) .wall-metric-title > span:first-of-type { flex: none; overflow: visible; }
+.wall-metric-today:not(.wall-metric-number) .wall-metric-context { min-width: 0; white-space: normal; text-align: right; }

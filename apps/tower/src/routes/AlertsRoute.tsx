@@ -33,12 +33,14 @@ import { fieldClass } from "@/components/ui/field";
 import { useAlertHistory } from "@/hooks/useAlertHistory";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
+import { useView } from "@/hooks/useView";
 import { AlertHistoryPageError } from "@/lib/api";
 import { formatInt } from "@/lib/format";
 import { AlertDaily } from "@/routes/alerts/AlertDaily";
 import { AlertBoard } from "@/routes/alerts/AlertBoard";
 import { AlertWeek } from "@/routes/alerts/AlertWeek";
 import { SnoozedAlerts } from "@/routes/alerts/SnoozedAlerts";
+import { AlertViewContext } from "@/routes/alerts/AlertViewContext";
 
 const SEVERITIES: { value: Severity | "all"; label: string }[] = [
   { value: "all", label: "Any severity" },
@@ -435,6 +437,7 @@ function HistoryView({
   assets: WallPayload["assets"];
   nowMs: number;
 }) {
+  const { choice } = useView();
   const [params] = useSearchParams();
   const setFilter = useFilterWriter();
   const query = parseAlertHistoryQuery(params);
@@ -538,6 +541,7 @@ function HistoryView({
                   assetId={row.asset.id}
                   nowMs={nowMs}
                   history
+                  evidence={choice.view === "overview" ? undefined : <AlertViewContext flag={row.flag} assetId={row.asset.id} />}
                 />
               ))}
             </AlertList>

@@ -25,6 +25,7 @@ import { formatInt } from "@/lib/format";
 import { taskHandoffPrefill } from "@/lib/task-handoff";
 import { cn } from "@/lib/utils";
 import { AlertMark, BoardRow, ROW_GRID } from "@/routes/alerts/BoardRow";
+import { AlertViewContext } from "@/routes/alerts/AlertViewContext";
 
 /**
  * The open alerts as one board: a section per site, worst site first, each
@@ -254,6 +255,7 @@ function OpenAlertRow({ item, nowMs, focused, quiet = false, showSite = false }:
         <>
           <AlertVerification verification={item.verification} firstDetectedAt={item.firstFiredAt} nowMs={nowMs} interactive={false} />
           {alert.hint ? ` · ${alert.hint}` : null}
+          <AlertViewContext flag={item} assetId={item.asset} compact />
         </>
       }
       evidence={<Reading item={item} />}
@@ -274,6 +276,7 @@ function OpenAlertRow({ item, nowMs, focused, quiet = false, showSite = false }:
         </>
       }
     >
+      <AlertViewContext flag={item} assetId={item.asset} />
       <Nights item={item} />
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <EvidencePopover
@@ -314,12 +317,14 @@ function GroupedAlertRow({ item, nowMs, focused, quiet = false }: { item: Attent
         <>
           <AlertVerification verification={item.verification} firstDetectedAt={item.firstFiredAt} nowMs={nowMs} interactive={false} />
           {` · ${alert.hint ?? memberNames(item) ?? "Grouped assets"}`}
+          <AlertViewContext flag={item} assetId={null} compact />
         </>
       }
       evidence={<Reading item={item} />}
       age={formatAge(ageMs(nowMs, item.firstFiredAt))}
       ageLabel="first detected"
     >
+      <AlertViewContext flag={item} assetId={null} />
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <EvidencePopover
           evidence={alertPopoverEvidence(alert, item, nowMs)}

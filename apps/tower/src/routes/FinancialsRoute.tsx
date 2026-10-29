@@ -45,6 +45,7 @@ import { useFinancials } from "@/hooks/useFinancials";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
+import { useView } from "@/hooks/useView";
 import { FinancialsPeriodError } from "@/lib/api";
 import {
   formatMoney,
@@ -63,6 +64,8 @@ import { CostComposition } from "@/routes/financials/CostComposition";
 import { MonthHero } from "@/routes/financials/MonthHero";
 import { RevenueComposition } from "@/routes/financials/RevenueComposition";
 import { SiteMoneyRows, TooShortForATrend, TrendDates } from "@/routes/financials/SiteMoneyRows";
+import { MoneyViewContext } from "@/routes/financials/MoneyViewContext";
+import { moneyRowsForView } from "@/routes/financials/view-money";
 
 /** Cents, everywhere on this page: it exists to be reconciled against a
  * receipt, and a column of rounded figures does not add up to its own total. */
@@ -473,6 +476,7 @@ function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
  * time is a collapsed panel underneath.
  */
 function Ledger({ data }: { data: FinancialsPayload }) {
+  const { choice } = useView();
   // How many sites the installation has, from the sidebar's own read already
   // in the cache, so a month in which only one of several sites earned keeps
   // its by-site rows. Null until that read answers.
@@ -504,6 +508,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
 
   return (
     <div className="@container flex flex-col gap-5" data-money-ledger="">
+      {choice.view !== "overview" ? <MoneyViewContext data={data} rows={rows} view={choice.view} /> : null}
       <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
         <MonthHero
           equation={equation}
@@ -533,7 +538,8 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           />
         ) : null}
         <SiteMoneyRows
-          rows={rows}
+          rows={moneyRowsForView(rows, choice.view)}
+          view={choice.view}
           overhead={data.overhead}
           period={data.period}
           openPeriod={openPeriod}

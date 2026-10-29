@@ -6,6 +6,7 @@ import {
   VIEW_LIBRARY,
   WORKSPACE_VIEW_POINTER,
   viewSpec,
+  normalizeViewId,
   type FocusId,
   type ViewChoice,
   type ViewId,
@@ -68,8 +69,8 @@ function ViewChoiceRow() {
   return (
     <div className={ROW}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
-        <legend className="sr-only">Which describes you?</legend>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <legend className="sr-only">What do you want to focus on?</legend>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {VIEW_LIBRARY.map((spec) => {
             const checked = spec.id === choice.view;
             return (
@@ -159,7 +160,7 @@ function FocusRow() {
 const TOWER_FILE = "config/tower.json";
 
 /**
- * The view new people and the TV start from. One write of the whole document
+ * The view new people start from. One write of the whole document
  * at `/view`, guarded by what the settings read holds there (a refused saved
  * value included, so a fix saves over it), and Undo is that write reversed.
  */
@@ -175,7 +176,7 @@ function WorkspaceDefaultRow({ dashboard }: { dashboard: DashboardConfig }) {
   >(null);
   const [undoing, setUndoing] = useState(false);
 
-  const saved = dashboard.view?.default ?? null;
+  const saved = dashboard.view ? normalizeViewId(dashboard.view.default) : null;
   const expect: JsonValue = dashboard.view
     ? { default: dashboard.view.default }
     : ((dashboard.refused?.view?.saved as JsonValue | undefined) ?? null);
@@ -227,11 +228,11 @@ function WorkspaceDefaultRow({ dashboard }: { dashboard: DashboardConfig }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="flex items-center gap-1 text-sm font-medium text-foreground">
-            Workspace default · new people and the TV start from
+            Workspace default · for new people
             {writable ? null : <PanelLock data-workspace-view-locked />}
           </span>
           <span className="text-xs text-muted-foreground" data-workspace-view-value>
-            {saved ? viewSpec(saved).label : "Everything"}
+            {viewSpec(saved ?? "overview").label}
           </span>
         </div>
         {writable ? (
@@ -251,7 +252,7 @@ function WorkspaceDefaultRow({ dashboard }: { dashboard: DashboardConfig }) {
       {writable && open ? (
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Workspace default">
           {VIEW_LIBRARY.map((spec) => {
-            const picked = spec.id === (saved ?? "everything");
+            const picked = spec.id === (saved ?? "overview");
             return (
               <button
                 key={spec.id}

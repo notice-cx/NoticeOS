@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   DEFAULT_VIEW,
   DEFAULT_VIEW_CHOICE,
   homeModulesFor,
+  normalizeViewId,
   parseViewChoice,
   serializeViewChoice,
   viewSpec,
@@ -12,6 +13,7 @@ import {
   type ViewId,
   type ViewSpec,
 } from "@shared/views";
+import { browserOwnerKey } from "@/lib/browser-owner";
 import { useWall } from "@/hooks/useWall";
 import { useBrowserRuntime, useOwnerPreferences, useOwnerToast, useTowerApi } from "@/lib/browser-context";
 
@@ -31,6 +33,7 @@ export type ViewSource = "person" | "workspace" | "default";
  * store, never here, so a new browser context reads it afresh.
  */
 const listeners = new Set<() => void>();
+const purposeNotices = new WeakSet<object>();
 let generation = 0;
 
 function subscribe(listener: () => void): () => void {
@@ -66,7 +69,7 @@ export interface ViewState {
   /** Home's modules, in order, after the person's picks. */
   modules: HomeModuleId[];
   source: ViewSource;
-  /** The view the workspace starts new people and the TV from, when saved. */
+  /** The view the workspace starts new people from, when saved. */
   workspaceDefault: ViewId | null;
   /** Save the person's own choice; the screens change at once. */
   setChoice: (next: ViewChoice) => void;
@@ -94,20 +97,28 @@ function useBrowserOnlyView(_preferences: Preferences): ServerView {
 /** Hosted: the server's copy, read once per page load and written on each
  * save. A refused or failed save keeps the browser's copy and the screens as
  * they are, and says so. */
+interface SaveState { revision: number; pending: Promise<void> }
+const saves = new WeakMap<QueryClient, SaveState>();
+
 function useHostedView(preferences: Preferences): ServerView {
   const api = useTowerApi();
+  const runtime = useBrowserRuntime();
   const queryClient = useQueryClient();
   const toast = useOwnerToast();
+  const queryKey = useMemo(() => [...VIEW_PREFERENCE_QUERY_KEY, browserOwnerKey(runtime.owner)], [runtime]);
+  let state = saves.get(queryClient);
+  if (!state) {
+    state = { revision: 0, pending: Promise.resolve() };
+    saves.set(queryClient, state);
+  }
+  const saveState = state;
   const { data } = useQuery<ViewChoice | null>({
-    queryKey: VIEW_PREFERENCE_QUERY_KEY,
+    queryKey,
     queryFn: async ({ signal }) => {
+      const revision = saveState.revision;
       const stored = await api.fetchViewPreference(signal);
-      if (stored) {
-        try {
-          preferences.write(VIEW_PREFERENCE_NAME, serializeViewChoice(stored));
-        } catch {
-          // A retired browser context keeps no cache; the answer still draws.
-        }
+      if (!signal.aborted && revision === saveState.revision && stored) {
+        runtime.guard(() => preferences.write(VIEW_PREFERENCE_NAME, serializeViewChoice(stored)))();
       }
       return stored;
     },
@@ -116,26 +127,30 @@ function useHostedView(preferences: Preferences): ServerView {
   });
   const save = useCallback(
     (choice: ViewChoice, shown: ViewChoice | null) => {
-      // An answer still on its way would draw the choice from before this save.
-      void queryClient.cancelQueries({ queryKey: VIEW_PREFERENCE_QUERY_KEY });
-      queryClient.setQueryData(VIEW_PREFERENCE_QUERY_KEY, shown);
-      api.saveViewPreference(choice).then(
-        (stored) => {
-          if (shown !== null) queryClient.setQueryData(VIEW_PREFERENCE_QUERY_KEY, stored);
-        },
-        () => {
-          toast.error("View kept in this browser only — not saved to your workspace");
-        },
-      );
+      const revision = ++saveState.revision;
+      void queryClient.cancelQueries({ queryKey });
+      queryClient.setQueryData(queryKey, shown);
+      // Serialize writes so the server also ends with the newest choice.
+      saveState.pending = saveState.pending.then(async () => {
+        if (runtime.guard(() => true)() !== true) return;
+        try {
+          const stored = await api.saveViewPreference(choice);
+          runtime.guard(() => {
+            if (revision === saveState.revision && shown !== null) queryClient.setQueryData(queryKey, stored);
+          })();
+        } catch {
+          if (revision === saveState.revision) toast.error("View kept in this browser only — not saved to your workspace");
+        }
+      });
     },
-    [api, queryClient, toast],
+    [api, queryClient, queryKey, runtime, saveState, toast],
   );
   return useMemo(() => ({ choice: data, save }), [data, save]);
 }
 
 /**
  * The view the person sees: their own stored choice first, else the
- * workspace's saved default, else Everything. Everything is also what a
+ * workspace's saved default, else Overview. Overview is also what a
  * fresh install draws before anyone answers, so every existing screen and
  * test keeps its meaning until a choice is made.
  *
@@ -146,16 +161,28 @@ function useHostedView(preferences: Preferences): ServerView {
  */
 export function useView(): ViewState {
   const preferences = useOwnerPreferences();
+  const runtime = useBrowserRuntime();
   // An owner's mode is fixed for the runtime's whole life (lib/browser-owner.ts),
   // so a mounted tree calls the same hook on every render.
-  const server = (useBrowserRuntime().owner.mode === "hosted" ? useHostedView : useBrowserOnlyView)(preferences);
+  const server = (runtime.owner.mode === "hosted" ? useHostedView : useBrowserOnlyView)(preferences);
   useSyncExternalStore(subscribe, snapshot, snapshot);
   const { data } = useWall();
-  const workspaceDefault = data?.dashboard?.view?.default ?? null;
+  const storedDefault = data?.dashboard?.view?.default;
+  const workspaceDefault = storedDefault == null ? null : normalizeViewId(storedDefault);
   const own = server.choice ?? readChoice(preferences.read);
 
   const choice: ViewChoice = own ?? (workspaceDefault ? { view: workspaceDefault, focus: [] } : DEFAULT_VIEW_CHOICE);
   const source: ViewSource = own ? "person" : workspaceDefault ? "workspace" : "default";
+
+  const toast = useOwnerToast();
+  useEffect(() => {
+    const needsChoice = own?.needsPurposeChoice || (!own && (storedDefault === "business" || storedDefault === "product"));
+    const noticeKey = "view-purpose-notice";
+    if (!needsChoice || purposeNotices.has(runtime) || preferences.read(noticeKey)) return;
+    purposeNotices.add(runtime);
+    preferences.write(noticeKey, "shown");
+    toast.warning("Your view is now Overview. Choose a purpose from the view bar.");
+  }, [own?.needsPurposeChoice, storedDefault, preferences, runtime, toast]);
 
   const { save } = server;
   const setChoice = useCallback(

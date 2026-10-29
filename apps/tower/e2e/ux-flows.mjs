@@ -578,71 +578,60 @@ FLOWS["file-task"] = {
   },
 };
 
-/** The sidebar's entries for the view on screen: one child of the Main nav
- * per page. The desk and the phone's drawer draw the same list. */
-async function sidebarShows(page, count) {
-  await page.waitForFunction(
-    (n) => document.querySelector('nav[aria-label="Main"]')?.children.length === n,
-    count,
-    { timeout: 15_000 },
-  );
+/** The persistent purpose control uses a compact picker on a phone. */
+async function chooseGlobalView(w, label) {
+  const bar = w.page.locator("[data-view-bar]");
+  if (w.mobile) {
+    await w.click(bar.getByRole("button", { name: /^View:/ }), "View", { role: "choose" });
+    await w.click(w.page.getByRole("group", { name: "Views", exact: true }).getByRole("button", { name: new RegExp(`^${label}`) }), label, { role: "choose" });
+  } else {
+    await w.click(bar.getByRole("button", { name: label, exact: true }), label, { role: "choose" });
+  }
 }
 
-/** Fresh install → a view chosen on Home's first run: "Which describes
- * you?", one pick under "What matters most?", Continue, and the sidebar drops
- * to the business view's five pages. */
+/** The optional first-run prompt saves one personal purpose choice. */
 FLOWS["choose-view"] = {
   title: "Choose a view on the first run",
   kind: "flow",
   countStart: true,
   async setup(page) { await page.goto("/"); },
   async run(w) {
-    await w.click(w.page.locator('[data-view-choice="business"]'), "I run the business", { role: "choose" });
-    await w.click(w.page.locator("[data-focus-choice]").first(), "What matters most", { role: "choose" });
-    await w.click(w.page.locator("[data-focus-continue]"), "Continue", { role: "commit" });
-    await w.waitFor("Continue → the business view's sidebar", () => sidebarShows(w.page, 5));
+    await w.click(w.page.locator('[data-view-choice="reliability"]'), "Reliability", { role: "choose" });
+    await w.waitFor("Reliability → prompt dismissed", () => w.page.locator("[data-view-choice]").first().waitFor({ state: "detached", timeout: 15_000 }));
     await w.end("view chosen");
   },
 };
 
-/** Settings → General → Your view: a view picked is saved on change, the
- * sidebar follows at once, and Undo beside the choice puts it back. */
 FLOWS["switch-view"] = {
-  title: "Switch the view",
+  title: "Switch the view on the current page",
   kind: "flow",
   countStart: false,
-  async setup(page) { await seedAsset(page); await page.goto("/"); },
+  async setup(page) { await seedAsset(page); await page.goto("/assets"); },
   async run(w) {
-    await nav(w, "Settings");
-    const panel = w.page.locator("[data-settings-view]");
-    await w.click(panel.locator('[data-view-option="product"]'), "I build the product", { role: "choose" });
-    await w.waitFor("I build the product → its sidebar", () => sidebarShows(w.page, 8));
-    const saved = panel.locator('[data-status-for="field:Your view"][data-save-state="saved"]');
-    await w.click(saved.getByRole("button", { name: "Undo", exact: true }), "Undo", { role: "commit" });
-    await w.waitFor("Undo → every page in the sidebar", () => sidebarShows(w.page, 10));
-    await w.end("undone");
+    await chooseGlobalView(w, "Growth");
+    await w.waitFor("Growth → current page updated", () => settle(w.page));
+    await chooseGlobalView(w, "Overview");
+    await w.end("Overview restored");
   },
 };
 
-/** The view stored the way a person changes it later: Settings → General →
- * Your view, saved on the press, with the sidebar following at once. */
-async function chooseViewInSettings(w, view, label, sidebarEntries) {
+async function chooseViewInSettings(w, view, label) {
   await nav(w, "Settings");
   const panel = w.page.locator("[data-settings-view]");
   await w.click(panel.locator(`[data-view-option="${view}"]`), label, { role: "choose" });
-  await w.waitFor(`${label} → its sidebar`, () => sidebarShows(w.page, sidebarEntries));
+  await w.waitFor(`${label} → saved`, () => settle(w.page));
 }
 
-/** The business view's Home leads with every site's health as dots; a site's
+/** Reliability Home leads with every site's health as dots; a site's
  * row opens the site, and its Health tab shows the five words with every
  * fact's readings below them, without a press. */
 FLOWS["read-site-health"] = {
-  title: "Read an asset's health, in the business view",
+  title: "Read an asset's health, in Reliability",
   kind: "flow",
   countStart: false,
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
   async run(w) {
-    await chooseViewInSettings(w, "business", "I run the business", 5);
+    await chooseViewInSettings(w, "reliability", "Reliability");
     await nav(w, "Home");
     const row = w.page.locator(`[data-site-health-row="${ASSET}"]`);
     await w.click(row.getByRole("link").first(), "Asset health · Journey Example", { role: "nav" });
@@ -653,11 +642,11 @@ FLOWS["read-site-health"] = {
   },
 };
 
-/** The product view's Home: the month's money split by site, visitors by
+/** Growth Home: the month's money split by site, visitors by
  * channel beside the largest funnel drop, and "Worth a look", whose rows
  * each file a task through the same composer a finding uses. */
 FLOWS["see-money-sources"] = {
-  title: "See where the money comes from, in the product view",
+  title: "See where the money comes from, in Growth",
   kind: "flow",
   countStart: false,
   async setup(page, fixture) {
@@ -666,9 +655,8 @@ FLOWS["see-money-sources"] = {
     await page.goto("/");
   },
   async run(w) {
-    await chooseViewInSettings(w, "product", "I build the product", 8);
+    await chooseViewInSettings(w, "growth", "Growth");
     await nav(w, "Home");
-    await w.page.locator("[data-surface-hero]").waitFor({ timeout: 15_000 });
     await w.page.locator("[data-home-channels]").waitFor({ timeout: 15_000 });
     const gaps = w.page.locator("[data-home-gaps]");
     await w.click(gaps.locator("[data-file-task]").first(), "Make a task", { role: "choose" });
@@ -826,11 +814,11 @@ FLOWS["arrange-wall"] = {
   },
 };
 
-/** The editor's Add a widget drawer → Start from → a view's preset, which
+/** The editor's Add a widget drawer → Start from → a Wall preset, which
  * replaces the whole arrangement in the preview as one step Undo takes back;
  * nothing reaches the TV until Save. */
 FLOWS["start-from-preset"] = {
-  title: "Start the TV from a view's preset",
+  title: "Start the TV from a Wall preset",
   kind: "flow",
   countStart: false,
   async setup(page) { await seedAsset(page); await page.goto("/"); },
@@ -846,9 +834,9 @@ FLOWS["start-from-preset"] = {
     const toolbar = w.page.locator("[data-wall-toolbar]");
     await w.click(toolbar.getByRole("button", { name: "Add a widget", exact: true }), "Add a widget", { role: "reveal" });
     await w.click(w.page.locator("[data-wall-start-from]"), "Start from", { role: "reveal" });
-    await w.click(w.page.locator('[data-wall-preset="business"]'), "I run the business", { role: "choose" });
+    await w.click(w.page.locator('[data-wall-preset="business"]'), "Health and decisions", { role: "choose" });
     const health = w.page.locator('[data-wall-preview] [data-wall-edit-widget="health"]');
-    await w.waitFor("I run the business → Asset health in the preview", () => health.waitFor({ timeout: 10_000 }));
+    await w.waitFor("Health and decisions → Asset health in the preview", () => health.waitFor({ timeout: 10_000 }));
     await w.click(toolbar.getByRole("button", { name: "Undo", exact: true }), "Undo", { role: "commit" });
     await w.waitFor("Undo → the arrangement as it was", () => health.waitFor({ state: "detached", timeout: 10_000 }));
     await w.end("undone");

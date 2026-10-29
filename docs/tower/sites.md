@@ -30,17 +30,9 @@ An asset's tasks, search clicks and ledger are on its own tabs. Columns are hidd
 
 The page lists the assets whose **Home and Portfolio** switch is on. The summary, the status bar and the stage counts count only those; the month's pace and yesterday's visitors stay the whole portfolio's. When an asset is left out, the line above the rows counts it: **6 assets · 2 hidden**.
 
-**An asset's page** has a header with the asset's name, its domain as a link, and its status, which on hover shows how many alerts are open. Under the header are the tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link opens the right one.
+**An asset's page** has a header with the asset's name, its domain as a link, and its status, which on hover shows how many alerts are open. Under the header are the tabs: **Overview**, **Growth**, **Journeys**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link opens the right one.
 
-Which tabs are shown follows your view ([Settings → General → **Your view**](/tower/settings#general)):
-
-| View | Tabs |
-|---|---|
-| **I run the business** | **Overview**, **Money**, **Search**, **Health**, **Tasks**, **Settings** |
-| **I build the product** | **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Tasks**, **Data sources**, **Settings** |
-| **Everything** | every tab |
-
-A link to a tab your view leaves out still opens it, with that tab added at the end of the row.
+Every view keeps these tabs available in the same order. The **View** bar changes the asset page's summary context and supporting details for **Overview**, **Growth**, **Revenue**, **Delivery** or **Reliability**, while preserving the selected asset, tab and its address. See [Choose your view](/guides/choose-your-view).
 
 **Overview** shows the most important figures on the first screen. A row of figures for money, people, search and the asset's one product figure, each with its window, its change against the days before, its recent days as bars with their dates, and one line of context. Press a figure to draw it on the chart: bars with a dashed line at the level of the days before, the best and lowest day labelled, every shipped change a labelled mark, and shaded spans for an open alert (with the rule's normal range), an outcome check or days not reported. Then **Data sources · last 30 days**, one row per source and one square per day, with the source that failed most recently or missed the most days first, and **Open alerts** for anything the chart does not already show. Under them: **Needs attention**, **What matters**, **Bets** (the asset's outcome checks, open ones first with the days left to their verdict; an opened row names what it watches and, once read, **Readback** and its readback task, each task a link to its page), **Search movers**, **Product use** and the asset's totals. A provider's name appears only as a chart key beside its own line.
 

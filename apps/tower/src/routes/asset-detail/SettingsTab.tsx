@@ -1,3 +1,4 @@
+import { PurposeSections } from "./purpose-presentation";
 import { ASSET_TYPES, ASSET_TYPE_LABEL, assetTypeOf, isAssetType, type AssetType } from "@noticeos/contract/configuration";
 import { siteDisplayChange, siteDisplayOf } from "@shared/site-display";
 import { useStructuralSave } from "@/hooks/useConfigSave";
@@ -119,31 +120,31 @@ export function AssetSettingsPanel({
   return (
     // One column of panels at the width /settings draws its own, so the two
     // settings pages read as one: a form is easier to scan narrow.
-    <div id="configuration" className="flex w-full max-w-4xl scroll-mt-4 flex-col gap-4">
+    <PurposeSections surface="settings" id="configuration" className="flex w-full max-w-4xl scroll-mt-4 flex-col gap-4">
       {/* When saves are paused the tab says so once; each editor below shows
           only its lock. */}
-      <SavesPaused />
+      <SavesPaused key="paused" />
       {/* Identity is the hero: it is what the operator came to change nine
           times out of ten, and it is the only card whose fields name the asset
           itself rather than the machinery around it. */}
-      <Hero>
+      <Hero key="identity">
         <IdentityCard asset={asset} nowMs={nowMs} />
       </Hero>
-      <LifecycleCard asset={asset} />
+      <LifecycleCard key="lifecycle" asset={asset} />
       {/* The System is no site of the list: it has no place and no switches. */}
-      {asset.isOs ? null : <WhereItShowsCard assetId={asset.id} />}
-      <AutomationCard asset={asset} />
-      <DataCollectionCard wiring={wiring} asset={asset} nowMs={nowMs} />
-      <CardTotalsCard asset={asset.id} stored={data.countersConfig} />
-      <AlertRulesCard rules={rules} />
-      <PanelSettings
+      {asset.isOs ? null : <WhereItShowsCard key="display" assetId={asset.id} />}
+      <AutomationCard key="automation" asset={asset} />
+      <DataCollectionCard key="collection" wiring={wiring} asset={asset} nowMs={nowMs} />
+      <CardTotalsCard key="totals" asset={asset.id} stored={data.countersConfig} />
+      <AlertRulesCard key="rules" rules={rules} />
+      <PanelSettings key="panel"
         assetId={asset.id}
         panelConfig={data.panelConfig}
         portfolio={data.portfolio}
         integrations={data.integrations}
       />
-      <ArchiveCard asset={asset} timeline={data.annotations} />
-    </div>
+      <ArchiveCard key="archive" asset={asset} timeline={data.annotations} />
+    </PurposeSections>
   );
 }
 

@@ -200,7 +200,9 @@ describe("a saved config/tower.json, read one part at a time", () => {
   });
 
   it("reads the workspace's default view, and leaves it off when the file holds null or no key", () => {
-    expect(readDashboardConfig({ view: { default: "business" } })).toEqual({ view: { default: "business" } });
+    for (const id of ["overview", "growth", "revenue", "delivery", "reliability", "business", "product", "everything"]) {
+      expect(readDashboardConfig({ view: { default: id } })).toEqual({ view: { default: id } });
+    }
     expect(readDashboardConfig({ view: null })).toEqual({});
     expect(readDashboardConfig({})).not.toHaveProperty("view");
   });
@@ -212,7 +214,7 @@ describe("a saved config/tower.json, read one part at a time", () => {
     expect(config.countdown).toEqual(COUNTDOWN);
     expect(config.view).toBeUndefined();
     expect(config.refused).toEqual({
-      view: { saved: unknown, reason: "config/tower.json view.default must be one of business, product, everything" },
+      view: { saved: unknown, reason: "config/tower.json view.default must be one of overview, growth, revenue, delivery, reliability" },
     });
     expect(readDashboardConfig({ view: "business" }).refused?.view?.reason)
       .toBe("config/tower.json view, when present, must be an object");

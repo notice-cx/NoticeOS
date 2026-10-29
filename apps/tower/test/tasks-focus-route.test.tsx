@@ -1,3 +1,4 @@
+import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
@@ -50,12 +51,13 @@ function renderFocus(entry = "/tasks/focus", boards = twoDecisions()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[entry]}><FocusRoute /></MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}><ExecutionViewSwitch /><FocusRoute /></MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 afterEach(() => {
+  window.localStorage.clear();
   resetAnswerQueue();
   vi.clearAllMocks();
 });
@@ -127,4 +129,18 @@ describe("Focus", () => {
     act(() => flushAnswers());
     expect(api.chooseOnTask).not.toHaveBeenCalled();
   });
+});
+
+it('changes decision evidence while retaining the focused task, URL and answer draft', () => {
+  const { container } = renderFocus('/tasks/focus?project=meadow.example&task=md-a1');
+  const box = screen.getByRole('textbox', { name: 'Your answer to md-a1' });
+  fireEvent.change(box, { target: { value: 'The Weekly Meadow' } });
+  for (const view of ['growth', 'revenue', 'delivery', 'reliability', 'overview']) {
+    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
+    expect(decision(container)).toBe('md-a1');
+    expect(screen.getByRole('textbox', { name: 'Your answer to md-a1' })).toBe(box);
+    expect(box).toHaveValue('The Weekly Meadow');
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/tasks/focus?project=meadow.example&task=md-a1');
+  }
+  expect(api.respondToTask).not.toHaveBeenCalled();
 });

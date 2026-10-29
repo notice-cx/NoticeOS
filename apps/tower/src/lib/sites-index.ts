@@ -21,7 +21,7 @@ import type { WallIssue } from "@/lib/wall-issues";
 
 /** The orderings the page offers. `seed` is the saved site order, the one the
  * sidebar, Home and the Wall draw; `users` keeps the key older links carry. */
-export type SitesOrder = "seed" | "health" | "money" | "users" | "name";
+export type SitesOrder = "seed" | "health" | "money" | "users" | "delivery" | "name";
 
 /** Worst first: what "Needs you" orders by, and the order the health split
  * and its legend are drawn in. */
@@ -92,6 +92,7 @@ export function siteLines(
         revenueChange: yesterday?.changePercent ?? null,
         share: earned !== null && total > 0 ? earned / total : null,
         sources: siteSources(card, connections, nowMs),
+        work: card.work,
       },
     };
   });
@@ -128,6 +129,7 @@ const COMPARE: Record<Exclude<SitesOrder, "seed">, (a: SiteLine, b: SiteLine) =>
     failing(b) - failing(a),
   money: (a, b) => unknownLast(a.earned, b.earned) || unknownLast(a.row.revenue, b.row.revenue),
   users: (a, b) => unknownLast(a.row.peopleLatest, b.row.peopleLatest),
+  delivery: (a, b) => unknownLast(a.card.work?.blocked ?? null, b.card.work?.blocked ?? null) || unknownLast(a.card.work?.inProgress ?? null, b.card.work?.inProgress ?? null),
   name: (a, b) => a.row.name.localeCompare(b.row.name),
 };
 

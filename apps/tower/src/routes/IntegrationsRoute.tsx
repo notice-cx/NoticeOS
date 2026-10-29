@@ -47,6 +47,10 @@ import {
 } from "@/hooks/useIntegrationProviders";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
+import { useView } from "@/hooks/useView";
+import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
+import { connectionCoverage, connectionUrgency, providerInView, SOURCE_CONTEXT } from "@/routes/operating-views";
+import type { ViewId } from "@shared/views";
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
 
 /**
@@ -58,6 +62,7 @@ import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
  * Replace and Disconnect at its top.
  */
 export function IntegrationsRoute() {
+  const { choice } = useView();
   const demoReadonly = useDemoReadonly();
   const toast = useOwnerToast();
   const { importEnvCredentials, deleteProviderCredential, saveProviderCredential, testProviderCredential, saveProviderExpiry } = useTowerApi();
@@ -286,13 +291,15 @@ export function IntegrationsRoute() {
           ) : (
             <>
             <IntegrationsAnswer cards={cards} items={monitoring.status.items} />
+            {choice.view !== "overview" ? <IntegrationViewCoverage cards={cards} items={monitoring.status.items} view={choice.view} /> : null}
             <section data-surface-hero aria-label="Providers" className="flex flex-col gap-6">
-              {GROUPS.map((group) => {
-                // What needs you first in its group; the rest in catalog order.
+              {integrationGroups(cards, monitoring.status.items, choice.view).map((group) => {
+                // Failures stay ahead of purpose emphasis, within each group
+                // and when choosing which group appears first.
                 const members = cards
                   .filter((status) => groupOf(status) === group)
-                  .map((status, order) => ({ status, order, needs: needsYou(connectionStatus(status.provider.id, status.credential, monitoring.status.items)) }))
-                  .sort((a, b) => Number(b.needs) - Number(a.needs) || a.order - b.order)
+                  .map((status, order) => ({ status, order, urgency: providerUrgency(status, monitoring.status.items) }))
+                  .sort((a, b) => b.urgency - a.urgency || Number(providerInView(b.status.provider, choice.view)) - Number(providerInView(a.status.provider, choice.view)) || a.order - b.order)
                   .map(({ status }) => status);
                 if (members.length === 0) return null;
                 const headingId = `integrations-${group.replace(/\W+/g, "-").toLowerCase()}`;
@@ -333,6 +340,39 @@ export function IntegrationsRoute() {
       )}
     </div>
   );
+}
+
+function IntegrationViewCoverage({ cards, items, view }: { cards: readonly IntegrationProviderStatus[]; items: IntegrationHealthItem[]; view: ViewId }) {
+  const relevant = cards.filter((status) => providerInView(status.provider, view));
+  const coverage = connectionCoverage(relevant.map((status) => connectionStatus(status.provider.id, status.credential, items)));
+  const context = SOURCE_CONTEXT[view];
+  return (
+    <section data-integration-view={view} aria-label={context.title} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
+      <SectionLabel title={context.title} caption={context.detail} className="px-5 pt-4 pb-3" />
+      <KpiStrip columns={3}>
+        <Kpi label="Working connections" value={`${coverage.working} / ${coverage.total}`} caption="observed collection, not just saved keys" />
+        <Kpi label="Need attention" value={coverage.attention} valueTone={coverage.attention > 0 ? "warn" : "default"} caption="failing or overdue connections" />
+        <Kpi label="Unverified" value={coverage.unverified} caption="unknown or not checked" />
+      </KpiStrip>
+      <p className="px-5 py-3 text-xs text-muted-foreground">{relevant.length > 0 ? relevant.map((status) => providerName(status.provider)).join(" · ") : "No matching providers are in this installation’s catalog."}</p>
+    </section>
+  );
+}
+
+function providerUrgency(status: IntegrationProviderStatus, items: IntegrationHealthItem[]): number {
+  const shown = connectionStatus(status.provider.id, status.credential, items);
+  return connectionUrgency(shown.kind, shown.sitesFailing);
+}
+
+export function integrationGroups(cards: readonly IntegrationProviderStatus[], items: IntegrationHealthItem[], view: ViewId): (typeof GROUPS)[number][] {
+  const score = (group: (typeof GROUPS)[number]) => {
+    const members = cards.filter((status) => groupOf(status) === group);
+    return {
+      urgency: Math.max(0, ...members.map((status) => providerUrgency(status, items))),
+      relevant: members.some((status) => providerInView(status.provider, view)),
+    };
+  };
+  return [...GROUPS].sort((a, b) => score(b).urgency - score(a).urgency || Number(score(b).relevant) - Number(score(a).relevant));
 }
 
 /** A connection the operator has to act on: it fails, is overdue, or fails on a site. */
@@ -378,6 +418,7 @@ const GROUP_OF: Record<string, (typeof GROUPS)[number]> = {
   posthog: "Traffic & search",
   clarity: "Traffic & search",
   mediavine: "Revenue",
+  stripe: "Revenue",
   calendar: "Coordination",
   discord: "Coordination",
 };

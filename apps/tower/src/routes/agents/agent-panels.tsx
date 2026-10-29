@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 export const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70";
 
 /** Active model groups: recent closes, work in progress or blocked work. */
-export function WorkerRows({ workers }: { workers: readonly ModelStats[] }) {
+export function WorkerRows({ workers, emphasis }: { workers: readonly ModelStats[]; emphasis?: "blocked" | "inHand" }) {
+  const ordered = emphasis ? [...workers].sort((a, b) => b[emphasis] - a[emphasis] || a.name.localeCompare(b.name)) : workers;
   const ceiling = Math.max(1, ...workers.flatMap(worker => worker.days));
   return (
     <section aria-label="Who's working" data-agent-rows="" className={PANEL}>
@@ -23,7 +24,7 @@ export function WorkerRows({ workers }: { workers: readonly ModelStats[] }) {
               <tr><th scope="col" className="pb-2">Model</th><th scope="col" className="pb-2 text-right">In progress</th><th scope="col" className="px-3 pb-2">Closed, 7 days</th><th scope="col" className="pb-2 text-right">Claim to close</th><th scope="col" className="pl-3 pb-2 text-right">Blocked</th></tr>
             </thead>
             <tbody>
-              {workers.map(worker => (
+              {ordered.map(worker => (
                 <tr key={worker.id} data-agent-row={worker.id} className="border-t border-border/70">
                   <th scope="row" className="py-3 pr-3 font-semibold text-foreground">
                     <span className="flex min-w-0 items-center gap-2.5"><AgentMark name={worker.name} /><span>{worker.name}</span></span>

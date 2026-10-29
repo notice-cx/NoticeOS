@@ -1,4 +1,5 @@
 import type { AssetDetailFor } from "@shared/asset-detail-views";
+import { PurposeSections } from "./purpose-presentation";
 import { TasksBoard } from "@/routes/tasks/TasksBoard";
 import { NextTab } from "@/routes/tasks/next/NextTab";
 
@@ -12,9 +13,9 @@ import { NextTab } from "@/routes/tasks/next/NextTab";
  */
 export function TasksTab({ data }: { data: AssetDetailFor<"tasks"> }) {
   return (
-    <div id="tasks" className="flex scroll-mt-4 flex-col gap-6">
-      <NextTab scope={data.asset.id} compact />
-      <TasksBoard project={data.asset.id} newTask />
-    </div>
+    <PurposeSections surface="tasks" id="tasks" className="flex scroll-mt-4 flex-col gap-6">
+      <NextTab key="decisions" scope={data.asset.id} compact />
+      <TasksBoard key="board" project={data.asset.id} newTask />
+    </PurposeSections>
   );
 }

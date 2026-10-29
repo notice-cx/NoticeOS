@@ -771,33 +771,30 @@ describe("Home drawn from the person's view", () => {
     expect(column.nextElementSibling).toHaveAttribute("data-home-sites");
   });
 
-  it("draws exactly health, money, the agents' week and decide for a stored business choice", () => {
-    storeView("business");
-
+  it.each([
+    ["growth", ["channels", "gaps", "problems", "yesterday", "decide", "sites"]],
+    ["revenue", ["money", "problems", "decide", "sites", "timeline"]],
+    ["delivery", ["factory", "problems", "decide", "agents", "timeline"]],
+    ["reliability", ["health", "problems", "decide", "timeline"]],
+  ])("draws the %s purpose with decisions and alerts", (view, modules) => {
+    storeView(view as string);
     const { container } = renderHome();
-
-    expect(modulesDrawn(container)).toEqual(["health", "money", "factory", "decide"]);
-    expect(container.querySelector("[data-home-health]")).toBeNull();
-    expect(container.querySelector("[data-home-timeline]")).toBeNull();
-    expect(container.querySelector("[data-one-site-lead], [data-portfolio-rows]")).toBeNull();
-    expect(screen.queryByText("Revenue, yesterday")).toBeNull();
-    // The answer line and the material conditions stay on every view.
+    expect(modulesDrawn(container)).toEqual(modules);
     expect(container.querySelector("[data-home-answer]")).not.toBeNull();
     expect(container.querySelector("[data-material-condition]")?.getAttribute("data-material-condition")).toContain("open-flags");
+    expect(container.querySelector("[data-decision-queue]")).not.toBeNull();
+    expect(container.querySelector("[data-incident-list]")).not.toBeNull();
   });
 
-  it("puts the agents' week first when the business view's focus is the agents' work", () => {
-    storeView("business", ["agents"]);
-
+  it("keeps a saved focus supported within the chosen purpose", () => {
+    storeView("delivery", ["agents"]);
     const { container } = renderHome();
-
-    expect(modulesDrawn(container)).toEqual(["factory", "health", "money", "decide"]);
+    expect(modulesDrawn(container)).toEqual(["factory", "problems", "decide", "agents", "timeline"]);
   });
 });
 
-/** The two view questions sit above the first run's steps, answered on the
- * card itself, and never hold the site steps back. */
-describe("Home — the first run asks which view describes the person", () => {
+/** Onboarding chooses one personal purpose without editing shared settings. */
+describe("Home — first-run purpose choice", () => {
   beforeEach(() => {
     payload.assets = [];
     payload.attention = [];
@@ -806,84 +803,47 @@ describe("Home — the first run asks which view describes the person", () => {
   const question = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-first-run] [data-first-run-question]");
   const stored = () => JSON.parse(window.localStorage.getItem(storageKey("view")) ?? "null");
 
-  it("asks which view describes the person above the three steps, with Add still the one action", () => {
+  it("offers the five purposes above the setup steps, with setup available immediately", () => {
     const { container } = renderHome();
-
     const block = question(container)!;
-    expect(block).toHaveAttribute("data-first-run-question", "view");
-    expect(within(block).getByRole("heading", { name: "Which describes you?" })).toBeInTheDocument();
+    expect(within(block).getByRole("heading", { name: "What do you want to focus on?" })).toBeInTheDocument();
     expect([...block.querySelectorAll("[data-view-choice]")].map((card) => card.getAttribute("data-view-choice")))
-      .toEqual(["business", "product", "everything"]);
-    expect(within(block.querySelector<HTMLElement>('[data-view-choice="business"]')!).getByText("I run the business")).toBeInTheDocument();
-    // Above the steps, not one of them.
+      .toEqual(["overview", "growth", "revenue", "delivery", "reliability"]);
     expect(block.compareDocumentPosition(container.querySelector("[data-first-run-step='1']")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
-    expect(container.querySelector('[data-first-run-state="current"]')).toHaveTextContent("Add your first asset");
     expect(screen.getByRole("button", { name: "Add your first asset" })).toHaveAttribute("data-add-site-open");
   });
 
-  it("stores the picked view, saves it as the workspace default and asks what matters most", () => {
+  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("saves %s only as a personal choice in one press", (view) => {
     const { container } = renderHome();
-
-    fireEvent.click(container.querySelector('[data-view-choice="business"]')!);
-
-    expect(stored()).toEqual({ view: "business", focus: [] });
-    expect(clockState.ops).toEqual([[
-      { kind: "file-json-set", file: "config/tower.json", pointer: "/view", expect: null, value: { default: "business" } },
-    ]]);
-    const block = question(container)!;
-    expect(block).toHaveAttribute("data-first-run-question", "focus");
-    expect(within(block).getByRole("heading", { name: "What matters most?" })).toBeInTheDocument();
-    expect(block.querySelectorAll("[data-focus-choice]")).toHaveLength(5);
-    expect(within(block.querySelector<HTMLElement>('[data-focus-choice="agents"]')!).getByText("what they built, and whether it worked")).toBeInTheDocument();
-
-    fireEvent.click(block.querySelector('[data-focus-choice="agents"]')!);
-    fireEvent.click(block.querySelector('[data-focus-choice="money"]')!);
-    expect(block.querySelector('[data-focus-choice="agents"]')).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(block.querySelector("[data-focus-continue]")!);
-
-    expect(stored()).toEqual({ view: "business", focus: ["agents", "money"] });
+    fireEvent.click(container.querySelector(`[data-view-choice="${view}"]`)!);
+    expect(stored()).toEqual({ view, focus: [] });
+    expect(clockState.ops).toEqual([]);
     expect(question(container)).toBeNull();
     expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
   });
 
-  it("keeps no focus on Skip", () => {
+  it("can skip without saving a personal preference or changing shared settings", () => {
     const { container } = renderHome();
-
-    fireEvent.click(container.querySelector('[data-view-choice="product"]')!);
-    fireEvent.click(container.querySelector('[data-focus-choice="costs"]')!);
-    fireEvent.click(container.querySelector("[data-focus-skip]")!);
-
-    expect(stored()).toEqual({ view: "product", focus: [] });
-    expect(question(container)).toBeNull();
-  });
-
-  it("ends at once on Everything", () => {
-    const { container } = renderHome();
-
-    fireEvent.click(container.querySelector('[data-view-choice="everything"]')!);
-
-    expect(stored()).toEqual({ view: "everything", focus: [] });
+    fireEvent.click(container.querySelector("[data-view-skip]")!);
+    expect(stored()).toBeNull();
+    expect(clockState.ops).toEqual([]);
     expect(question(container)).toBeNull();
   });
 
   it("is not drawn once the person has a choice", () => {
-    storeView("product");
-
+    storeView("growth");
     const { container } = renderHome();
-
     expect(container.querySelector("[data-first-run]")).not.toBeNull();
     expect(question(container)).toBeNull();
   });
 
-  it("leaves a saved workspace default alone, and still asks the person", () => {
-    payload.dashboard = { ...SEEDED_DASHBOARD, view: { default: "product" } };
+  it("leaves a saved workspace default unchanged", () => {
+    payload.dashboard = { ...SEEDED_DASHBOARD, view: { default: "growth" } };
     const { container } = renderHome();
     expect(question(container)).toHaveAttribute("data-first-run-question", "view");
-
-    fireEvent.click(container.querySelector('[data-view-choice="business"]')!);
-
-    expect(stored()).toEqual({ view: "business", focus: [] });
+    fireEvent.click(container.querySelector('[data-view-choice="revenue"]')!);
+    expect(stored()).toEqual({ view: "revenue", focus: [] });
     expect(clockState.ops).toEqual([]);
   });
 });
@@ -1046,7 +1006,7 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(document.activeElement).toBe(container.querySelector("#home-problems"));
   });
 
-  it.each(["everything", "business", "product"])("opens summary destinations in the %s view without changing its preferences", (view) => {
+  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("opens summary destinations in the %s view without changing its preferences", (view) => {
     storeView(view);
     payload.attention = [alert({ severity: "error" })];
     const { container } = renderHome();

@@ -20,13 +20,7 @@ Both show the same data from the same installation.
 
 ## The pages
 
-The sidebar lists the pages in the order you are likely to need them. Which pages it lists follows your view, chosen on Home's first run or in [Settings → General → **Your view**](/tower/settings#general):
-
-- **I run the business**: Home, Portfolio, Tasks, Money and Settings.
-- **I build the product**: Home, Portfolio, Alerts, Tasks, Money, System health, Integrations and Settings.
-- **Everything**: every page in the table below.
-
-A page the sidebar leaves out still opens from Search (**⌘K**), which lists every page in every view, and from any link to it.
+The sidebar keeps the same pages and order in every view. The **View** bar below the header offers **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. On a phone it becomes a picker. Choosing one updates the current page's presentation while preserving its route, filters and open details. See [Choose your view](/guides/choose-your-view).
 
 | Page | What it shows |
 |---|---|
@@ -41,11 +35,11 @@ A page the sidebar leaves out still opens from Search (**⌘K**), which lists ev
 | [Integrations](/tower/integrations) | Which provider accounts are connected, and how to connect another. |
 | [Settings](/tower/settings) | The settings that apply to the whole installation. |
 
-At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, asset or task by name. Its **Views** group lists **Switch to · \<view>** for the two views you are not in.
+At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, asset or task by name. Its **Views** group lists **Switch to · \<view>** for the other four views.
 
 ## An asset's own page
 
-An **asset** is one website or product you added. Its name on Home or Portfolio opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**; your view decides which of them are shown. Most of what concerns one asset happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Portfolio](/tower/sites).
+An **asset** is one website or product you added. Its name on Home or Portfolio opens its own page, with tabs: **Overview**, **Growth**, **Journeys**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**; every view keeps the same tabs. Most of what concerns one asset happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Portfolio](/tower/sites).
 
 ## How to read a page
 

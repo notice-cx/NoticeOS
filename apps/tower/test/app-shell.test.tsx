@@ -739,36 +739,43 @@ describe("the nav fetches a page's code before it is clicked", () => {
   });
 });
 
-// The public demo's visitors switch the founder view from the demo bar on
-// every desk page; no other installation draws the switch.
-describe("the demo bar's view switch", () => {
+describe("the global purpose view bar", () => {
   const viewer = () => validateDemoViewer({ version: 1, synthetic: true, release: "1".repeat(40),
     scenarioHash: "2".repeat(64), workspaceId: "11111111-1111-4111-8111-111111111111",
     cutoff: "2026-09-15T12:00:00.000Z", generatedAt: null });
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
+  afterEach(() => vi.unstubAllGlobals());
 
-  it("is drawn at the end of the demo bar, and the sidebar follows a press", () => {
-    vi.stubGlobal("__DEMO_VIEWER__", viewer());
+  it.each([false, true])("shows one shared five-purpose control and preserves navigation in demo mode: %s", (demo) => {
+    if (demo) vi.stubGlobal("__DEMO_VIEWER__", viewer());
     const { container } = renderShell("/");
-    const bar = container.querySelector<HTMLElement>("[data-demo-viewer]");
-    if (!bar) throw new Error("no demo bar");
-    const group = within(bar).getByRole("group", { name: "Your view" });
-    expect(within(group).getAllByRole("button").map((option) => option.textContent)).toEqual([
-      "I run the business", "I build the product", "Everything",
+    const bars = container.querySelectorAll<HTMLElement>("[data-view-bar]");
+    expect(bars).toHaveLength(1);
+    const bar = bars[0]!;
+    const demoBar = container.querySelector<HTMLElement>("[data-demo-viewer]");
+    if (demo) {
+      expect(demoBar).not.toBeNull();
+      expect(demoBar?.nextElementSibling).toBe(bar);
+      expect(demoBar?.querySelector("[data-view-bar]")).toBeNull();
+    } else expect(demoBar).toBeNull();
+    const group = within(bar).getByRole("group", { name: "View" });
+    expect(within(group).getAllByRole("button").map(option => option.textContent)).toEqual([
+      "Overview", "Growth", "Revenue", "Delivery", "Reliability",
     ]);
+    expect(within(group).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true");
     const column = container.querySelector<HTMLElement>("[data-app-sidebar]");
     if (!column) throw new Error("no sidebar");
-    expect(within(column).queryByRole("link", { name: "Alerts" })).not.toBeNull();
-    fireEvent.click(within(group).getByRole("button", { name: "I run the business" }));
-    expect(within(group).getByRole("button", { name: "I run the business" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(column).queryByRole("link", { name: "Alerts" })).toBeNull();
+    fireEvent.click(within(group).getByRole("button", { name: "Growth" }));
+    expect(within(group).getByRole("button", { name: "Growth" })).toHaveAttribute("aria-pressed", "true");
+    for (const item of NAV_ITEMS) expect(within(column).getByRole("link", { name: item.label })).toHaveAttribute("href", item.to);
+    expect(container.querySelector("[data-demo-view-switch]")).toBeNull();
   });
 
-  it("is not drawn outside the demo", () => {
-    const { container } = renderShell("/");
-    expect(container.querySelector("[data-demo-viewer]")).toBeNull();
+  it.each([false, true])("keeps the TV editor exempt from the global view bar in demo mode: %s", (demo) => {
+    if (demo) vi.stubGlobal("__DEMO_VIEWER__", viewer());
+    const { container } = renderShell("/wall/edit");
+    expect(container.querySelector("[data-view-bar]")).toBeNull();
     expect(container.querySelector("[data-demo-view-switch]")).toBeNull();
+    expect(screen.getByText("page")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Portfolio" })).toBeInTheDocument();
   });
 });

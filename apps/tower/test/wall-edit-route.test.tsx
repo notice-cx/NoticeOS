@@ -919,7 +919,7 @@ describe("Wall tile transparency", () => {
     fireEvent.click(saveButton());
     expect(savedLayout()).toMatchObject({ tileSurfaces: false, tileTransparency: 50 });
   });
-  it("preserves appearance calibration while a view preset replaces the section arrangement", () => {
+  it("preserves appearance calibration while a Wall preset replaces the section arrangement", () => {
     const layout = structuredClone(DEFAULT_WALL_LAYOUT);
     layout.tileTransparency = 50;
     layout.tileSurfaces = false;
@@ -927,7 +927,7 @@ describe("Wall tile transparency", () => {
     renderEditor({ layout, history: [] });
     openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Start from" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /I build the product/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Revenue and visitors/ }));
     fireEvent.click(saveButton());
     expect(savedLayout().tileTransparency).toBe(50);
     expect(savedLayout().tileSurfaces).toBe(false);
@@ -1044,7 +1044,7 @@ describe("TV preview presets", () => {
     fireEvent.change(screen.getByLabelText("TV preset"), { target: { value: "720p-100" } });
     openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Start from" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /I build the product/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Revenue and visitors/ }));
     expect(screen.getByLabelText("TV preset")).toHaveValue("720p-100");
     fireEvent.click(saveButton());
     expect(savedLayout().tvPreview?.selectedId).toBe("720p-100");

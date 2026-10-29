@@ -1,3 +1,4 @@
+import { TaskViewContext } from "../task-view-context";
 import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { TASK_PROJECTS_PATH, taskActorLabel } from "@shared/tasks";
@@ -94,6 +95,7 @@ export function ProjectsTab({ scope }: { scope: string | null }) {
         <OpenWork projects={projects} snapshots={spokes} weeks={weeks} complete={countsComplete} tasks={scoped ? null : allTasks} />
       </div>
 
+      <TaskViewContext tasks={allTasks} complete={countsComplete} />
       <BlockerImpact projects={read} />
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

@@ -1,3 +1,4 @@
+import { TaskViewContext } from "./task-view-context";
 import { boundedCount, countLabel } from "@/lib/count-label";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
@@ -351,6 +352,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
               the board knows where its answer ends. */}
           {projects.length > 0 ? <div data-surface-hero className="@container flex flex-col gap-5">
             {answer}
+            <TaskViewContext tasks={tableRows} complete={countsComplete} />
             {scoped ? null : <WorkingNow tasks={allTasks} />}
             {/* Laid out by its own width, not the window's: a site's Tasks tab
                 and a portrait monitor both leave the board less than the

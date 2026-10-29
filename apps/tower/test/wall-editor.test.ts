@@ -843,12 +843,12 @@ describe("dirty and save", () => {
   });
 });
 
-describe("starting from a view's preset", () => {
-  it("offers the three presets by the views' own labels", () => {
+describe("starting from a Wall preset", () => {
+  it("offers the three independent presets by purpose", () => {
     expect(wallPresetOptions().map((option) => [option.view, option.label])).toEqual([
-      ["business", "I run the business"],
-      ["product", "I build the product"],
-      ["everything", "Everything"],
+      ["business", "Health and decisions"],
+      ["product", "Revenue and visitors"],
+      ["everything", "Portfolio overview"],
     ]);
     expect(wallPresetOptions().map((option) => option.layout)).toEqual([
       WALL_PRESETS.business,
@@ -883,9 +883,9 @@ describe("starting from a view's preset", () => {
   });
 
   it("writes the version note as the preset started from", () => {
-    expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, WALL_PRESETS.business)).toBe("Started from I run the business");
-    expect(wallChangeSummary(WALL_PRESETS.business, WALL_PRESETS.product)).toBe("Started from I build the product");
-    expect(wallChangeSummary(WALL_PRESETS.product, DEFAULT_WALL_LAYOUT)).toBe("Started from Everything");
+    expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, WALL_PRESETS.business)).toBe("Started from Health and decisions");
+    expect(wallChangeSummary(WALL_PRESETS.business, WALL_PRESETS.product)).toBe("Started from Revenue and visitors");
+    expect(wallChangeSummary(WALL_PRESETS.product, DEFAULT_WALL_LAYOUT)).toBe("Started from Portfolio overview");
     // A preset that is then changed is described by what changed.
     const changed = run(start(SAVED_COLUMN_LAYOUT), { type: "replace", layout: WALL_PRESETS.business }, { type: "remove", widgetId: "needs" });
     expect(wallChangeSummary(SAVED_COLUMN_LAYOUT, changed.layout)).not.toMatch(/^Started from/);

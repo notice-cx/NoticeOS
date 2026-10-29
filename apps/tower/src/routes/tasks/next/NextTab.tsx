@@ -1,3 +1,4 @@
+import { TaskViewContext } from "../task-view-context";
 import { boundedCount } from "@/lib/count-label";
 import { CircleHelp } from "lucide-react";
 import { ageMs, formatAge } from "@shared/freshness";
@@ -89,6 +90,7 @@ export function NextTab({ scope = null, compact = false }: { scope?: string | nu
             nowMs={now}
           />
         </div>
+        <TaskViewContext tasks={next.allTasks} complete={countsComplete} />
         {decision}
       </div>
       {then}

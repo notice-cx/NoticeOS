@@ -21,6 +21,8 @@ import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
 import { useConnections } from "@/hooks/useConnections";
 import { useNow } from "@/hooks/useNow";
 import { useSiteIssues } from "@/hooks/useSiteIssues";
+import { useView } from "@/hooks/useView";
+import { portfolioPresentation } from "@/routes/assets/presentation";
 import { useWall } from "@/hooks/useWall";
 import { formatInt } from "@/lib/format";
 import { monthFigure } from "@/lib/home-brief";
@@ -47,6 +49,7 @@ const ORDERS: { value: SitesOrder; label: string }[] = [
   { value: "health", label: "Needs attention" },
   { value: "money", label: "Money" },
   { value: "users", label: "People" },
+  { value: "delivery", label: "Delivery" },
   { value: "name", label: "A–Z" },
 ];
 
@@ -57,6 +60,8 @@ const ORDERS: { value: SitesOrder; label: string }[] = [
 export function AssetsRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const now = useNow();
+  const { view } = useView();
+  const presentation = portfolioPresentation(view.id);
   const connections = useConnections();
   // Each site's one health word, from the same open problems Home and the
   // site's own header read.
@@ -65,14 +70,15 @@ export function AssetsRoute() {
 
   const status = params.get("status") ?? "all";
   const health = readKey<HealthFilter>(params.get("health"), ["all", ...HEALTH_KEYS]);
-  const sort = readKey<SitesOrder>(params.get("sort"), ORDERS.map((option) => option.value));
+  const explicitSort = params.get("sort");
+  const sort = explicitSort === null ? presentation.order : readKey<SitesOrder>(explicitSort, ORDERS.map((option) => option.value));
 
   const arranging = params.get(SITES_ARRANGE_PARAM) === "1";
 
   function setFilter(name: string, value: string) {
     const next = new URLSearchParams(params);
-    // A default never occupies the query string: one view, one link.
-    if (value === "all" || (name === "sort" && value === "seed")) next.delete(name);
+    // An explicit order survives a view change, including Your order.
+    if (value === "all") next.delete(name);
     else next.set(name, value);
     // `replace`: Back should leave Sites, not walk every control touched.
     setParams(next, { replace: true });
@@ -121,7 +127,13 @@ export function AssetsRoute() {
     ? [...split, { key: health, word: SITE_HEALTH[health].word, count: 0 }]
     : split;
   const answer = sitesAnswer(lines);
-  const figures = data ? [monthFigure(data.portfolio, all), visitorsAnswerFigure(all)].filter((figure) => figure !== null) : [];
+  const figures = data ? (view.id === "growth"
+    ? [visitorsAnswerFigure(all), monthFigure(data.portfolio, all)]
+    : [monthFigure(data.portfolio, all), visitorsAnswerFigure(all)]).filter((figure) => figure !== null) : [];
+  if (view.id === "delivery") {
+    const measured = assets.flatMap((asset) => asset.work ? [asset.work] : []);
+    if (measured.length > 0) figures.unshift({ label: "Blocked tasks", value: formatInt(measured.reduce((sum, work) => sum + work.blocked, 0)), note: `${measured.length} of ${assets.length} assets measured` });
+  }
 
   const narrowing = [
     narrowed
@@ -186,7 +198,7 @@ export function AssetsRoute() {
         </section>
       ) : assets.length === 1 ? (
         <div data-surface-hero className="flex flex-col gap-3">
-          <AssetsTable lines={lines} />
+          <AssetsTable lines={lines} view={view.id} />
           {hidden > 0 ? (
             <p className="m-0 text-sm text-muted-foreground" data-assets-summary>
               <HiddenSites count={hidden} to={arrangeHref(true)} />
@@ -249,7 +261,7 @@ export function AssetsRoute() {
                 {hidden > 0 ? <span aria-hidden>·</span> : null}
                 {hidden > 0 ? <HiddenSites count={hidden} to={arrangeHref(true)} /> : null}
                 {narrowed ? <Link
-                  to={{ search: sort === "seed" ? "" : `?sort=${sort}` }}
+                  to={{ search: clearedFilters(params) }}
                   replace
                   className="font-medium text-foreground underline-offset-4 outline-none hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring"
                 >
@@ -265,7 +277,7 @@ export function AssetsRoute() {
                 <EmptyState title="No assets match these filters" />
               </section>
             ) : (
-              <AssetsTable lines={visible} />
+              <AssetsTable lines={visible} view={view.id} />
             )}
           </div>
         </>
@@ -354,3 +366,11 @@ function OrderChips({ value, onPick }: { value: SitesOrder; onPick: (value: Site
 }
 
 export default AssetsRoute;
+
+/** Clear only the filters this page owns, retaining the explicit order and other URL state. */
+function clearedFilters(params: URLSearchParams): string {
+  const next = new URLSearchParams(params);
+  next.delete("health");
+  next.delete("status");
+  return next.size > 0 ? `?${next}` : "";
+}

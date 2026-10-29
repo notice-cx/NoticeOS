@@ -207,8 +207,8 @@ describe("the Health tab on the asset page", () => {
     );
   }
 
-  it("opens from a deep link and shows in the business view's tab bar", async () => {
-    window.localStorage.setItem(storageKey("view"), JSON.stringify({ view: "business", focus: [] }));
+  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("keeps Health and every technical tab accessible in %s", async (view) => {
+    window.localStorage.setItem(storageKey("view"), JSON.stringify({ view, focus: [] }));
     state.assets = [siteCard()];
     stubStore();
     const { container } = renderAt("/assets/meadow.example/health");
@@ -216,7 +216,7 @@ describe("the Health tab on the asset page", () => {
     await waitFor(() => expect(container.querySelector('[data-health-tab="watch"]')).not.toBeNull());
     expect(screen.getByRole("tab", { name: /^Health/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent?.replace(/\d+$/, "").trim())).toEqual([
-      "Overview", "Journeys", "Money", "Search", "Health", "Tasks", "Settings",
+      "Overview", "Growth", "Journeys", "Money", "Search", "Codebase", "Health", "Alerts", "Tasks", "Activity", "Data sources", "Settings",
     ]);
   });
 });

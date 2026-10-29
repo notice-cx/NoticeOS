@@ -1,5 +1,5 @@
-// With nothing saved at `/wall`, the TV and its editor draw the workspace
-// view's preset; a saved layout always wins. The editor's Start from puts a
+// With nothing saved at `/wall`, the TV and its editor draw the independent
+// default; a saved layout always wins. The editor's Start from puts a
 // preset on the stage as one unsaved step.
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -17,27 +17,27 @@ const SAVED: WallLayout = {
 const SAVED_CONFIG: WallConfig = { layout: SAVED, history: [] };
 
 describe("the TV with nothing saved", () => {
-  it("draws the workspace view's preset", () => {
-    expect(drawnLayout({ view: { default: "business" } })).toBe(WALL_PRESETS.business);
-    expect(drawnLayout({ view: { default: "product" } })).toBe(WALL_PRESETS.product);
-    expect(drawnLayout({ view: { default: "everything" } })).toBe(DEFAULT_WALL_LAYOUT);
+  it("draws the independent default for absent and null layouts", () => {
+    expect(drawnLayout({})).toBe(DEFAULT_WALL_LAYOUT);
+    expect(drawnLayout({ wall: null })).toBe(DEFAULT_WALL_LAYOUT);
+    expect(drawnLayout({ wall: undefined })).toBe(DEFAULT_WALL_LAYOUT);
   });
 
-  it("draws Everything's, the default, when no view is set", () => {
+  it("draws the default when no layout is set", () => {
     expect(drawnLayout({})).toBe(DEFAULT_WALL_LAYOUT);
   });
 
   it("draws a saved layout whatever the view", () => {
-    expect(drawnLayout({ wall: SAVED_CONFIG, view: { default: "business" } })).toEqual(SAVED);
+    expect(drawnLayout({ wall: SAVED_CONFIG })).toEqual(SAVED);
   });
 });
 
 describe("the editor with nothing saved", () => {
   const dashboard = (over: Partial<DashboardConfig>): DashboardConfig => ({ ...over });
 
-  it("starts from the workspace view's preset, unguarded by any saved value", () => {
+  it("starts from the independent default, unguarded by any saved value", () => {
     const read = readWallConfig(dashboard({ view: { default: "product" } }));
-    expect(read.config).toEqual({ layout: WALL_PRESETS.product, history: [] });
+    expect(read.config).toEqual({ layout: DEFAULT_WALL_LAYOUT, history: [] });
     expect(read.raw).toBeNull();
     expect(read.refused).toBeNull();
   });
@@ -54,16 +54,16 @@ describe("the editor with nothing saved", () => {
 });
 
 describe("Start from in the Add drawer", () => {
-  it("offers each view's preset by its label, the one on the TV checked and not offered", () => {
+  it("offers each independent preset by its label, the one on the TV checked and not offered", () => {
     const onStart = vi.fn();
     render(<WallLibraryPanel layout={DEFAULT_WALL_LAYOUT} onAdd={() => {}} onStart={onStart} />);
     fireEvent.click(screen.getByRole("button", { name: "Start from" }));
     const menu = screen.getByRole("menu", { name: "Start from" });
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent)).toEqual(["I run the business", "I build the product", "Everything"]);
+    expect(items.map((item) => item.textContent)).toEqual(["Health and decisions", "Revenue and visitors", "Portfolio overview"]);
     expect(items[2]).toHaveProperty("disabled", true);
     fireEvent.click(items[0]!);
-    expect(onStart).toHaveBeenCalledWith(WALL_PRESETS.business, "I run the business");
+    expect(onStart).toHaveBeenCalledWith(WALL_PRESETS.business, "Health and decisions");
     expect(screen.queryByRole("menu", { name: "Start from" })).toBeNull();
   });
 

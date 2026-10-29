@@ -1077,6 +1077,8 @@ function prefilledMore(prefill: TaskComposerPrefill | null): boolean {
 
 export interface FileTaskButtonProps
   extends Pick<TaskComposerProps, "prefill" | "onFiled" | "onFile" | "projects"> {
+  /** Open a composer owned by a stable parent when this trigger may disappear. */
+  onOpen?: () => void;
   /** The word on the button. */
   label?: string;
   variant?: ButtonProps["variant"];
@@ -1104,6 +1106,7 @@ export function FileTaskButton({
   className,
   subject,
   capabilities,
+  onOpen,
 }: FileTaskButtonProps) {
   const demoReadonly = useDemoReadonly();
   const [open, setOpen] = useState(false);
@@ -1123,7 +1126,7 @@ export function FileTaskButton({
         size={size}
         className={className}
         disabled={!enabled}
-        onClick={() => setOpen(true)}
+        onClick={() => onOpen ? onOpen() : setOpen(true)}
         title={enabled ? undefined : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY}
         aria-label={subject ? `${label} for ${subject}` : label}
         data-file-task

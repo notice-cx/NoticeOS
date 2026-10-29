@@ -9,7 +9,7 @@
 // The person is the admitted session's (`preferences.self`), never a path
 // segment or body field. Rows in noticeos.person_preferences are append-only
 // and the newest wins, so there is no DELETE: a reset is a PUT of the default
-// choice, `{ "view": "everything", "focus": [] }` or the workspace's default.
+// choice, `{ "view": "overview", "focus": [] }` or the workspace's default.
 // The CHECKs on `name` and on the value's object shape and size are the whole
 // storage contract; `parseViewChoice` is the whole body contract.
 //

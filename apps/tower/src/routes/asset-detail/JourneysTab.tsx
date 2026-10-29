@@ -1,3 +1,6 @@
+import { useView } from "@/hooks/useView";
+import type { ViewId } from "@shared/views";
+import type { JourneySummaryMetric } from "@/components/JourneyMonitor";
 import type { JourneyDefinition } from "@noticeos/contract/journeys";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { changesetSlug, type JsonValue } from "@shared/changeset";
@@ -8,6 +11,7 @@ import { useFieldConfigSave } from "@/hooks/useConfigSave";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
 
 export function JourneysTab({ data }: { data: AssetDetailFor<"journeys"> }) {
+  const { view } = useView();
   const save = useFieldConfigSave();
   const seed = useFieldCollectionSave();
   const { writable, reason } = useConfigWritable();
@@ -44,5 +48,12 @@ export function JourneysTab({ data }: { data: AssetDetailFor<"journeys"> }) {
     });
   }
 
-  return <div id="journeys" className="scroll-mt-4"><JourneyMonitor definitions={definitions} snapshot={data.journeys} sessionExploration={data.sessionExploration} onSave={writable ? write : undefined} readOnlyReason={reason} eventNames={events} /></div>;
+  const summaryOrder: Record<ViewId, readonly JourneySummaryMetric[]> = {
+    overview: ["visitors", "completion", "loss", "change"],
+    growth: ["visitors", "change", "completion", "loss"],
+    revenue: ["completion", "loss", "visitors", "change"],
+    delivery: ["loss", "completion", "change", "visitors"],
+    reliability: ["loss", "change", "visitors", "completion"],
+  };
+  return <div id="journeys" className="scroll-mt-4"><JourneyMonitor summaryOrder={summaryOrder[view.id]} definitions={definitions} snapshot={data.journeys} sessionExploration={data.sessionExploration} onSave={writable ? write : undefined} readOnlyReason={reason} eventNames={events} /></div>;
 }

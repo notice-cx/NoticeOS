@@ -68,28 +68,46 @@ describe("GET and PUT /api/me/preferences/view", () => {
 
   it("saves one row per PUT and reads the newest back, for this person only", async () => {
     const { rows, store } = memoryStore();
-    const first = await json(await handlePersonViewPreference(put('{"view":"business","focus":["money"]}'), person, store));
-    expect(first).toEqual({ status: 200, body: { choice: { view: "business", focus: ["money"] } } });
-    await handlePersonViewPreference(put('{"view":"product","focus":["visitors","nonsense"]}'), person, store);
+    const first = await json(await handlePersonViewPreference(put('{"view":"revenue","focus":["money"]}'), person, store));
+    expect(first).toEqual({ status: 200, body: { choice: { view: "revenue", focus: ["money"] } } });
+    await handlePersonViewPreference(put('{"view":"growth","focus":["visitors","nonsense"]}'), person, store);
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toMatchObject({ workspace_id: WORKSPACE, person_id: PERSON, value: { view: "product", focus: ["visitors"] } });
+    expect(rows[1]).toMatchObject({ workspace_id: WORKSPACE, person_id: PERSON, value: { view: "growth", focus: ["visitors"] } });
     expect(await json(await handlePersonViewPreference(get(), person, store)))
-      .toEqual({ status: 200, body: { choice: { view: "product", focus: ["visitors"] } } });
+      .toEqual({ status: 200, body: { choice: { view: "growth", focus: ["visitors"] } } });
     const other = { ...person, principalId: OTHER };
     expect((await json(await handlePersonViewPreference(get(), other, store))).body).toEqual({ choice: null });
   });
 
+  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("saves and reads the %s purpose", async (view) => {
+    const { rows, store } = memoryStore();
+    const choice = { view, focus: ["money"] };
+    expect((await json(await handlePersonViewPreference(put(JSON.stringify(choice)), person, store))).body).toEqual({ choice });
+    expect((await json(await handlePersonViewPreference(get(), person, store))).body).toEqual({ choice });
+    expect(rows[0]?.value).toEqual(choice);
+  });
+
+  it.each(["business", "product", "everything"])("reads legacy %s without changing the stored row", async (view) => {
+    const { rows, store } = memoryStore();
+    rows.push({ workspace_id: WORKSPACE, person_id: PERSON, preference_id: 1, name: "view", value: { view, focus: ["visitors"] } });
+    const expected = { view: "overview", focus: ["visitors"], ...(view === "everything" ? {} : { needsPurposeChoice: true }) };
+    expect((await json(await handlePersonViewPreference(get(), person, store))).body).toEqual({ choice: expected });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.value).toEqual({ view, focus: ["visitors"] });
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
   it("refuses a body that is not a view choice with a one-line reason, and stores nothing", async () => {
     const { rows, store } = memoryStore();
-    for (const body of ["not json", "[]", '{"view":"growth"}', '{"view":"business","focus":"money"}',
-      JSON.stringify({ view: "business", focus: ["x".repeat(3000)] })]) {
+    for (const body of ["not json", "[]", '{"view":"unknown"}', '{"view":"revenue","focus":"money"}',
+      JSON.stringify({ view: "revenue", focus: ["x".repeat(3000)] })]) {
       const { status, body: answer } = await json(await handlePersonViewPreference(put(body), person, store));
       expect(status, body.slice(0, 40)).toBe(400);
       expect(answer.error).toBe("invalid_view_choice");
       expect(String(answer.reason)).toMatch(/^[^\n]+$/);
     }
     expect((await handlePersonViewPreference(put("{}", { "content-type": "text/plain" }), person, store)).status).toBe(415);
-    expect((await handlePersonViewPreference(put('{"view":"business"}', { "content-type": "application/json",
+    expect((await handlePersonViewPreference(put('{"view":"revenue"}', { "content-type": "application/json",
       origin: "https://elsewhere.example.com" }), person, store)).status).toBe(403);
     expect(rows).toHaveLength(0);
   });
@@ -102,7 +120,7 @@ describe("GET and PUT /api/me/preferences/view", () => {
       { principalKind: "standalone-operator", principalId: "operator", sessionId: undefined },
       { principalKind: "demo-reader", principalId: "demo-reader", sessionId: undefined },
     ] as const) {
-      expect((await handlePersonViewPreference(put('{"view":"business"}'), caller, store)).status).toBe(403);
+      expect((await handlePersonViewPreference(put('{"view":"revenue"}'), caller, store)).status).toBe(403);
       expect((await handlePersonViewPreference(get(), caller, store)).status).toBe(403);
     }
     expect(rows).toHaveLength(0);
@@ -132,9 +150,9 @@ describe("the Worker's entry for /api/me/preferences/view", () => {
   it("saves and reads through admission for a person, refuses an agent, and hides a refusal or a store fault", async () => {
     const { store } = memoryStore();
     const admit = entry({ principalKind: "person", principalId: PERSON, sessionId: SESSION }, store);
-    expect((await handleHostedPersonPreference(put('{"view":"business","focus":[]}'), {}, ctx, "hosted", admit))?.status).toBe(200);
+    expect((await handleHostedPersonPreference(put('{"view":"revenue","focus":[]}'), {}, ctx, "hosted", admit))?.status).toBe(200);
     const read = await handleHostedPersonPreference(get(), {}, ctx, "hosted", admit);
-    expect(await read!.json()).toEqual({ choice: { view: "business", focus: [] } });
+    expect(await read!.json()).toEqual({ choice: { view: "revenue", focus: [] } });
 
     const agent = entry({ principalKind: "agent", principalId: PERSON }, store);
     expect((await handleHostedPersonPreference(get(), {}, ctx, "hosted", agent))?.status).toBe(403);

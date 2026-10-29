@@ -137,14 +137,12 @@ export const SITES_ARRANGE_ITEM: NavItem = {
 export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
 
 /** Every core page remains reachable even when its service is unavailable,
- * and in every view: the palette lists the pages a view leaves out of the
- * sidebar. */
+ * and in every view. */
 export function shownPages(items: readonly NavItem[]): NavItem[] {
   return [...items];
 }
 
-/** The sidebar's entries for a view's `nav` paths, in `NAV_ITEMS` order. A
- * hidden entry is still a page: the palette and a deep link open it. */
+/** Stable navigation order shared by every purpose view. */
 export function sidebarItems(nav: readonly string[]): NavItem[] {
   return NAV_ITEMS.filter((item) => nav.includes(item.to));
 }

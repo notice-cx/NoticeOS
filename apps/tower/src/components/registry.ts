@@ -1536,10 +1536,10 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["channels and the largest drop", "no channel split yet"],
   },
   {
-    name: "DemoViewSwitch",
-    file: "components/DemoViewSwitch.tsx",
+    name: "ViewBar",
+    file: "components/ViewBar.tsx",
     purpose:
-      "The demo visitor's three views as one row of pressable choices, at the end of the demo bar on every desk page and above the TV. A press stores the visitor's own view in their browser, and every screen, the TV included, redraws in it.",
-    variants: ["the stored view pressed", "a view the page names pressed, in the demo bar"],
+      "Five purpose choices above desk pages, with the active choice pressed. Mobile uses a labeled popover with purpose descriptions. A choice preserves the current page and focus preferences.",
+    variants: ["desktop view bar", "mobile compact picker", "active selection"],
   },
 ];

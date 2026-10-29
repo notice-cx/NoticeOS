@@ -1,3 +1,4 @@
+import { TaskViewContext } from "./task-view-context";
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, SendHorizontal, Star } from "lucide-react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
@@ -223,6 +224,7 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
         <TaskTitleLink task={task} />
       </h1>
       {why ? <p className="m-0 text-base text-muted-foreground">{why}</p> : null}
+      <TaskViewContext tasks={[task]} decision />
       {card ? <WhyItRanks card={card} score={score} rank={score ? { position: row.rank, of } : null} size="sm" /> : null}
 
       {choices ? (

@@ -1,3 +1,4 @@
+import { PurposeSections } from "./purpose-presentation";
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -63,24 +64,24 @@ export function ActivityTab({
   onSeedDone: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3.5">
-      <TimelineSection data={data} nowMs={nowMs} seed={seed} onSeedDone={onSeedDone} />
+    <PurposeSections surface="activity" className="flex flex-col gap-3.5">
+      <TimelineSection key="timeline" data={data} nowMs={nowMs} seed={seed} onSeedDone={onSeedDone} />
       {/* The weekly panel review's obligation: an overdue badge on the Wall
           means "open this page and act", and the page must name what is owed.
           It sits under the timeline it is a review of, renders nothing for an
           asset with no collection in the window, and only the overdue row
           leaves the quiet surface. */}
-      <PanelReviewLine
+      <PanelReviewLine key="review"
         review={data.panelReview}
         latestPanelDate={data.latestPanelDate}
         nowMs={nowMs}
         className="px-1"
       />
-      <ReclamationSection reclamation={data.reclamation} />
+      <ReclamationSection key="reclamation" reclamation={data.reclamation} />
       {/* No "about this history": the timeline's own Record action says it is
           written by hand, a watch's progress and verdict are drawn on its row,
           and link outreach offers no control. */}
-    </div>
+    </PurposeSections>
   );
 }
 

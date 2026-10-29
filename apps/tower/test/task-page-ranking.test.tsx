@@ -1,3 +1,4 @@
+import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -28,6 +29,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
+vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: { assets: [] } }) }));
 vi.mock("@/hooks/useWork", () => ({
   useWork: () => ({ data: undefined, isPending: false, isError: false }),
 }));
@@ -97,6 +99,7 @@ function renderTask() {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[`/tasks/${ID}`]}>
+        <ExecutionViewSwitch />
         <Routes>
           <Route path="/tasks/:id" element={<TaskRoute />} />
         </Routes>
@@ -134,6 +137,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.localStorage.clear();
   vi.clearAllMocks();
   resetTaskSourceMock();
   resetAnswerQueue();
@@ -412,4 +416,19 @@ describe("the comment box", () => {
       "Comment · Markdown: tables, images and checklists work; task ids and paths become links",
     );
   });
+});
+
+it('moves verification before the description while retaining the open description draft and task route', async () => {
+  renderTask();
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit description' }));
+  const editor = await screen.findByRole('textbox', { name: 'Description' });
+  fireEvent.change(editor, { target: { value: 'Keep this draft through every purpose view' } });
+  for (const view of ['delivery', 'reliability', 'growth', 'revenue', 'overview']) {
+    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
+    expect(screen.getByRole('textbox', { name: 'Description' })).toBe(editor);
+    expect(editor).toHaveValue('Keep this draft through every purpose view');
+    if (view === 'delivery' || view === 'reliability') expect(document.querySelector('[data-task-field]')).toHaveAttribute('data-task-field', 'Done when');
+    expect(screen.getByTestId('current-route')).toHaveTextContent(`/tasks/${ID}`);
+  }
+  expect(api.updateTask).not.toHaveBeenCalled();
 });

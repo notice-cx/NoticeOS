@@ -2,24 +2,16 @@ import { Fragment, type ReactNode } from "react";
 import type { HomeModuleId } from "@shared/views";
 
 /*
- * Home is a list of modules, not a fixed page, because the person's view
- * (`useView`) decides which of them are drawn and in what order: Everything
- * draws the first seven of `HOME_MODULES` in order, which is the page as it
- * always was, a narrower view draws a few, and a focus pick moves one to the
- * front. Everything keeps its twelve-column grid, each module carrying its own
- * span, with Problems, Decisions, Agents and Visitors sharing a two-column
- * group whenever they come in a run. Every other view is drawn as rows of column
- * stacks (`homeRows`), so no module is stretched to the height of the one
- * beside it.
+ * Home draws each purpose's modules in order, with personal focus picks first.
+ * Overview uses a twelve-column grid with a shared group for its small cards.
+ * Other purposes use content-height column stacks between full-width modules.
  */
 
-/** The overview cards that share a two-column group in Everything. */
+/** The overview cards that share a two-column group in Overview. */
 const STACKED: ReadonlySet<HomeModuleId> = new Set(["problems", "decide", "agents", "yesterday"]);
 
-/** How wide a module is drawn outside Everything: a row of its own, the
- * left column of a row (eight of twelve) or the right one (four). Problems
- * is drawn outside Everything only in the product view, where it sits under
- * money and channels so the two columns end near each other. */
+/** Full-width modules form their own rows; other modules stack in an
+ * eight-column section or a four-column section beside it. */
 export const MODULE_WIDTH: Record<HomeModuleId, "full" | "wide" | "narrow"> = {
   health: "full",
   sites: "full",
@@ -28,7 +20,7 @@ export const MODULE_WIDTH: Record<HomeModuleId, "full" | "wide" | "narrow"> = {
   factory: "wide",
   channels: "wide",
   problems: "wide",
-  gaps: "narrow",
+  gaps: "wide",
   decide: "narrow",
   agents: "narrow",
   yesterday: "narrow",
@@ -38,7 +30,7 @@ export type HomeSlot =
   | { stacked: false; module: HomeModuleId }
   | { stacked: true; modules: HomeModuleId[] };
 
-/** Everything's grid children, in order: a module alone, or a run of stacked ones. */
+/** Overview's grid children, in order: a module alone, or a run of stacked ones. */
 export function homeSlots(modules: readonly HomeModuleId[]): HomeSlot[] {
   const slots: HomeSlot[] = [];
   for (const module of modules) {
@@ -55,7 +47,7 @@ export type HomeRow =
   | { full: false; wide: HomeModuleId[]; narrow: HomeModuleId[] };
 
 /**
- * The rows of every view but Everything: a full-width module is a row of its
+ * The rows of every purpose but Overview: a full-width module is a row of its
  * own; the modules between two full-width ones form one row whose wide
  * modules stack in the left column and narrow ones in the right, each in the
  * list's order.
@@ -89,7 +81,7 @@ function Stacked({ module, draw }: { module: HomeModuleId; draw: Record<HomeModu
 
 /**
  * The board, drawing `modules` in order. `draw` returns each module's own
- * element. In the `grid` layout (Everything) that element carries its span
+ * element. In the `grid` layout (Overview) that element carries its span
  * and a stacked module's column is drawn here; in the `stacks` layout each
  * row is two flex columns that fall back to one, in the list's order, below
  * the twelve-column width. Only the listed modules are drawn.

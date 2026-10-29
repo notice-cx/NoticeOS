@@ -7,6 +7,8 @@ import { segmentName } from "@shared/product";
 import type { AssetCard } from "@shared/wall";
 import { Sparkline } from "@/components/surface/Sparkline";
 import { BarStrip } from "@/components/viz/BarStrip";
+import { useView } from "@/hooks/useView";
+import { prioritize } from "./purpose-presentation";
 import { useSiteIssues } from "@/hooks/useSiteIssues";
 import { useWall } from "@/hooks/useWall";
 import { formatSeriesDate, formatInt, formatPercent } from "@/lib/format";
@@ -28,6 +30,7 @@ import { Hero, Panel } from "./shared";
  */
 export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; nowMs: number }) {
   const wall = useWall();
+  const { view } = useView();
   const issues = useSiteIssues();
   const [selected, setSelected] = useState<TechFactKey | null>(null);
   const baseId = useId();
@@ -44,6 +47,13 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
   }
 
   const health = techHealth(card, issues, nowMs);
+  const priority: Record<string, readonly TechFactKey[]> = {
+    growth: ["search", "speed", "reachable", "errors", "code"],
+    revenue: ["reachable", "speed", "errors", "search", "code"],
+    delivery: ["code", "errors", "reachable", "speed", "search"],
+    reliability: ["reachable", "errors", "speed", "code", "search"],
+  };
+  const facts = prioritize(health.facts, priority[view.id] ?? []);
   const panelId = (key: TechFactKey) => `${baseId}-${key}`;
   const select = (key: TechFactKey) => {
     const next = selected === key ? null : key;
@@ -63,7 +73,7 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
             </p>
           ) : null}
           <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-5">
-            {health.facts.map((fact) => (
+            {facts.map((fact) => (
               <li key={fact.key} className="min-w-0">
                 <FactButton
                   fact={fact}
@@ -78,7 +88,7 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
         </section>
       </Hero>
       <div className="grid gap-4 lg:grid-cols-2">
-        {health.facts.map((fact) => (
+        {facts.map((fact) => (
           <div
             key={fact.key}
             id={panelId(fact.key)}

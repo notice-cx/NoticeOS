@@ -1,7 +1,7 @@
 import { integrationStatus } from '@shared/integration-status';
-import { fireEvent, render } from "./render";
+import { fireEvent, render, screen } from "./render";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   DerivedLaneRow,
   IntegrationCatalogRow,
@@ -11,6 +11,9 @@ import type {
 } from "@shared/integrations";
 import { emptyIntegrationsHistory, summarize } from "@shared/integrations";
 import { integrationProvider } from "@noticeos/contract";
+import { OperatingViewChoice } from "./operating-view-choice";
+
+afterEach(() => window.localStorage.clear());
 
 // /health opens on what to unblock next; the matrix is the audit view
 // underneath, and it reads in layers: the OS's own connection, then provider
@@ -140,6 +143,7 @@ function renderHealth(over: Partial<IntegrationsMatrix>) {
 function renderRoute(
   data: IntegrationsMatrix,
   providers: [string, string][] | null = null,
+  chooseView = false,
 ) {
   state.data = data;
   state.providers =
@@ -157,9 +161,33 @@ function renderRoute(
   return render(
     <MemoryRouter>
       <HealthRoute />
+      {chooseView ? <OperatingViewChoice /> : null}
     </MemoryRouter>,
   );
 }
+
+it("changes applicable source coverage without losing critical wiring or the open audit matrix", () => {
+  const data = matrix({
+    "meadow.example": [cell("meadow.example", "gsc", "needs-setup"), cell("meadow.example", "uptime", "degraded")],
+    "northwind.example": [cell("northwind.example", "gsc", "not-applicable"), cell("northwind.example", "uptime", "not-applicable")],
+  }, [], [lane("uptime", "Uptime", "per-property", "property")]);
+  const { container } = renderRoute(data, null, true);
+  const audit = openPanel("audit");
+  const allSources = audit.textContent;
+  fireEvent.click(screen.getByRole("button", { name: "Choose growth" }));
+  const growth = container.querySelector("[data-health-view]")!;
+  expect(growth).toHaveTextContent("Acquisition and conversion inputs");
+  expect(growth).toHaveTextContent("Search Console");
+  expect(growth).not.toHaveTextContent("Uptime");
+  fireEvent.click(screen.getByRole("button", { name: "Choose reliability" }));
+  const reliability = container.querySelector("[data-health-view]")!;
+  expect(reliability).toHaveTextContent("Availability and freshness inputs");
+  expect(reliability).toHaveTextContent("Uptime");
+  expect(audit).toHaveAttribute("data-panel-open");
+  expect(audit.textContent).toBe(allSources);
+  expect(container.querySelector('[data-panel="audit"]')).toBe(audit);
+  window.localStorage.clear();
+});
 
 /**
  * Open one of the page's collapsed panels. A panel mounts its body only when

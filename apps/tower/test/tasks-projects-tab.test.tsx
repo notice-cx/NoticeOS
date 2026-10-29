@@ -1,3 +1,4 @@
+import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "./render";
 import { MemoryRouter, useLocation, useSearchParams } from "react-router-dom";
@@ -16,6 +17,7 @@ const state = vi.hoisted(() => ({
 }));
 const answer = vi.hoisted(() => vi.fn());
 
+vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: { assets: [] } }) }));
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-10-21T12:00:00.000Z") }));
 
 vi.mock("@/hooks/useTaskBoard", async () => {
@@ -114,6 +116,7 @@ function renderTab(scope: string | null = null, entry = "/tasks/projects") {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[entry]}>
+        <ExecutionViewSwitch />
         <ProjectsTab scope={scope} />
         <Search />
       </MemoryRouter>
@@ -124,6 +127,7 @@ function renderTab(scope: string | null = null, entry = "/tasks/projects") {
 const card = (container: HTMLElement, id: string) => container.querySelector<HTMLElement>(`[data-project-card="${id}"]`)!;
 
 afterEach(() => {
+  window.localStorage.clear();
   answer.mockReset();
 });
 
@@ -266,4 +270,17 @@ describe("the project rail on All tasks", () => {
     expect(screen.getByTestId("search").textContent).toBe(`?epic=${after}`);
     expect(document.activeElement).toBe(checked());
   });
+});
+
+it('retains explicit timeline and order while changing project evidence emphasis', () => {
+  setUp();
+  renderTab(null, '/tasks/projects?view=timeline&project=meadow.example');
+  const sort = screen.getByRole('button', { name: 'Most open work' });
+  fireEvent.click(sort);
+  for (const view of ['growth', 'revenue', 'delivery', 'reliability', 'overview']) {
+    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
+    expect(screen.getByRole('button', { name: 'Timeline' })).toHaveAttribute('aria-pressed', 'true');
+    expect(sort).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/tasks/projects?view=timeline&project=meadow.example');
+  }
 });

@@ -58,19 +58,14 @@ certified. Live auth activation remains an explicit operator action under
 Every Tower page except the Wall renders inside one layout route: a persistent
 left sidebar and one page header.
 
-- **The sidebar** lists the pages in the operator's order, and which pages
-  it lists follows the person's view (`useView`, `sidebarItems` in
-  `nav-items.ts`):
-
-  | View | Sidebar entries |
-  |---|---|
-  | "I run the business" | Home, Portfolio, Tasks, Money, Settings |
-  | "I build the product" | Home, Portfolio, Alerts, Tasks, Money, System health, Integrations, Settings |
-  | "Everything" | Home, Workflows, Portfolio, Alerts, Tasks, Agents, Money, System health, Integrations, Settings |
-
-  "Everything" is what a person sees before choosing a view, unless the
-  workspace default (`config/tower.json` `/view`) names another. A page left
-  out of the sidebar still opens from the palette and from any link. The
+- **The sidebar** keeps the same pages in the same order for every purpose:
+  Home, Workflows, Portfolio, Alerts, Tasks, Agents, Money, System health,
+  Integrations and Settings. A View bar below the header offers Overview,
+  Growth, Revenue, Delivery and Reliability on every normal and demo page;
+  on a phone it becomes a picker. Switching changes the current page's
+  presentation while preserving its route, filters and open details. All
+  asset tabs and feature access remain available. The initial view is the
+  person's choice, else the workspace default, else Overview. The
   sidebar's footer holds the items that are not pages — Search…, the TV dashboard with an Edit pencil to
   `/wall/edit`, and the light/dark toggle. A setting saves in the field
   being edited, so the sidebar and header hold no save controls. `/dev/kitchen-sink`
@@ -160,11 +155,9 @@ decision rows exist only with a task source connected.
 - **Home is a list of modules, and the person's view picks them**
   (`HOME_MODULES` and `VIEW_LIBRARY` in `packages/contract/src/views.mts`,
   drawn by `routes/home/modules.tsx`). The paragraph above is the
-  "Everything" view. "I run the business" draws Asset health, the month's
-  money, "The agents · this week" and the decisions; "I build the product"
-  draws the month's money, "Where visitors come from · 4 weeks", "Worth a
-  look", the problems, the decisions and the assets. A "What matters most?"
-  pick moves its module to the front when the view draws it.
+  Overview view. Growth starts with channels, Revenue with money, Delivery
+  with the agents' week and Reliability with Asset health. Optional advanced
+  Home-order picks promote matching modules already included in that purpose.
   - **Asset health** (`HealthModule`) is one row per listed asset with five
     dots, Up, Speed, Errors, Search and Code, from `techHealth`
     (`src/lib/tech-health.ts`), the calculation the asset's Health tab and the
@@ -178,7 +171,7 @@ decision rows exist only with a task source connected.
     as a business (no income source, no data feeds, no task project, no code
     report, then the newest readings' opportunities), each row with "Make a
     task".
-  - In the business view the summary sentence starts with the assets' health
+  - In Reliability the summary sentence starts with the assets' health
     (`healthWords`: "2 of 3 assets are fine." and the asset most in need of a
     look with its first problem) and states the count of broken things only
     when there is one.
@@ -195,9 +188,10 @@ decision rows exist only with a task source connected.
   (add an asset, connect its first source, see the first number) — and no tile,
   list or table around it, because a zero would imply that something was measured.
   Above the steps, until the person has a view of their own, the card shows
-  "Which describes you?" and then, unless they chose "Everything", "What
-  matters most?" with Continue and Skip (`routes/home/ViewSteps.tsx`). The
-  steps work whether or not the questions are answered.
+  "What do you want to focus on?" with five purpose choices and Skip
+  (`routes/home/ViewSteps.tsx`). One choice saves a personal preference;
+  Skip dismisses without writes. The setup steps work before a choice and
+  onboarding never changes the workspace default.
 - **Every quantity on the page has a small visual beside it that makes it quick
   to read** (doc 14's rule): each visual shows something the number alone does not
   (direction, share, shape, or which is worst); none is decoration.
@@ -219,7 +213,7 @@ describe each tab:
 
 | Tab | Holds | Shown most prominently |
 |---|---|---|
-| **General → Your view** (`/settings#view`) | the person's view ("I run the business", "I build the product", "Everything") as three radio cards, saved in the browser on change with Undo beside them; "At the top of Home", the "What matters most?" picks, toggled with Change; and "Workspace default · new people and the TV start from" (`config/tower.json` `/view`), changed with Change while settings can be saved and shown with a lock while they cannot | the three views with their one-line descriptions, the chosen one filled |
+| **General → Your view** (`/settings#view`) | Overview, Growth, Revenue, Delivery and Reliability, matching the global View bar, saved personally on change with Undo; optional advanced At the top of Home picks; Workspace default · for new people, saved only through an explicit workspace setting | the five purpose choices with descriptions and the selected choice filled |
 | **General → Clock** (`/settings#clock`) | the operator's timezone — the IANA zone every intraday chart is drawn in (`config/constants.json` `os_time_zone`) | the current time in that zone, because two neighbouring zone names look equally plausible until you see the time each one gives |
 | **General → Budget** (`/settings#budget`) | monthly data cap, the value of your time; what happens at the cap is a **Stops at the budget** chip beside the meter | a meter of month-to-date data spend against the cap. **Every cap here has a meter**: NoticeOS makes no model calls of its own, so there is no inference cap to show |
 | **Alert rules** (`/settings/alert-rules`) | a replay of the rules against an asset's last 30 days, how often the operator responded to each rule by tuning it, then the thresholds: anomaly sensitivity, longest window | sensitivity against the conventional 0.05 ceiling; the longest window as its share of four weeks, with the quietest daily average it still tests |
@@ -341,16 +335,14 @@ full height beside several ([doc 14](14-design.md) § Regions).
   read into the polled payload by `parseWallConfig`, exactly as the countdown is
   read, so a Wall on another device shows the new layout within 60 seconds. The document
   is kept in the store; its shape is the same.
-- **The default** is `DEFAULT_WALL_LAYOUT`: the strip, then the loop, then
-  two columns — the last 24 hours above the asset rows, beside revenue above the
-  work. Revenue sits beside the assets rather than above them because that is
-  the only arrangement in which the TV's 1080 pixel rows fit the loop, the revenue band and seven
-  assets' rows without clipping (`pnpm audit:wall-fit`). **A fresh install's `/wall` is `null`, or absent** — both
-  mean "nothing saved" — and the TV then draws the preset of the workspace
-  default view (`WALL_PRESETS`, chosen by `config/tower.json` `/view`), which
-  is `DEFAULT_WALL_LAYOUT` for "Everything" and when no view is saved. The
-  presets are defined once, in the code, and not repeated in the file; a saved
-  layout always wins over a preset. `/wall`
+- **The default** is `DEFAULT_WALL_LAYOUT`: the header above Work this week,
+  Attention ticker and Portfolio on the left, beside Revenue this month and
+  Live feed on the right. Portfolio and Live feed take the remaining height.
+  A fresh install's `/wall` is `null` or absent; both mean nothing saved and
+  use this same default. Personal views, workspace defaults and `?view=` do
+  not change the Wall, including in the demo. A saved layout remains in use.
+  The editor offers independent Health and decisions, Revenue and visitors,
+  and Portfolio overview presets through stable `WallPresetId` keys. `/wall`
   is a declared document, so the config write path treats a stored `null` as absent and
   the first Save creates the key
   ([`config/tower.README.md`](../config/tower.README.md)).
@@ -404,9 +396,9 @@ full height beside several ([doc 14](14-design.md) § Regions).
   tap, Undo and Redo over every change. It saves through the ordinary settings
   write path with a one-line version note, and keeps the versions it replaced
   with a Revert per entry. The Add a widget drawer's "Start from" lists each
-  view's preset by the view's label; picking one replaces the whole
+  independent Wall preset by its layout label; picking one replaces the whole
   arrangement as one step Undo reverses, and a version saved as a preset is
-  named "Started from \<view>" when no note is written. The preview is a **query container**, so the
+  named "Started from \<layout>" when no note is written. The preview is a **query container**, so the
   type scale and every widget's breakpoints use the 1920 box rather than the
   browser window, and the arrangement on screen matches the TV's at any width;
   `pnpm audit:wall-fit` remains the check that measures the real screen, and it is the

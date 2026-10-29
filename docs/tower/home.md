@@ -14,9 +14,9 @@ Home shows how the business is doing, what is broken, and what needs your attent
 
 **The summary.** A small grey line shows the greeting, the window since 6 PM yesterday and how many things changed in it. Under it, one sentence sums up the page, such as **October is projected at $1,020, 9% under September. 2 things are broken.**
 
-In the **I run the business** view, the sentence starts with the assets' health once at least one asset is measured: **All 3 assets are fine.**, or **2 of 3 assets are fine.** followed by the asset that most needs a look and its first problem, such as **Example Shop: the home page did not load.** That part is red when an asset is down and amber when an asset is worth a look. The month's money follows, and the count of broken things is shown only when there is at least one.
+In the **Reliability** view, the sentence starts with the assets' health once at least one asset is measured: **All 3 assets are fine.**, or **2 of 3 assets are fine.** followed by the asset that most needs a look and its first problem, such as **Example Shop: the home page did not load.** That part is red when an asset is down and amber when an asset is worth a look. The count of broken things is shown only when there is at least one.
 
-**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate (**so far** in the **I run the business** view). **Yesterday** shows the previous day's revenue with cents inside the same card, including how many assets reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by asset. **Visitors in the last 28 days** is a separate card. Its figure sums reported daily visitor counts over the 28 calendar days ending on the latest settled reading. Days still being counted are excluded; missing days remain gaps and incomplete coverage is labelled. The visitor and revenue bars are split by asset, with matching named colour legends and each asset's contribution on hover. In the **Everything** view, Visitors shares a two-column group with Problems, Decisions and Agents. With no revenue source on any asset, this group comes first and no money figure is drawn.
+**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate. **Yesterday** shows the previous day's revenue with cents inside the same card, including how many assets reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by asset. **Visitors in the last 28 days** is a separate card. Its figure sums reported daily visitor counts over the 28 calendar days ending on the latest settled reading. Days still being counted are excluded; missing days remain gaps and incomplete coverage is labelled. The visitor and revenue bars are split by asset, with matching named colour legends and each asset's contribution on hover. In the **Overview** view, Visitors shares a two-column group with Problems, Decisions and Agents. With no revenue source on any asset, this group comes first and no money figure is drawn.
 
 **Problems.** A compact card shows the three highest-ranked issues, with errors before warnings and the newest first within each severity. Its header counts all broken and at-risk conditions, including source failures and backup failures. Titles use at most two lines; open a row for its details, or **All alerts →** for Alerts. Source failures open the asset's **Data sources** tab, and an overdue review opens its review task. Data source details remain on the asset pages and Integrations.
 
@@ -24,7 +24,7 @@ In the **I run the business** view, the sentence starts with the assets' health 
 
 **Agents.** A compact card shows **Closed in 7 days** and **In progress**, summed across the agents' task projects. Up to three named workers show their closes as bars beside their agent icons, with a link to the full Agents page. Claude uses a light spark on an orange tile. A worker counts as an agent only when it has named a model. Missing, partial or outdated activity is labelled rather than shown as a measured zero.
 
-**Portfolio.** Immediately below the four-card overview in the **Everything** view, one row per listed asset, in your order (set with **Arrange** on the Portfolio page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one asset, Home shows that asset's own numbers and chart instead.
+**Portfolio.** Immediately below the four-card overview in the **Overview** view, one row per listed asset, in your order (set with **Arrange** on the Portfolio page): its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one asset, Home shows that asset's own numbers and chart instead.
 
 **Problems and activity · Last 24 hours.** One row per listed asset and one for the System, on a time axis that ends at **Now**. Open problems are bars from when they started; a problem older than the day starts at the left edge with its age written on it. Shipped changes, wins and recoveries are marks on their asset's row; a finished task's mark opens that task's page. The shaded part is the time since 6 PM yesterday.
 
@@ -40,32 +40,23 @@ In the **I run the business** view, the sentence starts with the assets' health 
 
 **Until the first asset has its first number**, Home shows one sentence and three steps: **Add your first asset**, **Connect a source** and **See your first number**. The current step is shown as a button, and each finished step is marked done. Home also shows **Use \<zone>**, which saves your device's time zone in one press.
 
-Above the steps, until you have chosen a view of your own, Home shows two questions in one box:
+Above the steps, Home shows the optional **What do you want to focus on?** prompt until you choose a purpose or select **Skip**. The five choices are **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. One press saves your personal choice without a second question. **Skip** dismisses the prompt without writing a preference or changing the workspace default.
 
-- **Which describes you?** lists the three views, **I run the business**, **I build the product** and **Everything**, each with one line under it. One press chooses the view and saves it.
-- **What matters most?** then replaces it in the same box, with five picks: **Money**, **Visitors**, **Asset health**, **The agents' work** and **Costs**. Any number can be picked; **Continue** saves them in the order picked and **Skip** saves none. Choosing **Everything** closes the box without this question.
-
-![The first-run box on Home in a new installation with no asset yet: Which describes you? with I run the business, I build the product and Everything, each with its line, above Step 1 Add your first asset, Step 2 Connect a source and Step 3 See your first number.](../images/tower-first-run-view.webp)
-
-The steps work before the questions are answered: an asset can be added first, and until you answer, the pages use the workspace default view. The first answer on a new installation also becomes the workspace default, the view new people and the TV start from, when none is saved yet and settings can be saved.
+The setup steps work before you choose a view. Until you choose one, pages use the workspace default, or **Overview** when none is saved.
 
 ## Your view
 
-The view chosen on the first run, or later in [Settings → General → **Your view**](/tower/settings#general), decides which parts of Home are shown and in what order. The one-sentence summary at the top is shown in every view.
+The **View** bar, Home's first-run prompt and **Settings** → **General** → **Your view** all change the same personal preference. The bar is available on every Tower page and becomes a picker on a phone. Navigation and asset tabs keep the same order in every view.
 
 | View | Parts of Home, in order |
 |---|---|
-| **I run the business** | **Asset health**, **Money**, **The agents · this week**, **Decisions** |
-| **I build the product** | **Money**, **Where visitors come from · 4 weeks**, **Worth a look**, **Problems**, **Decisions**, **Portfolio** |
-| **Everything** | **Money** including **Yesterday**, a 2×2 group (**Visitors in the last 28 days**, **Agents**, **Decisions**, **Problems**), **Portfolio**, **Problems and activity** |
+| **Overview** | **Money**, visitors and overview cards, **Portfolio**, **Problems and activity** |
+| **Growth** | **Where visitors come from · 4 weeks**, visitors, **Worth a look**, **Problems**, **Decisions**, **Portfolio** |
+| **Revenue** | **Money**, **Problems**, **Decisions**, **Portfolio**, **Problems and activity** |
+| **Delivery** | **The agents · this week**, **Decisions**, **Agents**, **Problems**, **Problems and activity** |
+| **Reliability** | **Asset health**, **Problems**, **Decisions**, **Problems and activity** |
 
-In **I run the business**, Home opens on **Asset health**, with the month's money and **Decisions** under it and **The agents · this week** further down:
-
-
-In **I build the product**, Home opens on the month's money beside **Worth a look**, then **Where visitors come from · 4 weeks** beside **Problems**, with **Decisions** and **Portfolio** further down:
-
-
-Each pick from **What matters most?** moves one part to the top, in the order picked: **Money** and **Costs** move **Money**, **Visitors** moves **Portfolio**, **Asset health** moves **Asset health** and **The agents' work** moves **The agents · this week**. A pick whose part the view does not show changes nothing: in the **Everything** view only **Money**, **Costs** and **Visitors** move a part. A part a view leaves out is still in the product: its page is in the sidebar of the **Everything** view and in Search (**⌘K**).
+Previously saved **At the top of Home** picks still move matching modules to the top. Settings keeps these optional advanced preferences separate from the single purpose choice. See [Choose your view](/guides/choose-your-view).
 
 ## What you can do
 
@@ -76,7 +67,7 @@ Each pick from **What matters most?** moves one part to the top, in the order pi
 - In **Asset health**, open an asset from its name; point at or focus a dot to show its word and its problem. The asset's **Health** tab shows the readings behind each dot.
 - In **Agents** or **The agents · this week**, **Agents →** opens the Agents page.
 - In **Worth a look**, **Make a task** on a row opens the task form with the row's title filled in and the asset's task project chosen when it has one.
-- On the first run, press a view under **Which describes you?**, then pick under **What matters most?** and press **Continue** or **Skip**.
+- On the first run, select one purpose under **What do you want to focus on?**, or **Skip** without saving.
 - **Add your first asset**, on the first run, opens the **Add an asset** dialog.
 - **Use \<zone>** saves your device's time zone for every daily figure.
 

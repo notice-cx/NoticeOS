@@ -26,15 +26,9 @@ Only the app's HTTP port is published, on the host's loopback. Postgres has no h
 
 ## Switch the view
 
-The banner at the top of every page, the TV dashboard included, holds three choices at its end: **I run the business**, **I build the product** and **Everything**. On a phone they sit on a line below the banner's text. Pressing one redraws the Tower in that view at once: the sidebar's pages, Home's sections and each asset's tabs.
+The **View** bar below the header offers **Overview**, **Growth**, **Revenue**, **Delivery** and **Reliability**. On a phone, open the **View** picker. A choice updates the current page's emphasis, context and supporting details while preserving its route, filters and open details. All pages and asset tabs stay available in the same order. The choice is saved in this browser and changes nothing for other visitors.
 
-The TV dashboard at `/wall` follows the same choice. **I run the business** and **I build the product** show that view's layout; **Everything** shows the demo's own layout. To open the TV dashboard in one view without pressing anything, add `?view=business`, `?view=product` or `?view=everything` to its address.
-
-The choice is kept in the visitor's browser, so it stays after a reload and no other visitor sees it.
-
-![The Home page in the synthetic demo after I run the business is pressed: the banner with Synthetic demo · Read only and the three choices at its right end, I run the business marked, over Home with Asset health, October's revenue and Decide.](../images/tower-home-business.webp)
-
-See [Choose your view](/guides/choose-your-view) for what each view changes.
+The TV dashboard at `/wall` uses the demo's own saved composition. Personal views, workspace defaults and `?view=` parameters do not change it. The Wall and its editor have no global view bar.
 
 ## Configure
 

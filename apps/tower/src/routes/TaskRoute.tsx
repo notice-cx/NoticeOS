@@ -1,3 +1,7 @@
+import { Fragment } from "react";
+import { useView } from "@/hooks/useView";
+import { TaskViewContext } from "@/routes/tasks/task-view-context";
+import { taskBodyOrder, taskSectionOrder, type TaskBodySection, type TaskSection } from "@/routes/tasks/task-section-order";
 import { useTaskReviewDraft } from '@/lib/task-review-drafts';
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
@@ -118,6 +122,7 @@ function useTaskHref() {
 }
 
 export function TaskRoute() {
+  const { view } = useView();
   const { id = "" } = useParams<{ id: string }>();
   const { state } = useLocation();
   const [params, setParams] = useSearchParams();
@@ -309,13 +314,14 @@ export function TaskRoute() {
             {/* The page's one content card, its sections divided inside it;
                 the facts beside it are a rail, not a second box. */}
             <Card className="viz-arrive min-w-0 divide-y divide-border/70 shadow-raised lg:col-start-1 lg:row-start-1" style={{ "--viz-i": 1 } as CSSProperties} data-task-content="">
-              <Body task={task} nowMs={now} />
-              {blockers.length > 0 || blocked.length > 0 ? (
-                <Dependencies task={task} blockers={blockers} blocked={blocked} />
-              ) : null}
-              {related.length > 0 ? <Related rows={related} /> : null}
-              {epicView ? <EpicTasks view={epicView} className={CONTENT_SECTION} /> : null}
-              <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
+              {view.id !== "overview" ? <div className={CONTENT_SECTION}><TaskViewContext tasks={[{ ...task, card: task.cardShipped?.card ?? readTaskCardShipped(task.metadata)?.card ?? task.card ?? readTaskCard(task.metadata), project: project ?? "", ready: false }]} decision /></div> : null}
+              {taskSectionOrder(view.id).map(section => <Fragment key={section}>{({
+                body: <Body task={task} nowMs={now} />,
+                dependencies: blockers.length > 0 || blocked.length > 0 ? <Dependencies task={task} blockers={blockers} blocked={blocked} /> : null,
+                related: related.length > 0 ? <Related rows={related} /> : null,
+                progress: epicView ? <EpicTasks view={epicView} className={CONTENT_SECTION} /> : null,
+                activity: <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />,
+              } satisfies Record<TaskSection, ReactNode>)[section]}</Fragment>)}
             </Card>
           </TaskTextRefsProvider>
         </div>
@@ -589,6 +595,7 @@ function CloseForm({
  * button: the page runs the `bd` command, so it offers the field instead of
  * the instruction. */
 function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
+  const { view } = useView();
   const save = useFieldSave(task.id);
   // A card just written is drawn until the next read brings it back.
   const [written, setWritten] = useState<TaskCard | null | undefined>(undefined);
@@ -605,7 +612,8 @@ function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
   const checklist = useMemo(() => taskListItems(done.source), [done.source]);
   return (
     <div className={cn(CONTENT_SECTION, "gap-6")}>
-      {card !== null || ranking ? (
+      {taskBodyOrder(view.id).map(section => <Fragment key={section}>{({
+        value: card !== null || ranking ? (
         <WhyItRanksField
           task={task}
           card={card}
@@ -615,8 +623,8 @@ function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
           onWritten={setWritten}
           nowMs={nowMs}
         />
-      ) : null}
-      <LongTextField
+      ) : null,
+        description: <LongTextField
         label="Description"
         addLabel="Add a description"
         value={task.description}
@@ -625,8 +633,8 @@ function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
         onCommit={(next) =>
           save({ label: "the description", edit: { description: next }, undo: { description: task.description } })
         }
-      />
-      <LongTextField
+      />,
+        acceptance: <LongTextField
         // The board's word for the same field (TasksBoard's "Done when").
         label="Done when"
         addLabel="Add when it is done"
@@ -643,7 +651,8 @@ function Body({ task, nowMs }: { task: LiveTask; nowMs: number }) {
         onCommit={(next) =>
           save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
         }
-      />
+      />,
+      } satisfies Record<TaskBodySection, ReactNode>)[section]}</Fragment>)}
     </div>
   );
 }
@@ -1498,6 +1507,7 @@ function ReadOnly({
           {READ_ONLY_TASKS_HINT}
         </StatusBanner>
       </div>
+      {row ? <TaskViewContext tasks={[{ ...row, dependencies: row.dependencies?.map(edge => ({ ...edge, title: null, status: edge.status ?? null })), project: project?.asset ?? "", labels: [], ready: false, awaitType: null }]} decision /> : null}
       <Card>
         <CardContent className="flex flex-col gap-3 pt-4">
           {row === null ? (

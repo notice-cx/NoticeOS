@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -11,6 +12,9 @@ import * as configDeclarations from "@shared/config-registers";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload } from "@shared/work";
 import type { RuleBacktest } from "@noticeos/contract";
+import type { ViewId } from "@shared/views";
+import { storageKey } from "@/lib/browser-storage";
+import { useView } from "@/hooks/useView";
 
 // Sonner is mocked because the toast is not the subject: the request the Save
 // makes is.
@@ -291,7 +295,7 @@ function addressOf(section: string): string {
 }
 
 /** `client` is the desk's query cache, for a case about what it already holds. */
-function renderPage(section = initialSection, client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function renderPage(section = initialSection, client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), controls?: ReactNode) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[addressOf(section)]}>
@@ -300,6 +304,7 @@ function renderPage(section = initialSection, client = new QueryClient({ default
           <Route path="*" element={null} />
         </Routes>
         <LocationState />
+        {controls}
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -322,10 +327,50 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.localStorage.removeItem(storageKey("view"));
   vi.unstubAllGlobals();
 });
 
 describe("/settings", () => {
+  it.each([
+    ["overview", ["/settings#view", "/settings#clock", "/settings#budget"]],
+    ["growth", ["/settings/data-collection", "/settings/alert-rules"]],
+    ["revenue", ["/settings#budget", "/settings/ownership", "/settings#clock"]],
+    ["delivery", ["/settings/task-projects", "/settings#budget"]],
+    ["reliability", ["/settings/alert-rules", "/settings/data-collection", "/settings/installation"]],
+  ])("emphasizes relevant %s settings while retaining every section", (view, destinations) => {
+    stubFetch();
+    window.localStorage.setItem(storageKey("view"), JSON.stringify({ view, focus: [] }));
+    const { container } = renderPage("alert-rules");
+    const shortcuts = container.querySelector<HTMLElement>(`[data-settings-purpose="${view}"]`)!;
+    expect(within(shortcuts).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(destinations);
+    expect(tabHrefs()).toEqual(SETTINGS_TABS.filter((tab) => tab !== "members").map(settingsPath));
+    expect(selectedTabHref()).toBe("/settings/alert-rules");
+    expect(screen.getByTestId("settings-location")).toHaveTextContent("/settings/alert-rules");
+  });
+
+  it("keeps an explicit tab and unsaved editor draft through every purpose change", () => {
+    const calls = stubFetch();
+    function ChangePurpose() {
+      const { setChoice } = useView();
+      return <>{(["overview", "growth", "revenue", "delivery", "reliability"] as ViewId[]).map((view) => (
+        <button key={view} onClick={() => setChoice({ view, focus: [] })}>Switch to {view}</button>
+      ))}</>;
+    }
+    const { container } = renderPage("alert-rules", undefined, <ChangePurpose />);
+    const editor = screen.getByRole("spinbutton", { name: /Longest window/ });
+    fireEvent.change(editor, { target: { value: "11" } });
+    for (const view of ["growth", "revenue", "delivery", "reliability", "overview"]) {
+      fireEvent.click(screen.getByRole("button", { name: `Switch to ${view}` }));
+      expect(container.querySelector(`[data-settings-purpose="${view}"]`)).not.toBeNull();
+      expect(selectedTabHref()).toBe("/settings/alert-rules");
+      expect(screen.getByTestId("settings-location")).toHaveTextContent("/settings/alert-rules");
+      expect(screen.getByRole("spinbutton", { name: /Longest window/ })).toBe(editor);
+      expect(editor).toHaveValue(11);
+    }
+    expect(calls.some((call) => call.method !== "GET")).toBe(false);
+  });
+
   it("repaints only its clock and countdown each second, not the page", async () => {
     vi.useFakeTimers();
     try {

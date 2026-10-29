@@ -1,3 +1,4 @@
+import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, within, waitFor } from './render';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -11,6 +12,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 
+vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: { assets: [] } }) }));
 vi.mock('@/hooks/useConfigWritable', () => ({ useConfigWritable: () => ({ writable: true, reason: null }) }));
 // Which sources are connected decides where a collection's schedule link
 // goes. None, unless a test connects one.
@@ -38,7 +40,7 @@ const trace: WorkflowRun = { id: 'counters@2026-09-09T16:15:00.000Z', workflowId
 let client: QueryClient;
 let data: WorkflowsPayload;
 function mount(url = '/health/operations') {
-  return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[url]}><Routes><Route path="/health/operations/:id?" element={<WorkflowsRoute surface="system" />} /><Route path="/workflows/:id?" element={<WorkflowsRoute />} /></Routes></MemoryRouter></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[url]}><ExecutionViewSwitch /><Routes><Route path="/health/operations/:id?" element={<WorkflowsRoute surface="system" />} /><Route path="/workflows/:id?" element={<WorkflowsRoute />} /></Routes></MemoryRouter></QueryClientProvider>);
 }
 beforeEach(() => {
   connections.connected = [];
@@ -52,7 +54,8 @@ beforeEach(() => {
     return new Response(JSON.stringify({ ...data, selectedRun: selected === trace.id ? trace : selected ? data.workflows.flatMap((w) => w.runs).find((r) => r.id === selected) ?? null : null }));
   }));
 });
-afterEach(() => { cleanup(); client.clear(); vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => {
+  window.localStorage.clear(); cleanup(); client.clear(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('workflow operating surface', () => {
   it('does not report a backup in progress when no run has been recorded', async () => {
@@ -504,4 +507,40 @@ describe('run a local job from its detail page', () => {
     await screen.findByRole('heading', { name: 'Backups' });
     expect(screen.queryByRole('button', { name: /Run .* now/ })).toBeNull();
   });
+});
+
+it('uses purpose defaults for workflow order and preserves explicit sorting, filters and tabs', async () => {
+  mount('/health/operations/schedule?q=backup&state=all&sort=name&view=flat');
+  await screen.findByRole('link', { name: 'Backups' });
+  for (const view of ['delivery', 'reliability', 'growth', 'revenue', 'overview']) {
+    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
+    expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('name');
+    expect(screen.getByRole('tab', { name: 'Schedule' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/health/operations/schedule?q=backup&state=all&sort=name&view=flat');
+  }
+});
+
+it('applies reliability and delivery default ordering without writing URL filters', async () => {
+  mount('/health/operations');
+  await screen.findByRole('link', { name: 'Backups' });
+  fireEvent.click(screen.getByRole('button', { name: 'Use reliability' }));
+  expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('attention');
+  expect(screen.getAllByRole('link', { name: /Backups|Live traffic and counters/ })[0]).toHaveTextContent('Backups');
+  fireEvent.click(screen.getByRole('button', { name: 'Use delivery' }));
+  expect(screen.getByRole('combobox', { name: 'Sort operations' })).toHaveValue('next');
+  expect(screen.getByTestId('current-route')).toHaveTextContent(/^\/health\/operations$/);
+});
+
+it('keeps the requested run and unsaved schedule while changing purpose evidence', async () => {
+  mount('/health/operations/backup?run=not-retained');
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit schedule' }));
+  const frequency = screen.getByRole('combobox', { name: 'Frequency' });
+  fireEvent.change(frequency, { target: { value: 'weekly' } });
+  for (const view of ['reliability', 'delivery', 'growth', 'revenue', 'overview']) {
+    fireEvent.click(screen.getByRole('button', { name: `Use ${view}` }));
+    expect(screen.getByRole('combobox', { name: 'Frequency' })).toBe(frequency);
+    expect(frequency).toHaveValue('weekly');
+    expect(screen.getByRole('combobox', { name: 'Run' })).toHaveValue('not-retained');
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/health/operations/backup?run=not-retained');
+  }
 });

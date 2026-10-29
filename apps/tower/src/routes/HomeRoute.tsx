@@ -1,5 +1,5 @@
 import { Activity, Cable, Check, Plus } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRunStepKey } from "@shared/first-run";
@@ -7,7 +7,7 @@ import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
-import type { HomeModuleId, WordLevel } from "@shared/views";
+import type { HomeModuleId, ViewId, WordLevel } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
+import { TaskComposer, type TaskComposerPrefill } from "@/components/TaskComposer";
 import { SeverityDot } from "@/components/SeverityDot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +41,7 @@ import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
 import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
 import { AGENTS_ROUTE } from "@/components/nav-items";
+import { agentsWeek } from "@/lib/agents-week";
 import { greeting, peopleInLast28Days } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
@@ -54,7 +56,7 @@ import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
 import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
 import { SiteLead } from "@/routes/asset-detail/SiteLead";
 import { ClockProposal } from "@/routes/home/ClockProposal";
-import { ChannelsModule } from "@/routes/home/ChannelsModule";
+import { ChannelsModule, channelShares } from "@/routes/home/ChannelsModule";
 import { FactoryModule } from "@/routes/home/FactoryModule";
 import { GapsModule } from "@/routes/home/GapsModule";
 import { HealthModule } from "@/routes/home/HealthModule";
@@ -62,14 +64,8 @@ import { HomeModules } from "@/routes/home/modules";
 import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
 
-/**
- * Home answers how the business is doing, what is broken and what needs the
- * operator, drawn from the data: the month's money as the lead with
- * yesterday's revenue within it; a two-column group of problems, decisions,
- * agents and the last 28 days' visitors; the sites compared; the last day on a time axis. The
- * person's view picks which of these regions are drawn and in what order. A
- * fresh install sees the three steps to a first number instead.
- */
+/** Home draws the selected purpose's observed summary and ordered modules.
+ * A fresh installation shows the steps to its first collected reading. */
 export function HomeRoute() {
   const wall = useWall();
   const { data, isError, error, isFetching, refetch } = wall;
@@ -123,7 +119,10 @@ const DAY_MS = 86_400_000;
 
 function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
   const { modules, view } = useView();
+  // A task draft belongs to Home, so changing its purpose keeps the form open.
+  const [taskDraft, setTaskDraft] = useState<TaskComposerPrefill | null>(null);
   const location = useLocation();
+  const work = useWork();
   const linkedModule = location.hash === "#home-problems" ? "problems" : location.hash === "#home-timeline" ? "timeline" : null;
   // A summary link can reveal a section omitted by the saved view without
   // changing the person's preferences.
@@ -134,9 +133,9 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     target?.scrollIntoView({ block: "start" });
     target?.focus({ preventScroll: true });
   }, [linkedModule, location.hash, location.key]);
-  // Everything keeps its twelve-column grid; every other view stacks its
+  // Overview keeps its twelve-column grid; every other view stacks its
   // modules in columns, each at its own content's height.
-  const stacks = view.id !== "everything";
+  const stacks = view.id !== "overview";
   const issues = portfolioIssues({ assets: data.assets, attention: data.attention, connections, system: data.system, nowMs });
   const money = homeMoney(data.portfolio, data.assets);
   // The site rows (the sites compared and the day's lanes)
@@ -198,7 +197,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     health: () => <HealthModule cards={listed} issues={issues} nowMs={nowMs} />,
     factory: () => <LiveFactory cards={listed} nowMs={nowMs} />,
     channels: () => <ChannelsModule cards={listed} />,
-    gaps: () => <GapsModule cards={listed} />,
+    gaps: () => <GapsModule cards={listed} onFileTask={setTaskDraft} />,
     timeline: () => (
       <section id="home-timeline" tabIndex={-1} aria-labelledby="home-timeline-title" className="flex scroll-mt-6 flex-col gap-4 rounded-xl bg-card px-5 py-4 outline-none ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
         <SectionLabel id="home-timeline-title" title="Problems and activity" caption="Last 24 hours" />
@@ -226,10 +225,12 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         since={since}
         changed={changed}
         nowMs={nowMs}
-        health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
+        purpose={view.id}
+        lead={purposeWords(view.id, listed, issues, work.data ?? null, nowMs)}
         wordLevel={view.wordLevel}
       />
       <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
+      {taskDraft ? <TaskComposer open prefill={taskDraft} onClose={() => setTaskDraft(null)} /> : null}
     </div>
   );
 }
@@ -252,14 +253,26 @@ export function healthWords(cards: readonly AssetCard[], issues: readonly WallIs
   return { words: `${count} ${lead.card.displayName}${note}.`, tone: lead.health.key === "trouble" ? "error" : "warn" };
 }
 
-/**
- * The screen's answer in one line under a quiet greeting: where the month is
- * heading, what is broken. The greeting and the window are an eyebrow; the
- * numbers below are the large type. Given the sites' health in words (the
- * business view), the line leads with it, and the count of open problems is
- * drawn only when there is one.
- */
-function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel = "technical" }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; health?: { words: string; tone: "error" | "warn" | null } | null; wordLevel?: WordLevel }) {
+/** Summaries use the same observed selectors as the modules below them. */
+function purposeWords(purpose: ViewId, cards: readonly AssetCard[], issues: readonly WallIssue[], work: WorkPayload | null, nowMs: number): { words: string; tone: "error" | "warn" | null } | null {
+  if (purpose === "reliability") return healthWords(cards, issues, nowMs) ?? { words: "Asset health has not been measured yet.", tone: null };
+  if (purpose === "growth") {
+    const people = peopleInLast28Days(cards);
+    const channel = channelShares(cards)?.[0];
+    const visitors = people ? `${formatInt(people.total)} visitors in the last 28 days${people.partial.length > 0 ? " · partial reporting" : ""}.` : "Visitors have not been reported yet.";
+    return { words: `${visitors}${channel ? ` ${channel.channel} accounts for ${formatPercent(channel.share * 100)}% of reported sessions.` : ""}`, tone: null };
+  }
+  if (purpose === "delivery") {
+    const week = agentsWeek(cards, work, nowMs);
+    const building = week.building === null ? "Work in progress has not been counted yet." : `${formatInt(week.building)} ${week.building === 1 ? "task" : "tasks"} in progress.`;
+    const finished = week.shipped === null ? "Finished work this week has not been counted yet." : `${formatInt(week.shipped)} finished this week.`;
+    return { words: `${building} ${finished}`, tone: null };
+  }
+  return null;
+}
+
+/** The selected purpose's summary, followed by every open problem. */
+function Answer({ money, issues, since, changed, nowMs, purpose, lead, wordLevel = "technical" }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; purpose: ViewId; lead: { words: string; tone: "error" | "warn" | null } | null; wordLevel?: WordLevel }) {
   const { search } = useLocation();
   const errors = issues.filter((issue) => issue.severity === "error").length;
   const warnings = issues.length - errors;
@@ -290,18 +303,11 @@ function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel
         {" · "}
         {changed === 0 ? "nothing changed" : <Link to={{ search, hash: "#home-timeline" }} className={summaryLinkClass}>{`${formatInt(changed)} ${changed === 1 ? "thing" : "things"} changed`}</Link>}
       </span>
-      {health ? (
-        <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]" data-home-answer-health="">
-          <span className={health.tone === "error" ? "text-error" : health.tone === "warn" ? "text-warn" : undefined}>{health.words}</span>
-          {moneyWords ? <span> {moneyWords}</span> : null}
-          {errors > 0 || warnings > 0 ? <span className={errors > 0 ? "text-error" : "text-warn"}> {problems}</span> : null}
-        </h2>
-      ) : (
-        <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]">
-          {moneyWords ? <span>{moneyWords} </span> : null}
-          <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problems}</span>
-        </h2>
-      )}
+      <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]" data-home-answer-health={purpose === "reliability" ? "" : undefined} data-home-purpose={purpose}>
+        {lead ? <span className={lead.tone === "error" ? "text-error" : lead.tone === "warn" ? "text-warn" : undefined}>{lead.words} </span> : null}
+        {purpose === "overview" || purpose === "revenue" ? <span>{moneyWords ?? (purpose === "revenue" ? "Revenue has not been reported yet." : "")} </span> : null}
+        {purpose !== "reliability" || issues.length > 0 ? <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problems}</span> : null}
+      </h2>
     </header>
   );
 }
@@ -592,7 +598,7 @@ const FIRST_RUN_ICON: Record<FirstRunStepKey, typeof Plus> = {
 };
 
 /** What a stranger sees on a fresh install: one sentence saying what this
- * thing does, the two view questions until the person answers them, and the
+ * thing does, the purpose choice until the person answers it, and the
  * three steps to a first site. */
 export function FirstRun({
   steps = firstRunSteps(null, []),

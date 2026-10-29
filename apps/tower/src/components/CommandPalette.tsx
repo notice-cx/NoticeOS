@@ -276,7 +276,7 @@ function PaletteBody({
               value={`view:${spec.id}`}
               // The row's shown words, so typing its label ("Switch to")
               // keeps every view row, not only those whose label has an "o".
-              keywords={["view", "switch", "to", "switch to", spec.label]}
+              keywords={["view", "switch", "to", "switch to", spec.label, spec.detail]}
               onSelect={() => {
                 setChoice({ view: spec.id, focus: choice.focus });
                 onClose();

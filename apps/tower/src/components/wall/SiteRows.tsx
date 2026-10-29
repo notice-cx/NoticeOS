@@ -121,7 +121,7 @@ function TodayMetric({ asset, snapshot, nowMs }: { asset: AssetCard; snapshot: G
   const pace = intradayUsersPace(asset, current ?? undefined);
   const hourly = current?.status === "success" ? current.hourlyActiveUsers : null;
   const nowHour = current?.status === "success" ? clockHourNow(nowMs, current.timeZone) : null;
-  return <SparklineCompareMetric title="Today" icon={TrendingUp}
+  return <SparklineCompareMetric title="Today" icon={TrendingUp} className="wall-metric-today"
     primary={{ value: <span data-site-today-total data-estimated={estimated ? true : undefined} title={totalMeaning} aria-label={total === null ? "Daily active users today unavailable" : `${formatInt(total)} ${estimated ? "estimated" : "daily"} active users today so far`}>{total === null ? <span aria-label="Unavailable">—</span> : formatInt(total)}</span>, unit: <>{estimated ? "estimated users" : "reported users"}{estimate && nowMs - Date.parse(estimate.through) > 3 * 60_000 ? <AgeBadge iso={estimate.through} cadenceHours={1 / 60} nowMs={nowMs} /> : null}</> }}
     referenceFact={{ label: `vs ${lastWeekdayLabel(daily.timeZone, nowMs)}`, value: daily.reference === null ? null : <span data-site-today-reference title={`${daily.referenceEstimated ? 'Estimated' : 'Reported'} full-day active users on ${daily.referenceDate}, ${daily.timeZone}`}>{formatInt(daily.reference)}</span> }}
     secondary={

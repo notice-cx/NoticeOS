@@ -1,93 +1,74 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_VIEW,
-  FOCUS_LIBRARY,
-  HOME_MODULES,
-  SITE_TABS,
-  VIEW_IDS,
-  VIEW_LIBRARY,
-  VIEW_NAV_PATHS,
-  homeModulesFor,
-  parseViewChoice,
-  parseWorkspaceView,
-  serializeViewChoice,
-  viewSpec,
-  workspaceViewRefusal,
+  DEFAULT_VIEW, FOCUS_LIBRARY, HOME_MODULES, SITE_TABS, VIEW_IDS, VIEW_LIBRARY, VIEW_NAV_PATHS,
+  homeModulesFor, normalizeViewId, parseViewChoice, parseWorkspaceView, serializeViewChoice, viewSpec, workspaceViewRefusal,
 } from '../src/views.mjs';
 
-describe('the view registry', () => {
-  it('declares one spec per view id, and Everything keeps every entry in today\'s order', () => {
-    expect(VIEW_LIBRARY.map((view) => view.id)).toEqual([...VIEW_IDS]);
-    const everything = viewSpec('everything');
-    expect(everything.nav).toEqual([...VIEW_NAV_PATHS]);
-    // The seven Home modules, in their display order; the modules after them are drawn only
-    // by the views that name them.
-    expect(everything.home).toEqual(['money', 'yesterday', 'agents', 'decide', 'problems', 'sites', 'timeline']);
-    expect(HOME_MODULES.slice(0, 7)).toEqual(everything.home);
-    expect(everything.home).not.toContain('sources');
-    expect(everything.siteTabs).toContain('sources');
-    expect(everything.siteTabs).toEqual([...SITE_TABS]);
-    expect(DEFAULT_VIEW).toBe('everything');
-  });
-
-  it('every view names only known entries, in the shared order, with Home and Settings always present', () => {
+describe('purpose views', () => {
+  it('declares the five purposes and preserves every navigation and evidence destination', () => {
+    expect(VIEW_IDS).toEqual(['overview', 'growth', 'revenue', 'delivery', 'reliability']);
+    expect(VIEW_LIBRARY.map(view => view.id)).toEqual(VIEW_IDS);
+    expect(DEFAULT_VIEW).toBe('overview');
     for (const view of VIEW_LIBRARY) {
-      expect(view.nav.every((path) => VIEW_NAV_PATHS.includes(path))).toBe(true);
-      expect(view.home.every((module) => HOME_MODULES.includes(module))).toBe(true);
-      expect(view.siteTabs.every((tab) => SITE_TABS.includes(tab))).toBe(true);
-      expect(view.nav[0]).toBe('/');
-      expect(view.nav.at(-1)).toBe('/settings');
-      expect(view.siteTabs[0]).toBe('overview');
-      expect(view.siteTabs.at(-1)).toBe('settings');
-      const tabOrder = view.siteTabs.map((tab) => SITE_TABS.indexOf(tab));
-      expect([...tabOrder].sort((a, b) => a - b)).toEqual(tabOrder);
+      expect(view.nav).toEqual(VIEW_NAV_PATHS);
+      expect(view.siteTabs).toEqual(SITE_TABS);
+      expect(view.wordLevel).toBe('technical');
+      expect(view.home).toContain('problems');
+      expect(view.home).toContain('decide');
+      expect(view.home.every(module => HOME_MODULES.includes(module))).toBe(true);
       expect(new Set(view.home).size).toBe(view.home.length);
     }
-    for (const focus of FOCUS_LIBRARY) expect(HOME_MODULES.includes(focus.module)).toBe(true);
+    for (const focus of FOCUS_LIBRARY) expect(HOME_MODULES).toContain(focus.module);
+  });
+
+  it('uses a distinct module emphasis for each purpose', () => {
+    expect(viewSpec('overview').home).toEqual(['money', 'yesterday', 'agents', 'decide', 'problems', 'sites', 'timeline']);
+    expect(viewSpec('growth').home).toEqual(['channels', 'yesterday', 'gaps', 'problems', 'decide', 'sites']);
+    expect(viewSpec('revenue').home).toEqual(['money', 'problems', 'decide', 'sites', 'timeline']);
+    expect(viewSpec('delivery').home).toEqual(['factory', 'decide', 'agents', 'problems', 'timeline']);
+    expect(viewSpec('reliability').home).toEqual(['health', 'problems', 'decide', 'timeline']);
   });
 });
 
-describe('a stored choice', () => {
-  it('reads back what was serialized, dropping unknown picks', () => {
-    const stored = serializeViewChoice({ view: 'business', focus: ['agents', 'money'] });
-    expect(stored).toBe('{"view":"business","focus":["agents","money"]}');
-    expect(parseViewChoice(JSON.parse(stored))).toEqual({ view: 'business', focus: ['agents', 'money'] });
-    expect(parseViewChoice({ view: 'product', focus: ['money', 'nope', 'money'] })).toEqual({ view: 'product', focus: ['money'] });
+describe('stored choices', () => {
+  it('round trips new preferences and drops duplicate or unknown focus picks', () => {
+    expect(serializeViewChoice({ view: 'growth', focus: ['money', 'visitors'] })).toBe('{"view":"growth","focus":["money","visitors"]}');
+    expect(parseViewChoice({ view: 'growth', focus: ['money', 'nope', 'money'] })).toEqual({ view: 'growth', focus: ['money'] });
   });
 
-  it('refuses anything that is not a choice rather than guessing', () => {
-    expect(parseViewChoice(null)).toBeNull();
-    expect(parseViewChoice('business')).toBeNull();
-    expect(parseViewChoice({ view: 'operator' })).toBeNull();
-    expect(parseViewChoice({ view: 'business', focus: 'money' })).toBeNull();
-    expect(parseViewChoice({ view: 'business' })).toEqual({ view: 'business', focus: [] });
-  });
-});
-
-describe('homeModulesFor', () => {
-  it('keeps the view\'s list and moves the picked modules to the front in the order picked', () => {
-    expect(homeModulesFor({ view: 'business', focus: [] })).toEqual(['health', 'money', 'factory', 'decide']);
-    expect(homeModulesFor({ view: 'business', focus: ['agents'] })).toEqual(['factory', 'health', 'money', 'decide']);
-    expect(homeModulesFor({ view: 'business', focus: ['agents', 'costs'] })).toEqual(['factory', 'money', 'health', 'decide']);
-    expect(homeModulesFor({ view: 'product', focus: [] })).toEqual(['money', 'channels', 'gaps', 'problems', 'decide', 'sites']);
-    expect(homeModulesFor({ view: 'product', focus: ['site-health', 'visitors'] })).toEqual(['sites', 'money', 'channels', 'gaps', 'problems', 'decide']);
+  it('maps legacy identities to Overview and preserves focus with a purpose selection notice', () => {
+    for (const view of ['business', 'product']) {
+      const parsed = parseViewChoice({ view, focus: ['visitors'] });
+      expect(parsed).toEqual({ view: 'overview', focus: ['visitors'], needsPurposeChoice: true });
+      expect(parseViewChoice(parsed)).toEqual(parsed);
+      expect(serializeViewChoice(parsed!)).toBe('{"view":"overview","focus":["visitors"]}');
+    }
+    expect(parseViewChoice({ view: 'everything' })).toEqual({ view: 'overview', focus: [] });
+    expect(normalizeViewId('business')).toBe('overview');
+    expect(normalizeViewId('reliability')).toBe('reliability');
   });
 
-  it('never adds a module the view does not draw', () => {
-    expect(homeModulesFor({ view: 'business', focus: ['visitors', 'site-health'] })).toEqual(['health', 'money', 'factory', 'decide']);
-    expect(homeModulesFor({ view: 'everything', focus: ['visitors'] })).toEqual([
-      'sites', 'money', 'yesterday', 'agents', 'decide', 'problems', 'timeline',
-    ]);
+  it('rejects malformed preferences and unknown views', () => {
+    for (const value of [null, 'growth', { view: 'operator' }, { view: 'growth', focus: 'money' }]) expect(parseViewChoice(value)).toBeNull();
   });
 });
 
-describe('the workspace default document', () => {
-  it('accepts one known id and nothing else', () => {
-    expect(parseWorkspaceView({ default: 'product' })).toEqual({ default: 'product' });
-    expect(workspaceViewRefusal({ default: 'product' })).toBeNull();
+describe('focus ordering', () => {
+  it('promotes existing modules without adding modules the purpose does not show', () => {
+    expect(homeModulesFor({ view: 'delivery', focus: ['agents'] })).toEqual(['factory', 'decide', 'agents', 'problems', 'timeline']);
+    expect(homeModulesFor({ view: 'growth', focus: ['site-health', 'visitors'] })).toEqual(['sites', 'channels', 'yesterday', 'gaps', 'problems', 'decide']);
+    expect(homeModulesFor({ view: 'overview', focus: ['visitors', 'costs'] })).toEqual(['sites', 'money', 'yesterday', 'agents', 'decide', 'problems', 'timeline']);
+  });
+});
+
+describe('workspace defaults', () => {
+  it('accepts new ids and retains legacy raw values for compare-and-set writes', () => {
+    for (const value of [...VIEW_IDS, 'business', 'product', 'everything']) {
+      expect(parseWorkspaceView({ default: value })).toEqual({ default: value });
+      expect(workspaceViewRefusal({ default: value })).toBeNull();
+    }
     expect(workspaceViewRefusal({ default: 'viewer' })).toMatch(/view\.default must be one of/);
-    expect(workspaceViewRefusal({ default: 'product', focus: [] })).toMatch(/view\.focus is not a setting/);
-    expect(workspaceViewRefusal('product')).toMatch(/must be an object/);
-    expect(workspaceViewRefusal(['product'])).toMatch(/must be an object/);
+    expect(workspaceViewRefusal({ default: 'growth', focus: [] })).toMatch(/view\.focus is not a setting/);
+    expect(workspaceViewRefusal(['growth'])).toMatch(/must be an object/);
   });
 });
