@@ -8,6 +8,9 @@ function prefix(alias: string): string {
   return alias ? `${alias}.` : '';
 }
 
+/** Retains a rule tune when another alert disposition replaces it. */
+export const TUNE_CARRIED_MARK = " · rule tuned: ";
+
 /**
  * An alert that still needs the operator: nobody resolved it, and either
  * nobody dispositioned it or the only disposition that expires has expired.

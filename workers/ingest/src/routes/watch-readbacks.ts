@@ -11,6 +11,9 @@ import {
   WATCH_READBACK_MAX_BATCH,
   markWatchReadbacksPosted,
   readPendingWatchReadbacks,
+  readWatchReviews,
+  completeWatchReviews,
+  type CompletedWatchReview,
 } from '../watch-readbacks.js';
 import { asRecord } from '../shared.js';
 import { readJsonBody } from './validate.js';
@@ -25,12 +28,28 @@ export async function handleWatchReadbacks(
   }
 
   if (request.method === 'GET') {
-    return json({ pending: await readPendingWatchReadbacks(env) }, 200);
+    const after = new URL(request.url).searchParams.get('reviewsAfter') ?? '0';
+    if (!/^\d{1,10}$/.test(after) || !Number.isSafeInteger(Number(after))) {
+      return json({ error: 'bad_request', detail: 'reviewsAfter must be an alert number' }, 400);
+    }
+    const [pending, reviews] = await Promise.all([
+      Number(after) === 0 ? readPendingWatchReadbacks(env) : Promise.resolve([]),
+      readWatchReviews(env, Number(after)),
+    ]);
+    return json({ pending, reviews, nextReviewAfter: reviews.length === WATCH_READBACK_MAX_BATCH
+      ? reviews.at(-1)!.flagNumber : null }, 200);
   }
 
   const read = await readJsonBody(request);
   if (read instanceof Response) return read;
   const body = asRecord(read.value);
+  if (body?.reviewed !== undefined) {
+    const reviews = body.reviewed;
+    if (!Array.isArray(reviews) || reviews.length > WATCH_READBACK_MAX_BATCH || !reviews.every(isCompletedReview)) {
+      return json({ error: 'bad_request', detail: 'reviewed must be a bounded list of task-close evidence' }, 400);
+    }
+    return json(await completeWatchReviews(env, reviews, nowMs), 200);
+  }
   const ids = body?.posted;
   if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
     return json({ error: 'bad_request', detail: 'posted must be an array of window ids' }, 400);
@@ -44,4 +63,11 @@ export async function handleWatchReadbacks(
 
   const result = await markWatchReadbacksPosted(env, ids as string[], nowMs);
   return json(result, 200);
+}
+
+function isCompletedReview(value: unknown): value is CompletedWatchReview {
+  const row = asRecord(value);
+  return row !== null && typeof row.flagNumber === 'number' && Number.isSafeInteger(row.flagNumber) && row.flagNumber > 0
+    && ['windowId', 'asset', 'bead', 'postedAt', 'closedAt', 'checkedAt', 'reason'].every((key) =>
+      typeof row[key] === 'string' && row[key].trim().length > 0 && row[key].length <= 2048 && !row[key].includes('\u0000'));
 }

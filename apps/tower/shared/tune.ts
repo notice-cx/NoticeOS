@@ -1,3 +1,6 @@
+import { TUNE_CARRIED_MARK } from '@noticeos/contract/flag-open';
+export { TUNE_CARRIED_MARK } from '@noticeos/contract/flag-open';
+
 // The tune vocabulary — the disposition that carries its own reason. The
 // panel offers the change and the Worker records it, so the browser sends
 // which setting moved and the two values, and the note is written here, once,
@@ -104,15 +107,6 @@ export function tuneNote(tuned: TunedSetting): string {
 // and the disposition slot goes on holding the decision about the event. This
 // records that the row was tuned and which setting last moved; a row per tune
 // is `flag_tunes`.
-
-/**
- * The mark that says "this row was tuned, whatever disposition it now
- * carries": the note is either `<the decision> · rule tuned: <the setting>`
- * or it is not. It carries no quote character, and `test/flag-actions.test.ts`
- * pins that, because `worker/flag-scope.ts` and `worker/flag-actions.ts`
- * inline it into SQL text.
- */
-export const TUNE_CARRIED_MARK = " · rule tuned: ";
 
 /** The note a row gets when a new decision lands on one that was tuned. The
  * decision leads — it is what the operator just did — and the tune follows it,

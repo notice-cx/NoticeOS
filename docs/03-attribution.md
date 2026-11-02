@@ -156,6 +156,14 @@ intervals or the change-class prior described above to the ledger yet, so a
 that is built, the realized value, its interval and its method will be booked
 as an entry superseding the change's.
 
+The runner posts the result to the window's recorded readback task. Close
+that task with the review decision and evidence after reviewing the result;
+if the task was already closed for implementation, reopen it first. A fresh
+successful task read with a completion after result delivery marks only the
+associated outcome alert read. Earlier closures, missing tasks and failed
+reads leave the alert unsettled. The original measurement result and readings
+remain unchanged, including inconclusive and unmeasurable outcomes.
+
 ## What Attribute emits
 
 Per evaluated change/batch: `{ method, window, control, interval, shrunk-Δ,

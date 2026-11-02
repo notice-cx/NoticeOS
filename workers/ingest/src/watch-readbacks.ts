@@ -7,9 +7,11 @@
 
 import type { WatchScopeInput } from '@noticeos/contract';
 import { javascriptInstant } from '@noticeos/postgres';
+import { recordMutation } from '@noticeos/postgres/mutation-audit';
+import { settledFlagsSql, TUNE_CARRIED_MARK } from '@noticeos/contract/flag-open';
 import { parseWatchScope, watchScopeLabel, watchScopeSelector } from './watch-windows.js';
 
-/** A backlog drains over ticks rather than in one unbounded body. */
+/** Each delivery or review request has a bounded body. */
 export const WATCH_READBACK_MAX_BATCH = 50;
 
 /** One closed window whose verdict has not reached its task. */
@@ -73,9 +75,7 @@ export async function readPendingWatchReadbacks(
 }
 
 /**
- * The sentence posted on the task: what was bet, what came back, and where to
- * look, and nothing about what to do next. A verdict is evidence for the
- * person who owns the reading.
+ * The result and completion instructions posted to the existing review task.
  */
 function readbackComment(row: ReadbackRow): string {
   const scope: WatchScopeInput | null = parseWatchScope(row.scope_json);
@@ -90,9 +90,87 @@ function readbackComment(row: ReadbackRow): string {
     `Measured: ${measured}`,
     row.outcome_note ? `Reading: ${row.outcome_note}` : 'Reading: no note recorded.',
     '',
+    'Close this task with the review decision and evidence after reviewing this result. ' +
+      'If the task is already closed, reopen it first. Completing the review marks its alert read; the measured outcome stays unchanged.',
+    '',
     `Registered ${row.registered_at.slice(0, 10)}, closed ${row.closed_at.slice(0, 10)}. ` +
       `A flag carrying the same numbers is on the ${row.asset} card. Window ${row.id}.`,
   ].join('\n');
+}
+
+export interface WatchReview {
+  flagNumber: number;
+  windowId: string;
+  asset: string;
+  bead: string;
+  postedAt: string;
+}
+
+export interface CompletedWatchReview extends WatchReview {
+  closedAt: string;
+  checkedAt: string;
+  reason: string;
+}
+
+/** Keyset pages keep an unfinished early review from hiding later completions. */
+export async function readWatchReviews(env: IngestEnv, after: number = 0): Promise<WatchReview[]> {
+  const rows = await env.STORE.read((tx) => tx.query<WatchReview & Record<string, unknown>>(
+    `SELECT f.flag_number::int AS "flagNumber", w.window_id AS "windowId", w.asset_id AS asset,
+            w.readback_bead AS bead, w.readback_posted_at AS "postedAt"
+       FROM noticeos.watch_windows w
+       JOIN noticeos.current_flags f ON f.asset_id = w.asset_id
+        AND f.rule_id = 'watch-window-closed' AND f.rule_inputs->>'watchWindowId' = w.window_id
+      WHERE w.status = 'closed' AND w.readback_bead IS NOT NULL AND w.readback_posted_at IS NOT NULL
+        AND f.flag_number > $1 AND NOT ${settledFlagsSql('f')}
+      ORDER BY f.flag_number LIMIT $2`, [after, WATCH_READBACK_MAX_BATCH],
+  ));
+  return rows.map((row) => ({ ...row, postedAt: javascriptInstant(row.postedAt) }));
+}
+
+/** Only a fresh, exact task close after delivery can acknowledge this result. */
+export async function completeWatchReviews(
+  env: IngestEnv, reviews: CompletedWatchReview[], nowMs: number = Date.now(),
+): Promise<{ reviewed: number[]; skipped: number[] }> {
+  const reviewed: number[] = [], skipped: number[] = [];
+  const now = new Date(nowMs).toISOString();
+  for (const review of reviews) {
+    const checked = Date.parse(review.checkedAt), closed = Date.parse(review.closedAt), posted = Date.parse(review.postedAt);
+    if (!Number.isFinite(checked) || !Number.isFinite(closed) || !Number.isFinite(posted)
+      || checked > nowMs || nowMs - checked > 300_000 || closed > checked || closed <= posted
+      || review.reason.trim() === '') {
+      skipped.push(review.flagNumber);
+      continue;
+    }
+    const changed = await env.STORE.write(async (tx) => {
+      // Lock the mapping as well as the alert: a relink cannot race settlement.
+      const [window] = await tx.query<{ id: string }>(
+        `SELECT window_id AS id FROM noticeos.watch_windows
+          WHERE window_id = $1 AND asset_id = $2 AND readback_bead = $3
+            AND status = 'closed' AND readback_posted_at = $4::timestamptz FOR UPDATE`,
+        [review.windowId, review.asset, review.bead, review.postedAt],
+      );
+      if (!window) return false;
+      const rows = await tx.query<{ id: number }>(
+        `UPDATE noticeos.flags SET disposition = 'ack', disposition_at = $1::timestamptz,
+            disposition_note = $2 || CASE
+              WHEN disposition = 'tune' AND disposition_note IS NOT NULL THEN $3 || disposition_note
+              WHEN strpos(disposition_note, $3) > 0 THEN substr(disposition_note, strpos(disposition_note, $3))
+              ELSE '' END,
+            snooze_until = NULL, ack_expiry = NULL
+          WHERE flag_number = $4 AND asset_id = $5 AND rule_id = 'watch-window-closed'
+            AND rule_inputs->>'watchWindowId' = $6 AND replaced_by_pulse_id IS NULL AND NOT ${settledFlagsSql()}
+          RETURNING flag_number::int AS id`,
+        [now, `Outcome reviewed on task (${review.closedAt}); decision and evidence retained on the task.`, TUNE_CARRIED_MARK,
+          review.flagNumber, review.asset, review.windowId],
+      );
+      if (rows.length === 0) return false;
+      await recordMutation(tx, null, { event: 'flag.acknowledge', assetId: review.asset,
+        subject: { flagNumber: review.flagNumber, changedCount: rows.length } });
+      return true;
+    });
+    (changed ? reviewed : skipped).push(review.flagNumber);
+  }
+  return { reviewed, skipped };
 }
 
 /**
