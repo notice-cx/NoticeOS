@@ -20,6 +20,7 @@ import { AlertList, AlertRow } from "@/components/AlertRow";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { alertsLine } from "@/lib/alerts-line";
+import { worstSeverity } from "@/lib/severity";
 import { SeverityDot } from "@/components/SeverityDot";
 import { FinishLine, readingAge } from "@/components/surface/FinishLine";
 import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
@@ -262,7 +263,7 @@ export function settledThisWeek(payload: AlertHistoryPayload | undefined, nowMs:
 }
 
 function AlertsAnswer({ items, settled, settledFailed, nowMs }: { items: AttentionItem[]; settled: AlertHistoryPayload | undefined; settledFailed: boolean; nowMs: number }) {
-  const errors = items.some((item) => item.severity === "error");
+  const severity = worstSeverity(items.map((item) => item.severity));
   const ages = items.map((item) => ageMs(nowMs, item.firstFiredAt)).filter((age): age is number => age !== null);
   const week = settledFailed ? null : settledThisWeek(settled, nowMs);
   const figures: AnswerFigure[] = [];
@@ -271,9 +272,9 @@ function AlertsAnswer({ items, settled, settledFailed, nowMs }: { items: Attenti
   return (
     <PageAnswer
       answer={alertsLine(items)}
-      mark={items.length === 0 ? null : <SeverityDot severity={errors ? "error" : "warn"} />}
+      mark={severity === null ? null : <SeverityDot severity={severity} />}
       figures={figures}
-      marks={{ "data-surface-hero": "", "data-alerts-answer": items.length === 0 ? "clear" : errors ? "error" : "warn" }}
+      marks={{ "data-surface-hero": "", "data-alerts-answer": severity ?? "clear" }}
     />
   );
 }

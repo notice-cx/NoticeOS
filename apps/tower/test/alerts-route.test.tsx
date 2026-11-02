@@ -292,7 +292,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
     expect(screen.getAllByRole("button", { name: "Resolve alert" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Snooze alert" })).toHaveLength(2);
-    expect(answer(container)).toBe("2 open alerts, 1 error");
+    expect(answer(container)).toBe("2 open alerts, 1 error, 1 warning");
 
     const row = openRow(/Signups well below normal/);
     expect(within(row).getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
@@ -318,7 +318,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.getByText("Clicks fell off a cliff")).toBeInTheDocument();
     expect(screen.queryByText("Signups well below normal")).toBeNull();
     // The strip stays portfolio-wide; the panel says what a filter left on screen.
-    expect(answer(container)).toBe("2 open alerts, 1 error");
+    expect(answer(container)).toBe("2 open alerts, 1 error, 1 warning");
     expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
     expect(screen.getByLabelText("Asset")).toHaveValue("acorn.example");
   });
@@ -553,8 +553,16 @@ describe("/alerts — the portfolio's open exceptions", () => {
   /** Each count carries the shape of its own share: "9 open" is a shrug when
    * it is nine warnings and an emergency when it is nine errors. */
   describe("the answer says how bad tonight is", () => {
+    it("uses an informational mark for informational alerts", () => {
+      const { container } = renderAlerts([alert({ severity: "info" })]);
+      const summary = container.querySelector<HTMLElement>('[data-alerts-answer]')!;
+      expect(summary).toHaveAttribute('data-alerts-answer', 'info');
+      expect(within(summary).getByRole('img', { name: 'Info' })).toBeInTheDocument();
+      expect(within(summary).queryByRole('img', { name: 'Warn' })).toBeNull();
+    });
+
     it("says how many are open and how bad, in a sentence", () => {
-      const lines = (severities: ("error" | "warn")[]) => {
+      const lines = (severities: ("error" | "warn" | "info")[]) => {
         const { container, unmount } = renderAlerts(severities.map((severity, index) => alert({ id: index + 1, severity })));
         const line = answer(container);
         unmount();
@@ -562,9 +570,14 @@ describe("/alerts — the portfolio's open exceptions", () => {
       };
       expect(lines(["warn"])).toBe("1 open alert, a warning");
       expect(lines(["error"])).toBe("1 open alert, an error");
+      expect(lines(["info"])).toBe("1 open alert, informational");
+      expect(lines(["info", "info"])).toBe("2 open alerts, both informational");
+      expect(lines(Array(10).fill("info"))).toBe("10 open alerts, all informational");
+      expect(lines(["warn", "info"])).toBe("2 open alerts, 1 warning, 1 informational");
+      expect(lines(["error", "warn", "info"])).toBe("3 open alerts, 1 error, 1 warning, 1 informational");
       expect(lines(["warn", "warn"])).toBe("2 open alerts, both warnings");
       expect(lines(["error", "error", "error"])).toBe("3 open alerts, all errors");
-      expect(lines(["error", "error", "warn"])).toBe("3 open alerts, 2 errors");
+      expect(lines(["error", "error", "warn"])).toBe("3 open alerts, 2 errors, 1 warning");
     });
 
     it("stays portfolio-wide while a filter narrows the list, and ends an unfiltered list", () => {
@@ -574,7 +587,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       ];
       const filtered = renderAlerts(both, "/alerts?asset=meadow.example");
       // A filtered list is not a finished one.
-      expect(answer(filtered.container)).toBe("2 open alerts, 1 error");
+      expect(answer(filtered.container)).toBe("2 open alerts, 1 error, 1 warning");
       expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
       expect(filtered.container.querySelector("[data-finish-line]")).toBeNull();
       filtered.unmount();
