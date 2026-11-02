@@ -117,13 +117,15 @@ export function buildArgs(selector, root = ROOT) {
 }
 
 /** `docker run` of the measurement image beside the app container, with the checkout read-only. */
-export function measureArgs({ selector, app, image, repo, asset, paths, local, measures = [] }) {
+export function measureArgs({ selector, app, image, repo, asset, paths, local, measures = [], root = ROOT }) {
   return ['--host', selector.dockerHost, 'run', '--rm', '--pull', local ? 'never' : 'missing',
     '--read-only', '--tmpfs', '/tmp', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
     '--network', `container:${app}`,
     '--mount', `type=bind,source=${repo},target=/repo,readonly`,
+    '--mount', `type=bind,source=${path.join(root, 'deploy/codebase-report/measure.mjs')},target=/measure.mjs,readonly`,
     '--env', 'NOTICEOS_ASSET_TOKEN',
-    image, '--asset', asset, '--repo', '/repo', ...(paths ? ['--paths', paths.join(',')] : []),
+    ...(/@sha256:[a-f0-9]{64}$/u.test(image) ? ['--env', `NOTICEOS_CODEBASE_IMAGE=${image}`] : []),
+    '--entrypoint', 'node', image, '/measure.mjs', '--asset', asset, '--repo', '/repo', ...(paths ? ['--paths', paths.join(',')] : []),
     ...measures.flatMap((measure) => ['--measure', measure]), '--post', MANAGED_DOOR];
 }
 
@@ -148,7 +150,7 @@ export async function codebaseReport(options, { run = runCommand, env = process.
     image = LOCAL_IMAGE;
   }
   out.write(`Measuring ${options.repo} for ${options.asset} with ${image}\n`);
-  const measured = await run('docker', measureArgs({ selector, app: app.id, image, repo: options.repo, asset: options.asset, paths: options.paths, local: options.build, measures: options.measures ?? [] }),
+  const measured = await run('docker', measureArgs({ selector, app: app.id, image, repo: options.repo, asset: options.asset, paths: options.paths, local: options.build, measures: options.measures ?? [], root }),
     { env: { ...ownEnv, NOTICEOS_ASSET_TOKEN: token }, timeoutMs: MEASURE_TIMEOUT_MS, inherit: true });
   if (measured.code !== 0) refuse(`The codebase report was not stored (exit ${measured.code}); the lines above say why.`);
 }

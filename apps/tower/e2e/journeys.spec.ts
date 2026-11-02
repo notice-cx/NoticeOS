@@ -3201,6 +3201,39 @@ test("the Codebase tab answers how the code changed, and before a first report s
   await testInfo.attach("codebase-report-light", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
 });
 
+test('release history aligns code, visitors and product behavior with accessible dense markers', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'desktop') await page.setViewportSize({ width: 1440, height: 1600 });
+  await addAssetByApi(page);
+  const seeded = await page.request.post('/__journey/codebase-report?context=true');
+  expect(seeded.ok(), await seeded.text()).toBe(true);
+  await page.goto(`/assets/${JOURNEY_ASSET}/codebase?range=90`);
+  const chart = page.locator('[data-codebase-chart]');
+  await expect(chart).toContainText('90 days · UTC calendar');
+  await chart.getByRole('button', { name: 'Visitors', exact: true }).click();
+  await chart.getByRole('button', { name: 'Product use', exact: true }).click();
+  const plots = chart.locator('[data-hero-chart]');
+  await expect(plots).toHaveCount(3);
+  for (const plot of await plots.all()) await expect(plot.getByRole('button', { name: /2 events on/ })).toBeVisible();
+  const marker = plots.nth(2).getByRole('button', { name: /2 events on/ });
+  await marker.scrollIntoViewIfNeeded();
+  if (testInfo.project.name === 'mobile') await marker.tap(); else await marker.click();
+  const details = page.getByRole('tooltip', { name: /2 events on/ });
+  await expect(details).toContainText('Deployment unconfirmed');
+  await expect(details).toContainText('Recorded 11:00 AM UTC');
+  await expect(details).toContainText('Release bbbbbbb');
+  await expect(details).not.toContainText('b'.repeat(40));
+  await expect(details).not.toContainText('2026-09-04T');
+  await expect(details).toContainText('Pages: 3 added, 2 changed, 1 removed');
+  await expect(details).not.toContainText(`Commit ${'a'.repeat(40)}`);
+  await assertNoPageOverflow(page);
+  await testInfo.attach('release-context', { body: await page.screenshot({ animations: 'disabled' }), contentType: 'image/png' });
+  await page.screenshot({ path: testInfo.outputPath('release-context.png'), animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '28d', exact: true }).click();
+  await expect(chart).toContainText('28 days · UTC calendar');
+  await expect(plots).toHaveCount(3);
+});
+
 // Uptime needs no account and no connect step. The OS checks each site's home
 // page itself every hour (the production ingest lane, over the fixture store;
 // only the site's answer is the fixture's). The Data sources row reads Up

@@ -382,7 +382,7 @@ function Numbers({ data, measures, charted, days, nowMs, onPick }: {
             measure={charted}
             landmarks={landmarks(charted)}
             tone={INK[charted.key]}
-            changes={timelineAnnotations(data.annotations.items)}
+            changes={timelineAnnotations(data.annotations.items, data.osTimeZone)}
             watches={watches}
             alertTo={assetTabPath(id, "alerts")}
             action={<Link to={link[charted.key].to} className={quietLink}>{link[charted.key].label}</Link>}

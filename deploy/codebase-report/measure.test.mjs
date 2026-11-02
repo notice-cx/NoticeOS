@@ -25,6 +25,7 @@ test('arguments: the asset id is required, folders stay inside the repository, t
   assert.deepEqual(parsed, {
     asset: 'example.com', repo: '/repo', paths: ['apps/site', 'packages/ui'], ref: 'main', out: null, post: null,
     sent: { measures: {}, unmeasured: {} },
+    asOf: null, settings: null,
   });
   assert.equal(parseArgs(['--asset', 'example.com']).repo, '/repo');
   assert.throws(() => parseArgs([]), /--asset/u);
@@ -34,6 +35,7 @@ test('arguments: the asset id is required, folders stay inside the repository, t
   assert.throws(() => parseArgs(['--asset', 'example.com', '--paths', Array.from({ length: 21 }, (_, i) => `p${i}`).join(',')]), /1 to 20/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--ref', 'main; rm']), /--ref/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--out']), /needs a value/u);
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--as-of', '2026-10-01T00:00:00Z', '--post', 'https://ingest.example.com']), /history import/u);
 });
 
 test('--measure carries the build, test and vulnerable-package results of the caller\'s own steps, validated', () => {

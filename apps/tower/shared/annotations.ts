@@ -33,6 +33,7 @@ export interface AnnotationItem {
   kind: AnnotationKind;
   ref: string | null;
   note: string | null;
+  release?: import('@noticeos/contract/codebase-history').ReleaseRecord;
 }
 
 /**

@@ -30,6 +30,7 @@
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
 | `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
+| `os:codebase-history` | Preview Git-history snapshots and release records offline; measure a pinned image, or explicitly import a prepared bundle. | `scripts/codebase-history.mjs` |
 
 ### Change the database
 

@@ -71,6 +71,8 @@ export const CodebaseRepository = z.strictObject({
 
 export const CodebaseTools = z.strictObject({
   image: z.string().min(1).max(512).optional(),
+  /** Hash of the measuring program and its frozen path/exclusion settings. */
+  profile: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
   scc: version,
   jscpd: version,
   lizard: version,
@@ -134,6 +136,20 @@ export const CodebaseReport = z
   .strictObject({
     asset: z.string().min(1).max(253),
     generatedAt: isoDateTime,
+    history: z.strictObject({
+      effectiveAt: isoDateTime,
+      selectionRef: z.string().min(1).max(255),
+    }).optional(),
+    verification: z.array(z.strictObject({
+      measure: z.enum(['build_passed', 'tests_passed']),
+      commit: z.string().regex(/^[a-f0-9]{40}$/u),
+      recordedAt: isoDateTime,
+      source: CodebasePath,
+      sourceId: z.string().min(1).max(128),
+      policy: z.string().regex(/^[a-f0-9]{64}$/u),
+      command: z.string().min(1).max(200),
+      files: z.record(CodebasePath, z.string().regex(/^[a-f0-9]{40}$/u)),
+    })).max(2).optional(),
     repository: CodebaseRepository,
     /** The subpaths measured; absent means the whole repository. */
     paths: z.array(CodebasePath).min(1).max(CODEBASE_REPORT_LIMITS.paths).optional(),
@@ -145,6 +161,14 @@ export const CodebaseReport = z
     findings: CodebaseFindings.optional(),
   })
   .superRefine((report, ctx) => {
+    if (report.history && Date.parse(report.history.effectiveAt) > Date.parse(report.generatedAt)) {
+      ctx.addIssue({ code: 'custom', message: 'snapshot follows measurement time', path: ['history'] });
+    }
+    for (const evidence of report.verification ?? []) {
+      if (evidence.commit !== report.repository.commit || report.measures[evidence.measure] !== 1) {
+        ctx.addIssue({ code: 'custom', message: 'verification must cover this exact passing revision', path: ['verification'] });
+      }
+    }
     if (utf8Bytes(JSON.stringify(report)) > CODEBASE_REPORT_MAX_BYTES) {
       ctx.addIssue({ code: 'custom', message: `report is larger than ${CODEBASE_REPORT_MAX_BYTES} bytes`, path: [] });
     }

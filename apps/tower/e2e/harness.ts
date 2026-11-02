@@ -19,6 +19,7 @@ import { explorationDateOffset } from '@noticeos/contract/session-exploration';
 import { storeReports } from '../test/alert-rows';
 import { ORDERED_JOURNEY_DEFINITIONS, orderedJourneyFixture } from './ordered-journeys-fixture';
 import { storeCodebaseReports, weeklyStoredReports } from '../test/codebase-fixture';
+import { importCodebaseHistory } from '../../../workers/ingest/src/codebase-history';
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
 import { MISSING, applyDocumentOps, configDocumentKey, resolveOps, validateSchemaAndSafety, type Changeset, type Mismatch } from "../../../scripts/config-documents.mjs";
 import { attachTestCluster, type TestClusterHandle } from "../../../scripts/postgres-test-copies.mjs";
@@ -1396,6 +1397,31 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       } else {
         const reports = weeklyStoredReports(JOURNEY_ASSET, JOURNEY_NOW.slice(0, 10));
         await storeCodebaseReports(postgres.current().store, reports);
+        if (url.searchParams.has('context')) {
+          const date = new Date(Date.parse(JOURNEY_NOW) - 2 * 86_400_000).toISOString().slice(0, 10);
+          await importCodebaseHistory(postgres.current().store, { version: 1, asset: JOURNEY_ASSET, reports: [], releases: [
+            { source: 'releases.jsonl', sequence: 0, id: 'a'.repeat(64), commit: 'a'.repeat(40), recordedAt: `${date}T10:00:00Z`, supersedes: [] },
+            { source: 'releases.jsonl', sequence: 1, id: 'b'.repeat(64), commit: 'b'.repeat(40), recordedAt: `${date}T11:00:00Z`, supersedes: ['a'.repeat(40)], counts: { added: 3, changed: 2, removed: 1, total: 10 } },
+            { source: 'releases.jsonl', sequence: 2, id: 'c'.repeat(64), commit: 'c'.repeat(40), recordedAt: `${date}T12:00:00Z`, supersedes: [] },
+          ] }, false, new Date(JOURNEY_NOW));
+          await postgres.current().store.write(async tx => {
+            const [run] = await tx.query<{ run_seq: bigint }>(`INSERT INTO noticeos.signal_runs
+              (workspace_id, run_id, asset_id, integration, credential_ref, property_ref, time_zone, started_at, finished_at, status, window_start, window_end, data_state, provider_rows, observation_count)
+              VALUES ($1::uuid, 'codebase-context', $2, 'ga4', 'synthetic', '123', 'UTC', $3::timestamptz, $3::timestamptz, 'success', $4::date - 7, $4::date, 'final', 8, 8) RETURNING run_seq`,
+              [tx.workspaceId, JOURNEY_ASSET, JOURNEY_NOW, date]);
+            await tx.execute(`INSERT INTO noticeos.measurement_series (workspace_id, asset_id, integration, property_ref, time_zone, metric)
+              VALUES ($1::uuid, $2, 'ga4', '123', 'UTC', 'active_users')`, [tx.workspaceId, JOURNEY_ASSET]);
+            for (let back = 7; back >= 0; back--) {
+              const day = new Date(Date.parse(`${date}T00:00:00Z`) - back * 86_400_000).toISOString().slice(0, 10);
+              await tx.execute(`INSERT INTO noticeos.signal_observations (workspace_id, run_seq, series_id, observed_date, value)
+                SELECT $1::uuid, $2::bigint, series_id, $3::date, $4 FROM noticeos.measurement_series
+                WHERE asset_id = $5 AND integration = 'ga4' AND metric = 'active_users'`, [tx.workspaceId, run!.run_seq, day, 100 + back, JOURNEY_ASSET]);
+              await tx.execute(`INSERT INTO noticeos.pulses (workspace_id, asset_id, pulse_date, revision, received_at, envelope)
+                VALUES ($1::uuid, $2, $3::date, 1, $4::timestamptz, $5::json)`, [tx.workspaceId, JOURNEY_ASSET, day, JOURNEY_NOW,
+                JSON.stringify({ metrics: { plans_created: { last24h: 10 + back } } })]);
+            }
+          });
+        }
         response = Response.json({ seeded: reports.length, newest: reports.at(-1)!.date });
       }
     } else if (url.pathname === "/__journey/costs" && request.method === "POST") {

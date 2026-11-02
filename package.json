@@ -39,6 +39,7 @@
     "os:mcp": "node scripts/stack-control.mjs mcp",
     "os:bd": "node scripts/stack-control.mjs bd",
     "os:codebase-report": "node scripts/codebase-report.mjs",
+    "os:codebase-history": "node scripts/codebase-history.mjs",
     "db:new-migration": "node scripts/postgres-migrate.mjs new",
     "db:try-migrations": "node scripts/postgres-migrate.mjs",
     "db:try-tower": "node scripts/start.mjs",

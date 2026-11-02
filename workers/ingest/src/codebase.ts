@@ -13,6 +13,7 @@ import {
   type CodebaseMeasures,
   type CodebaseRuleReport,
   type CodebaseRuleThresholds,
+  comparableCodebaseReports,
 } from '@noticeos/contract';
 import type { Transaction } from '@noticeos/postgres';
 import constants from '../../../config/constants.json';
@@ -53,7 +54,7 @@ export async function ingestCodebaseReport(
   body: unknown,
   thresholds?: CodebaseRuleThresholds,
 ): Promise<CodebaseIngestOutcome> {
-  const parsed = CodebaseReport.safeParse(body);
+  const parsed = CodebaseReport.refine(report => !report.history, { message: 'use the history import endpoint for reconstructed reports' }).safeParse(body);
   if (!parsed.success) return { ok: false, error: parsed.error };
   const result = await writeCodebaseReport(env, parsed.data, thresholds ?? (await codebaseThresholdsFor(env)));
   return { ok: true, result };
@@ -78,7 +79,7 @@ function storedMeasures(envelope: string): CodebaseMeasures | null {
 }
 
 /** The site's stored report the 30-day rules compare with, or null. */
-async function comparisonReport(tx: Transaction, asset: string, reportDate: string): Promise<CodebaseRuleReport | null> {
+async function comparisonReport(tx: Transaction, asset: string, reportDate: string, report: CodebaseReport): Promise<CodebaseRuleReport | null> {
   const rows = await tx.query<{ report_number: number; report_date: string; revision: number; commit: string; envelope: string }>(
     `SELECT day_number::int AS report_number, report_date::text AS report_date, revision, commit, envelope::text AS envelope
        FROM noticeos.current_codebase_reports
@@ -86,6 +87,10 @@ async function comparisonReport(tx: Transaction, asset: string, reportDate: stri
     [asset, shiftUtcDay(reportDate, -CODEBASE_COMPARISON_MAX_DAYS), shiftUtcDay(reportDate, -CODEBASE_COMPARISON_MIN_DAYS)],
   );
   const readable = rows.flatMap((row) => {
+    let source: unknown;
+    try { source = JSON.parse(row.envelope); } catch { return []; }
+    const parsed = CodebaseReport.safeParse(source);
+    if (!parsed.success || !comparableCodebaseReports(report, parsed.data)) return [];
     const measures = storedMeasures(row.envelope);
     return measures === null
       ? []
@@ -108,10 +113,12 @@ export async function writeCodebaseReport(
   report: CodebaseReport,
   thresholds: CodebaseRuleThresholds,
 ): Promise<WriteCodebaseResult> {
+  if (report.history) throw new Error('use the history import endpoint for reconstructed reports');
   const receivedAt = new Date().toISOString();
   const reportDate = utcDay(report.generatedAt);
 
   return env.STORE.write(async (tx) => {
+    await holdCondition(tx, report.asset, 'codebase-history');
     await holdCondition(tx, report.asset, `codebase-report:${reportDate}`);
     const [written] = await tx.query<{ revision: number; day_number: number }>(
       `WITH revision AS (
@@ -148,7 +155,7 @@ export async function writeCodebaseReport(
       commit: report.repository.commit,
       measures: report.measures,
     };
-    const comparison = await comparisonReport(tx, report.asset, reportDate);
+    const comparison = await comparisonReport(tx, report.asset, reportDate, report);
     const raised: string[] = [];
     let resolved = 0;
     for (const verdict of evaluateCodebaseRules(current, comparison, thresholds)) {

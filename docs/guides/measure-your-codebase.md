@@ -35,7 +35,7 @@ Under them are three checks, shown when the asset's own workflow ([Send build, t
 
 Under the figures:
 
-- A chart of lines of code over the last **30** or **90** days. Each deploy on the asset's timeline (its **Activity** tab) is a mark on it, and a ◆ mark, **Measuring tools updated**, shows a day the measuring tools changed version. **Visitors** draws the asset's visitors a day under it. Between two reports the line holds the earlier report's count.
+- A chart of lines of code over the asset page's selected **7**, **28** or **90** days. Each deploy or imported release is a mark on it, and a ◆ mark, **Measuring tools updated**, shows a change in tools or settings. **Visitors** draws daily visitors below it. **Product use** draws a collected daily product measure. All three use UTC dates and the same selected range. Between two reports the code line holds the earlier count; missing analytics dates stay unreported.
 - **Languages**: one bar split by each language's share of the code.
 - **Findings** from the latest report, in four lists: **Repeated blocks** (the files that share a block, and its length in lines), **Hard-to-change functions** (the function, its file and its complexity, where above 15 is hard to change), **Unused** (files, shared pieces and packages) and **Vulnerable packages** (how many, when there are any). Each row has **Make a task**, which opens the task form with a title such as "Merge the repeated code in …" or "Fix 3 vulnerable packages in …" filled in.
 
@@ -136,6 +136,81 @@ pnpm os:codebase-report -- --asset example.com --repo /path/to/your/code \
 
 The installation will fetch and measure each connected repository on a schedule, with no workflow file and no command. It is not built yet; the tab shows the choice greyed out.
 
+## Reconstruct earlier history
+
+`os:codebase-history` prepares older source snapshots and release markers locally.
+Its default mode reads local Git history and writes a preview. It does not read
+the running installation, fetch Git history, execute asset code or contact providers.
+
+Use a complete local clone and a measurement image pinned to its published digest.
+Use that same image and these NoticeOS scripts for the current report and the
+historical measurements. Keep `--paths` identical. The preview freezes the
+exclusion and test patterns from `.noticeos-codebase.json` at the selected ref.
+
+```sh
+pnpm os:codebase-history -- --asset example.com --repo /path/to/your/code \
+  --image ghcr.io/example/measure@sha256:<64-hex-digest> --out /tmp/codebase-history \
+  --from 2026-08-04 --to 2026-11-01 --step-days 7 \
+  --releases _releases/releases.jsonl
+```
+
+Review `/tmp/codebase-history/plan.json`. It lists each cutoff, selected commit,
+commit date, release record, rejected registry line and recovered gate evidence.
+The default range is 90 days ending yesterday, sampled weekly, plus a cutoff
+30 days before the end. Release days between samples add the last effective
+recorded release revision for that day. Unchanged days can select the same
+commit at different cutoffs. `--revision <full-sha>` selects one reachable
+revision for the chosen dates. Missing history appears as a missing point;
+a shallow clone stops reconstruction. The command never fetches automatically.
+
+Run the same command with `--measure` to prepare `bundle.json`. The local Docker
+daemon must already have the pinned image. Each measurement runs with networking
+disabled against an isolated, read-only checkout and the same measuring program
+and settings. Its 30-day Git counts end at the snapshot cutoff. The output folder
+retains completed snapshots for retries; changed plan inputs require a new folder.
+Plans allow at most 100 snapshots over 366 days and 500 release records.
+
+The existing detached-worktree pre-push convention is recognized from versioned
+`.husky/pre-push`, `scripts/git-hooks/pre-push`, `package.json` and its release
+verification scripts. A matching release-registry entry recovers passing builds
+and tests only for that exact gated commit. The preview records the source blob
+hashes and command. No new passing-check file is required. Unknown hook versions,
+intermediate commits and missing audit records stay **Not measured**. For another
+workflow, `--gate-policy` accepts reviewed source fingerprints and their covered
+checks; it never runs the declared command.
+
+After preparing and verifying the files locally, obtain approval for the specific
+installation read and import before an agent runs either command below:
+
+```sh
+pnpm os:codebase-history -- --import /tmp/codebase-history/bundle.json \
+  --config /absolute/path/to/stack.json
+pnpm os:codebase-history -- --import /tmp/codebase-history/bundle.json \
+  --config /absolute/path/to/stack.json --apply
+```
+
+The first command previews against the selected store. The second applies the
+same bounded batches. Both require the updated installation. The import skips
+existing report days, preserves the newest report and its revisions, and never
+raises or resolves alerts. A retry skips completed records. A later normal report
+can evaluate its usual rules against a compatible imported baseline.
+
+Snapshot date, commit date, actual measurement time and import time remain
+separate. Reconstructed points include those times in chart details. Tool image,
+program and path/exclusion settings must match for comparisons. An initial report
+without this provenance remains visible, but cannot silently compare with the
+new instrument; send a current report with the same pinned image and settings
+after approval. The comparison still requires a baseline 28–45 days earlier.
+
+Release markers retain their registry source, commit, branch and page-change
+counts. `recordedAt` means **Release recorded**, after the local gate and before
+the push; it does not confirm a deployment. `deployedAt`, when supplied by a
+confirmed deployment record, uses the confirmed time. Superseded attempts and
+same-commit retries collapse on read. Existing deploy annotations remain visible.
+Open a marker for its exact time and source details; nearby markers share a
+disclosure that lists every event. These charts support inspection of timing
+associations; they do not measure a causal effect.
+
 ## Leave folders out
 
 The measurement already leaves out dependencies, build output, lockfiles, minified and generated files, documentation and images. To leave out more, or to mark more files as tests, add a file named `.noticeos-codebase.json` at the root of the repository:
@@ -156,12 +231,12 @@ A figure that the report did not measure shows **Not measured** with the reason,
 
 - **Unused code** is checked only in JavaScript, TypeScript and Python. Unused packages are not measured yet, so **Unused code** counts files and shared pieces of code.
 - The three counts of changes in the last 30 days need the whole history; a GitHub checkout without `fetch-depth: 0` has only the latest commit.
-- **Build**, **Tests** and **Vulnerable packages** are measured only when the workflow's `build-passed`, `tests-passed` and `vulnerable-dependencies` inputs, or the local command's `--measure`, send them.
+- **Build** and **Tests** come from workflow inputs, the local command's `--measure`, or exact-revision recorded gate evidence during reconstruction. **Vulnerable packages** requires an actual audit result.
 - A figure's change shows "No report from a month before yet" until there is a report 28 to 45 days older than the latest.
 
 ## Alerts
 
-Each report is checked against five rules. An alert appears on **Alerts** and on the asset's **Alerts** tab, and the next report closes it when the rule no longer holds.
+Each normal report is checked against five rules. Historical imports leave alerts unchanged. An alert appears on **Alerts** and on the asset's **Alerts** tab, and the next normal report closes it when the rule no longer holds.
 
 | Alert | When | What to do |
 |---|---|---|
@@ -171,7 +246,7 @@ Each report is checked against five rules. An alert appears on **Alerts** and on
 | "7 more functions became hard to change in 30 days." | 5 or more functions became hard to change since the report nearest 30 days earlier. | Use **Make a task** on the functions with the highest complexity, asking for them to be split into smaller ones, with tests first. |
 | "3 packages have a known vulnerability." | The workflow's audit counted 1 or more vulnerable packages. | Use **Make a task** under **Vulnerable packages**, asking for each to be updated to a release without the flaw (`npm audit fix` lists most of them). |
 
-The growth and hard-to-change alerts need a report from 28 to 45 days earlier, so a newly measured asset has neither for its first four weeks. The thresholds are under `codebase_rules` in the installation's constants ([`config/constants.README.md`](https://github.com/notice-cx/NoticeOS/blob/main/config/constants.README.md)); the Tower does not edit them.
+The growth and hard-to-change alerts need a compatible report from 28 to 45 days earlier. A reconstructed baseline can supply that history before four weeks have elapsed. The thresholds are under `codebase_rules` in the installation's constants ([`config/constants.README.md`](https://github.com/notice-cx/NoticeOS/blob/main/config/constants.README.md)); the Tower does not edit them.
 
 ## Verify
 

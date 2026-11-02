@@ -8,6 +8,8 @@ import { everyTabPayload } from "./asset-detail-fixture";
 import { codebaseReport, NO_CODEBASE } from "./codebase-fixture";
 import { loadAssetTabs } from "./lazy-code";
 import { stubJsonFetch } from "./stub-fetch";
+import { releaseAnnotationNote } from '@noticeos/contract/release-annotations';
+import { timelineAnnotations } from '@/routes/asset-detail/shared';
 
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -46,6 +48,40 @@ afterEach(() => {
 });
 
 describe("Codebase tab with reports", () => {
+  it('aligns dense release markers across code, users and collected product behavior using the page range', async () => {
+    const payload = everyTabPayload();
+    payload.metrics = [{ name: 'plans_created', last24h: 4, avg7d: 3, total: 100,
+      series: [{ t: '2026-07-03', v: 2 }, { t: '2026-07-05', v: 4 }] }];
+    payload.annotations.items = [1, 2].map(n => ({ id: n, at: `2026-07-03T1${n}:00:00Z`, kind: 'external', ref: String(n).repeat(40),
+      note: releaseAnnotationNote({ source: 'releases.jsonl', sequence: n, id: String(n).repeat(64), commit: String(n).repeat(40), recordedAt: `2026-07-03T1${n}:00:00Z`, supersedes: [], counts: { added: 1, changed: 2, removed: 0, total: 3 } }) }));
+    const { container } = renderCodebase(payload);
+    const chart = await waitFor(() => { const node = container.querySelector<HTMLElement>('[data-codebase-chart]'); expect(node).not.toBeNull(); return node!; });
+    fireEvent.click(within(chart).getByRole('button', { name: 'Visitors' }));
+    fireEvent.click(within(chart).getByRole('button', { name: 'Product use' }));
+    const charts = chart.querySelectorAll('[data-hero-chart]');
+    expect(charts).toHaveLength(3);
+    for (const one of charts) expect(within(one as HTMLElement).getByRole('button', { name: /2 events on/ })).toBeInTheDocument();
+    fireEvent.click(within(charts[2] as HTMLElement).getByRole('button', { name: /2 events on/ }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Deployment unconfirmed');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Pages: 1 added, 2 changed, 0 removed');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Recorded 11:00 AM UTC');
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('1'.repeat(40));
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('2026-07-03T');
+    fireEvent.keyDown(screen.getByRole('tooltip'), { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: '90d' }));
+    expect(chart).toHaveTextContent('90 days · UTC calendar');
+    expect(chart.querySelectorAll('[data-hero-chart]')).toHaveLength(3);
+  });
+
+  it('keeps absent behavior unavailable and places markers in the requested reporting calendar', async () => {
+    const payload = everyTabPayload(); payload.metrics = [];
+    renderCodebase(payload);
+    fireEvent.click(await screen.findByRole('button', { name: 'Product use' }));
+    expect(screen.getByText('No product behavior has been reported.')).toBeInTheDocument();
+    const items = [{ id: 1, at: '2026-07-03T01:00:00Z', kind: 'deploy' as const, ref: 'a'.repeat(40), note: 'New release' }];
+    expect(timelineAnnotations(items, 'America/Los_Angeles')[0]?.date).toBe('2026-07-02');
+    expect(timelineAnnotations(items, 'UTC')[0]?.date).toBe('2026-07-03');
+  });
   it("opens on the answer, then five figures with their change and meaning", async () => {
     const { container } = renderCodebase(everyTabPayload());
     const answer = await waitFor(() => {

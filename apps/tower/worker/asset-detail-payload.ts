@@ -33,6 +33,7 @@ import { loadNotifiedAt, openFlagsSql, settledAtSql, settledFlagsSql, snoozedFla
 import { readWatchWindows } from "./watch-window-reader";
 import { readPulseCoverage } from "./pulse-history";
 import { readCodebaseSlice } from "./codebase-history";
+import { effectiveReleaseAnnotations, releaseFromNote, releaseDetail } from '@noticeos/contract/release-annotations';
 import { cents } from "./ledger-history";
 import {
   ALL_ASSET_DETAIL_SECTIONS,
@@ -1174,16 +1175,32 @@ async function readAnnotationTimeline(
 ): Promise<AnnotationTimeline> {
   // With no anchored change the inner min is NULL, `at >= NULL` is NULL, the
   // count is 0 and the plain cap applies.
-  const items = (
+  const ordinary = (
     await store.read((tx) => tx.query<AnnotationStoreRow>(TIMELINE_ITEMS_SQL, [asset, TIMELINE_LIMIT]))
   ).map(annotationItem);
+  const releaseRows = (await store.read(tx => tx.query<AnnotationStoreRow>(
+    `SELECT annotation_number::int AS id, at, kind, ref, note FROM noticeos.annotations
+      WHERE asset_id = $1 AND note LIKE 'noticeos-release-v1:%' ORDER BY annotation_number DESC LIMIT 5000`, [asset]))).map(annotationItem);
+  const raw = [...new Map([...ordinary, ...releaseRows].map(item => [item.id, item])).values()];
+  const visible = effectiveReleaseAnnotations(raw);
+  const byCommit = new Map<string, NonNullable<AnnotationItem['release']>>();
+  for (const item of releaseRows) {
+    const release = releaseFromNote(item.note);
+    if (release && !byCommit.has(release.commit)) byCommit.set(release.commit, release);
+  }
+  const items = visible.map(item => {
+    const imported = releaseFromNote(item.note);
+    const recorded = item.kind === 'deploy' && item.ref ? byCommit.get(item.ref) : null;
+    const release = imported ?? (recorded ? { ...recorded, deployedAt: item.at } : null);
+    return release ? { ...item, release, note: imported ? releaseDetail(release) : item.note } : item;
+  }).sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id);
 
   // A timeline shorter than the cap already holds every row this asset has.
   const total =
-    items.length < TIMELINE_LIMIT
-      ? items.length
+    raw.length < TIMELINE_LIMIT
+      ? raw.length
       : ((await store.read((tx) => tx.query<{ total: number }>(TIMELINE_TOTAL_SQL, [asset])))[0]?.total ?? 0);
-  return { items, olderCount: Math.max(0, total - items.length) };
+  return { items, olderCount: Math.max(0, total - raw.length) };
 }
 
 /** The funnel in order. `skip` and `dead` are terminal exits from it, counted
@@ -1731,7 +1748,7 @@ async function assembleAssetDetail(
     // `asset` narrows the same query the Wall runs — one derivation, one
     // ordering, one set of window semantics.
     wants("performance")
-      ? loadSignalTrends(store, PROPERTY_SIGNAL_CHART_DAYS, { includeSecondarySeries: true, asset: id, nowMs, timeZone: osTimeZone })
+      ? loadSignalTrends(store, PROPERTY_SIGNAL_CHART_DAYS, { includeSecondarySeries: true, asset: id, nowMs, timeZone: view === 'codebase' ? 'UTC' : osTimeZone })
           .then((map) => map.get(id) ?? emptySignalTrendSet())
       : null,
     // Only the analyzer's bounded snapshot crosses into this read model: the

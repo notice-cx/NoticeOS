@@ -57,9 +57,13 @@ export interface CodebaseHistoryPoint {
   commit: string;
   ref: string;
   generatedAt: string;
+  history?: CodebaseEnvelope['history'];
+  committedAt?: string;
+  receivedAt?: string;
   measures: CodebaseMeasures;
   /** The tool versions behind the numbers: a change explains a step. */
   tools: CodebaseReport["tools"];
+  paths?: string[];
 }
 
 export interface CodebaseSlice {

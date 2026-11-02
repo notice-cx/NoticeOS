@@ -128,8 +128,8 @@ export function AssetDetailRoute() {
             pulseReceivedAt={data.freshness.pulseReceivedAt}
             nowMs={now}
             lastGood={lastGood}
-            rangeLabel={tab === "financials" ? "Revenue period" : "Traffic period"}
-            showRange={tab === "overview" || tab === "growth" || tab === "financials"}
+            rangeLabel={tab === "financials" ? "Revenue period" : tab === 'codebase' ? 'Chart period' : "Traffic period"}
+            showRange={tab === "overview" || tab === "growth" || tab === "financials" || tab === 'codebase'}
           />
           <AssetTabs
             data={data}

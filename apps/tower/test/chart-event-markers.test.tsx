@@ -73,6 +73,7 @@ describe("chart event inspection", () => {
     fireEvent.click(screen.getByRole("button", { name: "3 events on Sep 2, 2026" }));
     const detail = screen.getByRole("tooltip");
     expect(within(detail).queryByText("Wrote off two asset-wide average-position bets a…")).toBeNull();
+    expect(detail.textContent?.match(/Sep 2, 2026/g)).toHaveLength(1);
     expect(within(detail).queryByText("Enabled search", { exact: true })).toBeNull();
     expect(detail).toHaveTextContent("No measured improvement was claimed.");
     expect(detail).toHaveTextContent("Enabled search. The underlying counts remain unchanged.");

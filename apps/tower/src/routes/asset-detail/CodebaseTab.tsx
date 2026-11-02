@@ -4,6 +4,9 @@ import { prioritize, PurposeSections } from "./purpose-presentation";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { CodebaseMeasureKey, CodebaseReport, CodebaseSlice } from "@shared/codebase";
 import type { SignalTrend } from "@shared/wall";
+import type { PulseMetric } from '@shared/asset-detail';
+import { useRange } from './useRange';
+import { comparableCodebaseReports } from '@noticeos/contract/codebase-instrument';
 import { CopyCommand } from "@/components/CopyCommand";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -13,14 +16,12 @@ import { HeroChart } from "@/components/surface/HeroChart";
 import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
 import { ListPanel, ListRow } from "@/components/surface/ListPanel";
 import { PageAnswer } from "@/components/surface/PageAnswer";
-import { RangeSelector } from "@/components/surface/RangeSelector";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { Card } from "@/components/ui/card";
 import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
 import { formatCompact, formatInt, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  CODEBASE_RANGES,
   INGEST_SECRET,
   TOKEN_SECRET,
   actionWorkflow,
@@ -45,7 +46,6 @@ import {
   unusedTaskTitle,
   visitorsChange,
   vulnerableTaskTitle,
-  type CodebaseRange,
   type CodebaseWidget,
 } from "@/routes/asset-detail/codebase-measures";
 import { timelineAnnotations } from "@/routes/asset-detail/shared";
@@ -80,7 +80,7 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
 
   const report = slice.latest.report;
   const today = new Date(nowMs).toISOString().slice(0, 10);
-  const deploys = timelineAnnotations(data.annotations.items.filter((item) => item.kind === "deploy"));
+  const deploys = timelineAnnotations(data.annotations.items.filter((item) => item.kind === "deploy" || item.kind === 'external'));
   const widgets = prioritize(codebaseWidgets(slice), view.id === "reliability"
     ? ["vulnerable", "tests", "complex", "unused", "repeated", "size", "build", "testRun"]
     : view.id === "delivery" ? ["tests", "complex", "unused", "repeated", "size", "build", "testRun", "vulnerable"] : []);
@@ -104,7 +104,7 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
             </KpiStrip>
           </div>
           <CodeChart slice={slice} today={today} deploys={deploys}
-            activeUsers={data.performance.activeUsers} site={data.asset.displayName} />
+            activeUsers={data.performance.activeUsers} metrics={data.metrics} site={data.asset.displayName} />
         </Card>
       </section>
 
@@ -178,29 +178,34 @@ function ChangeChip({ widget }: { widget: CodebaseWidget }) {
 
 const codeLines = (measures: CodebaseReport["measures"]) => measures.code_lines ?? null;
 
-function CodeChart({ slice, today, deploys, activeUsers, site }: {
+function CodeChart({ slice, today, deploys, activeUsers, metrics, site }: {
   slice: CodebaseSlice;
   today: string;
   deploys: ReturnType<typeof timelineAnnotations>;
   activeUsers: SignalTrend;
+  metrics: PulseMetric[];
   site: string;
 }) {
-  const [range, setRange] = useState<CodebaseRange>(90);
+  const { days: range } = useRange();
   const [visitors, setVisitors] = useState(false);
+  const [behavior, setBehavior] = useState(false);
+  const [metricName, setMetricName] = useState<string>('');
+  const metric = metrics.find(one => one.name === metricName) ?? metrics[0];
   const days = alignedSeries(slice.history, codeLines, today, range);
   const marks = [...deploys, ...toolChanges(slice.history)];
   const hasVisitors = activeUsers.series.length > 0;
   return (
     <div className="flex flex-col gap-3 border-t border-border p-4 max-sm:p-3" data-codebase-chart="">
       <div className="flex flex-wrap items-center gap-2">
-        <RangeSelector value={range} options={CODEBASE_RANGES} label="Chart range"
-          onChange={(next) => setRange(next as CodebaseRange)} />
+        <span className="text-xs text-muted-foreground">{range} days · UTC calendar</span>
         {hasVisitors ? (
           <button type="button" aria-pressed={visitors} onClick={() => setVisitors((on) => !on)}
             className={cn(pillChoiceClass, pillChoiceStateClass(visitors))} data-codebase-visitors="">
             Visitors
           </button>
         ) : null}
+        <button type="button" aria-pressed={behavior} onClick={() => setBehavior(on => !on)}
+          className={cn(pillChoiceClass, pillChoiceStateClass(behavior))}>Product use</button>
       </div>
       <HeroChart
         series={[{ name: "Lines of code", points: seriesOf(days), tone: "primary" }]}
@@ -214,7 +219,7 @@ function CodeChart({ slice, today, deploys, activeUsers, site }: {
         formatValue={formatInt}
         emptyLabel="No reports in this range"
         ariaLabel={`${site} lines of code over the last ${range} days`}
-        footnote={<span>Between two reports the line holds the earlier report's count.</span>}
+        footnote={<span>Between two reports the line holds the earlier report's count. Reconstructed snapshots show source history; release markers show recorded timing.</span>}
       />
       {visitors ? (
         <HeroChart
@@ -233,6 +238,23 @@ function CodeChart({ slice, today, deploys, activeUsers, site }: {
           ariaLabel={`${site} visitors a day over the last ${range} days`}
         />
       ) : null}
+      {behavior ? <div className="flex flex-col gap-2" data-codebase-behavior>
+        {metric ? <>
+          {metrics.length > 1 ? <label className="text-xs">Product measure <select aria-label="Product measure" value={metric.name}
+            onChange={event => setMetricName(event.target.value)} className="rounded border border-border bg-card px-2 py-1">
+            {metrics.map(one => <option key={one.name} value={one.name}>{one.name.replaceAll('_', ' ')}</option>)}
+          </select></label> : null}
+          <HeroChart series={[{ name: metric.name.replaceAll('_', ' '), points: metric.series, tone: 'primary' }]}
+            range={range} end={today} height={160} annotations={deploys} average={false}
+            emptyLabel="No product reports in this range" ariaLabel={`${site} ${metric.name.replaceAll('_', ' ')} over the last ${range} days`}
+            footnote="Daily product reports. Missing dates stay unreported." />
+        </> : <p className="text-sm text-muted-foreground">No product behavior has been reported.</p>}
+      </div> : null}
+      {slice.history.some(point => point.history) ? <p className="text-xs text-muted-foreground" data-codebase-reconstruction>
+        Historical reports were reconstructed later. Open View data for report, measurement, commit and import times.
+      </p> : null}
+      {slice.latest && slice.history.some(point => point.history && !comparableCodebaseReports(point, slice.latest!.report)) ?
+        <p className="text-xs text-muted-foreground">Measurement settings differ from the latest report. Those snapshots are excluded from comparisons.</p> : null}
     </div>
   );
 }
