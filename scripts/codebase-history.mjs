@@ -4,6 +4,7 @@
 //   pnpm os:codebase-history -- --asset example.com --repo /path/to/repo --image <image@sha256:digest> --out /tmp/history
 //     [--from YYYY-MM-DD --to YYYY-MM-DD --step-days 7 --ref main --revision <sha> --paths src,tests]
 //     [--releases _releases/releases.jsonl --gate-policy /path/to/reviewed-policy.json] [--measure]
+//   pnpm os:codebase-history -- --asset <id> --repo <path> --image <pinned-image> --out <existing-folder> --resume --measure
 //   pnpm os:codebase-history -- --import /tmp/history/bundle.json --config /absolute/stack.json [--apply]
 import fs from 'node:fs';
 import os from 'node:os';
@@ -42,7 +43,7 @@ export function parseHistoryArgs(argv, now = new Date()) {
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--') continue;
-    if (['--measure', '--apply'].includes(flag)) { if (values[flag]) throw new Error(`Duplicate ${flag}`); values[flag] = true; continue; }
+    if (['--measure', '--apply', '--resume'].includes(flag)) { if (values[flag]) throw new Error(`Duplicate ${flag}`); values[flag] = true; continue; }
     if (!['--asset', '--repo', '--image', '--out', '--from', '--to', '--step-days', '--ref', '--revision', '--paths', '--releases', '--gate-policy', '--import', '--config'].includes(flag)
       || values[flag] !== undefined || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error(`Invalid argument ${flag}`);
     values[flag] = argv[++i];
@@ -52,6 +53,9 @@ export function parseHistoryArgs(argv, now = new Date()) {
     return { importFile: path.resolve(values['--import']), config: values['--config'], apply: Boolean(values['--apply']) };
   }
   if (values['--apply'] || values['--config']) throw new Error('--apply and --config belong only to --import.');
+  if (values['--resume'] && ['--from', '--to', '--step-days', '--ref', '--revision', '--paths', '--releases', '--gate-policy'].some(flag => values[flag] !== undefined)) {
+    throw new Error('--resume uses the saved plan; omit date, revision, path, release and gate-policy options.');
+  }
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,252}$/u.test(values['--asset'] ?? '') || !values['--repo'] || !values['--out'] || !PIN.test(values['--image'] ?? '')) throw new Error('Provide --asset, --repo, --out and a digest-pinned --image.');
   const to = values['--to'] ?? day(now.getTime() - DAY);
   const from = values['--from'] ?? day(Date.parse(cutoff(to)) - 89 * DAY);
@@ -71,7 +75,7 @@ export function parseHistoryArgs(argv, now = new Date()) {
   if (releases && !safeRelativePath(releases)) throw new Error('--releases is a repository-relative JSONL path.');
   return { asset: values['--asset'], repo: path.resolve(values['--repo']), out: path.resolve(values['--out']), image: values['--image'],
     ref, revision: values['--revision'] ?? null, paths, dates: [...dates].sort(), releases,
-    gatePolicy: values['--gate-policy'] ? path.resolve(values['--gate-policy']) : null, measure: Boolean(values['--measure']) };
+    gatePolicy: values['--gate-policy'] ? path.resolve(values['--gate-policy']) : null, measure: Boolean(values['--measure']), resume: Boolean(values['--resume']) };
 }
 
 /** Registry order is retained for supersession. Invalid records are reported,
@@ -178,6 +182,11 @@ export function discoverGatePolicy(repo, commit, source, explain = () => {}) {
   } catch { return unknown(`Versioned source unavailable: ${reading}`); }
 }
 
+function planFingerprint(plan) {
+  const { asset, selectionRef, head, remote, settings, snapshots, releases } = plan;
+  return digest({ asset, selectionRef, head, remote, settings, snapshots, releases });
+}
+
 export function planHistory(options) {
   if (git(options.repo, ['rev-parse', '--is-shallow-repository']) !== 'false') throw new Error('History reconstruction requires a complete local Git history; no fetch is run automatically.');
   const head = git(options.repo, ['rev-parse', '--verify', `${options.ref}^{commit}`]);
@@ -228,35 +237,54 @@ export function planHistory(options) {
     snapshots.sort((a, b) => a.effectiveAt.localeCompare(b.effectiveAt));
     if (snapshots.length > 100) throw new Error('Sampling plus release days exceeds 100 snapshots; narrow the date range.');
   }
-  return { version: 1, asset: options.asset, selectionRef: options.ref, head, remote, settings,
-    fingerprint: digest({ asset: options.asset, selectionRef: options.ref, head, remote, settings, snapshots, releases: registry.releases }), snapshots, gateSources, ...registry };
+  const plan = { version: 1, asset: options.asset, selectionRef: options.ref, head, remote, settings, snapshots, gateSources, ...registry };
+  return { ...plan, fingerprint: planFingerprint(plan) };
 }
 
-export function historyMeasureArgs(options, snapshot, checkout, settings, container = null) {
+/** A separate immutable index avoids inconsistent mmap reads observed when a
+ * host-shared checkout replaces its index between containers. */
+export function snapshotIndex(checkout, directory, date) {
+  const file = path.join(directory, `${date}.index`);
+  fs.copyFileSync(path.join(checkout, '.git', 'index'), file, fs.constants.COPYFILE_EXCL);
+  return file;
+}
+
+export function historyMeasureArgs(options, snapshot, checkout, settings, container = null, index = null) {
   return ['run', '--rm', ...(container ? ['--name', container] : []), '--pull', 'never', '--read-only', '--tmpfs', '/tmp', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--network', 'none',
     '--mount', `type=bind,source=${checkout},target=/repo,readonly`, '--mount', `type=bind,source=${PROGRAM},target=/measure.mjs,readonly`,
+    ...(index ? ['--mount', `type=bind,source=${index},target=/repo/.git/index,readonly`] : []),
     '--mount', `type=bind,source=${settings},target=/settings.json,readonly`, '--env', `NOTICEOS_CODEBASE_IMAGE=${options.image}`, '--entrypoint', 'node',
     options.image, '/measure.mjs', '--asset', options.asset, '--repo', '/repo', '--ref', options.ref, '--as-of', snapshot.effectiveAt, '--settings', '/settings.json',
     ...(options.paths ? ['--paths', options.paths.join(',')] : [])];
 }
 
 export async function prepareHistory(options, { run = runCommand, out = process.stdout } = {}) {
-  const plan = planHistory(options);
-  fs.mkdirSync(options.out, { recursive: true });
   const planFile = path.join(options.out, 'plan.json');
+  const plan = options.resume ? JSON.parse(boundedFile(planFile)) : planHistory(options);
+  if (options.resume && (!plan || plan.version !== 1 || plan.asset !== options.asset || plan.settings?.image !== options.image
+    || plan.settings?.program !== digest(fs.readFileSync(PROGRAM, 'utf8')) || plan.fingerprint !== planFingerprint(plan)
+    || !SHA.test(plan.head) || typeof plan.selectionRef !== 'string' || !Array.isArray(plan.snapshots) || plan.snapshots.length > 100
+    || !plan.snapshots.every(row => (row.commit === undefined || SHA.test(row.commit)) && Number.isFinite(Date.parse(row.effectiveAt)))
+    || !Array.isArray(plan.releases) || plan.releases.length > 500)) throw new Error('Saved plan is invalid or uses a different asset, image or measuring program; choose a new output folder.');
+  const measurement = { ...options, paths: plan.settings.paths, ref: plan.selectionRef };
+  fs.mkdirSync(options.out, { recursive: true });
   if (fs.existsSync(planFile) && JSON.parse(boundedFile(planFile)).fingerprint !== plan.fingerprint) throw new Error('This output folder holds a different plan; choose a new --out folder.');
-  fs.writeFileSync(planFile, JSON.stringify(plan, null, 2) + '\n');
+  if (!fs.existsSync(planFile)) fs.writeFileSync(planFile, JSON.stringify(plan, null, 2) + '\n');
   out.write(`Preview: ${plan.snapshots.filter(row => row.commit).length} snapshots, ${plan.releases.length} release records, ${plan.issues.length} invalid registry lines. ${planFile}\n`);
   if (!options.measure) return plan;
   const free = fs.statfsSync(options.out);
   const objectSizes = Object.fromEntries(git(options.repo, ['count-objects', '-v']).split('\n').map(line => line.split(': ')));
   const objectBytes = (Number(objectSizes.size) + Number(objectSizes['size-pack'])) * 1024;
   let treeBytes = 0;
+  let indexBytes = 0;
   for (const commit of new Set(plan.snapshots.flatMap(row => row.commit ? [row.commit] : []))) {
-    const bytes = git(options.repo, ['ls-tree', '-rl', commit]).split('\n').reduce((sum, line) => sum + Number(/^\d+ blob [a-f0-9]+\s+(\d+)\t/u.exec(line)?.[1] ?? 0), 0);
+    const listing = git(options.repo, ['ls-tree', '-rl', commit]);
+    const entries = listing.split('\n');
+    const bytes = entries.reduce((sum, line) => sum + Number(/^\d+ blob [a-f0-9]+\s+(\d+)\t/u.exec(line)?.[1] ?? 0), 0);
     treeBytes = Math.max(treeBytes, bytes);
+    indexBytes = Math.max(indexBytes, Buffer.byteLength(listing) + entries.length * 80);
   }
-  if (free.bavail * free.bsize - objectBytes - 3 * treeBytes < 8 * 1024 ** 3) throw new Error('Reconstruction must leave at least 8 GiB free after the source copy and measurement workspace.');
+  if (free.bavail * free.bsize - objectBytes - 3 * treeBytes - indexBytes * plan.snapshots.length < 8 * 1024 ** 3) throw new Error('Reconstruction must leave at least 8 GiB free after the source copy and measurement workspace.');
   const own = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-history-'));
   let inactive = true;
   try {
@@ -266,6 +294,8 @@ export async function prepareHistory(options, { run = runCommand, out = process.
     if (plan.remote) git(checkout, ['config', 'remote.origin.url', `https://${plan.remote}.git`]);
     const settings = path.join(own, 'settings.json');
     fs.writeFileSync(settings, JSON.stringify(plan.settings.config));
+    const indexes = path.join(own, 'indexes');
+    fs.mkdirSync(indexes);
     const reports = [];
     for (const snapshot of plan.snapshots.filter(row => row.commit)) {
       const file = path.join(options.out, `${snapshot.effectiveAt.slice(0, 10)}.json`);
@@ -275,9 +305,10 @@ export async function prepareHistory(options, { run = runCommand, out = process.
         if (report.asset !== options.asset || report.repository.commit !== snapshot.commit || report.history?.effectiveAt !== snapshot.effectiveAt || report.tools.image !== options.image) throw new Error('Cached snapshot differs from its plan.');
       } else {
         git(checkout, ['checkout', '--detach', '--force', snapshot.commit]);
+        const index = snapshotIndex(checkout, indexes, snapshot.effectiveAt.slice(0, 10));
         const container = `noticeos-history-${randomUUID()}`;
         let measured;
-        try { measured = await run('docker', historyMeasureArgs(options, snapshot, checkout, settings, container), { timeoutMs: 1_800_000 }); }
+        try { measured = await run('docker', historyMeasureArgs(measurement, snapshot, checkout, settings, container, index), { timeoutMs: 1_800_000 }); }
         finally {
           const removed = await run('docker', ['rm', '--force', container], { timeoutMs: 30_000 });
           if (removed.code !== 0 && !/No such container/iu.test(removed.stderr ?? '')) {
@@ -288,7 +319,7 @@ export async function prepareHistory(options, { run = runCommand, out = process.
         if (measured.code !== 0) throw new Error(`Measurement failed for ${snapshot.commit}: ${measured.stderr}`);
         report = JSON.parse(measured.stdout);
         if (report.repository.commit !== snapshot.commit) throw new Error('Measurement returned a different commit.');
-        report.history = { effectiveAt: snapshot.effectiveAt, selectionRef: options.ref };
+        report.history = { effectiveAt: snapshot.effectiveAt, selectionRef: plan.selectionRef };
         report.verification = snapshot.verification;
         for (const evidence of snapshot.verification) { report.measures[evidence.measure] = 1; delete report.unmeasured?.[evidence.measure]; }
         report = boundEnvelope(report);
@@ -341,7 +372,7 @@ export async function sendHistory(options, { run = runCommand, out = process.std
 
 export async function main(argv = process.argv.slice(2)) {
   if (argv.length === 1 && ['--help', '-h'].includes(argv[0])) {
-    process.stdout.write('Preview: pnpm os:codebase-history -- --asset <id> --repo <path> --image <image@sha256:digest> --out <folder> [--from YYYY-MM-DD --to YYYY-MM-DD --step-days 7 --releases _releases/releases.jsonl] [--measure]\nStore preview: pnpm os:codebase-history -- --import <folder>/bundle.json --config /absolute/stack.json\nApply: add --apply to the store preview after approval.\n'); return 0;
+    process.stdout.write('Preview: pnpm os:codebase-history -- --asset <id> --repo <path> --image <image@sha256:digest> --out <folder> [--from YYYY-MM-DD --to YYYY-MM-DD --step-days 7 --releases _releases/releases.jsonl] [--measure]\nResume: use --asset, --repo, --image and --out with --resume --measure; the existing plan fixes all selections and settings.\nStore preview: pnpm os:codebase-history -- --import <folder>/bundle.json --config /absolute/stack.json\nApply: add --apply to the store preview after approval.\n'); return 0;
   }
   try {
     const options = parseHistoryArgs(argv);

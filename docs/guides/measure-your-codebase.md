@@ -165,10 +165,26 @@ a shallow clone stops reconstruction. The command never fetches automatically.
 
 Run the same command with `--measure` to prepare `bundle.json`. The local Docker
 daemon must already have the pinned image. Each measurement runs with networking
-disabled against an isolated, read-only checkout and the same measuring program
-and settings. Its 30-day Git counts end at the snapshot cutoff. The output folder
-retains completed snapshots for retries; changed plan inputs require a new folder.
-Plans allow at most 100 snapshots over 366 days and 500 release records.
+disabled against an isolated, read-only checkout, a separate immutable Git index
+for that snapshot, and the same measuring program and settings. Its 30-day Git
+counts end at the snapshot cutoff. The command leaves the source repository's
+working files, index and configuration unchanged. Plans allow at most 100 snapshots
+over 366 days and 500 release records.
+
+To continue an interrupted run, use the existing output folder with `--resume`:
+
+```sh
+pnpm os:codebase-history -- --asset example.com --repo /path/to/your/code \
+  --image ghcr.io/example/measure@sha256:<64-hex-digest> \
+  --out /tmp/codebase-history --resume --measure
+```
+
+Resume uses the saved commits, cutoffs, paths, exclusions, release records and
+verification evidence, even if the source repository has newer commits. It keeps
+the saved plan and valid completed reports and measures only missing reports.
+Omit date, ref, revision, path, release and gate-policy options: those selections
+are already in the plan. The asset, image and measuring program must still match.
+To change the plan, choose a new output folder.
 
 The existing detached-worktree pre-push convention is recognized from versioned
 `.husky/pre-push`, `scripts/git-hooks/pre-push`, `package.json` and its release
