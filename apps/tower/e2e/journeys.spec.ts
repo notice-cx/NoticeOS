@@ -3218,7 +3218,11 @@ test('release history aligns code, visitors and product behavior with accessible
   await marker.scrollIntoViewIfNeeded();
   if (testInfo.project.name === 'mobile') await marker.tap(); else await marker.click();
   const details = page.getByRole('tooltip', { name: /2 events on/ });
-  await expect(details).toContainText('deployment time unconfirmed');
+  await expect(details).toContainText('Deployment unconfirmed');
+  await expect(details).toContainText('Recorded 11:00 AM UTC');
+  await expect(details).toContainText('Release bbbbbbb');
+  await expect(details).not.toContainText('b'.repeat(40));
+  await expect(details).not.toContainText('2026-09-04T');
   await expect(details).toContainText('Pages: 3 added, 2 changed, 1 removed');
   await expect(details).not.toContainText(`Commit ${'a'.repeat(40)}`);
   await assertNoPageOverflow(page);

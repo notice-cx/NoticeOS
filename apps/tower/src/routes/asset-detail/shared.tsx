@@ -13,7 +13,8 @@ import type { SurfaceAnnotation } from "@shared/surface";
 import { AgeBadge } from "@/components/AgeBadge";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatSeriesDate } from "@/lib/format";
+import { formatCalendarDate, formatSeriesDate } from "@/lib/format";
+import type { ReleaseRecord } from '@noticeos/contract/codebase-history';
 import { effectiveReleaseAnnotations, releaseFromNote, releaseDetail } from '@noticeos/contract/release-annotations';
 export { Panel, type PanelProps } from "@/components/surface/Panel";
 
@@ -52,11 +53,12 @@ export function timelineAnnotations(
     .map((item) => {
       const release = item.release ?? releaseFromNote(item.note);
       const move = parseLifecycleMoveRef(item.ref);
-      const said = release ? item.release ? item.note ?? releaseDetail(release) : releaseDetail(release) : move ? lifecycleMoveSentence(move) : item.note;
+      const summary = item.release && item.note !== releaseDetail(item.release) ? item.note : null;
+      const said = release ? releaseMarkerDetail(release, item.at, timeZone, summary) : move ? lifecycleMoveSentence(move) : item.note;
       return {
         date: chartDay(item.at, timeZone),
         detail: [said, !release && item.ref ? `Commit ${item.ref}` : null, !release ? `Time ${item.at}` : null].filter(Boolean).join(' · '),
-        label: release ? `${release.deployedAt ? 'Deploy' : 'Release recorded'} ${release.commit.slice(0, 7)}` : said
+        label: release ? `${release.deployedAt ? 'Deploy' : 'Release'} ${release.commit.slice(0, 7)}` : said
           ? firstClause(said)
           : item.kind === "deploy"
             ? "Deploy"
@@ -67,6 +69,22 @@ export function timelineAnnotations(
 
 export function chartDay(at: string, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+}
+
+function releaseMarkerDetail(release: ReleaseRecord, at: string, timeZone: string, summary: string | null): string {
+  const eventDay = chartDay(at, timeZone);
+  const time = (instant: string) => {
+    const clock = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(instant));
+    const date = chartDay(instant, timeZone);
+    return date === eventDay ? clock : `${formatCalendarDate(date)} at ${clock}`;
+  };
+  const counts = release.counts;
+  return [summary,
+    release.deployedAt ? `Deployed ${time(release.deployedAt)}` : `Recorded ${time(release.recordedAt)}`,
+    release.deployedAt ? `Recorded ${time(release.recordedAt)}` : 'Deployment unconfirmed',
+    release.branch ? `Branch ${release.branch}` : null,
+    counts ? `Pages: ${counts.added} added, ${counts.changed} changed, ${counts.removed} removed (${counts.total} total)` : null,
+    `Source ${release.source}`].filter(Boolean).join(' · ');
 }
 
 /**

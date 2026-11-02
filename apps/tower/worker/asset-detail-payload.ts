@@ -1192,7 +1192,7 @@ async function readAnnotationTimeline(
     const imported = releaseFromNote(item.note);
     const recorded = item.kind === 'deploy' && item.ref ? byCommit.get(item.ref) : null;
     const release = imported ?? (recorded ? { ...recorded, deployedAt: item.at } : null);
-    return release ? { ...item, release, note: [imported ? null : item.note, releaseDetail(release)].filter(Boolean).join(' · ') } : item;
+    return release ? { ...item, release, note: imported ? releaseDetail(release) : item.note } : item;
   }).sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id);
 
   // A timeline shorter than the cap already holds every row this asset has.

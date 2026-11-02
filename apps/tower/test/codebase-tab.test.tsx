@@ -62,9 +62,11 @@ describe("Codebase tab with reports", () => {
     expect(charts).toHaveLength(3);
     for (const one of charts) expect(within(one as HTMLElement).getByRole('button', { name: /2 events on/ })).toBeInTheDocument();
     fireEvent.click(within(charts[2] as HTMLElement).getByRole('button', { name: /2 events on/ }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('deployment time unconfirmed');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Deployment unconfirmed');
     expect(screen.getByRole('tooltip')).toHaveTextContent('Pages: 1 added, 2 changed, 0 removed');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('2026-07-03T11:00:00Z');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Recorded 11:00 AM UTC');
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('1'.repeat(40));
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('2026-07-03T');
     fireEvent.keyDown(screen.getByRole('tooltip'), { key: 'Escape' });
     fireEvent.click(screen.getByRole('button', { name: '90d' }));
     expect(chart).toHaveTextContent('90 days · UTC calendar');

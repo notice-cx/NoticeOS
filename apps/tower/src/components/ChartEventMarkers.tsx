@@ -129,6 +129,7 @@ function EventDisclosure({ group, open, onOpenChange, showGlyph, lineTargets, pl
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const id = useId();
   const label = groupLabel(group);
+  const multipleDates = group.events.some(event => event.date !== group.events[0]!.date);
   const clearClose = () => {
     if (closeTimer.current !== null) clearTimeout(closeTimer.current);
     closeTimer.current = null;
@@ -207,7 +208,7 @@ function EventDisclosure({ group, open, onOpenChange, showGlyph, lineTargets, pl
         : `${group.events.length} events · ${formatCalendarRange(group.events[0]!.date, group.events.at(-1)!.date)}`}</span>
       <ul className="m-0 grid list-none gap-3 p-0">
         {group.events.map((event) => <li key={`${event.date}:${event.label}:${event.detail ?? ""}`} className="grid gap-1">
-          {group.events.length > 1 ? <time dateTime={event.date} className="font-medium tabular-nums text-muted-foreground">{dateLabel(event.date)}</time> : null}
+          {multipleDates ? <time dateTime={event.date} className="font-medium tabular-nums text-muted-foreground">{dateLabel(event.date)}</time> : null}
           {!repeatsDetail(event) ? <span className="font-medium">{event.label}</span> : null}
           {event.detail ? <span className={repeatsDetail(event) ? "text-foreground" : "text-muted-foreground"}>{event.detail}</span> : null}
         </li>)}
