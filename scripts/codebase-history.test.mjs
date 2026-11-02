@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { discoverGatePolicy, historyMeasureArgs, importBatches, parseHistoryArgs, parseReleaseHistory, planHistory, prepareHistory, verificationFor } from './codebase-history.mjs';
+import { discoverGatePolicy, historyMeasureArgs, importBatches, parseHistoryArgs, parseReleaseHistory, planHistory, prepareHistory, snapshotIndex, verificationFor } from './codebase-history.mjs';
 import { measure } from '../deploy/codebase-report/measure.mjs';
 
 const PIN = `example.com/measure@sha256:${'a'.repeat(64)}`;
@@ -99,9 +99,12 @@ test('measurement uses isolated snapshots, frozen settings, no network or repo c
     if (args[0] === 'rm') return { code: 0, stdout: '' };
     calls++; assert.equal(command, 'docker'); assert.equal(args[args.indexOf('--network') + 1], 'none');
     assert.ok(args.includes('--read-only')); assert.ok(!args.includes('--post'));
+    const immutable = args.find(arg => arg.includes('target=/repo/.git/index,readonly'))?.split('source=')[1].split(',')[0];
+    assert.ok(immutable);
     measuredCheckout = args.find(arg => arg.startsWith('type=bind,source=') && arg.includes('target=/repo')).split('source=')[1].split(',')[0];
     assert.notEqual(measuredCheckout, f.repo);
     const commit = git(measuredCheckout, ['rev-parse', 'HEAD']);
+    assert.deepEqual(fs.readFileSync(immutable), fs.readFileSync(path.join(measuredCheckout, '.git', 'index')));
     assert.equal(git(measuredCheckout, ['config', '--get', 'remote.origin.url']), 'https://code.example/owner/site.git');
     return { code: 0, stdout: JSON.stringify({ asset: 'example.com', generatedAt: NOW.toISOString(), repository: { commit, ref: 'main', committedAt: git(measuredCheckout, ['show', '-s', '--format=%cI', 'HEAD']) },
       tools: { image: PIN, profile: 'b'.repeat(64), scc: '3', jscpd: '5', lizard: '1' }, measures: { code_lines: 100 }, unmeasured: { tests_passed: 'No run', vulnerable_dependencies: 'No audit' } }) };
@@ -119,6 +122,29 @@ test('measurement uses isolated snapshots, frozen settings, no network or repo c
   await assert.rejects(prepareHistory({ ...f.options, asset: 'other.example' }, { run, out: quiet }), /different plan/);
   const args = historyMeasureArgs(f.options, bundle.reports[0].history, '/tmp/source', '/tmp/settings');
   assert.ok(args.includes('--as-of'));
+  const first = path.join(f.options.out, '2026-10-01.json');
+  const planFile = path.join(f.options.out, 'plan.json');
+  const original = { report: fs.readFileSync(first), plan: fs.readFileSync(planFile), modified: fs.statSync(planFile).mtimeMs };
+  f.commit('2026-11-02T02:00:00Z', 'export const value = 9;');
+  fs.unlinkSync(path.join(f.options.out, '2026-11-01.json'));
+  await assert.rejects(prepareHistory({ ...f.options, measure: true }, { run, out: quiet }), /different plan/);
+  const resumed = await prepareHistory({ ...f.options, measure: true, resume: true }, { run, out: quiet });
+  assert.deepEqual(resumed.reports[0], bundle.reports[0]);
+  assert.deepEqual(fs.readFileSync(first), original.report);
+  assert.deepEqual(fs.readFileSync(planFile), original.plan);
+  assert.equal(fs.statSync(planFile).mtimeMs, original.modified);
+  await assert.rejects(prepareHistory({ ...f.options, resume: true, image: 'example.com/other@sha256:' + 'f'.repeat(64) }, { run, out: quiet }), /Saved plan/);
+});
+
+test('snapshot indexes retain their exact bytes across later checkouts and cannot be overwritten', t => {
+  const f = fixture(t); const indexes = path.join(f.dir, 'indexes'); fs.mkdirSync(indexes);
+  const first = snapshotIndex(f.repo, indexes, '2026-10-01'); const bytes = fs.readFileSync(first);
+  git(f.repo, ['checkout', '--detach', f.first]);
+  const second = snapshotIndex(f.repo, indexes, '2026-11-01');
+  assert.deepEqual(fs.readFileSync(first), bytes);
+  assert.notDeepEqual(fs.readFileSync(second), bytes);
+  assert.throws(() => snapshotIndex(f.repo, indexes, '2026-10-01'), { code: 'EEXIST' });
+  assert.throws(() => parseHistoryArgs(['--asset', 'example.com', '--repo', f.repo, '--out', f.dir, '--image', PIN, '--resume', '--from', '2026-10-01'], NOW), /uses the saved plan/);
 });
 
 test('historical churn uses the snapshot cutoff while actual measurement time stays current', async t => {
