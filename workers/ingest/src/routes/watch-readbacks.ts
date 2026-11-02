@@ -14,6 +14,8 @@ import {
   readWatchReviews,
   completeWatchReviews,
   type CompletedWatchReview,
+  linkWatchReviews,
+  type WatchReviewLink,
 } from '../watch-readbacks.js';
 import { asRecord } from '../shared.js';
 import { readJsonBody } from './validate.js';
@@ -43,6 +45,12 @@ export async function handleWatchReadbacks(
   const read = await readJsonBody(request);
   if (read instanceof Response) return read;
   const body = asRecord(read.value);
+  if (body?.linked !== undefined) {
+    if (!Array.isArray(body.linked) || body.linked.length > WATCH_READBACK_MAX_BATCH || !body.linked.every(isReviewLink)) {
+      return json({ error: 'bad_request', detail: 'linked must be a bounded list of review task links' }, 400);
+    }
+    return json(await linkWatchReviews(env, body.linked), 200);
+  }
   if (body?.reviewed !== undefined) {
     const reviews = body.reviewed;
     if (!Array.isArray(reviews) || reviews.length > WATCH_READBACK_MAX_BATCH || !reviews.every(isCompletedReview)) {
@@ -61,8 +69,20 @@ export async function handleWatchReadbacks(
     );
   }
 
-  const result = await markWatchReadbacksPosted(env, ids as string[], nowMs);
+  const expectedTasks = body?.expectedTasks === undefined ? null : asRecord(body.expectedTasks);
+  if (body?.expectedTasks !== undefined && (expectedTasks === null || ids.some(id =>
+    typeof expectedTasks[id] !== 'string' || expectedTasks[id].length === 0 || expectedTasks[id].length > 2048))) {
+    return json({ error: 'bad_request', detail: 'expectedTasks must name the task for every delivered result' }, 400);
+  }
+  const result = await markWatchReadbacksPosted(env, ids as string[], nowMs, expectedTasks as Record<string, string> | null);
   return json(result, 200);
+}
+
+function isReviewLink(value: unknown): value is WatchReviewLink {
+  const row = asRecord(value);
+  return row !== null && (row.previousPostedAt === null || typeof row.previousPostedAt === 'string'
+    && Number.isFinite(Date.parse(row.previousPostedAt))) && row.previousBead !== row.bead && ['windowId', 'asset', 'previousBead', 'bead'].every(key =>
+    typeof row[key] === 'string' && row[key].trim().length > 0 && row[key].length <= 2048 && !row[key].includes('\u0000'));
 }
 
 function isCompletedReview(value: unknown): value is CompletedWatchReview {

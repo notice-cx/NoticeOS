@@ -157,8 +157,11 @@ that is built, the realized value, its interval and its method will be booked
 as an entry superseding the change's.
 
 The runner posts the result to the window's recorded readback task. Close
-that task with the review decision and evidence after reviewing the result;
-if the task was already closed for implementation, reopen it first. A fresh
+that task with the review decision and evidence after reviewing the result.
+If the task is already closed, the runner files a separate open review task,
+relates it to the original task, and links the window to that review before
+delivering the result. Retries reuse the same review. The implementation task
+and its evidence remain unchanged. A fresh
 successful task read with a completion after result delivery marks only the
 associated outcome alert read. Earlier closures, missing tasks and failed
 reads leave the alert unsettled. The original measurement result and readings

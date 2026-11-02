@@ -21,6 +21,7 @@ export interface PendingWatchReadback {
   asset: string;
   outcome: string;
   closedAt: string;
+  reviewRequired: boolean;
   /** Composed here so one place owns the sentence an operator reads. */
   comment: string;
 }
@@ -38,6 +39,7 @@ interface ReadbackRow extends Record<string, unknown> {
   outcome: string;
   outcome_note: string | null;
   readback_bead: string;
+  review_required: boolean;
 }
 
 export async function readPendingWatchReadbacks(
@@ -48,30 +50,37 @@ export async function readPendingWatchReadbacks(
   const records = await env.STORE.read((tx) =>
     tx.query<ReadbackRow>(
       `SELECT window_id AS id, asset_id AS asset, ref, note, metric_integration, metric,
-              scope::text AS scope_json, registered_at, closed_at, outcome, outcome_note, readback_bead
-         FROM noticeos.watch_windows
-        WHERE status = 'closed'
-          AND readback_bead IS NOT NULL
-          AND readback_posted_at IS NULL
-        ORDER BY closed_at ASC, window_id COLLATE "C" ASC
+              scope::text AS scope_json, registered_at, closed_at, outcome, outcome_note, readback_bead,
+              EXISTS (SELECT 1 FROM noticeos.current_flags f WHERE f.asset_id = w.asset_id
+                AND f.rule_id = 'watch-window-closed' AND f.rule_inputs->>'watchWindowId' = w.window_id
+                AND NOT ${settledFlagsSql('f')}) AS review_required
+         FROM noticeos.watch_windows w
+        WHERE w.status = 'closed'
+          AND w.readback_bead IS NOT NULL
+          AND w.readback_posted_at IS NULL
+        ORDER BY w.closed_at ASC, w.window_id COLLATE "C" ASC
         LIMIT $1`,
       [Math.max(1, Math.min(limit, WATCH_READBACK_MAX_BATCH))],
     ),
   );
-  const rows = records.map((record) => ({
+  return records.map(watchReadback);
+}
+
+function watchReadback(record: ReadbackRow): PendingWatchReadback {
+  const row = {
     ...record,
     registered_at: javascriptInstant(record.registered_at),
     closed_at: javascriptInstant(record.closed_at),
-  }));
-
-  return rows.map((row) => ({
+  };
+  return {
     windowId: row.id,
     bead: row.readback_bead,
     asset: row.asset,
     outcome: row.outcome,
     closedAt: row.closed_at,
+    reviewRequired: row.review_required,
     comment: readbackComment(row),
-  }));
+  };
 }
 
 /**
@@ -91,32 +100,55 @@ function readbackComment(row: ReadbackRow): string {
     row.outcome_note ? `Reading: ${row.outcome_note}` : 'Reading: no note recorded.',
     '',
     'Close this task with the review decision and evidence after reviewing this result. ' +
-      'If the task is already closed, reopen it first. Completing the review marks its alert read; the measured outcome stays unchanged.',
+      'Completing the review marks its alert read; the measured outcome stays unchanged.',
     '',
     `Registered ${row.registered_at.slice(0, 10)}, closed ${row.closed_at.slice(0, 10)}. ` +
       `A flag carrying the same numbers is on the ${row.asset} card. Window ${row.id}.`,
   ].join('\n');
 }
 
-export interface WatchReview {
+export interface WatchReview extends PendingWatchReadback {
   flagNumber: number;
-  windowId: string;
-  asset: string;
-  bead: string;
   postedAt: string;
 }
 
-export interface CompletedWatchReview extends WatchReview {
+export interface CompletedWatchReview extends Pick<WatchReview, 'flagNumber' | 'windowId' | 'asset' | 'bead' | 'postedAt'> {
   closedAt: string;
   checkedAt: string;
   reason: string;
 }
 
+export interface WatchReviewLink {
+  windowId: string;
+  asset: string;
+  previousBead: string;
+  bead: string;
+  previousPostedAt: string | null;
+}
+
+/** The old task retains its comments; the new review receives its own delivery. */
+export async function linkWatchReviews(env: IngestEnv, links: WatchReviewLink[]): Promise<{ linked: string[]; skipped: string[] }> {
+  const linked: string[] = [], skipped: string[] = [];
+  for (const link of links) {
+    const rows = await env.STORE.write(tx => tx.query<{ id: string }>(
+      `UPDATE noticeos.watch_windows SET readback_bead = $4, readback_posted_at = NULL
+        WHERE window_id = $1 AND asset_id = $2 AND status = 'closed'
+          AND ((readback_bead = $3 AND readback_posted_at IS NOT DISTINCT FROM $5::timestamptz)
+            OR (readback_bead = $4 AND readback_posted_at IS NULL))
+        RETURNING window_id AS id`,
+      [link.windowId, link.asset, link.previousBead, link.bead, link.previousPostedAt]));
+    (rows.length > 0 ? linked : skipped).push(link.windowId);
+  }
+  return { linked, skipped };
+}
+
 /** Keyset pages keep an unfinished early review from hiding later completions. */
 export async function readWatchReviews(env: IngestEnv, after: number = 0): Promise<WatchReview[]> {
-  const rows = await env.STORE.read((tx) => tx.query<WatchReview & Record<string, unknown>>(
-    `SELECT f.flag_number::int AS "flagNumber", w.window_id AS "windowId", w.asset_id AS asset,
-            w.readback_bead AS bead, w.readback_posted_at AS "postedAt"
+  const rows = await env.STORE.read((tx) => tx.query<ReadbackRow & { flagNumber: number; postedAt: string }>(
+    `SELECT f.flag_number::int AS "flagNumber", w.window_id AS id, w.asset_id AS asset,
+            w.ref, w.note, w.metric_integration, w.metric, w.scope::text AS scope_json,
+            w.registered_at, w.closed_at, w.outcome, w.outcome_note,
+            w.readback_bead, w.readback_posted_at AS "postedAt", true AS review_required
        FROM noticeos.watch_windows w
        JOIN noticeos.current_flags f ON f.asset_id = w.asset_id
         AND f.rule_id = 'watch-window-closed' AND f.rule_inputs->>'watchWindowId' = w.window_id
@@ -124,7 +156,7 @@ export async function readWatchReviews(env: IngestEnv, after: number = 0): Promi
         AND f.flag_number > $1 AND NOT ${settledFlagsSql('f')}
       ORDER BY f.flag_number LIMIT $2`, [after, WATCH_READBACK_MAX_BATCH],
   ));
-  return rows.map((row) => ({ ...row, postedAt: javascriptInstant(row.postedAt) }));
+  return rows.map((row) => ({ ...watchReadback(row), flagNumber: row.flagNumber, postedAt: javascriptInstant(row.postedAt) }));
 }
 
 /** Only a fresh, exact task close after delivery can acknowledge this result. */
@@ -182,6 +214,7 @@ export async function markWatchReadbacksPosted(
   env: IngestEnv,
   ids: string[],
   nowMs: number = Date.now(),
+  expectedTasks: Readonly<Record<string, string>> | null = null,
 ): Promise<{ posted: string[]; skipped: string[] }> {
   const wanted = [...new Set(ids)].slice(0, WATCH_READBACK_MAX_BATCH);
   if (wanted.length === 0) return { posted: [], skipped: [] };
@@ -195,8 +228,9 @@ export async function markWatchReadbacksPosted(
           AND status = 'closed'
           AND readback_bead IS NOT NULL
           AND readback_posted_at IS NULL
+          AND ($3::jsonb IS NULL OR readback_bead = ($3::jsonb ->> window_id))
         RETURNING window_id AS id`,
-      [wanted, now],
+      [wanted, now, expectedTasks === null ? null : JSON.stringify(expectedTasks)],
     ),
   );
   const stampedIds = new Set(stamped.map((row) => row.id));

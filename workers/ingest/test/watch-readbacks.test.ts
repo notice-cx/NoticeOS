@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { runWatchWindows } from '../src/watch-windows.js';
 import { writeWatchWindow } from '../src/routes/watch-windows.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
-import type { CompletedWatchReview, WatchReview } from '../src/watch-readbacks.js';
+import type { CompletedWatchReview, WatchReview, WatchReviewLink } from '../src/watch-readbacks.js';
 import { call, reset, storeSignalRun } from './helpers.js';
 
 beforeEach(reset);
@@ -221,6 +221,12 @@ async function complete(list: CompletedWatchReview[]): Promise<{ reviewed: numbe
   return res.json();
 }
 
+async function linkReview(link: WatchReviewLink): Promise<{ linked: string[]; skipped: string[] }> {
+  const res = await call(request({ method: 'POST', token: OPERATOR_TOKEN, body: JSON.stringify({ linked: [link] }) }));
+  expect(res.status).toBe(200);
+  return res.json();
+}
+
 async function reviewFixture(outcome = 'inconclusive') {
   const windowId = await closedWindow({ posted: '2026-08-21T04:00:00.000Z', outcome });
   await env.STORE.write(tx => tx.execute(
@@ -243,6 +249,68 @@ async function evidence() {
 }
 
 describe('outcome review completion', () => {
+  it('does not request new review work for an alert already marked read', async () => {
+    const windowId = await closedWindow();
+    const id = await outcomeAlert(windowId);
+    await env.STORE.write(tx => tx.execute("UPDATE noticeos.flags SET disposition='ack' WHERE flag_number=$1", [id]));
+    const res = await call(request({ token: OPERATOR_TOKEN }));
+    const body = await res.json() as { pending: { windowId: string; reviewRequired: boolean }[] };
+    expect(body.pending).toContainEqual(expect.objectContaining({ windowId, reviewRequired: false }));
+  });
+  it.each([null, '2026-08-21T04:00:00.000Z'])(
+    'moves review ownership from a pre-closed task without changing measurement evidence (delivery %s)', async (posted) => {
+    const windowId = await closedWindow({ posted, outcome: 'unmeasurable' });
+    const id = await outcomeAlert(windowId, 'watch-window-closed', 'unmeasurable');
+    const reading = () => env.STORE.read(tx => tx.query(
+      `SELECT to_jsonb(w) - 'readback_bead' - 'readback_posted_at' AS measurement
+         FROM noticeos.watch_windows w WHERE window_id=$1`, [windowId]));
+    const before = await reading();
+    const link = { windowId, asset: 'meadow.example', previousBead: 'md-w1n.2', bead: 'md-review', previousPostedAt: posted };
+    expect(await linkReview(link)).toEqual({ linked: [windowId], skipped: [] });
+    expect(await linkReview(link)).toEqual({ linked: [windowId], skipped: [] });
+    expect(await reading()).toEqual(before);
+    expect((await pending()).find(row => row.windowId === windowId)?.bead).toBe('md-review');
+    expect((await reviews()).reviews).toEqual([]);
+    const stamp = async (bead: string) => {
+      const res = await call(request({ method: 'POST', token: OPERATOR_TOKEN,
+        body: JSON.stringify({ posted: [windowId], expectedTasks: { [windowId]: bead } }) }));
+      expect(res.status).toBe(200);
+      return res.json();
+    };
+    expect(await stamp('md-w1n.2')).toEqual({ posted: [], skipped: [windowId] });
+    expect(await stamp('md-review')).toEqual({ posted: [windowId], skipped: [] });
+    // A late retry cannot clear the new delivery receipt.
+    expect(await linkReview(link)).toEqual({ linked: [], skipped: [windowId] });
+    const [review] = (await reviews()).reviews;
+    expect(review).toMatchObject({ flagNumber: id, bead: 'md-review', outcome: 'unmeasurable' });
+    expect(await complete([completion(review!, { closedAt: new Date(Date.now() - 1000).toISOString() })]))
+      .toEqual({ reviewed: [], skipped: [id] });
+    expect(await reading()).toEqual(before);
+  });
+
+  it('accepts only one competing review link and preserves the winner', async () => {
+    const { review, windowId } = await reviewFixture();
+    const base = { windowId, asset: review.asset, previousBead: review.bead, previousPostedAt: review.postedAt };
+    const result = await Promise.all([linkReview({ ...base, bead: 'md-review1' }), linkReview({ ...base, bead: 'md-review2' })]);
+    expect(result.flatMap(row => row.linked)).toEqual([windowId]);
+    const rows = await pending();
+    expect(['md-review1', 'md-review2']).toContain(rows[0]?.bead);
+    expect(await complete([completion(review)])).toEqual({ reviewed: [], skipped: [review.flagNumber] });
+  });
+
+  it('refuses stale link ownership and malformed link or delivery evidence', async () => {
+    const { review, windowId } = await reviewFixture();
+    const link = { windowId, asset: review.asset, previousBead: review.bead, bead: 'md-review', previousPostedAt: review.postedAt };
+    expect(await linkReview({ ...link, previousPostedAt: null })).toEqual({ linked: [], skipped: [windowId] });
+    expect(await linkReview({ ...link, asset: 'northwind.example' })).toEqual({ linked: [], skipped: [windowId] });
+    for (const body of [{ linked: [{ ...link, bead: review.bead }] }, { linked: [{ windowId }] },
+      { linked: Array(51).fill(link) }, { posted: [windowId], expectedTasks: {} }]) {
+      const res = await call(request({ method: 'POST', token: OPERATOR_TOKEN, body: JSON.stringify(body) }));
+      expect(res.status).toBe(400);
+    }
+    expect((await call(request({ method: 'POST', body: JSON.stringify({ linked: [link] }) }))).status).toBe(401);
+  });
+
   it.each(['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'])(
     'settles only the associated %s alert, retaining its result and measurements', async (outcome) => {
     const { review, id, windowId } = await reviewFixture(outcome);

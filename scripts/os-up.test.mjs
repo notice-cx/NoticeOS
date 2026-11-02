@@ -3643,7 +3643,7 @@ function readbackDeps(overrides = {}) {
       readConfig: () => Promise.resolve(JSON.stringify({ spokes: [READBACK_SPOKE] })),
       run: (argv) => {
         spawned.push(argv);
-        return Promise.resolve(ok(''));
+        return Promise.resolve(ok(argv[2] === 'show' ? JSON.stringify([{ id: argv[3], status: 'open' }]) : ''));
       },
       fetchImpl: (url, init) => {
         requests.push({ url, init });
@@ -3670,12 +3670,13 @@ test('a verdict reaches its bead in the spoke that owns it, then is stamped', as
     // Resolved from the HOME checkout the inventory is relative to: a runner
     // running from a code folder must not look for ../meadow.example beside
     // that folder.
+    ['-C', '/home/operator/meadow.example', 'show', 'md-w1n.2', '--json'],
     ['-C', '/home/operator/meadow.example', 'comment', 'md-w1n.2', 'Watch window kill_confirmed — meadow.example\n\nReading: …'],
   ]);
   // Read, then post — the stamp is the LAST thing that happens.
   assert.equal(requests.length, 2);
   assert.equal(requests[1].init.method, 'POST');
-  assert.deepEqual(JSON.parse(requests[1].init.body), { posted: ['w-1'] });
+  assert.deepEqual(JSON.parse(requests[1].init.body), { posted: ['w-1'], expectedTasks: { 'w-1': 'md-w1n.2' } });
   assert.equal(lines.length, 1);
   assert.match(lines[0], /^INFO watch readbacks — 1 verdict\(s\) filed: md-w1n\.2 kill_confirmed/);
 });
@@ -3690,7 +3691,8 @@ test('an empty queue says nothing at all', async () => {
 
 test('a failed comment is not stamped, so the next tick tries again', async () => {
   const { lines, requests, deps } = readbackDeps({
-    run: () => Promise.resolve({ code: 1, stdout: '', stderr: 'Error: no issue found matching "md-w1n.2"' }),
+    run: argv => Promise.resolve(argv[2] === 'show' ? ok(JSON.stringify([{ id: argv[3], status: 'open' }]))
+      : { code: 1, stdout: '', stderr: 'Error: no issue found matching "md-w1n.2"' }),
   });
   const result = await runWatchReadbackFiler(deps);
 
