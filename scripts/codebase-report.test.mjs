@@ -40,7 +40,7 @@ test('--measure passes a build, test or audit result to the image, checked by th
   assert.deepEqual(parsed.measures, ['build_passed=success', 'vulnerable_dependencies=3']);
   const selector = { dockerHost: SOCKET, project: 'noticeos', files: ['/srv/stack.yaml'], envFile: '/srv/installation.env' };
   const args = measureArgs({ selector, app: APP_ID, image: DEFAULT_IMAGE, repo: '/srv/site', asset: 'example.com', paths: null, local: false, measures: parsed.measures });
-  assert.deepEqual(args.slice(args.indexOf(DEFAULT_IMAGE)), [DEFAULT_IMAGE, '--asset', 'example.com', '--repo', '/repo',
+  assert.deepEqual(args.slice(args.indexOf(DEFAULT_IMAGE)), [DEFAULT_IMAGE, '/measure.mjs', '--asset', 'example.com', '--repo', '/repo',
     '--measure', 'build_passed=success', '--measure', 'vulnerable_dependencies=3', '--post', 'http://127.0.0.1:8791']);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure', 'coverage=90']), /--measure takes/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure', 'tests_passed=maybe']), /success or failure/u);
@@ -63,7 +63,8 @@ test('the measurement runs read-only beside the app container, and its token is 
   const args = measureArgs({ selector, app: APP_ID, image: DEFAULT_IMAGE, repo: '/srv/site', asset: 'example.com', paths: ['apps/site'], local: false });
   assert.deepEqual(args, ['--host', SOCKET, 'run', '--rm', '--pull', 'missing', '--read-only', '--tmpfs', '/tmp', '--cap-drop', 'ALL',
     '--security-opt', 'no-new-privileges', '--network', `container:${APP_ID}`, '--mount', 'type=bind,source=/srv/site,target=/repo,readonly',
-    '--env', 'NOTICEOS_ASSET_TOKEN', DEFAULT_IMAGE, '--asset', 'example.com', '--repo', '/repo', '--paths', 'apps/site', '--post', 'http://127.0.0.1:8791']);
+    '--mount', `type=bind,source=${path.join(ROOT, 'deploy/codebase-report/measure.mjs')},target=/measure.mjs,readonly`,
+    '--env', 'NOTICEOS_ASSET_TOKEN', '--entrypoint', 'node', DEFAULT_IMAGE, '/measure.mjs', '--asset', 'example.com', '--repo', '/repo', '--paths', 'apps/site', '--post', 'http://127.0.0.1:8791']);
   const local = measureArgs({ selector, app: APP_ID, image: LOCAL_IMAGE, repo: '/srv/site', asset: 'example.com', paths: null, local: true });
   assert.equal(local[local.indexOf('--pull') + 1], 'never');
   assert.equal(local.includes('--paths'), false);

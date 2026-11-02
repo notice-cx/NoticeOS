@@ -16,6 +16,7 @@
 // Node built-ins only: the image copies this one file.
 
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -160,7 +161,7 @@ export function parseSentMeasure(text) {
 }
 
 export function parseArgs(argv) {
-  const known = new Set(['--asset', '--repo', '--paths', '--ref', '--out', '--post', '--measure']);
+  const known = new Set(['--asset', '--repo', '--paths', '--ref', '--out', '--post', '--measure', '--as-of', '--settings']);
   const values = {};
   const sent = { measures: {}, unmeasured: {} };
   for (let i = 0; i < argv.length; i += 1) {
@@ -191,6 +192,7 @@ export function parseArgs(argv) {
     if (paths.length === 0 || paths.length > LIMITS.paths) throw new Error(`--paths takes 1 to ${LIMITS.paths} folders.`);
   }
   if (values['--ref'] !== undefined && !REF.test(values['--ref'])) throw new Error('--ref takes a branch or tag name.');
+  if (values['--as-of'] && values['--post']) throw new Error('Historical measurements must use the history import, not --post.');
   return {
     asset: values['--asset'],
     repo: path.resolve(values['--repo'] ?? '/repo'),
@@ -199,6 +201,8 @@ export function parseArgs(argv) {
     out: values['--out'] ? path.resolve(values['--out']) : null,
     post: values['--post'] ? ingestEndpoint(values['--post']) : null,
     sent,
+    asOf: values['--as-of'] ? new Date(values['--as-of']) : null,
+    settings: values['--settings'] ? path.resolve(values['--settings']) : null,
   };
 }
 
@@ -896,7 +900,7 @@ async function measureChurn(repo, paths, counted, now, log) {
     if (!(oldest <= since)) return { unmeasured: allReasons(keys, REASONS.shallow) };
   }
   const result = await git(repo, ['log', '--no-merges', '--no-renames', '--no-textconv', '--no-ext-diff', `--since=@${since}`,
-    '--format=%x1e%H', '--numstat', '-z', 'HEAD', '--', ...(paths ?? ['.'])]);
+    `--until=@${Math.floor(now.getTime() / 1000)}`, '--format=%x1e%H', '--numstat', '-z', 'HEAD', '--', ...(paths ?? ['.'])]);
   if (!result.ok) {
     log(`git log failed: ${result.stderr}`);
     return { unmeasured: allReasons(keys, REASONS.gitFailed) };
@@ -932,14 +936,16 @@ function readRepoConfigFile(repo) {
 }
 
 /** Measure `repo` and return the envelope. */
-export async function measure({ asset, repo, paths = null, ref = null, sent = null, now = new Date(), log = (line) => process.stderr.write(`${line}\n`) }) {
+export async function measure({ asset, repo, paths = null, ref = null, sent = null, now = new Date(), asOf = null, settings = null, log = (line) => process.stderr.write(`${line}\n`) }) {
+  if (asOf && (!Number.isFinite(asOf.getTime()) || asOf > now)) throw new Error('--as-of must be a valid past timestamp.');
   const stat = fs.statSync(repo, { throwIfNoEntry: false });
   if (!stat?.isDirectory()) throw new Error(`${repo} is not a folder.`);
   for (const prefix of paths ?? []) {
     if (!fs.existsSync(path.join(repo, prefix))) throw new Error(`--paths names ${prefix}, which is not in the repository.`);
   }
   const repository = await repositoryFacts(repo, ref);
-  const config = readRepoConfigFile(repo);
+  if (asOf && Date.parse(repository.committedAt) > asOf.getTime()) throw new Error('The measured commit follows --as-of; select an earlier revision.');
+  const config = settings ? readRepoConfig(fs.readFileSync(settings, 'utf8')) : readRepoConfigFile(repo);
   const listed = await git(repo, ['ls-files', '-z', '--cached']);
   if (!listed.ok) throw new Error(`git ls-files failed: ${listed.stderr}`);
   const { files, skipped, rules } = selectFiles(repo, listed.stdout.split('\0').filter(Boolean), { paths, config });
@@ -947,6 +953,8 @@ export async function measure({ asset, repo, paths = null, ref = null, sent = nu
   const codePaths = files.filter((file) => !file.test).map((file) => file.path);
   const testPaths = new Set(files.filter((file) => file.test).map((file) => file.path));
   const tools = await toolVersions();
+  tools.profile = createHash('sha256').update(fs.readFileSync(fileURLToPath(import.meta.url)))
+    .update(JSON.stringify({ paths: paths ? [...paths].sort() : null, config })).digest('hex');
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-codebase-'));
   try {
     const measures = {};
@@ -964,7 +972,7 @@ export async function measure({ asset, repo, paths = null, ref = null, sent = nu
     const complexity = missing('lizard', ['functions', 'complex_functions', 'max_function_complexity', 'mean_function_complexity'], REASONS.lizardFailed)
       ?? await measureComplexity(repo, codePaths, work, log);
     const counted = (file) => underPaths(file, paths) && !rules.exclusion(file) && !skipped.has(file);
-    const churn = await measureChurn(repo, paths, counted, now, log);
+    const churn = await measureChurn(repo, paths, counted, asOf ?? now, log);
     for (const part of [size, duplication, unused, complexity, churn]) take(part);
     const manifests = codePaths.filter((file) => MANIFEST_NAME.test(file))
       .map((file) => ({ file, text: fs.readFileSync(path.join(repo, file), 'utf8') }));
@@ -974,7 +982,7 @@ export async function measure({ asset, repo, paths = null, ref = null, sent = nu
     const fromCi = sentMeasures(sent);
     Object.assign(measures, fromCi.measures);
     Object.assign(unmeasured, fromCi.unmeasured);
-    return buildEnvelope({
+    const envelope = buildEnvelope({
       asset,
       generatedAt: isoSeconds(now),
       repository,
@@ -991,6 +999,8 @@ export async function measure({ asset, repo, paths = null, ref = null, sent = nu
         largestFiles: size.largestFiles,
       },
     });
+    if (asOf) envelope.history = { effectiveAt: isoSeconds(asOf), selectionRef: repository.ref };
+    return boundEnvelope(envelope);
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }

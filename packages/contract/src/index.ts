@@ -11,6 +11,8 @@
 // apps/tower/test/client-contract-imports.test.ts fails if it stops doing so.
 export * from './schema.js';
 export * from './codebase.js';
+export * from './codebase-history.js';
+export * from './codebase-instrument.js';
 export * from './validation-issue.js';
 export * from './rules.js';
 export * from './rule-backtest.js';
