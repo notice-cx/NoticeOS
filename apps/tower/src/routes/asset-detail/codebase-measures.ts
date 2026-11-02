@@ -17,6 +17,7 @@ import { shiftLabel, type SurfaceAnnotation } from "@shared/surface";
 import type { SeriesPoint, SignalTrend } from "@shared/wall";
 import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
 import { metricWindow } from "@/routes/asset-detail/overview-metrics";
+import { comparableCodebaseReports } from '@noticeos/contract/codebase-instrument';
 
 /**
  * The Codebase tab's derivations, read once from the site's reports: each
@@ -29,9 +30,6 @@ import { metricWindow } from "@/routes/asset-detail/overview-metrics";
 
 /** The window every change on the tab is measured over. */
 export const CHANGE_DAYS = CODEBASE_COMPARISON_TARGET_DAYS;
-
-export const CODEBASE_RANGES = [30, 90] as const;
-export type CodebaseRange = (typeof CODEBASE_RANGES)[number];
 
 /** The first seven characters of a commit: what a person can match in git. */
 export function shortCommit(commit: string): string {
@@ -176,7 +174,8 @@ export function baselineReport(
   pick: (measures: CodebaseMeasures) => number | null,
 ): CodebaseHistoryPoint | null {
   const measured = history
-    .filter((point) => pick(point.measures) !== null)
+    .filter((point) => pick(point.measures) !== null && (!history.at(-1)
+      || comparableCodebaseReports(point, history.at(-1)!)))
     .map((point) => ({ reportDate: point.date, point }));
   return pickComparisonReport(latest, measured)?.point ?? null;
 }
@@ -224,6 +223,7 @@ export interface AlignedDay {
   /** The report the value came from, when it is not that day's own. */
   from: string | null;
   commit: string | null;
+  provenance?: string;
 }
 
 /**
@@ -251,6 +251,7 @@ export function alignedSeries(
       v: value,
       from: value !== null && current && current.date !== day ? current.date : null,
       commit: value !== null && current ? current.commit : null,
+      ...(current?.history ? { provenance: `Reconstructed snapshot ${current.history.effectiveAt} · measured ${current.generatedAt}${current.committedAt ? ` · commit dated ${current.committedAt}` : ''}${current.receivedAt ? ` · imported ${current.receivedAt}` : ''}` } : {}),
     });
   }
   return out;
@@ -270,6 +271,7 @@ export function dayNotes(days: readonly AlignedDay[]): Record<string, string> {
     notes[day.t] = day.from === null
       ? `Commit ${shortCommit(day.commit)}`
       : `Measured ${formatSeriesDate(day.from)} · commit ${shortCommit(day.commit)}`;
+    if (day.provenance) notes[day.t] += ` · ${day.provenance}`;
   }
   return notes;
 }
@@ -414,7 +416,7 @@ export function toolChanges(history: readonly CodebaseHistoryPoint[]): SurfaceAn
   for (let index = 1; index < history.length; index++) {
     const before = history[index - 1]!.tools;
     const after = history[index]!.tools;
-    const changed = (["scc", "jscpd", "lizard"] as const).filter((tool) => before[tool] !== after[tool]);
+    const changed = (["scc", "jscpd", "lizard", "image", "profile"] as const).filter((tool) => before[tool] !== after[tool]);
     if (changed.length === 0) continue;
     marks.push({
       date: history[index]!.date,

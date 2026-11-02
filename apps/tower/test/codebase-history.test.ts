@@ -7,6 +7,9 @@ import { parseCodebaseReport, parseMeasures, parseUnmeasured, readCodebaseSlice 
 import { CODEBASE_TOOLS, codebaseReport, commitOf, dayBefore, storeCodebaseReports, weeklyMeasures, weeklyStoredReports } from "./codebase-fixture";
 import { createTestStore, postgresUnavailable, type TestStore } from "./postgres-store";
 import { addSites } from "./sites";
+import { importCodebaseHistory } from '../../../workers/ingest/src/codebase-history';
+import { openWorkspaceStore } from '@noticeos/postgres';
+import { measureChange } from '@/routes/asset-detail/codebase-measures';
 
 /**
  * One site's codebase reports as its Codebase tab reads them: each day's
@@ -102,6 +105,44 @@ describe.skipIf(postgresUnavailable() !== null)("readCodebaseSlice on Postgres",
     return ctx;
   }
 
+  it('reads an imported baseline with reconstruction times, compares compatible instruments and isolates workspaces', async () => {
+    const ctx = await seeded();
+    const instruments = { ...CODEBASE_TOOLS, image: `example.com/measure@sha256:${'a'.repeat(64)}`, profile: 'b'.repeat(64) };
+    const current = codebaseReport(ASSET, TODAY, { code_lines: 2000 }); current.tools = instruments;
+    await storeCodebaseReports(ctx.call, [{ asset: ASSET, date: TODAY, report: current }]);
+    const baseline = codebaseReport(ASSET, dayBefore(TODAY, 30), { code_lines: 1000 }); baseline.tools = instruments;
+    baseline.history = { effectiveAt: `${dayBefore(TODAY, 30)}T23:59:59Z`, selectionRef: 'main' };
+    baseline.generatedAt = NOW.toISOString();
+    const release = { source: 'releases.jsonl', sequence: 0, id: 'c'.repeat(64), commit: baseline.repository.commit, recordedAt: `${dayBefore(TODAY, 30)}T12:00:00Z`, supersedes: [] };
+    const bundle = { version: 1 as const, asset: ASSET, reports: [baseline], releases: [release] };
+    expect(await importCodebaseHistory(ctx.call, bundle, false, NOW)).toMatchObject({ reports: 1, releases: 1, alertsChanged: 0 });
+    const slice = await readCodebaseSlice(ctx.call, ASSET, NOW);
+    expect(slice.latest?.report.repository.commit).toBe(current.repository.commit);
+    expect(slice.latest?.date).toBe(TODAY);
+    expect(slice.history[0]).toMatchObject({ date: dayBefore(TODAY, 30), generatedAt: NOW.toISOString(), history: baseline.history, receivedAt: NOW.toISOString(), committedAt: baseline.repository.committedAt });
+    expect(measureChange(slice.history, measures => measures.code_lines ?? null)).toMatchObject({ change: 1000, days: 30 });
+    expect(measureChange(slice.history.map((point, index) => index ? { ...point, tools: CODEBASE_TOOLS } : point), measures => measures.code_lines ?? null)).toBeNull();
+    const view = await buildAssetDetailView(ctx.call, ASSET, DEPS, 'codebase');
+    expect(view?.annotations.items).toHaveLength(1);
+    expect(view?.annotations.items[0]?.note).toContain('deployment time unconfirmed');
+    expect(view?.annotations.items[0]?.release?.source).toBe('releases.jsonl');
+    const deployedAt = `${dayBefore(TODAY, 30)}T12:05:00.000Z`;
+    await ctx.call.write(tx => tx.execute(`INSERT INTO noticeos.annotations (workspace_id, asset_id, at, kind, ref, note)
+      VALUES ($1::uuid, $2, $3::timestamptz, 'deploy', $4, 'Added saved plans')`, [tx.workspaceId, ASSET, deployedAt, baseline.repository.commit]));
+    const confirmed = await buildAssetDetailView(ctx.call, ASSET, DEPS, 'codebase');
+    expect(confirmed?.annotations.items).toHaveLength(1);
+    expect(confirmed?.annotations.items[0]?.note).toContain('Added saved plans');
+    expect(confirmed?.annotations.items[0]?.release?.deployedAt).toBe(deployedAt);
+    expect(confirmed?.annotations.items[0]?.note).toContain(`Deployment confirmed ${deployedAt}`);
+    expect(await readCodebaseSlice(ctx.call, 'ferns.example', NOW)).toEqual({ history: [], latest: null });
+    const foreign = openWorkspaceStore(ctx.url, { workspaceId: '00000000-0000-4000-8000-000000000099' });
+    try {
+      expect(await readCodebaseSlice(foreign, ASSET, NOW)).toEqual({ history: [], latest: null });
+      await expect(importCodebaseHistory(foreign, bundle, false, NOW)).rejects.toThrow('send a current report first');
+      expect(await foreign.read(tx => tx.query('SELECT * FROM noticeos.annotations'))).toEqual([]);
+    } finally { await foreign.close(); }
+  });
+
   it("reads each day's newest revision over ninety days, oldest first, and the newest report in full", async () => {
     const ctx = await seeded();
     const weekly = weeklyStoredReports(ASSET, TODAY);
@@ -144,7 +185,7 @@ describe.skipIf(postgresUnavailable() !== null)("readCodebaseSlice on Postgres",
     expect(view.codebase.history).toHaveLength(2);
     expect(view).toHaveProperty("performance");
     expect(view).toHaveProperty("annotations");
-    expect(view).not.toHaveProperty("metrics");
+    expect(view).toHaveProperty("metrics");
     const overview = (await buildAssetDetailView(ctx.call, ASSET, DEPS, "overview"))!;
     expect(overview).not.toHaveProperty("codebase");
   });

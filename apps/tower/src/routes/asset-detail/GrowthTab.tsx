@@ -57,7 +57,7 @@ export function GrowthTab({
   // The asset's recorded deploys and config changes, labelled the way the
   // Overview labels them — one derivation, so the same day carries the same
   // sentence on whichever tab marks it.
-  const timeline = timelineAnnotations(data.annotations.items);
+  const timeline = timelineAnnotations(data.annotations.items, data.osTimeZone);
   const audience = [performance.activeUsers, performance.sessions];
   const moves = growthMoves(performance, days);
 

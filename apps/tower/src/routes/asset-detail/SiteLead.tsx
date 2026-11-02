@@ -125,7 +125,7 @@ export function SiteLead({
       source={lead.source}
       metrics={lead.metrics}
       days={days}
-      annotations={timelineAnnotations(data.annotations.items)}
+      annotations={timelineAnnotations(data.annotations.items, data.osTimeZone)}
       spans={watchSpans(data.watches.open, nowMs)}
       aside={aside}
       picked={picked}

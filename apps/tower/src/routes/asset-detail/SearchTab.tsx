@@ -262,7 +262,7 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
             performance={performance}
             days={days}
             asset={data.asset.displayName}
-            timeline={timelineAnnotations(data.annotations.items)}
+            timeline={timelineAnnotations(data.annotations.items, data.osTimeZone)}
           />
         </div>
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-border bg-card px-4 py-3" data-search-next>

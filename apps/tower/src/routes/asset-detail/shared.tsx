@@ -14,6 +14,7 @@ import { AgeBadge } from "@/components/AgeBadge";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatSeriesDate } from "@/lib/format";
+import { effectiveReleaseAnnotations, releaseFromNote, releaseDetail } from '@noticeos/contract/release-annotations';
 export { Panel, type PanelProps } from "@/components/surface/Panel";
 
 // --- the small pieces every tab draws with --------------------------------
@@ -44,22 +45,28 @@ export function firstClause(text: string, max = MARK_LABEL_MAX): string {
  */
 export function timelineAnnotations(
   items: readonly AnnotationItem[],
+  timeZone = 'UTC',
 ): SurfaceAnnotation[] {
-  return items
-    .filter((item) => item.kind === "deploy" || item.kind === "config")
+  return effectiveReleaseAnnotations(items)
+    .filter((item) => item.kind === "deploy" || item.kind === "config" || item.release || releaseFromNote(item.note))
     .map((item) => {
+      const release = item.release ?? releaseFromNote(item.note);
       const move = parseLifecycleMoveRef(item.ref);
-      const said = move ? lifecycleMoveSentence(move) : item.note;
+      const said = release ? item.release ? item.note ?? releaseDetail(release) : releaseDetail(release) : move ? lifecycleMoveSentence(move) : item.note;
       return {
-        date: item.at.slice(0, 10),
-        ...(said ? { detail: said } : {}),
-        label: said
+        date: chartDay(item.at, timeZone),
+        detail: [said, !release && item.ref ? `Commit ${item.ref}` : null, !release ? `Time ${item.at}` : null].filter(Boolean).join(' · '),
+        label: release ? `${release.deployedAt ? 'Deploy' : 'Release recorded'} ${release.commit.slice(0, 7)}` : said
           ? firstClause(said)
           : item.kind === "deploy"
             ? "Deploy"
             : "Config change",
       };
     });
+}
+
+export function chartDay(at: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
 }
 
 /**

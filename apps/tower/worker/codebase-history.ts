@@ -27,7 +27,11 @@ import {
 export const CODEBASE_HISTORY_SQL = `SELECT report_date::text AS date, commit, ref,
        generated_at AS "generatedAt",
        (envelope->'measures')::text AS measures,
-       (envelope->'tools')::text AS tools
+       (envelope->'tools')::text AS tools,
+       (envelope->'history')::text AS history,
+       (envelope->'paths')::text AS paths,
+       envelope->'repository'->>'committedAt' AS "committedAt",
+       received_at AS "receivedAt"
   FROM noticeos.current_codebase_reports
  WHERE asset_id = $1
    AND report_date > ($2::timestamptz AT TIME ZONE 'UTC')::date - $3::int
@@ -48,6 +52,10 @@ type HistoryRow = {
   generatedAt: string;
   measures: string | null;
   tools: string | null;
+  history: string | null;
+  paths: string | null;
+  committedAt: string | null;
+  receivedAt: string;
 };
 
 type LatestRow = {
@@ -69,6 +77,9 @@ export async function readCodebaseSlice(store: WorkspaceStore, asset: string, no
     generatedAt: javascriptInstant(row.generatedAt),
     measures: parseMeasures(parseJson(row.measures)),
     tools: parseTools(parseJson(row.tools)),
+    ...(row.history ? { history: JSON.parse(row.history) as CodebaseReport['history'],
+      ...(row.committedAt ? { committedAt: row.committedAt } : {}), receivedAt: javascriptInstant(row.receivedAt) } : {}),
+    ...(row.paths ? { paths: JSON.parse(row.paths) as string[] } : {}),
   }));
   const newest = latestRows[0];
   const report = newest ? parseCodebaseReport(newest.envelope) : null;
@@ -125,6 +136,7 @@ function parseTools(value: unknown): CodebaseReport["tools"] {
   const source = record(value) ?? {};
   return {
     ...(text(source.image) ? { image: source.image } : {}),
+    ...(text(source.profile) ? { profile: source.profile } : {}),
     scc: text(source.scc) ? source.scc : "",
     jscpd: text(source.jscpd) ? source.jscpd : "",
     lizard: text(source.lizard) ? source.lizard : "",

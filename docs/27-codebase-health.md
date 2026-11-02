@@ -94,7 +94,8 @@ Every measure in the envelope is optional. A measure a tool did not produce is
 left out, never written as 0: jscpd's unused-code check covers JavaScript,
 TypeScript and Python only, unused packages are not measured by any tool in the
 image, a shallow checkout has no 30-day history, and the three checks are
-absent unless the sender passes them in. The report lists each
+absent unless the sender supplies results or reconstruction recovers exact-revision
+build/test evidence from a recorded release gate. The report lists each
 absent measure under `unmeasured` with the sentence the Tower shows beside
 **Not measured**.
 
@@ -122,10 +123,38 @@ the same code differently, so:
 
 - a tool version changes only in a commit that changes the Dockerfile;
 - every report records the versions that produced it under `tools`, with the
-  image digest when the run knew it;
+  image digest when the run knew it and a profile hash of the measuring program
+  and its path/exclusion settings;
 - the Tower's chart marks each report whose versions differ from the report
   before it with **Measuring tools updated**, and a step on that day is read as
   the tools, not the code.
+
+Historical reconstruction requires a digest-pinned image. Comparisons require
+matching tools, image, profile and measured paths. Earlier reports remain visible
+when their measuring settings cannot be matched; the tab lists the mismatch
+instead of calculating a change from incompatible measurements.
+
+## Reconstructed reports and release history
+
+`scripts/codebase-history.mjs` prepares a local Git sampling plan and isolated
+static measurements. The [operator guide](guides/measure-your-codebase.md#reconstruct-earlier-history)
+describes preview, measurement and import. Historical reports keep their cutoff
+under `history.effectiveAt`, actual measurement time under `generatedAt`, commit
+time under `repository.committedAt`, and import time in the stored `received_at`.
+Their 30-day change counts end at the cutoff.
+
+`POST /api/codebase-history` accepts bounded, asset-authenticated batches. It
+previews unless `apply=true`, skips existing report days, preserves the newest
+report, and never evaluates or resolves alerts. A later normal report can use an
+imported compatible baseline. Reports sent through the normal endpoint cannot
+carry reconstruction metadata.
+
+Release registry records use the existing append-only annotation store. Readers
+collapse superseded attempts and retries, retain existing confirmed deployments,
+and distinguish a pre-push `recordedAt` from a confirmed `deployedAt`. The Codebase
+tab draws code, visitors and collected daily product reports with one selected
+range and UTC calendar. Growth and Overview use their existing reporting calendar.
+Marker details retain the exact source times, commit and available change counts.
 
 ## The comparison and the rules
 

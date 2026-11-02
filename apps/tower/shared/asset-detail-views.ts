@@ -78,7 +78,7 @@ export const ASSET_VIEW_SECTIONS = {
   search: ["performance", "executive", "decisions", "tasks", "annotations"],
   // `performance` for the visitors the code is set beside, `annotations` for
   // the deploys marked on its chart.
-  codebase: ["codebase", "performance", "annotations"],
+  codebase: ["codebase", "performance", "annotations", "metrics"],
   // The five facts' evidence: the product reading (speed, errors), the code
   // reports, and the nightly home-page, sitemap and crawler checks.
   health: ["executive", "codebase", "hygiene"],
