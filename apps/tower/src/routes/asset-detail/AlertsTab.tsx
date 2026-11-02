@@ -14,6 +14,7 @@ import { Hero } from "@/routes/asset-detail/shared";
 import { FinishLine } from "@/components/surface/FinishLine";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { alertsLine } from "@/lib/alerts-line";
+import { worstSeverity } from "@/lib/severity";
 import { alertNormal, readingNights, shortHeadline } from "@/lib/alerts-board";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +59,7 @@ export function AlertsTab({
       <PageAnswer
         answer={alertsLine(flags.open)}
         detail={flags.history.length > 0 ? `${flags.history.length} settled` : undefined}
-        marks={{ "data-site-alerts-answer": flags.open.length === 0 ? "clear" : flags.openError > 0 ? "error" : "warn" }}
+        marks={{ "data-site-alerts-answer": worstSeverity(flags.open.map((flag) => flag.severity)) ?? "clear" }}
       />
       <Hero id="alerts">
         <div className="flex flex-col gap-3.5">
