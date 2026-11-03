@@ -6,10 +6,10 @@ const CLOSED_AT = '2026-10-17T12:00:00Z';
 const closer = (extra: Record<string, unknown>, at = CLOSED_AT) => ({ noticeos_closed_by: 'dana', noticeos_closed_at: at, ...extra });
 
 describe('a close names how it ended', () => {
-  it('has five resolutions, Done first, each with the words the Tower shows', () => {
-    expect(TASK_RESOLUTIONS).toEqual(['done', 'wont-do', 'duplicate', 'cant-reproduce', 'already-handled']);
+  it('has six resolutions, Done first, each with the words the Tower shows', () => {
+    expect(TASK_RESOLUTIONS).toEqual(['done', 'wont-do', 'duplicate', 'cant-reproduce', 'already-handled', 'no-longer-needed']);
     expect(TASK_RESOLUTIONS.map((resolution) => TASK_RESOLUTION_LABELS[resolution]))
-      .toEqual(['Done', "Won't do", 'Duplicate', "Can't reproduce", 'Already handled']);
+      .toEqual(['Done', "Won't do", 'Duplicate', "Can't reproduce", 'Already handled', 'No longer needed']);
     expect([isTaskResolution('wont-do'), isTaskResolution("Won't do"), isTaskResolution(undefined)]).toEqual([true, false, false]);
   });
 
@@ -17,6 +17,7 @@ describe('a close names how it ended', () => {
     expect(readTaskResolution(closer({ noticeos_resolution: 'wont-do' }), CLOSED_AT)).toEqual({ resolution: 'wont-do', duplicateOf: null });
     expect(readTaskResolution(closer({ noticeos_resolution: 'duplicate', noticeos_duplicate_of: 'ro-a1b' }), '2026-10-17T12:00:00.400Z'))
       .toEqual({ resolution: 'duplicate', duplicateOf: 'ro-a1b' });
+    expect(readTaskResolution(closer({ noticeos_resolution: 'no-longer-needed' }), CLOSED_AT)).toEqual({ resolution: 'no-longer-needed', duplicateOf: null });
     const done = { resolution: 'done', duplicateOf: null };
     // A close recorded before resolutions existed, an earlier close's record, an unknown word, no record at all.
     expect(readTaskResolution(closer({}), CLOSED_AT)).toEqual(done);

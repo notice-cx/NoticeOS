@@ -60,7 +60,7 @@ export interface HostedTaskOperations {
     actor(proof: Request, workspaceId: string): Promise<string>;
     capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
     /** Task summaries need readiness, but no epic progress or actor catalog. */
-    listTasks(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[]): Promise<Record<string, unknown>>;
+    listTasks(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
     agentStats(proof: Request, workspaceId: string, projectId?: string): Promise<AgentStatsPayload>;
     /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
     board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;

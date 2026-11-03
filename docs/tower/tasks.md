@@ -208,6 +208,13 @@ An agent can release an abandoned assignment after checking that its holder
 stopped working and preserving its progress. Age alone does not release it.
 Blocked and parked work retain that state when an assignment is released.
 
+An approval recorded from a Claude Code conversation shows **Approved, relayed by**
+and the agent's name, followed by the exact question, reply and session reference.
+**Dispute** reopens the approval and records the agent whose relay you disputed.
+Dependent work waits for a new approval. An action you completed yourself shows
+**Approved and done by** with your name and the agent who recorded your result.
+Retired requests show **No longer needed**; declined actions show **Won't do**.
+
 ## States and labels
 
 - A figure shown as **—** means the board could not read that project; it is never a zero. The summary line then shows **Couldn't read your decisions**.

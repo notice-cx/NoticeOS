@@ -10,7 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { answerSteps, choiceSteps, commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, maintenanceSteps, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, taskStoreStepFailure, writeGuardReads } from './hosted-task-command.mjs';
+import { answerSteps, choiceSteps, commentProposalMatches, commentNeedsProposalHistory, createHostedTaskPlanner, disputeSteps, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, maintenanceSteps, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, taskStoreStepFailure, writeGuardReads } from './hosted-task-command.mjs';
 import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { taskCardOf } from '../packages/contract/src/task-card.mjs';
@@ -444,13 +444,30 @@ export function createHostedTaskExecutor(options) {
                                 };
                                 // A pick, or an answer on a task that is not a decision, runs as steps.
                                 let steps = null;
+                                if (operation.kind === 'dispute') {
+                                    const before = await target(operation.taskId, ['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', operation.taskId]);
+                                    const comments = await run(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
+                                    for (const step of disputeSteps(operation.taskId, before, last.principalId, new Date().toISOString(), comments)) {
+                                        admission.assertContext(last, action);
+                                        await current(selected, life, readMapping);
+                                        checkpoint(life);
+                                        const planned = createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId, { projectId: snapshot.projectId, operation: step }).argv;
+                                        try {
+                                            await run([planned[0], planned[1], `--actor=${last.principalId}`, ...planned.slice(2)]);
+                                        }
+                                        catch (error) {
+                                            taskStoreStepFailure(error, step.kind);
+                                        }
+                                    }
+                                    return target();
+                                }
                                 if (operation.kind === 'maintain') {
                                     const before = await target(operation.taskId, ['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', operation.taskId]);
                                     const comments = await run(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
                                     const duplicate = operation.duplicateOf === undefined ? undefined : await target(operation.duplicateOf);
-                                    const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
+                                    const history = commentNeedsProposalHistory(operation, before, comments)
                                         ? await run(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
-                                    const verified = (operation.action === 'answer' || operation.action === 'declined') && operation.answerMode !== 'direct' && commentProposalMatches(operation, before, comments, history)
+                                    const verified = (operation.action === 'answer' || operation.action === 'declined' || operation.action === 'owner_performed') && operation.answerMode === undefined && commentProposalMatches(operation, before, comments, history)
                                         && await verifyOwnerAnswer?.(workspaceId, snapshot.projectId, operation, before, comments) === true;
                                     const maintenance = maintenanceSteps(operation, before, comments, last.principalId, new Date().toISOString(), duplicate, verified);
                                     for (const step of maintenance) {

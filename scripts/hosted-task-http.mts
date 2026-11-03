@@ -91,7 +91,7 @@ function limit(value: unknown): number {
 }
 /** Request parsing only. Callers still establish current admission separately. */
 export async function readHostedTaskCommand(request: Request, url: URL, workspaceId: string): Promise<HostedTaskRequest> {
-  const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history|comments|close|respond|dismiss|choose))?)?$/iu.exec(url.pathname);
+  const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history|comments|close|respond|dismiss|choose|dispute))?)?$/iu.exec(url.pathname);
   const gate = /^\/api\/gates\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)\/resolve$/iu.exec(url.pathname);
   if ((!match && !gate) || /%/u.test(url.pathname)) invalid();
   const taskId = gate?.[1] ?? match?.[1], suffix = gate ? 'resolve-gate' : match?.[2];
@@ -109,14 +109,14 @@ export async function readHostedTaskCommand(request: Request, url: URL, workspac
       : request.method === 'PATCH' && taskId && !suffix ? 'update'
       : request.method === 'POST' && taskId && suffix === 'comments' ? 'comment'
       : request.method === 'POST' && taskId && suffix === 'close' ? 'close'
-      : request.method === 'POST' && taskId && ['respond', 'dismiss', 'resolve-gate', 'choose'].includes(suffix ?? '')
-        ? suffix as 'respond' | 'dismiss' | 'resolve-gate' | 'choose' : invalid();
+      : request.method === 'POST' && taskId && ['respond', 'dismiss', 'resolve-gate', 'choose', 'dispute'].includes(suffix ?? '')
+        ? suffix as 'respond' | 'dismiss' | 'resolve-gate' | 'choose' | 'dispute' : invalid();
     const row = await body(request);
     const fields = kind === 'create' ? ['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'card', 'changeClass']
       : kind === 'update' ? ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels',
         'card', 'changeClass']
       : kind === 'comment' ? ['text'] : kind === 'respond' ? ['response'] : kind === 'choose' ? ['option', 'note']
-      : kind === 'close' || kind === 'dismiss' ? ['reason', 'resolution', 'duplicateOf'] : ['reason'];
+      : kind === 'close' || kind === 'dismiss' ? ['reason', 'resolution', 'duplicateOf'] : kind === 'dispute' ? [] : ['reason'];
     keys(row, ['projectId'], fields); projectId = uuid(row.projectId);
     delete row.projectId;
     operation = { kind, ...(taskId ? { taskId } : {}), ...row } as HostedTaskOperation;

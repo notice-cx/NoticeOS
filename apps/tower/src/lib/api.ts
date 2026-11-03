@@ -1280,6 +1280,10 @@ async function actOnTaskRequest(fetch: ApiTransport,
   if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
 }
 
+function disputeTaskRequest(fetch: ApiTransport, id: string, options?: TaskWriteOptions): Promise<void> {
+  return actOnTaskRequest(fetch, id, "dispute", {}, options);
+}
+
 /** How a close ended when it is not done: the resolution and, for a
  * duplicate, the other task's id. */
 export interface CloseTaskOptions extends TaskWriteOptions {
@@ -1763,6 +1767,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     chooseOnTask: bind(chooseOnTaskRequest),
     dismissTask: bind(dismissTaskRequest),
     resolveGate: bind(resolveGateRequest),
+    disputeTask: bind(disputeTaskRequest),
     fetchIntegrationProviders: bind(fetchIntegrationProvidersRequest),
     saveProviderCredential: bind(saveProviderCredentialRequest),
     saveProviderExpiry: bind(saveProviderExpiryRequest),
@@ -1841,6 +1846,7 @@ export const {
   chooseOnTask,
   dismissTask,
   resolveGate,
+  disputeTask,
   fetchIntegrationProviders,
   saveProviderCredential,
   saveProviderExpiry,

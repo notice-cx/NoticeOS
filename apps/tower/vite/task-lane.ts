@@ -28,8 +28,8 @@ import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceK
 import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../../packages/contract/src/task-resolution.mjs";
 import { TASK_CHANGE_CLASSES, isTaskChangeClass, type TaskChangeClass } from "../../../packages/contract/src/task-change-class.mjs";
 import type { TaskCard } from "../../../packages/contract/src/task-card.mjs";
-import { choiceSteps, closerMetadata, decisionRefusal, guardedWrite, ownerResponseSteps, recordedTaskCard, sentTaskCard, shippedTaskCard,
-  readRelatedTasks, TaskMaintenanceRefused, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+import { choiceSteps, closerMetadata, decisionRefusal, disputeSteps, guardedWrite, ownerResponseSteps, recordedTaskCard, sentTaskCard, shippedTaskCard,
+  readRelatedTasks, TaskMaintenanceRefused, TaskStateRefused, type DecisionStep, type MaintenanceStep } from "../../../scripts/hosted-task-command.mjs";
 import { standaloneProjectId } from "../../../scripts/standalone-tasks.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
@@ -731,6 +731,16 @@ async function actOnTask(
   request: LaneRequest,
   opts: Resolved,
 ): Promise<LaneReply> {
+  if (action === "dispute") {
+    const input = body(request);
+    if (Object.keys(input).some(key => key !== 'project')) throw refuse(422, "invalid_body", "Dispute accepts only the project selection");
+    const spoke = await spokeById(id, opts);
+    const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+    try {
+      runDecisionSteps(disputeSteps(id, readDecisionTask(id, spoke, opts, ["--include-dependents"]), operatorOpts.actor, opts.now().toISOString(), runVerb("comments", [id], spoke, opts).json), spoke, operatorOpts);
+    } catch (error) { refusedDecision(error); }
+    return { status: 200, body: { id, project: spoke.asset } };
+  }
   const verb = TASK_ACTION_VERBS[action];
   if (verb === undefined) {
     throw refuse(
@@ -914,16 +924,20 @@ function refusedDecision(error: unknown): never {
 }
 
 /** Each step of a person's decision, as the verb it is, under one operator. */
-function runDecisionSteps(steps: readonly DecisionStep[], spoke: Spoke, opts: Resolved & { actor: string }): void {
+function runDecisionSteps(steps: readonly MaintenanceStep[], spoke: Spoke, opts: Resolved & { actor: string }): void {
   for (const step of steps) {
-    if (step.kind === "record-choice") {
+    if (step.kind === "record-maintenance") {
+      runVerb("update", [step.taskId, "--metadata", JSON.stringify({ [TASK_METADATA.maintenance.name]: step.value })], spoke, opts);
+    } else if (step.kind === "update") {
+      runVerb("update", [step.taskId, "--status", step.status ?? "open"], spoke, opts);
+    } else if (step.kind === "record-choice") {
       runVerb("update", [step.taskId, "--metadata", JSON.stringify({ [TASK_METADATA.choice.name]: step.choice })], spoke, opts);
     } else if (step.kind === "comment") {
       runVerb("comments add", [step.taskId, step.text], spoke, opts);
     } else if (step.kind === "close") {
       const { json } = runVerb("close", [step.taskId, "--reason", step.reason, ...(step.force ? ["--force"] : [])], spoke, opts);
       recordCloser(step.taskId, json, spoke, opts);
-    } else {
+    } else if (step.kind === "hand-back") {
       // --if-assignee names the holder as read: the task client allows the hand-over, and refuses it if the holder changed since.
       runVerb("update", [step.taskId, "--status", "open", "--assignee", "", "--if-assignee", step.holder,
         ...(step.removeHuman ? ["--remove-label", "human"] : [])], spoke, opts);

@@ -221,6 +221,19 @@ export function useCloseTask() {
   });
 }
 
+export function useDisputeTask() {
+  const { disputeTask } = useTowerApi();
+  const refresh = useTaskRefresh();
+  const selected = useTaskSelection();
+  return useMutation({
+    mutationFn: ({ id, project }: { id: string; project?: string }) => {
+      const ownerProject = selected(project);
+      return disputeTask(id, ownerProject === undefined ? undefined : { project: ownerProject });
+    },
+    onSuccess: () => refresh(),
+  });
+}
+
 export function useCommentOnTask() {
   const { commentOnTask } = useTowerApi();
   const refresh = useTaskRefresh();

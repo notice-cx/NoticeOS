@@ -9,7 +9,7 @@ import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-dire
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
-import { commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
+import { commentProposalMatches, commentNeedsProposalHistory, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
   isHumanDecision, maintenanceSteps, TaskStoreFailed, taskStoreStepFailure, writeGuardReads, type OwnerAnswerVerifier, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 
 /** One linked task project: where its task client runs, and its stable id. */
@@ -130,9 +130,9 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
           const before = await read(operation.taskId);
           const comments = await client(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
           const duplicate = operation.duplicateOf === undefined ? undefined : await read(operation.duplicateOf);
-          const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
+          const history = commentNeedsProposalHistory(operation, before, comments)
             ? await client(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
-          const verified = (operation.action === 'answer' || operation.action === 'declined') && operation.answerMode !== 'direct' && commentProposalMatches(operation, before, comments, history)
+          const verified = (operation.action === 'answer' || operation.action === 'declined' || operation.action === 'owner_performed') && operation.answerMode === undefined && commentProposalMatches(operation, before, comments, history)
             && await options.verifyOwnerAnswer?.(workspaceId, request.projectId, operation, before, comments) === true;
           const steps = maintenanceSteps(operation, before, comments, context.principalId, new Date().toISOString(), duplicate, verified);
           const execute = async (step: HostedTaskOperation) => {

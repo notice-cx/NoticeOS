@@ -88,7 +88,7 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
       workspace = profile === 'demo' ? demo! : header ?? '';
       if (!UUID.test(workspace) || profile === 'demo' && header !== null && header !== demo) invalid();
       const path = url.pathname;
-      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|agent-stats|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss|choose))?))?$/iu.test(path)
+      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|agent-stats|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss|choose|dispute))?))?$/iu.test(path)
         && !/^\/api\/gates\/[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*\/resolve$/iu.test(path)) invalid();
       if (original.method === 'GET' && original.body !== null) invalid();
       const supplied = original.headers.get(IDEMPOTENCY_HEADER);

@@ -21,6 +21,7 @@ export const RESOLUTION_GLYPH: Readonly<Record<NotDone, ComponentType<{ classNam
   duplicate: Copy,
   "cant-reproduce": SearchX,
   "already-handled": CheckCheck,
+  "no-longer-needed": CircleSlash,
 };
 
 /**

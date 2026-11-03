@@ -15,7 +15,7 @@
  */
 import { HANDOFF_LABEL, TASK_HANDOFF_METADATA_FIELDS, TASK_HANDOFF_METADATA_LIMITS, TASK_HANDOFF_KINDS, taskHandoffMetadataOf } from '../packages/contract/src/task-metadata.mjs';
 import { createHash } from 'node:crypto';
-import { HostedTaskReceiptsUnavailable, TaskProjectRefused } from './hosted-task-operations.mjs';
+import { CLOSED_DAYS, CLOSED_HISTORY_DAYS, HostedTaskReceiptsUnavailable, TaskProjectRefused } from './hosted-task-operations.mjs';
 import { HOSTED_TASK_LIMITS, HumanDecisionRefused, MAINTENANCE_ACTIONS, sameActor, sentTaskCard, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
@@ -52,7 +52,7 @@ export const TASK_QUALITY = Object.freeze([
     '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
     '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
     '- Before filing, search with list_tasks query for the title\'s key words, with no project to search every project. Work already filed gets a comment, never a second task; of two tasks already filed for one piece of work, close the later as duplicate with duplicate_of.',
-    '- When nothing shipped, close_task takes a resolution: wont-do when the work will not be done, duplicate with duplicate_of when another task holds it, cant-reproduce when a bug does not happen again, already-handled when other work did it; the reason still cites the evidence: what decided it, the other task\'s id, what was tried, or what handled it.',
+    '- When nothing shipped, close_task takes a resolution: wont-do when the work will not be done, duplicate with duplicate_of when another task holds it, cant-reproduce when a bug does not happen again, already-handled when other work did it, no-longer-needed for a retired request; the reason still cites the evidence: what decided it, the other task\'s id, what was tried, or what handled it.',
     '- Human requests show the decision, one recommendation, the practical consequence and what proceeds after the answer. Reversible wording under established copy rules, internal refactoring, test repairs and backlog organization belong to agents within authorized work.',
     '- Production access (reads included), spending, external messages, destructive actions and material business or policy commitments require explicit action-specific owner approval. Credentials, prerequisites and old approvals never grant a new action. Retiring a gate grants no permission.',
 ]);
@@ -61,9 +61,9 @@ export const TASK_QUALITY = Object.freeze([
  * refusal: oldest first, each one line opening with its date, at most three
  * (a new entry drops the first). */
 export const WHATS_CHANGED = Object.freeze([
-    '2026-10-21: reconcile_task accepts answers received directly in chat with answer_mode: direct, the exact question and reply, a chat source and scope. It records the admitted agent as the recorder; option maps a decision-card selection to a stored choice. Independent source verification remains the default for other answers.',
     '2026-10-21: create_task, create_tasks and update_task take card, what the work is worth, which the Tower ranks tasks by, and change_class; update_task takes null to take either off; get_task and list_tasks return them as card and changeClass.',
     '2026-10-21: close_task as done keeps the task\'s card as it stood, with the commit its reason names, and get_task returns it as cardShipped; update_task then refuses a card for that task.',
+    '2026-11-03: reconcile_task supports answer_mode relayed for local Claude Code sessions and quoted task comments, owner_performed for the owner’s completed action, and no-longer-needed for retirement. Relayed approvals close immediately and can be disputed on Tasks.',
 ]);
 /** How a session starts, said in every session's instructions. */
 export const TASK_START = 'NoticeOS tasks and asset reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page groups work by model; missing or unrecognized models share Other. Use get_agent_stats for activity statistics without individual task details.';
@@ -77,13 +77,15 @@ export const TASK_WORKFLOW = Object.freeze([
     '4. comment_on_task with progress and evidence as the work moves.',
     '5. close_task with what shipped and its evidence (the commit hash or URL), naming your model.',
     '6. Found work goes to create_task, or create_tasks for several, in the project that owns it.',
-    '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. The owner may answer on Tasks or in an explicitly linked conversation.',
+    '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. The owner may answer on Tasks or in conversation, including a local Claude Code session recorded as a relay.',
     '8. reconcile_task records the owner answer, takes off the human label and returns the task to agents, preserving the selected choice. Claim it to carry on, then close_task with the implementation commit. A person answering a decision directly on Tasks closes it on the answer instead.',
     '9. Use get_task then reconcile_task to record an existing owner answer and its exact scope; do not ask the owner to close the task or release an old assignment. For an answer received directly from the owner in your chat, set answer_mode: direct, include the exact question, reply and chat source, and map a decision-card selection with option when its label differs from the stored choice. This records your relay, not independent authentication. Other sources require verification. Match short replies to the proposal the owner saw. Apply a clearly scoped batch answer only to its named tasks. If ambiguous, ask one clarification only for the ambiguity.',
     '10. With concrete evidence and a plain explanation, reconcile_task may close completed outcomes, obsolete requests, explicitly superseded decisions or duplicates that retain complete scope elsewhere; routine work loses its human label. Code existing does not prove a business decision was approved. Keep history; update_task can reopen a closed task.',
     '11. Assignments are reservations: investigate an old assignment, verify its holder is no longer working and preserve progress before reconcile_task action release. Age alone never proves abandonment.',
     '12. When the owner declines an approval gate, use reconcile_task on the gate with action: declined, its current proposal, the exact owner response, owner identity, original source and full requested scope. For a direct chat answer include answer_mode: direct and the exact question with the action, environment and verification. This closes the gate as wont-do, records the declined action on its task, and leaves remaining authorized work available. The declined action must not happen. Retiring an obsolete gate also grants no permission and does not block the remaining work. Other open approvals still block closing.',
-    '13. Direct answers require an https:// or codex://threads/ conversation source and the human owner field. A comment:<id> source is for a source-verified answer authored by the owner with their exact response; an agent comment quoting an owner is a relay, not an owner-authored source. Preserve the original chat link for a direct relay. A changed proposal requires checking the actual question the owner saw; never replace their words to pass validation.',
+    '13. Relayed answers use answer_mode: relayed, the exact question, response, owner, scope and source claude-code:session/<session id> or comment:<id> preserving the relay. The approval closes immediately, is marked as relayed by the admitted agent, and the owner can Dispute it to reopen the gate and flag the recorder. No independent transcript authentication is claimed. Numbered batch replies require approval_item and a source comment preserving the item number. Owner-performed actions use action: owner_performed with the exact completed result in response, owner, scope and source; use answer_mode: relayed for an agent comment quoting that result. This closes as done, records approved and owner-performed, grants no new permission and preserves prior approval events. Obsolete and superseded requests close as no-longer-needed; only declined approvals close as wont-do.',
+    '14. list_tasks accepts closed_days from 1 to 56 (default 7) to audit earlier closed gates before changing them. Preserve actual declines and each source event.',
+    '15. Direct answers require an https:// or codex://threads/ conversation source and the human owner field. A comment:<id> source is for a source-verified answer authored by the owner with their exact response; an agent comment quoting an owner is a relay, not an owner-authored source. Preserve the original chat link for a direct relay. A changed proposal requires checking the actual question the owner saw; never replace their words to pass validation.',
     'These tools are the task interface: never run bd, bv or br in a project folder.',
 ]);
 /** What get_task_guide names in its description and the instructions point at. */
@@ -167,7 +169,7 @@ export function taskRefusal(error) {
     if (error instanceof TaskMaintenanceRefused)
         return new McpToolError(`refused: ${error.message}`);
     if (error instanceof HumanDecisionRefused) {
-        return new McpToolError(`refused: ${error.taskId} is a human request. Use reconcile_task with an existing owner answer or concrete maintenance evidence. `
+        return new McpToolError(`refused: ${error.taskId} is a human request. Use reconcile_task with an existing owner answer or concrete maintenance evidence. For a leftover human label after its gate closed, use reconcile_task action routine with the closed gate as evidence, then retry close_task. `
             + 'An unresolved action-specific approval stays blocked; do not invent an answer or treat retirement as permission.');
     }
     if (error instanceof TaskStateRefused)
@@ -757,6 +759,7 @@ function readingText(tool) {
 export const TASK_MCP_TOOLS = Object.freeze([
     { name: 'reconcile_task', description: 'Record an existing owner answer, retire a completed/obsolete/superseded/duplicate human request, '
             + 'record a declined approval gate, remove a routine human label, or release a confirmed inactive assignment. Read get_task first and send its proposal snapshot. '
+            + 'For linkless local conversations use answer_mode relayed with the exact question, reply, owner, scope and claude-code:session/<session id> or a comment preserving those words. Relayed approvals close immediately and the owner may dispute them. owner_performed records the owner’s completed result as done without granting an agent permission. Obsolete requests close as no-longer-needed. '
             + 'Evidence and a plain explanation are required. For an answer received directly from the owner in this chat, use answer_mode: direct with the exact question and reply; your authenticated agent identity is recorded as the recorder. Otherwise verify owner identity and the exact proposal in the linked source. Never invent an answer. '
             + 'For batch replies, call once per explicitly named task within the answered scope. '
             + 'Retirement grants no permission; production reads/writes, spending, messages, destructive actions and material commitments still require explicit action-specific approval.',
@@ -765,12 +768,13 @@ export const TASK_MCP_TOOLS = Object.freeze([
             proposal: { type: 'string', description: 'The exact proposal snapshot from get_task for the proposal the owner saw.' },
             explanation: { type: 'string', maxLength: 800, description: 'Plain-language reason for this disposition.' },
             evidence: { type: 'string', maxLength: 800, description: 'Concrete commit, task, test or source reference proving the reason; code alone never proves approval.' },
-            response: { type: 'string', maxLength: 1000, description: 'For answer or declined: exact owner words. A, a recommendation reply, a clear direction or the explicit refusal.' },
-            owner: { type: 'string', description: 'Required for answer or declined: the human owner, never the relaying agent.' },
-            source: { type: 'string', description: 'For answer: comment:<id> on this task, or an explicitly linked https:// or codex://threads/ conversation.' },
+            response: { type: 'string', maxLength: 1000, description: 'For answer, declined or owner_performed: exact owner words. A, a recommendation reply, a clear direction or the explicit refusal.' },
+            owner: { type: 'string', description: 'Required for answer, declined or owner_performed: the human owner, never the relaying agent.' },
+            source: { type: 'string', description: 'Original source: comment:<id> on this task, https:// or codex://threads/ conversation, or claude-code:session/<session id> with answer_mode relayed. owner_performed requires the owner’s reported result, never agent implementation evidence.' },
             scope: { type: 'string', maxLength: 1000, description: 'For answer: exactly what the owner authorized. An approval gate requires its exact full Reason text.' },
-            answer_mode: { type: 'string', enum: ['direct'], description: 'Only for an answer received directly from the human owner in your chat. Records an agent relay without independent history verification. Omit for source-verified answers.' },
-            question: { type: 'string', maxLength: 1000, description: 'For direct answers: the exact question presented to the owner. Approval questions must include the complete requested action, environment and verification.' },
+            answer_mode: { type: 'string', enum: ['direct', 'relayed'], description: 'direct requires a chat URL; relayed also accepts claude-code:session/<session id> or a task comment quoting the exact question and reply. Both record the admitted agent without independent authentication. Relayed approvals close immediately and the owner can dispute them. Omit for source-verified answers.' },
+            question: { type: 'string', maxLength: 1000, description: 'For direct or relayed answers: the exact question presented to the owner. Approval questions must include the complete requested action, environment and verification.' },
+            approval_item: { type: 'integer', minimum: 1, maximum: 99, description: 'For a numbered batch approval relayed from a source comment: the item the gate requests. The source must preserve its number and the exact question and reply.' },
             option: { type: 'string', enum: TASK_CHOICE_KEYS, description: 'For a direct decision-card answer: the stored option corresponding to the exact selected reply. Preserve the reply in response; never map an uncertain or conflicting answer.' },
             duplicate_of: { type: 'string', description: 'For duplicate: open task retaining complete scope. Duplicate gates must match the full request.' },
             holder: { type: 'string', description: 'For release: exact current assignee.' },
@@ -780,15 +784,15 @@ export const TASK_MCP_TOOLS = Object.freeze([
             model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'idempotency_key']),
         annotations: WRITE,
         async run(context, args) {
-            only(args, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'response', 'owner', 'source', 'scope', 'answer_mode', 'question', 'option',
+            only(args, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'response', 'owner', 'source', 'scope', 'answer_mode', 'question', 'approval_item', 'option',
                 'duplicate_of', 'holder', 'inactive', 'activity_check', 'progress', 'model', 'idempotency_key']);
             const operation = defined({ kind: 'maintain', taskId: task(args),
                 action: choice(args, 'action', MAINTENANCE_ACTIONS), proposal: textArg(args, 'proposal', 30000),
                 explanation: textArg(args, 'explanation', 800), evidence: textArg(args, 'evidence', 800), model: modelArg(args),
                 response: textArg(args, 'response', 1000, false), owner: textArg(args, 'owner', HOSTED_TASK_LIMITS.identifier, false),
                 source: textArg(args, 'source', 512, false), scope: textArg(args, 'scope', 1000, false),
-                answerMode: choice(args, 'answer_mode', ['direct']), question: textArg(args, 'question', 1000, false),
-                option: choice(args, 'option', TASK_CHOICE_KEYS),
+                answerMode: choice(args, 'answer_mode', ['direct', 'relayed']), question: textArg(args, 'question', 1000, false),
+                approvalItem: args.approval_item, option: choice(args, 'option', TASK_CHOICE_KEYS),
                 duplicateOf: args.duplicate_of === undefined ? undefined : task(args, 'duplicate_of'),
                 holder: textArg(args, 'holder', HOSTED_TASK_LIMITS.identifier, false),
                 inactive: args.inactive, activityCheck: textArg(args, 'activity_check', 800, false),
@@ -827,12 +831,16 @@ export const TASK_MCP_TOOLS = Object.freeze([
             created_before: { type: 'string', description: 'Only tasks created before this.' },
             updated_after: { type: 'string', description: 'Only tasks changed at or after this.' },
             updated_before: { type: 'string', description: 'Only tasks last changed before this.' },
+            closed_days: { type: 'integer', minimum: 1, maximum: CLOSED_HISTORY_DAYS, description: `Read closed tasks from this many days (default ${CLOSED_DAYS}, at most ${CLOSED_HISTORY_DAYS}), for historical gate audits.` },
             limit: { type: 'integer', minimum: 1, maximum: HOSTED_TASK_LIMITS.rows, description: `At most this many (default ${PAGE}).` },
             offset: { type: 'integer', minimum: 0, description: 'Skip this many, from the previous answer\'s nextOffset.' } }),
         annotations: READ,
         async run({ proof, workspaceId, operations }, args) {
             only(args, ['project', 'query', 'status', 'ready', 'assignee', 'parent', 'labels', 'type', 'created_after', 'created_before',
-                'updated_after', 'updated_before', 'limit', 'offset']);
+                'updated_after', 'updated_before', 'closed_days', 'limit', 'offset']);
+            const closedDays = args.closed_days;
+            if (closedDays !== undefined && (typeof closedDays !== 'number' || !Number.isInteger(closedDays) || closedDays < 1 || closedDays > CLOSED_HISTORY_DAYS))
+                refuse(`invalid arguments: closed_days (1–${CLOSED_HISTORY_DAYS} days)`);
             const projectId = args.project === undefined ? undefined : project(args);
             const assignee = textArg(args, 'assignee', HOSTED_TASK_LIMITS.identifier, false);
             if (assignee !== undefined && (/[\r\n\t]/u.test(assignee) || assignee.trim() !== assignee)) {
@@ -859,7 +867,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
             const kept = (row) => (args.ready !== true || row.ready) && passes(row, filter);
             const nextOf = (shown, total) => offset + shown < total ? offset + shown : null;
             if (projectId !== undefined) {
-                const board = await operations.listTasks(proof, workspaceId, projectId, statuses);
+                const board = await operations.listTasks(proof, workspaceId, projectId, statuses, closedDays);
                 const tasks = board.tasks.filter(kept).sort(byUrgency);
                 const page = tasks.slice(offset, offset + limit);
                 return { project: board.project, readAt: board.readAt, closedSince: board.closedSince, total: tasks.length,
@@ -875,7 +883,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
                 const where = { project: entry.logicalKey, projectId: entry.projectId, projectName: entry.displayName };
                 let board;
                 try {
-                    board = await operations.listTasks(proof, workspaceId, entry.projectId, statuses);
+                    board = await operations.listTasks(proof, workspaceId, entry.projectId, statuses, closedDays);
                 }
                 catch (error) {
                     if (error instanceof AdmissionRefused)

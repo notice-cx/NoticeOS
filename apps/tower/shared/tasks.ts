@@ -221,5 +221,5 @@ export const READ_ONLY_TASKS_HINT = "Make changes from the local NoticeOS.";
  * renders it and the lane enforces it. `respond` closes a decision and hands
  * any other task back to ready work; `choose` records one of a task's choices,
  * then does the same. */
-export const TASK_ACTIONS = ["close", "comments", "respond", "dismiss", "choose"] as const;
+export const TASK_ACTIONS = ["close", "comments", "respond", "dismiss", "choose", "dispute"] as const;
 export type TaskAction = (typeof TASK_ACTIONS)[number];
