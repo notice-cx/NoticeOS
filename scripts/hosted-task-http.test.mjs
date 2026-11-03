@@ -49,6 +49,7 @@ test('only fixed decision paths bind bounded data and cannot supply target autho
   for (const [path, value, operation] of [
     ['/api/tasks/tt-a/respond', { response: '--file=literal' }, { kind: 'respond', taskId: 'tt-a', response: '--file=literal' }],
     ['/api/tasks/tt-a/dismiss', {}, { kind: 'dismiss', taskId: 'tt-a' }],
+    ['/api/tasks/tt-a/dispute', {}, { kind: 'dispute', taskId: 'tt-a' }],
     ['/api/gates/tt-a/resolve', { reason: 'Approved locally' }, { kind: 'resolve-gate', taskId: 'tt-a', reason: 'Approved locally' }],
   ]) {
     assert.equal((await f.handler(request(path, 'POST', { projectId: P, ...value }))).status, 200);

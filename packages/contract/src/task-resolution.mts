@@ -12,7 +12,7 @@
 import { recordsClose, TASK_METADATA } from "./task-metadata.mjs";
 
 /** Done first: the default, and the only one that counts as work shipped. */
-export const TASK_RESOLUTIONS = Object.freeze(["done", "wont-do", "duplicate", "cant-reproduce", "already-handled"] as const);
+export const TASK_RESOLUTIONS = Object.freeze(["done", "wont-do", "duplicate", "cant-reproduce", "already-handled", "no-longer-needed"] as const);
 export type TaskResolution = (typeof TASK_RESOLUTIONS)[number];
 
 /** Each resolution's words on screen, quoted exactly by the docs. */
@@ -22,6 +22,7 @@ export const TASK_RESOLUTION_LABELS: Readonly<Record<TaskResolution, string>> = 
   duplicate: "Duplicate",
   "cant-reproduce": "Can't reproduce",
   "already-handled": "Already handled",
+  "no-longer-needed": "No longer needed",
 });
 
 export function isTaskResolution(value: unknown): value is TaskResolution {

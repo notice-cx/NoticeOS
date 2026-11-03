@@ -59,6 +59,7 @@ import {
   useClaimTask,
   useCloseTask,
   useCommentOnTask,
+  useDisputeTask,
   useInboxAnswer,
   useTask,
   useTasks,
@@ -244,7 +245,7 @@ export function TaskRoute() {
   // the header already states it, with who chose and when.
   const closedByPick = task?.choice ? task.closeReason?.trim() === `Chose ${choiceName(task.choice.option, task.choice.label)}` : false;
   const closedSummary = task?.status === "closed"
-    ? closedByPick ? null : <LiveClosedSummary task={task} nowMs={now} />
+    ? closedByPick ? null : <LiveClosedSummary task={task} nowMs={now} project={project ?? undefined} canDispute={taskOperationAvailable(capability, "dispute")} />
     : !live && fromSnapshot?.item.status === "closed"
       ? <SnapshotClosedSummary item={fromSnapshot.item} project={fromSnapshot.project} nowMs={now} />
       : null;
@@ -1562,7 +1563,10 @@ function ReadOnly({
 
 /** A closed task's evidence from the live read: the closer NoticeOS recorded
  * for this close, and the reason. */
-function LiveClosedSummary({ task, nowMs }: { task: LiveTask; nowMs: number }) {
+function LiveClosedSummary({ task, nowMs, project, canDispute }: { task: LiveTask; nowMs: number; project?: string; canDispute: boolean }) {
+  const dispute = useDisputeTask();
+  const record = task.metadata?.noticeos_maintenance as Record<string, unknown> | undefined;
+  const relayed = task.issueType === "gate" && record?.verification === "agent-recorded" && record.approved === true && !record.disputed;
   const actors = useContext(TaskActors);
   const closer = closeAttribution(task);
   const resolution = task.resolution ?? "done";
@@ -1570,6 +1574,15 @@ function LiveClosedSummary({ task, nowMs }: { task: LiveTask; nowMs: number }) {
   return (
     <ClosedSummary by={closer ? taskActorLabel(closer.by, actors) : null} model={closer?.model ?? null} at={task.closedAt} nowMs={nowMs}
       resolution={resolution} duplicate={task.duplicateOf ? <TaskIdLink id={task.duplicateOf} /> : null}>
+      {relayed ? <div className="space-y-2">
+        <p className="text-sm">{record?.outcome === "owner-performed" ? `Approved and done by ${String(record.performedBy)}; recorded by ${String(record.by)}.` : `Approved, relayed by ${String(record?.by)}.`}</p>
+        {typeof record?.question === "string" ? <p className="whitespace-pre-wrap text-sm">Question: {record.question}</p> : null}
+        <p className="whitespace-pre-wrap text-sm">{record?.outcome === "owner-performed" ? "Result" : "Reply"}: {String(record?.response)}</p>
+        <p className="whitespace-pre-wrap text-sm">Scope: {String(record?.scope)}</p>
+        <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">Source: {String(record?.source)}</p>
+        {canDispute ? <Button variant="outline" disabled={dispute.isPending} onClick={() => dispute.mutate({ id: task.id, project })}>Dispute</Button> : null}
+        {dispute.error ? <p role="alert" className="text-sm text-destructive">{refusalMessage(dispute.error)}</p> : null}
+      </div> : null}
       {note ? (
         <MarkdownText source={note} />
       ) : resolution === "done" ? (

@@ -861,7 +861,7 @@ test('a close names how it ended: each resolution reads back from get_task and l
     assert.match(reply.content[0].text, cause);
     assert.equal(f.effects.length, before, 'nothing closed');
   };
-  await refused({ resolution: 'fixed' }, /^invalid arguments: resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled\)$/u);
+  await refused({ resolution: 'fixed' }, /^invalid arguments: resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled, no-longer-needed\)$/u);
   await refused({ resolution: 'duplicate' }, /^invalid arguments: duplicate_of \(required with resolution duplicate/u);
   await refused({ duplicate_of: 'tt-1' }, /^invalid arguments: duplicate_of \(only with resolution duplicate\)$/u);
   await refused({ resolution: 'duplicate', duplicate_of: 'tt-9' }, /^refused: tt-9 is not a task in projectId .* \(Example\)/u);
@@ -1191,4 +1191,17 @@ test('handoff metadata accepts only the five bounded non-authority fields before
     /(?:^|\. )invalid arguments: tasks\[1\]: metadata/u);
   }
   assert.equal(f.tasks.size, 0, 'invalid metadata never dispatches a create, including the earlier batch entry');
+});
+
+
+test('historical gate audits widen the closed-task window through the task tool', async () => {
+  const f = fixture();
+  const result = await call(f, 'list_tasks', { workspace: A, project: P, status: ['closed'], closed_days: 56 });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.equal(result.structuredContent.closedSince, new Date(Date.parse(result.structuredContent.readAt) - 56 * 86400000).toISOString().slice(0, 10));
+  for (const closed_days of [0, 57, 1.5]) {
+    const refused = await call(f, 'list_tasks', { workspace: A, closed_days });
+    assert.equal(refused.isError, true);
+    assert.match(refused.content[0].text, /closed_days/u);
+  }
 });

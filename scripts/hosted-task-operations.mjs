@@ -343,7 +343,7 @@ export function createHostedTaskOperations(options) {
             return admitted(proof, workspaceId, 'tasks.read', async (context) => Object.freeze({
                 live: true, writable: context.allowedActions.includes('tasks.write'), projectSelection: true,
                 operations: Object.freeze(['create', 'update', 'comment', 'close',
-                    ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve', 'choose'] : [])]),
+                    ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve', 'choose', 'dispute'] : [])]),
                 editableFields: EDITABLE_TASK_FIELDS,
             }));
         },
@@ -376,8 +376,8 @@ export function createHostedTaskOperations(options) {
             }
             return { readAt, projects: catalog.length, broken, stats: readAgentStats(projects, Date.parse(readAt)) };
         },
-        listTasks(proof, workspaceId, projectId, statuses) {
-            return taskList(proof, workspaceId, projectId, statuses, CLOSED_DAYS, false);
+        listTasks(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
+            return taskList(proof, workspaceId, projectId, statuses, closedDays, false);
         },
         board(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
             return taskList(proof, workspaceId, projectId, statuses, closedDays, true);

@@ -828,3 +828,19 @@ test('verified batched reads retain store failures but pre-verification failures
   await f.control({ overflow: false, configFail: true });
   await refused(() => f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })));
 }));
+
+
+test('a hosted owner disputes a relay, flags the recorder and reopens the gate, while an agent cannot', () => fixture(async f => {
+  const approval = { verification: 'agent-recorded', approved: true, by: 'agent-relay', source: 'claude-code:session/synthetic-session',
+    response: 'Yes', permission: 'approved-scope-only' };
+  await f.control({ stateful: true, taskType: 'gate', awaitType: 'human', taskStatus: 'closed', metadata: { noticeos_maintenance: approval } });
+  const result = await f.executor.execute(request(), A, task({ kind: 'dispute', taskId: 'tt-a' }));
+  assert.equal(result.status, 'open');
+  assert.equal(result.metadata.noticeos_maintenance.permission, 'none');
+  assert.deepEqual(result.metadata.noticeos_maintenance.disputed.agent, 'agent-relay');
+  assert.equal(result.metadata.noticeos_maintenance.disputed.by, PERSON);
+  const before = (await f.commands()).length;
+  f.state.role = 'agent';
+  await refused(() => f.executor.execute(request(), A, task({ kind: 'dispute', taskId: 'tt-a' })));
+  assert.equal((await f.commands()).length, before);
+}));

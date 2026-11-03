@@ -63,7 +63,7 @@ export interface HostedTaskOperations {
   actor(proof: Request, workspaceId: string): Promise<string>;
   capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
   /** Task summaries need readiness, but no epic progress or actor catalog. */
-  listTasks(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[]): Promise<Record<string, unknown>>;
+  listTasks(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
   agentStats(proof: Request, workspaceId: string, projectId?: string): Promise<AgentStatsPayload>;
   /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
   board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
@@ -364,7 +364,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       return admitted(proof, workspaceId, 'tasks.read', async context => Object.freeze({
         live: true as const, writable: context.allowedActions.includes('tasks.write'), projectSelection: true as const,
         operations: Object.freeze(['create', 'update', 'comment', 'close',
-          ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve', 'choose'] : [])]),
+          ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve', 'choose', 'dispute'] : [])]),
         editableFields: EDITABLE_TASK_FIELDS,
       }));
     },
@@ -393,8 +393,8 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       }
       return { readAt, projects: catalog.length, broken, stats: readAgentStats(projects, Date.parse(readAt)) };
     },
-    listTasks(proof, workspaceId, projectId, statuses) {
-      return taskList(proof, workspaceId, projectId, statuses, CLOSED_DAYS, false);
+    listTasks(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
+      return taskList(proof, workspaceId, projectId, statuses, closedDays, false);
     },
     board(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
       return taskList(proof, workspaceId, projectId, statuses, closedDays, true);

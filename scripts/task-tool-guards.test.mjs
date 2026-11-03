@@ -7,7 +7,7 @@ import { createStandaloneTaskExecutor } from './standalone-tasks.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 import { taskRefusal } from './hosted-task-mcp.mjs';
-import { commentProposalMatches, ownerResponseSteps, taskProposal, TaskStoreFailed } from './hosted-task-command.mjs';
+import { commentProposalMatches, disputeSteps, hostedTaskAction, ownerResponseSteps, taskProposal, TaskStoreFailed } from './hosted-task-command.mjs';
 
 // The task tools' write guards and refusals end to end: the MCP endpoint, the shared
 // operations and the standalone executor, over a stand-in task client that
@@ -785,4 +785,151 @@ test('a close as done keeps the card it shipped with, which get_task returns and
   const edited = await f.call('update_task', inProject({ task: 'ex-dropped', card: { ...card, valuePerMonth: 50 }, idempotency_key: 'drop-edit-0001' }));
   assert.equal(edited.isError, undefined, JSON.stringify(edited));
   assert.equal(f.tasks.get('ex-dropped').metadata.noticeos_card.valuePerMonth, 50);
+});
+
+
+const relayScope = 'Upload 12 new photos to production bucket example-images; add files only and read one back';
+const relay = { action: 'answer', answer_mode: 'relayed', owner: 'Owner', source: 'claude-code:session/synthetic-session',
+  question: `Approve ${relayScope}?`, scope: relayScope, response: 'Yes' };
+function relayGate(f) {
+  f.put('ex-photos', { labels: ['human'] });
+  f.put('ex-relay', { issue_type: 'gate', await_type: 'human', description: `Reason: ${relayScope}` });
+  f.link('ex-photos', 'ex-relay');
+}
+
+test('a linkless Claude Code relay closes approval, leaves the inbox, and unblocks implementation close', async () => {
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  const result = await maintain(f, 'ex-relay', relay);
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  const task = result.structuredContent.task, value = task.metadata.noticeos_maintenance;
+  assert.equal(task.status, 'closed'); assert.equal(task.awaitingHuman, false); assert.equal(task.resolution, 'done');
+  assert.equal(value.verification, 'agent-recorded'); assert.equal(value.answerMode, 'relayed');
+  assert.equal(value.by, AGENT); assert.equal(value.owner, 'Owner'); assert.equal(value.source, relay.source);
+  assert.equal(value.question, relay.question); assert.equal(value.response, 'Yes'); assert.equal(value.scope, relayScope);
+  assert.equal(value.outcome, 'approved'); assert.equal(value.permission, 'approved-scope-only');
+  assert.deepEqual(f.tasks.get('ex-photos').labels, []);
+  const closed = await f.call('close_task', inProject({ task: 'ex-photos', reason: 'Implemented in abc1234', idempotency_key: 'close-approved-relay' }));
+  assert.equal(closed.isError, undefined, JSON.stringify(closed));
+});
+
+test('quoted batch and scoped chat approvals preserve both events before owner-performed completion', async () => {
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  const question = 'Accept my pick on all 9? (Saying yes also approves the live changes exactly as scoped.)';
+  const response = 'All except 4 (already done), 7 (not worth the risk)';
+  f.comments.push({ id: 'batch', issue_id: 'ex-relay', author: 'claude', text: `Round 3 item 3 accepted. Scope: ${relayScope}. Question: "${question}" Reply: "${response}"` });
+  let result = await maintain(f, 'ex-relay', { ...relay, source: 'comment:batch', question, response, approval_item: 3 });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  const secondQuestion = 'Run the photo upload, then merge that branch?';
+  f.comments.push({ id: 'second', issue_id: 'ex-relay', author: 'claude', text: `Question: "${secondQuestion}" Reply: "Yes, upload and merge". Scope: ${relayScope}` });
+  result = await maintain(f, 'ex-relay', { ...relay, source: 'comment:second', question: secondQuestion, response: 'Yes, upload and merge' });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  const completion = 'UPLOAD DONE: all 12 files are sent, and the file read back matches.';
+  f.comments.push({ id: 'result', issue_id: 'ex-relay', author: 'claude', text: `Owner reported: "${completion}"` });
+  result = await maintain(f, 'ex-relay', { action: 'owner_performed', answer_mode: 'relayed', owner: 'Owner',
+    source: 'comment:result', scope: relayScope, response: completion });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  const task = result.structuredContent.task, value = task.metadata.noticeos_maintenance;
+  assert.equal(task.status, 'closed'); assert.equal(task.resolution, 'done'); assert.equal(value.approved, true);
+  assert.equal(value.outcome, 'owner-performed'); assert.equal(value.performedBy, 'Owner'); assert.equal(value.recordedBy, AGENT);
+  assert.equal(value.permission, 'none'); assert.equal(value.response, completion);
+  assert.deepEqual(value.events.map(event => event.response), [response, 'Yes, upload and merge']);
+});
+
+test('owner-performed may close an open gate but never approves a future agent action', async () => {
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  const result = await maintain(f, 'ex-relay', { action: 'owner_performed', answer_mode: 'relayed', owner: 'Owner', source: relay.source,
+    scope: relayScope, response: 'I uploaded all 12 photos and the read-back matches.' });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.equal(result.structuredContent.task.resolution, 'done');
+  assert.equal(result.structuredContent.task.metadata.noticeos_maintenance.permission, 'none');
+  assert.deepEqual(f.tasks.get('ex-photos').labels, []);
+});
+
+test('relays refuse invented quotes, broadening, conditions, ambiguous and negative responses before any write', async () => {
+  for (const fields of [{ response: 'Maybe' }, { response: 'Yes if tests pass' }, { response: 'No' },
+    { response: 'Yes, upload everything and delete the originals' }, { scope: 'Deploy the entire production app' },
+    { owner: AGENT }, { question: 'Approve something?' }, { source: 'comment:quoted', response: 'Approved' }, { source: 'comment:conditional', response: 'Yes' },
+    { source: 'comment:quoted', approval_item: 7, question: 'Accept all 9?', response: 'All except 7' }]) {
+    const f = fixture({ trustedSources: false }); relayGate(f);
+    f.comments.push({ id: 'quoted', issue_id: 'ex-relay', author: 'claude', text: 'item 7. Accept all 9? All except 7. Owner said Yes.' });
+    f.comments.push({ id: 'conditional', issue_id: 'ex-relay', author: 'claude', text: `Question: ${relay.question}\nReply: Yes if all tests pass` });
+    const count = f.commands.length;
+    const result = await maintain(f, 'ex-relay', { ...relay, ...fields });
+    assert.equal(result.isError, true, JSON.stringify(fields));
+    assert.equal(f.tasks.get('ex-relay').status, 'open');
+    assert.equal(f.commands.slice(count).filter(argv => !argv.includes('--readonly')).length, 0, JSON.stringify(fields));
+  }
+});
+
+test('an agent-authored source requires relay mode and the refusal names the source correction', async () => {
+  const f = fixture(); relayGate(f);
+  f.comments.push({ id: 'agent-quote', issue_id: 'ex-relay', author: 'claude', text: 'Owner said Yes' });
+  const result = await maintain(f, 'ex-relay', { ...relay, source: 'comment:agent-quote', answer_mode: undefined, question: undefined });
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /source comment agent-quote.*author: claude.*answer_mode relayed/u);
+});
+
+test('obsolete and superseded approval gates close as no-longer-needed while declines remain wont-do', async () => {
+  for (const action of ['obsolete', 'superseded']) {
+    const f = fixture(); relayGate(f);
+    const result = await maintain(f, 'ex-relay', { action });
+    assert.equal(result.isError, undefined, JSON.stringify(result));
+    assert.equal(result.structuredContent.task.resolution, 'no-longer-needed');
+    assert.equal(result.structuredContent.task.metadata.noticeos_maintenance.permission, 'none');
+  }
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  const result = await maintain(f, 'ex-relay', { ...relay, action: 'declined', response: 'No' });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.equal(result.structuredContent.task.resolution, 'wont-do');
+});
+
+test('owner disputes reopen a relayed gate, withdraw permission, flag its recorder and resume interrupted reopening', async () => {
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  await maintain(f, 'ex-relay', relay);
+  const row = f.tasks.get('ex-relay');
+  const planned = disputeSteps('ex-relay', row, 'Owner', '2026-11-03T12:00:00Z');
+  assert.equal(hostedTaskAction({ kind: 'dispute', taskId: 'ex-relay' }), 'tasks.decide');
+  row.metadata.noticeos_maintenance = planned[0].value;
+  const remaining = disputeSteps('ex-relay', row, 'Owner', '2026-11-03T12:01:00Z');
+  assert.ok(remaining.some(step => step.kind === 'update' && step.status === 'open'));
+  assert.ok(remaining.some(step => step.kind === 'comment' && step.text.includes(AGENT)));
+  assert.equal(row.metadata.noticeos_maintenance.permission, 'none');
+  assert.equal(row.metadata.noticeos_maintenance.disputed.agent, AGENT);
+  const refused = await f.refusal('reconcile_task', inProject({ task: 'ex-relay', action: 'answer', ...relay, proposal: taskProposal(row),
+    explanation: 'Retry with the old relay', evidence: relay.source, idempotency_key: 'disputed-old-relay' }));
+  assert.match(refused, /source.*disputed/u);
+});
+
+
+test('disputing an owner-performed record invalidates earlier approvals in the same history', async () => {
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  await maintain(f, 'ex-relay', relay);
+  await maintain(f, 'ex-relay', { ...relay, action: 'owner_performed', source: 'claude-code:session/synthetic-completion', question: undefined,
+    response: 'I uploaded all 12 files and read one back.' });
+  const row = f.tasks.get('ex-relay');
+  const planned = disputeSteps('ex-relay', row, 'Owner', '2026-11-03T12:00:00Z');
+  row.metadata.noticeos_maintenance = planned[0].value;
+  row.status = 'open';
+  const result = await maintain(f, 'ex-relay', relay);
+  assert.equal(result.isError, true);
+  assert.match(result.content[0].text, /source.*disputed/u);
+  assert.equal(row.status, 'open');
+});
+
+
+test('a gate wrongly retired as wont-do can be reopened and corrected without losing its old event', async () => {
+  const f = fixture({ trustedSources: false }); relayGate(f);
+  const row = f.tasks.get('ex-relay');
+  Object.assign(row, { status: 'closed', closed_at: '2026-10-16T12:00:00Z', close_reason: 'Owner did the action; obsolete workaround',
+    metadata: { noticeos_resolution: 'wont-do', noticeos_closed_by: 'claude', noticeos_closed_at: '2026-10-16T12:00:00Z',
+      noticeos_maintenance: { action: 'obsolete', permission: 'none', by: 'claude', evidence: 'Original quoted owner answer' } } });
+  const reopened = await f.call('update_task', inProject({ task: 'ex-relay', status: 'open', idempotency_key: 'reopen-wrong-retirement' }));
+  assert.equal(reopened.isError, undefined, JSON.stringify(reopened));
+  const approved = await maintain(f, 'ex-relay', relay);
+  assert.equal(approved.isError, undefined, JSON.stringify(approved));
+  const done = await maintain(f, 'ex-relay', { ...relay, action: 'owner_performed', question: undefined,
+    response: 'UPLOAD DONE: all 12 files are sent, and the file read back matches.' });
+  assert.equal(done.isError, undefined, JSON.stringify(done));
+  assert.equal(done.structuredContent.task.resolution, 'done');
+  assert.deepEqual(done.structuredContent.task.metadata.noticeos_maintenance.events.map(event => event.action), ['obsolete', 'answer']);
 });

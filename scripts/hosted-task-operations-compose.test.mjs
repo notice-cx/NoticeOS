@@ -266,7 +266,7 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     const original = await ok('create_task', { title: 'The original', acceptance: 'Kept', idempotency_key: 'compose-resolve-0201' });
     const copy = await ok('create_task', { title: 'The copy', acceptance: 'Closed', idempotency_key: 'compose-resolve-0202' });
     assert.match((await tool('close_task', { task: copy.id, reason: 'Same work', resolution: 'fixed', idempotency_key: 'compose-resolve-0203' }))
-      .content[0].text, /^invalid arguments: resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled\)$/u);
+      .content[0].text, /^invalid arguments: resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled, no-longer-needed\)$/u);
     assert.match((await tool('close_task', { task: copy.id, reason: 'Same work', resolution: 'duplicate', duplicate_of: 'zz-1',
       idempotency_key: 'compose-resolve-0204' })).content[0].text, /^refused: zz-1 is not in projectId .*tasks with prefix zz are in projectId/u);
     assert.match((await tool('close_task', { task: copy.id, reason: 'Same work', resolution: 'duplicate', duplicate_of: `${original.id}9`,

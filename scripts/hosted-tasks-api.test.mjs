@@ -193,3 +193,17 @@ test('successful task reads validate current content, omit answer times, and nev
   assert.equal((await conditional('/api/tasks/capabilities',capabilities)).status,200);
   const write=await f.handler(request('/api/tasks','POST',{projectId:P,title:'Task'}));assert.equal(write.headers.get('etag'),null);
 });
+
+
+test('the owner dispute path is advertised and admitted only as a human decision', async () => {
+  const f = fixture();
+  const capabilities = await (await f.handler(request('/api/tasks/capabilities'))).json();
+  assert.ok(capabilities.operations.includes('dispute'));
+  const response = await f.handler(request('/api/tasks/tt-a/dispute', 'POST', { projectId: P }));
+  assert.equal(response.status, 200);
+  assert.ok(f.calls.some(call => call.command.operation.kind === 'dispute'));
+  const before = f.calls.length;
+  f.role('agent');
+  assert.equal((await f.handler(request('/api/tasks/tt-a/dispute', 'POST', { projectId: P }))).status, 403);
+  assert.equal(f.calls.length, before);
+});

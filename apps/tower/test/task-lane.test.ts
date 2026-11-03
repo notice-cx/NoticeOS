@@ -129,7 +129,7 @@ const SAME_ORIGIN = {
 };
 
 beforeAll(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), "task-lane-"));
+  root = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), "task-lane-"));
   binDir = path.join(root, "bin");
   logFile = path.join(root, "argv.log");
   await fs.mkdir(binDir, { recursive: true });
@@ -747,7 +747,7 @@ describe("the writes", () => {
 
   it("refuses a close's resolution with its cause named, before writing anything", async () => {
     for (const [body, status, detail] of [
-      [{ reason: "x", resolution: "fixed" }, 422, "resolution is one of done, wont-do, duplicate, cant-reproduce, already-handled"],
+      [{ reason: "x", resolution: "fixed" }, 422, "resolution is one of done, wont-do, duplicate, cant-reproduce, already-handled, no-longer-needed"],
       [{ reason: "x", resolution: "duplicate" }, 422, "duplicateOf is required with resolution duplicate"],
       [{ reason: "x", resolution: "wont-do", duplicateOf: "ro-bbb" }, 422, "duplicateOf goes with resolution duplicate only"],
       [{ reason: "x", resolution: "duplicate", duplicateOf: "ro-aaa" }, 422, "duplicateOf is the id of another task"],
@@ -1270,4 +1270,22 @@ describe("saved project routing", () => {
       if (mode !== "down") expect(reply.body).toMatchObject({ error: "project_not_linked" });
     }
   });
+});
+
+
+it('disputes a relayed approval through owner steps and reopens the gate', async () => {
+  await reset();
+  const approval = { verification: 'agent-recorded', approved: true, by: 'claude', source: 'claude-code:session/synthetic-session',
+    response: 'Yes', permission: 'approved-scope-only' };
+  process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...LIST_ROW, issue_type: 'gate', await_type: 'human',
+    status: 'closed', metadata: { noticeos_maintenance: approval }, dependents: [] }]) });
+  const reply = await ask('POST', '/api/tasks/ro-aaa/dispute');
+  expect(reply.status).toBe(200);
+  const commands = await spawned();
+  const updates = commands.filter(argv => argv[2] === 'update');
+  const record = JSON.parse(updates[0]![updates[0]!.indexOf('--metadata') + 1]!);
+  expect(record.noticeos_maintenance.disputed).toMatchObject({ by: 'test-operator', agent: 'claude' });
+  expect(record.noticeos_maintenance.permission).toBe('none');
+  expect(updates[1]).toContain('open');
+  expect(commands.some(argv => argv[2] === 'comments' && argv[3] === 'add' && argv.some(word => word.includes('Owner disputed')))).toBe(true);
 });

@@ -23,6 +23,7 @@ const api = vi.hoisted(() => ({
   closeTask: vi.fn(),
   commentOnTask: vi.fn(),
   resolveGate: vi.fn(async () => undefined),
+  disputeTask: vi.fn(async (..._args: unknown[]) => undefined),
   respondToTask: vi.fn(async () => undefined),
   chooseOnTask: vi.fn(async (..._args: unknown[]) => undefined),
   dismissTask: vi.fn(async () => undefined),
@@ -1114,7 +1115,7 @@ describe("the task page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     const chips = screen.getByRole("radiogroup", { name: "How it ended" });
     expect(within(chips).getAllByRole("radio").map((chip) => [chip.textContent, chip.getAttribute("aria-checked")])).toEqual([
-      ["Done", "true"], ["Won't do", "false"], ["Duplicate", "false"], ["Can't reproduce", "false"], ["Already handled", "false"],
+      ["Done", "true"], ["Won't do", "false"], ["Duplicate", "false"], ["Can't reproduce", "false"], ["Already handled", "false"], ["No longer needed", "false"],
     ]);
     expect(screen.getByText("What shipped, and the commit")).toBeInTheDocument();
     // The arrow keys move the pick, as a radio group's do.
@@ -1786,4 +1787,31 @@ describe("an epic's page and its tasks", () => {
       .toHaveAttribute("href", "/tasks/ro-l1ed.5");
     expect(within(list).getByText("3 more not in the saved snapshot")).toBeInTheDocument();
   });
+});
+
+
+it('shows the exact relayed approval and lets the owner dispute it', async () => {
+  api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: 'gate', awaitType: 'human', status: 'closed', closedAt: '2026-09-04T11:30:00Z',
+    closeReason: 'Owner approved the recorded scope', metadata: { noticeos_maintenance: {
+      verification: 'agent-recorded', approved: true, by: 'claude', question: 'Approve the 12 new files?', response: 'Yes',
+      source: 'claude-code:session/synthetic-session', scope: 'Upload 12 new files to example-images', outcome: 'approved',
+    } } }) }));
+  renderTask();
+  expect(await screen.findByText('Approved, relayed by claude.')).toBeInTheDocument();
+  expect(screen.getByText('Question: Approve the 12 new files?')).toBeInTheDocument();
+  expect(screen.getByText('Reply: Yes')).toBeInTheDocument();
+  expect(screen.getByText('Source: claude-code:session/synthetic-session')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Dispute' }));
+  await waitFor(() => expect(api.disputeTask).toHaveBeenCalledWith(ID, undefined));
+});
+
+it('shows who performed the approved action and who recorded it', async () => {
+  api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: 'gate', awaitType: 'human', status: 'closed', closedAt: '2026-09-04T11:30:00Z',
+    closeReason: 'Approved and done by the owner', metadata: { noticeos_maintenance: {
+      verification: 'agent-recorded', approved: true, by: 'claude', performedBy: 'Example Operator', response: 'UPLOAD DONE: all 12 files sent and read back.',
+      source: 'comment:synthetic-completion', outcome: 'owner-performed',
+    } } }) }));
+  renderTask();
+  expect(await screen.findByText('Approved and done by Example Operator; recorded by claude.')).toBeInTheDocument();
+  expect(screen.getByText('Result: UPLOAD DONE: all 12 files sent and read back.')).toBeInTheDocument();
 });

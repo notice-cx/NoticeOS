@@ -93,15 +93,16 @@ describe("workWeeks: done from the closes", () => {
   });
 
   it("includes every supported resolution in both prior-week readings and rejects future or invalid times", () => {
+    const closesPerDay = TASK_RESOLUTIONS.length;
     const items = ['2026-10-05', '2026-10-09', '2026-10-12'].flatMap(day => TASK_RESOLUTIONS.map(resolution => ({
       at: `${day}T12:00:00.000Z`, ...(resolution === 'done' ? {} : { resolution }),
     })));
     const week = workWeeks(emptyWorkHistory(), { since: '2026-09-29', items: [...items,
       { at: '2026-10-15T12:00:00.000Z', resolution: 'duplicate' }, { at: 'invalid' },
     ] }, WEDNESDAY, 'UTC');
-    expect(week.done).toMatchObject({ now: 5, notDone: 4, before: 5, lastWeek: 10,
+    expect(week.done).toMatchObject({ now: closesPerDay, notDone: closesPerDay - 1, before: closesPerDay, lastWeek: 2 * closesPerDay,
       move: { by: 0, direction: 'flat', verdict: 'neutral' } });
-    expect(sumWorkWeeks([week, week])?.done).toMatchObject({ now: 10, before: 10, lastWeek: 20 });
+    expect(sumWorkWeeks([week, week])?.done).toMatchObject({ now: 2 * closesPerDay, notDone: 2 * (closesPerDay - 1), before: 2 * closesPerDay, lastWeek: 4 * closesPerDay });
   });
   it("counts every close reason this week and last week on the installation's clock", () => {
     const weeks = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");

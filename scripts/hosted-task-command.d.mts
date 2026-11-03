@@ -3,7 +3,7 @@ import { type TaskChoice, type TaskChoiceKey, type TaskChoices } from '../packag
 import { type TaskResolution } from '../packages/contract/src/task-resolution.mjs';
 import { type TaskCard, type TaskCardProblem, type TaskCardShipped } from '../packages/contract/src/task-card.mjs';
 import { type TaskChangeClass } from '../packages/contract/src/task-change-class.mjs';
-export declare const MAINTENANCE_ACTIONS: readonly ["answer", "declined", "completed", "obsolete", "superseded", "duplicate", "routine", "release"];
+export declare const MAINTENANCE_ACTIONS: readonly ["answer", "declined", "owner_performed", "completed", "obsolete", "superseded", "duplicate", "routine", "release"];
 export interface TaskMaintenance {
     readonly kind: 'maintain';
     readonly taskId: string;
@@ -21,8 +21,10 @@ export interface TaskMaintenance {
     readonly scope?: string;
     /** A directly witnessed chat answer is recorded by the admitted agent,
      * without claiming independent authentication of the chat's author. */
-    readonly answerMode?: 'direct';
+    readonly answerMode?: 'direct' | 'relayed';
     readonly question?: string;
+    /** The numbered proposal selected by a batch reply, preserved in its source. */
+    readonly approvalItem?: number;
     /** The stored option corresponding to the owner's exact decision-card reply. */
     readonly option?: TaskChoiceKey;
     /** Checked inactivity and preserved progress; elapsed age alone is insufficient. */
@@ -37,6 +39,8 @@ export type OwnerAnswerVerifier = (workspaceId: string, projectId: string, opera
 /** Compare a human comment with the proposal at its timestamp. A later task
  * edit cannot turn an old “A” into approval of replacement options. */
 export declare function commentProposalMatches(operation: TaskMaintenance, row: Record<string, unknown>, comments: unknown, history: unknown): boolean;
+/** Only an exact owner-authored comment needs historical source authentication. */
+export declare function commentNeedsProposalHistory(operation: TaskMaintenance, row: Record<string, unknown>, comments: unknown): boolean;
 export declare const HOSTED_TASK_LIMITS: Readonly<{
     projects: 4096;
     identifier: 128;
@@ -68,6 +72,9 @@ export interface RelatedTaskRef {
 }
 export declare function readRelatedTasks(metadata: unknown): readonly RelatedTaskRef[];
 export type HostedTaskOperation = TaskMaintenance | {
+    readonly kind: 'dispute';
+    readonly taskId: string;
+} | {
     readonly kind: 'record-maintenance';
     readonly taskId: string;
     readonly value: Readonly<Record<string, unknown>>;
@@ -441,6 +448,8 @@ export declare function replyOption(response: string, choices: TaskChoices | nul
  * evidence; the server verifies task comments, proposal identity and reservation
  * comparisons. Retirement records no permission and leaves gated actions blocked. */
 export declare function maintenanceSteps(operation: TaskMaintenance, row: Record<string, unknown>, comments: unknown, actor: string, at: string, duplicate?: Record<string, unknown>, ownerVerified?: boolean): readonly MaintenanceStep[];
+/** Only tasks.decide admission may execute these steps. A dispute withdraws the relay's authority. */
+export declare function disputeSteps(taskId: string, row: Record<string, unknown>, actor: string, at: string, comments?: unknown): readonly MaintenanceStep[];
 /** The comment a pick leaves: "Chose (b) Keep the old page." and the person's note. */
 export declare function choiceComment(choice: TaskChoice): string;
 /** The reason a decision task closes with after a pick. */

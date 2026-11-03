@@ -214,7 +214,7 @@ test('a close as a duplicate checks and links the other task first, then records
   const closing = { task: 'ex-1', reason: 'Same as ex-2', resolution: 'duplicate', duplicate_of: 'ex-2', idempotency_key: 'local-dup-0001' };
   // Each refusal names the field or the task at fault, and nothing is written.
   for (const [args, cause] of [
-    [{ ...closing, resolution: 'fixed' }, /resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled\)/u],
+    [{ ...closing, resolution: 'fixed' }, /resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled, no-longer-needed\)/u],
     [{ ...closing, resolution: undefined }, /duplicate_of \(only with resolution duplicate\)/u],
     [{ ...closing, duplicate_of: undefined }, /duplicate_of \(required with resolution duplicate/u],
     [{ ...closing, duplicate_of: 'ex-1' }, /duplicate_of \(another task/u],
