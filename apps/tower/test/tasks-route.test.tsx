@@ -1195,7 +1195,7 @@ describe("/tasks — claim, close and defer in place", () => {
     const line = row(container, "md-1w2");
     fireEvent.click(within(line).getByRole("button", { name: "Close as" }));
     const menu = screen.getByRole("menu", { name: "Close Fix the recipe schema as" });
-    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Won't do", "Duplicate", "Can't reproduce", "Already handled"]);
+    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Won't do", "Duplicate", "Can't reproduce", "Already handled", "No longer needed"]);
     closeAsPicked(container, "Won't do", { note: "Nobody asked for it" });
     // The row leaves at once, and the toast carries the Undo.
     expect(container.querySelector('tr[data-task-row="md-1w2"]')).toBeNull();
@@ -2297,7 +2297,7 @@ describe("/tasks — Select on All tasks closes many tasks with one resolution a
     fireEvent.click(bar(container).getByRole("button", { name: "Close 3 as" }));
     const menu = screen.getByRole("menu", { name: "Close 3 tasks as" });
     // Never Done: a done close carries its own evidence, task by task.
-    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Won't do", "Duplicate", "Can't reproduce", "Already handled"]);
+    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Won't do", "Duplicate", "Can't reproduce", "Already handled", "No longer needed"]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Already handled" }));
     const form = container.querySelector<HTMLFormElement>('[data-tasks-selection] [data-task-form="close-as"]')!;
     expect(within(form).getByText("Already handled")).toBeInTheDocument();
@@ -2687,4 +2687,12 @@ it('retains task filters, explicit tab and unsaved composer values across purpos
     expect(screen.getByTestId('current-route')).toHaveTextContent('/tasks/all?project=meadow.example&status=open&priority=all&new=1');
   }
   expect(api.createTask).not.toHaveBeenCalled();
+});
+
+
+it('closes a retired request as No longer needed from the board', async () => {
+  const { container } = renderBoard({ live: true, boards: { 'meadow.example': board([liveTask({ assignee: null })]) } });
+  closeAs(container, row(container, 'md-1w2'), 'No longer needed', { note: 'The requested action was superseded' });
+  act(() => flushAnswers());
+  await waitFor(() => expect(api.closeTask).toHaveBeenCalledWith('md-1w2', 'The requested action was superseded', { resolution: 'no-longer-needed' }));
 });
