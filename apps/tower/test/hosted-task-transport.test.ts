@@ -1,13 +1,17 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createBrowserRuntime } from '@/lib/browser-runtime';
+import { createHostedTaskTransport } from '@/lib/hosted-task-transport';
 import { taskCatalogProjects, readTaskBoard } from '@/lib/task-board-read';
+import { readAgentStats } from '@noticeos/contract/agent-stats';
 
 const a = { mode: 'hosted', principalId: '11111111-1111-4111-8111-111111111111', sessionId: '22222222-2222-4222-8222-222222222222',
   workspaceId: '33333333-3333-4333-8333-333333333333', clientGeneration: 1 };
 const b = { ...a, workspaceId: '44444444-4444-4444-8444-444444444444' };
 const projectA = '55555555-5555-4555-8555-555555555555', projectB = '66666666-6666-4666-8666-666666666666';
 const origin = 'https://desk.example';
+const stats = { readAt: '2026-11-04T12:00:00.000Z', projects: 1, broken: [],
+  stats: readAgentStats([], Date.parse('2026-11-04T12:00:00.000Z')) };
 function fixture() {
   const transport = vi.fn<typeof fetch>(async (input, init) => {
     const url = new URL(String(input));
@@ -15,12 +19,39 @@ function fixture() {
       const workspace = new Headers(init?.headers).get('x-noticeos-workspace-id');
       return Response.json({ projects: [{ projectId: workspace === a.workspaceId ? projectA : projectB, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }] });
     }
+    if (url.pathname === '/api/tasks/agent-stats') return Response.json(stats);
     return Response.json({ task: 'tt-collision', project: 'example' });
   });
   const runtime = (owner: unknown) => createBrowserRuntime(owner, { origin, fetch: transport, sendAnswer: async () => {} });
   return { transport, runtime };
 }
 describe('hosted Tasks transport', () => {
+  it.each([a, { mode: 'demo', workspaceId: a.workspaceId, clientGeneration: 1 }])(
+    'reads workspace-wide agent statistics without selecting a task project in $mode', async owner => {
+      const f = fixture(), runtime = f.runtime(owner), abort = new AbortController();
+      try {
+        await expect(runtime.api.fetchAgentStats(abort.signal)).resolves.toEqual(stats);
+        expect(f.transport).toHaveBeenCalledTimes(1);
+        const [input, init] = f.transport.mock.calls[0]!;
+        expect(String(input)).toBe(`${origin}/api/tasks/agent-stats`);
+        expect(new Headers(init?.headers).get('x-noticeos-workspace-id')).toBe(a.workspaceId);
+        expect(new Headers(init?.headers).get('x-noticeos-session-id')).toBe(owner.mode === 'hosted' ? a.sessionId : null);
+        abort.abort();
+        expect(init?.signal?.aborted).toBe(true);
+      } finally { runtime.retire(); }
+    });
+  it('keeps explicit agent statistics project selection in the logical project adapter', async () => {
+    const transport = vi.fn<typeof fetch>(async input => String(input) === '/api/tasks/projects'
+      ? Response.json({ projects: [{ projectId: projectA, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }] })
+      : Response.json(stats));
+    const fetch = createHostedTaskTransport(transport);
+    await fetch('/api/tasks/agent-stats?project=example');
+    expect(transport.mock.calls.map(([input]) => String(input))).toEqual([
+      '/api/tasks/projects', `/api/tasks/agent-stats?project=${projectA}`,
+    ]);
+    await expect(fetch('/api/tasks/agent-stats?project=foreign')).rejects.toThrow('Task project is unavailable');
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
   it('colliding logical project/task IDs select only each immutable owner catalog', async () => {
     const f = fixture(), first = f.runtime(a), second = f.runtime(b);
     try {
