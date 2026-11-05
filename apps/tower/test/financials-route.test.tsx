@@ -365,11 +365,30 @@ describe("/financials — saying which month it is showing", () => {
 });
 
 describe("/financials — a month the ledger cannot answer", () => {
+  const banking: NonNullable<FinancialsPayload['banking']> = {
+    state: 'recorded', observedAt: '2026-11-05T12:00:00Z', snapshot: {
+      currency: 'USD', windowStart: '2026-10-01T12:00:00Z', windowEnd: '2026-11-05T12:00:00Z',
+      accounts: [], transactions: [],
+    },
+  };
   const refusal = (
     code: "period_not_found" | "period_malformed",
     status: number,
     periods = ["2026-06", "2026-07", "2026-08"],
   ) => new FinancialsPeriodError(code, status, periods);
+
+  it('shows current bank data supplied by a direct missing-period response', () => {
+    renderRefusal(new FinancialsPeriodError('period_not_found', 404, ['2026-08'], banking), '/financials?period=2020-01');
+    expect(screen.getByText('Nothing recorded for January 2020')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Mercury banking' })).toHaveTextContent('No deposit accounts returned.');
+  });
+
+  it('keeps cached banking when an older server refuses the selected month without banking', () => {
+    state.error = refusal('period_not_found', 404);
+    renderPage(payload({ banking }), '/financials?period=2020-01');
+    expect(screen.getByText('Nothing recorded for January 2020')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Mercury banking' })).toBeInTheDocument();
+  });
 
   it("names the month it could not find instead of blaming the ledger", () => {
     const { container } = renderRefusal(
@@ -560,6 +579,14 @@ describe("Money read status", () => {
 describe("fetchFinancials — a refusal keeps the months", () => {
   const refusalResponse = (body: unknown, status: number) =>
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(body, { status })));
+
+  it.each([[404, 'period_not_found'], [400, 'period_malformed']] as const)('retains current bank data on a %s refusal', async (status, code) => {
+    const banking = { state: 'awaiting', observedAt: null, snapshot: null };
+    refusalResponse({ error: code, periods: ['2026-08'], banking }, status);
+    const error = await fetchFinancials('2020-01').catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(FinancialsPeriodError);
+    expect((error as FinancialsPeriodError).banking).toEqual(banking);
+  });
 
   it("turns 404 period_not_found into an error carrying the periods", async () => {
     refusalResponse({ error: "period_not_found", periods: ["2026-07", "2026-08"] }, 404);

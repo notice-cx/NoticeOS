@@ -58,4 +58,10 @@ test('Mercury demo accounts and varied recent activity fit both viewports @pull-
   await expect(banking.getByText('Design tools refund', { exact: true })).toBeVisible();
   expect(await banking.evaluate(element => [...element.querySelectorAll('[data-table-box]')].every(box => box.scrollWidth <= box.clientWidth))).toBe(true);
   await info.attach('Mercury demo financials', { body: await banking.screenshot(), contentType: 'image/png' });
+  await page.route(url => url.origin === baseURL && url.pathname === '/api/financials' && url.searchParams.get('period') === '2020-01',
+    route => route.fulfill({ status: 404, json: { error: 'period_not_found', periods: ['2026-11'], banking: payload.banking } }));
+  await page.goto('/financials?period=2020-01');
+  await expect(page.getByText('Nothing recorded for January 2020')).toBeVisible();
+  await expect(banking).toBeVisible();
+  await expect(banking.getByText('Tax reserve', { exact: true }).first()).toBeVisible();
 });

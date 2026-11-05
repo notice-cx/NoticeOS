@@ -19,6 +19,7 @@ export function demoBankingReading(scenario, at) {
     const held = new Map([[operating, 0], [reserve, 0]]);
     const transactions = [];
     const windowStart = new Date(now - 35 * 86400000).toISOString();
+    /** Older settled payments still affect cash after they leave the visible window. */
     const add = (date, key, amountMinor, counterparty, kind, status = 'sent', accountId = operating, hour = '09:00', settledHour = hour) => {
         const createdAt = `${date}T${hour}:00.000Z`;
         if (Date.parse(createdAt) > now)

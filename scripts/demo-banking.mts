@@ -24,6 +24,7 @@ export function demoBankingReading(scenario: DemoScenario, at: string): DemoBank
   const held = new Map([[operating, 0], [reserve, 0]]);
   const transactions: BankTransaction[] = [];
   const windowStart = new Date(now - 35 * 86400000).toISOString();
+  /** Older settled payments still affect cash after they leave the visible window. */
   const add = (date: string, key: string, amountMinor: number, counterparty: string,
     kind: string, status: BankTransaction['status'] = 'sent', accountId = operating, hour = '09:00', settledHour = hour) => {
     const createdAt = `${date}T${hour}:00.000Z`;

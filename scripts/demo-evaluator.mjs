@@ -8,6 +8,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+/** Bundle exact source helpers and capture their input hashes before releasing temporary build files. */
 export async function buildDemoWorkerHelpers(root, { activity = false, configurationRoot = path.join(root, 'config') } = {}) {
   const output = mkdtempSync(path.join(tmpdir(), 'noticeos-demo-worker-'));
   try {

@@ -113,6 +113,7 @@ export default function FinancialsRoute() {
     requestedPeriod !== null && error instanceof FinancialsPeriodError
       ? error
       : null;
+  const banking = missingPeriod?.banking ?? data?.banking;
 
   /** What the header's selector offers, from whichever answer arrived. */
   const picker = missingPeriod
@@ -184,7 +185,7 @@ export default function FinancialsRoute() {
       {isPending ? (
         <EmptyState title="Loading the ledger…" />
       ) : missingPeriod ? (
-        <MissingPeriod period={requestedPeriod ?? ""} periods={missingPeriod.periods} />
+        <MissingPeriod period={requestedPeriod ?? ""} periods={missingPeriod.periods} hasBanking={banking?.state === 'recorded'} />
       ) : !data ? (
         <ReadFailed
           title="The ledger could not be read"
@@ -202,7 +203,7 @@ export default function FinancialsRoute() {
           <Ledger data={data} />
         </div>
       )}
-      {data?.banking && !missingPeriod ? <Banking data={data.banking} /> : null}
+      {banking ? <Banking data={banking} /> : null}
     </div>
   );
 }
@@ -219,12 +220,12 @@ function requestedPeriodLabel(period: string): string {
  * month lands. The months the ledger has are the answer. A ledger holding no
  * month at all is the first-run state, and says what to connect.
  */
-function MissingPeriod({ period, periods }: { period: string; periods: string[] }) {
+function MissingPeriod({ period, periods, hasBanking = false }: { period: string; periods: string[]; hasBanking?: boolean }) {
   const newest = periods[periods.length - 1];
   if (periods.length === 0) {
     return (
       <div data-period-missing={period}>
-        <NothingRecorded />
+        <NothingRecorded hasBanking={hasBanking} />
       </div>
     );
   }
