@@ -1,3 +1,4 @@
+import { STRIPE_SUBSCRIPTION_MAX_AGE_HOURS } from '@noticeos/contract/reporting';
 import {
   INTEGRATION_MONITORS, INTEGRATION_MONITORING_GAPS, INTEGRATION_CADENCE_HOURS, REPORT_STALE_MULTIPLIER, REALTIME_ATTEMPT_EVIDENCE,
   integrationCapabilityHealth, integrationScopeKey, type IntegrationHealthItem, type IntegrationHealthPayload,
@@ -432,7 +433,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
               }
             }
             await add({ connection, capability, asset, target: account,
-              paused: cellDeclined(cell), requiredSince: since(nowMs, 36), observations: connection.demo ? observations : undefined });
+              paused: cellDeclined(cell), requiredSince: capability === STRIPE_REVENUE_CAPABILITY ? since(nowMs, 24) : new Date(nowMs - STRIPE_SUBSCRIPTION_MAX_AGE_HOURS * 3_600_000).toISOString(), observations: connection.demo ? observations : undefined });
           }
         }
       } else if (provider === 'calendar') {

@@ -57,6 +57,13 @@ afterEach(() => { vi.restoreAllMocks(); forgetConfigCache(); });
 const demoEnv = async (over: Record<string, unknown> = {}) =>
   ({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo', NOTICEOS_DEMO_WORKSPACE_ID: await env.STORE.workspaceId(), ...over }) as unknown as IngestEnv;
 
+it('preserves the cash-report deadline while allowing the subscription report its daily freshness window', async () => {
+  const health = await readIntegrationHealth(await demoEnv(), NOW + 40 * 3_600_000);
+  const item = (capability: string) => health.items.find(entry => entry.capability === capability && entry.asset === ASSET);
+  expect(item('stripe-revenue')).toMatchObject({ state: 'healthy' });
+  expect(item('stripe-subscriptions')).toMatchObject({ state: 'stale' });
+});
+
 it('the demo workspace shows its data sources connected and syncing, with no login, no key and no fetch', async () => {
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('A demo connection must not fetch'));
   const demo = await demoEnv({ CREDENTIALS_KEY: undefined });

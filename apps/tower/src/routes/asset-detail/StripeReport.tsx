@@ -1,3 +1,4 @@
+import { STRIPE_SUBSCRIPTION_MAX_AGE_HOURS } from '@noticeos/contract/reporting';
 import { useId } from 'react';
 import { minorToMajorUnits } from '@noticeos/contract/money';
 import type { StripeSubscriptionReport } from '@noticeos/contract/stripe-report';
@@ -17,7 +18,7 @@ export function StripeReport({ report, history, days, nowMs }: {
   if (!report && sources.length === 0) return null;
   const latest = report?.latest;
   const growth = report?.comparisons.find((comparison) => comparison.days === days)?.growth;
-  const stale = latest ? nowMs - Date.parse(latest.observedAt) > 36 * 3_600_000 : false;
+  const stale = latest ? nowMs - Date.parse(latest.observedAt) > STRIPE_SUBSCRIPTION_MAX_AGE_HOURS * 3_600_000 : false;
   const money = (value: number) => formatMoney(minorToMajorUnits(value, latest!.currency), latest!.currency, { cents: true });
   return <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3" data-stripe-report="">
     <h2 id={id} className="text-sm font-medium">Stripe</h2>
