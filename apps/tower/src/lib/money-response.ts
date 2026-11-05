@@ -1,5 +1,6 @@
 import { isSupportedCurrency, type MoneyFigure } from '@noticeos/contract/money';
 import type { FinancialsPayload } from '@shared/financials';
+import type { BankingPayload } from '@noticeos/contract/banking';
 import type { WallPayload } from '@shared/wall';
 import { ASSET_VIEW_SECTIONS, isAssetDetailView, type AssetDetailResponse, type AssetDetailView } from '@shared/asset-detail-views';
 import {
@@ -66,6 +67,18 @@ export function revenueProjection(value: unknown): boolean {
 }
 
 const usd = (value: unknown) => value === 'USD';
+/** The same current cash shape is accepted on successful and missing-period reads. */
+export function bankingValue(value: unknown): value is BankingPayload {
+  return fields(value, { state: oneOf(['not-connected', 'awaiting', 'recorded', 'unavailable']), observedAt: nullable(instant),
+    snapshot: nullable(snapshot => fields(snapshot, { currency: usd, windowStart: instant, windowEnd: instant,
+      accounts: list(account => fields(account, { id: string, name: string, kind: string,
+        status: oneOf(['active', 'deleted', 'pending', 'archived']), currentMinor: minor, availableMinor: minor })),
+      transactions: list(transaction => fields(transaction, { id: string, accountId: string, amountMinor: minor,
+        counterparty: string, kind: string, status: oneOf(['pending', 'sent', 'cancelled', 'failed', 'reversed', 'blocked']),
+        createdAt: instant, postedAt: nullable(instant) })),
+    })),
+  });
+}
 const currency = nullable(isSupportedCurrency);
 function trend(points: unknown, basis: unknown, date: (value: unknown) => boolean): boolean {
   return currency(basis) && list(item => fields(item, { t: date, v: nullable(number) }))(points)
@@ -89,7 +102,7 @@ export function decodeFinancials(value: unknown, requestedPeriod?: string | null
     recurringCosts: list(item => fields(item, { id: string, label: string, asset: string, family: string, amountUsdPerMonth: number, from: month },
       { to: month, note: string, currency: usd })),
     domainOrders: list(item => fields(item, { domain: string, asset: string, kind: string, paidUsd: number, paidOn: day }, { currency: usd })),
-  }, { dailyRevenue: portfolioDailyRevenue }) || requestedPeriod && value.period !== requestedPeriod
+  }, { dailyRevenue: portfolioDailyRevenue, banking: bankingValue }) || requestedPeriod && value.period !== requestedPeriod
     || !Array.isArray(value.properties) || !unique(value.properties, 'asset')) invalidResponse('Financials');
   return value as unknown as FinancialsPayload;
 }

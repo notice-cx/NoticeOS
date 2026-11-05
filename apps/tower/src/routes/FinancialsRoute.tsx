@@ -66,6 +66,7 @@ import { RevenueComposition } from "@/routes/financials/RevenueComposition";
 import { SiteMoneyRows, TooShortForATrend, TrendDates } from "@/routes/financials/SiteMoneyRows";
 import { MoneyViewContext } from "@/routes/financials/MoneyViewContext";
 import { moneyRowsForView } from "@/routes/financials/view-money";
+import { Banking } from '@/routes/financials/Banking';
 
 /** Cents, everywhere on this page: it exists to be reconciled against a
  * receipt, and a column of rounded figures does not add up to its own total. */
@@ -112,6 +113,7 @@ export default function FinancialsRoute() {
     requestedPeriod !== null && error instanceof FinancialsPeriodError
       ? error
       : null;
+  const banking = missingPeriod?.banking ?? data?.banking;
 
   /** What the header's selector offers, from whichever answer arrived. */
   const picker = missingPeriod
@@ -183,7 +185,7 @@ export default function FinancialsRoute() {
       {isPending ? (
         <EmptyState title="Loading the ledger…" />
       ) : missingPeriod ? (
-        <MissingPeriod period={requestedPeriod ?? ""} periods={missingPeriod.periods} />
+        <MissingPeriod period={requestedPeriod ?? ""} periods={missingPeriod.periods} hasBanking={banking?.state === 'recorded'} />
       ) : !data ? (
         <ReadFailed
           title="The ledger could not be read"
@@ -201,6 +203,7 @@ export default function FinancialsRoute() {
           <Ledger data={data} />
         </div>
       )}
+      {banking ? <Banking data={banking} /> : null}
     </div>
   );
 }
@@ -217,12 +220,12 @@ function requestedPeriodLabel(period: string): string {
  * month lands. The months the ledger has are the answer. A ledger holding no
  * month at all is the first-run state, and says what to connect.
  */
-function MissingPeriod({ period, periods }: { period: string; periods: string[] }) {
+function MissingPeriod({ period, periods, hasBanking = false }: { period: string; periods: string[]; hasBanking?: boolean }) {
   const newest = periods[periods.length - 1];
   if (periods.length === 0) {
     return (
       <div data-period-missing={period}>
-        <NothingRecorded />
+        <NothingRecorded hasBanking={hasBanking} />
       </div>
     );
   }
@@ -256,10 +259,10 @@ function MissingPeriod({ period, periods }: { period: string; periods: string[] 
 
 /** A ledger with no row at all: the title, and the one step that fills it,
  * connecting a revenue source, as a link. */
-function NothingRecorded() {
+function NothingRecorded({ hasBanking = false }: { hasBanking?: boolean }) {
   return (
     <EmptyState
-      title="No money recorded yet"
+      title={hasBanking ? 'No revenue or costs recorded yet' : 'No money recorded yet'}
       hint={
         <Link
           to="/integrations"
@@ -279,7 +282,7 @@ function NothingRecorded() {
 function FirstRun({ data }: { data: FinancialsPayload }) {
   return (
     <>
-      <NothingRecorded />
+      <NothingRecorded hasBanking={data.banking?.state === 'recorded'} />
       <Panel title="Declared costs" mark="costs" configSurface defaultOpen>
         <Costs
           period={data.period}

@@ -10,6 +10,7 @@ import { handleAlertHistoryRequest } from "./alert-history";
 import { handleAlertRuleStatsRequest } from "./alert-rules";
 import { timeZoneChosen } from "@noticeos/contract/time-zone-setting";
 import { PeriodNotFound, buildFinancialsPayload } from "./financials-payload";
+import { loadBanking } from './banking';
 import { buildIntegrationsMatrix, integrationsDeps } from "./integrations-payload";
 import { buildSettingsPayload } from "./settings-payload";
 import { buildWallPayload } from "./wall-payload";
@@ -55,13 +56,13 @@ export async function handleStoredRead(request: Request, {
         osTimeZone: cfg.osTimeZone,
       });
       if (malformed) {
-        return jsonError("period_malformed", 400, { periods: payload.periods });
+        return jsonError("period_malformed", 400, { periods: payload.periods, banking: payload.banking });
       }
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       // A well-formed month the ledger has nothing for is a miss, not a failure.
       if (err instanceof PeriodNotFound) {
-        return jsonError("period_not_found", 404, { periods: err.periods });
+        return jsonError("period_not_found", 404, { periods: err.periods, banking: await loadBanking(store) });
       }
       const message = err instanceof Error ? err.message : String(err);
       return new Response(

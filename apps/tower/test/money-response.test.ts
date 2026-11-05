@@ -32,6 +32,15 @@ function asset() { return { generatedAt: now.toISOString(), asset: { id: 'site.e
       family: 'hosting', amount: 2, currency: 'EUR', bookingState: 'reconciled', source: null, ref: null, note: null, recordedAt: now.toISOString() }] } }; }
 
 describe('critical money payloads', () => {
+  it('preserves signed bank cash and refuses balances that lose integer precision', () => {
+    const account = { id: 'operating', name: 'Operating', kind: 'checking', status: 'active', currentMinor: -1234, availableMinor: -1234 };
+    const value = { ...financials(), banking: { state: 'recorded', observedAt: now.toISOString(), snapshot: {
+      currency: 'USD', windowStart: '2026-09-01T00:00:00Z', windowEnd: now.toISOString(), accounts: [account], transactions: [],
+    } } };
+    expect(decodeFinancials(value)).toBe(value);
+    account.currentMinor = Number.MAX_SAFE_INTEGER + 1;
+    expect(() => decodeFinancials(value)).toThrow('invalid response');
+  });
   it('validates the actual API decoder paths before returning received money', async () => {
     const financial = financials();
     const wallValue = wall();

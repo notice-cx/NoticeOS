@@ -155,6 +155,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   let custom: Ga4CustomDimensionConfig;
   let panel: SerpPanelConfig;
   let realtimeSchedule: { enabled: boolean; cron: string } = { enabled: true, cron: "* * * * *" };
+  let mercurySchedule = { enabled: true, cron: '40 * * * *' };
   try {
     const reads = await Promise.all(['config/integrations.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json', 'config/constants.json'].map(file => getConfigDocument(env, file)));
     if (reads.slice(0, 3).some(read => read.source !== 'store' || read.version === null || !read.body || typeof read.body !== 'object')) throw new Error('Inventory unavailable');
@@ -163,6 +164,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     panel = reads[2]!.body as SerpPanelConfig;
     const schedules = (reads[3]?.body as { schedules?: ScheduleOverrides } | undefined)?.schedules;
     realtimeSchedule = schedules?.['ga4-realtime'] ?? realtimeSchedule;
+    mercurySchedule = schedules?.mercury ?? mercurySchedule;
     if (!register.assets || typeof register.assets !== 'object') throw new Error('Inventory unavailable');
   } catch { return { ...payload, available: false }; }
 
@@ -406,6 +408,9 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           await add({ connection, capability: CRUX_DAILY_CAPABILITY, asset: site.asset, target: site.domain,
             paused: cellDeclined(register.assets[site.asset]?.crux), requiredSince: since(nowMs, INTEGRATION_CADENCE_HOURS.cruxSignals) });
         }
+      } else if (provider === 'mercury') {
+        await add({ connection, capability: 'mercury-banking', paused: !mercurySchedule.enabled,
+          requiredSince: since(nowMs, (cronIntervalMinutes(mercurySchedule.cron) ?? 60) / 60) });
       } else if (provider === 'stripe') {
         // One daily collection per site that names a Stripe account; a
         // declined one is listed paused.

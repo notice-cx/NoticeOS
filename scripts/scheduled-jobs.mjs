@@ -23,6 +23,8 @@ export const WORKFLOW_GROUPS = [
     { label: 'System maintenance' },
 ];
 export const SCHEDULED_JOBS = [
+    { id: 'mercury', surface: 'system', label: 'Bank balances and activity', group: 'Business signals', cron: '40 * * * *', source: 'Mercury',
+        keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
     { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',
         collectNow: [{ provider: 'mediavine', step: 'revenue' }], connections: ['mediavine'] },
     { id: 'stripe', surface: 'system', label: 'Subscription revenue', group: 'Business signals', cron: '20 * * * *', source: 'Stripe',

@@ -38,7 +38,7 @@ const projects = assets.map(asset => ({ asset: asset.id, projectId: randomUUID()
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } };
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
@@ -48,8 +48,8 @@ test('demo composition refuses a foreign workspace, changed seed and ambiguous t
 test("the demo's scheduled lanes are the release's own workflows and accept only the scheduler's minute", () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
-  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'freshness', 'notifications', 'watch-windows', 'watch-readbacks', 'beads-snapshot']);
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
+  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mercury', 'mediavine', 'counters', 'freshness', 'notifications', 'watch-windows', 'watch-readbacks', 'beads-snapshot']);
   // The Workflows page's lanes, each run once as the demo starts.
   assert.deepEqual(demo.startup, ['notifications', 'watch-windows', 'watch-readbacks']);
   assert.ok(demo.startup.every(key => WORKFLOW_DEFINITIONS.find(definition => definition.id === key).surface === 'workflow'));
@@ -61,6 +61,51 @@ test("the demo's scheduled lanes are the release's own workflows and accept only
     for (const input of [{ scheduledAt: minute.replace(':00.000Z', ':30.000Z') }, { scheduledAt: minute, extra: 1 }, { scheduledAt: '2000-01-01T00:00:00.000Z' }, 'today', null]) {
       assert.throws(() => lane.parseInput(input));
     }
+  }
+});
+
+test('Mercury is funded at setup and refreshes atomically through the demo scheduler without posting revenue', { timeout: 180000 }, async t => {
+  const tools = findPostgres();
+  const root = mkdtempSync(path.join(os.tmpdir(), 'n-demo-banking-'));
+  let owner, closeAdmin, store;
+  try {
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
+    applyMigrations(owner);
+    const admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });
+    closeAdmin = trackFixturePool(admin);
+    await admin.query("INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES($1,'demo-banking','Demo banking','active')", [workspace]);
+    const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { activity: true, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
+    store = openWorkspaceStore(owner.applicationLogin().url(), { workspaceId: workspace });
+    await store.write(async tx => {
+      await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+    });
+    const counts = () => store.read(async tx => (await tx.query(`SELECT
+      (SELECT count(*)::int FROM noticeos.mercury_readings) AS readings,
+      (SELECT count(*)::int FROM noticeos.ledger_entries) AS ledger,
+      (SELECT count(*)::int FROM noticeos.connection_secrets) AS secrets`))[0]);
+    const seeded = await counts();
+    assert.equal(seeded.readings, 1); assert.equal(seeded.secrets, 0);
+    const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
+    const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
+      tasks: { execute() {} }, writer: { banking: helpers.writeDemoBanking, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
+    const lane = demo.schedule.find(entry => entry.key === 'mercury');
+    const minute = `${scenario.manifest.referenceDate}T19:40:00.000Z`;
+    const run = tx => lane.steps[0].run({ input: lane.parseInput({ scheduledAt: minute }), signal: new AbortController().signal }, tx);
+    await assert.rejects(store.write(async tx => { await run(tx); throw new Error('journal rollback'); }), /journal rollback/);
+    assert.deepEqual(await counts(), seeded);
+    assert.equal((await store.write(run)).written, 1);
+    assert.equal((await store.write(run)).written, 0);
+    assert.deepEqual(await counts(), { ...seeded, readings: 2 });
+    const [latest] = await store.read(tx => tx.query('SELECT payload FROM noticeos.mercury_readings ORDER BY observed_at DESC LIMIT 1'));
+    const snapshot = JSON.parse(latest.payload);
+    assert.equal(snapshot.accounts.length, 2);
+    assert.ok(snapshot.accounts.every(account => account.availableMinor > 0));
+    assert.ok(snapshot.transactions.length > 50);
+  } finally {
+    await store?.close(); await closeAdmin?.(); owner?.close();
+    assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -82,7 +127,7 @@ test("the demo's outcome check runs the release's evaluator over the demo's own 
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
+      tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'watch-windows');
     const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T03:30:00.000Z`;
     const run = () => store.write(tx => lane.steps[0].run({ input: minute, signal: new AbortController().signal }, tx));
@@ -122,7 +167,7 @@ test("the demo's hourly lane reads each fictional home page with the release's o
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {},
+      tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {},
         uptime: (scoped, at, homePages) => helpers.runUptimeChecks({ STORE: scoped }, { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 }),
         notify() {}, readbacks() {}, stampReadbacks() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'freshness');
@@ -247,7 +292,7 @@ test("a new demo's Workflows page shows three workflows with real runs from its 
     } };
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects, store: untouched, grant: untouched, tasks,
-      writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, freshness() {}, uptime() {}, outcomes: helpers.writeDemoOutcomeChecks,
+      writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, freshness() {}, uptime() {}, outcomes: helpers.writeDemoOutcomeChecks,
         notify: (scoped, at) => helpers.runNotifier({ STORE: scoped, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, { nowMs: Date.parse(at), fetchImpl: () => { throw new Error('No notification is sent.'); } }),
         readbacks: scoped => helpers.readPendingWatchReadbacks({ STORE: scoped }),
         stampReadbacks: (scoped, ids, at) => helpers.markWatchReadbacksPosted({ STORE: scoped }, [...ids], Date.parse(at)) } });

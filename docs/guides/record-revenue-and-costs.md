@@ -106,3 +106,11 @@ Recurring costs, their fields and booking rules are on GitHub: https://github.co
 - [Money](/tower/financials)
 - [Connect data sources](/guides/connect-data-sources)
 - [How NoticeOS works](/concepts/how-noticeos-thinks)
+
+## Bank balances and activity
+
+Connect a **Read Only** token on the **Mercury (banking)** card in
+**Integrations**. The hourly bank collection adds deposit balances and recent
+transactions to Money. The bank panel shows its collection time and transaction
+statuses. It does not book revenue or costs or confirm ledger entries.
+See [Mercury](../11-integrations.md#mercury) for coverage and setup.

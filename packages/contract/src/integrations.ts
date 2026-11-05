@@ -529,9 +529,20 @@ export type IntegrationProviderId =
   | 'posthog'
   | 'cloudflare'
   | 'crux'
-  | 'stripe';
+  | 'stripe'
+  | 'mercury';
 
 export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
+  {
+    id: 'mercury', label: 'Mercury (banking)', scope: 'shared', lanes: [],
+    docRef: 'docs/11-integrations.md#mercury',
+    expiry: { known: 'operator' }, test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'api-key', sites: false },
+    fields: [{ name: 'MERCURY_API_TOKEN', label: 'Read-only API token',
+      kind: 'password', secret: true, required: true,
+      link: { url: 'https://app.mercury.com/settings/tokens', label: 'Create a token' },
+      grants: ['Read Only'] }],
+  },
   {
     id: 'cloudflare', label: 'Cloudflare (D1 backups)', scope: 'shared', lanes: [],
     docRef: 'docs/11-integrations.md#cloudflare-d1-backups',

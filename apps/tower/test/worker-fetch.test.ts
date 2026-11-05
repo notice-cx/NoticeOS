@@ -254,6 +254,7 @@ describe("the Worker's fetch switch", () => {
 
       expect(status).toBe(404);
       expect(body.error).toBe("period_not_found");
+      expect(body.banking).toMatchObject({ state: 'not-connected', snapshot: null });
       // A dead bookmark lands one click from a live month.
       expect(body.periods).toEqual(["2026-07", "2026-08"]);
     });
@@ -263,6 +264,7 @@ describe("the Worker's fetch switch", () => {
 
       expect(status).toBe(400);
       expect(body.error).toBe("period_malformed");
+      expect(body.banking).toMatchObject({ state: 'not-connected', snapshot: null });
       expect(body.periods).toEqual(["2026-07", "2026-08"]);
     });
 

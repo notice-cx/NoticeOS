@@ -3,6 +3,7 @@
  * never a visitor route. Every date is derived from the captured scenario and
  * server clock; the public handle accepts no workspace, task or input payload.
  */
+import { demoBankingReading } from './demo-banking.mjs';
 import { randomUUID } from 'node:crypto';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
@@ -61,7 +62,7 @@ export function createHostedDemo(options) {
     const { workspaceId, serviceId, store, grant, tasks, writer } = options;
     if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
         || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
-        || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
+        || typeof writer?.banking !== 'function' || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
         || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function' || typeof writer?.freshness !== 'function'
         || typeof writer?.uptime !== 'function' || typeof writer?.notify !== 'function'
         || typeof writer?.readbacks !== 'function' || typeof writer?.stampReadbacks !== 'function')
@@ -228,6 +229,8 @@ export function createHostedDemo(options) {
     const adSites = Object.freeze(scenario.manifest.adSites.map(site => Object.freeze({ ...site,
         since: scenario.assets.find(asset => asset.id === site.asset).createdAt.slice(0, 10) })));
     const schedule = Object.freeze([
+        { key: 'mercury', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'banking', kind: 'database', action: 'workflows.run',
+                    run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.banking(scoped, demoBankingReading(scenario, minuteOf(input)))) }] },
         ...(adSites.length ? [{ key: 'mediavine', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'revenue', kind: 'database', action: 'workflows.run',
                         run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.revenue(scoped, { at: minuteOf(input), sites: adSites, amount: activity.adRevenue })) }] }] : []),
         { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',

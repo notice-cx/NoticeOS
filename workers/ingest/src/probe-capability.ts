@@ -7,6 +7,7 @@ import type { IntegrationProviderId } from '@noticeos/contract';
  * a key accepted in the panel lands on the same health row a later Test updates.
  */
 export const PROBE_CAPABILITY: Record<IntegrationProviderId, string> = {
+  mercury: 'mercury-test',
   cloudflare: 'cloudflare-test',
   google: 'google-test',
   'bing-webmaster': 'bing-discovery',

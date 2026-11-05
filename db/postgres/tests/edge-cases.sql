@@ -1653,5 +1653,53 @@ BEGIN
 END $$;
 SET LOCAL ROLE noticeos_app;
 
+
+-- Bank retention preserves recent, unexported and last-known observations.
+INSERT INTO noticeos.mercury_readings
+  (workspace_id, reading_id, connection_id, connection_updated_at, observed_at, payload)
+VALUES
+  (noticeos.current_workspace_id(), '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', now(), now() - interval '40 days', '{}'),
+  (noticeos.current_workspace_id(), '20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', now(), now() - interval '39 days', '{}'),
+  (noticeos.current_workspace_id(), '20000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000001', now(), now() - interval '1 hour', '{}'),
+  (noticeos.current_workspace_id(), '20000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000001', now(), now(), '{}');
+SET LOCAL ROLE noticeos_maint;
+DO $$
+DECLARE n bigint;
+BEGIN
+  INSERT INTO noticeos.analytical_exports (workspace_id, table_name, exported_through, dataset_key, exported_at)
+  VALUES ('0000000b-0000-4000-8000-00000000000b', 'mercury_readings', current_date, 'analytics/b/mercury.parquet', now());
+  BEGIN
+    DELETE FROM noticeos.mercury_readings WHERE reading_id = '20000000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'an unexported bank reading was removed using another workspace export' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  INSERT INTO noticeos.analytical_exports (workspace_id, table_name, exported_through, dataset_key, exported_at)
+  VALUES ('0000000a-0000-4000-8000-00000000000a', 'mercury_readings', current_date, 'analytics/a/mercury.parquet', now());
+  DELETE FROM noticeos.mercury_readings WHERE reading_id = '20000000-0000-4000-8000-000000000001';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 1, 'an old exported bank reading may leave';
+  BEGIN
+    DELETE FROM noticeos.mercury_readings WHERE reading_id = '20000000-0000-4000-8000-000000000003';
+    RAISE EXCEPTION 'a bank reading inside its retention window was removed' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
+SET LOCAL ROLE noticeos_app;
+-- A separate connection whose newest observation is already old.
+INSERT INTO noticeos.mercury_readings
+  (workspace_id, reading_id, connection_id, connection_updated_at, observed_at, payload)
+VALUES (noticeos.current_workspace_id(), '20000000-0000-4000-8000-000000000004',
+  '30000000-0000-4000-8000-000000000002', now(), now() - interval '40 days', '{}');
+SET LOCAL ROLE noticeos_maint;
+DO $$
+BEGIN
+  BEGIN
+    DELETE FROM noticeos.mercury_readings WHERE reading_id = '20000000-0000-4000-8000-000000000004';
+    RAISE EXCEPTION 'an old exported last-known bank reading was removed' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
+SET LOCAL ROLE noticeos_app;
+
 ROLLBACK;
 RESET ROLE;

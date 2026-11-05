@@ -20,6 +20,7 @@ import type {
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { costProvenance } from "../shared/financials";
 import { cents, loadAssetMonths, monthDate } from "./ledger-history";
+import { loadBanking } from './banking';
 
 // The cost registers' row shapes live in `../shared/financials`, because the
 // page edits these rows.
@@ -253,6 +254,7 @@ export async function buildFinancialsPayload(
     periodIsCurrent,
     currentPeriod,
     dailyRevenue: await loadPortfolioDailyRevenue(store, period, now, osTimeZone),
+    banking: await loadBanking(store),
     months,
     properties,
     overhead,

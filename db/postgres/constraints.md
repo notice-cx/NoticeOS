@@ -701,6 +701,21 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, asset_id)
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 
+## `mercury_readings`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `reading_id` | uuid | yes |  |
+| `connection_id` | uuid | yes |  |
+| `connection_updated_at` | timestamp with time zone | yes |  |
+| `observed_at` | timestamp with time zone | yes |  |
+| `payload` | jsonb | yes | `(jsonb_typeof(payload) = 'object')` |
+
+- **Keys:** primary (workspace_id, reading_id)
+- **Links:** (workspace_id) → `workspaces`
+- **Triggers:** `history_leaves_only_when_exported` (before delete); `retain_latest_mercury_reading` (before delete)
+
 ## `notification_outbox`
 
 | Column | Type | Required | Checks |

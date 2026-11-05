@@ -2,6 +2,7 @@
  * never a visitor route. Every date is derived from the captured scenario and
  * server clock; the public handle accepts no workspace, task or input payload.
  */
+import { demoBankingReading, type DemoBankingReading } from './demo-banking.mjs';
 import { randomUUID } from 'node:crypto';
 import type { WorkspaceStore, Transaction } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
@@ -24,6 +25,7 @@ const READBACKS_PER_PASS = 4;
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export interface DemoActivityWriter {
+  banking(store: WorkspaceStore, reading: DemoBankingReading): Promise<unknown>;
   write(store: WorkspaceStore, day: DemoActivityDay): Promise<{ written: number; assets: number; date: string }>;
   collect(store: WorkspaceStore, collection: DemoActivityCollection): Promise<{ succeeded: number; written: number; outcomes: unknown[] }>;
   revenue(store: WorkspaceStore, input: { at: string; sites: readonly { asset: string; siteId: string; since: string }[];
@@ -98,7 +100,7 @@ export function createHostedDemo(options: HostedDemoOptions): {
   const { workspaceId, serviceId, store, grant, tasks, writer } = options;
   if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
     || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
-    || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
+    || typeof writer?.banking !== 'function' || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
     || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function' || typeof writer?.freshness !== 'function'
     || typeof writer?.uptime !== 'function' || typeof writer?.notify !== 'function'
     || typeof writer?.readbacks !== 'function' || typeof writer?.stampReadbacks !== 'function') refuse();
@@ -241,6 +243,8 @@ export function createHostedDemo(options: HostedDemoOptions): {
   const adSites = Object.freeze(scenario.manifest.adSites.map(site => Object.freeze({ ...site,
     since: scenario.assets.find(asset => asset.id === site.asset)!.createdAt.slice(0, 10) })));
   const schedule: readonly HostedJobDefinition[] = Object.freeze([
+    { key: 'mercury', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'banking', kind: 'database', action: 'workflows.run',
+      run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.banking(scoped, demoBankingReading(scenario, minuteOf(input)))) }] },
     ...(adSites.length ? [{ key: 'mediavine', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'revenue', kind: 'database' as const, action: 'workflows.run' as const,
       run: async ({ input, signal }: { input: JobInput; signal: AbortSignal }, tx: Transaction) => inTransaction(tx, signal, scoped =>
         writer.revenue(scoped, { at: minuteOf(input), sites: adSites, amount: activity.adRevenue })) }] }] : []),

@@ -6,7 +6,7 @@ import type { TaskResolution } from '@noticeos/contract/task-resolution';
 import type { TaskCard } from '@noticeos/contract/task-card';
 import type { TaskChangeClass } from '@noticeos/contract/task-change-class';
 import { responseJson } from './response-value';
-import { decodeWallMoney, decodeAssetMoney, decodeFinancials } from './money-response';
+import { decodeWallMoney, decodeAssetMoney, decodeFinancials, bankingValue } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
 import { fetchMembershipsRequest, manageMembershipRequest } from './membership-client';
 import {
@@ -358,6 +358,7 @@ export class FinancialsPeriodError extends ApiError {
     code: "period_not_found" | "period_malformed",
     status: number,
     readonly periods: string[],
+    readonly banking?: FinancialsPayload['banking'],
   ) {
     super(code, status, code);
     this.name = "FinancialsPeriodError";
@@ -1114,7 +1115,7 @@ async function periodRefusal(res: Response): Promise<FinancialsPeriodError | nul
   const periods = Array.isArray(record.periods)
     ? record.periods.filter((entry): entry is string => typeof entry === "string")
     : [];
-  return new FinancialsPeriodError(code, res.status, periods);
+  return new FinancialsPeriodError(code, res.status, periods, bankingValue(record.banking) ? record.banking : undefined);
 }
 
 // --- Tasks: the operator's live lane into the portfolio's task hub -----------
