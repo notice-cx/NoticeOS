@@ -10,6 +10,9 @@
 
 const HOUR_MS = 3_600_000;
 
+/** Daily subscription observations share this deadline in health and the Tower. */
+export const STRIPE_SUBSCRIPTION_MAX_AGE_HOURS = 36;
+
 /** The nightly obligation: one report per expected property per day (docs/02). */
 export const REPORT_CADENCE_HOURS = 24;
 

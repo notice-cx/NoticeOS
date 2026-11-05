@@ -1,3 +1,4 @@
+import { STRIPE_SUBSCRIPTION_MAX_AGE_HOURS } from '@noticeos/contract/reporting';
 import {
   INTEGRATION_MONITORS, INTEGRATION_MONITORING_GAPS, INTEGRATION_CADENCE_HOURS, REPORT_STALE_MULTIPLIER, REALTIME_ATTEMPT_EVIDENCE,
   integrationCapabilityHealth, integrationScopeKey, type IntegrationHealthItem, type IntegrationHealthPayload,
@@ -417,8 +418,23 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         for (const [asset, lanes] of Object.entries(register.assets)) {
           const cell = lanes?.[STRIPE_LANE];
           if (typeof cell?.stripeAccountId !== 'string' || cell.stripeAccountId === '') continue;
-          await add({ connection, capability: STRIPE_REVENUE_CAPABILITY, asset, target: cell.stripeAccountId,
-            paused: cellDeclined(cell), requiredSince: since(nowMs, 24) });
+          const account = cell.stripeAccountId;
+          for (const capability of [STRIPE_REVENUE_CAPABILITY, 'stripe-subscriptions']) {
+            const observations: IntegrationObservation[] = [];
+            if (connection.demo) {
+              const [saved] = await env.STORE.read(tx => tx.query<{ at: string | null }>(capability === STRIPE_REVENUE_CAPABILITY
+                ? `SELECT MAX(recorded_at)::text AS at FROM noticeos.current_revenue WHERE asset_id = $1 AND account_ref = $2 AND source = 'stripe' AND recorded_at <= $3::timestamptz`
+                : `SELECT MAX(observed_at)::text AS at FROM noticeos.stripe_subscription_snapshots WHERE asset_id = $1 AND account_ref = $2 AND observed_at <= $3::timestamptz`,
+              [asset, account, new Date(nowMs).toISOString()]));
+              if (saved?.at) {
+                const at = javascriptInstant(saved.at);
+                observations.push({ scope: await healthScope(connection, capability, asset, account, ''),
+                  attemptId: `synthetic-${capability}-${at}`, startedAt: at, finishedAt: at, outcome: 'success', failure: null, code: null, nextAttemptAt: null });
+              }
+            }
+            await add({ connection, capability, asset, target: account,
+              paused: cellDeclined(cell), requiredSince: capability === STRIPE_REVENUE_CAPABILITY ? since(nowMs, 24) : new Date(nowMs - STRIPE_SUBSCRIPTION_MAX_AGE_HOURS * 3_600_000).toISOString(), observations: connection.demo ? observations : undefined });
+          }
         }
       } else if (provider === 'calendar') {
         const raw: unknown = JSON.parse(credential.fields.CALENDAR_FEEDS ?? '{}');

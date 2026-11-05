@@ -551,6 +551,7 @@ by column; retention and maintenance privileges are checked separately.
 | `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per asset, source, account, day and item is current. |
 | `signal_observations` | append-only | Append-only; a revised value is a new row under a later run. |
 | `signal_runs` | append-only | Append-only. |
+| `stripe_subscription_snapshots` | append-only | Append-only observed subscription state. Reports expose customer aggregates. |
 | `task_daily_counts` | insert, update, delete | One row per project per day, upserted; swept after 400 days. |
 | `task_operation_receipts` | insert; update only state, attempt, result, started_at, finished_at; delete | A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve; swept seven days after its last attempt (retention). |
 | `task_snapshots` | insert; update only captured_at, payload; delete | An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days. |

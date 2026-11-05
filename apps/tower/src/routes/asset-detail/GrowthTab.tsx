@@ -1,3 +1,4 @@
+import { StripeReport } from "./StripeReport";
 import { PurposeSections } from "./purpose-presentation";
 import type { CSSProperties } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -40,7 +41,7 @@ import { useRange } from "@/routes/asset-detail/useRange";
  */
 export function GrowthTab({
   data,
-  nowMs: _nowMs,
+  nowMs,
   onWatch: _onWatch,
 }: {
   data: AssetDetailFor<"growth">;
@@ -63,6 +64,7 @@ export function GrowthTab({
 
   return (
     <PurposeSections surface="growth" id="growth-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
+      <StripeReport key="stripe" report={data.stripeSubscriptions} days={days} nowMs={nowMs} />
       {moves.length > 0 ? <Moves key="moves" moves={moves} days={days} /> : null}
 
       <section key="audience"

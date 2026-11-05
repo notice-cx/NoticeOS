@@ -559,7 +559,7 @@ export function createDemoActivity(input) {
         const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
         const codebase = codebaseSites.filter(site => site.weekday === weekday && date > site.after)
             .map(site => demoCodebaseEnvelope(seed, site.asset, referenceDate, date));
-        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, subscriptions, tasks, changes, reports, codebase };
+        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, referenceDate, date, key, assets, money, subscriptions, tasks, changes, reports, codebase };
     };
     /** Today so far: each provisional count is the finished day's count scaled
      * by the share of the day already counted, so the quarter-hour refreshes

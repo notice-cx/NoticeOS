@@ -1,3 +1,5 @@
+import { stripeSnapshotRecord } from '@noticeos/contract/stripe-report';
+import { demoStripeSales, demoStripeSnapshot } from '../../../scripts/demo-scenario.mjs';
 /** Private simulator adapter. The caller supplies a freshly admitted, fixed
  * demo workspace and owns its transaction/checkpoint. No HTTP entry, provider,
  * credential, operator token or custom rule is accepted here. */
@@ -64,7 +66,15 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
   }
   for (const [asset, { account, days }] of bySite) {
     written += await persistStripeDays(env, { asset, account }, days, 'USD', `${day.key}/subscriptions`,
-      new Date(Math.max(Date.now(), Date.parse(`${day.date}T00:00:00.000Z`) + DAY_MS)).toISOString());
+      new Date(Math.max(Date.now(), Date.parse(`${day.date}T00:00:00.000Z`) + DAY_MS)).toISOString(),
+      new Map([...days].map(([date, amount]) => [date, demoStripeSales(amount, date)])));
+    for (const date of days.keys()) {
+      const snapshotAt = new Date(Date.parse(`${date}T01:00:00.000Z`) + DAY_MS).toISOString();
+      await store.write((tx) => tx.execute(`INSERT INTO noticeos.stripe_subscription_snapshots (workspace_id, asset_id, account_ref, observed_at, snapshot)
+        SELECT $1::uuid, $2, $3, $4::timestamptz, $5::jsonb WHERE NOT EXISTS (
+          SELECT 1 FROM noticeos.stripe_subscription_snapshots WHERE asset_id = $2 AND account_ref = $3 AND observed_at = $4::timestamptz)`,
+        [tx.workspaceId, asset, account, snapshotAt, JSON.stringify(stripeSnapshotRecord(demoStripeSnapshot(date, day.referenceDate), snapshotAt))]));
+    }
   }
   // A ship's change and its comparison, and a Monday's search reports, go
   // through the same writers an operator's annotation, bet and published

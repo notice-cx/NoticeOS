@@ -208,6 +208,14 @@ test("the demo's codebase reports and alerts seed into the store, and the simula
       await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
       await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
+    const [stripe] = await store.read(tx => tx.query(`SELECT
+      (SELECT count(*)::int FROM noticeos.stripe_subscription_snapshots) AS reports,
+      (SELECT count(*)::int FROM noticeos.current_revenue WHERE source = 'stripe' AND sales_minor IS NOT NULL) AS cash_days,
+      (SELECT count(*)::int FROM noticeos.current_revenue WHERE source = 'stripe' AND refunds_minor > 0) AS refund_days,
+      (SELECT count(*)::int FROM noticeos.current_revenue WHERE source = 'stripe' AND sales_minor - refunds_minor - fees_minor <> amount_minor) AS mismatched`));
+    assert.ok(stripe.reports >= 90);
+    assert.ok(stripe.cash_days >= 90 && stripe.refund_days > 0);
+    assert.equal(stripe.mismatched, 0);
     const seeded = demoCodebaseReports(scenario);
     const [stored] = await store.read(tx => tx.query(`SELECT (SELECT count(*)::int FROM noticeos.codebase_reports) AS reports,
       (SELECT count(*)::int FROM noticeos.current_codebase_reports) AS current, (SELECT min(report_number)::int FROM noticeos.codebase_reports) AS first,
@@ -233,6 +241,8 @@ test("the demo's codebase reports and alerts seed into the store, and the simula
       sent += day.codebase.length;
       await helpers.writeDemoActivity(scoped, day);
     }
+    const [stripeAfter] = await store.read(tx => tx.query('SELECT count(*)::int AS n FROM noticeos.stripe_subscription_snapshots'));
+    assert.ok(stripeAfter.n > stripe.reports);
     assert.ok(sent > 0);
     const [after] = await store.read(tx => tx.query(`SELECT count(*)::int AS reports, max(revision)::int AS revision,
       count(*) FILTER (WHERE envelope->>'asset' <> asset_id)::int AS mismatched FROM noticeos.codebase_reports`));

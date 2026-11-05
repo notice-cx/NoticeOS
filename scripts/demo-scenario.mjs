@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
-export const SCENARIO_VERSION = 15;
+export const SCENARIO_VERSION = 16;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
@@ -21,6 +21,26 @@ export function demoInferenceCostMinor(seed, osAsset, month) {
     return Math.round(4200 * (0.85 + draw(seed, `${osAsset}/${month}/inference`) * 0.3));
 }
 const DAY_MS = 86_400_000;
+/** Synthetic fixed monthly and annual plans, upgrades, churn and collection risk. */
+export function demoStripeSnapshot(date, referenceDate) {
+    const relative = Math.floor((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${referenceDate}T00:00:00Z`)) / DAY_MS);
+    const progress = Math.max(0, relative + 120);
+    const count = 72 + Math.floor(progress / 4);
+    const customers = Array.from({ length: count }, (_, i) => ({
+        ref: `cus_synthetic_${i}_${i % 11 === 0 ? Math.floor(progress / 35) : 0}`,
+        mrrMinor: (i % 5 === 0 ? 12000 / 12 : 1900 + i % 4 * 1000) + (relative >= -21 && i % 9 === 0 ? 1000 : 0),
+    }));
+    return { version: 1, currency: 'USD', activeSubscriptions: count + 4, trials: 7 + progress % 5,
+        pastDue: 3, canceling: 2 + progress % 3, unmeasuredSubscriptions: 0, customers };
+}
+/** Composition reconciles to the existing synthetic net income exactly. */
+export function demoStripeSales(netMinor, date) {
+    const day = Number(date.slice(-2));
+    const refundsMinor = day % 9 === 0 ? 2900 : 0;
+    const feesMinor = Math.max(0, Math.round(netMinor * 0.032) + 120);
+    return { salesMinor: netMinor + refundsMinor + feesMinor, refundsMinor, feesMinor,
+        payments: 3 + day % 5, refunds: refundsMinor > 0 ? 1 : 0 };
+}
 /** Five sites with their own shapes: a steady subscription product, a
  * licensed tool, a recipe site growing into its season, an outdoor guide
  * sliding out of its season and a search slump, and a product weeks old. */

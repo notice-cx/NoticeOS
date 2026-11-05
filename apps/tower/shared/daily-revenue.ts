@@ -1,3 +1,4 @@
+import type { SalesBreakdown } from '@noticeos/contract/stripe-report';
 import type { RevenueDay, RevenueReportingClock } from './revenue-projection';
 import { revenueExpectedThrough, shiftRevenueDate } from './revenue-projection';
 
@@ -25,7 +26,7 @@ export interface RevenueSourceHistory extends RevenueSource {
   currency: string;
   /** Its first reported day: it owes no day before it. */
   since: string;
-  days: RevenueDay[];
+  days: (RevenueDay & { sales?: SalesBreakdown })[];
   reportedThrough: string | null;
 }
 

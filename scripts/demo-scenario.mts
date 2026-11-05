@@ -1,3 +1,4 @@
+import type { SalesBreakdown, StripeSnapshot } from '../packages/contract/src/stripe-report.mjs';
 // Synthetic facts for the ordinary NoticeOS store: scenario choices, not
 // estimates of real businesses.
 import { createHash } from 'node:crypto';
@@ -5,7 +6,7 @@ import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import type { CodebaseMeasureKey } from '../packages/contract/src/codebase-measures.js';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 
-export const SCENARIO_VERSION = 15;
+export const SCENARIO_VERSION = 16;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
@@ -37,6 +38,28 @@ export interface DemoAdDay { asset: string; siteId: string; date: string; minor:
 /** One synthetic day of subscription income, as the subscriptions collector
  * records a completed day: the account's net sales on that UTC day. */
 export interface DemoSubscriptionDay { asset: string; account: string; date: string; minor: number; recordedAt: string; }
+/** Synthetic fixed monthly and annual plans, upgrades, churn and collection risk. */
+export function demoStripeSnapshot(date: string, referenceDate: string): StripeSnapshot {
+  const relative = Math.floor((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${referenceDate}T00:00:00Z`)) / DAY_MS);
+  const progress = Math.max(0, relative + 120);
+  const count = 72 + Math.floor(progress / 4);
+  const customers = Array.from({ length: count }, (_, i) => ({
+    ref: `cus_synthetic_${i}_${i % 11 === 0 ? Math.floor(progress / 35) : 0}`,
+    mrrMinor: (i % 5 === 0 ? 12000 / 12 : 1900 + i % 4 * 1000) + (relative >= -21 && i % 9 === 0 ? 1000 : 0),
+  }));
+  return { version: 1, currency: 'USD', activeSubscriptions: count + 4, trials: 7 + progress % 5,
+    pastDue: 3, canceling: 2 + progress % 3, unmeasuredSubscriptions: 0, customers };
+}
+
+/** Composition reconciles to the existing synthetic net income exactly. */
+export function demoStripeSales(netMinor: number, date: string): SalesBreakdown {
+  const day = Number(date.slice(-2));
+  const refundsMinor = day % 9 === 0 ? 2900 : 0;
+  const feesMinor = Math.max(0, Math.round(netMinor * 0.032) + 120);
+  return { salesMinor: netMinor + refundsMinor + feesMinor, refundsMinor, feesMinor,
+    payments: 3 + day % 5, refunds: refundsMinor > 0 ? 1 : 0 };
+}
+
 export interface DemoPulse { asset: string; date: string; generatedAt: string; capabilities: string[]; metrics: Record<string, { last24h: number; avg7d: number; total: number }>; }
 export interface DemoInput { seed: string; cutoff: string; release: string; timeZone?: string; }
 

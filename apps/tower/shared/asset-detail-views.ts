@@ -48,6 +48,7 @@ interface SectionFields {
   counters: Pick<AssetDetailPayload, "counters">;
   /** Period totals and the 20 most recent ledger rows. */
   ledger: Pick<AssetDetailPayload, "ledger">;
+  stripe: Pick<AssetDetailPayload, "stripeSubscriptions">;
   dailyRevenue: Pick<AssetDetailPayload, "dailyRevenue">;
   decisions: Pick<AssetDetailPayload, "decisions">;
   /** Everything read off one task-hub snapshot, kept together so the inbox,
@@ -70,9 +71,9 @@ export type AssetDetailSection = keyof SectionFields;
 /** Which sections each tab draws. `AssetDetailFor<V>` is derived from this. */
 export const ASSET_VIEW_SECTIONS = {
   overview: ["performance", "executive", "metrics", "counters", "ledger", "dailyRevenue", "decisions", "tasks", "annotations"],
-  growth: ["performance", "executive", "decisions", "tasks", "annotations"],
+  growth: ["stripe", "performance", "executive", "decisions", "tasks", "annotations"],
   journeys: ["journeys"],
-  financials: ["ledger", "dailyRevenue"],
+  financials: ["ledger", "dailyRevenue", "stripe"],
   // `performance`: until a site tracks terms, its Search tab leads with its
   // search clicks and impressions.
   search: ["performance", "executive", "decisions", "tasks", "annotations"],
@@ -98,6 +99,7 @@ export const ASSET_SECTION_FIELDS: { [S in AssetDetailSection]: readonly (keyof 
   counters: ["counters"],
   ledger: ["ledger"],
   dailyRevenue: ["dailyRevenue"],
+  stripe: ["stripeSubscriptions"],
   decisions: ["decisions"],
   tasks: ["handoffBeads", "operator", "panelReview", "latestPanelDate"],
   annotations: ["annotations"],

@@ -587,11 +587,11 @@ machine cannot reach the network, the assets are named on the one
 
 ## Stripe
 
-*Daily subscription revenue. Collector: `workers/ingest/src/stripe.ts`.*
+*Daily cash receipts and subscription growth. Collector: `workers/ingest/src/stripe.ts`.*
 
 Stripe holds an asset's subscription and product sales. NoticeOS reads them
 with one restricted key that can only read: create it on Stripe's **API keys**
-page with **Read** on **Balance** and on **Charges**, and paste it into the
+page with **Read** on **Balance**, **Charges**, and **Subscriptions**. Paste it into the
 **Stripe (subscription revenue)** card on `/integrations`. Connecting checks the
 key with one balance read and lists no assets. Then, on the asset's **Data
 sources** tab, the **Subscription revenue** row's mapping takes the account id
@@ -610,8 +610,46 @@ the `net` of charges and payments less refunds, in minor units. Fees, payouts
 and transfers are not revenue. Each day is one row in the revenue ledger
 (`revenue_observations`, source `stripe`, the account id as `account_ref`), a
 day with no sale included as 0; a day whose figure equals the saved one writes
-nothing. The month's days stand in for the month on the Money page and in each
+nothing. Gross sales, signed refunds net of failed-refund reversals, payment
+fees, payment counts and refund counts are saved with each new daily figure.
+Older net-only days remain without a breakdown until collected again. The month's
+days stand in for the month on the Money page and in each
 asset's daily revenue, as Mediavine's do.
+
+**Subscription growth.** Once per UTC day, the same job reads every page of
+`GET /v1/subscriptions?status=all` and saves an observed subscription snapshot.
+The asset's **Growth** and **Money** tabs show MRR, paid-plan customer counts,
+trials, past-due subscriptions and scheduled cancellations. Fixed licensed
+monthly and annual prices are normalized by quantity and billing interval;
+active and past-due subscriptions count, trials and canceled/unpaid/paused plans
+do not. MRR is a recurring run rate before payment fees, separate from cash
+receipts. Annual cash payments are not annual MRR.
+
+Discounts, metered or tiered pricing, quantity transforms, inclusive or unspecified tax behavior, manual tax rates,
+other currencies, fractional unit prices, daily/weekly billing and truncated
+item lists are unmeasured. If any included subscription is unmeasured, MRR,
+paid-plan customer counts and growth comparisons are unavailable; status counts
+remain visible. These definitions do not replicate configurable Stripe Dashboard
+analytics. Customer IDs are retained for comparisons on the server; browser
+payloads contain only aggregates. Names, emails, payment details and subscription
+metadata are not saved. Requests use a pinned API version and the mapped
+`Stripe-Account` header, so an unauthorized account mapping fails at Stripe.
+
+The 7-, 28- and 90-day comparisons require snapshots at both boundaries (the
+opening observation may be at most one day earlier). They show new and lost
+paid-plan customers, MRR additions/losses, expansion, contraction and net change.
+Opening customer churn is the number of opening paid-plan customers absent at
+the closing observation divided by the opening count. It is unavailable for a
+zero opening count. These are endpoint comparisons: a customer who cancels and
+reactivates between snapshots is not counted as lost. No historical MRR is
+inferred from cash transactions; history starts at the first successful read.
+Reports older than 36 hours are marked overdue. Missing reports remain explicit.
+
+A subscription read failure preserves successful cash collection, records its
+own integration-health failure, and retries on the next scheduled run. An old
+restricted key may need **Subscriptions: Read** added. Cash composition excludes
+payouts, disputes, transfers and separately charged account fees; the figures
+are payment receipts, not recognized revenue, a bank balance or total profit.
 
 **What it does not do.** With no key connected the job records
 `stripe_not_connected` and asks nothing. A key Stripe refuses (HTTP 401 or 403)

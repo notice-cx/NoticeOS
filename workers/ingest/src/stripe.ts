@@ -8,6 +8,8 @@
 // `stripeAccountId`. A day already held is asked for again only when a later
 // day is missing, and a figure equal to the one held writes nothing.
 
+import { subscriptionSnapshot } from './stripe-subscriptions.js';
+import { stripeSnapshotRecord, type SalesBreakdown } from '@noticeos/contract/stripe-report';
 import type { ScheduledRunResult } from '@noticeos/contract';
 import { STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { credentialConnected, recordCredentialOutcome, resolveCredential } from './credentials.js';
@@ -42,9 +44,9 @@ type StripeAnswer =
 
 /** One GET with the key in the Authorization header, never in the URL, so no
  * error message or log line can carry it. */
-async function stripeGet(apiKey: string, path: string, fetchImpl: typeof fetch, timeoutMs = REQUEST_TIMEOUT_MS): Promise<StripeAnswer> {
+async function stripeGet(apiKey: string, path: string, fetchImpl: typeof fetch, timeoutMs = REQUEST_TIMEOUT_MS, account?: string): Promise<StripeAnswer> {
   const response = await fetchImpl(`${API}${path}`, {
-    headers: { authorization: `Bearer ${apiKey}` },
+    headers: { authorization: `Bearer ${apiKey}`, 'Stripe-Version': '2026-10-28.endive', ...(account ? { 'Stripe-Account': account } : {}) },
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (response.status === 401 || response.status === 403) {
@@ -96,14 +98,15 @@ function balanceCurrencies(body: unknown): Set<string> {
   return currencies;
 }
 
-export interface BalanceTransaction { id: string; net: number; currency: string; created: number; type: string }
+export interface BalanceTransaction { id: string; amount: number; fee: number; net: number; currency: string; created: number; type: string }
 
 function balanceTransaction(value: unknown): BalanceTransaction | null {
   if (value === null || typeof value !== 'object') return null;
-  const { id, net, currency, created, type } = value as Record<string, unknown>;
-  if (typeof id !== 'string' || typeof currency !== 'string' || typeof type !== 'string') return null;
+  const { id, amount, fee, net, currency, created, type } = value as Record<string, unknown>;
+  if (typeof id !== 'string' || id === '' || typeof currency !== 'string' || !/^[a-z]{3}$/i.test(currency) || typeof type !== 'string') return null;
+  if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || typeof fee !== 'number' || !Number.isSafeInteger(fee) || amount - fee !== net) return null;
   if (typeof net !== 'number' || !Number.isSafeInteger(net) || typeof created !== 'number' || !Number.isFinite(created)) return null;
-  return { id, net, currency: currency.toUpperCase(), created, type };
+  return { id, amount, fee, net, currency: currency.toUpperCase(), created, type };
 }
 
 // --- days on the source's clock ---------------------------------------------
@@ -156,6 +159,8 @@ export interface StripeOutcome {
   /** Days whose figure was new or changed. */
   written: number;
   errorCode: string | null;
+  subscriptionStatus?: 'collected' | 'failed';
+  subscriptionErrorCode?: string | null;
 }
 
 export interface StripeRunResult extends ScheduledRunResult {
@@ -200,13 +205,14 @@ function failureFrom(answer: Exclude<StripeAnswer, { kind: 'ok' }>): StripeFailu
 }
 
 /** Every balance transaction created in [gte, lt), seconds since the epoch. */
-async function readTransactions(apiKey: string, gte: number, lt: number, fetchImpl: typeof fetch): Promise<BalanceTransaction[]> {
+async function readTransactions(apiKey: string, gte: number, lt: number, fetchImpl: typeof fetch, account: string): Promise<BalanceTransaction[]> {
   const out: BalanceTransaction[] = [];
+  const seen = new Set<string>();
   let after: string | null = null;
   for (let page = 0; page < MAX_PAGES; page++) {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT), 'created[gte]': String(gte), 'created[lt]': String(lt) });
     if (after !== null) query.set('starting_after', after);
-    const answer = await stripeGet(apiKey, `/balance_transactions?${query}`, fetchImpl);
+    const answer = await stripeGet(apiKey, `/balance_transactions?${query}`, fetchImpl, REQUEST_TIMEOUT_MS, account);
     if (answer.kind !== 'ok') throw failureFrom(answer);
     const body = answer.body as { data?: unknown; has_more?: unknown } | null;
     if (!body || !Array.isArray(body.data) || typeof body.has_more !== 'boolean') {
@@ -214,7 +220,10 @@ async function readTransactions(apiKey: string, gte: number, lt: number, fetchIm
     }
     const rows = body.data.map(balanceTransaction);
     if (rows.some((row) => row === null)) throw new StripeFailure('stripe_invalid_response', 'Stripe sent a transaction NoticeOS could not read.');
-    out.push(...(rows as BalanceTransaction[]));
+    for (const row of rows as BalanceTransaction[]) {
+      if (seen.has(row.id)) throw new StripeFailure('stripe_invalid_response', 'Stripe repeated a transaction.');
+      seen.add(row.id); out.push(row);
+    }
     if (!body.has_more) return out;
     after = out.at(-1)?.id ?? null;
     if (after === null) throw new StripeFailure('stripe_invalid_response', 'Stripe sent a list NoticeOS could not read.');
@@ -234,22 +243,62 @@ export function dailyNet(rows: readonly BalanceTransaction[], window: { start: s
   return days;
 }
 
+/** Daily sale composition reconciled to the same transactions as net receipts. */
+export function dailySales(rows: readonly BalanceTransaction[], window: { start: string; end: string }, currency: string, timeZone: string): Map<string, SalesBreakdown> {
+  const days = new Map(dayRange(window.start, window.end).map((day) => [day, { salesMinor: 0, refundsMinor: 0, feesMinor: 0, payments: 0, refunds: 0 }]));
+  for (const row of rows) {
+    if (!REVENUE_TYPES.has(row.type) || row.currency !== currency) continue;
+    const day = days.get(clockAt(row.created * 1000, timeZone).date);
+    if (!day) continue;
+    if (row.type === 'charge' || row.type === 'payment') { day.salesMinor += row.amount; day.payments++; }
+    else { day.refundsMinor -= row.amount; if (row.amount < 0) day.refunds++; }
+    day.feesMinor += row.fee;
+  }
+  return days;
+}
+
+async function readSubscriptions(apiKey: string, fetchImpl: typeof fetch, account: string): Promise<unknown[]> {
+  const rows: unknown[] = [];
+  const seen = new Set<string>();
+  let after: string | null = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const query = new URLSearchParams({ status: 'all', limit: String(PAGE_LIMIT) });
+    if (after !== null) query.set('starting_after', after);
+    const answer = await stripeGet(apiKey, `/subscriptions?${query}`, fetchImpl, REQUEST_TIMEOUT_MS, account);
+    if (answer.kind !== 'ok') throw failureFrom(answer);
+    const body = answer.body as { data?: unknown; has_more?: unknown } | null;
+    if (!body || !Array.isArray(body.data) || typeof body.has_more !== 'boolean') throw new StripeFailure('stripe_invalid_response', 'Stripe sent an unreadable subscription list.');
+    if (body.has_more && body.data.length === 0) throw new StripeFailure('stripe_invalid_response', 'Stripe sent an empty subscription page with more results.');
+    for (const row of body.data) {
+      const id = (row as { id?: unknown } | null)?.id;
+      if (typeof id !== 'string' || !id || seen.has(id)) throw new StripeFailure('stripe_invalid_response', 'Stripe repeated or omitted a subscription id.');
+      seen.add(id); after = id; rows.push(row);
+    }
+    if (!body.has_more) return rows;
+  }
+  throw new StripeFailure('stripe_incomplete_window', 'Too many subscriptions for one report; nothing was saved.');
+}
+
 /** Write each day whose current figure differs, one statement a day, in one
  * transaction, under the `stripe` source. Returns how many days were written. */
-export async function persistStripeDays(env: Pick<IngestEnv, 'STORE'>, target: Target, days: Map<string, number>, currency: string, runId: string, at: string): Promise<number> {
+export async function persistStripeDays(env: Pick<IngestEnv, 'STORE'>, target: Target, days: Map<string, number>, currency: string, runId: string, at: string, breakdowns?: Map<string, SalesBreakdown>): Promise<number> {
   return env.STORE.write(async (tx) => {
     let written = 0;
     for (const [day, amountMinor] of days) {
+      const breakdown = breakdowns?.get(day);
       const rows = await tx.query<{ observation_id: string }>(
         `INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
-                                                    currency, run_ref, recorded_at)
-         SELECT $1::uuid, $2::text, $3::text, $4::text, $5::date, $6::bigint, $7::char(3), $8::text, $9::timestamptz
+                                                    currency, run_ref, recorded_at, sales_minor, refunds_minor, fees_minor, payment_count, refund_count)
+         SELECT $1::uuid, $2::text, $3::text, $4::text, $5::date, $6::bigint, $7::char(3), $8::text, $9::timestamptz, $10::bigint, $11::bigint, $12::bigint, $13::int, $14::int
           WHERE NOT EXISTS (SELECT 1 FROM noticeos.current_revenue
                              WHERE asset_id = $2::text AND source = $3::text AND account_ref = $4::text
                                AND revenue_date = $5::date AND item_ref IS NULL
-                               AND amount_minor = $6::bigint AND currency = $7::char(3))
+                               AND amount_minor = $6::bigint AND currency = $7::char(3)
+                               AND sales_minor IS NOT DISTINCT FROM $10::bigint AND refunds_minor IS NOT DISTINCT FROM $11::bigint
+                               AND fees_minor IS NOT DISTINCT FROM $12::bigint AND payment_count IS NOT DISTINCT FROM $13::int
+                               AND refund_count IS NOT DISTINCT FROM $14::int)
          RETURNING observation_id`,
-        [tx.workspaceId, target.asset, STRIPE_REVENUE_SOURCE, target.account, day, amountMinor, currency, runId, at]);
+        [tx.workspaceId, target.asset, STRIPE_REVENUE_SOURCE, target.account, day, amountMinor, currency, runId, at, breakdown?.salesMinor ?? null, breakdown?.refundsMinor ?? null, breakdown?.feesMinor ?? null, breakdown?.payments ?? null, breakdown?.refunds ?? null]);
       written += rows.length;
     }
     return written;
@@ -305,14 +354,17 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
     const target = targets[0]!;
     const [held] = await env.STORE.read((tx) => tx.query<{ day: string | null }>(
       `SELECT MAX(revenue_date)::text AS day FROM noticeos.current_revenue
-        WHERE asset_id = $1 AND source = $2 AND account_ref = $3`, [target.asset, STRIPE_REVENUE_SOURCE, target.account]));
+        WHERE asset_id = $1 AND source = $2 AND account_ref = $3 AND sales_minor IS NOT NULL`, [target.asset, STRIPE_REVENUE_SOURCE, target.account]));
     const window = stripeWindow(end, held?.day ?? null);
-    if (window === null) return { outcome: 'skipped', detail: 'No Stripe day is due.', connected: true, outcomes: [] };
-    const days = dayRange(window.start, window.end).length;
+    const [lastSnapshot] = await env.STORE.read((tx) => tx.query<{ at: string | null }>(
+      `SELECT MAX(observed_at AT TIME ZONE 'UTC')::date::text AS at FROM noticeos.stripe_subscription_snapshots WHERE asset_id = $1 AND account_ref = $2`, [target.asset, target.account]));
+    const subscriptionsDue = !lastSnapshot?.at || lastSnapshot.at.slice(0, 10) < at.slice(0, 10);
+    if (window === null && !subscriptionsDue) return { outcome: 'skipped', detail: 'No Stripe day is due.', connected: true, outcomes: [] };
+    const days = window ? dayRange(window.start, window.end).length : 0;
     try {
       // Connected, but the stored key could not be opened.
       if (!apiKey) throw new StripeFailure('credential_unavailable', 'The saved Stripe key could not be read.');
-      const balance = await stripeGet(apiKey, '/balance', fetchImpl);
+      const balance = await stripeGet(apiKey, '/balance', fetchImpl, REQUEST_TIMEOUT_MS, target.account);
       if (balance.kind !== 'ok') throw failureFrom(balance);
       keyAnswered = true;
       const currencies = [...balanceCurrencies(balance.body)];
@@ -320,15 +372,37 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
         throw new StripeFailure('stripe_currency_config', 'This Stripe account does not hold exactly one currency; NoticeOS records one.');
       }
       const currency = currencies[0]!;
-      // A day longer on either side, so a day on any clock is read whole; the
-      // days outside the window are dropped by date.
-      const gte = Date.parse(`${window.start}T00:00:00Z`) / 1000 - 86_400;
-      const lt = Date.parse(`${shiftDay(window.end, 1)}T00:00:00Z`) / 1000 + 86_400;
-      const rows = await readTransactions(apiKey, gte, lt, fetchImpl);
+      let written = 0;
       const runId = crypto.randomUUID();
-      const written = await persistStripeDays(env, target, dailyNet(rows, window, currency, clock.timeZone), currency, runId, at);
-      outcomes.push({ asset: target.asset, account: target.account, status: 'collected', days, written, errorCode: null });
-      await observe(target, true, runId);
+      if (window) {
+        const gte = Date.parse(`${window.start}T00:00:00Z`) / 1000 - 86_400;
+        const lt = Date.parse(`${shiftDay(window.end, 1)}T00:00:00Z`) / 1000 + 86_400;
+        const rows = await readTransactions(apiKey, gte, lt, fetchImpl, target.account);
+        written = await persistStripeDays(env, target, dailyNet(rows, window, currency, clock.timeZone), currency, runId, at, dailySales(rows, window, currency, clock.timeZone));
+        await observe(target, true, runId);
+      }
+      const outcome: StripeOutcome = { asset: target.asset, account: target.account, status: 'collected', days, written, errorCode: null };
+      outcomes.push(outcome);
+      if (subscriptionsDue) {
+        let errorCode: string | undefined;
+        try {
+          const rows = await readSubscriptions(apiKey, fetchImpl, target.account);
+          let snapshot: ReturnType<typeof subscriptionSnapshot>;
+          try { snapshot = subscriptionSnapshot(rows, currency); }
+          catch { throw new StripeFailure('stripe_invalid_response', 'Stripe sent an unreadable subscription.'); }
+          await env.STORE.write((tx) => tx.execute(
+            `INSERT INTO noticeos.stripe_subscription_snapshots (workspace_id, asset_id, account_ref, observed_at, snapshot)
+             VALUES ($1::uuid, $2, $3, $4::timestamptz, $5::jsonb)`,
+            [tx.workspaceId, target.asset, target.account, at, JSON.stringify(stripeSnapshotRecord(snapshot, at))]));
+          outcome.subscriptionStatus = 'collected';
+        } catch (error) {
+          const failure = error instanceof StripeFailure ? error : new StripeFailure('request_failed', 'The Stripe subscription report could not be collected.');
+          errorCode = failure.code;
+          outcome.subscriptionStatus = 'failed'; outcome.subscriptionErrorCode = errorCode;
+        }
+        if (!(await observeIntegration(env, health, { capability: 'stripe-subscriptions', asset: target.asset, target: target.account,
+          observedAt: at, attemptId: crypto.randomUUID(), ok: errorCode === undefined, ...(errorCode ? { code: errorCode } : {}) }))) monitoringAvailable = false;
+      }
     } catch (error) {
       const failure = error instanceof StripeFailure ? error : new StripeFailure('request_failed', 'Stripe could not be reached.');
       if (failure.code === 'stripe_http_401' || failure.code === 'stripe_http_403') refused = failure;
@@ -341,14 +415,14 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
   if (resolved.source === 'store' && (refused !== null || keyAnswered)) {
     await recordCredentialOutcome(env, 'stripe', refused !== null ? { ok: false, error: refused.message, at } : { ok: true, at });
   }
-  const collected = outcomes.filter((outcome) => outcome.status === 'collected').length;
+  const collected = outcomes.filter((outcome) => outcome.status === 'collected' && outcome.subscriptionStatus !== 'failed').length;
   const failed = outcomes.length - collected;
   console.log(JSON.stringify({
     event: 'stripe_complete',
     attempted: outcomes.length,
     collected,
     failed,
-    errors: outcomes.filter((outcome) => outcome.status === 'failed').map(({ asset, errorCode }) => ({ asset, errorCode })),
+    errors: outcomes.filter((outcome) => outcome.status === 'failed' || outcome.subscriptionStatus === 'failed').map(({ asset, errorCode, subscriptionErrorCode }) => ({ asset, errorCode: subscriptionErrorCode ?? errorCode })),
   }));
   return {
     outcome: failed > 0 ? 'failed' : 'ran',

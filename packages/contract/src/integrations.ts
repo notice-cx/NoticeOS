@@ -931,7 +931,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         required: true,
         link: { url: 'https://dashboard.stripe.com/apikeys', label: 'Create a key' },
         placeholder: 'rk_live_…',
-        grants: ['Balance: read', 'Charges: read'],
+        grants: ['Balance: read', 'Charges: read', 'Subscriptions: read'],
       },
     ],
   },

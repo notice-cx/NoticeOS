@@ -30,6 +30,7 @@ beforeEach(async () => {
   lanes.ga4 = { ...lanes.ga4, status: 'live', propertyId: PROPERTY };
   lanes.gsc = { ...lanes.gsc, status: 'live', siteUrl: SITE };
   lanes['ad-network'] = { ...lanes['ad-network'], status: 'live', mediavineSiteId: AD_SITE, mediavineEnabled: true };
+  lanes.subscriptions = { ...lanes.subscriptions, status: 'live', stripeAccountId: 'acct_synthetic' };
   lanes.posthog = { ...lanes.posthog, status: 'live', host: 'us', projectId: '70102' };
   await seedConfigDocuments(env, { documents, actor: 'test' });
   // The simulator's own records: a quarter-hour Google refresh and the ad
@@ -38,6 +39,14 @@ beforeEach(async () => {
     await storeSignalRun({ id: `demo-${integration}`, asset: ASSET, integration, credential_ref: 'synthetic-demo',
       property_ref: integration === 'ga4' ? PROPERTY : SITE, finished_at: minutesAgo(10) });
   }
+  await env.STORE.write(async tx => {
+    await tx.execute(`INSERT INTO noticeos.stripe_subscription_snapshots (workspace_id, asset_id, account_ref, observed_at, snapshot)
+      VALUES ($1::uuid, $2, 'acct_synthetic', $3::timestamptz, '{"version":1,"currency":"USD","activeSubscriptions":0,"trials":0,"pastDue":0,"canceling":0,"unmeasuredSubscriptions":0,"customers":[]}')`,
+      [tx.workspaceId, ASSET, minutesAgo(30)]);
+    await tx.execute(`INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor, currency, run_ref, recorded_at)
+      VALUES ($1::uuid, $2, 'stripe', 'acct_synthetic', '2026-09-01', 1000, 'USD', 'synthetic-stripe', $3::timestamptz)`,
+      [tx.workspaceId, ASSET, minutesAgo(30)]);
+  });
   const yesterday = new Date(NOW - 86_400_000).toISOString().slice(0, 10);
   await persistReport(env, ASSET, { site: { id: AD_SITE, title: ASSET, domain: ASSET }, period: { start: yesterday, end: yesterday },
     daily: [{ date: yesterday, revenueMinor: 1234 }], summaryMinor: 1234, dailyMinor: 1234, differenceMinor: 0,
@@ -47,6 +56,13 @@ afterEach(() => { vi.restoreAllMocks(); forgetConfigCache(); });
 
 const demoEnv = async (over: Record<string, unknown> = {}) =>
   ({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo', NOTICEOS_DEMO_WORKSPACE_ID: await env.STORE.workspaceId(), ...over }) as unknown as IngestEnv;
+
+it('preserves the cash-report deadline while allowing the subscription report its daily freshness window', async () => {
+  const health = await readIntegrationHealth(await demoEnv(), NOW + 40 * 3_600_000);
+  const item = (capability: string) => health.items.find(entry => entry.capability === capability && entry.asset === ASSET);
+  expect(item('stripe-revenue')).toMatchObject({ state: 'healthy' });
+  expect(item('stripe-subscriptions')).toMatchObject({ state: 'stale' });
+});
 
 it('the demo workspace shows its data sources connected and syncing, with no login, no key and no fetch', async () => {
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('A demo connection must not fetch'));
@@ -69,7 +85,7 @@ it('the demo workspace shows its data sources connected and syncing, with no log
   // working, with when they last synced; it keeps no report archive.
   const health = await readIntegrationHealth(demo, NOW);
   const item = (capability: string) => health.items.find(entry => entry.capability === capability && entry.asset === ASSET);
-  for (const capability of ['ga4-daily', 'gsc-daily', 'mediavine-revenue']) {
+  for (const capability of ['ga4-daily', 'gsc-daily', 'mediavine-revenue', 'stripe-revenue', 'stripe-subscriptions']) {
     expect(item(capability), capability).toMatchObject({ state: 'healthy' });
     expect(item(capability)?.lastSuccessAt, capability).not.toBeNull();
   }

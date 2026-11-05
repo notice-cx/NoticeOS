@@ -292,6 +292,7 @@ export interface DemoActivityCollection {
     }[];
 }
 export interface DemoActivityDay {
+    referenceDate: string;
     synthetic: true;
     version: 2;
     scenarioHash: string;

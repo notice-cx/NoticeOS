@@ -872,9 +872,15 @@ which rows leave for the analytical store, and when, is its `retention`.
 | `currency` | character(3) | yes | `(currency ~ '^[A-Z]{3}$')` |
 | `run_ref` | text | yes | `(run_ref <> '')` |
 | `recorded_at` | timestamp with time zone | yes |  |
+| `sales_minor` | bigint | no |  |
+| `refunds_minor` | bigint | no |  |
+| `fees_minor` | bigint | no |  |
+| `payment_count` | integer | no |  |
+| `refund_count` | integer | no |  |
 
 - **Keys:** primary (workspace_id, observation_id); unique (workspace_id, observation_number)
 - **Links:** (source) → `noticeos_ref.revenue_sources`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+- **Row checks:** `(((sales_minor IS NULL) AND (refunds_minor IS NULL) AND (fees_minor IS NULL) AND (payment_count IS NULL) AND (refund_count IS NULL)) OR ((sales_minor IS NOT NULL) AND (refunds_minor IS NOT NULL) AND (fees_minor IS NOT NULL) AND (payment_count IS NOT NULL) AND (refund_count IS NOT NULL) AND (sales_minor >= 0) AND (payment_count >= 0) AND (refund_count >= 0) AND (amount_minor = ((sales_minor - refunds_minor) - fees_minor))))`
 - **Triggers:** `number_in_workspace` (before insert)
 
 ## `signal_observations`
@@ -920,6 +926,20 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Links:** (integration) → `noticeos_ref.integrations`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 - **Row checks:** `(((status = 'success') AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'error') AND (error_message IS NOT NULL)))`; `(((data_state = 'final') AND (provisional_from IS NULL)) OR ((data_state = 'includes-provisional') AND (provisional_from IS NOT NULL)))`; `(window_start <= window_end)`; `(finished_at >= started_at)`; `((provisional_from IS NULL) OR (provisional_from <= window_end))`
 - **Triggers:** `history_leaves_only_when_exported` (before delete)
+
+## `stripe_subscription_snapshots`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `snapshot_id` | bigint, identity | yes |  |
+| `asset_id` | text | yes |  |
+| `account_ref` | text | yes | `(account_ref <> '')` |
+| `observed_at` | timestamp with time zone | yes |  |
+| `snapshot` | jsonb | yes | `(jsonb_typeof(snapshot) = 'object')` |
+
+- **Keys:** primary (workspace_id, snapshot_id)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 
 ## `task_daily_counts`
 

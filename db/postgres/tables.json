@@ -52,6 +52,7 @@
       "arrival": "finished_at",
       "arrivalVia": { "table": "signal_runs", "column": "run_seq", "key": "run_seq" }
     },
+    "stripe_subscription_snapshots": { "shape": "history", "arrival": "observed_at" },
     "signal_runs": { "shape": "history", "arrival": "finished_at" },
     "task_daily_counts": { "shape": "cache", "arrival": "day" },
     "task_operation_receipts": { "shape": "state", "arrival": "created_at" },

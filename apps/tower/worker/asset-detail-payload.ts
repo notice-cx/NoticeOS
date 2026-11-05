@@ -1,3 +1,4 @@
+import { loadStripeReport } from './stripe-report';
 import { moneyFigure, minorToMajorUnits, type MinorMoneyFigure } from '@noticeos/contract/money';
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import { savedSearchMarket } from "@noticeos/contract/dataforseo";
@@ -1673,6 +1674,7 @@ async function assembleAssetDetail(
     annTs,
     scheduledLanes,
     dailyRevenue,
+    stripeSubscriptions,
     counterReadings,
     codebase,
   ] = await Promise.all([
@@ -1806,6 +1808,7 @@ async function assembleAssetDetail(
     asset.isOs === 1 ? readLatestJobRuns(store) : null,
     // Ninety days ending yesterday on the site's revenue sources' own clock.
     wants("dailyRevenue") ? loadDailyRevenue(store, id, { now, days: 90, fallback: operatorRevenueClock(osTimeZone) }) : null,
+    wants("stripe") ? loadStripeReport(store, id, integrations.assets?.[id]?.subscriptions?.stripeAccountId, now) : null,
     // The site's all-time totals: read only when the Overview draws them and
     // the register configures any.
     wants("counters") && (counters.assets[id]?.cards?.length ?? 0) > 0
@@ -1998,6 +2001,7 @@ async function assembleAssetDetail(
     flags,
     ...(ledgerRead.slice ? { ledger: ledgerRead.slice } : {}),
     ...(dailyRevenue ? { dailyRevenue } : {}),
+    ...(wants("stripe") ? { stripeSubscriptions } : {}),
     osTimeZone,
     ...(decisions ? { decisions } : {}),
     ...(tasksRead

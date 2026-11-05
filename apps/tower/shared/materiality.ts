@@ -224,6 +224,7 @@ export const ASSET_PAYLOAD_INVENTORY = {
   metrics: { class: "supporting-evidence", placement: "primary-content", destination: "OverviewTab / ProductUse and SourcesTab / PulseMetricsSection" },
   counters: { class: "supporting-evidence", placement: "primary-content", destination: "Overview tab SiteTotals" },
   flags: { class: "material-current", placement: "primary-content", destination: "Overview open-alert count and AlertsTab queues" },
+  stripeSubscriptions: { class: "material-current", placement: "primary-content", destination: "Growth and Money subscription reports" },
   dailyRevenue: { class: "material-current", placement: "first-viewport", destination: "FinancialsTab → DailyRevenuePanel" },
   ledger: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "FinancialsTab → AssetLedger" },
   osTimeZone: { class: "configuration", placement: "derived-only", destination: "FinancialsTab daily revenue window end" },
