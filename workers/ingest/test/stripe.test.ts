@@ -225,6 +225,7 @@ describe('runStripeRevenue', () => {
     expect(result.outcomes[0]).toMatchObject({ status: 'collected', subscriptionStatus: 'failed', subscriptionErrorCode: 'stripe_http_403' });
     expect(await stored()).toHaveLength(35);
     expect(await pgCount('SELECT count(*) AS n FROM noticeos.stripe_subscription_snapshots')).toBe(0);
+    expect((await credentialVerdict('stripe'))?.lastError).toBeNull();
     expect((await storedHealthStates()).find(row => row.capability === 'stripe-subscriptions')).toMatchObject({ outcome: 'failure' });
     const retry = stripe();
     expect((await runStripeRevenue(env, { fetchImpl: retry.fetchImpl, nowMs: NOW + 3_600_000, laneRegister: register() })).outcome).toBe('ran');
@@ -236,7 +237,7 @@ describe('runStripeRevenue', () => {
     await connect();
     const subscriptions = [1, 2, 3].map(index => ({ id: `sub_${index}`, customer: `cus_${index}`, status: 'active',
       metadata: { secret_note: 'provider-private-data' }, items: { has_more: false, data: [{ quantity: 1,
-        price: { currency: 'usd', unit_amount: 1000, billing_scheme: 'per_unit', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' } } }] } }));
+        price: { currency: 'usd', unit_amount: 1000, tax_behavior: 'exclusive', billing_scheme: 'per_unit', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' } } }] } }));
     const mock = stripe({ subscriptions });
     const result = await runStripeRevenue(env, { fetchImpl: mock.fetchImpl, nowMs: NOW, laneRegister: register() });
     expect(result.outcome).toBe('ran');

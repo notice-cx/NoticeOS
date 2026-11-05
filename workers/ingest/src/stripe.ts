@@ -243,6 +243,7 @@ export function dailyNet(rows: readonly BalanceTransaction[], window: { start: s
   return days;
 }
 
+/** Daily sale composition reconciled to the same transactions as net receipts. */
 export function dailySales(rows: readonly BalanceTransaction[], window: { start: string; end: string }, currency: string, timeZone: string): Map<string, SalesBreakdown> {
   const days = new Map(dayRange(window.start, window.end).map((day) => [day, { salesMinor: 0, refundsMinor: 0, feesMinor: 0, payments: 0, refunds: 0 }]));
   for (const row of rows) {
@@ -398,7 +399,6 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
           const failure = error instanceof StripeFailure ? error : new StripeFailure('request_failed', 'The Stripe subscription report could not be collected.');
           errorCode = failure.code;
           outcome.subscriptionStatus = 'failed'; outcome.subscriptionErrorCode = errorCode;
-          if (failure.code === 'stripe_http_401' || failure.code === 'stripe_http_403') refused = failure;
         }
         if (!(await observeIntegration(env, health, { capability: 'stripe-subscriptions', asset: target.asset, target: target.account,
           observedAt: at, attemptId: crypto.randomUUID(), ok: errorCode === undefined, ...(errorCode ? { code: errorCode } : {}) }))) monitoringAvailable = false;
