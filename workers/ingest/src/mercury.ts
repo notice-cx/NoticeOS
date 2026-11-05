@@ -1,3 +1,4 @@
+import type { Transaction } from '@noticeos/postgres';
 import type { ScheduledRunResult } from '@noticeos/contract';
 import { majorToMinorUnits } from '@noticeos/contract/money';
 import { MERCURY_WINDOW_DAYS, type BankAccount, type BankTransaction, type MercurySnapshot } from '@noticeos/contract/banking';
@@ -129,6 +130,20 @@ export async function readMercurySnapshot(token: string, nowMs: number, fetchImp
   return mercurySnapshotSchema.parse({ currency: 'USD', windowStart, windowEnd, accounts, transactions });
 }
 
+/** One revision-guarded append, shared by the collector and private demo simulator. */
+export async function persistMercuryReading(tx: Transaction, connection: { id: string; updatedAt: string }, snapshot: MercurySnapshot, at: string, readingId: string): Promise<number> {
+  const rows = await tx.query<{ reading_id: string }>(
+    `INSERT INTO noticeos.mercury_readings
+       (workspace_id, reading_id, connection_id, connection_updated_at, observed_at, payload)
+     SELECT $1::uuid, $2::uuid, connection_id, updated_at, $5::timestamptz, $6::jsonb
+       FROM noticeos.integration_connections
+      WHERE provider = 'mercury' AND connection_id = $3::uuid AND updated_at = $4::timestamptz
+     ON CONFLICT (workspace_id, reading_id) DO NOTHING
+     RETURNING reading_id`,
+    [tx.workspaceId, readingId, connection.id, connection.updatedAt, at, JSON.stringify(snapshot)]);
+  return rows.length;
+}
+
 /** Both publication and credential verdicts must still match the revision captured before I/O. */
 export async function runMercuryBanking(env: IngestEnv, options: { nowMs?: number; fetchImpl?: typeof fetch } = {}): Promise<ScheduledRunResult> {
   const nowMs = options.nowMs ?? Date.now();
@@ -147,15 +162,9 @@ export async function runMercuryBanking(env: IngestEnv, options: { nowMs?: numbe
     const revision = resolved.revision;
     const snapshot = await readMercurySnapshot(token, nowMs, options.fetchImpl ?? fetch);
     // Replacing or disconnecting the connection during collection invalidates it.
-    const saved = await env.STORE.write(tx => tx.query<{ reading_id: string }>(
-      `INSERT INTO noticeos.mercury_readings
-         (workspace_id, reading_id, connection_id, connection_updated_at, observed_at, payload)
-       SELECT $1::uuid, $2::uuid, connection_id, updated_at, $5::timestamptz, $6::jsonb
-         FROM noticeos.integration_connections
-        WHERE provider = 'mercury' AND connection_id = $3::uuid AND updated_at = $4::timestamptz
-       RETURNING reading_id`,
-      [tx.workspaceId, attemptId, connectionId, revision.updatedAt, at, JSON.stringify(snapshot)]));
-    if (!saved.length) throw new MercuryFailure('credential_changed');
+    const saved = await env.STORE.write(tx => persistMercuryReading(tx,
+      { id: connectionId, updatedAt: revision.updatedAt }, snapshot, at, attemptId));
+    if (!saved) throw new MercuryFailure('credential_changed');
   } catch (error) { code = error instanceof MercuryFailure ? error.code : 'mercury_collection_failed'; }
   const monitored = await observeIntegration(env, health, { capability: MERCURY_CAPABILITY, observedAt: at, attemptId, ok: !code, code });
   // An old attempt must not stamp a replacement credential's verdict.

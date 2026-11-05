@@ -32,6 +32,8 @@ accounts. **Recent bank activity** opens up to 25 transactions created in the
 last 35 days, including pending and reversed statuses. Bank data is independent
 of the selected accounting month and does not add to revenue or costs. Connect
 a Read Only token through **Integrations**; see [Mercury](../11-integrations.md#mercury).
+The synthetic demo seeds operating and tax reserve accounts with 35 days of
+payments and refreshes them hourly without a Mercury token or API request.
 
 Three panels open one at a time underneath:
 

@@ -13,7 +13,8 @@ The demo is the real NoticeOS app with **synthetic data**. Five fictional assets
 
 Visitors can explore Portfolio, Money, Tasks, Workflows, Integrations, Settings and the Wall. They cannot change data, connect a provider or sign up. No analytics provider or calendar feed is called; every number is derived from the scenario. The demo is a public preview, not customer account hosting.
 
-- **Integrations** shows Google (Analytics and Search Console), Bing and the ad network as connected through demo connections. A demo connection stores no login and fetches nothing; its syncs are the collection runs the simulator records, so a failed run shows that source failing until the next one succeeds.
+- **Money** includes synthetic Mercury operating and tax reserve accounts from the first page load. A rolling 35-day bank history includes subscription and ad payouts, bills, transfers, refunds and pending or failed payments. The simulator refreshes the balances and activity hourly. Bank activity stays separate from revenue and costs.
+- **Integrations** shows Google (Analytics and Search Console), Bing, the ad network and Mercury as connected through demo connections. A demo connection stores no login and fetches nothing; its syncs are the collection runs the simulator records, so a failed run shows that source failing until the next one succeeds.
 - **Workflows** shows three workflows, each run once as the demo starts and then every hour, so their runs are there from the first minute.
 
 The demo package runs the compiled app, Postgres and Dolt on a Linux server or VM, including a Proxmox VM, behind an HTTPS reverse proxy you provide. To run your own copy you need:

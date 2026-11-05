@@ -39,6 +39,7 @@ export declare function fillDemo(tx: Transaction, scenario: DemoScenario, { eval
         value: string;
     };
 }): Promise<{
+    bankingReadings: number;
     assets: number;
     daily: number;
     pulses: number;

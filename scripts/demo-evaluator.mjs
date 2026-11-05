@@ -18,6 +18,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     const contract = createRequire(path.join(root, 'packages/contract/package.json'));
     const postgres = createRequire(path.join(root, 'packages/postgres/package.json'));
     const entries = {
+      banking: path.join(root, 'workers/ingest/src/demo-banking.ts'),
       watch: path.join(root, 'workers/ingest/src/watch-windows.ts'),
       snapshots: path.join(root, 'workers/ingest/src/beads-snapshots.ts'),
       configuration: path.join(root, 'workers/ingest/src/config-store.ts'),
@@ -55,6 +56,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     }));
     const artifacts = Object.fromEntries(Object.keys(entries).map(name => [name, digest(readFileSync(path.join(output, `${name}.mjs`)))]));
     inputs['packages/contract/package.json'] = digest(readFileSync(path.join(root, 'packages/contract/package.json')));
+    const banking = await import(pathToFileURL(path.join(output, 'banking.mjs')).href);
     const watch = await import(pathToFileURL(path.join(output, 'watch.mjs')).href);
     const snapshots = await import(pathToFileURL(path.join(output, 'snapshots.mjs')).href);
     const configuration = await import(pathToFileURL(path.join(output, 'configuration.mjs')).href);
@@ -75,7 +77,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     if (typeof reports.runAssetZeroPulse !== 'function' || typeof reports.runFreshnessCheck !== 'function') throw new Error('The released demo OS reporter is absent.');
     if (typeof insights.writeInsightSnapshot !== 'function') throw new Error('The released demo report writer is absent.');
     if (typeof uptime.runUptimeChecks !== 'function' || typeof uptime.runHygieneChecks !== 'function' || typeof uptime.writeReading !== 'function') throw new Error('The released demo asset checks are absent.');
-    return { runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
+    return { writeDemoBanking: banking.writeDemoBanking, runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
       seedConfigDocuments: configuration.seedConfigDocuments, applyConfigOps: configuration.applyConfigOps, getConfigDocuments: configuration.getConfigDocuments,
       writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse, runFreshnessCheck: reports.runFreshnessCheck, writeInsightSnapshot: insights.writeInsightSnapshot, runUptimeChecks: uptime.runUptimeChecks,
       // The nightly site checks and the page-speed reading's writer share the uptime check's module.

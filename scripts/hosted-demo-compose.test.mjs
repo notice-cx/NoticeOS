@@ -111,7 +111,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const make = (over = {}) => {
       const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects,
         store: openStore(), grant: openGrant(), now: () => clock,
-        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, freshness: (store, at) => helpers.runFreshnessCheck({ STORE: store }, Date.parse(at)),
+        writer: { banking: helpers.writeDemoBanking, collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, freshness: (store, at) => helpers.runFreshnessCheck({ STORE: store }, Date.parse(at)),
           notify: (store, at) => helpers.runNotifier({ STORE: store, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, { nowMs: Date.parse(at) }), readbacks: store => helpers.readPendingWatchReadbacks({ STORE: store }),
           stampReadbacks: (store, ids, at) => helpers.markWatchReadbacksPosted({ STORE: store }, [...ids], Date.parse(at)),
           uptime: (store, at, homePages) => helpers.runUptimeChecks({ STORE: store }, { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 }), async snapshot(store, snapshot) {

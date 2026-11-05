@@ -59,12 +59,13 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
         return held.target;
       } });
     const helpers = await buildDemoWorkerHelpers(sourceRoot, { activity: true, configurationRoot });
-    if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
+    if (typeof helpers.writeDemoBanking !== 'function' || typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
       || typeof helpers.writeDemoAdRevenue !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function'
       || typeof helpers.writeDemoOutcomeChecks !== 'function' || typeof helpers.runFreshnessCheck !== 'function'
       || typeof helpers.runUptimeChecks !== 'function' || typeof helpers.runHygieneChecks !== 'function' || typeof helpers.writeReading !== 'function'
       || typeof helpers.runNotifier !== 'function'
       || typeof helpers.readPendingWatchReadbacks !== 'function' || typeof helpers.markWatchReadbacksPosted !== 'function') throw new Error('Released demo input writer absent.');
+    const banking: DemoActivityWriter['banking'] = helpers.writeDemoBanking;
     const write: DemoActivityWriter['write'] = helpers.writeDemoActivity;
     const collect: DemoActivityWriter['collect'] = helpers.writeDemoCollection;
     const revenue: DemoActivityWriter['revenue'] = helpers.writeDemoAdRevenue;
@@ -92,7 +93,7 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
     const readbacks: DemoActivityWriter['readbacks'] = scoped => helpers.readPendingWatchReadbacks(Object.freeze({ STORE: scoped }));
     const stampReadbacks: DemoActivityWriter['stampReadbacks'] = (scoped, ids, at) => helpers.markWatchReadbacksPosted(Object.freeze({ STORE: scoped }), [...ids], Date.parse(at));
     demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, tasks, now,
-      writer: { write, collect, revenue, snapshot, outcomes, freshness, uptime, notify, readbacks, stampReadbacks },
+      writer: { banking, write, collect, revenue, snapshot, outcomes, freshness, uptime, notify, readbacks, stampReadbacks },
       projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
     const opened = demo;
     // The ordinary hosted scheduler owns its own connections and timers; a
