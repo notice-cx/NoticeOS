@@ -80,7 +80,7 @@ describe('saved demo display readers', () => {
   }, 30_000);
 
   it('saves the generated display with released helpers', () => {
-    expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'insights', 'jobs', 'reports', 'snapshots', 'uptime', 'watch']);
+    expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['banking', 'configuration', 'insights', 'jobs', 'reports', 'snapshots', 'uptime', 'watch']);
     expect(display.documents).toEqual(generateDemoDisplay(scenario));
   });
 
