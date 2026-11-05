@@ -7,6 +7,8 @@ import { StatTile } from '@/components/viz/StatTile';
 import { BarStrip } from '@/components/viz/BarStrip';
 import { formatInt, formatMoney, formatTimestamp } from '@/lib/format';
 
+/** Cash uses completed days; recurring growth uses observed subscription state,
+ * so the two reports retain separate dates and totals. */
 export function StripeReport({ report, history, days, nowMs }: {
   report: StripeSubscriptionReport | null | undefined;
   history?: DailyRevenueHistory;

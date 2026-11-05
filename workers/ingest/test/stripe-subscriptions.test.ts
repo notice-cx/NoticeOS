@@ -32,6 +32,17 @@ describe('subscription reporting', () => {
     expect(compareStripe(snapshot, snapshot, '2026-09-01', '2026-09-08')).toBeNull();
   });
 
+  it('does not infer tax-exclusive MRR from unspecified, missing or inclusive tax behavior or manual tax rates', () => {
+    for (const behavior of ['inclusive', 'unspecified', undefined]) {
+      const row = subscription('sub_tax', 'cus_tax', 1000);
+      const price: { tax_behavior?: string } = row.items.data[0]!.price;
+      price.tax_behavior = behavior;
+      expect(summarizeStripe(subscriptionSnapshot([row], 'USD'), '2026-09-01').mrrMinor).toBeNull();
+    }
+    const row = { ...subscription('sub_manual', 'cus_tax', 1000), default_tax_rates: ['txr_synthetic'] };
+    expect(summarizeStripe(subscriptionSnapshot([row], 'USD'), '2026-09-01').mrrMinor).toBeNull();
+  });
+
   it('distinguishes new, lost, expanded and contracted customer MRR without double-counting subscriptions', () => {
     const before = subscriptionSnapshot([subscription('s1', 'a', 1000), subscription('s2', 'b', 2000), subscription('s3', 'c', 3000)], 'USD');
     const after = subscriptionSnapshot([subscription('s1', 'a', 2000), subscription('s2', 'b', 1000), subscription('s4', 'd', 4000)], 'USD');

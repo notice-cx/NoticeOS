@@ -15,6 +15,8 @@ export const stripeSummarySchema = stripeSnapshotSchema.omit({ customers: true, 
     mrrMinor: z.number().finite().nonnegative().nullable(),
     paidCustomers: z.number().int().nonnegative().nullable(),
 });
+/** One unpriced included subscription makes the whole run rate unknown;
+ * the known subset must never appear as a complete customer or MRR total. */
 export function summarizeStripe(snapshot, observedAt) {
     const { customers, version: _version, ...counts } = snapshot;
     const complete = snapshot.unmeasuredSubscriptions === 0 && customers.every((customer) => customer.mrrMinor !== null);

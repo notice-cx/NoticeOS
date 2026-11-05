@@ -45,6 +45,8 @@ export interface SalesBreakdown {
   refunds: number;
 }
 
+/** One unpriced included subscription makes the whole run rate unknown;
+ * the known subset must never appear as a complete customer or MRR total. */
 export function summarizeStripe(snapshot: StripeSnapshot, observedAt: string): StripeSnapshotSummary {
   const { customers, version: _version, ...counts } = snapshot;
   const complete = snapshot.unmeasuredSubscriptions === 0 && customers.every((customer) => customer.mrrMinor !== null);

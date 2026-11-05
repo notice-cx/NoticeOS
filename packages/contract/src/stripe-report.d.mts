@@ -55,6 +55,8 @@ export interface SalesBreakdown {
     payments: number;
     refunds: number;
 }
+/** One unpriced included subscription makes the whole run rate unknown;
+ * the known subset must never appear as a complete customer or MRR total. */
 export declare function summarizeStripe(snapshot: StripeSnapshot, observedAt: string): StripeSnapshotSummary;
 /** Endpoint movements, not a count of intervening cancel/reactivate events. */
 export declare function compareStripe(before: StripeSnapshot, after: StripeSnapshot, from: string, to: string): StripeGrowth | null;

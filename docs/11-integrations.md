@@ -625,7 +625,7 @@ active and past-due subscriptions count, trials and canceled/unpaid/paused plans
 do not. MRR is a recurring run rate before payment fees, separate from cash
 receipts. Annual cash payments are not annual MRR.
 
-Discounts, metered or tiered pricing, quantity transforms, inclusive tax,
+Discounts, metered or tiered pricing, quantity transforms, inclusive or unspecified tax behavior, manual tax rates,
 other currencies, fractional unit prices, daily/weekly billing and truncated
 item lists are unmeasured. If any included subscription is unmeasured, MRR,
 paid-plan customer counts and growth comparisons are unavailable; status counts

@@ -8,15 +8,16 @@ function discounted(value: Record<string, unknown>): boolean {
 }
 
 /** Fixed, licensed monthly/yearly prices only. Unknown pricing is explicit,
- * including discounts, usage, tiers, inclusive tax and quantity transforms. */
+ * including discounts, usage, tiers, unresolved tax and quantity transforms. */
 function monthlyAmount(subscription: Record<string, unknown>, currency: string): number | null {
   const items = record(subscription.items);
-  if (discounted(subscription) || subscription.pause_collection != null || !items || items.has_more !== false || !Array.isArray(items.data) || items.data.length === 0) return null;
+  if (discounted(subscription) || (Array.isArray(subscription.default_tax_rates) && subscription.default_tax_rates.length > 0) || subscription.pause_collection != null || !items || items.has_more !== false || !Array.isArray(items.data) || items.data.length === 0) return null;
   let total = 0;
   for (const raw of items.data) {
     const item = record(raw), price = record(item?.price), recurring = record(price?.recurring);
     if (!item || !price || !recurring || discounted(item) || price.billing_scheme !== 'per_unit'
-      || recurring.usage_type !== 'licensed' || price.transform_quantity != null || price.tax_behavior === 'inclusive'
+      || recurring.usage_type !== 'licensed' || price.transform_quantity != null || price.tax_behavior !== 'exclusive'
+      || (Array.isArray(item.tax_rates) && item.tax_rates.length > 0)
       || typeof price.currency !== 'string' || price.currency.toUpperCase() !== currency) return null;
     const amount = price.unit_amount;
     const quantity = item.quantity;
@@ -31,6 +32,7 @@ function monthlyAmount(subscription: Record<string, unknown>, currency: string):
   return Number.isFinite(total) && total <= Number.MAX_SAFE_INTEGER ? total : null;
 }
 
+/** Reduce complete provider results to status counts and customer run rates. */
 export function subscriptionSnapshot(rows: readonly unknown[], currency: string): StripeSnapshot {
   const customers = new Map<string, number | null>();
   let activeSubscriptions = 0, trials = 0, pastDue = 0, canceling = 0, unmeasuredSubscriptions = 0;
