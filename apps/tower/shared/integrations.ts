@@ -162,6 +162,7 @@ export interface IntegrationsConfigCatalogRow {
 }
 
 export interface IntegrationsConfigCell {
+  stripeAccountId?: string;
   mediavineSiteId?: string;
   mediavineEnabled?: boolean;
   revenueHolidayCalendar?: 'none' | 'US' | 'CA' | 'US,CA';

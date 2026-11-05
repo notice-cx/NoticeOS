@@ -1,3 +1,4 @@
+import { StripeReport } from "./StripeReport";
 import { PurposeSections } from "./purpose-presentation";
 import { useId } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -48,6 +49,7 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
       )}
       {/* The month's figures are the hero's; the panel draws the range. */}
       <DailyRevenuePanel key="daily" history={history} range={days} totals={false} setupHref={`/assets/${encodeURIComponent(data.asset.id)}/sources`} />
+      <StripeReport key="stripe" report={data.stripeSubscriptions} history={history} days={days} nowMs={nowMs} />
       <div key="ledger" id="pnl"><div id="ledger">
         <AssetLedger ledger={data.ledger} ledgerRecordedAt={data.freshness.ledgerRecordedAt} nowMs={nowMs} />
       </div></div>

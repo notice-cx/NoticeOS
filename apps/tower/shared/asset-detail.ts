@@ -1,3 +1,4 @@
+import type { StripeSubscriptionReport } from '@noticeos/contract/stripe-report';
 import type { DailyRevenueHistory } from "./daily-revenue";
 import type { Liveness, SignalVerification } from "./signal-liveness";
 
@@ -1621,6 +1622,7 @@ export interface AssetDetailPayload {
   flags: FlagsSection;
   ledger: LedgerSlice;
   dailyRevenue?: DailyRevenueHistory;
+  stripeSubscriptions?: StripeSubscriptionReport | null;
   /** The operator's clock the Worker read days in: config/constants.json
    * `os_time_zone` as saved. The page's own date math uses this. */
   osTimeZone: string;

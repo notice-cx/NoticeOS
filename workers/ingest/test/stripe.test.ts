@@ -34,20 +34,27 @@ const TRANSACTIONS = [
   { id: 'txn_07c', type: 'charge', net: 4610, currency: 'usd', created: at('2026-09-07T10:00:00Z') },
   // The padded day before the window: read, then dropped by date.
   { id: 'txn_before', type: 'charge', net: 123456, currency: 'usd', created: at('2026-08-04T23:00:00Z') },
-];
+].map((row) => ({ ...row, amount: row.net > 0 ? row.net + 30 : row.net, fee: row.net > 0 ? 30 : 0 }));
 
-interface StripeCall { path: string; params: URLSearchParams; authorization: string | null }
+interface StripeCall { path: string; params: URLSearchParams; authorization: string | null; account: string | null }
 
 /** Stripe, two transactions a page. */
-function stripe(options: { status?: number; currencies?: string[]; transactions?: typeof TRANSACTIONS } = {}) {
+function stripe(options: { status?: number; currencies?: string[]; transactions?: typeof TRANSACTIONS; subscriptions?: unknown[]; subscriptionStatus?: number } = {}) {
   const calls: StripeCall[] = [];
   const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
     const url = new URL(String(input));
     if (url.origin !== 'https://api.stripe.com') throw new Error(`unexpected fetch: ${url.origin}`);
-    calls.push({ path: url.pathname, params: url.searchParams, authorization: new Headers(init?.headers).get('authorization') });
+    calls.push({ path: url.pathname, params: url.searchParams, authorization: new Headers(init?.headers).get('authorization'), account: new Headers(init?.headers).get('stripe-account') });
     if (options.status) return Response.json({ error: { type: 'invalid_request_error', message: 'Invalid API Key provided' } }, { status: options.status });
     if (url.pathname === '/v1/balance') {
       return Response.json({ object: 'balance', available: (options.currencies ?? ['usd']).map((currency) => ({ amount: 100, currency })), pending: [] });
+    }
+    if (url.pathname === '/v1/subscriptions') {
+      if (options.subscriptionStatus) return Response.json({}, { status: options.subscriptionStatus });
+      const all = options.subscriptions ?? [];
+      const after = url.searchParams.get('starting_after');
+      const from = after === null ? 0 : all.findIndex((row) => (row as { id: string }).id === after) + 1;
+      return Response.json({ data: all.slice(from, from + 2), has_more: from + 2 < all.length });
     }
     if (url.pathname === '/v1/balance_transactions') {
       const gte = Number(url.searchParams.get('created[gte]'));
@@ -103,7 +110,7 @@ describe('runStripeRevenue', () => {
     const result = await runStripeRevenue(env, { fetchImpl, nowMs: NOW, laneRegister: register() });
 
     expect(result).toMatchObject({ outcome: 'ran', connected: true });
-    expect(result.outcomes).toEqual([{ asset: ASSET, account: ACCOUNT, status: 'collected', days: STRIPE_WINDOW_DAYS, written: STRIPE_WINDOW_DAYS, errorCode: null }]);
+    expect(result.outcomes).toEqual([{ asset: ASSET, account: ACCOUNT, status: 'collected', days: STRIPE_WINDOW_DAYS, written: STRIPE_WINDOW_DAYS, errorCode: null, subscriptionStatus: 'collected' }]);
     const days = await stored();
     expect(days).toHaveLength(STRIPE_WINDOW_DAYS);
     expect(days[0]).toEqual({ day: '2026-08-05', amount: 0, currency: 'USD', account: ACCOUNT });
@@ -208,6 +215,47 @@ describe('runStripeRevenue', () => {
     const result = await runStripeRevenue(env, { fetchImpl: mixed.fetchImpl, nowMs: NOW, laneRegister: register() });
     expect(result.outcomes.map((outcome) => outcome.errorCode)).toEqual(['stripe_currency_config']);
     expect(await stored()).toEqual([]);
+  });
+
+  it('preserves cash when subscription permission is missing, then retries only subscriptions', async () => {
+    await connect();
+    const first = stripe({ subscriptionStatus: 403 });
+    const result = await runStripeRevenue(env, { fetchImpl: first.fetchImpl, nowMs: NOW, laneRegister: register() });
+    expect(result.outcome).toBe('failed');
+    expect(result.outcomes[0]).toMatchObject({ status: 'collected', subscriptionStatus: 'failed', subscriptionErrorCode: 'stripe_http_403' });
+    expect(await stored()).toHaveLength(35);
+    expect(await pgCount('SELECT count(*) AS n FROM noticeos.stripe_subscription_snapshots')).toBe(0);
+    expect((await storedHealthStates()).find(row => row.capability === 'stripe-subscriptions')).toMatchObject({ outcome: 'failure' });
+    const retry = stripe();
+    expect((await runStripeRevenue(env, { fetchImpl: retry.fetchImpl, nowMs: NOW + 3_600_000, laneRegister: register() })).outcome).toBe('ran');
+    expect(retry.calls.map(call => call.path)).toEqual(['/v1/balance', '/v1/subscriptions']);
+    expect(retry.calls.every(call => call.account === ACCOUNT)).toBe(true);
+  });
+
+  it('retains a reconciled composition, paginates subscriptions, and stores only required subscription facts', async () => {
+    await connect();
+    const subscriptions = [1, 2, 3].map(index => ({ id: `sub_${index}`, customer: `cus_${index}`, status: 'active',
+      metadata: { secret_note: 'provider-private-data' }, items: { has_more: false, data: [{ quantity: 1,
+        price: { currency: 'usd', unit_amount: 1000, billing_scheme: 'per_unit', recurring: { interval: 'month', interval_count: 1, usage_type: 'licensed' } } }] } }));
+    const mock = stripe({ subscriptions });
+    const result = await runStripeRevenue(env, { fetchImpl: mock.fetchImpl, nowMs: NOW, laneRegister: register() });
+    expect(result.outcome).toBe('ran');
+    expect(mock.calls.filter(call => call.path === '/v1/subscriptions')).toHaveLength(2);
+    const [row] = await pgRows<{ sales: string; refunds: string; fees: string; payments: number }>(
+      `SELECT sales_minor::text AS sales, refunds_minor::text AS refunds, fees_minor::text AS fees, payment_count AS payments
+       FROM noticeos.current_revenue WHERE source = 'stripe' AND revenue_date = '2026-09-07'`);
+    expect(row).toEqual({ sales: '5670', refunds: '2000', fees: '60', payments: 2 });
+    const [held] = await pgRows<{ snapshot: string }>('SELECT snapshot::text AS snapshot FROM noticeos.stripe_subscription_snapshots');
+    expect(JSON.parse(held!.snapshot).customers).toHaveLength(3);
+    expect(JSON.stringify(held)).not.toContain('provider-private-data');
+  });
+
+  it('does not store a malformed or duplicated subscription list as a zero report', async () => {
+    await connect();
+    const mock = stripe({ subscriptions: [{ id: 'sub_one', status: 'unknown' }] });
+    const result = await runStripeRevenue(env, { fetchImpl: mock.fetchImpl, nowMs: NOW, laneRegister: register() });
+    expect(result.outcomes[0]).toMatchObject({ status: 'collected', subscriptionErrorCode: 'stripe_invalid_response' });
+    expect(await pgCount('SELECT count(*) AS n FROM noticeos.stripe_subscription_snapshots')).toBe(0);
   });
 
   it('tests a key with one read of the balance', async () => {

@@ -108,8 +108,13 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
   if (plans.length === 0) return new Map();
   const bounds = [plans.map((plan) => plan.asset), plans.map((plan) => plan.window.from), plans.map((plan) => plan.window.to)];
   const { dayRows, throughRows } = await store.read(async (tx) => ({
-    dayRows: await tx.query<{ asset: string; source: string; currency: string; date: string; amountMinor: bigint }>(
-      `SELECT r.asset_id AS asset, r.source, r.currency, r.revenue_date::text AS date, SUM(r.amount_minor)::bigint AS "amountMinor"
+    dayRows: await tx.query<{ asset: string; source: string; currency: string; date: string; amountMinor: bigint; salesMinor: bigint | null; refundsMinor: bigint | null; feesMinor: bigint | null; payments: number | null; refunds: number | null }>(
+      `SELECT r.asset_id AS asset, r.source, r.currency, r.revenue_date::text AS date, SUM(r.amount_minor)::bigint AS "amountMinor",
+              CASE WHEN bool_and(r.sales_minor IS NOT NULL) THEN SUM(r.sales_minor)::bigint END AS "salesMinor",
+              CASE WHEN bool_and(r.sales_minor IS NOT NULL) THEN SUM(r.refunds_minor)::bigint END AS "refundsMinor",
+              CASE WHEN bool_and(r.sales_minor IS NOT NULL) THEN SUM(r.fees_minor)::bigint END AS "feesMinor",
+              CASE WHEN bool_and(r.sales_minor IS NOT NULL) THEN SUM(r.payment_count)::int END AS payments,
+              CASE WHEN bool_and(r.sales_minor IS NOT NULL) THEN SUM(r.refund_count)::int END AS refunds
          FROM noticeos.current_revenue r
          JOIN unnest($1::text[], $2::date[], $3::date[]) AS b(asset_id, from_date, to_date) ON b.asset_id = r.asset_id
         WHERE r.revenue_date BETWEEN b.from_date AND b.to_date
@@ -123,8 +128,10 @@ export async function loadRevenueHistories(store: WorkspaceStore, options: Reven
         GROUP BY r.asset_id, r.source, r.currency`, bounds),
   }));
   const key = (row: { asset: string; source: string; currency: string }) => `${row.asset}\u0000${row.source}\u0000${row.currency}`;
-  const daysOf = new Map<string, RevenueDay[]>();
-  for (const row of dayRows) daysOf.set(key(row), [...(daysOf.get(key(row)) ?? []), { date: row.date, amountMinor: cents(row.amountMinor) }]);
+  const daysOf = new Map<string, RevenueSourceHistory['days']>();
+  for (const row of dayRows) daysOf.set(key(row), [...(daysOf.get(key(row)) ?? []), { date: row.date, amountMinor: cents(row.amountMinor),
+    ...(row.salesMinor === null ? {} : { sales: { salesMinor: cents(row.salesMinor), refundsMinor: cents(row.refundsMinor!),
+      feesMinor: cents(row.feesMinor!), payments: Number(row.payments), refunds: Number(row.refunds) } }) }]);
   const throughOf = new Map(throughRows.map((row) => [key(row), row.through]));
   return new Map(plans.map((plan) => [plan.asset, siteHistory(plan.window, plan.clock, plan.pairs.map((pair): RevenueSourceHistory => ({
     ...catalog.get(pair.source)!, currency: pair.currency, since: pair.since,

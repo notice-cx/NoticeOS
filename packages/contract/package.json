@@ -97,6 +97,10 @@
     "./session-exploration": {
       "types": "./src/session-exploration.d.mts",
       "default": "./src/session-exploration.mjs"
+    },
+    "./stripe-report": {
+      "types": "./src/stripe-report.d.mts",
+      "default": "./src/stripe-report.mjs"
     }
   },
   "scripts": {

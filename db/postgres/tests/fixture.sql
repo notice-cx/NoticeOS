@@ -139,6 +139,9 @@ INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, accou
 VALUES (:'ws', :'site', 'mediavine-journey', 'mv-' || :'slug', '2026-09-02', 600, 'USD', 'mv-run-2',
   '2026-09-03T05:00:00Z');
 
+INSERT INTO noticeos.stripe_subscription_snapshots (workspace_id, asset_id, account_ref, observed_at, snapshot)
+VALUES (:'ws', :'site', 'acct_synthetic', '2026-09-03T05:00:00Z', '{"version":1,"currency":"USD","activeSubscriptions":0,"trials":0,"pastDue":0,"canceling":0,"unmeasuredSubscriptions":0,"customers":[]}');
+
 INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, commit, ref, generated_at, envelope)
 VALUES (:'ws', :'site', '2026-09-02', repeat('0', 40), 'main', '2026-09-02T03:00:00Z',
   '{"asset":"x","measures":{"code_lines":1200}}');

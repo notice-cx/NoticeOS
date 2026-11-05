@@ -16,12 +16,12 @@ const SECTIONS: Record<string, Partial<Record<ViewId, readonly string[]>>> = {
     reliability: ["setup", "sources", "verdict", "numbers", "work", "bets", "lead", "product", "totals", "findings"],
   },
   growth: {
-    revenue: ["product", "journey", "moves", "audience", "search", "panel"],
+    revenue: ["stripe", "product", "journey", "moves", "audience", "search", "panel"],
     delivery: ["journey", "product", "moves", "audience", "search", "panel"],
     reliability: ["journey", "moves", "audience", "search", "product", "panel"],
   },
   financials: {
-    growth: ["daily", "month", "ledger"],
+    growth: ["stripe", "daily", "month", "ledger"],
     delivery: ["month", "ledger", "daily"],
     reliability: ["ledger", "month", "daily"],
   },

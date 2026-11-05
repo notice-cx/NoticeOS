@@ -571,6 +571,14 @@
         "delete": false
       },
       "rule": "Append-only complete bank observations, scoped to the connection and its edit time; never booked as revenue or cost."
+    },
+    "stripe_subscription_snapshots": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only observed subscription state. Reports expose customer aggregates."
     }
   },
   "retention": {

@@ -195,7 +195,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 15);
+  assert.equal(scenario.manifest.scenarioVersion, 16);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],
@@ -555,4 +555,20 @@ test('every codebase rule fires somewhere, open and resolved, with no flag befor
   // The very first report of a site has nothing to compare and holds no 30-day flag.
   const single = demoCodebaseVerdicts(reportsOf('tn').slice(-1), codebaseRules);
   assert.ok(single.every(flag => flag.ruleId !== 'codebase-growth' && flag.ruleId !== 'codebase-complexity'));
+});
+
+
+test('synthetic Stripe history includes growth, churn, annual pricing and refunds with exact cash reconciliation', async () => {
+  const { demoStripeSales, demoStripeSnapshot } = await import('./demo-scenario.mjs');
+  const opening = demoStripeSnapshot('2026-09-18', '2026-10-16');
+  const closing = demoStripeSnapshot('2026-10-16', '2026-10-16');
+  const before = new Set(opening.customers.map(customer => customer.ref));
+  const after = new Set(closing.customers.map(customer => customer.ref));
+  assert.ok([...after].some(ref => !before.has(ref)));
+  assert.ok([...before].some(ref => !after.has(ref)));
+  assert.ok(closing.trials > 0 && closing.pastDue > 0 && closing.canceling > 0);
+  assert.ok(closing.customers.some(customer => customer.mrrMinor === 1000));
+  const day = demoStripeSales(10000, '2026-10-18');
+  assert.equal(day.salesMinor - day.refundsMinor - day.feesMinor, 10000);
+  assert.ok(day.refundsMinor > 0 && day.payments > 0);
 });

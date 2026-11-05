@@ -3315,6 +3315,7 @@ const SECTION_FIELD_SPEC: Record<string, string[]> = {
   counters: ["counters"],
   ledger: ["ledger"],
   dailyRevenue: ["dailyRevenue"],
+  stripe: ["stripeSubscriptions"],
   decisions: ["decisions"],
   tasks: ["handoffBeads", "operator", "panelReview", "latestPanelDate"],
   annotations: ["annotations"],
@@ -3514,10 +3515,9 @@ describe("buildAssetDetailView — one read per tab", () => {
     }
     const overview = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "overview"))! as AssetDetailResponse;
     expect(viewCovers(overview, "search")).toBe(true);
-    expect(viewCovers(overview, "growth")).toBe(true);
-    // A revenue-first site leads with its daily revenue, so everything
-    // Financials draws too.
-    expect(viewCovers(overview, "financials")).toBe(true);
+    expect(viewCovers(overview, "growth")).toBe(false);
+    // Growth and Money also load the subscription report, which Overview does not draw.
+    expect(viewCovers(overview, "financials")).toBe(false);
     expect(viewCovers(overview, "activity")).toBe(false);
   });
 
