@@ -1,4 +1,5 @@
-import { BANK_ACTIVITY_DISPLAY_LIMIT, mercurySnapshotSchema, type BankingPayload } from '@noticeos/contract/banking';
+import { BANK_ACTIVITY_DISPLAY_LIMIT, type BankingPayload } from '@noticeos/contract/banking';
+import { mercurySnapshotSchema } from '@noticeos/contract/banking-schema';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 
 /** A read never contacts Mercury; disconnected and replaced keys expose no old data. */

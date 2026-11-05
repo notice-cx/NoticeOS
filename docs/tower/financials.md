@@ -53,6 +53,7 @@ Revenue is collected (Mediavine ad revenue and Stripe subscriptions, daily) and 
 - **Month to date** marks an open month.
 - **Nothing recorded for** appears for a month the ledger does not hold, with a list of the months it holds.
 - **No money recorded yet** before any money is recorded.
+- **No revenue or costs recorded yet** when a Mercury reading exists and the ledger holds no revenue or cost rows.
 - **Cost — none recorded** means no cost line exists for the month; it is not a zero cost, and the net then shows **revenue only**.
 - **none confirmed yet** means nothing in the month has been matched to a receipt.
 - **none reported** on an asset row means no revenue arrived for that asset this month; it is not $0.

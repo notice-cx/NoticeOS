@@ -61,6 +61,27 @@ it('excludes external accounts and activity from credit or treasury accounts', a
   expect(snapshot.transactions).toHaveLength(1);
 });
 
+it('ignores unsupported fields on excluded account transactions before validation', async () => {
+  const remote = api({ transactions: [bankTransaction(), {
+    id: id(11), accountId: id(3), counterpartyName: null, amount: null,
+  }] });
+  const snapshot = await readMercurySnapshot(key(), NOW, remote.fetchImpl);
+  expect(snapshot.transactions).toHaveLength(1);
+  expect(snapshot.transactions[0]?.id).toBe(id(10));
+});
+
+it('clips whole-day API results to the exact window and includes both boundary instants', async () => {
+  const startMs = Date.parse('2026-10-01T12:00:00Z');
+  const remote = api({ transactions: [
+    { ...bankTransaction(10), createdAt: new Date(startMs - 1).toISOString(), amount: null },
+    { ...bankTransaction(11), createdAt: new Date(startMs).toISOString() },
+    { ...bankTransaction(12), createdAt: new Date(NOW).toISOString() },
+    { ...bankTransaction(13), createdAt: new Date(NOW + 1).toISOString(), counterpartyName: null },
+  ] });
+  const snapshot = await readMercurySnapshot(key(), NOW, remote.fetchImpl);
+  expect(snapshot.transactions.map(row => row.id)).toEqual([id(11), id(12)]);
+});
+
 it('refuses a window that exceeds the page bound instead of presenting partial activity', async () => {
   const remote = api({ transactions: Array.from({ length: 11 }, (_, index) => bankTransaction(index + 10)) });
   await expect(readMercurySnapshot(key(), NOW, remote.fetchImpl)).rejects.toThrow('mercury_incomplete_report');

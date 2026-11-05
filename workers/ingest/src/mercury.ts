@@ -1,6 +1,7 @@
 import type { ScheduledRunResult } from '@noticeos/contract';
 import { majorToMinorUnits } from '@noticeos/contract/money';
-import { MERCURY_WINDOW_DAYS, bankAccountSchema, bankTransactionSchema, mercurySnapshotSchema, type BankAccount, type BankTransaction, type MercurySnapshot } from '@noticeos/contract/banking';
+import { MERCURY_WINDOW_DAYS, type BankAccount, type BankTransaction, type MercurySnapshot } from '@noticeos/contract/banking';
+import { bankAccountSchema, bankTransactionSchema, mercurySnapshotSchema } from '@noticeos/contract/banking-schema';
 import { credentialConnected, recordCredentialOutcome, resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { asRecord } from './shared.js';
@@ -17,6 +18,7 @@ class MercuryFailure extends Error {
 }
 function invalid(): never { throw new MercuryFailure('mercury_invalid_response'); }
 
+/** Keep bearer auth on the fixed API origin and discard private provider error bodies. */
 async function get(token: string, path: string, fetchImpl: typeof fetch, timeoutMs = TIMEOUT_MS): Promise<unknown> {
   let response: Response;
   try {
@@ -74,6 +76,7 @@ export async function checkMercuryKey(token: string, fetchImpl: typeof fetch, ti
   }
 }
 
+/** Bank amounts use the ledger's signed decimal conversion and safe-integer limit. */
 function minor(value: unknown): number {
   if (typeof value !== 'number') invalid();
   const amount = majorToMinorUnits(value, 'USD');
@@ -93,6 +96,7 @@ function account(value: unknown): BankAccount | null {
   return result.data;
 }
 
+/** Retain display fields only; provider routing details and receipts stay out of snapshots. */
 function transaction(value: unknown): BankTransaction {
   const row = asRecord(value);
   if (!row) invalid();
@@ -110,12 +114,22 @@ export async function readMercurySnapshot(token: string, nowMs: number, fetchImp
   const accounts = (await pages(token, 'accounts', new URLSearchParams(), fetchImpl)).map(account).filter((row): row is BankAccount => row !== null);
   const owned = new Set(accounts.map(row => row.id));
   if (accounts.length > 1000) invalid();
+  const startMs = Date.parse(windowStart);
   const transactions = (await pages(token, 'transactions', new URLSearchParams({ start: windowStart, end: windowEnd }), fetchImpl))
-    .map(transaction).filter(row => owned.has(row.accountId));
-  if (transactions.some(row => Date.parse(row.createdAt) < Date.parse(windowStart) || Date.parse(row.createdAt) > nowMs)) invalid();
+    .flatMap(value => {
+      const row = asRecord(value);
+      if (!row || typeof row.accountId !== 'string') invalid();
+      if (!owned.has(row.accountId)) return [];
+      const createdMs = typeof row.createdAt === 'string' ? Date.parse(row.createdAt) : Number.NaN;
+      if (!Number.isFinite(createdMs)) invalid();
+      // Date-only filtering upstream may include the boundary days in full.
+      if (createdMs < startMs || createdMs > nowMs) return [];
+      return [transaction(row)];
+    });
   return mercurySnapshotSchema.parse({ currency: 'USD', windowStart, windowEnd, accounts, transactions });
 }
 
+/** Both publication and credential verdicts must still match the revision captured before I/O. */
 export async function runMercuryBanking(env: IngestEnv, options: { nowMs?: number; fetchImpl?: typeof fetch } = {}): Promise<ScheduledRunResult> {
   const nowMs = options.nowMs ?? Date.now();
   const at = new Date(nowMs).toISOString();

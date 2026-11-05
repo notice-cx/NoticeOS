@@ -642,6 +642,11 @@
       "keep": "400 days",
       "by": "day",
       "beyond": "dropped, as today's sweep does"
+    },
+    "mercury_readings": {
+      "keep": "35 days",
+      "by": "observed_at",
+      "beyond": "dataset mercury_readings; the newest reading of each connection remains in Postgres"
     }
   },
   "maintenance": {

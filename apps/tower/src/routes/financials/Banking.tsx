@@ -6,6 +6,7 @@ import { formatMoney, formatTimestamp } from '@/lib/format';
 
 const amount = (minor: number) => formatMoney(minor / 100, 'USD', { cents: true });
 
+/** Cash remains workspace-wide and current even when the ledger shows a different period. */
 export function Banking({ data }: { data: BankingPayload }) {
   const snapshot = data.snapshot;
   const active = snapshot?.accounts.filter(account => account.status === 'active') ?? [];
@@ -18,8 +19,8 @@ export function Banking({ data }: { data: BankingPayload }) {
         <Link to="/integrations" className="text-sm underline underline-offset-4">Manage connection</Link>
       </div>
       {data.state === 'not-connected' ? <p className="text-sm text-muted-foreground">Connect Mercury to view bank balances and activity.</p>
-        : data.state === 'unavailable' ? <p role="status" className="text-sm text-muted-foreground">Bank data could not be read.</p>
-          : !snapshot ? <p role="status" className="text-sm text-muted-foreground">Waiting for the first bank collection.</p>
+        : data.state === 'unavailable' ? <p role="status" data-status-for="integration:mercury" className="text-sm text-muted-foreground">Bank data could not be read.</p>
+          : !snapshot ? <p role="status" data-status-for="integration:mercury" className="text-sm text-muted-foreground">Waiting for the first bank collection.</p>
             : <>
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <p className="text-2xl font-semibold tabular-nums">{active.length > 0 && safe ? amount(Number(available)) : 'Unavailable'}</p>

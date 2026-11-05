@@ -714,6 +714,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (workspace_id, reading_id)
 - **Links:** (workspace_id) → `workspaces`
+- **Triggers:** `history_leaves_only_when_exported` (before delete); `retain_latest_mercury_reading` (before delete)
 
 ## `notification_outbox`
 

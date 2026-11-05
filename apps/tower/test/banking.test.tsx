@@ -22,4 +22,5 @@ it.each(['awaiting', 'unavailable', 'not-connected'] as const)('shows %s without
   show({ state, observedAt: null, snapshot: null });
   expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Manage connection' })).toHaveAttribute('href', '/integrations');
+  if (state !== 'not-connected') expect(screen.getByRole('status')).toHaveAttribute('data-status-for', 'integration:mercury');
 });

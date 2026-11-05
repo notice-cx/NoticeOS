@@ -1140,8 +1140,15 @@ The balances remain the latest collected values while another accounting
 month is selected; transaction dates are creation dates. This view covers
 recent cash activity rather than complete historical bank statements.
 
-Bank observations are append-only in `mercury_readings`. They never create
-revenue or cost entries, mark revenue reconciled, or allocate payments to an
+Bank observations are append-only for the application in `mercury_readings`.
+Postgres retains 35 days and each connection's newest reading. Older rows may
+leave only after their workspace's analytical export is recorded; the
+maintenance role cannot delete recent, unexported or last-known readings.
+This defines retention eligibility and does not start an automatic export or
+removal job.
+
+Bank observations never create revenue or cost entries, mark revenue reconciled,
+or allocate payments to an
 asset. A Stripe payout or internal transfer therefore cannot duplicate earned
 revenue. Account and routing numbers, addresses, attachments and raw provider
 responses are discarded. Failed refreshes preserve the previous observation
@@ -1149,6 +1156,7 @@ and its collection time; System health records the collection failure.
 Disconnecting or replacing the connection hides its old observations and
 invalidates an in-flight collection.
 
-Existing installations require the operator to apply migration
-`0025_mercury_readings` before collecting bank data. The migration is additive;
-it does not change ledger entries or existing credentials.
+Existing installations require the operator to apply migrations
+`0025_mercury_readings` and `0026_mercury_reading_retention` before collecting
+bank data. These migrations are additive; they do not change ledger entries or
+existing credentials.
