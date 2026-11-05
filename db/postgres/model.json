@@ -563,6 +563,14 @@
         "delete": false
       },
       "rule": "Append-only processed activity reports; successful backfills remain available through failed refreshes."
+    },
+    "mercury_readings": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only complete bank observations, scoped to the connection and its edit time; never booked as revenue or cost."
     }
   },
   "retention": {

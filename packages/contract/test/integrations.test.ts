@@ -59,6 +59,7 @@ function summary(provider: IntegrationProviderId): CredentialSummary {
 describe('INTEGRATION_PROVIDERS', () => {
   it('lists each supported credential and keeps the OAuth prerequisite off its own card', () => {
     expect(INTEGRATION_PROVIDER_IDS).toEqual([
+      'mercury',
       'cloudflare',
       'mediavine',
       'google',
@@ -75,6 +76,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // `google-oauth-app` is a prerequisite the Google card asks for in place,
     // not a provider you connect.
     expect(integrationProviderCards().map((provider) => provider.id)).toEqual([
+      'mercury',
       'cloudflare',
       'mediavine',
       'google',
@@ -232,10 +234,10 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
-    expect(panel.map((provider) => provider.id)).toEqual(['cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
+    expect(panel.map((provider) => provider.id)).toEqual(['mercury', 'cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
     // Discord and the calendar feeds connect the whole installation: no site
     // list follows the answer.
-    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
+    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['mercury', 'cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
     // Clarity connects in the panel too, a token pasted per site: no one key,
     // and no free read to prove it.
     const perSite = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'site-tokens');
@@ -262,7 +264,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
       mediavine: 'sign-in', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
-      calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key', crux: 'key', stripe: 'key',
+      calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key', crux: 'key', stripe: 'key', mercury: 'key',
     });
     // The stored credential's own way in decides where a provider has two:
     // Google on a service-account key is a key, and a sign-in is a sign-in.

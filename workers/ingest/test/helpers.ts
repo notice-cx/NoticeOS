@@ -26,6 +26,7 @@ export async function reset(): Promise<void> {
  * the application role may not remove (the owner does, `emptyTables`).
  */
 const EMPTIED_BEFORE_EACH_TEST = [
+  'mercury_readings',
   'workspace_mutation_audit',
   'counter_readings',
   'realtime_traffic_readings',

@@ -1568,7 +1568,7 @@ export function sourcedCredentialRef(ref: string, source: CredentialSource): str
 export async function recordCredentialOutcome(
   env: IngestEnv,
   providerId: IntegrationProviderId,
-  outcome: { ok: boolean; error?: string | null; at?: string },
+  outcome: { ok: boolean; error?: string | null; at?: string; connection?: { id: string; updatedAt: string } },
 ): Promise<void> {
   const at = outcome.at ?? new Date().toISOString();
   try {
@@ -1578,8 +1578,10 @@ export async function recordCredentialOutcome(
             SET last_used_at = $1::timestamptz,
                 last_ok_at = CASE WHEN $3::boolean THEN $1::timestamptz ELSE last_ok_at END,
                 last_error = CASE WHEN $3::boolean THEN NULL ELSE $4::text END
-          WHERE provider = $2`,
-        [at, providerId, outcome.ok, (outcome.error ?? null)?.slice(0, 500) ?? null],
+          WHERE provider = $2
+            AND ($5::uuid IS NULL OR (connection_id = $5::uuid AND updated_at = $6::timestamptz))`,
+        [at, providerId, outcome.ok, (outcome.error ?? null)?.slice(0, 500) ?? null,
+          outcome.connection?.id ?? null, outcome.connection?.updatedAt ?? null],
       ),
     );
   } catch {

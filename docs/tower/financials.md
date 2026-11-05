@@ -26,6 +26,13 @@ Then:
 - **By asset** — every asset ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the asset's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead**, the shared cost booked to the **System**, is its own row, and **Total net** is the assets' nets less that overhead. On a narrow screen each row shows the asset, its revenue and its net; the other columns are hidden before a name is cut short.
 - **Month by month** — revenue, cost and net for every month to the shown one, the open month marked.
 
+**Mercury · Deposit accounts** shows the latest collected bank balances and their
+collection time, with the available balance summed across active deposit
+accounts. **Recent bank activity** opens up to 25 transactions created in the
+last 35 days, including pending and reversed statuses. Bank data is independent
+of the selected accounting month and does not add to revenue or costs. Connect
+a Read Only token through **Integrations**; see [Mercury](../11-integrations.md#mercury).
+
 Three panels open one at a time underneath:
 
 - **Day by day** — the month's daily revenue to inspect, with partial days outlined and each source's reported days.

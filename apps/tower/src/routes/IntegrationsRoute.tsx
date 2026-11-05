@@ -410,8 +410,9 @@ function IntegrationsAnswer({ cards, items }: { cards: readonly IntegrationProvi
 }
 
 /** The catalog's groups, in the order a founder looks for them. */
-const GROUPS = ["Traffic & search", "Revenue", "Coordination", "Other"] as const;
+const GROUPS = ["Traffic & search", "Revenue", "Banking", "Coordination", "Other"] as const;
 const GROUP_OF: Record<string, (typeof GROUPS)[number]> = {
+  mercury: 'Banking',
   google: "Traffic & search",
   "bing-webmaster": "Traffic & search",
   dataforseo: "Traffic & search",

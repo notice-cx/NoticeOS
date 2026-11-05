@@ -44,6 +44,7 @@ import { runGoogleSignals } from './google-signals.js';
 import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
 import { runCruxVitals } from './crux.js';
 import { runStripeRevenue } from './stripe.js';
+import { runMercuryBanking } from './mercury.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
 import { type PullAssetConfig, runPullAdapter } from './pull.js';
@@ -148,6 +149,7 @@ export interface JobLanes {
  * jobs is that file's; test/crons.test.ts keeps the two naming the same jobs.
  */
 export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
+  mercury: { steps: { banking: (env) => runMercuryBanking(env) }, answeredBy: 'banking' },
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
   stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister }) }, answeredBy: 'subscriptions' },
   // The hourly tick also asks whether each site is up. A site that hangs its

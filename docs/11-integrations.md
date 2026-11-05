@@ -27,6 +27,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **GitHub App** | PR create/read, checks, deploy webhooks, file contents | Act, Sense (deploy annotations) | App private key (the most sensitive credential — doc 06 rotation) | Free | 5k req/hr/installation — ample | Act pauses; Sense keeps running |
 | **Model providers (via AI Gateway)** | builder/verifier/judge inference | Act, Decide sweeps | keys behind the gateway only | Metered per token; **the dominant OS cost** | per-run/day/month caps, velocity breaker (doc 06) | fallback chain → pause Act |
 | **Ad networks** | revenue reporting → shared financial reads | Sense (revenue collection) | Mediavine daily collector; CSV for other providers | Free reporting | provider estimates stay estimated until payment reconciliation | keep saved history; missing reports are not zero |
+| **Mercury** ([below](#mercury)) | deposit-account balances and recent bank activity → Money, separate from revenue and costs | Sense (cash collection) | a Read Only API token connected on `/integrations` | Free | hourly; at most 10 pages of 1,000 rows per endpoint, over the last 35 days | retain the previous complete observation when a page fails or a limit is reached |
 | **Stripe** ([below](#stripe)) | subscription and product revenue: each completed UTC day's net charges and payments less refunds, per asset → shared financial reads | Sense (revenue collection) | one restricted key with Balance and Charges read, connected on `/integrations`; the asset that earns it names the Stripe account on its Data sources tab | Free | one balance read and one page of up to 100 balance transactions per request; a day is asked once, after 01:00 UTC; a first run reads the last 35 days, and a run that would need more than 100 pages saves nothing | keep saved days; a refused key stops the run; a day with no sale is recorded as 0, a day not yet asked is absent |
 | **Affiliate networks** (CJ, Amazon) | commissions, EPC → ledger; **CJ product feed** (GraphQL `ads.api.cj.com`: live prices/sale prices/images/tracked deep links) + link-search promos → placement data | Sense (revenue collection), Act (placement refresh) | CJ: PAT + CID (developer portal); transaction reports filter by SID = per-placement conversion attribution | Free | a CJ feed is best read through a deterministic tool (doc 05): feed → committed catalog with accuracy checks (14-day price staleness ⇒ the card is marked degraded automatically; no promo without a real end date); Amazon reporting is degraded with a 60-day lag | wide intervals; book on payment |
 | **Uptime** | up/down per asset, with when it was last checked | Sense, incident detection | none — no account and no connect step: the ingest GETs each asset's home page itself (`runUptimeChecks`, `workers/ingest/src/hygiene.ts`) on the hourly tick, reusing the nightly served-layer check and its `hygiene_checks` reading | Free | one request per asset per hour; an asset read in the last 30 minutes is skipped | a home page that does not respond twice in a row, 45 seconds apart, raises `hygiene-home-unreachable` at error (one failed try raises nothing and the row shows Up · 1 failed try); when NoticeOS itself cannot reach the network, no asset is marked down (the egress gate) and the row shows Not checked |
@@ -179,6 +180,7 @@ no call.
 | DataForSEO (`dataforseo`) | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD` | `appendix/user_data`; free, and it returns the credit left before the metered collection stops — recorded with the time it was read so the card shows it with its date without any button press; the budget line beside it shows the monthly cap |
 | Calendar feeds (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a test result |
 | Chrome UX Report (`crux`) | `CRUX_API_KEY` | one `records:queryRecord` call on the first asset the daily job reads (a reserved origin before any asset exists, and in the connect panel). Both a record and "no data for this origin" accept the key |
+| Mercury (`mercury`) | `MERCURY_API_TOKEN`, a Read Only API token | one `GET /api/v1/accounts?limit=1&order=asc`; account details are discarded and nothing is changed at Mercury |
 | Stripe (`stripe`) | `STRIPE_API_KEY`, a restricted key | one `GET /v1/balance`: no money moves and nothing is written. A key without the Balance read grant is refused like a wrong key |
 | Discord (`discord`) | `DISCORD_WEBHOOK_URL` — the whole `https://discord.com/api/webhooks/…` address | **posts one labelled message to the channel, and the card shows this before the button is pressed.** Discord does offer a read of the webhook object, but it would test the wrong thing: the catalog row above defines this data source as live when NoticeOS *can deliver a notification* — "not merely that a webhook URL exists" — and a webhook whose channel the operator lost still responds to a read. The url is the credential and never appears in a test result, and Discord's own error body is never shown back |
 
@@ -1107,3 +1109,46 @@ Purpose → consuming stage → auth + storage of creds (doc 06) → cost model 
 budget line → quota/latency/distortions entry (doc 02 table) → behaviour on
 failure (doc 06 table) → Tower setup-state tile → only then may hypothesis
 cards cite it.
+
+## Mercury
+
+*Bank balances and activity. Collector: `workers/ingest/src/mercury.ts`.*
+
+Create a **Read Only** token in Mercury’s **Settings → Tokens**, then connect
+it on the **Mercury (banking)** card on `/integrations`. NoticeOS checks account
+access before storing the token encrypted. The **Test** action repeats this
+read. No asset mapping is required: the connection belongs to the workspace.
+[Mercury’s token guide](https://docs.mercury.com/docs/getting-started) describes
+the available token permissions.
+
+The **Bank balances and activity** job runs at 40 past each hour by default.
+Its schedule can be changed or paused in the connection’s Manage panel.
+The collector reads deposit accounts and transactions created in the last
+35 days through Mercury’s [accounts](https://docs.mercury.com/reference/getaccounts)
+and [transactions](https://docs.mercury.com/reference/listtransactions) endpoints.
+It follows exclusive cursors, stops after ten pages per endpoint, and saves
+nothing if a page is invalid, repeated, unavailable or beyond that bound.
+A complete observation contains at most 1,000 owned deposit accounts and
+10,000 transactions. Each collection re-reads the window so status changes,
+including reversals, appear in the next observation.
+
+The Money page shows the latest collected current and available balances in
+USD, their collection time, and up to 25 recent transactions with explicit
+statuses. Only active owned deposit accounts contribute to available cash.
+External, recipient, Treasury, investment and credit accounts are excluded.
+The balances remain the latest collected values while another accounting
+month is selected; transaction dates are creation dates. This view covers
+recent cash activity rather than complete historical bank statements.
+
+Bank observations are append-only in `mercury_readings`. They never create
+revenue or cost entries, mark revenue reconciled, or allocate payments to an
+asset. A Stripe payout or internal transfer therefore cannot duplicate earned
+revenue. Account and routing numbers, addresses, attachments and raw provider
+responses are discarded. Failed refreshes preserve the previous observation
+and its collection time; System health records the collection failure.
+Disconnecting or replacing the connection hides its old observations and
+invalidates an in-flight collection.
+
+Existing installations require the operator to apply migration
+`0025_mercury_readings` before collecting bank data. The migration is additive;
+it does not change ledger entries or existing credentials.

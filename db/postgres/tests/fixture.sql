@@ -234,4 +234,8 @@ INSERT INTO noticeos.traffic_comparison_reports
   (workspace_id,asset_id,property_ref,comparison_day,time_zone,observed_at,next_attempt_at,error_code)
 VALUES (:'ws', :'site', '1', '2026-09-05', 'UTC', '2026-09-05T12:00:00Z', '2026-09-05T13:00:00Z', 'ga4_comparison_waiting');
 
+INSERT INTO noticeos.mercury_readings
+  (workspace_id, connection_id, connection_updated_at, observed_at, payload)
+VALUES (:'ws', gen_random_uuid(), '2026-09-05T12:00:00Z', '2026-09-05T12:00:00Z', '{}');
+
 COMMIT;

@@ -154,6 +154,7 @@ export interface DomainSchedule {
 }
 
 export interface FinancialsPayload {
+  banking?: import('@noticeos/contract/banking').BankingPayload;
   dailyRevenue?: import('./daily-revenue').PortfolioDailyRevenue;
   generatedAt: string;
   /** The period the asset and cost breakdowns describe — not always the month

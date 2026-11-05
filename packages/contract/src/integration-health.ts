@@ -20,6 +20,10 @@ const monitor = (id: string, label: string, lanes: readonly string[], owner: str
 
 /** Adding a connected provider requires a monitoring decision at compile time. */
 export const INTEGRATION_MONITORS = {
+  mercury: [
+    monitor('mercury-banking', 'Bank balances and activity', [], 'mercury', 'account', 'scheduled', 'live-only', 'Review the Mercury token and bank collection schedule.'),
+    monitor('mercury-test', 'Mercury connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the read-only Mercury token in Integrations.'),
+  ],
   cloudflare: [
     monitor('cloudflare-test', 'D1 account access', [], 'cloudflare-d1-client', 'account', 'event', 'live-only', 'Review the Cloudflare account and D1 token permissions.'),
     monitor('cloudflare-d1-export', 'D1 database backup', [], 'cloudflare-d1', 'property', 'event', 'live-only', 'Review the database selection, export permission and backup failure.'),
