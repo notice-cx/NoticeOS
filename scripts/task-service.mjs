@@ -8,7 +8,7 @@
  * Authored TypeScript: `pnpm generate` writes the `.mjs` the runner imports
  * and the `.d.mts` the Tower's Vite lanes read.
  */
-import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
+import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
 export const TASK_SERVICE_ROUTE = 'api/task-service';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
 const STATUS_TTL_MS = 5_000;
@@ -38,31 +38,26 @@ function row(value) {
 }
 export function createTaskService(options = {}) {
     const door = options.door ?? DEFAULT_DOOR;
-    const token = options.token ?? operatorToken;
+    const token = options.token;
     const fetchImpl = options.fetch ?? globalThis.fetch;
     const now = options.now ?? Date.now;
     let status = null;
     let catalog = null;
     let workspace = null;
+    /** One request to the ingest door, through the one door client that carries the operator bearer. */
     async function door_(method, body) {
-        let response;
+        let reply;
         try {
-            response = await fetchImpl(doorUrl(door, TASK_SERVICE_ROUTE), { method, signal: AbortSignal.timeout(DOOR_TIMEOUT_MS),
-                headers: { authorization: `Bearer ${await token()}`, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
-                ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+            reply = await configStoreRequest(TASK_SERVICE_ROUTE, { door, method, ...(body === undefined ? {} : { body }),
+                ...(token ? { token: await token() } : {}),
+                fetchImpl: (input, init) => fetchImpl(input, { ...init, signal: AbortSignal.timeout(DOOR_TIMEOUT_MS) }) });
         }
         catch {
             throw new TaskServiceUnavailable('ingest');
         }
-        let answer = null;
-        try {
-            answer = row(await response.json());
-        }
-        catch {
-            answer = null;
-        }
-        if (response.status !== 200 || answer === null)
-            throw new TaskServiceUnavailable('ingest', response.status);
+        const answer = row(reply.body);
+        if (reply.status !== 200 || answer === null)
+            throw new TaskServiceUnavailable('ingest', reply.status);
         return answer;
     }
     async function read() {

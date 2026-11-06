@@ -7,7 +7,7 @@
  * Authored TypeScript: `pnpm generate` writes the `.mjs` the runner imports
  * and the `.d.mts` the Tower's Vite lanes read.
  */
-import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
+import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
 
 export const TASK_SERVICE_ROUTE = 'api/task-service';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
@@ -19,7 +19,7 @@ const DOOR_TIMEOUT_MS = 20_000;
 
 export interface TaskServiceOptions {
   readonly door?: string;
-  /** The operator bearer; read from the installation's secrets when absent. */
+  /** The operator bearer; the door client reads it from the installation's secrets when absent. */
   readonly token?: () => Promise<string>;
   readonly fetch?: typeof globalThis.fetch;
   readonly now?: () => number;
@@ -66,23 +66,23 @@ function row(value: unknown): Record<string, unknown> | null {
 
 export function createTaskService(options: TaskServiceOptions = {}): TaskService {
   const door = options.door ?? DEFAULT_DOOR;
-  const token = options.token ?? operatorToken;
+  const token = options.token;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const now = options.now ?? Date.now;
   let status: { at: number; connected: boolean; origin: string | null } | null = null;
   let catalog: { at: number; projects: readonly NtasksProject[] } | null = null;
   let workspace: { at: number; id: string } | null = null;
 
+  /** One request to the ingest door, through the one door client that carries the operator bearer. */
   async function door_(method: 'GET' | 'POST', body?: unknown): Promise<Record<string, unknown>> {
-    let response: Response;
+    let reply: { status: number; body: unknown };
     try {
-      response = await fetchImpl(doorUrl(door, TASK_SERVICE_ROUTE), { method, signal: AbortSignal.timeout(DOOR_TIMEOUT_MS),
-        headers: { authorization: `Bearer ${await token()}`, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      reply = await configStoreRequest(TASK_SERVICE_ROUTE, { door, method, ...(body === undefined ? {} : { body }),
+        ...(token ? { token: await token() } : {}),
+        fetchImpl: (input, init) => fetchImpl(input, { ...init, signal: AbortSignal.timeout(DOOR_TIMEOUT_MS) }) });
     } catch { throw new TaskServiceUnavailable('ingest'); }
-    let answer: Record<string, unknown> | null = null;
-    try { answer = row(await response.json()); } catch { answer = null; }
-    if (response.status !== 200 || answer === null) throw new TaskServiceUnavailable('ingest', response.status);
+    const answer = row(reply.body);
+    if (reply.status !== 200 || answer === null) throw new TaskServiceUnavailable('ingest', reply.status);
     return answer;
   }
   async function read(): Promise<{ connected: boolean; origin: string | null }> {

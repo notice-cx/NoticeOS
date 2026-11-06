@@ -2,7 +2,7 @@
 export declare const TASK_SERVICE_ROUTE = "api/task-service";
 export interface TaskServiceOptions {
     readonly door?: string;
-    /** The operator bearer; read from the installation's secrets when absent. */
+    /** The operator bearer; the door client reads it from the installation's secrets when absent. */
     readonly token?: () => Promise<string>;
     readonly fetch?: typeof globalThis.fetch;
     readonly now?: () => number;
