@@ -20,6 +20,10 @@ const monitor = (id: string, label: string, lanes: readonly string[], owner: str
 
 /** Adding a connected provider requires a monitoring decision at compile time. */
 export const INTEGRATION_MONITORS = {
+  'local-model': [
+    monitor('local-model-discovery', 'Model discovery', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the model address and identifier in Integrations.'),
+    monitor('portfolio-brief', 'Portfolio briefing', [], 'portfolio-brief', 'account', 'scheduled', 'live-only', 'Review the local model and briefing schedule in Integrations.'),
+  ],
   mercury: [
     monitor('mercury-banking', 'Bank balances and activity', [], 'mercury', 'account', 'scheduled', 'live-only', 'Review the Mercury token and bank collection schedule.'),
     monitor('mercury-test', 'Mercury connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the read-only Mercury token in Integrations.'),

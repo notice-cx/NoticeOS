@@ -93,6 +93,7 @@ export const WORKFLOW_GROUPS: { label: string }[] = [
 ];
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
+  { id: 'portfolio-brief', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'Local model', connections: ['local-model'] },
   { id: 'mercury', surface: 'system', label: 'Bank balances and activity', group: 'Business signals', cron: '40 * * * *', source: 'Mercury',
     keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
   { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',

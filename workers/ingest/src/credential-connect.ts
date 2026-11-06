@@ -6,6 +6,7 @@
 // count and dropped, nothing returned or logged carries a credential, and the
 // answer is a verdict plus facts, never the provider's own sentence.
 
+import { assertLocalModelAvailable, checkLocalModel, LocalModelError } from './local-model.js';
 import type {
   ConnectCredentialResult,
   ConnectionFailure,
@@ -54,6 +55,10 @@ export async function connectCredential(
   if (provider === null) {
     return { ok: false, error: 'unknown_provider', provider: String(input.provider) };
   }
+  if (provider.id === 'local-model') {
+    try { assertLocalModelAvailable(env); }
+    catch { return { ok: false, error: 'not_supported', provider: provider.id }; }
+  }
   // A provider whose tokens are pasted per site (Clarity) has no one key to
   // prove; its rows save through `putSiteToken` instead.
   if (provider.connect?.kind !== 'key') {
@@ -81,6 +86,7 @@ export async function connectCredential(
   // under its one lease; every other provider is asked, then stored.
   const answer: CandidateAnswer | Extract<ConnectCredentialResult, { ok: false }> = provider.id === 'mediavine'
     ? await connectMediavine(env, fields, options)
+    : provider.id === 'local-model' ? await askLocalModel(env, fields, options.fetchImpl ?? fetch)
     : await askProvider(provider, fields, options.fetchImpl ?? fetch);
   if ('ok' in answer) return answer;
   const checkedAt = new Date(options.nowMs ?? Date.now()).toISOString();
@@ -119,6 +125,7 @@ export async function askProvider(
   fields: Record<string, string>,
   fetchImpl: typeof fetch,
 ): Promise<CandidateAnswer> {
+  if (provider.id === 'local-model') return { verdict: 'refused' };
   if (provider.id === 'cloudflare') {
     try {
       const databases = await listD1Databases(fields, fetchImpl);
@@ -243,4 +250,9 @@ async function askStripe(fields: Record<string, string>, fetchImpl: typeof fetch
 function withTimeout(fetchImpl: typeof fetch): typeof fetch {
   return ((input: RequestInfo | URL, init?: RequestInit) =>
     fetchImpl(input, { ...init, signal: AbortSignal.timeout(WATCHED_REQUEST_TIMEOUT_MS) })) as typeof fetch;
+}
+
+async function askLocalModel(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
+  try { await checkLocalModel(env, fields, fetchImpl); return { verdict: 'accepted', facts: {} }; }
+  catch (error) { return { verdict: error instanceof LocalModelError && ['access', 'configuration', 'model-missing'].includes(error.code) ? 'refused' : 'unreachable' }; }
 }

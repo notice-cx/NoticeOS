@@ -73,7 +73,9 @@ export interface DailyRevenueSummary {
   timeZoneLabel?: string;
 }
 
-/** Saved provider estimates, in USD minor units. An absent date is not zero. */
+/** Saved provider estimates in source-currency minor units. The aggregate has
+ * no currency or uniform reporting calendar guarantee; inspect `bySource`
+ * before comparing amounts. An absent date is not zero. */
 export interface DailyRevenueHistory {
   from: string;
   to: string;

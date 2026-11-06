@@ -75,6 +75,7 @@ import { type McpIngest, handleMcpRequest, mcpDependencies } from "./mcp-route";
 import { type RuleBacktester, handleRuleBacktestRequest } from "./rule-backtest-route";
 import { type RunnerIngest, handleRunnerRequest } from "./runner-route";
 import { runTowerCron } from "./tower-cron";
+import { handlePortfolioBriefRequest, type PortfolioBriefIngest } from './portfolio-brief-route';
 import { handleTasksRequest, isTasksPath } from "./tasks-route";
 import { type WatchWindowWriter, handleWatchWindowRequest } from "./watch-window-route";
 import {
@@ -105,7 +106,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
    * pattern). Absent only where nothing reads the store — a test driving a
    * route that never does; every unit of work then refuses, naming it. */
   POSTGRES?: StoreBinding;
-  INGEST: AnnotationWriter &
+  INGEST: AnnotationWriter & PortfolioBriefIngest &
     ConfigDocumentReader &
     AssetColumnWriter &
     AssetOrderWriter &
@@ -146,7 +147,7 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
   // The local runner's private lane into the ingest Worker, first and behind
   // a compile-time flag.
   if (__RUNNER_LANE__ && url.pathname.startsWith(RUNNER_PATH_PREFIX)) {
-    return handleRunnerRequest(request, url, env.INGEST, (cron) => runTowerCron(cron, { STORE: env.STORE, INGEST: env.INGEST, config }));
+    return handleRunnerRequest(request, url, env.INGEST, (cron) => runTowerCron(cron, { STORE: env.STORE, INGEST: env.INGEST, config, briefing: { ingest: env.INGEST, config } }));
   }
 
   if (url.pathname === "/api/ga4/realtime" && request.method === "GET") {
@@ -156,6 +157,8 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
   if (url.pathname === "/api/calendar/upcoming") {
     return handleCalendarUpcomingRequest(request, env.INGEST);
   }
+
+  if (url.pathname === '/api/portfolio-brief') return handlePortfolioBriefRequest(request, env.INGEST);
 
   // Save availability and per-document sources come from the configuration
   // store. The local lane answers this path before the Worker; deployed saves
@@ -458,6 +461,10 @@ const towerHandler = {
     }
     if (profile !== 'standalone') {
       const pathname = new URL(request.url).pathname;
+      if (pathname === '/api/portfolio-brief') {
+        if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } });
+        return Response.json({ state: 'unsupported', briefing: null, lastAttemptAt: null, nextAttemptAt: null, error: null, stale: false }, { headers: { 'cache-control': 'no-store' } });
+      }
       if (profile === 'hosted' && pathname === GOOGLE_INTEGRATION_CALLBACK) {
         try { return await handleGoogleOAuthCallbackRequest(request, new URL(request.url), env.INGEST, workspaceEntryOrigin(env)); }
         catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -776,7 +783,8 @@ const towerHandler = {
     if (demoViewer() !== null) return;
     requireStandaloneWorkspace(env);
     await withWorkspaceStore(env.POSTGRES, ctx, (store) =>
-      runTowerCron(controller.cron, { STORE: store, INGEST: env.INGEST, config: towerConfigResolver(env.INGEST, compiledConfig()) }),
+      runTowerCron(controller.cron, { STORE: store, INGEST: env.INGEST, config: towerConfigResolver(env.INGEST, compiledConfig()),
+        briefing: { ingest: env.INGEST, config: towerConfigResolver(env.INGEST, compiledConfig()) } }),
     );
   },
 } satisfies ExportedHandler<Env>;

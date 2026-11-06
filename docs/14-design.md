@@ -398,6 +398,8 @@ column, two from about 768 px of content, twelve from about 1150 px, so a
 narrow window or a portrait monitor gets a layout made for it instead of a
 squeezed desktop one.
 
+**Home's executive briefing** precedes the modules when a saved local-model result is available. It shows one judgement and assessment, then zero to three findings with a reason, next action and evidence links. Model attribution, generation time and data review time are visible; source dates, periods and limitations expand under **Evidence and coverage**. A failed refresh retains the last successful result with its date and a failure label; outdated results are labelled. The read never starts generation or delays the first screen. Without a result Home retains its observed summary; a disconnected model has a small connection link. First-run setup remains separate.
+
 **Home is drawn from modules, in the order the person's view lists them**
 (`HOME_MODULES`, `routes/home/modules.tsx`). Overview shows the combined
 performance, work and decisions summary. Growth starts with visitors by

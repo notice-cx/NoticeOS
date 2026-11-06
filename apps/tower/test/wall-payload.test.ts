@@ -3949,4 +3949,23 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
     // Lifecycle checks collection existence separately from reading report values.
     expect(statements.filter((sql) => sql.includes("codebase_reports") && !sql.includes('AS "hasCollectedData"'))).toHaveLength(1);
   });
+
+  it("keeps findings and their immutable source edition from the same row", async () => {
+    await writeInsightSnapshots(ctx.call, [{
+      ...insight("meadow-first", "meadow.example", "2026-07-04T04:00:00.000Z", {
+        items: [{ key: "first", kind: "insight", title: "First finding" }],
+      }), window_start: "2026-06-20", window_end: "2026-07-02",
+    }]);
+    const first = (await cardsOf()).get("meadow.example")!;
+    await writeInsightSnapshots(ctx.call, [{
+      ...insight("meadow-second", "meadow.example", "2026-07-05T04:00:00.000Z", {
+        items: [{ key: "second", kind: "insight", title: "Second finding" }],
+      }), window_start: "2026-06-21", window_end: "2026-07-03",
+    }]);
+    const second = (await cardsOf()).get("meadow.example")!;
+    expect(first.findings?.[0]?.key).toBe("first");
+    expect(first.insightSource).toEqual({ snapshotId: "meadow-first", generatedAt: "2026-07-04T04:00:00.000Z", windowStart: "2026-06-20", windowEnd: "2026-07-02" });
+    expect(second.findings?.[0]?.key).toBe("second");
+    expect(second.insightSource).toEqual({ snapshotId: "meadow-second", generatedAt: "2026-07-05T04:00:00.000Z", windowStart: "2026-06-21", windowEnd: "2026-07-03" });
+  });
 });

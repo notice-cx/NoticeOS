@@ -1,3 +1,4 @@
+import { assertLocalModelAvailable, checkLocalModel, LocalModelError } from './local-model.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 // Connection tests: one least-privileged call per provider. Apart from the
 // store (credentials.ts) on purpose: every collector imports the resolver, the
@@ -95,6 +96,10 @@ export async function probeCredential(
   if (provider === null) {
     return { ...answer(false, { outcome: 'invalid', failing: [String(providerId)] }), checkedAt };
   }
+  if (provider.id === 'local-model') {
+    try { assertLocalModelAvailable(env); }
+    catch { return { ...answer(false, { outcome: 'not-checked' }), checkedAt }; }
+  }
   const resolved = await resolveCredential(env, provider.id);
   if (resolved.source === 'none') {
     return { ...answer(false, { outcome: 'not-connected', fix: { kind: 'connect' } }), checkedAt };
@@ -177,6 +182,13 @@ async function runProbe(
   fetchImpl: typeof fetch,
   nowMs: number,
 ): Promise<ProbeFound> {
+  if (provider === 'local-model') {
+    try { await checkLocalModel(env, fields, fetchImpl); return { ok: true, result: { outcome: 'answered' } }; }
+    catch (error) { return { ok: false, result: error instanceof LocalModelError && error.code === 'access'
+      ? { outcome: 'refused', fix: { kind: 'replace' } }
+      : error instanceof LocalModelError && error.code === 'model-missing'
+        ? { outcome: 'invalid', failing: ['Model ID'] } : { outcome: 'unreachable' } }; }
+  }
   if (provider === 'cloudflare') {
     try { return { ok: true, result: { outcome: 'answered', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } } }; }
     catch (error) {

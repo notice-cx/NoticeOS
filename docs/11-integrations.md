@@ -42,6 +42,40 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **News/RSS aggregation** | news intake: curated industry + AI-announcement feeds | Scout news intake (collect tier) | RSS | Free | select feeds strictly — every added feed adds noise | remove feeds that no longer publish |
 | **shadcn MCP + skills** | component registry browse/install + guidance on composing components for Tower UI work ([doc 14](14-design.md)) | Act (UI builds) | MCP server | Free | registry-driven — agents assemble registry components instead of writing their own | build from in-repo components only |
 
+## Local model
+
+On **Integrations**, connect **Local model** with the API base URL ending in
+`/v1`, the exact model identifier shown by LM Studio, and an API token when the
+server requires one. The model server must be reachable from the NoticeOS
+application container. Use its private network IP address, or
+`host.docker.internal` when the model runs on the Docker host. `localhost`
+inside that container refers to the container itself. Public model endpoints
+are not supported. This connection is available in standalone installations.
+
+The connection test lists models; it does not prove that a model can generate
+the required structured response. The **Portfolio briefing** workflow runs
+hourly by default. Its schedule is editable in the connection panel and on
+Workflows. Generation attempts are at least fifteen minutes apart. Opening
+Home reads the saved briefing and makes no model request.
+
+The model receives bounded summaries of stored financial observations,
+complete traffic comparisons, aligned revenue comparisons where available,
+open alerts, sampled task progress and data coverage. It receives no
+credentials, task comments or raw provider archives. Each finding includes
+evidence links, its significance and a proposed next action. The model cannot
+execute actions. Completed tasks do not establish business outcomes, and
+the briefing must identify uncertainty rather than invent causes or gains.
+
+Home shows the model name, generation time and data review time. A failed
+refresh retains the last valid briefing with a failure label; without one,
+Home uses its ordinary summary. Disconnecting or replacing the connection
+hides its previous briefing. The replaceable cache is not a permanent archive.
+
+The client uses LM Studio's [OpenAI-compatible chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions)
+and [structured JSON output](https://lmstudio.ai/docs/developer/openai-compat/structured-output).
+Generation has a two-minute timeout. Invalid output, unknown evidence
+references and incomplete responses are rejected.
+
 ## Mediavine revenue
 
 Mediavine ships with NoticeOS as `packages/mediavine`; no separate installation,

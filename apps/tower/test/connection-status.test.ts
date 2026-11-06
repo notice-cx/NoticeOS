@@ -158,6 +158,7 @@ describe("a connection's one status", () => {
     expect(connectionStatus("google", credential(), []).kind).toBe("key-accepted");
     expect(connectionLabel("key-accepted", "sign-in")).toBe("Signed in");
     expect(connectionLabel("key-accepted", "url")).toBe("URL accepted");
+    expect(connectionLabel("key-accepted", "connection")).toBe("Connected");
     expect(connectionLabel("key-accepted")).toBe("Key accepted");
     const pending = item({ state: "never-run", lastAttemptAt: null, lastSuccessAt: null });
     expect(connectionStatus("google", credential(), [pending]).kind).toBe("collecting");

@@ -835,6 +835,7 @@ export async function buildWallPayload(
       codebase: codebaseByAsset.get(a.id) ?? null,
       watches: watchesByAsset.get(a.id) ?? null,
       channels: insightsByAsset.get(a.id)?.channels ?? null,
+      insightSource: insightsByAsset.get(a.id)?.source ?? null,
       // Absent, not empty, until the site has a reading.
       ...(insightsByAsset.has(a.id) ? { findings: insightsByAsset.get(a.id)!.findings } : {}),
     };

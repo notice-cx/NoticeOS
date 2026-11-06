@@ -106,7 +106,8 @@ export interface IntegrationConnect {
   /**
    * What the operator gives, and so what an accepted connection is called:
    * `api-key` ("Key accepted"), `login` or `oauth` ("Signed in"), or `url`, an
-   * address that is itself the secret ("URL accepted"). Required, like
+   * address that is itself the secret ("URL accepted"), or `connection`
+   * ("Connected") for a server whose token may be absent. Required, like
    * `expiry` and `test`: a provider must not inherit "Key accepted" for a
    * login. Read through {@link acceptedAs}.
    */
@@ -124,7 +125,7 @@ export interface IntegrationConnect {
 }
 
 /** What the operator gives a provider to connect it (`IntegrationConnect`). */
-export type ConnectCredential = 'api-key' | 'login' | 'oauth' | 'url';
+export type ConnectCredential = 'api-key' | 'login' | 'oauth' | 'url' | 'connection';
 
 /**
  * What an accepted connection is called, derived once for the connect panel,
@@ -132,12 +133,13 @@ export type ConnectCredential = 'api-key' | 'login' | 'oauth' | 'url';
  * credential's own way in decides where a provider offers two; otherwise the
  * provider's declared credential does.
  */
-export type AcceptedAs = 'key' | 'sign-in' | 'url';
+export type AcceptedAs = 'key' | 'sign-in' | 'url' | 'connection';
 
 export function acceptedAs(
   provider: { connect?: Pick<IntegrationConnect, 'credential'> },
   auth: CredentialAuthKind | null = null,
 ): AcceptedAs {
+  if (provider.connect?.credential === 'connection') return 'connection';
   if (auth === 'oauth') return 'sign-in';
   if (auth !== null) return 'key';
   const credential = provider.connect?.credential ?? 'api-key';
@@ -451,6 +453,8 @@ export interface IntegrationField {
   /** What a value looks like, shown in the empty input — the format, never an
    * instruction ("….apps.googleusercontent.com"). */
   placeholder?: string;
+  /** Material setup or data-sharing information for the connection decision. */
+  description?: string;
   /** The access the value must carry, one short label each ("Query: read"),
    * drawn as chips beside the field. */
   grants?: readonly string[];
@@ -518,6 +522,7 @@ export interface IntegrationProvider {
 
 /** The providers whose credentials the product can hold. */
 export type IntegrationProviderId =
+  | 'local-model'
   | 'google'
   | 'google-oauth-app'
   | 'bing-webmaster'
@@ -533,6 +538,18 @@ export type IntegrationProviderId =
   | 'mercury';
 
 export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
+  {
+    id: 'local-model', label: 'Local model', scope: 'shared', lanes: [],
+    docRef: 'docs/11-integrations.md#local-model',
+    expiry: { known: 'operator' }, test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'connection', sites: false },
+    fields: [
+      { name: 'LOCAL_MODEL_BASE_URL', label: 'API base URL', kind: 'url', secret: false, required: true, placeholder: 'http://host.docker.internal:1234/v1',
+        description: 'Use a local server address reachable from NoticeOS. This server receives stored portfolio and task summaries.' },
+      { name: 'LOCAL_MODEL_ID', label: 'Model ID', kind: 'text', secret: false, required: true },
+      { name: 'LOCAL_MODEL_API_TOKEN', label: 'API token', kind: 'password', secret: true, required: false },
+    ],
+  },
   {
     id: 'mercury', label: 'Mercury (banking)', scope: 'shared', lanes: [],
     docRef: 'docs/11-integrations.md#mercury',

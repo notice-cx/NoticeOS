@@ -59,6 +59,7 @@ function summary(provider: IntegrationProviderId): CredentialSummary {
 describe('INTEGRATION_PROVIDERS', () => {
   it('lists each supported credential and keeps the OAuth prerequisite off its own card', () => {
     expect(INTEGRATION_PROVIDER_IDS).toEqual([
+      'local-model',
       'mercury',
       'cloudflare',
       'mediavine',
@@ -76,6 +77,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // `google-oauth-app` is a prerequisite the Google card asks for in place,
     // not a provider you connect.
     expect(integrationProviderCards().map((provider) => provider.id)).toEqual([
+      'local-model',
       'mercury',
       'cloudflare',
       'mediavine',
@@ -135,8 +137,9 @@ describe('INTEGRATION_PROVIDERS', () => {
 
   it('marks every secret field as one a form must mask', () => {
     // Managed connection metadata never renders a credential form control.
-    // The one deliberate exception is the DataForSEO API login: it identifies
-    // the account rather than authenticating it, and a masked field an operator
+    // The server address and model ID identify the local inference target.
+    // The DataForSEO API login identifies the account rather than authenticating
+    // it, and a masked field an operator
     // cannot proof-read is a support ticket.
     const clear = INTEGRATION_PROVIDERS.flatMap((provider) =>
       provider.fields.filter((field) => !field.secret && !field.managed).map((field) => field.name),
@@ -145,7 +148,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // every browser that starts a sign-in, and an operator who cannot
     // proof-read it against the console cannot see a mismatch that produces
     // `invalid_client`.
-    expect(clear).toEqual(['CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
+    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
@@ -234,10 +237,9 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
-    expect(panel.map((provider) => provider.id)).toEqual(['mercury', 'cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
-    // Discord and the calendar feeds connect the whole installation: no site
-    // list follows the answer.
-    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['mercury', 'cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
+    expect(panel.map((provider) => provider.id)).toEqual(['local-model', 'mercury', 'cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
+    // Installation-wide connections have no site list after discovery.
+    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['local-model', 'mercury', 'cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
     // Clarity connects in the panel too, a token pasted per site: no one key,
     // and no free read to prove it.
     const perSite = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'site-tokens');
@@ -252,9 +254,9 @@ describe('INTEGRATION_PROVIDERS', () => {
       // Every field the panel asks for is typed; a `managed` one is never on
       // the form, and at least one field always is.
       expect(provider.fields.some((field) => field.managed !== true)).toBe(true);
-      // The first field says where the provider issues it, as the panel's link
-      // — except a sign-in (Mediavine): an email and password nothing issues.
+      // Operator-selected server addresses and account logins need no issuance link.
       if (provider.id === 'mediavine') expect(provider.fields.map((field) => field.kind)).toEqual(['text', 'password']);
+      else if (provider.id === 'local-model') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'text', 'password']);
       else expect(provider.fields[0]!.link?.url.startsWith('https://')).toBe(true);
     }
   });
@@ -263,6 +265,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     const named = Object.fromEntries(INTEGRATION_PROVIDERS.filter((provider) => provider.connect)
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
+      'local-model': 'connection',
       mediavine: 'sign-in', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
       calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key', crux: 'key', stripe: 'key', mercury: 'key',
     });

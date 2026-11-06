@@ -112,6 +112,7 @@ const UPTIME_LABELS: Partial<Record<ConnectionKind, string>> = { working: "Up", 
 /** An accepted connection, in the words of what the operator gave it
  * (`acceptedAs` in the contract decides which). */
 export const ACCEPTED_LABELS: Record<AcceptedAs, string> = {
+  connection: "Connected",
   key: "Key accepted",
   "sign-in": "Signed in",
   url: "URL accepted",

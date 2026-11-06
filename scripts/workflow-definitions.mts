@@ -10,6 +10,7 @@ export interface WorkflowDefinition extends ScheduledJob { version: number; trig
 
 const action = (id: string, label: string, description: string, kind: WorkflowStepKind = 'task', after: string[] = ['config']): WorkflowStepDefinition => ({ id, label, description, kind, after });
 const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
+  'portfolio-brief': [action('portfolio-brief', 'Refresh portfolio briefing', 'Compares saved portfolio and task evidence and generates cited guidance with the connected local model.')],
   mercury: [action('banking', 'Collect bank balances and activity', 'Records deposit balances and recent bank transactions separately from revenue and cost.', 'collection')],
   mediavine: [action('revenue', 'Collect ad revenue', 'Checks the collection window and records revenue when due.', 'collection')],
   stripe: [action('subscriptions', 'Collect subscription revenue', 'Records each completed day’s Stripe sales less refunds for the asset that names the account.', 'collection')],

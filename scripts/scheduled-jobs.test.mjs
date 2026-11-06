@@ -39,10 +39,12 @@ test('every step a scheduled tick runs is a stage its workflow shows', async () 
   // The Tower's own steps of a tick
   // are held to the same rule; tower-cron.ts names each one `step("<id>", …)`.
   const tower = await readFile(new URL('../apps/tower/worker/tower-cron.ts', import.meta.url), 'utf8');
-  const towerSteps = [...tower.matchAll(/\bstep\("([a-z0-9-]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(towerSteps, ['connection-counts', 'source-history']);
-  const hourly = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === 'freshness');
-  for (const id of towerSteps) assert.ok(hourly.stages.some((stage) => stage.id === id), `Tower step "${id}" has no stage on the hourly job`);
+  const towerSteps = [...tower.matchAll(/\bstep\(["']([a-z0-9-]+)["']/g)].map((match) => match[1]);
+  assert.deepEqual(towerSteps, ['portfolio-brief', 'connection-counts', 'source-history']);
+  for (const id of towerSteps) {
+    const workflow = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === (id === 'portfolio-brief' ? 'portfolio-brief' : 'freshness'));
+    assert.ok(workflow.stages.some((stage) => stage.id === id), `Tower step "${id}" has no workflow stage`);
+  }
 });
 
 test('retired unpublished-commit settings do not block or register any scheduled work', async () => {

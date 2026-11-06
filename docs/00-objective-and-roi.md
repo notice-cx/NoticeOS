@@ -59,9 +59,8 @@ Monthly net P&L is neither quantity; the Tower labels it **Net P&L**, not ROI.
   $50/mo of email/direct/subscription revenue, and the scoring function accounts
   for that difference ([doc 04](04-decision-policy.md)).
 - **Fully-loaded system cost**:
-  - agent inference (tokens per proposal/build/verify run, metered per change —
-    *not yet: nothing in the OS calls a model, so this is recorded as an
-    imported monthly cost row, see principle 5*),
+  - agent inference (recorded as imported monthly cost rows, not metered per
+    change; local briefing computation is unmetered — see principle 5),
   - external API spend (SEO data, search-console quotas),
   - infrastructure (negligible today; still on the ledger),
   - **operator minutes, priced explicitly** (config: `OPERATOR_RATE`,
@@ -134,15 +133,15 @@ built.
    cost-per-shipped-retained-improvement is a primary Tower metric
    ([doc 06](06-operations.md)); an optimizer that costs more than it returns
    shows a loss in its own ledger.
-   **State:** it does not meter its own inference cost per run. No
-   process in this repo calls a model — the analyzer is rule-based and every
-   model call happens in an agent session billed outside the OS — so
-   inference enters the ledger as monthly `inference` cost rows a person
+   **State:** it does not meter inference cost per run. Home briefings use an
+   operator-connected local model; local computing costs are not measured.
+   Agent sessions are billed outside the OS, so their inference enters the
+   ledger as monthly `inference` cost rows a person
    imports from the provider's usage export with `pnpm cost:import-inference`
    ([guide](guides/record-revenue-and-costs.md#import-inference-costs)), never
    metered per run. There is no monthly inference
-   cap for the same reason; this rule takes effect again from the day the OS
-   makes a model call of its own. The data plane already works this way and
+   spending cap. Metered model calls and automated execution require the
+   controls in doc 06 before enablement. Data collection already
    keeps its fail-closed cap.
 
 ## Near-term ROI opportunities, in ledger terms

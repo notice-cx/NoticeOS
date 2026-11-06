@@ -12,6 +12,10 @@ Home shows how the business is doing, what is broken, and what needs your attent
 
 ## What you see
 
+**Executive briefing.** When a local model is connected, Home shows its saved judgement above the figures, followed by up to three findings. Each finding includes why it matters, a next action and links to the recorded evidence. A briefing can contain no findings. The model name, generation time and data review time are visible. Expand **Evidence and coverage** for source dates, reporting periods and limitations. Home reads the saved briefing without starting a model request or waiting for one.
+
+If a refresh fails, Home retains the last successful briefing with its original date and a failure label. An outdated briefing is labelled. Before a briefing is available, Home shows the summary below; a disconnected model has a **Connect a local model** link to Integrations. First-run setup remains unchanged.
+
 **The summary.** A small grey line shows the greeting, the window since 6 PM yesterday and how many things changed in it. Under it, one sentence sums up the page, such as **October is projected at $1,020, 9% under September. 2 things are broken.**
 
 In the **Reliability** view, the sentence starts with the assets' health once at least one asset is measured: **All 3 assets are fine.**, or **2 of 3 assets are fine.** followed by the asset that most needs a look and its first problem, such as **Example Shop: the home page did not load.** That part is red when an asset is down and amber when an asset is worth a look. The count of broken things is shown only when there is at least one.

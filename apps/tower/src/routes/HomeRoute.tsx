@@ -34,6 +34,8 @@ import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { useConnections } from "@/hooks/useConnections";
 import { useFirstDraw } from "@/hooks/useFirstDraw";
 import { useNow } from "@/hooks/useNow";
+import { usePortfolioBrief } from '@/hooks/usePortfolioBrief';
+import { ExecutiveBrief } from '@/routes/home/ExecutiveBrief';
 import { useWall } from "@/hooks/useWall";
 import { useWallFeed } from "@/hooks/useWallFeed";
 import { useTasksLive } from "@/hooks/useTasks";
@@ -119,6 +121,7 @@ const DAY_MS = 86_400_000;
 
 function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
   const { modules, view } = useView();
+  const brief = usePortfolioBrief();
   // A task draft belongs to Home, so changing its purpose keeps the form open.
   const [taskDraft, setTaskDraft] = useState<TaskComposerPrefill | null>(null);
   const location = useLocation();
@@ -219,7 +222,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     // monitor or a narrow window all leave Home less than the viewport, and
     // the twelve columns need room to be twelve.
     <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
-      <Answer
+      <ExecutiveBrief read={brief.data} readFailed={brief.isError} fallback={<Answer
         money={money}
         issues={issues}
         since={since}
@@ -228,7 +231,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         purpose={view.id}
         lead={purposeWords(view.id, listed, issues, work.data ?? null, nowMs)}
         wordLevel={view.wordLevel}
-      />
+      />} />
       <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
       {taskDraft ? <TaskComposer open prefill={taskDraft} onClose={() => setTaskDraft(null)} /> : null}
     </div>

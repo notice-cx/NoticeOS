@@ -20,7 +20,7 @@ const INGEST_JOBS = SCHEDULED_JOBS.filter((job) => !job.local);
 
 /** The Tower's steps of the hourly tick (apps/tower/worker/tower-cron.ts): in
  * the job's workflow definition, run by the Tower after the ingest's. */
-const TOWER_STEPS = new Set(['connection-counts', 'source-history']);
+const TOWER_STEPS = new Set(['connection-counts', 'source-history', 'portfolio-brief']);
 
 describe('cron parity', () => {
   it('registers in wrangler.jsonc exactly the dispatch keys of the jobs the ingest runs', () => {

@@ -49,6 +49,7 @@ export function providerName(provider: Pick<IntegrationProvider, "label">): stri
  * issues two values. Null for a provider nothing is typed for.
  */
 export function secretNoun(provider: Pick<IntegrationProvider, "fields"> & Partial<Pick<IntegrationProvider, "connect">>): string | null {
+  if (provider.connect?.credential === 'connection') return 'connection';
   const typed = provider.fields.filter((field) => field.managed !== true);
   if (typed.length === 0) return null;
   const secrets = typed.filter((field) => field.secret);

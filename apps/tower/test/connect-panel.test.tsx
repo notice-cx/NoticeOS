@@ -147,6 +147,21 @@ describe("the connect panel", () => {
     expect(within(dialog).getByRole("button", { name: "Done" })).toHaveFocus();
   });
 
+  it("shows Connected after model discovery without requiring an API token", async () => {
+    const onConnect = vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: {} }) as ConnectVerdict);
+    renderPanel(integrationProvider("local-model")!, onConnect);
+    const dialog = screen.getByRole("dialog", { name: "Local model" });
+    expect(within(dialog).getByLabelText("API base URL")).toHaveAccessibleDescription("Use a local server address reachable from NoticeOS. This server receives stored portfolio and task summaries.");
+    fireEvent.change(within(dialog).getByLabelText("API base URL"), { target: { value: "http://127.0.0.1:1234/v1" } });
+    fireEvent.change(within(dialog).getByLabelText("Model ID"), { target: { value: "synthetic-model" } });
+    expect(within(dialog).getByLabelText("API token")).not.toBeRequired();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }));
+    expect(await within(dialog).findByText("Connected")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Key accepted")).toBeNull();
+    expect(within(dialog).queryByText("Working")).toBeNull();
+    expect(onConnect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "http://127.0.0.1:1234/v1", LOCAL_MODEL_ID: "synthetic-model" });
+  });
+
   it("shows DataForSEO's credit, and nothing where the account stated none", async () => {
     const onConnect = vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: { creditUsd: "18.72" } }) as ConnectVerdict);
     renderPanel(DATAFORSEO, onConnect);
