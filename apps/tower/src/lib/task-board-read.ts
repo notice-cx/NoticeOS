@@ -65,6 +65,9 @@ export interface BoardProject {
   /** The live read answered with an error for this project: shown, never
    * swallowed. */
   laneError: string | null;
+  /** Why this project's rows are the copy the task service last gave, kept on
+   * this machine; its `readAt` is when that copy was read. */
+  cached?: string | null;
   stats: ProjectStats;
   /** Epic id → title, for the row that expands. An epic is grouping rather than
    * claimable work, so it is never a row of its own. */
@@ -454,7 +457,9 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
     // actions, instead of redrawing the project from the older snapshot.
     const payload = mismatched ? null : query?.data ?? null;
     const read = buildProject(project, payload, laneError, snapshot?.capturedAt ?? null);
-    return capabilities.writable === false || laneError !== null ? { ...read, actionable: false } : read;
+    // A kept copy is shown, not acted on: nothing could reach the task service.
+    const cached = payload?.cached?.reason ?? null;
+    return capabilities.writable === false || laneError !== null || cached !== null ? { ...read, actionable: false, cached } : read;
   });
   const projects = availableProjects.filter(project => projectFilter === "all" || project.asset === projectFilter);
   const allTasks = projects.flatMap(project => project.tasks);
@@ -519,6 +524,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
     projectCounts: new Map(availableProjects.map(project => [project.asset, project.tasks.filter(isWork).length])),
     byId: new Map(projects.map(project => [project.asset, project])),
     broken: projects.filter(project => !project.ok || project.laneError !== null),
+    cachedProjects: projects.filter(project => project.cached),
     closedHistoryState: complete ? "complete" as const : pendingProjects.length > 0 ? "loading" as const : "sample" as const,
     gates: inbox.filter(row => isGate(row.task)).length,
   };

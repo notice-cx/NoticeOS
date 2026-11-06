@@ -115,6 +115,18 @@ export interface LiveTasksPayload {
   cached?: TaskReadCached;
 }
 
+/** GET /api/tasks/service: whether this installation's tasks live in Ntasks,
+ * and the Ntasks project each saved task project maps to (by its prefix).
+ * `connected` is null when the installation's ingest cannot say. */
+export interface TaskServiceStatus {
+  connected: boolean | null;
+  origin: string | null;
+  projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string } | null }[] | null;
+  /** Why `projects` is null while connected. */
+  reason?: string;
+}
+export const TASK_SERVICE_STATUS_PATH = "/api/tasks/service";
+
 /** A task read answered from the copy kept on this machine (vite/task-service-lane.ts). */
 export interface TaskReadCached {
   reason: string;

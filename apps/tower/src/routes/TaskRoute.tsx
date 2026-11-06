@@ -37,7 +37,7 @@ import {
   type LiveTasksPayload,
 } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
-import { PRIORITY_BANDS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { PRIORITY_BANDS, WORK_POLL_CADENCE_HOURS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { FactChip, factChipClass, type FactChoice } from "@/components/FactChip";
@@ -49,6 +49,7 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { STATE_TONE } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
+import { AgeBadge } from "@/components/AgeBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
@@ -253,8 +254,10 @@ export function TaskRoute() {
   const notFound = detail.error instanceof ApiError && detail.error.status === 404;
   const laneError = live && detail.error !== null && !notFound;
 
+  // A kept copy is shown, not acted on: the task service did not answer.
+  const pageWritable = writable && detail.data?.cached === undefined;
   return (
-    <TaskWritePermission.Provider value={writable}>
+    <TaskWritePermission.Provider value={pageWritable}>
     <TaskActors.Provider value={actors}>
     <TaskDraftProject.Provider value={draftProject}>
     {/* Every button on the page gives under a press, as the board's rows and
@@ -268,9 +271,16 @@ export function TaskRoute() {
           {returnTo.startsWith("/assets/") ? "Back to asset" : "Back to Home"}
         </Link>
       )}
-      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={writable} readAt={detail.data?.readAt ?? null} nowMs={now}>
+      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={pageWritable} readAt={detail.data?.readAt ?? null} nowMs={now}>
         {closedSummary}
       </TaskHeader>
+      {/* The task service did not answer: this is the copy it last gave. A
+          change sent now is refused and its text stays in its box. */}
+      <StatusBanner open={detail.data?.cached !== undefined} severity="warn" lead="Ntasks is not answering" subject="tasks:cached">
+        <span data-task-cached>
+          Showing this task as read <AgeBadge iso={detail.data?.readAt ?? null} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={now} lastGood />. Changes can be sent when it answers.
+        </span>
+      </StatusBanner>
       {capability.projectSelection ? <select aria-label="Task project" value={selectedProject ?? ''}
         className={cn(fieldClass, 'w-fit max-w-full')} onChange={event => {
           const next = new URLSearchParams(params); next.set('project', event.target.value); setParams(next, { replace: true });

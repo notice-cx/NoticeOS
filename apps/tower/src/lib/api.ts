@@ -80,11 +80,13 @@ import type { WorkflowsPayload } from "@shared/workflows";
 import type { TaskSourcePayload } from "@shared/task-source";
 import {
   READ_ONLY_DEPLOYMENT,
+  TASK_SERVICE_STATUS_PATH,
   type LiveTaskDetail,
   type LiveTasksPayload,
   type TaskCreated,
   type TasksCapabilities,
   type TaskProject,
+  type TaskServiceStatus,
 } from "@shared/tasks";
 
 /** The single read the Wall makes. The Worker always returns a fully-formed
@@ -556,6 +558,15 @@ async function fetchTaskSourceRequest(fetch: ApiTransport, signal?: AbortSignal)
     throw new Error(`GET /api/task-source failed: ${res.status}`);
   }
   return (await res.json()) as TaskSourcePayload;
+}
+
+/** Whether this installation's tasks live in Ntasks, and each saved project's
+ * Ntasks project. A Tower with no such route (a deployed one) has none connected. */
+async function fetchTaskServiceRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<TaskServiceStatus> {
+  const res = await fetch(TASK_SERVICE_STATUS_PATH, { signal, headers: { accept: "application/json" } });
+  if (res.status === 404) { await res.body?.cancel(); return { connected: false, origin: null, projects: null }; }
+  if (!res.ok) throw await refusal(res, `GET ${TASK_SERVICE_STATUS_PATH} failed: ${res.status}`);
+  return (await res.json()) as TaskServiceStatus;
 }
 
 /** The read-only work board (desk-only). Always a fully-formed payload with a
@@ -1752,6 +1763,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchSettings: bind(fetchSettingsRequest),
     fetchSettingsPreferences: bind(fetchSettingsPreferencesRequest),
     fetchTaskSource: bind(fetchTaskSourceRequest),
+    fetchTaskService: bind(fetchTaskServiceRequest),
     fetchWork: bind(fetchWorkRequest),
     fetchAlertDaily: bind(fetchAlertDailyRequest),
     fetchAlertHistory: bind(fetchAlertHistoryRequest),
@@ -1833,6 +1845,7 @@ export const {
   fetchSettings,
   fetchSettingsPreferences,
   fetchTaskSource,
+  fetchTaskService,
   fetchWork,
   fetchAlertDaily,
   fetchAlertHistory,

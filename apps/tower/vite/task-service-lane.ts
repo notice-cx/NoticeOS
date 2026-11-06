@@ -8,7 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { LaneReply, LaneRequest } from "./lane";
-import { isTaskId, TASKS_CLOSED_HISTORY_DAYS } from "../shared/tasks";
+import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, type TaskServiceStatus } from "../shared/tasks";
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
 import { mapTaskProjects, TaskServiceUnavailable, unavailableSentence, type MappedTaskProject, type NtasksProject,
   type TaskService } from "../../../scripts/task-service.mjs";
@@ -151,6 +151,23 @@ async function agentStats(opts: TaskServiceLaneOptions, url: URL): Promise<LaneR
     } catch { broken.push(project.asset); }
   }
   return { status: 200, body: { readAt, projects: projects.length, broken, stats: readAgentStats(read, Date.parse(readAt)) } };
+}
+
+/** GET /api/tasks/service for Settings → Task projects. */
+export async function taskServiceStatus(service: TaskService | null,
+  readProjects: TaskServiceLaneOptions["readProjects"]): Promise<TaskServiceStatus> {
+  if (!service) return { connected: false, origin: null, projects: null };
+  const connected = await service.connected().catch(() => null);
+  if (connected !== true) return { connected, origin: null, projects: null };
+  const origin = await service.origin().catch(() => null);
+  try {
+    const projects = mapTaskProjects(await readProjects(), await service.projects()).map(entry => ({ asset: entry.asset, prefix: entry.prefix,
+      project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey } }));
+    return { connected, origin, projects };
+  } catch (error) {
+    return { connected, origin, projects: null, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
+      : "The saved task projects could not be read." };
+  }
 }
 
 export async function handleTaskServiceRequest(pathname: string, url: URL, request: LaneRequest,
