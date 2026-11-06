@@ -1,13 +1,13 @@
-import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefResponseSchema, portfolioBriefEvidenceSchema, portfolioBriefResultSchema, type PortfolioBriefEvidence, type PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
+import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefResponseSchema, portfolioBriefEvidenceSchema, portfolioBriefResultSchema, portfolioBriefObservationOpening, type PortfolioBriefEvidence, type PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { resolveCredential, type ResolvedCredential } from './credentials.js';
 import { claimLease, releaseLease } from './integration-leases.js';
 import { providerCacheScope } from './provider-read-cache.js';
 import { generateLocalModel, LocalModelError, LOCAL_MODEL_ID } from './local-model.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
-import { PORTFOLIO_BRIEF_PROMPT } from './portfolio-brief-prompt.js';
+import { portfolioBriefPrompt } from './portfolio-brief-prompt.js';
 
-const VERSION = '3';
+const VERSION = '4';
 const MIN_REFRESH_MS = 15 * 60_000;
 const LEASE_MS = 3 * 60_000;
 const FAILURE_RETRY_MS = 15 * 60_000;
@@ -78,16 +78,21 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
     prior = await cached(cache, key);
     if (prior?.nextAttemptAt && Date.parse(prior.nextAttemptAt) > clock()) return presented(prior, clock());
     const eligible = new Set(evidence.insightEvidenceIds);
+    const facts = new Map(evidence.facts.map(fact => [fact.id, fact]));
     const health = eligible.size > 0 ? await tryHealthConnection(env, 'local-model', credential) : null;
     let entry: StoredBrief;
     try {
       const raw = eligible.size === 0 ? PORTFOLIO_BRIEF_ABSTENTION : await generateLocalModel(env, credential.fields, {
-        messages: [{ role: 'system', content: PORTFOLIO_BRIEF_PROMPT }, { role: 'user', content: JSON.stringify(evidence) }],
+        messages: [{ role: 'system', content: portfolioBriefPrompt(evidence) }, { role: 'user', content: JSON.stringify(evidence) }],
         responseSchema: portfolioBriefResponseSchema, fetchImpl: options.fetchImpl,
       });
       const result = portfolioBriefResultSchema.parse(raw);
-      const known = new Set(evidence.facts.map(fact => fact.id));
-      if (result.insights.some(insight => insight.evidenceIds.some(id => !known.has(id)) || !insight.evidenceIds.some(id => eligible.has(id)))) throw new LocalModelError('invalid-output');
+      for (const insight of result.insights) {
+        if (insight.evidenceIds.some(id => !facts.has(id)) || !insight.evidenceIds.some(id => eligible.has(id))) throw new LocalModelError('invalid-output');
+        const comparisons = insight.evidenceIds.flatMap(id => facts.get(id)?.comparison ? [facts.get(id)!.comparison!] : []);
+        const distinct = new Set(comparisons.map(item => [item.current.start, item.current.end, item.previous.start, item.previous.end, item.timeZone].join('|')));
+        if (distinct.size !== 1 || !insight.observation.startsWith(portfolioBriefObservationOpening(comparisons[0]!))) throw new LocalModelError('invalid-output');
+      }
       const finished = clock();
       nextAttemptAt = new Date(start + MIN_REFRESH_MS).toISOString();
       entry = { state: 'ready', briefing: { result, generatedAt: new Date(finished).toISOString(), evidenceAsOf: evidence.asOf,

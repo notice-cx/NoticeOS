@@ -16,6 +16,17 @@ export interface PortfolioBriefComparison {
   timeZone: string;
 }
 
+/** The opening binds narrative comparisons to the saved reporting windows. */
+export function portfolioBriefObservationOpening(comparison: PortfolioBriefComparison): string {
+  const day = 86_400_000;
+  const days = (window: PortfolioBriefComparison['current']) => (Date.parse(window.end) - Date.parse(window.start)) / day + 1;
+  if (Date.parse(comparison.current.start) - Date.parse(comparison.previous.end) === day) {
+    const current = days(comparison.current);
+    return `Over the latest ${current} ${current === 1 ? 'day' : 'days'} versus the previous ${days(comparison.previous)}, `;
+  }
+  return `From ${comparison.current.start} to ${comparison.current.end} versus ${comparison.previous.start} to ${comparison.previous.end}, `;
+}
+
 export interface PortfolioBriefFact {
   id: string;
   label: string;
@@ -38,7 +49,7 @@ export interface PortfolioBriefEvidence {
 
 const short = (max: number) => z.string().trim().min(1).max(max);
 const instant = z.string().datetime({ offset: true });
-const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const date = z.iso.date();
 const period = z.object({ start: date, end: date }).strict();
 const comparison = z.object({ current: period, previous: period, timeZone: short(100) }).strict().superRefine((value, ctx) => {
   if (value.previous.start > value.previous.end || value.current.start > value.current.end || value.previous.end >= value.current.start) ctx.addIssue({ code: 'custom', message: 'Comparison periods must be ordered and separate.' });
@@ -70,7 +81,9 @@ export const portfolioBriefResultSchema = z.object({
   headline: short(140).describe('At most 10 words. State the decision implication without numeric results.'),
   assessment: short(500).describe('One complete sentence, at most 22 words. No numeric results; comparisons with time context belong in observations.'),
   insights: z.array(z.object({
-    observation: short(500).describe('One complete sentence, at most 40 words. Weave the measurement period and baseline into the prose, such as latest 7 days versus previous 7; exact dates are optional. Use numerals and omit data-completeness terminology.'),
+    observation: short(500).regex(/^(?:Over the latest [1-9]\d* days? versus the previous [1-9]\d*|From \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} versus \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}), \S/,
+      'The observation must open with its measurement period and comparison baseline.')
+      .describe('One complete sentence, at most 40 words. Begin with the exact source-derived opening supplied in the system message, then the changed relationship. Use numerals and omit data-completeness terminology.'),
     why: short(240).describe('One complete sentence, at most 18 words. Explain the decision consequence.'),
     action: short(240).describe('One complete sentence, at most 18 words. Name a check that distinguishes possible explanations without assuming any occurred.'),
     evidenceIds: z.array(short(400)).min(1).max(6),

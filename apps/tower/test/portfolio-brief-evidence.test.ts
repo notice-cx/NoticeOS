@@ -26,6 +26,9 @@ function wall(assets = [asset()]): WallPayload {
   };
 }
 const work: WorkPayload = { generatedAt: NOW.toISOString(), capturedAt: null, pollCadenceHours: 1 / 60, owner: 'config/beads.json', projects: [], archivedProjects: [], historyDays: 0 };
+function project(overrides: Partial<WorkProject> = {}): WorkProject {
+  return { asset: 'example.com', prefix: 'ex', name: 'Example', ok: true, error: null, counts: { open: 0, ready: 0, blocked: 0, inProgress: 0, highPriority: null, closedRecent: 0, deferred: null, waiting: null }, history: { waiting: [], urgent: [], open: [], inProgress: [], blocked: [], closed: [] }, priorities: null, epics: null, ready: [], waiting: [], inProgress: [], deferred: [], recentlyClosed: [], ...overrides };
+}
 function revenue(): DailyRevenueHistory {
   const clock = { timeZone: 'UTC', label: 'UTC', readyAfterMinute: 0 };
   const days = Array.from({ length: 14 }, (_, index) => ({ date: shiftRevenueDate('2026-10-19', index - 13), amountMinor: index < 7 ? 1000 : 500 }));
@@ -74,6 +77,26 @@ describe('portfolio briefing evidence', () => {
     }
   });
 
+  it('selects the newest earlier complete aligned window when the last revenue day is partial', () => {
+    const site = asset();
+    site.activeUsers.series.unshift({ t: '2026-10-05', v: 100 });
+    const history = revenue();
+    history.days.unshift({ date: '2026-10-05', amountMinor: 1000 });
+    history.partialDates = ['2026-10-19'];
+    const packet = buildPortfolioBriefEvidence(wall([site]), work, { revenueByAsset: new Map([[site.id, history]]) });
+    const fact = packet.facts.find(item => item.id.endsWith(':traffic-revenue'))!;
+    expect(fact.comparison).toEqual({ current: { start: '2026-10-12', end: '2026-10-18' }, previous: { start: '2026-10-05', end: '2026-10-11' }, timeZone: 'UTC' });
+    expect(packet.insightEvidenceIds).toContain(fact.id);
+    history.partialDates = ['2026-10-12', '2026-10-19'];
+    expect(buildPortfolioBriefEvidence(wall([site]), work, { revenueByAsset: new Map([[site.id, history]]) }).facts.some(item => item.id.endsWith(':traffic-revenue'))).toBe(false);
+    site.activeUsers.series.unshift({ t: '2026-10-04', v: 100 });
+    history.days.unshift({ date: '2026-10-04', amountMinor: 1000 });
+    history.partialDates = ['2026-10-18', '2026-10-19'];
+    const old = buildPortfolioBriefEvidence(wall([site]), work, { revenueByAsset: new Map([[site.id, history]]) });
+    expect(old.facts.find(item => item.id.endsWith(':traffic-revenue'))!.comparison!.current.end).toBe('2026-10-17');
+    expect(old.insightEvidenceIds).toEqual([]);
+  });
+
   it('uses the actual source currency and rejects missing or mixed source metadata', () => {
     const euros = revenue();
     euros.bySource = euros.bySource!.map(source => ({ ...source, currency: 'EUR' }));
@@ -116,6 +139,39 @@ describe('portfolio briefing evidence', () => {
     }
     expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
     expect(data.assets[0]!.activeUsers.collectedAt).toBe('2026-10-20T12:00:00.000Z');
+  });
+
+  it('uses the source calendar for eligibility across a UTC midnight boundary', () => {
+    const now = new Date('2026-10-20T22:30:00Z');
+    const site = asset();
+    site.activeUsers.collectedAt = now.toISOString();
+    site.activeUsers.series = site.activeUsers.series.map(point => ({ ...point, t: shiftRevenueDate(point.t, -1) }));
+    const history = revenue();
+    history.days = history.days.map(day => ({ ...day, date: shiftRevenueDate(day.date, -1) }));
+    history.reportedThrough = '2026-10-18';
+    const generate = () => buildPortfolioBriefEvidence(wall([site]), work, { now, revenueByAsset: new Map([[site.id, history]]) });
+    expect(generate().insightEvidenceIds).toContain('asset:example.com:traffic-revenue');
+    site.activeUsers.timeZone = 'Europe/Paris';
+    history.clock = { ...history.clock!, timeZone: 'Europe/Paris' };
+    history.bySource = history.bySource!.map(source => ({ ...source, clock: { ...source.clock, timeZone: 'Europe/Paris' }, days: history.days }));
+    const paris = generate();
+    expect(paris.facts.find(fact => fact.id.endsWith(':traffic-revenue'))!.comparison!.timeZone).toBe('Europe/Paris');
+    expect(paris.insightEvidenceIds).toEqual([]);
+  });
+
+  it('strictly encodes source and task links while retaining their original values', () => {
+    const identity = "example !~*'()+ site";
+    const taskId = "ex-!~*'()+ one";
+    const held = project({ asset: identity, inProgress: [{ id: taskId, title: 'Improve checkout', status: 'in_progress', priority: 1, issueType: 'task', assignee: null, updatedAt: null, createdAt: null, closedAt: null, parent: null, deferUntil: null }] });
+    const packet = buildPortfolioBriefEvidence(wall([asset(identity)]), { ...work, projects: [held] });
+    const task = packet.facts.find(fact => fact.id.startsWith('task:'))!;
+    const taskUrl = new URL(task.href, 'https://tower.example');
+    expect(decodeURIComponent(taskUrl.pathname.split('/').at(-1)!)).toBe(taskId);
+    expect(taskUrl.searchParams.get('project')).toBe(identity);
+    expect(task.href).not.toMatch(/[!~*'()+]/);
+    const source = packet.facts.find(fact => fact.id === `asset:${identity}:coverage`)!;
+    expect(decodeURIComponent(source.href.split('/').at(-1)!)).toBe(identity);
+    expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
   });
 
   it('keeps unavailable projects unknown rather than reporting empty queues', () => {
@@ -235,6 +291,18 @@ describe('portfolio briefing evidence', () => {
     expect(packet.facts.some(fact => fact.id === 'work:coverage')).toBe(true);
     expect(packet.facts.some(fact => fact.id === 'portfolio:traffic-divergence')).toBe(true);
     expect(packet.insightEvidenceIds.every(id => packet.facts.some(fact => fact.id === id))).toBe(true);
+    expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
+  });
+
+  it('compacts oversized protected facts while retaining failure and unread-project coverage', () => {
+    const data = wall([]);
+    data.system.ingest = { expected: 3, fresh: 1, stale: 2, notExpected: 0 };
+    data.system.scheduledLanes = [{ job: '名'.repeat(40_000), outcome: 'failed', startedAt: NOW.toISOString(), lastRanAt: null, failedRuns: 2, failingSince: NOW.toISOString() }];
+    const packet = buildPortfolioBriefEvidence(data, { ...work, projects: [project({ name: '名'.repeat(40_000) }), project({ asset: '名'.repeat(40_000), ok: false })] });
+    expect(new TextEncoder().encode(JSON.stringify(packet)).byteLength).toBeLessThanOrEqual(PORTFOLIO_BRIEF_MAX_BYTES);
+    expect(packet.facts.find(fact => fact.id === 'work:coverage')!.data).toMatchObject({ projectCount: 2, readableProjectCount: 1, unreadProjectCount: 1, omittedProjectDetails: 1, omittedUnreadProjectNames: 1 });
+    expect(packet.facts.find(fact => fact.id === 'system:coverage')!.data).toMatchObject({ reporting: data.system.ingest, failedJobCount: 1, omittedFailedJobs: 1 });
+    expect(packet.limitations.every(value => value.trim().length > 0)).toBe(true);
     expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
   });
 });

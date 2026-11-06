@@ -12,7 +12,8 @@ const TASK_LIMIT = 20;
 const DAY = 86_400_000;
 const change = (current: number, previous: number) => previous > 0 ? (current - previous) / previous * 100 : null;
 const clip = (value: string, length = 240) => value.slice(0, length);
-const siteHref = (id: string) => `/assets/${encodeURIComponent(id)}`;
+const component = (value: string) => encodeURIComponent(value).replace(/[!~*'()]/g, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+const siteHref = (id: string) => `/assets/${component(id)}`;
 
 function accounting(figure: AssetCard['booked'], recorded?: boolean) {
   if (figure.currency === null || (recorded !== true && !figure.revenue && !figure.cost)) return null;
@@ -69,6 +70,16 @@ function trafficComparison(asset: AssetCard, end?: string): WindowComparison | n
   if (!through) return null;
   const comparison = compareDays(values, through);
   return comparison && !windowSpansTimeZoneChange(asset.activeUsers.timeZoneChanges, { start: comparison.previousStart, end: through }) ? comparison : null;
+}
+
+function newestAlignedComparison(asset: AssetCard, revenueDays: ReadonlyMap<string, number>, latestEnd: string) {
+  // A partial newest day does not invalidate an earlier complete pair.
+  for (const end of [...revenueDays.keys()].filter(date => date <= latestEnd).sort().reverse()) {
+    const traffic = trafficComparison(asset, end);
+    const money = compareDays(revenueDays, end);
+    if (traffic && money) return { end, traffic, money };
+  }
+  return null;
 }
 
 /** Stored observations only. A capped sample never becomes a complete task or
@@ -145,25 +156,27 @@ export function buildPortfolioBriefEvidence(
     const compatibleSources = Boolean(currency && revenue?.bySource?.length && revenue.bySource.every(source =>
       source.currency === currency && source.clock.timeZone === revenue.clock?.timeZone && source.clock.timeZone === asset.activeUsers.timeZone));
     if (compatibleSources && revenue?.clock && revenue.clock.timeZone === asset.activeUsers.timeZone && revenue.reportedThrough && revenue.partialDates !== undefined) {
-      const end = [revenue.reportedThrough, trafficEnd].filter((value): value is string => value !== null).sort()[0]!;
-      const alignedTraffic = trafficComparison(asset, end);
+      const latestEnd = [revenue.reportedThrough, trafficEnd].filter((value): value is string => value !== null).sort()[0]!;
       const partial = new Set(revenue.partialDates);
       const revenueDays = new Map(revenue.days.filter(day => !partial.has(day.date)).map(day => [day.date, day.amountMinor]));
-      const money = compareDays(revenueDays, end);
-      if (alignedTraffic && money) add(`${prefix}:traffic-revenue`, `${asset.displayName}: traffic and revenue on matching complete days`, href, asset.activeUsers.collectedAt, {
-        timeZone: revenue.clock.timeZone, traffic: alignedTraffic, revenueMinor: money,
-        revenuePerDailyUserMinor: alignedTraffic.current > 0 ? money.current / alignedTraffic.current : null,
-        previousRevenuePerDailyUserMinor: alignedTraffic.previous > 0 ? money.previous / alignedTraffic.previous : null,
-        changeGapPercentagePoints: money.changePercent !== null && alignedTraffic.changePercent !== null ? money.changePercent - alignedTraffic.changePercent : null,
-        revenueClassification: 'provider estimate',
-        revenueFamilies: [...new Set(revenue.bySource!.map(source => source.family))],
-        trafficMetric: 'daily active users summed over days; not unique weekly people',
-        revenueCurrency: currency,
-        monetaryUnit: 'minor currency units',
-        currencyMinorDigits: currency ? currencyMinorDigits(currency) : null,
-      }, { start: money.previousStart, end }, comparisonPeriods(money, revenue.clock.timeZone));
-      if (alignedTraffic && money && currentComparison(asset, end, now) && alignedTraffic.changePercent !== null && money.changePercent !== null &&
-        (alignedTraffic.current !== alignedTraffic.previous || money.current !== money.previous) && Math.abs(alignedTraffic.changePercent - money.changePercent) > 0.000001) insightEvidenceIds.push(`${prefix}:traffic-revenue`);
+      const aligned = newestAlignedComparison(asset, revenueDays, latestEnd);
+      if (aligned) {
+        const { end, traffic: alignedTraffic, money } = aligned;
+        add(`${prefix}:traffic-revenue`, `${asset.displayName}: traffic and revenue on matching complete days`, href, asset.activeUsers.collectedAt, {
+          timeZone: revenue.clock.timeZone, traffic: alignedTraffic, revenueMinor: money,
+          revenuePerDailyUserMinor: alignedTraffic.current > 0 ? money.current / alignedTraffic.current : null,
+          previousRevenuePerDailyUserMinor: alignedTraffic.previous > 0 ? money.previous / alignedTraffic.previous : null,
+          changeGapPercentagePoints: money.changePercent !== null && alignedTraffic.changePercent !== null ? money.changePercent - alignedTraffic.changePercent : null,
+          revenueClassification: 'provider estimate',
+          revenueFamilies: [...new Set(revenue.bySource!.map(source => source.family))],
+          trafficMetric: 'daily active users summed over days; not unique weekly people',
+          revenueCurrency: currency,
+          monetaryUnit: 'minor currency units',
+          currencyMinorDigits: currency ? currencyMinorDigits(currency) : null,
+        }, { start: money.previousStart, end }, comparisonPeriods(money, revenue.clock.timeZone));
+        if (currentComparison(asset, end, now) && alignedTraffic.changePercent !== null && money.changePercent !== null &&
+          (alignedTraffic.current !== alignedTraffic.previous || money.current !== money.previous) && Math.abs(alignedTraffic.changePercent - money.changePercent) > 0.000001) insightEvidenceIds.push(`${prefix}:traffic-revenue`);
+      }
     }
   }
   if (!options.revenueByAsset) limitations.push('The Home read model lacks complete per-source daily revenue coverage; traffic versus revenue comparisons are unavailable.');
@@ -205,7 +218,7 @@ export function buildPortfolioBriefEvidence(
   const sampled = readable.flatMap(project => [...project.waiting, ...project.inProgress, ...(project.blocked ?? [])].map(task => ({ project, task })));
   const unique = [...new Map(sampled.map(row => [`${row.project.asset}:${row.task.id}`, row])).values()]
     .sort((a, b) => a.task.priority - b.task.priority || (a.task.updatedAt ?? '\uffff').localeCompare(b.task.updatedAt ?? '\uffff') || a.task.id.localeCompare(b.task.id));
-  for (const { project, task } of unique.slice(0, TASK_LIMIT)) add(`task:${project.asset}:${task.id}`, clip(task.title), `/tasks/${encodeURIComponent(task.id)}?${new URLSearchParams({ project: project.asset })}`, work.capturedAt, {
+  for (const { project, task } of unique.slice(0, TASK_LIMIT)) add(`task:${project.asset}:${task.id}`, clip(task.title), `/tasks/${component(task.id)}?project=${component(project.asset)}`, work.capturedAt, {
     asset: project.asset, id: task.id, priority: task.priority, status: task.status,
     waitingOnHuman: project.waiting.some(item => item.id === task.id),
     createdAt: task.createdAt ?? null, updatedAt: task.updatedAt,
@@ -219,9 +232,28 @@ export function buildPortfolioBriefEvidence(
       omittedAlerts: wall.attention.length - alerts.length, omittedTasks: Math.max(0, unique.length - TASK_LIMIT) },
   };
   const size = () => new TextEncoder().encode(JSON.stringify(packet)).byteLength;
+  for (const fact of packet.facts) {
+    if (fact.id !== 'work:coverage' && fact.id !== 'system:coverage') continue;
+    if (new TextEncoder().encode(JSON.stringify(fact)).byteLength <= 16_000) continue;
+    fact.data = fact.id === 'work:coverage' ? {
+      capturedAt: work.capturedAt, cadenceHours: work.pollCadenceHours,
+      stale: isAmber(now.getTime(), work.capturedAt, work.pollCadenceHours),
+      projectCount: work.projects.length, readableProjectCount: readable.length,
+      unreadProjectCount: work.projects.length - readable.length,
+      omittedProjectDetails: readable.length, omittedUnreadProjectNames: work.projects.length - readable.length,
+      projects: [], unreadProjects: [],
+      caution: 'Project details and names were omitted for the evidence size limit; unread projects remain unknown, not empty.',
+    } : {
+      reporting: { expected: wall.system.ingest.expected, fresh: wall.system.ingest.fresh, stale: wall.system.ingest.stale, notExpected: wall.system.ingest.notExpected },
+      failedJobCount: failedJobs.length, failedJobs: [], omittedFailedJobs: failedJobs.length,
+      backupLastGoodAt: wall.system.backupLastGoodAt ?? null,
+      caution: 'Failed job details were omitted for the evidence size limit. The failure count and reporting gaps are retained.',
+    };
+    packet.limitations.push(`${fact.id === 'work:coverage' ? 'Task project' : 'Background job'} details were compacted for the evidence size limit; missing detail does not establish a healthy or empty state.`);
+  }
   if (size() > PORTFOLIO_BRIEF_MAX_BYTES) {
     const noteIndex = packet.limitations.length;
-    packet.limitations.push('');
+    packet.limitations.push('Evidence details exceed the packet size limit.');
     let omitted = 0;
     const protectedIds = new Set(['work:coverage', 'system:coverage']);
     while (size() > PORTFOLIO_BRIEF_MAX_BYTES) {

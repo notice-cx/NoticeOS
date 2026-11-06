@@ -1,10 +1,12 @@
+import { PORTFOLIO_BRIEF_MAX_BYTES } from '@noticeos/contract/portfolio-brief';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 
 export const LOCAL_MODEL_BASE_URL = 'LOCAL_MODEL_BASE_URL';
 export const LOCAL_MODEL_ID = 'LOCAL_MODEL_ID';
 export const LOCAL_MODEL_API_TOKEN = 'LOCAL_MODEL_API_TOKEN';
 const RESPONSE_BYTES = 1_048_576;
-const REQUEST_BYTES = 131_072;
+// Encoding evidence JSON as a message can double its bytes; reserve space for the prompt, schema and envelope.
+const REQUEST_BYTES = 2 * PORTFOLIO_BRIEF_MAX_BYTES + 64 * 1024;
 export type LocalModelCode = 'unavailable' | 'configuration' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'model-missing' | 'invalid-output' | 'too-large';
 export class LocalModelError extends Error {
   constructor(readonly code: LocalModelCode) { super(`Local model: ${code}.`); this.name = 'LocalModelError'; }

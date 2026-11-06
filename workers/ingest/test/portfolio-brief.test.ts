@@ -16,7 +16,7 @@ const evidence = (at = NOW): PortfolioBriefEvidence => ({ schemaVersion: 1, asOf
     data: { trafficChangePercent: 50, revenueChangePercent: -20, complete: true } }], insightEvidenceIds: ['asset:example'], limitations: ['Synthetic evidence only.'],
   coverage: { assets: 1, includedAssets: 1, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } });
 const result = () => ({ headline: 'Review the available evidence', assessment: 'Coverage supports a focused review.', insights: [{
-  observation: 'The report has complete traffic coverage.', why: 'This permits checking changes against other reported outcomes.',
+  observation: 'Over the latest 7 days versus the previous 7, traffic rose while revenue fell.', why: 'This warrants checking the relationship between traffic and revenue.',
   action: 'Compare the complete report with the next revenue report.', evidenceIds: ['asset:example'], confidence: 'medium',
 }] });
 const response = (value: unknown = result()) => Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(value) } }] });
@@ -126,7 +126,7 @@ it('keeps the last good briefing after a failed refresh and suppresses retries u
   expect(fetchImpl).toHaveBeenCalledTimes(2);
 });
 
-it.each(['unknown-citation', 'malformed', 'oversized', 'too-many-words', 'too-many-insights', 'unfinished-sentence'])('never publishes %s model output', async kind => {
+it.each(['unknown-citation', 'malformed', 'oversized', 'too-many-words', 'too-many-insights', 'unfinished-sentence', 'missing-timeframe', 'wrong-current-period', 'wrong-baseline'])('never publishes %s model output', async kind => {
   const target = selected(); await connect(target);
   const cache = memoryCache();
   const invalid = result();
@@ -135,9 +135,36 @@ it.each(['unknown-citation', 'malformed', 'oversized', 'too-many-words', 'too-ma
   if (kind === 'too-many-words') invalid.assessment = 'word '.repeat(200).trim();
   if (kind === 'too-many-insights') invalid.insights = Array.from({ length: 3 }, () => ({ ...invalid.insights[0]! }));
   if (kind === 'unfinished-sentence') invalid.assessment = 'Reporting coverage is complete, but';
+  if (kind === 'missing-timeframe') invalid.insights[0]!.observation = 'Traffic rose while revenue fell.';
+  if (kind === 'wrong-current-period') invalid.insights[0]!.observation = 'Over the latest 30 days versus the previous 7, traffic rose while revenue fell.';
+  if (kind === 'wrong-baseline') invalid.insights[0]!.observation = 'Over the latest 7 days versus the previous 30, traffic rose while revenue fell.';
   const fetchImpl = vi.fn<typeof fetch>(async () => kind === 'oversized' ? new Response('x'.repeat(1_048_577)) : response(invalid));
   expect(await refreshPortfolioBrief(target, evidence(), HOUR, { cache, fetchImpl, clock: () => NOW })).toMatchObject({ state: 'unavailable', briefing: null });
   expect((await readPortfolioBrief(target, { cache, clock: () => NOW })).briefing).toBeNull();
+});
+
+it('binds narrative periods to cited source windows before caching a result', async () => {
+  const target = selected(); await connect(target);
+  const packet = evidence();
+  packet.facts.push({ ...packet.facts[0]!, id: 'second', comparison: { ...comparison, timeZone: 'Europe/Paris' } });
+  packet.insightEvidenceIds.push('second');
+  const mixed = result(); mixed.insights[0]!.evidenceIds.push('second');
+  expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl: async () => response(mixed), clock: () => NOW }))
+    .toMatchObject({ state: 'unavailable', briefing: null });
+});
+
+it('accepts multiple citations sharing the same comparison and supplies a bounded natural opening', async () => {
+  const target = selected(); await connect(target);
+  const packet = evidence(); packet.facts.push({ ...packet.facts[0]!, id: 'second' });
+  packet.insightEvidenceIds.push('second');
+  const valid = result(); valid.insights[0]!.evidenceIds.push('second');
+  const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+    const request = JSON.parse(String(init?.body)) as { messages: { content: string }[] };
+    expect(request.messages[0]!.content).toContain('["Over the latest 7 days versus the previous 7, "]');
+    return response(valid);
+  });
+  expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl, clock: () => NOW }))
+    .toMatchObject({ state: 'ready', briefing: { result: valid } });
 });
 
 it.each(['reconnect', 'disconnect'])('hides an in-flight result after %s', async action => {

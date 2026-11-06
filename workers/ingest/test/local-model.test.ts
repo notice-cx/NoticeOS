@@ -1,3 +1,5 @@
+import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, portfolioBriefResponseSchema, type PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
+import { portfolioBriefPrompt } from '../src/portfolio-brief-prompt.js';
 import { env } from 'cloudflare:test';
 import { expect, it, vi } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
@@ -37,14 +39,14 @@ it('discovers the exact configured model with bearer auth without generating', a
   await expect(checkLocalModel(standalone, fields, async () => Response.json({ data: [{ id: 'other-model' }] }))).rejects.toMatchObject({ code: 'model-missing' });
 });
 
-it.each([undefined, null, []])('accepts final content when the server reports no tool calls (%j)', async tool_calls => {
+it.each([[undefined], [null], [[]]])('accepts final content when the server reports no tool calls (%j)', async tool_calls => {
   const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: {
     content: '{"summary":"Synthetic result"}', reasoning_content: 'Separate reasoning is not the final answer.', tool_calls,
   } }] });
   expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toEqual({ summary: 'Synthetic result' });
 });
 
-it.each([[{ type: 'function', function: { name: 'act', arguments: '{}' } }], {}, false, ''])('rejects nonempty or malformed tool calls (%j)', async tool_calls => {
+it.each([[[{ type: 'function', function: { name: 'act', arguments: '{}' } }]], [{}], [false], ['']])('rejects nonempty or malformed tool calls (%j)', async tool_calls => {
   const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"summary":"Synthetic result"}', tool_calls } }] });
   await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl })).rejects.toMatchObject({ code: 'invalid-output' });
 });
@@ -127,5 +129,51 @@ it.each(['http://8.8.8.8/v1', 'https://api.example.com/v1', 'http://model/v1', '
   'http://[2001:4860:4860::8888]/v1', 'http://[::ffff:8.8.8.8]/v1', 'http://[fc::1]/v1', 'http://[fec0::1]/v1'])('blocks nonlocal endpoint %s before fetch', async value => {
   const fetchImpl = vi.fn<typeof fetch>();
   await expect(checkLocalModel(standalone, { ...fields, LOCAL_MODEL_BASE_URL: value }, fetchImpl)).rejects.toMatchObject({ code: 'configuration' });
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+
+it.each([1, 260])('accepts maximal escaped evidence with %s distinct period openings in the real briefing request', async factCount => {
+  const packet: PortfolioBriefEvidence = {
+    schemaVersion: 1, asOf: '2026-11-06T12:00:00.000Z', timeZone: 'UTC',
+    facts: Array.from({ length: factCount }, (_, index) => {
+      const current = new Date(Date.UTC(2025, 0, index + 1)).toISOString().slice(0, 10);
+      const previous = new Date(Date.UTC(2023, 0, index + 1)).toISOString().slice(0, 10);
+      return { id: `comparison:${index}`, label: 'Synthetic comparison', href: '/assets', observedAt: null, period: null,
+        comparison: { current: { start: current, end: current }, previous: { start: previous, end: previous }, timeZone: 'UTC' },
+        data: { text: '' } };
+    }),
+    insightEvidenceIds: Array.from({ length: factCount }, (_, index) => `comparison:${index}`), limitations: [],
+    coverage: { assets: 1, includedAssets: 1, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 },
+  };
+  const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
+  const available = PORTFOLIO_BRIEF_MAX_BYTES - bytes(JSON.stringify(packet));
+  const data = packet.facts[0]!.data;
+  data.text = String.fromCharCode(34, 92).repeat(Math.floor(available / 4));
+  data.text += 'a'.repeat(PORTFOLIO_BRIEF_MAX_BYTES - bytes(JSON.stringify(packet)));
+  const evidenceJson = JSON.stringify(packet);
+  expect(bytes(evidenceJson)).toBe(PORTFOLIO_BRIEF_MAX_BYTES);
+  expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
+  const prompt = portfolioBriefPrompt(packet);
+  const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    const body = String(init?.body);
+    expect(bytes(body)).toBeGreaterThan(131_072);
+    const sent = JSON.parse(body) as { messages: { content: string }[]; response_format: { json_schema: { schema: unknown } } };
+    expect(sent.messages.map(message => message.content)).toEqual([prompt, evidenceJson]);
+    expect(sent.response_format.json_schema.schema).toEqual(portfolioBriefResponseSchema);
+    return completion(JSON.stringify(PORTFOLIO_BRIEF_ABSTENTION));
+  });
+  expect(await generateLocalModel(standalone, fields, {
+    messages: [{ role: 'system', content: prompt }, { role: 'user', content: evidenceJson }],
+    responseSchema: portfolioBriefResponseSchema, fetchImpl,
+  })).toEqual(PORTFOLIO_BRIEF_ABSTENTION);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
+it('still rejects an oversized serialized request before contacting the model', async () => {
+  const fetchImpl = vi.fn<typeof fetch>();
+  await expect(generateLocalModel(standalone, fields, { ...options,
+    messages: [{ role: 'user', content: 'x'.repeat(2 * PORTFOLIO_BRIEF_MAX_BYTES + 64 * 1024 + 1) }], fetchImpl,
+  })).rejects.toMatchObject({ code: 'too-large' });
   expect(fetchImpl).not.toHaveBeenCalled();
 });
