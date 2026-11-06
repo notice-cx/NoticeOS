@@ -147,21 +147,6 @@ describe("the connect panel", () => {
     expect(within(dialog).getByRole("button", { name: "Done" })).toHaveFocus();
   });
 
-  it("shows Connected after model discovery without requiring an API token", async () => {
-    const onConnect = vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: {} }) as ConnectVerdict);
-    renderPanel(integrationProvider("local-model")!, onConnect);
-    const dialog = screen.getByRole("dialog", { name: "Local model" });
-    expect(within(dialog).getByLabelText("API base URL")).toHaveAccessibleDescription("Use a local server address reachable from NoticeOS. This server receives stored portfolio and task summaries.");
-    fireEvent.change(within(dialog).getByLabelText("API base URL"), { target: { value: "http://127.0.0.1:1234/v1" } });
-    fireEvent.change(within(dialog).getByLabelText("Model ID"), { target: { value: "synthetic-model" } });
-    expect(within(dialog).getByLabelText("API token")).not.toBeRequired();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }));
-    expect(await within(dialog).findByText("Connected")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Key accepted")).toBeNull();
-    expect(within(dialog).queryByText("Working")).toBeNull();
-    expect(onConnect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "http://127.0.0.1:1234/v1", LOCAL_MODEL_ID: "synthetic-model" });
-  });
-
   it("shows DataForSEO's credit, and nothing where the account stated none", async () => {
     const onConnect = vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: { creditUsd: "18.72" } }) as ConnectVerdict);
     renderPanel(DATAFORSEO, onConnect);
@@ -328,5 +313,67 @@ describe("the connect panel", () => {
     unmount();
     expect(root).not.toHaveAttribute("inert");
     root.remove();
+  });
+});
+
+
+describe("OpenAI-compatible model selection", () => {
+  it("keeps Connect disabled for failures and empty lists, then retries", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, failure: { kind: "network" } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, models: ["only-model"] }), { status: 200 }));
+    try {
+      renderPanel(integrationProvider("local-model")!, vi.fn());
+      fireEvent.change(screen.getByLabelText(/^API base URL/), { target: { value: "https://model.example.com/v1" } });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Load models" })); });
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry loading models" })); });
+      expect(screen.getByText(/No models found/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Load models" })); });
+      expect(screen.getByRole("combobox")).toHaveValue("only-model");
+      expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+      fireEvent.change(screen.getByLabelText("API token"), { target: { value: "replacement" } });
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+    } finally { fetcher.mockRestore(); }
+  });
+
+  it("loads server models and connects only an explicit selection", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, models: ["model-a", "model-b"] }), { status: 200 }));
+    const connect = vi.fn(async () => ({ verdict: "accepted", facts: {} }) as ConnectVerdict);
+    try {
+      renderPanel(integrationProvider("local-model")!, connect);
+      fireEvent.change(screen.getByLabelText(/^API base URL/), { target: { value: "https://model.example.com/v1" } });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Load models" })); });
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+      fireEvent.change(screen.getByRole("combobox", { name: "Model *" }), { target: { value: "model-b" } });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect" })); });
+      expect(await screen.findByText("Connected")).toBeInTheDocument();
+      expect(screen.queryByText("Working")).toBeNull();
+      expect(connect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "https://model.example.com/v1", LOCAL_MODEL_ID: "model-b" });
+      expect(fetcher).toHaveBeenCalledWith("/api/integrations/local-model/models", expect.objectContaining({ method: "POST" }));
+    } finally { fetcher.mockRestore(); }
+  });
+
+  it("clears selection on server changes and ignores a late model list", async () => {
+    const late = deferred<Response>();
+    const fetcher = vi.spyOn(globalThis, "fetch").mockReturnValueOnce(late.promise)
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, models: ["current-model"] }), { status: 200 }));
+    try {
+      renderPanel(integrationProvider("local-model")!, vi.fn());
+      const url = screen.getByLabelText(/^API base URL/);
+      fireEvent.change(url, { target: { value: "https://old.example.com/v1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Load models" }));
+      fireEvent.change(url, { target: { value: "https://new.example.com/v1" } });
+      await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Load models" })); });
+      await act(async () => { late.resolve(new Response(JSON.stringify({ ok: true, models: ["stale-model"] }), { status: 200 })); });
+      expect(screen.getByRole("combobox")).toHaveValue("current-model");
+      expect(screen.queryByRole("option", { name: "stale-model" })).not.toBeInTheDocument();
+      fireEvent.change(url, { target: { value: "https://third.example.com/v1" } });
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+    } finally { fetcher.mockRestore(); }
   });
 });

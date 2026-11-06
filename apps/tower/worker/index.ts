@@ -46,7 +46,7 @@ import { handleDecisionsRequest } from "./decision-route";
 import { handleFlagRequest } from "./flag-route";
 import { handleHostedAssetMutation } from './hosted-asset-mutation-route';
 import { handleHostedPersonPreference } from './person-preference-route';
-import { JSON_HEADERS } from "./http";
+import { JSON_HEADERS, jsonError } from "./http";
 import {
   INTEGRATION_PROVIDERS_PATH,
   type IntegrationCredentialWriter,
@@ -59,6 +59,7 @@ import {
   handleIntegrationTestRequest,
 } from "./integrations-route";
 import { handleMediavineRequest, type MediavineBinding } from './mediavine-route';
+import { MODEL_DISCOVERY_PATH, handleModelDiscoveryRequest, type ModelDiscoveryReader } from './model-discovery-route';
 import { loadProviderMeter, loadSpendPreview } from "./metered-spend";
 import { SITES_PATH, handleSitesRequest, handleCollectRequest, type SiteDiscoveryIngest } from "./site-discovery-route";
 import { SITE_ICONS_PATH, handleSiteIconsReadRequest, type SiteIconsReader } from "./site-icons-route";
@@ -106,7 +107,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
    * pattern). Absent only where nothing reads the store — a test driving a
    * route that never does; every unit of work then refuses, naming it. */
   POSTGRES?: StoreBinding;
-  INGEST: AnnotationWriter & PortfolioBriefIngest &
+  INGEST: AnnotationWriter & PortfolioBriefIngest & ModelDiscoveryReader &
     ConfigDocumentReader &
     AssetColumnWriter &
     AssetOrderWriter &
@@ -444,6 +445,10 @@ const towerHandler = {
     let profile: ReturnType<typeof workspaceProfile>;
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+    if (new URL(request.url).pathname === MODEL_DISCOVERY_PATH) {
+      if (profile !== 'standalone') return jsonError('model_discovery_not_supported', 403);
+      return handleModelDiscoveryRequest(request, env.INGEST);
+    }
     if (new URL(request.url).pathname === CLOUDFLARE_D1_BACKUP_PATH) {
       if (profile !== 'standalone' || request.headers.has('origin')) return Response.json({ error: 'forbidden' }, { status: 403 });
       if (!env.INGEST.backupCloudflareD1) return Response.json({ error: 'unavailable' }, { status: 503 });

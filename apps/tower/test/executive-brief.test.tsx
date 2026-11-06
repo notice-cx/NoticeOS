@@ -87,7 +87,7 @@ describe('ExecutiveBrief', () => {
   it.each(['disconnected', 'awaiting', 'unavailable', 'unsupported'] as const)('keeps the observed summary for %s', state => {
     show({ ...empty, state });
     expect(screen.getByText('Observed summary')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Connect a local model' }) !== null).toBe(state === 'disconnected');
+    expect(screen.queryByRole('link', { name: 'Connect a model' }) !== null).toBe(state === 'disconnected');
   });
   it('keeps the observed summary when its independent read fails', () => {
     show(undefined, true);

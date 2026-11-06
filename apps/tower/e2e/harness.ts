@@ -799,6 +799,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     completeGoogleOAuth: (input) => ingestCode.completeGoogleOAuth(ingestEnv(),
       { ...input, nowMs: Date.parse(JOURNEY_NOW) - (googleReportsDenied ? 1000 : 0), fetchImpl: journeyProviderNetwork }),
     discoverGoogleProperties: () => ingestCode.discoverGoogleProperties(ingestEnv(), { fetchImpl: journeyProviderNetwork, nowMs: Date.parse(JOURNEY_NOW) }),
+    discoverModelProvider: refuse,
     ga4Realtime: refuse,
   };
 

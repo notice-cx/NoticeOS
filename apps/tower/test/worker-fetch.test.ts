@@ -107,6 +107,7 @@ function refusingIngest(): TowerEnv["INGEST"] {
     deleteCredential: refuse("deleteCredential"),
     probeCredential: refuse("probeCredential"),
     connectCredential: refuse("connectCredential"),
+    discoverModelProvider: refuse("discoverModelProvider"),
     cloudflareD1: refuse('cloudflareD1'),
     backupCloudflareD1: refuse('backupCloudflareD1'),
     putSiteToken: refuse("putSiteToken"),
@@ -225,6 +226,22 @@ afterEach(() => {
 });
 
 describe("the Worker's fetch switch", () => {
+  it('discovers models only for same-origin standalone requests', async () => {
+    const fields = { LOCAL_MODEL_BASE_URL: 'https://models.example/v1', LOCAL_MODEL_API_TOKEN: 'synthetic' };
+    const rpc = vi.fn(async () => ({ ok: true as const, models: ['example-model'] }));
+    env.INGEST.discoverModelProvider = rpc;
+    const path = '/api/integrations/local-model/models';
+    expect(await call(sameOrigin(path, 'POST', JSON.stringify({ fields })))).toEqual({
+      status: 200, body: { ok: true, models: ['example-model'] },
+    });
+    expect(rpc).toHaveBeenCalledWith({ fields });
+    expect((await call(crossOrigin(path, 'POST', JSON.stringify({ fields })))).status).toBe(403);
+    for (const profile of ['hosted', 'demo'] as const) {
+      env.NOTICEOS_WORKSPACE_PROFILE = profile;
+      expect((await call(sameOrigin(path, 'POST', JSON.stringify({ fields })))).status).toBe(403);
+    }
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
   it('refuses foreign-origin D1 selection and export before forwarding to ingest', async () => {
     const path = '/api/integrations/cloudflare/d1', accountId = 'a'.repeat(32), databaseId = crypto.randomUUID();
     for (const [method, body] of [['PUT', { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] }], ['POST', { accountId, databaseId }]] as const) {

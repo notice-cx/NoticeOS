@@ -134,14 +134,15 @@ built.
    ([doc 06](06-operations.md)); an optimizer that costs more than it returns
    shows a loss in its own ledger.
    **State:** it does not meter inference cost per run. Home briefings use an
-   operator-connected local model; local computing costs are not measured.
+   operator-connected OpenAI-compatible model; provider charges and local
+   computing costs are not measured.
    Agent sessions are billed outside the OS, so their inference enters the
    ledger as monthly `inference` cost rows a person
    imports from the provider's usage export with `pnpm cost:import-inference`
    ([guide](guides/record-revenue-and-costs.md#import-inference-costs)), never
    metered per run. There is no monthly inference
-   spending cap. Metered model calls and automated execution require the
-   controls in doc 06 before enablement. Data collection already
+   spending cap. Remote briefing requests may incur provider charges;
+   automated execution requires the controls in doc 06 before enablement. Data collection already
    keeps its fail-closed cap.
 
 ## Near-term ROI opportunities, in ledger terms

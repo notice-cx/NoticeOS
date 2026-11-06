@@ -1,7 +1,7 @@
 import { Check, ExternalLink, KeyRound, Loader2, Plus, Send, TriangleAlert, WifiOff } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { ConnectFacts, ConnectVerdict, IntegrationField, IntegrationProvider } from "@noticeos/contract";
-import { exactUsd } from "@noticeos/contract/integrations";
+import { connectionFailureLabel, exactUsd } from "@noticeos/contract/integrations";
 import { acceptedAs } from "@noticeos/contract/integrations";
 import { connectionLabel } from "@shared/connection-status";
 import { feedLines, feedRows, providerName, refusalLine, secretNoun, type ConnectPhase } from "@shared/connect-panel";
@@ -13,7 +13,7 @@ import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { Sheet } from "@/components/ui/sheet";
-import { ApiError } from "@/lib/api";
+import { ApiError, discoverModelProvider } from "@/lib/api";
 import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +99,49 @@ export function ConnectPanel({
   schedule,
 }: ConnectPanelProps) {
   const titleId = useId();
+  const modelProvider = provider.id === "local-model";
+  const [models, setModels] = useState<string[]>([]);
+  const [modelState, setModelState] = useState<"idle" | "loading" | "loaded" | "failed">("idle");
+  const [modelError, setModelError] = useState("");
+  const modelRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => modelRequest.current?.abort(), []);
+
+  function clearModels() {
+    modelRequest.current?.abort();
+    modelRequest.current = null;
+    setModels([]);
+    setModelState("idle");
+    setModelError("");
+  }
+
+  async function loadModels() {
+    modelRequest.current?.abort();
+    const request = new AbortController();
+    modelRequest.current = request;
+    setModels([]);
+    setValues((current) => ({ ...current, LOCAL_MODEL_ID: "" }));
+    setModelState("loading");
+    setModelError("");
+    try {
+      const result = await discoverModelProvider({
+        LOCAL_MODEL_BASE_URL: values.LOCAL_MODEL_BASE_URL?.trim() ?? "",
+        LOCAL_MODEL_API_TOKEN: values.LOCAL_MODEL_API_TOKEN?.trim() ?? "",
+      }, request.signal);
+      if (request.signal.aborted) return;
+      if (!result.ok) {
+        setModelError(connectionFailureLabel(result.failure));
+        setModelState("failed");
+        return;
+      }
+      setModels(result.models);
+      setModelState("loaded");
+      if (result.models.length === 1) setValues((current) => ({ ...current, LOCAL_MODEL_ID: result.models[0]! }));
+    } catch {
+      if (request.signal.aborted) return;
+      setModelError("Could not load models. Try again.");
+      setModelState("failed");
+    }
+  }
   const fields = provider.fields.filter((field) => field.managed !== true);
   const [values, setValues] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<ConnectPhase>({ phase: "editing" });
@@ -120,7 +163,8 @@ export function ConnectPanel({
   // required and the rest optional; a provider with two ways in (PostHog's
   // account key or its older per-site keys) shows only the one it asks for.
   const needed = fields.some((field) => field.required) ? fields.filter((field) => field.required) : fields;
-  const complete = needed.every((field) => filled(field, values[field.name] ?? ""));
+  const complete = needed.every((field) => filled(field, values[field.name] ?? ""))
+    && (!modelProvider || (modelState === "loaded" && models.includes(values.LOCAL_MODEL_ID ?? "")));
   // A replaced key changes no site: once accepted the panel is done.
   const rotated = opened !== "form";
 
@@ -158,6 +202,7 @@ export function ConnectPanel({
       if (verdict.verdict === "accepted") {
         setValues({});
       } else if (verdict.verdict === "refused") {
+        if (modelProvider) clearModels();
         // A refused secret is not kept on screen: clear it for the next paste.
         setValues((current) => Object.fromEntries(
           Object.entries(current).filter(([name]) => !fields.find((field) => field.name === name)?.secret),
@@ -254,7 +299,7 @@ export function ConnectPanel({
     setup
   ) : (
     <form ref={form} onSubmit={submit} className="flex flex-1 flex-col gap-4" noValidate>
-      {fields.map((field, index) => (
+      {fields.filter((field) => !modelProvider || field.name !== "LOCAL_MODEL_ID").map((field, index) => (
         <KeyField
           key={field.name}
           field={field}
@@ -263,11 +308,31 @@ export function ConnectPanel({
           autoFocus={index === 0}
           error={fieldError?.field === field.name ? fieldError.message : null}
           onChange={(value) => {
-            setValues((current) => ({ ...current, [field.name]: value }));
+            if (modelProvider) clearModels();
+            setValues((current) => ({ ...current, ...(modelProvider ? { LOCAL_MODEL_ID: "" } : {}), [field.name]: value }));
             if (fieldError?.field === field.name) setFieldError(null);
           }}
         />
       ))}
+      {modelProvider ? <div className="flex flex-col gap-2">
+        <Button type="button" variant="outline" disabled={checking || !canConnect || modelState === "loading" || !values.LOCAL_MODEL_BASE_URL?.trim()}
+          onClick={() => void loadModels()}>
+          {modelState === "loading" ? "Loading models" : modelState === "failed" ? "Retry loading models" : "Load models"}
+        </Button>
+        {models.length > 0 ? <>
+          <label htmlFor={`${titleId}-model`} className="text-sm font-medium">Model *</label>
+          <select id={`${titleId}-model`} required className={cn(fieldClass, "h-10 w-full px-3")}
+            disabled={checking} value={values.LOCAL_MODEL_ID ?? ""}
+            onChange={(event) => setValues((current) => ({ ...current, LOCAL_MODEL_ID: event.target.value }))}>
+            <option value="">Choose a model</option>
+            {models.map((model) => <option key={model} value={model}>{model}</option>)}
+          </select>
+        </> : null}
+        <div aria-live="polite">
+          {modelState === "loaded" && models.length === 0 ? <p className="text-sm text-muted-foreground">No models found. Check the server’s available models, then load again.</p> : null}
+          {modelError ? <p className="text-sm text-error">{modelError}</p> : null}
+        </div>
+      </div> : null}
       <div aria-live="polite">
         {answer && answer.verdict !== "accepted" ? (
           <p
@@ -361,6 +426,7 @@ function KeyField({
         <label htmlFor={id} className="text-sm font-medium">
           {field.label}
         </label>
+        {field.required ? <span aria-hidden="true" className="-ms-2 text-sm">*</span> : null}
         {field.link ? (
           <a
             href={field.link.url}

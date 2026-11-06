@@ -42,18 +42,28 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **News/RSS aggregation** | news intake: curated industry + AI-announcement feeds | Scout news intake (collect tier) | RSS | Free | select feeds strictly — every added feed adds noise | remove feeds that no longer publish |
 | **shadcn MCP + skills** | component registry browse/install + guidance on composing components for Tower UI work ([doc 14](14-design.md)) | Act (UI builds) | MCP server | Free | registry-driven — agents assemble registry components instead of writing their own | build from in-repo components only |
 
-## Local model
+## OpenAI-compatible model {#local-model}
 
-On **Integrations**, connect **Local model** with the API base URL ending in
-`/v1`, the exact model identifier shown by LM Studio, and an API token when the
-server requires one. The model server must be reachable from the NoticeOS
-application container. Use its private network IP address, or
-`host.docker.internal` when the model runs on the Docker host. `localhost`
-inside that container refers to the container itself. Public model endpoints
-are not supported. This connection is available in standalone installations.
+On **Integrations**, connect **OpenAI-compatible model** with the server's API
+base URL and an API token when required. Select **Load models**, choose a
+**Model**, then connect. Model discovery reads the server's `/models` endpoint
+without saving credentials or generating text. Changing the URL or token clears
+the model selection. An empty list requires making a model available on the
+server and loading the list again.
 
-The connection test lists models; it does not prove that a model can generate
-the required structured response. The **Portfolio briefing** workflow runs
+Both local servers and remote HTTPS endpoints are supported. Enter the API
+base path supplied by the provider, commonly `/v1`; custom base paths also work.
+The server must be reachable from the NoticeOS application container. For
+LM Studio on the Docker host, use `http://host.docker.internal:1234/v1`, replacing
+the port with the one configured in LM Studio. `localhost` inside the container
+refers to the container itself. HTTP is accepted for local addresses; remote
+endpoints require HTTPS. Redirects are rejected. This connection is available
+in standalone installations.
+
+The connection test confirms that the selected model is listed; it does not
+prove that a model can generate the required structured response. Connection
+errors distinguish address lookup, refused connections, timeouts, access denial,
+missing endpoints and invalid responses. The **Portfolio briefing** workflow runs
 hourly by default. Its schedule is editable in the connection panel and on
 Workflows. Generation attempts are at least fifteen minutes apart. Opening
 Home reads the saved briefing and makes no model request.
@@ -77,10 +87,17 @@ refresh retains the last valid briefing with a failure label; without one,
 Home uses its ordinary summary. Disconnecting or replacing the connection
 hides its previous briefing. The replaceable cache is not a permanent archive.
 
-The client uses LM Studio's [OpenAI-compatible chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions)
+The server must support OpenAI-compatible `/chat/completions` and JSON-schema
+structured output, such as LM Studio's [chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions)
 and [structured JSON output](https://lmstudio.ai/docs/developer/openai-compat/structured-output).
 Generation has a two-minute timeout. Invalid output, unknown evidence
 references and incomplete responses are rejected.
+
+The selected server receives the portfolio and task summaries described above.
+A remote provider may charge for scheduled generation. NoticeOS does not meter
+these charges or enforce an inference spending cap. Configure a limit with the
+provider; pause **Portfolio briefing** or disconnect the model to stop future
+generation.
 
 ## Mediavine revenue
 
