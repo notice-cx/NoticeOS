@@ -24,6 +24,10 @@ export function boardKey(asset, statuses = ALL_STATUSES, closedDays) {
 export function taskKey(taskId) {
     return `task\u0000${taskId}`;
 }
+/** Every task of a site's project carrying one of a read's labels, closed of any age. */
+export function labelKey(asset, read) {
+    return `labels\u0000${asset}\u0000${read}`;
+}
 function fileOf(dir, key) {
     return path.join(dir, `${createHash('sha256').update(key).digest('hex')}.json`);
 }
