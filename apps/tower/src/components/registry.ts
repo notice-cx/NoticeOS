@@ -402,9 +402,9 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["healthy", "latest skipped", "latest failed", "scheduler silent", "not yet recorded", "full lane matrix"],
   },
   {
-    name: "WorkflowStateLabel / WorkflowActivity / WorkflowStages / WorkflowScheduleTimeline / WorkflowStepOutputView / WorkflowRunDiagnostics",
+    name: "WorkflowStateLabel / WorkflowActivity / WorkflowStages / WorkflowScheduleTimeline / WorkflowStepOutputView",
     file: "components/WorkflowVisuals.tsx",
-    purpose: "Observed workflow execution vocabulary, hourly history, dependency-stage inspector and upcoming schedule density. Asset annotations and the lifecycle Stepper do not represent execution attempts, parallel work or schedule forecasts. Green requires a recorded successful execution; failures are red; skipped, paused and unknown states keep distinct labels/glyphs. Stage layout follows declared dependencies and selection reveals actual attempt evidence. Legacy runs never acquire invented stage success. All chart details support hover, focus and tap through InfoTooltip.",
+    purpose: "Observed workflow execution vocabulary, hourly history, dependency-stage inspector and upcoming schedule density. Asset annotations and the lifecycle Stepper do not represent execution attempts, parallel work or schedule forecasts. Green requires a recorded successful execution; failures are red; skipped, paused and unknown states keep distinct labels/glyphs. Stage layout follows declared dependencies and selection reveals attempt evidence with collapsed Inputs and Output, raw error details and copy controls. Failed stages are selected first. Legacy runs never acquire invented stage success. All chart details support hover, focus and tap through InfoTooltip.",
     variants: ["succeeded", "failed", "running", "skipped", "paused", "never", "unknown", "waiting", "hourly history", "parallel stages", "legacy run", "upcoming schedule", "visual output", "missing output", "pending output", "collapsed inputs and output", "redacted or truncated diagnostics"],
   },
   {

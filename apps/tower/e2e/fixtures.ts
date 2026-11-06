@@ -20,7 +20,7 @@ export const JOURNEY_TIME_ZONE = "UTC";
 export const JOURNEY_CREDENTIALS_KEY = btoa("journey-only-synthetic-store-key");
 
 export const INITIAL_DOCUMENTS: Record<string, unknown> = {
-  "config/constants.json": { os_time_zone: JOURNEY_TIME_ZONE, monthly_caps: { data_usd: 25 }, operator_rate_usd_per_min: 1, flag_defaults: {} },
+  "config/constants.json": { os_time_zone: JOURNEY_TIME_ZONE, monthly_caps: { data_usd: 25 }, operator_rate_usd_per_min: 1, flag_defaults: {}, portfolio_brief: { asset_ids: null } },
   "config/integrations.json": { catalog: [
     { id: "bing-webmaster", label: "Bing Webmaster Tools", scope: "property", layer: "provider", credential: "shared", docRef: "docs/11-integrations.md" },
     { id: "ad-network", label: "Ad revenue", scope: "property", layer: "provider", credential: "shared", docRef: "docs/11-integrations.md#mediavine-revenue" },

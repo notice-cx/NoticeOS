@@ -236,20 +236,23 @@ describe('workflow operating surface', () => {
     expect(screen.getByText('Execution stages')).toBeVisible();
     expect(screen.getAllByText(reason)).toHaveLength(1);
   });
-  it.each(['failed', 'succeeded'] as const)('makes actual %s run diagnostics available outside the execution graph', async state => {
+  it.each(['failed', 'succeeded'] as const)('keeps actual %s inputs and output inside the selected execution stage', async state => {
     const run: WorkflowRun = { ...trace, state, steps: [{ ...trace.steps![1]!, state,
       diagnostics: { input: { text: '{"asset":"example.com"}', truncated: false, redacted: false },
         output: { text: '{"written":2}', truncated: false, redacted: false } },
     }] };
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: run }))));
     mount(`/health/operations/counters?run=${encodeURIComponent(run.id)}`);
-    const disclosure = await screen.findByText('Run diagnostics');
-    expect(disclosure).toBeVisible();
-    const panel = disclosure.closest('details')!;
-    expect(panel).not.toHaveAttribute('open');
-    expect(panel.parentElement?.closest('details')).toBeNull();
-    fireEvent.click(disclosure);
-    expect(within(panel).getByText('Refresh Google signals')).toBeVisible();
+    await screen.findByText('Execution stages');
+    expect(screen.queryByText('Run diagnostics')).toBeNull();
+    if (state === 'failed') fireEvent.click(screen.getByText('Execution details'));
+    fireEvent.click(screen.getByRole('button', { name: /Refresh Google signals/ }));
+    const stage = screen.getByRole('complementary', { name: 'Stage details' });
+    expect(within(stage).getAllByText('Inputs', { exact: true })).toHaveLength(1);
+    expect(within(stage).getAllByText('Output', { exact: true })).toHaveLength(1);
+    expect(within(stage).getByText('{"written":2}')).not.toBeVisible();
+    fireEvent.click(within(stage).getByText('Output', { exact: true }));
+    expect(within(stage).getByText('{"written":2}')).toBeVisible();
   });
   it('shows retained failure guidance without inventing a missing stage', async () => {
     const run: WorkflowRun = { ...trace, id: `portfolio-brief@${trace.startedAt}`, workflowId: 'portfolio-brief', steps: null,
