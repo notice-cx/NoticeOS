@@ -62,6 +62,13 @@ describe('bounded stored briefing reads', () => {
       expect(current.data.omittedCostFamilies).toBe(0);
       expect(packet.facts.find(fact => fact.id === 'finance:USD:estimated:current')!.data.accounting).toMatchObject({ revenueMinor: 999, costMinor: null });
       expect(packet.facts.find(fact => fact.id === 'finance:JPY:reconciled:current')!.data).toMatchObject({ minorDigits: 0, accounting: { revenueMinor: null, costMinor: 5 } });
+      await addSites(context, [{ id: 'ignored.example', displayName: 'Ignored', status: 'live', createdAt: '2026-09-01T00:00:00.000Z' }]);
+      await bookLedger(context.call, [{ ...row('2026-11', 'revenue', 'subs', 1_000_000), asset: 'ignored.example' }]);
+      const scoped = await loadPortfolioBriefReadings(context.call, { ...options, reviewAssetIds: ['example.com'] });
+      expect(scoped.facts.find(fact => fact.id === 'finance:USD:reconciled:current')!.data.accounting).toMatchObject({ revenueMinor: 3000 });
+      expect(scoped.facts.find(fact => fact.id === 'finance:USD:reconciled:current')!.data.selectedAssetIds).toEqual(['example.com']);
+      const all = await loadPortfolioBriefReadings(context.call, options);
+      expect(all.facts.find(fact => fact.id === 'finance:USD:reconciled:current')!.data.accounting).toMatchObject({ revenueMinor: 1_003_000 });
     } finally { await context.close(); }
   });
 

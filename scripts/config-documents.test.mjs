@@ -950,3 +950,29 @@ test('journeys save as a guarded list and semantic validation covers whole asset
   assert.throws(() => applyDocumentOps(bad.resolved,bad.documents),/unique/);
   assert.throws(() => validateSchemaAndSafety(changeset([{...op,value:[{...journey,steps:[]}]}])),/journey/i);
 });
+
+ test('AI review selection saves whole nullable lists and fails closed on malformed stored values', async () => {
+   const {portfolioReviewAssetIds} = await import('../packages/contract/src/configuration.mjs');
+   assert.equal(portfolioReviewAssetIds({}), null);
+   assert.equal(portfolioReviewAssetIds({portfolio_brief:{asset_ids:null}}), null);
+   assert.deepEqual(portfolioReviewAssetIds({portfolio_brief:{asset_ids:['second','example.com']}}), ['second','example.com']);
+   for (const value of [false, 'example', ['example','example'], ['example','BAD']]) {
+     assert.deepEqual(portfolioReviewAssetIds({portfolio_brief:{asset_ids:value}}), []);
+     assert.throws(() => validateSchemaAndSafety(changeset([{kind:'file-json-set', file:'config/constants.json', pointer:'/portfolio_brief/asset_ids', expect:null, value}])));
+   }
+   for (const value of [null, [], ['example.com']]) validateSchemaAndSafety(changeset([{kind:'file-json-set', file:'config/constants.json', pointer:'/portfolio_brief/asset_ids', expect:null, value}]));
+   assert.throws(() => validateSchemaAndSafety(changeset([{kind:'file-json-set', file:'config/constants.json', pointer:'/portfolio_brief/asset_ids/0', expect:'example', value:'other'}])));
+ });
+
+ test('AI review selection creates its legacy missing parent and rejects a stale whole-array guard', async () => {
+   const file = 'config/constants.json';
+   const docs = {[file]: {flag_defaults: {alpha: 0.01}}};
+   const cs = changeset([{kind:'file-json-set', file, pointer:'/portfolio_brief/asset_ids', expect:null, value:['example.com']}]);
+   const options = {readDocument: documentsFrom(docs), readBuiltIn: async () => ({portfolio_brief:{asset_ids:null}})};
+   const {resolved, mismatches, documents} = await resolveOps(cs, null, options);
+   assert.deepEqual(mismatches, []);
+   applyDocumentOps(resolved, documents);
+   assert.deepEqual(documents.get(file), {flag_defaults:{alpha:0.01}, portfolio_brief:{asset_ids:['example.com']}});
+   const stale = await resolveOps(cs, null, {readDocument: async name => documents.get(name), readBuiltIn: options.readBuiltIn});
+   assert.equal(stale.mismatches.length, 1);
+ });

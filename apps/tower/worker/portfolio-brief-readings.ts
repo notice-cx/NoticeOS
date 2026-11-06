@@ -30,7 +30,7 @@ const monthEnd = (month: string) => new Date(Date.parse(shiftMonth(month, 1)) - 
 
 /** Four bounded store reads share one upper clock bound; no source is collected here. */
 export async function loadPortfolioBriefReadings(store: WorkspaceStore, options: {
-  now: Date; assets: readonly { id: string; displayName: string }[]; timeZone: string;
+  now: Date; assets: readonly { id: string; displayName: string }[]; timeZone: string; reviewAssetIds?: readonly string[] | null;
 }): Promise<{ facts: PortfolioBriefFact[]; insightEvidenceIds: string[] }> {
   const nowMs = options.now.getTime(), asOf = options.now.toISOString();
   const month = monthDate(options.now, options.timeZone), firstMonth = shiftMonth(month, -2);
@@ -40,6 +40,7 @@ export async function loadPortfolioBriefReadings(store: WorkspaceStore, options:
       SELECT period_month, currency, booking_state, kind, family, GROUPING(family) = 1 AS "isTotal",
       SUM(amount_minor) AS amount, count(*)::int AS entries, max(recorded_at) AS "recordedAt"
       FROM noticeos.financial_ledger WHERE period_month >= $1::date AND period_month < $2::date AND recorded_at <= $3::timestamptz
+      AND ($5::text[] IS NULL OR asset_id = ANY($5::text[]))
       GROUP BY GROUPING SETS ((period_month, currency, booking_state, kind), (period_month, currency, booking_state, kind, family))),
       ranked AS (SELECT *, count(*) FILTER (WHERE NOT "isTotal") OVER (PARTITION BY period_month, currency, booking_state, kind)::int AS "familyCount", dense_rank() OVER (ORDER BY currency) AS currency_rank,
       row_number() OVER (PARTITION BY period_month, currency, booking_state, kind, "isTotal" ORDER BY abs(amount) DESC, family) AS family_rank
@@ -50,7 +51,7 @@ export async function loadPortfolioBriefReadings(store: WorkspaceStore, options:
       (kind = 'cost' AND ((period_month = $4::date AND family_rank <= 5) OR (period_month < $4::date AND EXISTS (SELECT 1 FROM ranked picked WHERE picked.currency = ranked.currency
       AND picked.booking_state = ranked.booking_state AND picked.kind = 'cost' AND NOT picked."isTotal"
       AND picked.period_month < $4::date AND picked.family_rank <= 5 AND picked.family = ranked.family)))))
-      ORDER BY period_month DESC, currency, booking_state, kind, "isTotal" DESC, family_rank`, [firstMonth, shiftMonth(month, 1), asOf, month])),
+      ORDER BY period_month DESC, currency, booking_state, kind, "isTotal" DESC, family_rank`, [firstMonth, shiftMonth(month, 1), asOf, month, options.reviewAssetIds == null ? null : assets])),
     store.read(tx => tx.query<ProductRow>(`SELECT a.asset_id AS asset, p.generated_at AS "generatedAt", p.payload -> 'product' AS product
       FROM noticeos.assets a CROSS JOIN LATERAL (SELECT payload, generated_at FROM noticeos.asset_insight_snapshots s
       WHERE s.workspace_id = a.workspace_id AND s.asset_id = a.asset_id AND s.generated_at <= $2::timestamptz
@@ -99,6 +100,7 @@ export async function loadPortfolioBriefReadings(store: WorkspaceStore, options:
     const prior = periods[0]!, current = periods[1]!;
     const comparable = state === 'reconciled' && prior.revenueMinor !== null && current.revenueMinor !== null && prior.costMinor !== null && current.costMinor !== null;
     const common = { currency, minorDigits: currencyMinorDigits(currency), bookingState: state, unit: 'minor currency units',
+      ...(options.reviewAssetIds == null ? {} : { accountingScope: 'selected assets', selectedAssetIds: assets }),
       coveredCurrencies: Math.min(6, rows[0]!.currencyCount), omittedCurrencies: Math.max(0, rows[0]!.currencyCount - 6),
       caution: 'Recorded entries are not complete coverage. Missing kinds and families stay unknown. Estimates are not reconciled profit. No causal attribution.' };
     const costs = (period: string) => rows.filter(row => row.month === period && row.kind === 'cost' && !row.isTotal);

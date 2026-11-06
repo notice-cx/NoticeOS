@@ -20,6 +20,7 @@ import type { DashboardConfig } from "../shared/dashboard";
 import type { BeadsConfig } from "../shared/settings";
 import type { DomainOrder, RecurringCost } from "../shared/financials";
 
+declare const __PORTFOLIO_REVIEW_ASSET_IDS__: string[] | null;
 declare const __MONTHLY_CAPS__: { dataUsd: number };
 declare const __FLAG_DEFAULTS__: Record<string, number | string>;
 declare const __PULL_CONFIG__: PullConfigEntry[];
@@ -53,6 +54,7 @@ declare const __BEADS__: BeadsConfig;
 export function compiledConfig(): TowerConfigFallbacks {
   return {
     monthlyCaps: __MONTHLY_CAPS__,
+    portfolioReviewAssetIds: typeof __PORTFOLIO_REVIEW_ASSET_IDS__ === "undefined" ? null : __PORTFOLIO_REVIEW_ASSET_IDS__,
     flagDefaults: __FLAG_DEFAULTS__,
     operatorRateUsdPerMin: __OPERATOR_RATE__,
     osTimeZone: __OS_TIME_ZONE__,

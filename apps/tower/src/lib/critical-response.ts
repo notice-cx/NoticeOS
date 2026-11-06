@@ -1,7 +1,7 @@
 import type { SettingsPayload } from '@shared/settings';
 import type { ConfigWritability, ConfigSaveResult } from './api';
 import type { MoveAssetResult } from '@noticeos/contract';
-import { TOWER_CONFIG_FILES } from '@noticeos/contract/configuration';
+import { TOWER_CONFIG_FILES, CONFIG_ASSET_KEY_RE, portfolioReviewRefusal } from '@noticeos/contract/configuration';
 import { CONFIG_KNOBS } from '@shared/config-registers';
 import { validateWallLayout } from '@shared/wall-layout';
 import {
@@ -49,6 +49,11 @@ function schedules(value: unknown): boolean {
 export function decodeSettings(value: unknown): SettingsPayload {
   if (!fields(value, {
     generatedAt: instant,
+    portfolioReview: item => fields(item, {
+      owner: owner => owner === TOWER_CONFIG_FILES.constants,
+      assetIds: ids => portfolioReviewRefusal(ids) === null,
+      assets: list(asset => fields(asset, { id: id => string(id) && CONFIG_ASSET_KEY_RE.test(id), displayName: name => string(name) && name.trim().length > 0 })),
+    }) && unique(item.assets, 'id'),
     clock: item => fields(item, { owner: owner => owner === TOWER_CONFIG_FILES.constants, timeZone: zone, chosen: boolean }),
     dashboard,
     budget: item => fields(item, { owner: owner => owner === TOWER_CONFIG_FILES.constants,

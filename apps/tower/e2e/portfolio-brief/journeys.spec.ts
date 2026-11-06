@@ -182,6 +182,35 @@ test('model connection chooses an available server model before saving', { tag: 
   expect(saved).toEqual({ fields: { LOCAL_MODEL_BASE_URL: 'https://other.example.com/v1', LOCAL_MODEL_ID: 'example-small' } });
 });
 
+test('Settings AI saves a portfolio asset subset and Undo restores all assets', { tag: '@pull-request' }, async ({ page, request }, info) => {
+  expect((await request.post('/__journey/reset')).ok()).toBe(true);
+  expect((await request.post('/__journey/wall-feed')).ok()).toBe(true);
+  expect((await (await request.get('/__journey/status')).json()).isolated).toBe(true);
+  const initial = await (await request.get('/api/settings')).json();
+  const assets = initial.portfolioReview.assets as { id: string; displayName: string }[];
+  expect(assets.length).toBeGreaterThan(1);
+  expect(assets.find(asset => asset.id === 'os.example.com')?.displayName).toBe('System');
+  expect(initial.portfolioReview.assetIds).toBeNull();
+  await page.goto('/settings/ai');
+  const panel = page.locator('#portfolio-review');
+  await expect(panel.getByRole('heading', { name: 'AI portfolio review' })).toBeVisible();
+  await expect(panel).not.toContainText('Stored name, never shown');
+  await expect(panel.getByRole('radio', { name: 'All assets', exact: true })).toBeChecked();
+  await panel.getByRole('radio', { name: 'Choose assets', exact: true }).check();
+  const choices = panel.getByRole('checkbox');
+  await expect(choices).toHaveCount(assets.length);
+  for (let index = 1; index < assets.length; index++) await choices.nth(index).uncheck();
+  await panel.getByRole('button', { name: 'Save asset selection', exact: true }).click();
+  await expect(panel.getByRole('status')).toContainText('Saved');
+  await expect.poll(async () => (await (await request.get('/api/settings')).json()).portfolioReview.assetIds).toEqual([assets[0]!.id]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  await page.screenshot({ path: info.outputPath('settings-ai-asset-subset.png'), fullPage: true });
+  await panel.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(panel.getByRole('radio', { name: 'All assets', exact: true })).toBeChecked();
+  await expect.poll(async () => (await (await request.get('/api/settings')).json()).portfolioReview.assetIds).toBeNull();
+  await expect(panel.getByRole('checkbox')).toHaveCount(0);
+});
+
 
 test('failed briefing leads with its saved reason and next step', { tag: '@pull-request' }, async ({ page, request }, info) => {
   expect((await request.post('/__journey/reset')).ok()).toBe(true);
@@ -211,18 +240,17 @@ test('failed briefing leads with its saved reason and next step', { tag: '@pull-
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   await page.screenshot({ path: info.outputPath('synthetic-briefing-failure.png'), fullPage: true });
   await page.locator('main').screenshot({ path: info.outputPath('synthetic-briefing-failure-crop.png') });
-  await page.getByText('Run diagnostics', { exact: true }).click();
-  const diagnostics = page.locator('[data-run-diagnostics]');
-  await diagnostics.locator('summary').filter({ hasText: 'Refresh portfolio briefing' }).click();
+  await expect(page.getByText('Run diagnostics', { exact: true })).toHaveCount(0);
+  await page.getByText('Execution details', { exact: true }).click();
+  const diagnostics = page.getByRole('complementary', { name: 'Stage details' });
+  await expect(diagnostics.getByRole('heading', { name: 'Refresh portfolio briefing' })).toBeVisible();
   await diagnostics.locator('summary').filter({ hasText: /^Inputs$/ }).click();
   await expect(diagnostics.locator('pre').filter({ hasText: 'Write a portfolio briefing from Sources S1 and S2.' })).toBeVisible();
   await diagnostics.locator('summary').filter({ hasText: /^Output$/ }).click();
   await expect(diagnostics.locator('pre').filter({ hasText: 'Headline: Review the release blocker' })).toBeVisible();
   await expect(diagnostics.getByText('Truncated', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Execution stages' })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Execution stages' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   await page.screenshot({ path: info.outputPath('synthetic-briefing-diagnostics.png'), fullPage: true });
-  await page.getByText('Execution details', { exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Execution stages' })).toBeVisible();
   await expect(page.getByText(reason, { exact: true })).toHaveCount(1);
 });

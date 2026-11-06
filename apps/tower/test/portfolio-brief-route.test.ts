@@ -14,11 +14,11 @@ vi.mock('../worker/portfolio-brief-acquisition', () => ({ loadPortfolioBriefAcqu
 const NOW = new Date('2026-11-06T12:00:00Z');
 const saved: PortfolioBriefRead = { state: 'awaiting', briefing: null, error: null, stale: false, lastAttemptAt: null, nextAttemptAt: null };
 const evidence: PortfolioBriefEvidence = { schemaVersion: 1, asOf: NOW.toISOString(), timeZone: 'UTC', facts: [], insightEvidenceIds: [], limitations: [], coverage: { assets: 0, includedAssets: 0, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } };
-function environment(state: PortfolioBriefRead = saved, schedules: TowerConfig['schedules'] = null) {
-  const cfg = { schedules, osTimeZone: 'UTC', beads: { spokes: [] } } as unknown as TowerConfig;
+function environment(state: PortfolioBriefRead = saved, schedules: TowerConfig['schedules'] = null, selection: string[] | null = null, inventory: {id: string; displayName: string}[] = []) {
+  const cfg = { schedules, osTimeZone: 'UTC', beads: { spokes: [] }, portfolioReviewAssetIds: selection } as unknown as TowerConfig;
   const ingest = { portfolioBrief: vi.fn(async () => state), refreshPortfolioBrief: vi.fn(async (_evidence: PortfolioBriefEvidence, _cadenceMs: number): Promise<PortfolioBriefRead> => ({ ...saved, state: 'ready' as const, lastAttemptAt: NOW.toISOString() })) };
   const config = vi.fn(async () => cfg);
-  const env = { STORE: {}, INGEST: {}, config: vi.fn(), briefing: { ingest, config } } as unknown as TowerCronEnv;
+  const env = { STORE: {read: vi.fn(async () => inventory)}, INGEST: {}, config: vi.fn(), briefing: { ingest, config } } as unknown as TowerCronEnv;
   return { env, ingest, config };
 }
 beforeEach(() => {
@@ -62,7 +62,7 @@ describe('background portfolio briefing orchestration', () => {
     const { env, ingest } = environment();
     expect(await runTowerCron(BRIEFING_TICK, env, () => NOW)).toEqual([expect.objectContaining({ id: 'portfolio-brief', state: 'succeeded' })]);
     expect(models.wall).toHaveBeenCalledOnce(); expect(models.work).toHaveBeenCalledOnce(); expect(models.revenue).toHaveBeenCalledOnce();
-    expect(models.evidence).toHaveBeenCalledExactlyOnceWith({ assets: [] }, { projects: [] }, { now: NOW, revenueByAsset: new Map() });
+    expect(models.evidence).toHaveBeenCalledExactlyOnceWith({ assets: [] }, { projects: [] }, { now: NOW, revenueByAsset: new Map(), reviewAssetIds: null });
     expect(ingest.refreshPortfolioBrief).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ ...evidence, context: expect.objectContaining({ maxBytes: 24_000 }) }), 3_600_000);
     expect(models.readings).toHaveBeenCalledOnce(); expect(models.acquisition).toHaveBeenCalledOnce();
   });
@@ -143,4 +143,17 @@ describe('background portfolio briefing orchestration', () => {
     await runTowerCron(BRIEFING_TICK, { ...env, briefing: undefined }, () => NOW);
     expect(ingest.refreshPortfolioBrief).not.toHaveBeenCalled();
   });
+});
+
+it.each([{selection: null}, {selection: ['noticeos']}])('reviews OS inventory without a Wall card with selection $selection', async ({selection}) => {
+  const inventory = [{id: 'noticeos', displayName: 'NoticeOS'}];
+  const {env, ingest} = environment(saved, null, selection, inventory);
+  const fact: PortfolioBriefFact = {id: 'work:noticeos:progress', domain: 'delivery', basis: 'current-state', label: 'NoticeOS delivery',
+    href: '/tasks', observedAt: NOW.toISOString(), period: null, data: {asset: 'noticeos', counts: {open: 2}}};
+  models.evidence.mockReturnValue({...evidence, reviewAssetIds: selection, facts: [fact], insightEvidenceIds: [fact.id]});
+  expect(await runTowerCron(BRIEFING_TICK, env, () => NOW)).toEqual([expect.objectContaining({state: 'succeeded'})]);
+  expect(models.readings).toHaveBeenCalledWith(env.STORE, expect.objectContaining({assets: inventory, reviewAssetIds: selection}));
+  expect(models.acquisition).toHaveBeenCalledWith(env.STORE, expect.objectContaining({assets: inventory}));
+  expect(models.revenue).toHaveBeenCalledWith(env.STORE, expect.objectContaining({assets: ['noticeos']}));
+  expect(ingest.refreshPortfolioBrief).toHaveBeenCalledWith(expect.objectContaining({reviewAssetIds: selection, insightEvidenceIds: [fact.id]}), expect.any(Number));
 });

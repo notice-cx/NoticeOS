@@ -95,3 +95,15 @@ it('keeps a correct source opening and ordinary non-temporal prose', () => {
   expect(parsePortfolioBrief(prose.replace('Traffic rose 50%. Revenue fell 20%.', 'During checkout, errors increased.'), evidence).insights[0]?.observation)
     .toContain('During checkout, errors increased.');
 });
+
+it('allows a current decision as context without making it a numeric comparison', () => {
+  const packet: PortfolioBriefEvidence = { ...evidence, facts: [...evidence.facts, {
+    id: 'current-decision', label: 'Partner approval', href: '/tasks', domain: 'delivery', basis: 'task-dependency',
+    observedAt: evidence.asOf, period: null, data: { title: 'Review partner application', blockedDependents: ['publish-links'] },
+  }], insightEvidenceIds: [...evidence.insightEvidenceIds, 'current-decision'] };
+  const answer = prose.replace('Sources: S1', 'Sources: S1, S2').replace('More visits are not producing proportional revenue',
+    'The pending partner decision blocks publishing affiliate links');
+  const result = parsePortfolioBrief(answer, packet);
+  expect(result.insights[0]?.evidenceIds).toEqual([evidence.facts[0]!.id, 'current-decision']);
+  expect(result.insights[0]?.observation).toMatch(/^Over the latest 7 days versus the previous 7, /);
+});

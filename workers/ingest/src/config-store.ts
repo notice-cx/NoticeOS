@@ -102,7 +102,7 @@ export function forgetConfigCache(store?: WorkspaceStore): void {
 }
 isolateState('config-store read cache', { forget: () => forgetConfigCache(), held: () => caches.size > 0 });
 
-async function readRows(store: WorkspaceStore, files: string[]): Promise<Map<string, StoredRow | null>> {
+async function readRows(store: WorkspaceStore, files: string[], fresh = false): Promise<Map<string, StoredRow | null>> {
   const out = new Map<string, StoredRow | null>();
   const cacheKey = `${store.where}\n${await store.workspaceId()}`;
   let cache = caches.get(cacheKey);
@@ -114,7 +114,7 @@ async function readRows(store: WorkspaceStore, files: string[]): Promise<Map<str
   const wanted: string[] = [];
   for (const file of files) {
     const hit = cache.get(file);
-    if (hit !== undefined && now - hit.at < CACHE_MS) out.set(file, hit.row);
+    if (!fresh && hit !== undefined && now - hit.at < CACHE_MS) out.set(file, hit.row);
     else wanted.push(file);
   }
   if (wanted.length === 0) return out;
@@ -166,9 +166,10 @@ function bundled(file: string): JsonValue | null {
 export async function getConfigDocuments(
   env: Pick<IngestEnv, 'STORE'>,
   files: readonly string[],
+  options: {fresh?: boolean} = {},
 ): Promise<ConfigDocumentRead[]> {
   const known = files.filter((file) => CONFIG_DOCUMENT_FILES.includes(file));
-  const rows = await readRows(env.STORE, known);
+  const rows = await readRows(env.STORE, known, options.fresh);
   return files.map((file) => {
     const row = known.includes(file) ? (rows.get(file) ?? null) : null;
     const stored = row === null ? null : parseBody(row);
@@ -197,8 +198,9 @@ export async function getConfigDocuments(
 export async function getConfigDocument(
   env: IngestEnv,
   file: string,
+  options: {fresh?: boolean} = {},
 ): Promise<ConfigDocumentRead> {
-  const [read] = await getConfigDocuments(env, [file]);
+  const [read] = await getConfigDocuments(env, [file], options);
   // A one-element input always answers a one-element output; the fallback
   // keeps the type honest.
   return (

@@ -120,6 +120,20 @@ export declare function noNightlyReportOpRefusal(op: {
  * reads as the ids it does hold, so one bad entry never silences the rest.
  */
 export declare function noNightlyReportAssets(constants: unknown): string[] | null;
+export declare const PORTFOLIO_REVIEW_FILE = "config/constants.json";
+export declare const PORTFOLIO_REVIEW_POINTER = "/portfolio_brief/asset_ids";
+export interface PortfolioReviewConfig {
+    assetIds: string[] | null;
+}
+export declare function portfolioReviewRefusal(value: unknown): string | null;
+/** Invalid saved selections exclude all assets rather than broadening disclosure. */
+export declare function portfolioReviewAssetIds(constants: unknown): string[] | null;
+export declare function portfolioReviewOpRefusal(op: {
+    file?: unknown;
+    pointer?: unknown;
+    kind?: unknown;
+    value?: unknown;
+}): string | null;
 /**
  * Which asset an older single-asset binding serves: the first asset, in the
  * installation's own data-source register order (`config/integrations.json`

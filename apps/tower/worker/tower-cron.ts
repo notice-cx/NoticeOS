@@ -4,6 +4,7 @@
 // the local runner through runner-route.ts, as one run of the job.
 
 import type { WorkflowStepRun } from "@noticeos/contract";
+import { assetDisplayName } from '@noticeos/contract/asset-name';
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { redactLogText } from "../../../scripts/os-log.mjs";
 import { SCHEDULED_JOBS, scheduleFor, cronIntervalMinutes } from "../../../scripts/scheduled-jobs.mjs";
@@ -69,20 +70,27 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       const at = now();
       if (state.nextAttemptAt && Date.parse(state.nextAttemptAt) > at.getTime()) return 'Briefing generation is limited to once every 15 minutes';
       const cfg = await env.briefing.config();
+      const reviewAssetIds = cfg.portfolioReviewAssetIds ?? null;
+      if (reviewAssetIds?.length === 0) return 'No assets are selected for AI portfolio review';
+      const selected = reviewAssetIds === null ? null : new Set(reviewAssetIds);
       const schedule = scheduleFor(SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief')!, cfg.schedules ?? {});
       if (!schedule.enabled) return 'Workflow is paused';
-      const [wall, work] = await Promise.all([
+      const [wall, work, inventory] = await Promise.all([
         buildWallPayload(env.STORE, { now: at, constants: cfg.monthlyCaps, integrations: cfg.integrations, pullConfig: cfg.pullConfig,
           dashboard: cfg.dashboard, serpPanel: cfg.serpPanel, osTimeZone: cfg.osTimeZone, noNightlyReport: cfg.noNightlyReport, counters: cfg.counters, schedules: cfg.schedules }),
-        buildWorkPayload(env.STORE, { now: at, projects: cfg.beads.spokes, timeZone: cfg.osTimeZone }),
+        buildWorkPayload(env.STORE, { now: at, projects: cfg.beads.spokes.filter(project => selected === null || selected.has(project.asset)), timeZone: cfg.osTimeZone }),
+        env.STORE.read(tx => tx.query<{ id: string; displayName: string; isOs: boolean }>('SELECT asset_id AS id, display_name AS "displayName", is_os AS "isOs" FROM noticeos.assets ORDER BY asset_id')),
       ]);
-      const assetIds = wall.assets.map(asset => asset.id);
+      const assets = inventory.filter(asset => selected === null || selected.has(asset.id))
+        .map(asset => ({ id: asset.id, displayName: assetDisplayName(asset.isOs, asset.displayName) }));
+      if (reviewAssetIds !== null && assets.length === 0) return 'No selected assets are available for AI portfolio review';
+      const assetIds = assets.map(asset => asset.id);
       const [revenueByAsset, readings, acquisition] = await Promise.all([
         loadRevenueHistories(env.STORE, { now: at, days: 28, fallback: operatorRevenueClock(cfg.osTimeZone), assets: assetIds }),
-        loadPortfolioBriefReadings(env.STORE, { now: at, assets: wall.assets, timeZone: cfg.osTimeZone }),
-        loadPortfolioBriefAcquisition(env.STORE, { now: at, assets: wall.assets }),
+        loadPortfolioBriefReadings(env.STORE, { now: at, assets, timeZone: cfg.osTimeZone, reviewAssetIds }),
+        loadPortfolioBriefAcquisition(env.STORE, { now: at, assets }),
       ]);
-      const base = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset });
+      const base = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset, reviewAssetIds });
       const evidence = packPortfolioBriefContext({ ...base, facts: [...base.facts, ...readings.facts, ...acquisition.facts],
         insightEvidenceIds: [...base.insightEvidenceIds, ...readings.insightEvidenceIds, ...acquisition.insightEvidenceIds] });
       const cadenceMs = Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000;

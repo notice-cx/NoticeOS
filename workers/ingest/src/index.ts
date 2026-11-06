@@ -1,3 +1,4 @@
+import type { SetModelOutputTokensInput, SetModelOutputTokensResult } from '@noticeos/contract';
 import { discoverLocalModels } from './local-model.js';
 import type { DiscoverModelProviderInput, DiscoverModelProviderResult } from '@noticeos/contract';
 import { CLOUDFLARE_D1_BACKUP_PATH, CLOUDFLARE_D1_PATH } from '@noticeos/contract/cloudflare-d1';
@@ -85,6 +86,7 @@ import type { MediavineSettings, MediavineSync } from '@noticeos/contract';
 import {
   putCredential,
   setCredentialExpiry,
+  setModelOutputTokens,
 } from './credentials.js';
 import {
   type BeginGoogleOAuthInput,
@@ -545,6 +547,11 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     if (input.provider === 'mediavine') return withCallStore(this.env, this.ctx, (env) => putMediavineCredential(env, input));
     return withCallStore(this.env, this.ctx, (env) => putCredential(env, input));
+  }
+
+  async setModelOutputTokens(input: SetModelOutputTokensInput): Promise<SetModelOutputTokensResult> {
+    if (workspaceProfile(this.env) !== 'standalone') throw new WorkspaceEntryRefused();
+    return withCallStore(this.env, this.ctx, env => setModelOutputTokens(env, input));
   }
 
   async discoverModelProvider(input: DiscoverModelProviderInput): Promise<DiscoverModelProviderResult> {

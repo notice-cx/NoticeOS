@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { ReadFailed } from '@/components/ReadFailed';
 import { Tabs, TabPanel } from '@/components/Tabs';
 import { PageAnswer } from '@/components/surface/PageAnswer';
-import { WorkflowActivity, WorkflowRunTrigger, WorkflowScheduleTimeline, WorkflowStages, WorkflowRunDiagnostics, WorkflowStateLabel, workflowDuration } from '@/components/WorkflowVisuals';
+import { WorkflowActivity, WorkflowRunTrigger, WorkflowScheduleTimeline, WorkflowStages, WorkflowStateLabel, workflowDuration } from '@/components/WorkflowVisuals';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
@@ -241,7 +241,6 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         </div>)}
       </section> : <WorkflowViewEvidence view={view.id} run={selected ?? null} />}
       {runAction}
-      <WorkflowRunDiagnostics definition={definition} run={selected ?? null} />
       {id === 'backup' && <BackupRunDetails run={selected} captured={data.backup} pending={query.isPlaceholderData || Boolean(defaultRun && !runId)} />}
       <RunSettings collapsed={failed} expanded={Boolean(editing)}>
       <div className="flex flex-wrap items-start justify-between gap-4 border-y border-border py-4">

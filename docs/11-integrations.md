@@ -115,11 +115,31 @@ reporting periods from the cited observations. Generation has a ten-minute
 timeout. Missing sections, unknown sources, incompatible periods and incomplete
 responses have separate failure messages.
 
-The selected execution's **Run diagnostics** section contains collapsed
-**Inputs** and **Output** sections. They include the model request, supplied
+**Generation budget** limits output tokens, including the model's thinking and
+final answer. The default is 8,192 tokens; the connection accepts 1,024–32,768.
+The model connection's budget can be changed without replacing its API address,
+token or selected model. Higher budgets can take longer and increase remote
+provider charges. The briefing itself remains limited to 360 words. NoticeOS
+leaves sampling temperature at the server's default.
+Legacy environment connections must be replaced in Integrations before their
+budget can be edited there.
+
+If the model spends the full budget on thinking and returns no final answer,
+the run identifies that failure. Increase **Generation budget** or reduce
+thinking in the model server, then retry.
+
+The selected stage under **Execution details** contains collapsed **Inputs**
+and **Output** sections. They include the model request, supplied
 context, raw response and validation error when captured. Diagnostic text is
 bounded and redacted; truncation is marked. Older runs without captured text
 cannot recover their inputs or output.
+
+**Settings → AI → AI portfolio review** selects the assets included in the
+briefing. **All assets** includes future additions; **Choose assets** saves an
+explicit selection. Selecting none stops model generation. Asset records,
+task context and accounting comparisons follow the selection; global system
+health and operational spending still cover the installation. Changing the
+selection hides guidance generated for the old scope.
 
 The selected server receives the portfolio and task summaries described above.
 A remote provider may charge for scheduled generation. NoticeOS does not meter

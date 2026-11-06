@@ -1,3 +1,4 @@
+import { LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
 import { Check, ExternalLink, KeyRound, Loader2, Plus, Send, TriangleAlert, WifiOff } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { ConnectFacts, ConnectVerdict, IntegrationField, IntegrationProvider } from "@noticeos/contract";
@@ -164,7 +165,7 @@ export function ConnectPanel({
   // account key or its older per-site keys) shows only the one it asks for.
   const needed = fields.some((field) => field.required) ? fields.filter((field) => field.required) : fields;
   const complete = needed.every((field) => filled(field, values[field.name] ?? ""))
-    && (!modelProvider || (modelState === "loaded" && models.includes(values.LOCAL_MODEL_ID ?? "")));
+    && (!modelProvider || (modelState === "loaded" && models.includes(values.LOCAL_MODEL_ID ?? "") && parseLocalModelOutputTokens(values[LOCAL_MODEL_OUTPUT_TOKENS]) !== null));
   // A replaced key changes no site: once accepted the panel is done.
   const rotated = opened !== "form";
 
@@ -306,10 +307,11 @@ export function ConnectPanel({
           value={values[field.name] ?? ""}
           disabled={checking}
           autoFocus={index === 0}
-          error={fieldError?.field === field.name ? fieldError.message : null}
+          error={modelProvider && field.name === LOCAL_MODEL_OUTPUT_TOKENS && parseLocalModelOutputTokens(values[field.name]) === null ? `Use a whole number from ${MIN_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')} to ${MAX_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')}.` : fieldError?.field === field.name ? fieldError.message : null}
           onChange={(value) => {
-            if (modelProvider) clearModels();
-            setValues((current) => ({ ...current, ...(modelProvider ? { LOCAL_MODEL_ID: "" } : {}), [field.name]: value }));
+            const changesInventory = modelProvider && ["LOCAL_MODEL_BASE_URL", "LOCAL_MODEL_API_TOKEN"].includes(field.name);
+            if (changesInventory) clearModels();
+            setValues((current) => ({ ...current, ...(changesInventory ? { LOCAL_MODEL_ID: "" } : {}), [field.name]: value }));
             if (fieldError?.field === field.name) setFieldError(null);
           }}
         />
@@ -453,7 +455,8 @@ function KeyField({
         id={id}
         // Masked only where it is a password: a webhook address is read back
         // against Discord's own screen, and a mask hides the typo that 404s.
-        type={field.kind === "password" ? "password" : "text"}
+        type={field.kind === "password" ? "password" : field.name === LOCAL_MODEL_OUTPUT_TOKENS ? "number" : "text"}
+        {...(field.name === LOCAL_MODEL_OUTPUT_TOKENS ? { inputMode: 'numeric' as const, min: MIN_LOCAL_MODEL_OUTPUT_TOKENS, max: MAX_LOCAL_MODEL_OUTPUT_TOKENS, step: '1' } : {})}
         value={value}
         placeholder={field.placeholder}
         aria-describedby={field.description ? `${id}-description` : undefined}

@@ -88,9 +88,18 @@ function newestAlignedComparison(asset: AssetCard, revenueDays: ReadonlyMap<stri
 export function buildPortfolioBriefEvidence(
   wall: WallPayload,
   work: WorkPayload,
-  options: { now?: Date; revenueByAsset?: ReadonlyMap<string, DailyRevenueHistory> } = {},
+  options: { now?: Date; revenueByAsset?: ReadonlyMap<string, DailyRevenueHistory>; reviewAssetIds?: readonly string[] | null } = {},
 ): PortfolioBriefEvidence {
   const now = options.now ?? new Date(wall.generatedAt);
+  const scoped = Array.isArray(options.reviewAssetIds);
+  if (scoped) {
+    const selected = new Set(options.reviewAssetIds);
+    wall = { ...wall, assets: wall.assets.filter(asset => selected.has(asset.id)), attention: wall.attention.filter(alert => selected.has(alert.asset)) };
+    work = { ...work, projects: work.projects.filter(project => selected.has(project.asset)), archivedProjects: work.archivedProjects?.filter(project => selected.has(project.asset)) };
+  }
+  if (scoped && options.reviewAssetIds!.length === 0) return { schemaVersion: 1, asOf: now.toISOString(), timeZone: wall.osTimeZone ?? 'UTC',
+    reviewAssetIds: [...options.reviewAssetIds!], facts: [], insightEvidenceIds: [], limitations: [],
+    coverage: { assets: 0, includedAssets: 0, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } };
   const facts: PortfolioBriefFact[] = [];
   const insightEvidenceIds: string[] = [];
   const limitations = [
@@ -98,6 +107,7 @@ export function buildPortfolioBriefEvidence(
     'Task rows are saved samples; counts cover successful project snapshots. Task closure does not establish a business outcome.',
     'Booked ledger figures are reconciled; forecast ledger figures, provider daily revenue and projections are estimates. Zero ledger figures do not establish recorded zero revenue.',
   ];
+  if (scoped) limitations.push('Business evidence covers selected assets only. Unassigned portfolio accounting is excluded; system health and operational spending cover the whole installation.');
   const add = (id: string, label: string, href: string, observedAt: string | null, data: Record<string, unknown>, period: PortfolioBriefFact['period'] = null, comparison?: PortfolioBriefFact['comparison']) => {
     facts.push({ id, label: clip(label), href, observedAt, period, data, ...(comparison ? { comparison } : {}) });
   };
@@ -105,7 +115,7 @@ export function buildPortfolioBriefEvidence(
     (Date.parse(b.activeUsers.collectedAt ?? '') || 0) - (Date.parse(a.activeUsers.collectedAt ?? '') || 0) || a.id.localeCompare(b.id)).slice(0, ASSET_LIMIT);
   const booked = accounting(wall.portfolio.booked, wall.portfolio.revenueRecorded?.booked);
   const estimated = accounting(wall.portfolio.forecast, wall.portfolio.revenueRecorded?.forecast);
-  if (booked || estimated || wall.portfolio.bookedDelta) add('portfolio:ledger', 'Portfolio accounting', '/financials', wall.ledgerRecordedAt, {
+  if (!scoped && (booked || estimated || wall.portfolio.bookedDelta)) add('portfolio:ledger', 'Portfolio accounting', '/financials', wall.ledgerRecordedAt, {
     period: wall.portfolio.period, periodIsCurrent: wall.portfolio.periodIsCurrent,
     reconciledAccounting: booked, estimatedAccounting: estimated,
     monetaryUnit: 'major currency units',
@@ -198,7 +208,7 @@ export function buildPortfolioBriefEvidence(
     }
   }
   if (!options.revenueByAsset) limitations.push('The Home read model lacks complete per-source daily revenue coverage; traffic versus revenue comparisons are unavailable.');
-  if (wall.assets.length > ASSET_LIMIT) limitations.push(`Asset details cover ${ASSET_LIMIT} of ${wall.assets.length} assets; portfolio totals cover the full portfolio.`);
+  if (wall.assets.length > ASSET_LIMIT) limitations.push(`Asset details cover ${ASSET_LIMIT} of ${wall.assets.length} ${scoped ? 'selected assets' : 'assets; portfolio totals cover the full portfolio'}.`);
 
   const trafficDates = assets.map(asset => [...settledTraffic(asset.activeUsers).keys()].sort().at(-1));
   const commonEnd = trafficDates.every(Boolean) ? (trafficDates as string[]).sort()[0] : undefined;
@@ -207,7 +217,7 @@ export function buildPortfolioBriefEvidence(
     if (rows.every(row => row.comparison !== null)) {
       const current = rows.reduce((sum, row) => sum + row.comparison!.current, 0);
       const previous = rows.reduce((sum, row) => sum + row.comparison!.previous, 0);
-      add('portfolio:traffic-divergence', 'Portfolio traffic and individual asset movement on the same complete days', '/assets', null, {
+      add('portfolio:traffic-divergence', `${scoped ? 'Selected asset' : 'Portfolio'} traffic and individual asset movement on the same complete days`, '/assets', null, {
         current, previous, changePercent: change(current, previous), timeZone: assets[0]!.activeUsers.timeZone,
         assets: rows.map(row => ({ asset: row.asset, name: row.name, ...row.comparison!, currentShare: current > 0 ? row.comparison!.current / current : null })),
         decliningAssets: rows.filter(row => row.comparison!.current < row.comparison!.previous).length,
@@ -290,6 +300,7 @@ export function buildPortfolioBriefEvidence(
   if (dependencyFacts.length > TASK_LIMIT) limitations.push(`Task dependency evidence covers ${TASK_LIMIT} of ${dependencyFacts.length} sampled decisions with blocked work.`);
   const packet: PortfolioBriefEvidence = {
     schemaVersion: 1, asOf: now.toISOString(), timeZone: wall.osTimeZone ?? 'UTC', facts, limitations, insightEvidenceIds,
+    ...(options.reviewAssetIds !== undefined ? { reviewAssetIds: options.reviewAssetIds === null ? null : [...options.reviewAssetIds] } : {}),
     coverage: { assets: wall.assets.length, includedAssets: assets.length, projects: work.projects.length, readableProjects: readable.length,
       omittedAlerts: wall.attention.length - alerts.length, omittedTasks: Math.max(0, unique.length - TASK_LIMIT) },
   };

@@ -1,10 +1,14 @@
+import { LOCAL_MODEL_OUTPUT_TOKENS, DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
+import { useOwnerMutation } from '@/lib/browser-context';
+import { Button } from '@/components/ui/button';
+import { fieldClass } from '@/components/ui/field';
 import { useOwnerToast } from '@/lib/browser-context';
 import { useTowerApi } from '@/lib/browser-context';
 import { TriangleAlert } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { CollectNowResult, IntegrationProvider } from "@noticeos/contract";
 import { acceptedAs } from "@noticeos/contract/integrations";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import { providerName } from "@shared/connect-panel";
@@ -144,7 +148,11 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
       ) : undefined}
       // A connection of the whole installation (Discord, the calendar feeds)
       // ends on the provider's answer: no site list.
-      next={provider.id === 'cloudflare' ? answer => (
+      next={provider.id === 'local-model' ? (_answer, close) => <>
+        <ModelGenerationBudget field={provider.fields.find(field => field.name === LOCAL_MODEL_OUTPUT_TOKENS)!} value={credential.modelOutputTokens ?? DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS}
+          canSave={canConnect && credential.source === 'store'} disabledReason={credential.source === 'env' ? 'Replace this connection to change its generation budget.' : undefined} onSaved={onChanged} />
+        <Button type="button" onClick={close}>Done</Button>
+      </> : provider.id === 'cloudflare' ? answer => (
         <CloudflareD1Panel inventory={answer?.facts.cloudflareD1} names={names} canSave={canConnect} onChanged={onChanged} />
       ) : provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
         <ProviderSiteTokens status={status} names={names} preselect={asset} canSave={canConnect} items={items} onSaved={onChanged} />
@@ -153,6 +161,39 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
       )}
     />
   );
+}
+
+function ModelGenerationBudget({ field, value, canSave, disabledReason, onSaved }: { field: IntegrationProvider['fields'][number]; value: number; canSave: boolean; disabledReason?: string; onSaved: () => Promise<void> }) {
+  const id = useId();
+  const { saveModelOutputTokens } = useTowerApi();
+  const [entered, setEntered] = useState(String(value));
+  const [saved, setSaved] = useState(value);
+  const lastSaved = useRef(value);
+  useEffect(() => {
+    const previous = lastSaved.current;
+    setEntered(current => current === String(previous) ? String(value) : current);
+    setSaved(value);
+    lastSaved.current = value;
+  }, [value]);
+  const parsed = parseLocalModelOutputTokens(entered);
+  const mutation = useOwnerMutation({ mutationFn: async () => {
+    if (parsed === null) return;
+    await saveModelOutputTokens(parsed);
+    setSaved(parsed);
+    lastSaved.current = parsed;
+    await onSaved();
+  }, retry: false });
+  return <form className="flex flex-col gap-3" noValidate onSubmit={event => { event.preventDefault(); if (canSave && parsed !== null && parsed !== saved && !mutation.isPending) mutation.mutate(); }}>
+    <label htmlFor={id} className="text-sm font-medium">{field.label}</label>
+    <input id={id} type="number" inputMode="numeric" min={MIN_LOCAL_MODEL_OUTPUT_TOKENS} max={MAX_LOCAL_MODEL_OUTPUT_TOKENS} step="1"
+      value={entered} disabled={!canSave || mutation.isPending} aria-invalid={parsed === null || undefined} aria-describedby={`${id}-help`}
+      className={fieldClass} onChange={event => { setEntered(event.target.value); mutation.reset(); }} />
+    <p id={`${id}-help`} className="text-xs text-muted-foreground">{field.description}</p>
+    {disabledReason ? <p className="text-xs text-muted-foreground">{disabledReason}</p> : null}
+    {parsed === null ? <p className="text-xs text-error">Use a whole number from {MIN_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')} to {MAX_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')}.</p> : null}
+    {mutation.isError ? <p role="alert" className="text-xs text-error">{mutation.error.message}</p> : mutation.isSuccess ? <p role="status" data-status-for="integration:local-model" className="text-xs text-muted-foreground">Generation budget saved.</p> : null}
+    <Button type="submit" disabled={!canSave || parsed === null || parsed === saved || mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save generation budget'}</Button>
+  </form>;
 }
 
 /**

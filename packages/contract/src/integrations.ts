@@ -12,6 +12,7 @@
  * else.
  */
 
+import { LOCAL_MODEL_OUTPUT_TOKENS, DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS } from './local-model-settings.mjs';
 import { legacyBindingAsset } from './configuration.mjs';
 import type { ValidationIssue } from './validation-issue.js';
 
@@ -556,6 +557,8 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         description: 'Use an API base URL reachable from NoticeOS. The selected provider receives stored portfolio and task summaries. Scheduled briefings may incur provider charges; NoticeOS does not enforce an inference spending cap.' },
       { name: 'LOCAL_MODEL_ID', label: 'Model', kind: 'text', secret: false, required: true },
       { name: 'LOCAL_MODEL_API_TOKEN', label: 'API token', kind: 'password', secret: true, required: false },
+      { name: LOCAL_MODEL_OUTPUT_TOKENS, label: 'Generation budget', kind: 'text', secret: false, required: false, placeholder: String(DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS),
+        description: `Includes thinking and the final answer. Use ${MIN_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')}–${MAX_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')} tokens. Briefings stay short.` },
     ],
   },
   {
@@ -1231,8 +1234,13 @@ export function credentialBalance(
   return { usd, seenAt: balance.seenAt, ageMs, stale: ageMs > CREDENTIAL_BALANCE_STALE_MS };
 }
 
+export interface SetModelOutputTokensInput { modelOutputTokens: number }
+export type SetModelOutputTokensResult = { ok: true } | { ok: false; error: 'validation' | 'not_connected' | 'store_required' | 'not_supported' | 'key_missing' | 'conflict' };
+
 export interface CredentialSummary {
   provider: IntegrationProviderId;
+  /** Safe generation setting; model endpoints and credentials never leave the resolver. */
+  modelOutputTokens?: number;
   /** `store` (entered in the product), `env` (the legacy path, still working),
    * `demo` (a demo connection, see `CredentialSource`) or `none`. A store
    * credential missing a required field still reads `store`, with the gap

@@ -33,7 +33,7 @@ describe('manual briefing safeguards', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       const steps = await runTowerCron(BRIEFING_TICK, {
-        STORE: {} as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
+        STORE: { read: vi.fn(async () => []) } as unknown as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
         briefing: { config, ingest: { portfolioBrief: async () => state, refreshPortfolioBrief } },
       } as unknown as TowerCronEnv, () => new Date('2026-11-06T12:00:00.000Z'), 'manual');
       expect(steps).toMatchObject([{ state: 'failed', summary: detail.summary, output: { fields: [
@@ -53,11 +53,21 @@ describe('manual briefing safeguards', () => {
     const refreshPortfolioBrief = vi.fn(async () => ({ ...state, lastAttemptAt: '2026-11-06T12:00:00.000Z' }));
     const config = vi.fn(async () => ({ schedules: {}, beads: { spokes: [] }, osTimeZone: 'UTC' }));
     const steps = await runTowerCron(BRIEFING_TICK, {
-      STORE: {} as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
+      STORE: { read: vi.fn(async () => []) } as unknown as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
       briefing: { config, ingest: { portfolioBrief: async () => state, refreshPortfolioBrief } },
     } as unknown as TowerCronEnv, () => new Date('2026-11-06T12:00:00.000Z'), 'manual');
     expect(steps).toMatchObject([{ state: 'skipped', summary: 'No recent observations are available for briefing insights' }]);
     expect(refreshPortfolioBrief).toHaveBeenCalledOnce();
+  });
+  it('does not collect context or generate when no assets are selected', async () => {
+    const refreshPortfolioBrief = vi.fn();
+    const config = vi.fn(async () => ({ schedules: {}, beads: { spokes: [] }, osTimeZone: 'UTC', portfolioReviewAssetIds: [] }));
+    const steps = await runTowerCron(BRIEFING_TICK, { STORE: { read: vi.fn(async () => []) } as unknown as WorkspaceStore,
+      INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
+      briefing: { config, ingest: { portfolioBrief: async () => ({ state: 'awaiting', nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false }), refreshPortfolioBrief } },
+    } as unknown as TowerCronEnv, () => new Date('2026-11-06T12:00:00.000Z'), 'manual');
+    expect(refreshPortfolioBrief).not.toHaveBeenCalled();
+    expect(steps).toMatchObject([{ state: 'skipped', summary: 'No assets are selected for AI portfolio review' }]);
   });
   it.each([
     ['disconnected', null, 'Connect a model provider before generating a briefing'],
@@ -67,7 +77,7 @@ describe('manual briefing safeguards', () => {
     const refreshPortfolioBrief = vi.fn();
     const config = vi.fn();
     const steps = await runTowerCron(BRIEFING_TICK, {
-      STORE: {} as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
+      STORE: { read: vi.fn(async () => []) } as unknown as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
       briefing: { config, ingest: {
         portfolioBrief: async () => ({ state, nextAttemptAt, briefing: null, lastAttemptAt: null, error: null, stale: false } as PortfolioBriefRead),
         refreshPortfolioBrief,
@@ -87,7 +97,7 @@ it('captures source-history timing and asset keys without retaining account conf
   const at = new Date('2026-11-06T12:00:00.000Z');
   const config = vi.fn(async () => ({ integrations: { catalog: [], assets: { 'example.com': { ga4: { ga4PropertyId: accountId } } } },
     pullConfig: [{ asset: 'example.com', accountId }], monthlyCaps: { dataUsd: 10 }, serpPanel: { assets: { 'example.com': { accountId } } } }));
-  const steps = await runTowerCron(HOURLY_TICK, { STORE: {} as WorkspaceStore, INGEST: {}, config } as unknown as TowerCronEnv, () => at);
+  const steps = await runTowerCron(HOURLY_TICK, { STORE: { read: vi.fn(async () => []) } as unknown as WorkspaceStore, INGEST: {}, config } as unknown as TowerCronEnv, () => at);
   const source = steps.find(step => step.id === 'source-history')!;
   expect(source.state).toBe('succeeded');
   expect(JSON.parse(source.diagnostics!.input!.text)).toEqual({ now: at.toISOString(), assets: ['example.com'] });

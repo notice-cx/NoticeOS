@@ -1,4 +1,5 @@
 import type { ConnectionFailure, DiscoverModelProviderInput, DiscoverModelProviderResult } from '@noticeos/contract';
+import { LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
 import { MODEL_GENERATION_TIMEOUT_MS } from '../../../scripts/portfolio-brief-failure.mjs';
 import { PORTFOLIO_BRIEF_MAX_BYTES } from '@noticeos/contract/portfolio-brief';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
@@ -10,7 +11,7 @@ const RESPONSE_BYTES = 1_048_576;
 const DIAGNOSTIC_BYTES = 65_536;
 // Encoding evidence JSON as a message can double its bytes; reserve space for the prompt and envelope.
 const REQUEST_BYTES = 2 * PORTFOLIO_BRIEF_MAX_BYTES + 64 * 1024;
-export type LocalModelCode = 'unavailable' | 'configuration' | 'redirect' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'not-found' | 'model-missing' | 'invalid-output' | 'empty-output' | 'truncated-output' | 'refused-output' | 'too-large';
+export type LocalModelCode = 'unavailable' | 'configuration' | 'redirect' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'not-found' | 'model-missing' | 'invalid-output' | 'empty-output' | 'truncated-output' | 'refused-output' | 'reasoning-limit' | 'too-large';
 export class LocalModelError extends Error {
   constructor(readonly code: LocalModelCode, readonly status?: number) { super(`OpenAI-compatible model: ${code}.`); this.name = 'LocalModelError'; }
 }
@@ -157,7 +158,7 @@ export function localModelFailure(error: unknown): ConnectionFailure {
     : error.code === 'not-found' ? 'not-found' : error.code === 'model-missing' ? 'model-missing'
     : error.code === 'unavailable' ? 'not-supported' : error.code === 'redirect' ? 'redirect' : error.code === 'configuration' ? 'configuration'
     : error.code === 'timeout' ? 'timeout' : error.code === 'rate-limit' ? 'rate-limited'
-    : ['invalid-output', 'empty-output', 'truncated-output', 'refused-output'].includes(error.code) ? 'invalid-response' : error.code === 'too-large' ? 'too-large' : 'network';
+    : ['invalid-output', 'empty-output', 'truncated-output', 'refused-output', 'reasoning-limit'].includes(error.code) ? 'invalid-response' : error.code === 'too-large' ? 'too-large' : 'network';
   return { kind, ...(error.status === undefined ? {} : { status: error.status }) };
 }
 
@@ -188,14 +189,20 @@ export async function checkLocalModel(env: unknown, fields: Record<string, strin
 /** Only the server's final answer is returned; reasoning and tool calls are never an answer. */
 export async function generateLocalModel(env: unknown, fields: Record<string, string>, options: LocalModelOptions): Promise<string> {
   if (!fields[LOCAL_MODEL_ID]?.trim()) throw new LocalModelError('configuration');
+  const outputTokens = parseLocalModelOutputTokens(fields[LOCAL_MODEL_OUTPUT_TOKENS]);
+  if (outputTokens === null) throw new LocalModelError('configuration');
   const response = await request(env, fields, 'chat/completions', JSON.stringify({ model: fields[LOCAL_MODEL_ID], messages: options.messages,
-    stream: false, max_tokens: 4096, temperature: 0.2,
+    stream: false, max_tokens: outputTokens,
   }), options.fetchImpl ?? fetch, MODEL_GENERATION_TIMEOUT_MS, options.signal, options.onDiagnostics);
   if (!object(response) || !Array.isArray(response.choices) || response.choices.length !== 1) throw new LocalModelError('invalid-output');
   const choice: unknown = response.choices[0];
   if (!object(choice) || !object(choice.message)) throw new LocalModelError('invalid-output');
   if (choice.finish_reason === 'content_filter' || choice.message.refusal) throw new LocalModelError('refused-output');
-  if (choice.finish_reason === 'length') throw new LocalModelError('truncated-output');
+  if (choice.finish_reason === 'length') {
+    const empty = choice.message.content == null || typeof choice.message.content === 'string' && !choice.message.content.trim();
+    if (empty && typeof choice.message.reasoning_content === 'string' && choice.message.reasoning_content.trim()) throw new LocalModelError('reasoning-limit');
+    throw new LocalModelError('truncated-output');
+  }
   if (choice.finish_reason !== 'stop'
       || choice.message.function_call != null
       || (choice.message.tool_calls != null && (!Array.isArray(choice.message.tool_calls) || choice.message.tool_calls.length > 0))) throw new LocalModelError('invalid-output');

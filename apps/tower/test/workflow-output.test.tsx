@@ -2,7 +2,7 @@ import { WORKFLOW_DEFINITIONS, type WorkflowRun } from '@shared/workflows';
 import { copyText } from '@/lib/clipboard';
 import { act, cleanup, fireEvent, render, screen, within } from './render';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WorkflowStepOutputView, WorkflowRunDiagnostics } from '@/components/WorkflowVisuals';
+import { WorkflowStepOutputView, WorkflowStages } from '@/components/WorkflowVisuals';
 import { OUTCOME_WORDS } from '@/lib/agents-week';
 import { captureWorkflowOutput } from '../../../scripts/workflow-output.mjs';
 
@@ -72,15 +72,28 @@ describe('actual run diagnostics', () => {
     const step = definition.stages.find(stage => stage.id !== 'config')!;
     const run: WorkflowRun = { id: `${workflowId}@${at}`, workflowId, definitionVersion: 1, state, startedAt: at, finishedAt: at,
       steps: [{ id: step.id, attempt: 1, state: state === 'failed' ? 'failed' : 'succeeded', startedAt: at, finishedAt: at, diagnostics }] };
-    return { ...render(<WorkflowRunDiagnostics definition={definition} run={run} />), definition, step, run };
+    const view = render(<WorkflowStages definition={definition} run={run} />);
+    if (state !== 'failed') fireEvent.click(screen.getByRole('button', { name: new RegExp(step.label) }));
+    return { ...view, definition, step, run };
   }
   const code = (text: string) => screen.getByText((_content, element) => element?.tagName === 'CODE' && element.textContent === text);
   function openStage(container: HTMLElement) {
-    fireEvent.click(screen.getByText('Run diagnostics'));
-    const stage = container.querySelector('[data-run-diagnostics] > div > details')!;
-    fireEvent.click(stage.querySelector('summary')!);
-    return stage.querySelectorAll('details');
+    return container.querySelector('[aria-label="Stage details"] [data-stage-attempt]')!.querySelectorAll('details');
   }
+  it('selects the failed stage first and switches the attempt evidence with stage selection', () => {
+    const { definition, step, run, rerender } = show({ output: snapshot('Failed model output') });
+    const first = definition.stages.find(item => item.id !== step.id)!;
+    expect(screen.getByRole('button', { name: new RegExp(step.label) })).toHaveAttribute('aria-pressed', 'true');
+    rerender(<WorkflowStages definition={definition} run={{ ...run, steps: [
+      ...run.steps!, { id: first.id, attempt: 1, state: 'succeeded', startedAt: at, finishedAt: at,
+        diagnostics: { output: snapshot('Settings loaded') } },
+    ] }} />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(first.label) }));
+    expect(screen.queryByText('Failed model output')).toBeNull();
+    fireEvent.click(screen.getByText('Output', { exact: true }));
+    expect(screen.getByText('Settings loaded')).toBeVisible();
+    expect(screen.queryByText('Run diagnostics')).toBeNull();
+  });
   it('keeps a failed model prompt and actual answer collapsed, copies exact text, and never executes markup', async () => {
     const input = '<script>throw new Error("not executable")</script>\nSources: S1';
     const output = 'Headline: Review the release\nSummary: A review is needed';
@@ -112,9 +125,9 @@ describe('actual run diagnostics', () => {
   });
   it('keeps unknown historical capture availability inside the disclosure', () => {
     show();
-    expect(screen.getByText('Inputs and output were not captured for this run.')).not.toBeVisible();
-    fireEvent.click(screen.getByText('Run diagnostics'));
-    expect(screen.getByText('Inputs and output were not captured for this run.')).toBeVisible();
+    expect(screen.getByText('Inputs were not captured for this step.')).not.toBeVisible();
+    fireEvent.click(screen.getByText('Inputs', { exact: true }));
+    expect(screen.getByText('Inputs were not captured for this step.')).toBeVisible();
     expect(screen.queryByText('0')).toBeNull();
   });
 });

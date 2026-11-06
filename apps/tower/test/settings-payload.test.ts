@@ -243,3 +243,13 @@ describe("buildSettingsPayload", () => {
     expect(payload.budget.knobs).toHaveLength(2);
   });
 });
+
+ it('carries the exact selected asset order and the actual inventory for guarded AI review edits', () => {
+   const assets = [{id: 'second', displayName: 'Second'}, {id: 'example', displayName: 'Example'}];
+   expect(buildSettingsPayload(deps({portfolioReviewAssetIds: ['second', 'example'], assets})).portfolioReview)
+     .toEqual({owner: 'config/constants.json', assetIds: ['second', 'example'], assets});
+   expect(buildSettingsPayload(deps()).portfolioReview.assetIds).toBeNull();
+   expect(buildSettingsPayload(deps({portfolioReviewAssetIds: []})).portfolioReview.assetIds).toEqual([]);
+   expect(buildSettingsPayload(deps({assets: [{id: 'os.example', displayName: 'Stored name, never shown', isOs: true}]})).portfolioReview.assets)
+     .toEqual([{id: 'os.example', displayName: 'System'}]);
+ });
