@@ -17,6 +17,7 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 
 | Job | Default | What it does |
 | --- | --- | --- |
+| Portfolio briefing | 35 past each hour | Reviews saved portfolio evidence and generates guidance with the connected model when the evidence supports an insight |
 | Live traffic and counters | every 15 minutes | Refreshes the live Google Analytics and Search Console readings |
 | Ad revenue | 10, 30 and 50 minutes past each hour | Checks for a new Mediavine revenue report when one is due |
 | Bank balances and activity | 40 past each hour | Records Mercury deposit balances and transactions created in the last 35 days; complete reads remain separate from revenue and costs |
@@ -67,12 +68,26 @@ A collection fed by a provider connection is changed with that connection: open 
 The [Workflows](/tower/workflows) page (`/workflows`) lists operator automations with their history. For Operator notifications, **Manage delivery** edits the recovery schedule; **Paused** stops event-triggered delivery and recovery. Other workflow schedules are edited the same way. Saved schedules are kept across restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
 
 ::: tip Pausing fully stops a job
-A paused job does not run on its schedule, is not caught up after downtime, and blocks **Start collecting** on a connection panel until you resume it.
+A paused job does not run on its schedule, is not caught up after downtime, and blocks **Run now** and **Start collecting** until you resume it.
 :::
 
 ## Run one job by hand
 
-1. In the checkout, run the jobs scheduled on that expression:
+1. Open **System health** > **Background operations**, or **Workflows** for operator automations.
+2. Select the job, then **Run now**. The action is available when the installation's runner supports that job and its schedule is enabled.
+3. Review the result and the selected execution. The history marks the run **Manual** and shows its stages, including why work was skipped or failed.
+
+Manual runs use the same job as scheduled runs and do not change the next scheduled time. A job already running cannot start a second time. Provider limits, budgets and freshness checks still apply, so a job may have nothing new to collect. Portfolio briefing attempts remain at least 15 minutes apart. Remote model providers may charge for generation; search-data collection uses the configured budget.
+
+Backups use the installation's existing backup worker and retention settings. A deployment without manual execution support shows a disabled action with its reason.
+
+From a checkout, run a named job through the same runner:
+
+```sh
+pnpm os:run-job -- --id portfolio-brief
+```
+
+The existing cron-expression command is also available:
 
    ```sh
    pnpm os:run-job -- "15 12 * * *"
@@ -83,6 +98,7 @@ A connection's **Start collecting** button runs that provider's first collection
 ## Verify
 
 - The job's row under **Background operations** shows the saved schedule and the next run.
+- The selected job's **Recent runs** lists manual executions and their results.
 - `pnpm os:logs -- noticeos` shows each job firing, including what the catch-up ran after a restart.
 - `pnpm os:run-job` prints the jobs it runs when you pass an expression.
 

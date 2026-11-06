@@ -125,6 +125,7 @@ export async function runJobLane(
     file,
     emit,
     now,
+    trigger: deps.trigger,
     ship: async (record) => {
       deps.onRecord?.(record);
       await ship(record);

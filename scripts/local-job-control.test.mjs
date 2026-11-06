@@ -11,7 +11,7 @@ import { invokeLocalJob, requestLocalJob, startLocalJobControl } from './local-j
 import { parseJobRuns } from './job-runs.mjs';
 import { runLocalLane } from './runner/scheduler.mjs';
 import { createScheduledJobRunner } from './scheduled-job-runner.mjs';
-import { LOCAL_JOB_SOCKET, SCHEDULED_JOBS, manualLocalJob } from './scheduled-jobs.mjs';
+import { LOCAL_JOB_SOCKET, SCHEDULED_JOBS, jobRunName, manualLocalJob } from './scheduled-jobs.mjs';
 import { actionArgs, stackControl } from './stack-control.mjs';
 import { createWorkflowHistory, WORKFLOW_HISTORY_FILE } from './workflow-history.mjs';
 
@@ -38,7 +38,7 @@ async function fixture(t, body = async () => ({ checked: 1 })) {
     begin: history.beginRun };
   scheduler = createScheduledJobRunner({
     run: (job, manual) => {
-      const work = runLocalLane(job.id, { run: async () => { calls.push(job.id); return body(job); } }, manual, deps);
+      const work = runLocalLane(jobRunName(job), { run: async () => { calls.push(job.id); return body(job); } }, manual, deps);
       pending.add(work);
       void work.finally(() => pending.delete(work));
       return work;
@@ -84,6 +84,8 @@ test('the stack command reaches the live scheduler from a separate CLI process a
   const traces = (await readFile(path.join(own.root, WORKFLOW_HISTORY_FILE), 'utf8')).trim().split('\n').map(JSON.parse);
   assert.equal(traces.length, 1);
   assert.deepEqual(traces[0].trigger, { kind: 'manual' });
+  assert.match(traces[0].id, /@manual\//);
+  assert.equal((await own.records())[0].trigger, 'manual');
   assert.deepEqual(traces[0].steps.map(step => step.id), ['execute', 'record']);
   assert.equal((await stat(path.join(own.root, LOCAL_JOB_SOCKET))).mode & 0o777, 0o600);
 });
@@ -123,9 +125,9 @@ test('startup recovery and first-snapshot executions use the same exclusion as m
   assert.equal((await own.request('beads-snapshot')).status, 200);
 });
 
-test('unknown IDs, non-local jobs, backup and arbitrary commands are rejected at every command boundary', async (t) => {
+test('unknown IDs and arbitrary commands are rejected at every command boundary', async (t) => {
   const own = await fixture(t);
-  for (const id of ['missing', 'counters', 'backup', '../panel-refresh', 'panel-refresh;id', 'constructor', '', null]) {
+  for (const id of ['missing', '../panel-refresh', 'panel-refresh;id', 'constructor', '', null]) {
     assert.equal(manualLocalJob(id), null);
     assert.throws(() => actionArgs('run-job', ['--id', id]));
     assert.equal(containerCommand(['run-job', '--id', id]), null);
@@ -174,7 +176,7 @@ test('throws and returned failures retain records and release exclusion; a skipp
   assert.equal((await own.request('panel-refresh')).body.outcome, 'skipped');
   assert.equal((await own.request('panel-refresh')).body.outcome, 'ran');
   const records = await own.records();
-  assert.deepEqual(records.map(row => row.outcome), ['failed', 'ran', 'skipped', 'ran']);
+  assert.deepEqual(records.map(row => row.outcome), ['failed', 'failed', 'skipped', 'ran']);
   assert.equal(records[0].detail, 'synthetic failure');
   assert.deepEqual(records.map(row => row.workflowState), ['failed', 'failed', 'skipped', 'succeeded']);
   assert.equal(own.shipped.length, 4);
@@ -263,3 +265,27 @@ test('shutdown refuses waiting recovery and new manual work while an accepted ru
   assert.equal(recovered, false);
   assert.deepEqual((await own.records()).map(row => row.workflowState), ['succeeded']);
 });
+
+
+test('every registered job, including worker jobs and backup, admits only its named installed execution', async t => {
+  const own = await fixture(t);
+  for (const job of SCHEDULED_JOBS) {
+    assert.equal(manualLocalJob(job.id), job);
+    assert.deepEqual(actionArgs('run-job', ['--id', job.id]), { job: ['run-job', '--id', job.id] });
+    assert.deepEqual(containerCommand(['run-job', '--id', job.id]), ['scripts/os-up.mjs', '--run-job', job.id]);
+    assert.equal((await own.request(job.id)).status, 200);
+  }
+  assert.deepEqual(own.calls, SCHEDULED_JOBS.map(job => job.id));
+  const traces = (await readFile(path.join(own.root, WORKFLOW_HISTORY_FILE), 'utf8')).trim().split('\n').map(JSON.parse);
+  assert.equal(traces.length, SCHEDULED_JOBS.length);
+  assert.ok(traces.every(trace => trace.trigger.kind === 'manual'));
+});
+
+for (const id of ['counters', 'backup']) {
+  test(`a saved pause refuses manual ${id} before its execution`, async t => {
+    const own = await fixture(t);
+    own.pause(id);
+    assert.equal((await own.request(id)).body.error, 'job_paused');
+    assert.deepEqual(own.calls, []);
+  });
+}

@@ -216,7 +216,7 @@ pnpm os:restart:noticeos   # only the app; :backup only the backup worker; :post
 pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
-pnpm os:run-job -- --id panel-refresh   # run exactly this local job through the live scheduler
+pnpm os:run-job -- --id portfolio-brief   # run exactly this named job through the live scheduler
 pnpm os:collect -- --asset example.com --families posthog-events   # one asset's report families now; DataForSEO calls are billed
 pnpm os:refresh-comparison   # every GA4 site's last-week comparison now, instead of at its next hourly attempt
 pnpm os:capacity     # the store's size and growth per table; -- --json

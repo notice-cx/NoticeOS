@@ -397,7 +397,7 @@ describe('workflow history evidence', () => {
       await mkdir(path.join(dir, '.local/logs'), { recursive: true });
       await writeFile(path.join(dir, '.local/logs/job-runs.jsonl'), '');
       const at = new Date(now - 5 * 86_400_000).toISOString();
-      const manual = { runs: Array.from({ length: 200 }, () => pressed), dailyHistory: { timeZone: 'UTC',
+      const manual = { runs: Array.from({ length: 200 }, (_, index) => ({ ...pressed, startedAt: new Date(Date.parse(pressed.startedAt) - index * 1_000).toISOString(), finishedAt: new Date(Date.parse(pressed.finishedAt) - index * 1_000).toISOString() })), dailyHistory: { timeZone: 'UTC',
         from: new Date(now - 30 * 86_400_000).toISOString(), through: new Date(now).toISOString(),
         buckets: [{ job: pressed.job, at: at.slice(0, 10) + 'T00:00:00.000Z', succeeded: 47, failed: 1, skipped: 0, firstRunAt: at, runAt: at }] } };
       const read = createWorkflowHistoryReader(dir, async () => manual);
@@ -410,6 +410,25 @@ describe('workflow history evidence', () => {
       expect(cappedLegacy.workflows[0]!.dailyHistory!.from).toBe(cappedLegacy.workflows[0]!.dailyHistory!.through);
       const unavailable = await createWorkflowHistoryReader(dir, async () => { throw new Error('fixture unavailable'); })(now);
       expect(unavailable.workflows[0]!.dailyHistory!.from).toBe(unavailable.workflows[0]!.dailyHistory!.through);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+  it('merges a manual firing recorded locally and remotely once while retaining its trace', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'workflow-manual-dedup-'));
+    try {
+      await mkdir(path.join(dir, '.local/logs'), { recursive: true });
+      const runId = `pull@manual/${pressed.startedAt}`;
+      const rich = { ...trace, id: runId, workflowId: 'pull', startedAt: pressed.startedAt, finishedAt: pressed.finishedAt,
+        state: 'succeeded', trigger: { kind: 'manual' }, steps: [{ id: 'bing', attempt: 1, startedAt: pressed.startedAt, finishedAt: pressed.finishedAt, state: 'succeeded', summary: 'Synthetic report collected.' }] };
+      await writeFile(path.join(dir, '.local/logs/job-runs.jsonl'), JSON.stringify({ job: pressed.job, at: pressed.startedAt, ms: 2_000, outcome: 'ran', trigger: 'manual' }) + '\n');
+      await writeFile(path.join(dir, '.local/logs/workflow-runs.jsonl'), JSON.stringify(rich) + '\n');
+      const manual = { runs: [pressed], dailyHistory: { timeZone: 'UTC', from: pressed.startedAt.slice(0, 10) + 'T00:00:00.000Z', through: new Date(now).toISOString(),
+        buckets: [{ job: pressed.job, at: pressed.startedAt.slice(0, 10) + 'T00:00:00.000Z', succeeded: 1, failed: 0, skipped: 0, firstRunAt: pressed.startedAt, runAt: pressed.startedAt }] } };
+      const view = await createWorkflowHistoryReader(dir, async () => manual)(now, runId);
+      const own = view.workflows.find(workflow => workflow.id === 'pull')!;
+      expect(own.runs).toHaveLength(1);
+      expect(own.runs[0]).toMatchObject({ id: runId, trigger: { kind: 'manual' } });
+      expect(own.dailyHistory!.buckets.reduce((sum, bucket) => sum + bucket.succeeded + bucket.failed + bucket.skipped, 0)).toBe(1);
+      expect(view.selectedRun?.steps).toEqual(rich.steps);
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
   it('reads the manual runs through the operator door, and any other answer as none', async () => {
@@ -446,7 +465,23 @@ it('shows notification events separately from recovery timing and keeps event ru
   expect(screen.getByText('Delivery')).toBeVisible();
 });
 
-describe('run a local job from its detail page', () => {
+describe('run a scheduled job from its detail page', () => {
+  it.each([
+    ['portfolio-brief', 'Portfolio briefing', /Remote providers may charge/],
+    ['dataforseo', 'Search rankings and backlinks', /paid search data/],
+  ])('discloses %s spending before running and preserves skipped outcomes', async (id, label, notice) => {
+    data.runtime!.manualJobs = [id];
+    replyToRun(async () => new Response(JSON.stringify({ job: id, outcome: 'skipped' })));
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    mount(`/health/operations/${id}`);
+    const run = await screen.findByRole('button', { name: `Run ${label} now` });
+    expect(run).toHaveAccessibleDescription(notice);
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+    fireEvent.click(run);
+    expect(await screen.findByText('The job was skipped. Check its latest run.')).toBeVisible();
+    if (id === 'portfolio-brief') expect(invalidate).toHaveBeenCalledWith({ queryKey: ['portfolio-brief'] });
+  });
+
   function enable() { data.runtime!.manualJobs = ['panel-refresh', 'panel-review', 'beads-snapshot']; }
   function replyToRun(reply: () => Promise<Response>) {
     const read = vi.mocked(fetch).getMockImplementation()!;
@@ -496,16 +531,18 @@ describe('run a local job from its detail page', () => {
     expect(await screen.findByRole('button', { name: 'Run Local research summaries now' })).toBeDisabled();
     expect(screen.getByText('Check system health before running.')).toBeVisible();
   });
-  it('does not offer a manual run without the runner capability', async () => {
+  it('explains when a manual run is unavailable on this installation', async () => {
     mount('/health/operations/panel-refresh');
     await screen.findByRole('heading', { name: 'Local research summaries' });
-    expect(screen.queryByRole('button', { name: /Run .* now/ })).toBeNull();
+    expect(await screen.findByRole('button', { name: /Run .* now/ })).toBeDisabled();
+    expect(screen.getByText('Run now is unavailable on this installation.')).toBeVisible();
   });
-  it('does not offer provider jobs or backups through the local control', async () => {
-    enable();
+  it('runs backups when the runner advertises support', async () => {
+    enable(); data.runtime!.manualJobs = [...data.runtime!.manualJobs!, 'backup'];
+    replyToRun(async () => new Response(JSON.stringify({ job: 'backup', outcome: 'ran' })));
     mount('/health/operations/backup');
-    await screen.findByRole('heading', { name: 'Backups' });
-    expect(screen.queryByRole('button', { name: /Run .* now/ })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Run Backups now' }));
+    expect(await screen.findByText('Run completed.')).toBeVisible();
   });
 });
 

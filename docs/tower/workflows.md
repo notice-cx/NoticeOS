@@ -34,6 +34,7 @@ A count under the list shows how many of the installed workflows are listed.
 - Search by name, and narrow the list by **State** (**Needs attention**, **Failed**, **Running**, **Succeeded**, **Inactive**) and by category.
 - **Sort** by **Latest run**, **Needs attention**, **Next run** or **Name**; **Group** by **Category** or **None**. Every choice is in the page's address, so a link includes it.
 - Select a workflow to open its page, or the age under its bar to open its latest run.
+- **Run now** starts the selected workflow or background operation through its existing runner. The action shows progress and the result, then opens the new execution marked **Manual**. Paused or already running jobs cannot start, and provider limits and budgets still apply. An unavailable action shows its reason.
 - **Edit schedule** on a workflow's page: turn it **Enabled** or **Paused** and pick **Every few minutes**, **Hourly**, **Daily** or **Weekly** with a time, then **Save schedule**. **Restore default** puts back the product's schedule. Pausing stops future runs and their catch-up after downtime.
 - Pick a run under **Run**, or in **Recent runs**, to read what each stage did.
 

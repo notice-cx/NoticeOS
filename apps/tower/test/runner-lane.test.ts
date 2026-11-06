@@ -38,15 +38,25 @@ describe("the runner lane's door check", () => {
 });
 
 describe("firing a cron", () => {
-  it.each(['event', 'recovery'] as const)('forwards the protected notification %s trigger', async trigger => {
+  it('does not run Tower steps when a manual workflow is paused', async () => {
+    const ingest = stubIngest({ runScheduled: vi.fn(async () => ({ outcome: 'skipped' as const, detail: 'Workflow is paused' })) });
+    const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=0 * * * *&trigger=manual`);
+    const towerCron = vi.fn(async () => []);
+    const response = await handleRunnerRequest(request, url, ingest, towerCron);
+    expect(await response.json()).toMatchObject({ outcome: 'skipped', detail: 'Workflow is paused' });
+    expect(towerCron).not.toHaveBeenCalled();
+  });
+  it.each(['event', 'recovery', 'manual'] as const)('forwards the protected notification %s trigger', async trigger => {
     const ingest = stubIngest();
     const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=5 * * * *&trigger=${trigger}`);
-    const response = await handleRunnerRequest(request, url, ingest);
+    const towerCron = vi.fn(async () => []);
+    const response = await handleRunnerRequest(request, url, ingest, towerCron);
     expect(response.status).toBe(200);
     expect(ingest.runScheduled).toHaveBeenCalledWith('5 * * * *', trigger);
+    expect(towerCron).toHaveBeenCalledWith('5 * * * *', trigger);
   });
 
-  it.each(['manual', 'schedule', 'unexpected'])('rejects an unsupported trigger %s before dispatch', async trigger => {
+  it.each(['schedule', 'unexpected'])('rejects an unsupported trigger %s before dispatch', async trigger => {
     const ingest = stubIngest();
     const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=5 * * * *&trigger=${trigger}`);
     const response = await handleRunnerRequest(request, url, ingest);
@@ -81,7 +91,7 @@ describe("firing a cron", () => {
     const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=${encodeURIComponent("0 * * * *")}`);
     const response = await handleRunnerRequest(request, url, ingest, towerCron);
     expect(order).toEqual(["ingest", "tower"]);
-    expect(towerCron).toHaveBeenCalledWith("0 * * * *");
+    expect(towerCron).toHaveBeenCalledWith("0 * * * *", undefined);
     expect(await response.json()).toEqual({ ok: true, cron: "0 * * * *", outcome: "ran", detail: "Execution completed", steps: [ingestStep, towerStep] });
   });
 
@@ -91,6 +101,16 @@ describe("firing a cron", () => {
     const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=${encodeURIComponent("0 * * * *")}`);
     const response = await handleRunnerRequest(request, url, ingest, async () => [failed]);
     expect(await response.json()).toMatchObject({ outcome: "failed", detail: "A workflow step failed. Check service logs for details.", steps: [failed] });
+  });
+
+  it('preserves an ingest failure when the Tower briefing is skipped', async () => {
+    const config = { id: 'config', attempt: 1, startedAt: '2026-11-06T12:00:00.000Z', state: 'failed' as const };
+    const briefing = { id: 'portfolio-brief', attempt: 1, startedAt: '2026-11-06T12:00:01.000Z', state: 'skipped' as const,
+      summary: 'Briefing generation is limited to once every 15 minutes' };
+    const ingest = stubIngest({ runScheduled: async () => ({ outcome: 'failed' as const, detail: 'Configuration could not be read', steps: [config] }) });
+    const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=0 * * * *&trigger=manual`);
+    const response = await handleRunnerRequest(request, url, ingest, async () => [briefing]);
+    expect(await response.json()).toMatchObject({ outcome: 'failed', detail: 'Configuration could not be read', steps: [config, briefing] });
   });
 
   it("refuses a fire with no expression rather than running every lane", async () => {

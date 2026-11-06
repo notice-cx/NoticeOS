@@ -22,16 +22,19 @@ export function withTowerSteps(
   if (towerSteps.length === 0) return result;
   const ran = result ?? { outcome: "ran" as const, detail: "Execution completed" };
   const failed = towerSteps.some((step) => step.state === "failed");
+  const actions = [...(ran.steps ?? []), ...towerSteps].filter(step => step.id !== 'config' && step.id !== 'record');
+  const skipped = actions.length > 0 && actions.every(step => step.state === 'skipped');
   return {
     ...ran,
     ...(failed ? { outcome: "failed" as const, detail: "A workflow step failed. Check service logs for details." } : {}),
+    ...(!failed && ran.outcome !== 'failed' && skipped ? { outcome: 'skipped' as const, detail: towerSteps.find(step => step.state === 'skipped')?.summary ?? 'No work was performed on this pass.' } : {}),
     steps: [...(ran.steps ?? []), ...towerSteps],
   };
 }
 
 /** Structural so a test can hand in a stub for the Worker RPC binding. */
 export interface RunnerIngest {
-  runScheduled(cron: string, trigger?: 'event' | 'recovery'): Promise<void | ScheduledRunResult>;
+  runScheduled(cron: string, trigger?: 'event' | 'recovery' | 'manual'): Promise<void | ScheduledRunResult>;
   fetch(request: Request): Promise<Response>;
 }
 
@@ -43,7 +46,7 @@ export async function handleRunnerRequest(
   url: URL,
   ingest: RunnerIngest,
   /** The Tower's own steps of a tick (tower-cron.ts), run after the ingest's. */
-  towerCron: (cron: string) => Promise<WorkflowStepRun[]> = async () => [],
+  towerCron: (cron: string, trigger?: 'event' | 'recovery' | 'manual') => Promise<WorkflowStepRun[]> = async () => [],
 ): Promise<Response> {
   if (request.headers.get(RUNNER_DOOR_HEADER) !== RUNNER_DOOR_HEADER_VALUE) {
     return jsonError("runner_lane_loopback_only", 403);
@@ -63,12 +66,13 @@ export async function handleRunnerRequest(
     }
     try {
       const trigger = url.searchParams.get('trigger');
-      if (trigger !== null && trigger !== 'event' && trigger !== 'recovery') return jsonError('invalid_trigger', 400);
+      if (trigger !== null && trigger !== 'event' && trigger !== 'recovery' && trigger !== 'manual') return jsonError('invalid_trigger', 400);
       const answer = trigger ? await ingest.runScheduled(cron, trigger) : await ingest.runScheduled(cron);
       // No scheduled job runs on this expression: nothing ran, and the runner
       // and `pnpm os:run-job` report the refusal by its name.
       if (answer?.refused) return jsonError(answer.refused, 400, { cron, message: answer.detail });
-      const result = withTowerSteps(answer, await towerCron(cron));
+      const paused = trigger === 'manual' && answer?.outcome === 'skipped' && answer.detail === 'Workflow is paused';
+      const result = withTowerSteps(answer, paused ? [] : await towerCron(cron, trigger ?? undefined));
       return new Response(JSON.stringify({ ok: true, cron, ...result }), {
         headers: JSON_HEADERS,
       });

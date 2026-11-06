@@ -68,7 +68,9 @@ identify their cause. Check the API address and whether the server is reachable
 from the NoticeOS application container. The **Portfolio briefing** workflow runs
 hourly by default. Its schedule is editable in the connection panel and on
 Workflows. Generation attempts are at least fifteen minutes apart. Opening
-Home reads the saved briefing and makes no model request.
+Home reads the saved briefing and makes no model request. To refresh it on demand,
+open **System health** > **Background operations** > **Portfolio briefing** and
+select **Run now**. The same 15-minute minimum between attempts applies.
 
 The model receives bounded summaries of stored financial observations,
 complete traffic comparisons, aligned revenue comparisons where available,

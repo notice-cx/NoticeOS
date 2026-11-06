@@ -4,9 +4,9 @@ import { createServer, request } from 'node:http';
 import { createConnection } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { LOCAL_JOB_SOCKET, manualLocalJob } from './scheduled-jobs.mjs';
+import { LOCAL_JOB_SOCKET, manualScheduledJob } from './scheduled-jobs.mjs';
 export async function invokeLocalJob(id, { scheduler, ready, stopped, }) {
-    const job = manualLocalJob(id);
+    const job = manualScheduledJob(id);
     if (!job)
         return { status: 422, body: { error: 'local_job_not_allowed' } };
     // Initialization may start recovery and first-snapshot work. Only the
@@ -108,7 +108,7 @@ export async function startLocalJobControl({ root, ...deps }) {
 }
 /** The socket path comes from the installation, never from a request body. */
 export async function requestLocalJob(id, { root, timeoutMs = 20 * 60_000 }) {
-    if (!manualLocalJob(id))
+    if (!manualScheduledJob(id))
         return { status: 422, body: { error: 'local_job_not_allowed' } };
     return new Promise((resolve) => {
         const unavailable = () => resolve({ status: 503, body: { error: 'runner_unavailable' } });

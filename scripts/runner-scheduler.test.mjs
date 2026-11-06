@@ -14,6 +14,7 @@ import {
   STARTUP_CATCHUP_POLICIES,
   readCrons,
   retryFailedFiring,
+  runWorkerLane,
   scheduledUrl,
   startupCatchupPlan,
   stopScheduler,
@@ -114,4 +115,51 @@ test('only a failed firing of a lane that earns a retry schedules one', () => {
   assert.equal(retryFailedFiring('cron 45 12 * * 1', null, { retry: () => {}, schedule }), null);
   // A daily lane's failure waits for its next regular tick.
   assert.equal(retryFailedFiring('cron 15 12 * * *', { outcome: 'failed' }, { retry: () => {}, schedule }), null);
+});
+
+
+test('worker manual requests pass their trigger, record once and never schedule an automatic retry', async () => {
+  const job = SCHEDULED_JOBS.find(job => job.id === 'dataforseo');
+  const calls = [], retries = [];
+  const result = await runWorkerLane(job, {}, true, {
+    fire: async (cron, runtime, trigger) => { calls.push({ cron, trigger }); return { outcome: 'failed' }; },
+    record: async (name, run, outcomeOf, deps) => {
+      assert.equal(name, `cron ${job.cron}`);
+      assert.deepEqual(deps.trigger, { kind: 'manual' });
+      return outcomeOf(await run());
+    },
+    scheduleRetry: (...args) => retries.push(args),
+  });
+  assert.equal(result.outcome, 'failed');
+  assert.deepEqual(calls, [{ cron: job.cron, trigger: 'manual' }]);
+  assert.deepEqual(retries, []);
+});
+
+test('scheduled worker requests retain their automatic failure retry', async () => {
+  const job = SCHEDULED_JOBS.find(job => job.id === 'dataforseo');
+  let retries = 0;
+  await runWorkerLane(job, {}, false, {
+    fire: async (_cron, _runtime, trigger) => { assert.equal(trigger, undefined); return { outcome: 'failed' }; },
+    record: async (_name, run, outcomeOf, deps) => { assert.deepEqual(deps, {}); return outcomeOf(await run()); },
+    scheduleRetry: () => { retries++; },
+  });
+  assert.equal(retries, 1);
+});
+
+
+test('a manual firing does not satisfy a missed scheduled obligation', () => {
+  const now = Date.parse('2026-11-06T12:30:00Z');
+  const policy = { job: 'backup', expression: '0 4 * * *', kind: 'backup', maxAgeMs: 36 * 3_600_000 };
+  const plan = startupCatchupPlan([], [{ job: 'backup', at: '2026-11-06T10:00:00Z', outcome: 'ran', trigger: 'manual' }], now, [policy]);
+  assert.equal(plan.due.length, 1);
+  assert.equal(plan.due[0].job, 'backup');
+});
+
+test('a held worker manual request returns the recorded skip instead of a false failure', async () => {
+  const job = SCHEDULED_JOBS.find(job => job.id === 'freshness');
+  const result = await runWorkerLane(job, {}, true, {
+    record: async (_name, _run, _outcome, deps) => { deps.onRecord({ outcome: 'skipped' }); return Symbol('held'); },
+    fire: async () => { throw new Error('Held execution must not run'); },
+  });
+  assert.deepEqual(result, { outcome: 'skipped' });
 });

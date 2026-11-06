@@ -52,7 +52,7 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
   function beginRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace {
     const definition = WORKFLOW_DEFINITIONS.find((w) => jobRunName(w) === job);
     if (!definition) return null;
-    const run: WorkflowRun = { id: `${definition.id}@${new Date(startedAtMs).toISOString()}`, workflowId: definition.id,
+    const run: WorkflowRun = { id: `${definition.id}@${trigger?.kind === 'manual' ? 'manual/' : ''}${new Date(startedAtMs).toISOString()}`, workflowId: definition.id,
       definitionVersion: definition.version, startedAt: new Date(startedAtMs).toISOString(), state: 'running', steps: [],
       ...(trigger ? { trigger } : definition.triggerKind === 'event' ? { trigger: { kind: 'recovery' as const } } : {}) };
     const recorder = createWorkflowRecorder({ changed: (steps) => { run.steps = steps; void publishHeartbeat(); } });

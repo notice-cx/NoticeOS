@@ -60,6 +60,7 @@ export function manualRecords(runs) {
 export function buildWorkflowHistory(records, traces, active, now, selectedId, definitions = WORKFLOW_DEFINITIONS) {
     const byTrace = new Map(traces.flatMap(value => readTrace(value, definitions)).map((r) => [r.id, r]));
     const names = new Map(definitions.map((w) => [jobRunName(w), w.id]));
+    const seenRuns = new Set();
     const runs = records.flatMap((record) => {
         if (!isObject(record) || typeof record.job !== 'string' || typeof record.at !== 'string' ||
             !['ran', 'failed', 'skipped'].includes(String(record.outcome)) || typeof record.ms !== 'number' || !Number.isFinite(record.ms) || record.ms < 0)
@@ -69,6 +70,9 @@ export function buildWorkflowHistory(records, traces, active, now, selectedId, d
         if (!workflowId || !Number.isFinite(at) || at > now || at < now - 30 * 24 * HOUR)
             return [];
         const id = `${workflowId}@${record.trigger === 'manual' ? 'manual/' : ''}${new Date(at).toISOString()}`;
+        if (seenRuns.has(id))
+            return [];
+        seenRuns.add(id);
         const trace = byTrace.get(id);
         return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
                 finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',

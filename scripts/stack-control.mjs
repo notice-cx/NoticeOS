@@ -36,7 +36,7 @@ import { runCommand } from './run-command.mjs';
 import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
-import { manualLocalJob } from './scheduled-jobs.mjs';
+import { manualScheduledJob } from './scheduled-jobs.mjs';
 
 const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'mcp', 'bd'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
@@ -132,7 +132,7 @@ export function actionArgs(action, args) {
     return parsed;
   }
   if (action === 'run-job') {
-    if (args.length === 2 && args[0] === '--id' && manualLocalJob(args[1])) return { job: ['run-job', ...args] };
+    if (args.length === 2 && args[0] === '--id' && manualScheduledJob(args[1])) return { job: ['run-job', ...args] };
     if (args.length !== 1 || !/^[0-9*/,\- ]{9,64}$/u.test(args[0])) refuse('Name one allowed local job: pnpm os:run-job -- --id panel-refresh; or one cron expression: pnpm os:run-job -- "0 6 * * *"');
     return { job: ['run-job', args[0]] };
   }

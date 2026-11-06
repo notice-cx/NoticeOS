@@ -73,7 +73,8 @@ export function createWorkflowHistoryReader(repoRoot: string, readManual: Manual
       } catch { /* torn snapshot */ }
       const history = buildWorkflowHistory([...cache.records, ...manual], cache.traces, active, now, selectedId);
       if (manualDaily) {
-        const scheduled = buildWorkflowHistory(cache.records, cache.traces, active, now);
+        const scheduled = buildWorkflowHistory(cache.records.filter(record => !isObject(record) || record.trigger !== 'manual'),
+          cache.traces.filter(trace => !isObject(trace) || !isObject(trace.trigger) || trace.trigger.kind !== 'manual'), active, now);
         for (const workflow of history.workflows) {
           const daily = scheduled.workflows.find(entry => entry.id === workflow.id)!.dailyHistory!;
           workflow.dailyHistory = daily;

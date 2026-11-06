@@ -218,10 +218,11 @@ raw database errors.
 
 ### Run one local job now
 
-`pnpm os:run-job -- --id <job-id>` runs exactly the named local job inside the
-app container through the running scheduler. Supported IDs are `panel-refresh`,
-`panel-review`, `beads-snapshot`, `beads-hub`, `task-map` and `watch-readbacks`.
-Unknown IDs, provider jobs and `backup` are rejected; backups use `pnpm os:backup`.
+`pnpm os:run-job -- --id <job-id>` runs exactly the named scheduled job inside the
+app container through the running scheduler. The job must be registered in
+`SCHEDULED_JOBS` and installed in that runner. Provider jobs, Portfolio briefing
+and backups use their existing implementations; unknown IDs are rejected.
+Backups retain the same worker admission as `pnpm os:backup`.
 The existing quoted cron invocation continues to dispatch ingest schedules.
 
 For example, after an approved collection, run
@@ -232,17 +233,20 @@ schedule. The job's existing implementation determines its work and prerequisite
 In the Tower, open **System health → Background operations → Local research
 summaries**, then select **Run now**. Each supported job's detail page has the
 same action; **Search review tasks** is under **Workflows**. The action displays
-progress and the result, then refreshes execution history. Local jobs are
-available only when the installation's runner advertises them; demo and hosted
-views do not expose this standalone control.
+progress and the result, then refreshes execution history. The action is
+available only when the installation's runner advertises the named job. A
+deployment without manual execution support shows a disabled action; the
+public demo remains read-only.
 
 Manual execution refreshes saved settings first and rejects a paused job, a
 job already running, unavailable settings, an unavailable runtime or shutdown.
 Manual, scheduled, startup recovery and first-snapshot runs share the scheduler's
 exclusion. Requests enter the supervisor through a private Unix socket in
 `.local/runner-jobs.sock`; they start no second scheduler. Jobs keep their
-existing execution records, workflow traces and error logs; manual traces are
-marked **Manual**. The command exits nonzero for rejection, failure or a skipped
+existing execution records, workflow traces and error logs; manual runs are
+marked **Manual**. Provider limits, caches, budgets and collection windows still
+apply, and a manual run does not reschedule the next automatic run or add an
+automatic retry. The command exits nonzero for rejection, failure or a skipped
 run. If a caller disconnects or times out, an accepted job retains exclusion
 until its execution finishes; check its history before retrying.
 

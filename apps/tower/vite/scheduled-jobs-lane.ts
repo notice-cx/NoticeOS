@@ -4,7 +4,7 @@ import type { Plugin } from 'vite';
 import { readStoredSchedules } from '../../../scripts/scheduled-job-runner.mjs';
 import { configStoreRequest } from '../../../scripts/config-store-client.mjs';
 import { requestLocalJob } from '../../../scripts/local-job-control.mjs';
-import { SCHEDULE_STATUS_FILE, manualLocalJob, type ScheduleStatus } from '../shared/scheduled-jobs';
+import { SCHEDULE_STATUS_FILE, manualScheduledJob, type ScheduleStatus } from '../shared/scheduled-jobs';
 import { demoViewerReply, type DemoViewerDescriptor } from '../shared/demo-viewer';
 import { DEFAULT_REPO_ROOT, crossOrigin, isJson, laneMiddleware, type LaneReply, type LaneRequest } from './lane';
 import { jobRunName } from '../shared/scheduled-jobs';
@@ -31,7 +31,7 @@ export async function handleScheduledJobsRequest(
     if (!isJson(request.headers)) return { status: 415, body: { error: 'json_required' } };
     let input: unknown;
     try { input = JSON.parse(request.body); } catch { input = null; }
-    if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id' || !manualLocalJob((input as { id?: unknown }).id)) {
+    if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id' || !manualScheduledJob((input as { id?: unknown }).id)) {
       return { status: 422, body: { error: 'local_job_not_allowed' } };
     }
     return runJob((input as { id: string }).id);

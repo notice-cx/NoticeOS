@@ -49,6 +49,18 @@ test('local manual failure links distinguish a simultaneous scheduled success', 
   assert.equal(view.workflows.find(workflow => workflow.id === 'counters').dailyHistory.buckets.find(bucket => bucket.failed).runId, selected);
 });
 
+test('one retained manual journal entry and its stored copy remain one manual run without rich traces', () => {
+  const at = new Date(NOW - HOUR).toISOString();
+  const record = { job, at, ms: 2, outcome: 'skipped', trigger: 'manual' };
+  const selected = `counters@manual/${at}`;
+  const view = buildWorkflowHistory([record, { ...record }], [], [], NOW, selected);
+  const own = view.workflows.find(workflow => workflow.id === 'counters');
+  assert.equal(own.runs.length, 1);
+  assert.equal(own.runs[0].trigger.kind, 'manual');
+  assert.equal(view.selectedRun.id, selected);
+  assert.equal(view.selectedRun.state, 'skipped');
+});
+
 test('hosted daily counts and old failure links remain complete and workspace isolated', { timeout: 120000 }, async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'workflow-week-'));
   let cluster, closePool;
