@@ -3,7 +3,7 @@ import { useView } from "@/hooks/useView";
 import type { ViewId } from "@shared/views";
 import { WorkflowViewEvidence, workflowDefaultSort, workflowViewFigures } from "./workflows/workflow-view";
 import { useDemoReadonly } from '@/lib/browser-context';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { BackupExecutionDetails, BackupRunDetails } from './workflows/BackupRunDetails';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Clock, GitBranch, Pencil, Search } from 'lucide-react';
@@ -173,10 +173,14 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
   </div>;
 }
 
+function RunSettings({ collapsed, expanded, children }: { collapsed: boolean; expanded: boolean; children: ReactNode }) {
+  return collapsed ? <details open={expanded || undefined} className="border-y border-border py-3"><summary className="cursor-pointer text-sm font-medium">Schedule and settings</summary><div className="mt-3">{children}</div></details> : <>{children}</>;
+}
+
 function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface }) {
   const queryClient = useQueryClient();
   const { view } = useView();
-  const ExecutionContainer = id === 'backup' ? BackupExecutionDetails : Fragment;
+
   const demoReadonly = useDemoReadonly();
   const base = workflowBasePath(surface);
   const breadcrumb = surface === 'system' ? [{ label: 'System health', to: '/health' }, { label: 'Background operations', to: base }] : [{ label: 'Workflows', to: base }];
@@ -196,6 +200,11 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     if (!runId && defaultRun) { const next = new URLSearchParams(search); next.set('run', defaultRun.id); setSearch(next, { replace: true }); }
   }, [runId, defaultRun?.id, search, setSearch]);
   const selected = runId ? data?.selectedRun?.workflowId === id && data.selectedRun.id === runId ? data.selectedRun : null : defaultRun ?? null;
+  const failed = (selected ?? (runId === defaultRun?.id ? defaultRun : null))?.state === 'failed';
+  const failedStep = failed ? selected?.steps?.findLast(step => step.state === 'failed') : undefined;
+  const retainedFailure = failedStep ? undefined : selected?.failure;
+  const failureLabel = definition?.stages.find(stage => stage.id === failedStep?.id)?.label ?? (id === 'portfolio-brief' ? 'Briefing generation failed' : 'Execution failed');
+  const ExecutionContainer = id === 'backup' || failed ? BackupExecutionDetails : Fragment;
   if (!definition) return <div className="p-6"><PageHeader title="Workflow not found" breadcrumb={breadcrumb} /></div>;
   const saved = data ? scheduleFor(definition, data.overrides ?? {}) : null;
   const collection = isCollectionJob(definition);
@@ -207,14 +216,33 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     const state = connectionState(credential);
     return state !== 'not-connected' && state !== 'failing';
   }) : null;
+  const runAction = !demoReadonly && data && summary && <RunWorkflow key={id} id={id} label={definition.label}
+          spendNotice={definition.manualNotice}
+          disabledReason={!data.runtime?.manualJobs?.includes(id) ? 'Run now is unavailable on this installation.' : !writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
+          onComplete={async () => {
+            const [fresh] = await Promise.all([query.refetch(),
+              ...(id === 'portfolio-brief' ? [queryClient.invalidateQueries({ queryKey: ['portfolio-brief'] })] : []),
+            ]);
+            const latest = fresh.data?.workflows.find((workflow) => workflow.id === id)?.latest;
+            if (latest) { const next = new URLSearchParams(search); next.set('run', latest.id); setSearch(next, { replace: true }); }
+          }} />;
   return <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 md:p-6">
     <PageHeader title={definition.label} description={definition.source} breadcrumb={breadcrumb}
-      actions={summary && data ? <WorkflowStateLabel state={workflowState(summary, data)} /> : undefined} />
+      actions={selected?.finishedAt ? <WorkflowStateLabel state={selected.state} /> : summary && data ? <WorkflowStateLabel state={workflowState(summary, data)} /> : undefined} />
     {!data && query.isError ? <ReadFailed title={`Couldn't load this ${surface === 'system' ? 'operation' : 'workflow'}`} subject={`read:${surface === 'system' ? 'operation' : 'workflow'}`} error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />
       : !data || !summary ? <p className="text-sm text-muted-foreground">Loading workflow…</p> : <>
-      <RuntimeNotice data={data} />
-      <WorkflowViewEvidence view={view.id} run={selected ?? null} />
+      {!failed && <RuntimeNotice data={data} />}
+      {failed ? <section aria-label="Run failure" className="space-y-3 rounded-lg border border-error/40 p-4">
+        <h2 className="text-base font-semibold">{failureLabel}</h2>
+        <p className="text-sm">{failedStep?.summary || retainedFailure?.summary || 'No failure reason was recorded for this run.'}</p>
+        {retainedFailure && <div className="space-y-1"><p className="text-xs font-medium text-muted-foreground">Next step</p><p className="text-sm">{retainedFailure.action}</p></div>}
+        {failedStep?.output?.fields.filter(field => ['reason', 'nextAction'].includes(field.key) && field.value !== failedStep.summary).map(field => <div key={field.key} className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{field.label}</p><p className="break-words text-sm">{String(field.value)}</p>
+        </div>)}
+      </section> : <WorkflowViewEvidence view={view.id} run={selected ?? null} />}
+      {runAction}
       {id === 'backup' && <BackupRunDetails run={selected} captured={data.backup} pending={query.isPlaceholderData || Boolean(defaultRun && !runId)} />}
+      <RunSettings collapsed={failed} expanded={Boolean(editing)}>
       <div className="flex flex-wrap items-start justify-between gap-4 border-y border-border py-4">
         <div className="flex flex-wrap gap-x-10 gap-y-3"><div><p className="mb-1 text-xs text-muted-foreground">{definition.triggerKind === 'event' ? 'Recovery check · Local time' : 'Schedule · Local time'}</p><p className="text-sm font-medium tabular-nums">{saved?.enabled ? scheduleLabel(saved.cron, scheduleTimezone(saved)) : 'Paused'}</p></div><div><p className="mb-1 text-xs text-muted-foreground">{definition.triggerKind === 'event' ? 'Trigger' : 'Next execution'}</p><NextRun workflow={definition} data={data} showCadence={false} /></div><div><p className="mb-1 text-xs text-muted-foreground">Category</p><p className="text-sm">{definition.group}</p></div></div>
         {/* A collection's schedule is edited with the collection: on the
@@ -224,16 +252,6 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
             nothing is connected for has no link. Every other job's one editor
             is still this one. */}
         <div className="flex flex-wrap items-start gap-3">
-        {!demoReadonly && <RunWorkflow key={id} id={id} label={definition.label}
-          spendNotice={definition.manualNotice}
-          disabledReason={!data.runtime?.manualJobs?.includes(id) ? 'Run now is unavailable on this installation.' : !writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
-          onComplete={async () => {
-            const [fresh] = await Promise.all([query.refetch(),
-              ...(id === 'portfolio-brief' ? [queryClient.invalidateQueries({ queryKey: ['portfolio-brief'] })] : []),
-            ]);
-            const latest = fresh.data?.workflows.find((workflow) => workflow.id === id)?.latest;
-            if (latest) { const next = new URLSearchParams(search); next.set('run', latest.id); setSearch(next, { replace: true }); }
-          }} />}
         {collection ? (
           scheduleLink ? (
             <Button asChild variant="outline" size="sm">
@@ -250,7 +268,9 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         onReload={async () => { const fresh = await query.refetch(); setEditing({ overrides: fresh.data?.overrides ?? null }); }}
         onClose={() => { setEditing(null); requestAnimationFrame(() => editButton.current?.focus()); }} />}
       {!collection && !writable.writable && !(demoReadonly && writable.reason === DEMO_READ_ONLY) && <p className="text-sm text-muted-foreground">{writable.reason}</p>}
+      </RunSettings>
       <ExecutionContainer><section className="space-y-4" aria-label="Workflow execution">
+        {failed && <RuntimeNotice data={data} />}
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>
           {!runId && <option value="">No recorded run</option>}
           {summary.active && <option value={summary.active.id}>Running now</option>}
@@ -258,7 +278,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
           {summary.runs.map((run) => <option key={run.id} value={run.id} title={utcRunReference(run.startedAt)}>{formatNextRun(run.startedAt)} · {WORKFLOW_STATE_LABEL[run.state]}{run.trigger?.kind === 'manual' ? ' · Manual' : run.trigger?.kind === 'event' ? ' · Event' : run.trigger?.kind === 'recovery' ? ' · Recovery' : ''}</option>)}
         </select></label></div>
         {selected ? <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground tabular-nums"><WorkflowStateLabel state={selected.state === 'running' && (!data.runtimeFresh || !data.observationsFresh) ? 'unknown' : selected.state} /><time dateTime={selected.startedAt} title={utcRunReference(selected.startedAt)}>{formatNextRun(selected.startedAt)}</time><WorkflowRunTrigger run={selected} /><span>{workflowDuration(selected.startedAt, selected.finishedAt)}</span><span>{selected.definitionVersion ? `Version ${selected.definitionVersion}` : 'Version unavailable'}</span></div> : runId ? query.isPlaceholderData ? <p role="status" data-status-for={`workflow-run:${runId}`} className="text-sm text-muted-foreground">Loading execution…</p> : <p className="text-sm text-warn">This run is not in the retained execution history.</p> : null}
-        <WorkflowStages key={selected?.id ?? 'definition'} definition={definition} run={selected ?? null} fresh={data.runtimeFresh && data.observationsFresh} />
+        <WorkflowStages key={selected?.id ?? 'definition'} definition={definition} run={selected ?? null} fresh={data.runtimeFresh && data.observationsFresh} summarizedFailure={failedStep ? { id: failedStep.id, attempt: failedStep.attempt } : undefined} />
       </section></ExecutionContainer>
       <section className="space-y-3" aria-label="Recent runs"><div className="flex items-center justify-between"><h2 className="text-base font-semibold">Recent runs</h2><span className="text-xs text-muted-foreground">Latest 10 · Local time</span></div>
         <div className="divide-y divide-border rounded-lg border border-border">{summary.runs.slice(0, 10).map((run) => <Link key={run.id} to={`${base}/${id}?run=${encodeURIComponent(run.id)}`} className={cn('grid min-h-14 grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 py-3 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring', selected?.id === run.id && 'bg-muted/40')} data-workflow-run={run.id}><span className="flex flex-wrap items-center gap-x-3 gap-y-1"><time dateTime={run.startedAt} title={utcRunReference(run.startedAt)} className="text-sm tabular-nums">{formatNextRun(run.startedAt)}</time><WorkflowRunTrigger run={run} /></span><WorkflowStateLabel state={run.state} /><span className="text-right text-xs text-muted-foreground tabular-nums">{workflowDuration(run.startedAt, run.finishedAt)}</span></Link>)}{!summary.runs.length && <p className="p-5 text-sm text-muted-foreground">No recorded runs for this workflow.</p>}</div>

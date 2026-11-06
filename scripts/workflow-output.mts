@@ -7,6 +7,7 @@
 
 import type { WorkflowOutputValue, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
 import { isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
+import { PORTFOLIO_BRIEF_FAILURES, portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 
 /** An operation's result as this projection reads it: any shape, every key guarded. */
 type Probe = { readonly [key: string]: unknown } | null | undefined;
@@ -41,6 +42,11 @@ function numbers(value: Probe, labels: Readonly<Record<string, string>>): Workfl
 }
 function fields(value: Probe): WorkflowOutputValue[] {
   const result: WorkflowOutputValue[] = [];
+  if (value?.operation === 'portfolio-brief' && value.ok === false) {
+    const failure = portfolioBriefFailure(value.failure as Probe);
+    result.push(entry('reason', 'Reason', failure.summary), entry('nextAction', 'Next step', failure.action));
+    return result;
+  }
   if (typeof value?.ok === 'boolean') result.push(entry('ok', 'Operation confirmed', value.ok));
   if (typeof value?.providerTruncated === 'boolean') result.push(entry('providerTruncated', 'Provider limited the result', value.providerTruncated));
   if (name(value?.check)) result.push(entry('check', 'Check', value!.check as string));
@@ -97,11 +103,12 @@ export function captureWorkflowOutput(value: unknown): WorkflowStepOutput | unde
 export function isWorkflowStepOutput(value: unknown): value is WorkflowStepOutput {
   const only = (item: unknown, keys: readonly string[]): item is { readonly [key: string]: unknown } => item as boolean && typeof item === 'object' && !Array.isArray(item) && Object.keys(item!).every((key) => keys.includes(key));
   const validValue = (item: { readonly [key: string]: unknown }) => {
+    if (item.key === 'nextAction') return item.label === 'Next step' && Object.values(PORTFOLIO_BRIEF_FAILURES).some(failure => failure.action === item.value);
     if (!Object.hasOwn(LABELS, item.key as PropertyKey) || item.label !== LABELS[item.key as string]) return false;
     if (['ok', 'providerTruncated'].includes(item.key as string)) return typeof item.value === 'boolean';
     if (['integration', 'report', 'check', 'id'].includes(item.key as string)) return Boolean(name(item.value));
     if (['reportDate', 'date'].includes(item.key as string)) return typeof item.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.value);
-    if (item.key === 'reason') return [...Object.values(REASONS), ...DETAILS].includes(item.value);
+    if (item.key === 'reason') return [...Object.values(REASONS), ...DETAILS, ...Object.values(PORTFOLIO_BRIEF_FAILURES).map(failure => failure.summary)].includes(item.value);
     if (item.key === 'finding') return ['ok', 'warn', 'error', 'unreachable'].includes(item.value as string);
     if (item.key === 'outcome') return ['ran', 'failed', 'skipped'].includes(item.value as string);
     if (item.key === 'verdict') return VERDICTS.includes(item.value);

@@ -52,7 +52,9 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
     try {
       await trace.run(id, run, result => {
         if (id === 'portfolio-brief' && typeof result === 'string') return { state: 'skipped', summary: result };
-        return stepResult(result);
+        const verdict = stepResult(result);
+        if (verdict.state === 'failed') console.error(JSON.stringify({ event: 'scheduled_step_failed', cron, step: id, message: verdict.summary }));
+        return verdict;
       });
     } catch {
       // Recorded as a failed step above; the next step still runs.
@@ -84,7 +86,7 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       const evidence = packPortfolioBriefContext({ ...base, facts: [...base.facts, ...readings.facts, ...acquisition.facts],
         insightEvidenceIds: [...base.insightEvidenceIds, ...readings.insightEvidenceIds, ...acquisition.insightEvidenceIds] });
       const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000);
-      if (result.error) throw new Error(result.error);
+      if (result.error) return { operation: 'portfolio-brief', ok: false, failure: result.failure };
       if (result.state === 'disconnected' || result.state === 'unsupported') return 'Briefing generation is unavailable';
       if (result.lastAttemptAt === state.lastAttemptAt) return 'Another briefing run or its cooldown prevented generation';
       if (trigger === 'manual' && evidence.insightEvidenceIds.length === 0) return 'No recent observations are available for briefing insights';

@@ -5,12 +5,16 @@
 
 import type { WorkflowStepRun } from '../packages/contract/src/workflows.js';
 import { captureWorkflowOutput } from './workflow-output.mjs';
+import { portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 
 /** An operation's result as the verdict reads it: any shape, every key guarded. */
 type Probe = { readonly [key: string]: unknown } | null | undefined;
 type StepVerdict = Pick<WorkflowStepRun, 'state' | 'summary'>;
 
 export function stepResult(result: unknown): StepVerdict {
+  if ((result as Probe)?.operation === 'portfolio-brief' && (result as Probe)?.ok === false) {
+    return { state: 'failed', summary: portfolioBriefFailure((result as Probe)?.failure as Probe).summary };
+  }
   const failed = typeof (result as Probe)?.failed === 'number' ? (result as Probe)!.failed as number : Array.isArray((result as Probe)?.failed) ? ((result as Probe)!.failed as unknown[]).length : 0;
   if (result === false || (result as Probe)?.outcome === 'failed' || (result as Probe)?.ok === false || failed > 0 ||
       (typeof (result as Probe)?.code === 'number' && (result as Probe)!.code !== 0) ||

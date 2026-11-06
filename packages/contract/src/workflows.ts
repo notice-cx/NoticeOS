@@ -48,5 +48,7 @@ export interface WorkflowRun {
   state: WorkflowStepState | 'unknown';
   /** Only observed trigger context belongs here; legacy records have none. */
   trigger?: { kind: 'schedule' | 'manual' | 'event' | 'recovery'; reference?: string };
+  /** A fixed diagnostic recovered from a retained execution record, without inferred stage timing. */
+  failure?: { summary: string; action: string };
   steps: WorkflowStepRun[] | null;
 }

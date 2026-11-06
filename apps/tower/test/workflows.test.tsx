@@ -1,3 +1,4 @@
+import { backupEvidenceFromReport } from '../../../packages/contract/src/backup-evidence.mjs';
 import { ExecutionViewSwitch } from "./execution-view-switch";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, within, waitFor } from './render';
@@ -84,7 +85,7 @@ describe('workflow operating surface', () => {
   });
   it('preserves legacy execution links when an operation moves to System Health', async () => {
     mount(`/workflows/counters?run=${encodeURIComponent(trace.id)}`);
-    expect(await screen.findByRole('complementary', { name: 'Stage details' })).toHaveTextContent('One collection failed.');
+    expect(await screen.findByRole('region', { name: 'Run failure' })).toHaveTextContent('One collection failed.');
     expect(screen.getByRole('link', { name: 'Background operations' })).toHaveAttribute('href', '/health/operations');
   });
   it('names each row by its label and provider, latest run first, and re-sorts by what needs attention', async () => {
@@ -208,16 +209,92 @@ describe('workflow operating surface', () => {
     expect(await screen.findByText(/Next 24 hours/)).toBeInTheDocument();
     expect(screen.getByLabelText('Backups: next 24 hours')).toBeInTheDocument();
   });
+  it('leads with the saved failure and next step, keeps routine detail collapsed, and hides empty output', async () => {
+    const reason = 'The model response did not match the briefing format.';
+    const action = 'Choose another model or review its structured-output settings.';
+    const failure: WorkflowRun = { ...trace, id: 'portfolio-brief@manual/2026-09-09T16:15:00.000Z', workflowId: 'portfolio-brief', steps: [
+      { ...trace.steps![1]!, id: 'portfolio-brief', summary: reason, output: { version: 1, metrics: [], fields: [
+        { key: 'reason', label: 'Reason', value: reason }, { key: 'nextAction', label: 'Next step', value: action },
+      ], items: [], totalItems: 0, truncated: false } },
+    ] };
+    data = { ...data, runtimeFresh: false, ...buildWorkflowHistory([], [failure], [], now, failure.id) };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: failure }))));
+    mount(`/health/operations/portfolio-brief?run=${encodeURIComponent(failure.id)}`);
+    const lead = await screen.findByRole('region', { name: 'Run failure' });
+    expect(within(lead).getByText(reason)).toBeVisible();
+    expect(within(lead).getByText(action)).toBeVisible();
+    expect(screen.getAllByText(reason)).toHaveLength(1);
+    const settings = screen.getByText('Schedule and settings').closest('details')!;
+    const execution = screen.getByText('Execution details').closest('details')!;
+    expect(settings).not.toHaveAttribute('open');
+    expect(execution).not.toHaveAttribute('open');
+    expect(screen.getByText('Schedule · Local time')).not.toBeVisible();
+    expect(screen.getByText('Execution stages')).not.toBeVisible();
+    expect(screen.queryByText('Output was not captured for this execution.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Run Portfolio briefing now' })).toBeVisible();
+    fireEvent.click(screen.getByText('Execution details'));
+    expect(screen.getByText('Execution stages')).toBeVisible();
+    expect(screen.getAllByText(reason)).toHaveLength(1);
+  });
+  it('shows retained failure guidance without inventing a missing stage', async () => {
+    const run: WorkflowRun = { ...trace, id: `portfolio-brief@${trace.startedAt}`, workflowId: 'portfolio-brief', steps: null,
+      failure: { summary: 'The model server refused access.', action: 'Review the API token and model permissions in Integrations, then retry.' } };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: run }))));
+    mount(`/health/operations/portfolio-brief?run=${encodeURIComponent(run.id)}`);
+    const lead = await screen.findByRole('region', { name: 'Run failure' });
+    expect(within(lead).getByRole('heading')).toHaveTextContent('Briefing generation failed');
+    expect(within(lead).getByText(run.failure!.summary)).toBeVisible();
+    expect(within(lead).getByText(run.failure!.action)).toBeVisible();
+    expect(within(lead).queryByText('Refresh portfolio briefing')).toBeNull();
+  });
+  it('does not infer a reason or remedy from an unknown legacy failure', async () => {
+    const run: WorkflowRun = { ...trace, id: `portfolio-brief@${trace.startedAt}`, workflowId: 'portfolio-brief', steps: null };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: run }))));
+    mount(`/health/operations/portfolio-brief?run=${encodeURIComponent(run.id)}`);
+    const lead = await screen.findByRole('region', { name: 'Run failure' });
+    expect(within(lead).getByText('No failure reason was recorded for this run.')).toBeVisible();
+    expect(within(lead).queryByText('Next step')).toBeNull();
+  });
+  it('preserves earlier attempt reasons and remaining output when the latest failure is summarized', async () => {
+    const oldReason = 'The first model request timed out.';
+    const latestReason = 'The model response did not match the briefing format.';
+    const failedStep = { ...trace.steps![1]!, id: 'portfolio-brief', summary: latestReason, attempt: 2,
+      output: { version: 1 as const, metrics: [], fields: [
+        { key: 'reason', label: 'Reason', value: latestReason }, { key: 'nextAction', label: 'Next step', value: 'Check the model settings.' },
+        { key: 'attempts', label: 'Attempts made', value: 2 },
+      ], items: [], totalItems: 0, truncated: false } };
+    const run = { ...trace, workflowId: 'portfolio-brief', steps: [{ ...failedStep, attempt: 1, summary: oldReason, output: undefined }, failedStep] };
+    const { container } = render(<WorkflowStages definition={WORKFLOW_DEFINITIONS.find(job => job.id === 'portfolio-brief')!} run={run} summarizedFailure={{ id: 'portfolio-brief', attempt: 2 }} />);
+    expect(screen.getByText(oldReason)).toBeVisible();
+    expect(screen.queryByText(latestReason)).toBeNull();
+    expect(screen.queryByText('Check the model settings.')).toBeNull();
+    expect(screen.getByText('Attempts made')).toBeVisible();
+    expect(container.querySelector('[aria-label="Step output"]')).not.toBeNull();
+  });
+  it('retains backup-only output for a summarized failed attempt', () => {
+    const backup = backupEvidenceFromReport({ startedAt: trace.startedAt, finishedAt: trace.finishedAt,
+      backupSet: { path: '/example/backups', complete: false }, context: 'host', stages: { publication: { status: 'failed' }, offsite: { status: 'not_configured' } } });
+    expect(backup).not.toBeNull();
+    const run: WorkflowRun = { ...trace, workflowId: 'backup', steps: [{ ...trace.steps![1]!, id: 'execute', output: {
+      version: 1, metrics: [], fields: [], items: [], totalItems: 0, truncated: false, backup: backup!,
+    } }] };
+    render(<WorkflowStages definition={WORKFLOW_DEFINITIONS.find(job => job.id === 'backup')!} run={run} summarizedFailure={{ id: 'execute', attempt: 1 }} />);
+    expect(screen.getByText('Captured data')).toBeVisible();
+    expect(screen.getByText('Captured data').closest('details')).toHaveTextContent('/example/backups');
+  });
   it('opens a failed step with real evidence and retains the requested run', async () => {
     mount(`/health/operations/counters?run=${encodeURIComponent(trace.id)}`);
+    expect(await screen.findByRole('region', { name: 'Run failure' })).toHaveTextContent('One collection failed.');
+    fireEvent.click(screen.getByText('Execution details', { exact: true }));
     const details = await screen.findByRole('complementary', { name: 'Stage details' });
     expect(within(details).getByRole('heading', { level: 3 })).toHaveTextContent('Refresh Google signals');
-    expect(within(details).getByText('One collection failed.')).toBeInTheDocument();
+    expect(within(details).queryByText('One collection failed.')).toBeNull();
     expect(screen.getByText('Version 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Load collection settings/ }));
     expect(within(details).getByRole('heading', { level: 3 })).toHaveTextContent('Load collection settings');
     // A collection's schedule has one editor, in Settings → Data collection:
     // this page keeps the runner's view and links there.
+    fireEvent.click(screen.getByText('Schedule and settings', { exact: true }));
     expect(screen.getByRole('link', { name: 'Edit in Settings' })).toHaveAttribute('href', '/settings/data-collection');
     expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
     expect(screen.queryByRole('form', { name: 'Live traffic and counters schedule' })).toBeNull();
@@ -253,6 +330,8 @@ describe('workflow operating surface', () => {
   });
   it("keeps every other job's one schedule editor where the job runs", async () => {
     mount('/health/operations/backup');
+    await screen.findByRole('region', { name: 'Run failure' });
+    fireEvent.click(screen.getByText('Schedule and settings'));
     fireEvent.click(await screen.findByRole('button', { name: 'Edit schedule' }));
     expect(screen.getByRole('form', { name: 'Backups schedule' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Edit in Settings' })).toBeNull();

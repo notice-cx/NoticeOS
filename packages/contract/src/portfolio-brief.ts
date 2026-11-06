@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ConnectionFailure } from './integrations.js';
 
 export const PORTFOLIO_BRIEF_MAX_BYTES = 96_000;
 export const PORTFOLIO_BRIEF_CONTEXT_BYTES = 24_000;
@@ -154,5 +155,6 @@ export interface PortfolioBriefRead {
   lastAttemptAt: string | null;
   nextAttemptAt: string | null;
   error: string | null;
+  failure?: ConnectionFailure;
   stale: boolean;
 }

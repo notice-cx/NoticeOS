@@ -1,4 +1,5 @@
 import type { ConnectionFailure, DiscoverModelProviderInput, DiscoverModelProviderResult } from '@noticeos/contract';
+import { MODEL_GENERATION_TIMEOUT_MS } from '../../../scripts/portfolio-brief-failure.mjs';
 import { PORTFOLIO_BRIEF_MAX_BYTES } from '@noticeos/contract/portfolio-brief';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 
@@ -145,7 +146,7 @@ export async function generateLocalModel(env: unknown, fields: Record<string, st
   const response = await request(env, fields, 'chat/completions', JSON.stringify({ model: fields[LOCAL_MODEL_ID], messages: options.messages,
     stream: false, max_tokens: 4096, temperature: 0.2,
     response_format: { type: 'json_schema', json_schema: { name: 'noticeos_response', strict: true, schema: options.responseSchema } },
-  }), options.fetchImpl ?? fetch, 120_000, options.signal);
+  }), options.fetchImpl ?? fetch, MODEL_GENERATION_TIMEOUT_MS, options.signal);
   if (!object(response) || !Array.isArray(response.choices) || response.choices.length !== 1) throw new LocalModelError('invalid-output');
   const choice: unknown = response.choices[0];
   if (!object(choice) || choice.finish_reason !== 'stop' || !object(choice.message)

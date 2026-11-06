@@ -3,6 +3,8 @@ import type { WorkspaceStore } from '@noticeos/postgres';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { BRIEFING_TICK, runTowerCron, type TowerCronEnv } from '../worker/tower-cron';
 import { withTowerSteps } from '../worker/runner-route';
+import { portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
+import { buildWorkflowHistory } from '../../../scripts/workflow-history-view.mjs';
 
 vi.mock('../worker/wall-payload', () => ({ buildWallPayload: vi.fn(async () => ({ assets: [] })) }));
 vi.mock('../worker/work-payload', () => ({ buildWorkPayload: vi.fn(async () => ({})) }));
@@ -15,6 +17,29 @@ vi.mock('../worker/portfolio-brief-evidence', () => ({ buildPortfolioBriefEviden
 })) }));
 
 describe('manual briefing safeguards', () => {
+  it('preserves the model failure and next step through the saved workflow history', async () => {
+    const state: PortfolioBriefRead = { state: 'awaiting', nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false };
+    const failure = { kind: 'timeout' as const };
+    const detail = portfolioBriefFailure(failure);
+    const refreshPortfolioBrief = vi.fn(async () => ({ ...state, state: 'unavailable' as const, lastAttemptAt: '2026-11-06T12:00:00.000Z', error: detail.summary, failure }));
+    const config = vi.fn(async () => ({ schedules: {}, beads: { spokes: [] }, osTimeZone: 'UTC' }));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const steps = await runTowerCron(BRIEFING_TICK, {
+        STORE: {} as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
+        briefing: { config, ingest: { portfolioBrief: async () => state, refreshPortfolioBrief } },
+      } as unknown as TowerCronEnv, () => new Date('2026-11-06T12:00:00.000Z'), 'manual');
+      expect(steps).toMatchObject([{ state: 'failed', summary: detail.summary, output: { fields: [
+        { key: 'reason', label: 'Reason', value: detail.summary }, { key: 'nextAction', label: 'Next step', value: detail.action },
+      ] } }]);
+      expect(withTowerSteps({ outcome: 'ran', detail: 'Execution completed', steps: [] }, steps)).toMatchObject({ outcome: 'failed', detail: detail.summary });
+      const run = { id: 'portfolio-brief@manual/2026-11-06T12:00:00.000Z', workflowId: 'portfolio-brief', definitionVersion: 1,
+        startedAt: steps[0]!.startedAt, finishedAt: steps[0]!.finishedAt, state: 'failed', trigger: { kind: 'manual' }, steps };
+      const history = buildWorkflowHistory([], [run], [], Date.now() + 1000, run.id);
+      expect(history.selectedRun?.steps).toEqual(steps);
+      expect(log).toHaveBeenCalledWith(expect.stringContaining(detail.summary));
+    } finally { log.mockRestore(); }
+  });
   it('records insufficient recent observations as skipped instead of claiming model generation', async () => {
     const state: PortfolioBriefRead = { state: 'awaiting', nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false };
     const refreshPortfolioBrief = vi.fn(async () => ({ ...state, lastAttemptAt: '2026-11-06T12:00:00.000Z' }));
