@@ -16,6 +16,11 @@ not fall back to an export when the store is absent. Host database bindings live
 separately in [`task-host.json`](task-host.README.md); deployed responses omit
 host fields.
 
+When the installation is connected to an Ntasks task hub
+([Keep tasks in Ntasks](../docs/guides/keep-tasks-in-ntasks.md)), Ntasks holds
+the tasks and each `spokes` row maps its asset to the Ntasks project with the
+same prefix; `database` and the hub are not used.
+
 Tasks are **operator/agent coordination state, not signals.** Nothing here
 enters the pulse envelope ([doc 02](../docs/02-signal-contract.md)); the hub is
 a second store beside the ledger, never inside it. A bead is what someone
