@@ -8,10 +8,11 @@ import { asOwner, reset } from './helpers.js';
 
 const NOW = Date.parse('2026-11-06T12:00:00Z');
 const HOUR = 3_600_000;
+const comparison = { current: { start: '2026-10-30', end: '2026-11-05' }, previous: { start: '2026-10-23', end: '2026-10-29' }, timeZone: 'UTC' };
 const fields = { LOCAL_MODEL_BASE_URL: 'http://127.0.0.1:1234/v1', LOCAL_MODEL_ID: 'synthetic-model' };
 const selected = () => ({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' });
 const evidence = (at = NOW): PortfolioBriefEvidence => ({ schemaVersion: 1, asOf: new Date(at).toISOString(), timeZone: 'UTC',
-  facts: [{ id: 'asset:example', label: 'Example report', href: '/assets/example', observedAt: new Date(at).toISOString(), period: null,
+  facts: [{ id: 'asset:example', label: 'Example report', href: '/assets/example', observedAt: new Date(at).toISOString(), period: null, comparison,
     data: { trafficChangePercent: 50, revenueChangePercent: -20, complete: true } }], insightEvidenceIds: ['asset:example'], limitations: ['Synthetic evidence only.'],
   coverage: { assets: 1, includedAssets: 1, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } });
 const result = () => ({ headline: 'Review the available evidence', assessment: 'Coverage supports a focused review.', insights: [{
@@ -50,6 +51,7 @@ it('reads an empty or populated cache without ever asking the model', async () =
   const refreshed = await refreshPortfolioBrief(target, evidence(), HOUR, { cache, fetchImpl, clock: () => NOW });
   expect(refreshed).toMatchObject({ state: 'ready', briefing: { model: fields.LOCAL_MODEL_ID, result: result() } });
   expect(refreshed.briefing?.sources[0]).not.toHaveProperty('data');
+  expect(refreshed.briefing?.sources[0]?.comparison).toEqual(comparison);
   expect(await readPortfolioBrief(target, { cache, fetchImpl, clock: () => NOW })).toEqual(refreshed);
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
@@ -194,6 +196,10 @@ it('rejects stale, oversized or invalid evidence before inference', async () => 
   await expect(refreshPortfolioBrief(target, invalid, HOUR, { cache, fetchImpl, clock: () => NOW })).rejects.toThrow();
   const unknown = evidence(); unknown.insightEvidenceIds = ['missing'];
   await expect(refreshPortfolioBrief(target, unknown, HOUR, { cache, fetchImpl, clock: () => NOW })).rejects.toThrow('supplied facts');
+  const undated = evidence(); delete undated.facts[0]!.comparison;
+  await expect(refreshPortfolioBrief(target, undated, HOUR, { cache, fetchImpl, clock: () => NOW })).rejects.toThrow('comparison periods');
+  const reversed = evidence(); reversed.facts[0]!.comparison = { ...comparison, previous: comparison.current };
+  await expect(refreshPortfolioBrief(target, reversed, HOUR, { cache, fetchImpl, clock: () => NOW })).rejects.toThrow('ordered and separate');
   expect(fetchImpl).not.toHaveBeenCalled();
 });
 

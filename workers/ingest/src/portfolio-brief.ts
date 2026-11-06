@@ -7,7 +7,7 @@ import { generateLocalModel, LocalModelError, LOCAL_MODEL_ID } from './local-mod
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { PORTFOLIO_BRIEF_PROMPT } from './portfolio-brief-prompt.js';
 
-const VERSION = '2';
+const VERSION = '3';
 const MIN_REFRESH_MS = 15 * 60_000;
 const LEASE_MS = 3 * 60_000;
 const FAILURE_RETRY_MS = 15 * 60_000;

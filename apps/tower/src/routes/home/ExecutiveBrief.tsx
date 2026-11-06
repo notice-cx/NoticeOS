@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
-import { formatTimestamp } from '@/lib/format';
+import { formatCalendarRange, formatTimestamp } from '@/lib/format';
 
 export function ExecutiveBrief({ read, readFailed = false, fallback }: { read?: PortfolioBriefRead; readFailed?: boolean; fallback: ReactNode }) {
   const brief = read?.briefing;
@@ -36,7 +36,16 @@ export function ExecutiveBrief({ read, readFailed = false, fallback }: { read?: 
       <summary className="w-fit cursor-pointer underline underline-offset-4">Evidence and coverage</summary>
       <div className="mt-2 flex max-w-prose flex-col gap-2">
         {brief.limitations.map((limitation, index) => <p key={index}>{limitation}</p>)}
-        {brief.sources.map(source => <p key={source.id}><Link to={source.href} className="underline underline-offset-4">{source.label}</Link>{source.observedAt ? <> · <time dateTime={source.observedAt}>{formatTimestamp(source.observedAt)}</time></> : ' · Observation time unavailable'}{source.period ? ` · ${source.period.start} to ${source.period.end}` : ''}</p>)}
+        {brief.sources.map(source => <div key={source.id} data-brief-source={source.id}>
+          <p>
+            <Link to={source.href} className="underline underline-offset-4">{source.label}</Link>
+            {source.observedAt ? <> · <time dateTime={source.observedAt}>{formatTimestamp(source.observedAt)}</time></> : ' · Observation time unavailable'}
+            {source.period ? ` · ${formatCalendarRange(source.period.start, source.period.end)}` : ''}
+          </p>
+          {source.comparison ? <p className="mt-1" data-brief-comparison="">
+            Current {formatCalendarRange(source.comparison.current.start, source.comparison.current.end)} vs previous {formatCalendarRange(source.comparison.previous.start, source.comparison.previous.end)} · {source.comparison.timeZone}
+          </p> : null}
+        </div>)}
       </div>
     </details>
   </section>;

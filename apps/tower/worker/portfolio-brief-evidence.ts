@@ -43,6 +43,10 @@ interface WindowComparison {
   changePercent: number | null;
 }
 
+function comparisonPeriods(window: WindowComparison, timeZone: string): NonNullable<PortfolioBriefFact['comparison']> {
+  return { current: { start: window.start, end: window.end }, previous: { start: window.previousStart, end: window.previousEnd }, timeZone };
+}
+
 function compareDays(values: ReadonlyMap<string, number>, end: string): WindowComparison | null {
   const dates = Array.from({ length: 14 }, (_, index) => shiftRevenueDate(end, index - 13));
   if (dates.some(date => !values.has(date))) return null;
@@ -82,8 +86,8 @@ export function buildPortfolioBriefEvidence(
     'Task rows are saved samples; counts cover successful project snapshots. Task closure does not establish a business outcome.',
     'Booked ledger figures are reconciled; forecast ledger figures, provider daily revenue and projections are estimates. Zero ledger figures do not establish recorded zero revenue.',
   ];
-  const add = (id: string, label: string, href: string, observedAt: string | null, data: Record<string, unknown>, period: PortfolioBriefFact['period'] = null) => {
-    facts.push({ id, label: clip(label), href, observedAt, period, data });
+  const add = (id: string, label: string, href: string, observedAt: string | null, data: Record<string, unknown>, period: PortfolioBriefFact['period'] = null, comparison?: PortfolioBriefFact['comparison']) => {
+    facts.push({ id, label: clip(label), href, observedAt, period, data, ...(comparison ? { comparison } : {}) });
   };
   const assets = [...wall.assets].sort((a, b) => a.id.localeCompare(b.id)).slice(0, ASSET_LIMIT);
   const booked = accounting(wall.portfolio.booked, wall.portfolio.revenueRecorded?.booked);
@@ -135,7 +139,7 @@ export function buildPortfolioBriefEvidence(
       caution: insightSource ? 'The edition reporting window covers its combined source archives, not necessarily every finding. Publication time does not establish observation freshness; findings alone do not prove current impact.' : 'Finding reporting periods are absent from this read model. Publication time does not establish observation freshness; findings alone do not prove current impact.',
     }, insightSource?.windowStart && insightSource.windowEnd ? { start: insightSource.windowStart, end: insightSource.windowEnd } : null);
     if (traffic) add(`${prefix}:traffic`, `${asset.displayName}: complete seven-day traffic comparison`, href, asset.activeUsers.collectedAt,
-      { ...traffic, metric: 'daily active users summed over days; not unique weekly people', timeZone: asset.activeUsers.timeZone ?? null }, { start: traffic.previousStart, end: traffic.end });
+      { ...traffic, metric: 'daily active users summed over days; not unique weekly people', timeZone: asset.activeUsers.timeZone ?? null }, { start: traffic.previousStart, end: traffic.end }, asset.activeUsers.timeZone ? comparisonPeriods(traffic, asset.activeUsers.timeZone) : undefined);
     const revenue = options.revenueByAsset?.get(asset.id);
     const currency = revenue?.bySource?.[0]?.currency;
     const compatibleSources = Boolean(currency && revenue?.bySource?.length && revenue.bySource.every(source =>
@@ -157,7 +161,7 @@ export function buildPortfolioBriefEvidence(
         revenueCurrency: currency,
         monetaryUnit: 'minor currency units',
         currencyMinorDigits: currency ? currencyMinorDigits(currency) : null,
-      }, { start: money.previousStart, end });
+      }, { start: money.previousStart, end }, comparisonPeriods(money, revenue.clock.timeZone));
       if (alignedTraffic && money && currentComparison(asset, end, now) && alignedTraffic.changePercent !== null && money.changePercent !== null &&
         (alignedTraffic.current !== alignedTraffic.previous || money.current !== money.previous) && Math.abs(alignedTraffic.changePercent - money.changePercent) > 0.000001) insightEvidenceIds.push(`${prefix}:traffic-revenue`);
     }
@@ -177,7 +181,7 @@ export function buildPortfolioBriefEvidence(
         assets: rows.map(row => ({ asset: row.asset, name: row.name, ...row.comparison!, currentShare: current > 0 ? row.comparison!.current / current : null })),
         decliningAssets: rows.filter(row => row.comparison!.current < row.comparison!.previous).length,
         metric: 'daily active users summed over days; not unique weekly people',
-      }, { start: rows[0]!.comparison!.previousStart, end: commonEnd });
+      }, { start: rows[0]!.comparison!.previousStart, end: commonEnd }, comparisonPeriods(rows[0]!.comparison!, assets[0]!.activeUsers.timeZone!));
       if (assets.every(asset => currentComparison(asset, commonEnd, now)) && rows.some(row => row.comparison!.current > row.comparison!.previous) && rows.some(row => row.comparison!.current < row.comparison!.previous)) insightEvidenceIds.push('portfolio:traffic-divergence');
     }
   }

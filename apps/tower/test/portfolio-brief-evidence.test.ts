@@ -48,6 +48,7 @@ describe('portfolio briefing evidence', () => {
     const packet = buildPortfolioBriefEvidence(wall(), work, { revenueByAsset: new Map([['example.com', revenue()]]) });
     const fact = packet.facts.find(item => item.id.endsWith(':traffic-revenue'))!;
     expect(fact.period).toEqual({ start: '2026-10-06', end: '2026-10-19' });
+    expect(fact.comparison).toEqual({ current: { start: '2026-10-13', end: '2026-10-19' }, previous: { start: '2026-10-06', end: '2026-10-12' }, timeZone: 'UTC' });
     expect(fact.data.changeGapPercentagePoints).toBe(-150);
     expect(fact.data.revenueCurrency).toBe('USD');
     expect(fact.data.revenueFamilies).toEqual(['ads']);
@@ -93,9 +94,28 @@ describe('portfolio briefing evidence', () => {
     const packet = buildPortfolioBriefEvidence(wall([asset('a.example', 300, 100), asset('b.example', 50, 100)]), work);
     const comparison = packet.facts.find(item => item.id === 'portfolio:traffic-divergence')!;
     expect(comparison.data.changePercent).toBe(75);
+    expect(comparison.comparison).toEqual({ current: { start: '2026-10-13', end: '2026-10-19' }, previous: { start: '2026-10-06', end: '2026-10-12' }, timeZone: 'UTC' });
     expect(comparison.data.decliningAssets).toBe(1);
     expect(packet.insightEvidenceIds).toContain('portfolio:traffic-divergence');
     expect((comparison.data.assets as { currentShare: number }[])[0]!.currentShare).toBeCloseTo(6 / 7);
+  });
+
+  it('uses the source reporting calendar and computed windows rather than collection dates', () => {
+    const data = wall([asset('a.example', 300, 100), asset('b.example', 50, 100)]);
+    for (const site of data.assets) site.activeUsers.timeZone = 'Europe/Paris';
+    const history = revenue();
+    history.clock = { ...history.clock!, timeZone: 'Europe/Paris' };
+    history.bySource = history.bySource!.map(source => ({ ...source, clock: { ...source.clock, timeZone: 'Europe/Paris' } }));
+    const packet = buildPortfolioBriefEvidence(data, work, { revenueByAsset: new Map([['a.example', history]]) });
+    for (const id of ['asset:a.example:traffic-revenue', 'portfolio:traffic-divergence']) {
+      expect(packet.insightEvidenceIds).toContain(id);
+      expect(packet.facts.find(fact => fact.id === id)!.comparison).toEqual({
+        current: { start: '2026-10-13', end: '2026-10-19' },
+        previous: { start: '2026-10-06', end: '2026-10-12' }, timeZone: 'Europe/Paris',
+      });
+    }
+    expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
+    expect(data.assets[0]!.activeUsers.collectedAt).toBe('2026-10-20T12:00:00.000Z');
   });
 
   it('keeps unavailable projects unknown rather than reporting empty queues', () => {

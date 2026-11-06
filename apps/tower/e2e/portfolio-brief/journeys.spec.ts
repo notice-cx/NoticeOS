@@ -6,11 +6,11 @@ import { WALL_FIXTURE_NOW } from '../wall-fixture';
 const ready: PortfolioBriefRead = { state: 'ready', error: null, stale: false, lastAttemptAt: WALL_FIXTURE_NOW, nextAttemptAt: null, briefing: {
   generatedAt: WALL_FIXTURE_NOW, evidenceAsOf: '2026-09-22T18:30:00Z', model: 'example-local-model', limitations: ['One asset has no revenue report.'],
   result: { headline: 'Fix checkout before increasing acquisition spend.', assessment: 'Revenue depends on recovering existing demand while checkout failures persist.', insights: [
-    { observation: 'Checkout losses rose while visits stayed level.', why: 'More acquisition would send visitors into the same failure.', action: 'Review the checkout errors before increasing spend.', evidenceIds: ['checkout'], confidence: 'high' },
-    { observation: 'One asset gained search visits while the others declined.', why: 'The portfolio is becoming more dependent on that asset.', action: 'Compare the changed landing pages across the assets.', evidenceIds: ['search'], confidence: 'medium' },
+    { observation: 'Over the latest 28 days, checkout losses rose versus the previous 28 while visits stayed level.', why: 'More acquisition would send visitors into the same failure.', action: 'Review the checkout errors before increasing spend.', evidenceIds: ['checkout'], confidence: 'high' },
+    { observation: 'Over the latest 28 days, one asset gained search visits versus the previous 28 while the others declined.', why: 'The portfolio is becoming more dependent on that asset.', action: 'Compare the changed landing pages across the assets.', evidenceIds: ['search'], confidence: 'medium' },
   ] }, sources: [
-    { id: 'checkout', label: 'Checkout errors', href: '/alerts', observedAt: WALL_FIXTURE_NOW, period: null },
-    { id: 'search', label: 'Search readings', href: '/sites', observedAt: WALL_FIXTURE_NOW, period: null },
+    { id: 'checkout', label: 'Checkout errors', href: '/alerts', observedAt: WALL_FIXTURE_NOW, period: null, comparison: { current: { start: '2026-08-25', end: '2026-09-21' }, previous: { start: '2026-07-28', end: '2026-08-24' }, timeZone: 'America/Los_Angeles' } },
+    { id: 'search', label: 'Search readings', href: '/sites', observedAt: WALL_FIXTURE_NOW, period: null, comparison: { current: { start: '2026-08-25', end: '2026-09-21' }, previous: { start: '2026-07-28', end: '2026-08-24' }, timeZone: 'America/Los_Angeles' } },
   ],
 } };
 
@@ -25,11 +25,15 @@ test('Home executive briefing keeps evidence, attribution and retained-result wa
   await expect(brief).toBeVisible();
   await expect(brief.getByRole('heading', { level: 2 })).toHaveText(ready.briefing!.result.headline);
   await expect(brief.getByRole('listitem')).toHaveCount(2);
+  await expect(brief.locator('[data-brief-comparison]')).toHaveCount(2);
+  await expect(brief.locator('[data-brief-comparison]').first()).not.toBeVisible();
+  await expect(brief.locator('[data-brief-comparison]').first()).toHaveText('Current Aug 25–Sep 21, 2026 vs previous Jul 28–Aug 24, 2026 · America/Los_Angeles');
   await expect(brief.getByRole('link', { name: 'Checkout errors' })).toHaveAttribute('href', '/alerts');
   await expect(brief).toContainText('Model-generated · example-local-model');
   await expect(brief.getByText('One asset has no revenue report.')).not.toBeVisible();
   await brief.getByText('Evidence and coverage').click();
   await expect(brief.getByText('One asset has no revenue report.')).toBeVisible();
+  await expect(brief.locator('[data-brief-comparison]').first()).toBeVisible();
   await brief.getByText('Evidence and coverage').click();
   await page.evaluate(() => document.fonts.ready);
   const fit = await brief.evaluate(element => {

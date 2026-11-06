@@ -10,12 +10,19 @@ export function portfolioBriefUtf8Bytes(value: string): number {
   return bytes;
 }
 
+export interface PortfolioBriefComparison {
+  current: { start: string; end: string };
+  previous: { start: string; end: string };
+  timeZone: string;
+}
+
 export interface PortfolioBriefFact {
   id: string;
   label: string;
   href: string;
   observedAt: string | null;
   period: { start: string; end: string } | null;
+  comparison?: PortfolioBriefComparison;
   data: Record<string, unknown>;
 }
 
@@ -32,6 +39,10 @@ export interface PortfolioBriefEvidence {
 const short = (max: number) => z.string().trim().min(1).max(max);
 const instant = z.string().datetime({ offset: true });
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const period = z.object({ start: date, end: date }).strict();
+const comparison = z.object({ current: period, previous: period, timeZone: short(100) }).strict().superRefine((value, ctx) => {
+  if (value.previous.start > value.previous.end || value.current.start > value.current.end || value.previous.end >= value.current.start) ctx.addIssue({ code: 'custom', message: 'Comparison periods must be ordered and separate.' });
+});
 const count = z.number().int().nonnegative();
 export const portfolioBriefEvidenceSchema = z.object({
   schemaVersion: z.literal(1),
@@ -41,7 +52,8 @@ export const portfolioBriefEvidenceSchema = z.object({
     id: short(400), label: short(240),
     href: z.string().max(500).regex(/^\/(?!\/)[a-zA-Z0-9/_%?=&.#-]*$/),
     observedAt: instant.nullable(),
-    period: z.object({ start: date, end: date }).strict().nullable(),
+    period: period.nullable(),
+    comparison: comparison.optional(),
     data: z.record(z.string(), z.unknown()),
   }).strict()).max(260),
   insightEvidenceIds: z.array(short(400)).max(260),
@@ -51,15 +63,16 @@ export const portfolioBriefEvidenceSchema = z.object({
   if (new Set(value.facts.map(fact => fact.id)).size !== value.facts.length) ctx.addIssue({ code: 'custom', message: 'Evidence identifiers must be unique.' });
   const known = new Set(value.facts.map(fact => fact.id));
   if (new Set(value.insightEvidenceIds).size !== value.insightEvidenceIds.length || value.insightEvidenceIds.some(id => !known.has(id))) ctx.addIssue({ code: 'custom', message: 'Insight evidence must name distinct supplied facts.' });
+  if (value.insightEvidenceIds.some(id => !value.facts.find(fact => fact.id === id)?.comparison)) ctx.addIssue({ code: 'custom', message: 'Insight evidence must include current and previous comparison periods.' });
   if (portfolioBriefUtf8Bytes(JSON.stringify(value)) > PORTFOLIO_BRIEF_MAX_BYTES) ctx.addIssue({ code: 'custom', message: 'The evidence packet is too large.' });
 });
 export const portfolioBriefResultSchema = z.object({
-  headline: short(140).describe('At most 10 words. State the decision implication, not a dashboard total.'),
-  assessment: short(500).describe('One complete sentence, at most 22 words. Do not repeat the insights.'),
+  headline: short(140).describe('At most 10 words. State the decision implication without numeric results.'),
+  assessment: short(500).describe('One complete sentence, at most 22 words. No numeric results; comparisons with time context belong in observations.'),
   insights: z.array(z.object({
-    observation: short(300).describe('One complete sentence, at most 24 words. Describe the changed relationship.'),
+    observation: short(500).describe('One complete sentence, at most 40 words. Weave the measurement period and baseline into the prose, such as latest 7 days versus previous 7; exact dates are optional. Use numerals and omit data-completeness terminology.'),
     why: short(240).describe('One complete sentence, at most 18 words. Explain the decision consequence.'),
-    action: short(240).describe('One complete sentence, at most 18 words. Name the next verification or decision.'),
+    action: short(240).describe('One complete sentence, at most 18 words. Name a check that distinguishes possible explanations without assuming any occurred.'),
     evidenceIds: z.array(short(400)).min(1).max(6),
     confidence: z.enum(['high', 'medium', 'low']),
   }).strict()).max(2).describe('Zero to two useful findings. Return an empty array when insightEvidenceIds is empty.'),

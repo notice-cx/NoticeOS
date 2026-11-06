@@ -62,7 +62,7 @@ The model receives bounded summaries of stored financial observations,
 complete traffic comparisons, aligned revenue comparisons where available,
 open alerts, sampled task progress and data coverage. It receives no
 credentials, task comments or raw provider archives. Each finding includes
-evidence links, its significance and a proposed next action. Results contain
+evidence links, its significance and a proposed next action. Each observation includes the measurement period and baseline, such as “over the latest 7 days versus the previous 7”. Precise current and previous date ranges, years and reporting time zones appear beside their sources under **Evidence and coverage**. Results contain
 at most two findings and 180 words. Missing data, static amounts and unchanged
 concentration do not qualify; concentration requires a sudden observed change.
 Currently, findings require recent, complete comparisons showing different
