@@ -3,13 +3,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { boardResults, FEED_PAGE, FEED_PAGES, readFeed, syncTaskService } from './runner/task-service-poll.mjs';
+import { boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, readFeed, readLabelled, syncTaskService } from './runner/task-service-poll.mjs';
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { summarizeBeadsProject } from './task-snapshot-summary.mjs';
-import { readSyncState } from './task-service-cache.mjs';
+import { labelKey, readCached, readSyncState } from './task-service-cache.mjs';
 import { TaskServiceUnavailable } from './task-service.mjs';
 
 // scripts/runner/task-service-poll.mjs: the task snapshot from Ntasks's change
@@ -40,7 +40,7 @@ async function cacheDir(t) {
 /** A task service whose feed is `feed(after, limit)`; `down` answers nothing. */
 function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, backend, labelled = {}, labelStatus = 200 } = {}) {
   const calls = [];
-  const state = { down: false, failBoards: false };
+  const state = { down: false, failBoards: false, labelPage: null };
   const service = {
     connected: async () => connected,
     backend: async () => backend ?? (connected ? 'ntasks' : 'local'),
@@ -55,6 +55,7 @@ function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, b
       if (state.failBoards) return { status: 503, body: { error: 'unavailable' } };
       if (url.searchParams.has('label')) {
         if (labelStatus !== 200) return { status: labelStatus, body: { error: 'invalid_request', detail: 'unknown parameter label' } };
+        if (state.labelPage) return { status: 200, body: state.labelPage(url.searchParams.get('label'), url.searchParams.get('after')) };
         return { status: 200, body: { tasks: labelled[url.searchParams.get('label')] ?? [], next: null } };
       }
       return { status: 200, body: url.searchParams.get('status') === 'closed' ? CLOSES : BOARD };
@@ -208,4 +209,48 @@ test('a label read Ntasks does not answer is shown as not asked, and the project
   assert.equal(entry.ok, true);
   assert.equal(Object.hasOwn(entry, 'handoffs'), false);
   assert.equal(Object.hasOwn(entry, 'panelReview'), false);
+});
+
+test('a label read follows the cursor Ntasks answers, and a task under both handoff labels reads once', async (t) => {
+  const pages = { '': { tasks: [task({ id: 'ex-30' }), task({ id: 'ex-31' })], next: 'ex-31' }, 'ex-31': { tasks: [task({ id: 'ex-32' })], next: null } };
+  const asked = [];
+  const paged = { call: async ({ path: target }) => {
+    const query = new URL(target, 'https://ntasks.example.com').searchParams;
+    asked.push([query.get('label'), query.get('limit'), query.get('after')]);
+    return { status: 200, body: pages[query.get('after') ?? ''] };
+  } };
+  assert.deepEqual((await readLabelled(paged, PROJECT.projectId, 'noticeos-handoff')).map((row) => row.id), ['ex-30', 'ex-31', 'ex-32']);
+  assert.deepEqual(asked, [['noticeos-handoff', String(LABEL_PAGE), null], ['noticeos-handoff', String(LABEL_PAGE), 'ex-31']]);
+
+  const dir = await cacheDir(t);
+  const both = task({ id: 'ex-20', labels: ['noticeos-handoff', 'reindex-handoff'],
+    metadata: { noticeos_source: 'noticeos-handoff', noticeos_asset: 'example.com', noticeos_kind: 'finding', noticeos_rule: 'thin-content', noticeos_key: 'thin-content:/recipes' } });
+  const { service } = ntasks({ labelled: { 'noticeos-handoff': [both], 'reindex-handoff': [both] } });
+  const { body } = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
+  assert.deepEqual(body.projects[0].handoffs.map((row) => row.beadId), ['ex-20']);
+});
+
+test('a label read past the page bound fails, and replaces the list kept before it', async (t) => {
+  const endless = { call: async ({ path: target }) => ({ status: 200,
+    body: { tasks: [task({ id: `ex-${new URL(target, 'https://ntasks.example.com').searchParams.get('after') ?? 0}9` })], next: 'ex-99' } }) };
+  await assert.rejects(readLabelled(endless, PROJECT.projectId, 'panel-review', { pages: 2 }), /more than 400 tasks carry the panel-review label/u);
+
+  const dir = await cacheDir(t);
+  let events = [{ seq: 1, projectId: PROJECT.projectId }];
+  const review = task({ id: 'ex-22', labels: ['panel-review'], title: 'Triage the 2026-11-02 serp panel for example.com', metadata: { noticeos_panel_date: '2026-11-02' } });
+  const { service, calls, state } = ntasks({ labelled: { 'panel-review': [review] },
+    feed: (after) => ({ events: events.filter((event) => event.seq > after), lastSeq: Math.max(after, ...events.map((event) => event.seq)) }) });
+  let clock = Date.parse('2026-11-06T12:00:00.000Z');
+  const sync = () => syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => clock });
+  assert.ok((await sync()).body.projects[0].panelReview, 'the first read is kept');
+
+  events = [...events, { seq: 2, projectId: PROJECT.projectId }];
+  state.labelPage = () => ({ tasks: [review], next: 'ex-22' });
+  calls.length = 0; clock += 60_000;
+  const [entry] = (await sync()).body.projects;
+  assert.equal(labelReads(calls).length, 2 * LABEL_PAGES, 'each read stops at the first label past the bound');
+  assert.equal(entry.ok, true);
+  assert.equal(Object.hasOwn(entry, 'panelReview'), false, 'a cut read is not shown as the earlier list');
+  assert.equal(Object.hasOwn(entry, 'handoffs'), false);
+  assert.equal((await readCached(dir, labelKey('example.com', 'panelReview'))).body, null);
 });
