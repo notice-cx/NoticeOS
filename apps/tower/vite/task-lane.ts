@@ -34,7 +34,7 @@ import { standaloneProjectId } from "../../../scripts/standalone-tasks.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
-import { createTaskService, type TaskService } from "../../../scripts/task-service.mjs";
+import type { TaskService } from "../../../scripts/task-service.mjs";
 import { taskCacheDir } from "../../../scripts/task-service-cache.mjs";
 import { handleTaskServiceRequest } from "./task-service-lane";
 import {
@@ -167,7 +167,8 @@ export interface TaskLaneOptions {
   /** The audit name every write carries; defaults to the repo's `git user.name`. */
   actor?: string;
   /** While this installation's task service is connected, every route here
-   * is answered from it (task-service-lane.ts) and `bd` is never run. */
+   * is answered from it (task-service-lane.ts) and `bd` is never run. Only
+   * the Tower's own config passes one, so no test reaches a real ingest. */
   taskService?: TaskService | null;
   /** Where the task service's answers are kept; defaults to the home checkout's `.local/task-cache`. */
   taskCacheDir?: string;
@@ -1160,7 +1161,6 @@ export function taskLane(options: TaskLaneOptions = {}): Plugin {
       viteDevServer.middlewares.use(
         taskLaneMiddleware({
           ...options,
-          taskService: options.taskService === undefined ? createTaskService() : options.taskService,
           withMutation: options.withMutation ?? withLocalTaskMutation,
           log: options.log ?? ((line) => logger.info(`  [tasks] ${line}`)),
         }),

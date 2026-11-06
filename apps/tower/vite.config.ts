@@ -36,6 +36,7 @@ import { envImportLane } from "./vite/env-import-lane";
 import { lucideIcons } from "./vite/lucide-icons";
 import { reconnectPage } from "./vite/reconnect-page";
 import { taskLane } from "./vite/task-lane";
+import { createTaskService } from "../../scripts/task-service.mjs";
 import { changeLane } from "./vite/change-lane";
 import { compressReplies } from "./vite/compress-replies";
 import { ownPort } from "./vite/own-port";
@@ -158,6 +159,9 @@ export default defineConfig(({ command }) => {
     env: process.env,
   }) : {};
   if (demoLaunch !== null && command !== "serve") throw new Error("The synthetic viewer supports local serving only.");
+  // One per server: the task lane and the MCP lane share its short reuse of
+  // "is Ntasks connected?". The synthetic viewer never reaches a task service.
+  const taskService = serverProfile === "standalone" && demoLaunch === null && command === "serve" ? createTaskService() : null;
   return ({
   cacheDir: process.env.NOTICEOS_VITE_CACHE_DIR || undefined,
   build: {
@@ -200,11 +204,11 @@ export default defineConfig(({ command }) => {
     // Each is `enforce: "pre"` so it answers its path before the Cloudflare
     // plugin dispatches it into the Worker, where the built answer lives.
     ...(serverProfile === "standalone" ? [configWriteLane()] : []),
-    ...(serverProfile === "standalone" ? [taskLane({ demoViewer: demoLaunch?.installation.viewer ?? null }), scheduledJobsLane({ demoViewer: demoLaunch?.installation.viewer ?? null })] : []),
+    ...(serverProfile === "standalone" ? [taskLane({ demoViewer: demoLaunch?.installation.viewer ?? null, taskService }), scheduledJobsLane({ demoViewer: demoLaunch?.installation.viewer ?? null })] : []),
     // One check of the pushed reads for every open page (shared/change-topics.ts).
     ...(serverProfile === "standalone" ? [changeLane()] : []),
     // Every MCP tool for an agent on this machine; the synthetic viewer stays read-only.
-    ...(serverProfile === "standalone" && demoLaunch === null ? [mcpLane()] : []),
+    ...(serverProfile === "standalone" && demoLaunch === null ? [mcpLane(taskService ? { taskService } : {})] : []),
     ...(serverProfile === "standalone" && demoLaunch === null ? [journeyLane()] : []),
     // Live source is a checkout's, updated with git; only a fixed version has a newer one to compare.
     ...(serverProfile === "standalone" ? [installationLane({ commit: appSourceVersion?.commit ?? null, live: process.env.NOTICEOS_IMMUTABLE_APP !== "1" })] : []),

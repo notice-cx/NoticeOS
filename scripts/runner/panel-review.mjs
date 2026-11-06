@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto';
 import { CONFIG, HOME_ROOT, OS_CHECKOUT, SECRET_FILES } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
+import { tasksInNtasks } from './task-service-poll.mjs';
 import { operatorToken } from './operator-token.mjs';
 import {
   beadsCreateArgs,
@@ -377,6 +378,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     state = panelFilerState,
     emit = log,
     stopped = () => isShuttingDown(),
+    taskService = null,
   } = deps;
 
   const { skip, resume } = laneSkips('panel review filer', state, emit);
@@ -384,6 +386,8 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
   if (stopped()) return null;
   // The tower's child hosts both Workers, so its readiness is the ingest's.
   if (!runtime.running || !runtime.ready) return skip('ingest is down/restarting');
+  // Filing into Ntasks waits for its write tools; the bd hub no longer holds the register.
+  if (await tasksInNtasks(taskService)) return skip('tasks live in Ntasks, where this lane does not file reviews yet');
   if (!(await probe())) return skip('the beads task hub is unreachable');
   const { projects, unreadable } = await readBeadsProjects(readConfig);
   if (unreadable) return skip(unreadable);
