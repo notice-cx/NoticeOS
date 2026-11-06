@@ -80,14 +80,11 @@ export function remoteTaskTools(service) {
     const where = () => service.origin().catch(() => null);
     return Object.freeze({
         async connected() {
-            try {
-                return await service.connected();
+            const backend = await service.backend();
+            if (backend === 'unknown') {
+                throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
             }
-            catch (error) {
-                if (!(error instanceof TaskServiceUnavailable))
-                    throw error;
-                throw new McpToolError(`unavailable: ${unavailableSentence(error, null)} Whether this installation's tasks live in Ntasks is unknown, so nothing was read or changed.`);
-            }
+            return backend === 'ntasks';
         },
         async call(name, args, request) {
             // Ntasks records the change as this agent's, under the installation's credential.
@@ -102,10 +99,12 @@ export function remoteTaskTools(service) {
                     throw new McpToolError(error.message);
                 if (!(error instanceof TaskServiceUnavailable))
                     throw error;
-                const changes = TASK_MCP_TOOLS.find(tool => tool.name === name)?.annotations.readOnlyHint === false;
-                throw new McpToolError(`unavailable: ${unavailableSentence(error, await where())} ${changes
-                    ? 'Its outcome is not confirmed: read the task, or retry with the same idempotency_key, which lands it at most once.'
-                    : 'Nothing was read; retry the same call.'}`);
+                const tool = TASK_MCP_TOOLS.find(entry => entry.name === name);
+                const changes = tool?.annotations.readOnlyHint === false;
+                const keyed = Object.hasOwn(tool?.inputSchema?.properties ?? {}, 'idempotency_key');
+                throw new McpToolError(`unavailable: ${unavailableSentence(error, await where())} ${!changes ? 'Nothing was read; retry the same call.'
+                    : keyed ? 'Its outcome is not confirmed: read the task, or retry with the same idempotency_key, which lands it at most once.'
+                        : 'Its outcome is not confirmed: read the task to see whether it landed before retrying.'}`);
             }
         },
     });

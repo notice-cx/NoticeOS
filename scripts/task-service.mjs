@@ -42,6 +42,10 @@ export function createTaskService(options = {}) {
     const fetchImpl = options.fetch ?? globalThis.fetch;
     const now = options.now ?? Date.now;
     let status = null;
+    /** The last read that failed: reused for as long as a good answer would be, so a
+     * stalled ingest costs one wait per few seconds rather than one per call. */
+    let failed = null;
+    let known = null;
     let catalog = null;
     let workspace = null;
     /** One request to the ingest door, through the one door client that carries the operator bearer. */
@@ -63,8 +67,19 @@ export function createTaskService(options = {}) {
     async function read() {
         if (status && now() - status.at < STATUS_TTL_MS)
             return status;
-        const answer = await door_('GET');
+        if (failed && now() - failed.at < STATUS_TTL_MS)
+            throw failed.error;
+        let answer;
+        try {
+            answer = await door_('GET');
+        }
+        catch (error) {
+            failed = { at: now(), error };
+            throw error;
+        }
+        failed = null;
         status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
+        known = status.connected;
         return status;
     }
     async function call(request) {
@@ -113,6 +128,14 @@ export function createTaskService(options = {}) {
     }
     const service = {
         async connected() { return (await read()).connected; },
+        async backend() {
+            try {
+                return (await read()).connected ? 'ntasks' : 'local';
+            }
+            catch {
+                return known === null ? 'unknown' : known ? 'ntasks' : 'local';
+            }
+        },
         async origin() { return (await read()).origin; },
         call,
         async tool(name, args, onBehalfOf) {

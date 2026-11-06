@@ -11,7 +11,7 @@ import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 import { checkBeadsHub, parseBeadsProjects, runBd } from './task-hub.mjs';
-import { syncTaskService, tasksInNtasks } from './task-service-poll.mjs';
+import { syncTaskService, taskBackend } from './task-service-poll.mjs';
 import { createTaskService, TaskServiceUnavailable } from '../task-service.mjs';
 import { taskCacheDir } from '../task-service-cache.mjs';
 
@@ -109,7 +109,10 @@ export async function runBeadsPoll(runtime, deps = {}) {
   } catch (err) {
     return skip(`the task map is unreadable (${err.message})`);
   }
-  const remote = await tasksInNtasks(taskService);
+  const backend = await taskBackend(taskService);
+  // A snapshot from the wrong register would look current; the last one keeps its own time.
+  if (backend === 'unknown') return skip('the ingest has not said whether tasks live in Ntasks');
+  const remote = backend === 'ntasks';
   // An acknowledged empty map must clear the last snapshot even when the hub
   // is down. Store failures above never turn into a fabricated empty roster.
   if (!remote && projects.length > 0 && !(await probe())) return skip('the beads task hub is unreachable');

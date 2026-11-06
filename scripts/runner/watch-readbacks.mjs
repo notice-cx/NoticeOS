@@ -5,7 +5,7 @@
 import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, SECRET_FILES } from './config.mjs';
 import { log } from './log.mjs';
-import { tasksInNtasks } from './task-service-poll.mjs';
+import { bdLaneSkip, taskBackend } from './task-service-poll.mjs';
 import { operatorToken } from './operator-token.mjs';
 import { beadsFailure, parseBeadsProjects, runBd } from './task-hub.mjs';
 import { beadsInstant } from '../task-snapshot-values.mjs';
@@ -115,9 +115,10 @@ export async function runWatchReadbackFiler(deps = {}) {
   }
   if (!Array.isArray(pending) || !Array.isArray(reviews)) return { posted: [], failed: [] };
   if (pending.length === 0 && reviews.length === 0) return { posted: [], failed: [] };
-  // The verdicts stay queued in the store until this lane can post them to Ntasks.
-  if (await tasksInNtasks(taskService)) {
-    emit('WARN', `watch readbacks wait — tasks live in Ntasks, where this lane does not post yet (${pending.length + reviews.length} queued)`);
+  // The verdicts stay queued in the store until this lane can post them.
+  const standDown = bdLaneSkip(await taskBackend(taskService), 'post');
+  if (standDown) {
+    emit('WARN', `watch readbacks wait — ${standDown} (${pending.length + reviews.length} queued)`);
     return { posted: [], failed: [] };
   }
 

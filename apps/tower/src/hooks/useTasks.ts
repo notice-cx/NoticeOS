@@ -10,7 +10,7 @@ import {
 import { useCallback } from "react";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
+import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject, TaskServiceStatus } from "@shared/tasks";
 import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { TASK_RESOLUTION_LABELS, type TaskResolution } from "@noticeos/contract/task-resolution";
 import { chooseOnTask, closeTask, dismissTask, resolveGate, respondToTask, type CloseTaskOptions, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
@@ -304,9 +304,13 @@ const ANSWERED: Record<InboxAnswer["kind"], string> = {
   close: "Closed",
 };
 
-/** While tasks live in Ntasks an answer reads as done only once Ntasks has
- * confirmed it: the Undo window's toast names what is about to be sent, and
- * the done toast follows the confirmation. */
+/** While tasks live in Ntasks, or the ingest cannot say where they live, an
+ * answer reads as done only once it is confirmed: the Undo window's toast
+ * names what is about to be sent, and the done toast follows the confirmation.
+ * A status not read yet keeps the local wording. */
+function confirmsBeforeDone(service: TaskServiceStatus | undefined): boolean {
+  return service !== undefined && service.connected !== false;
+}
 const SENDING: Record<InboxAnswer["kind"], string> = {
   approve: "Approving",
   answer: "Sending answer",
@@ -360,7 +364,7 @@ function answeredMany(answers: readonly InboxAnswer[]): string {
  */
 export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: { closedAlready?: readonly string[] }) => void {
   const toast = useOwnerToast();
-  const confirmsFirst = useTaskService().data?.connected === true;
+  const confirmsFirst = confirmsBeforeDone(useTaskService().data);
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
   const api = useTowerApi();
@@ -424,7 +428,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
  */
 export function useInboxAnswer(): (answer: InboxAnswer) => void {
   const toast = useOwnerToast();
-  const confirmsFirst = useTaskService().data?.connected === true;
+  const confirmsFirst = confirmsBeforeDone(useTaskService().data);
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
   const api = useTowerApi();

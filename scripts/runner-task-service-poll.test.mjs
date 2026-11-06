@@ -7,6 +7,7 @@ import { boardResults, FEED_PAGE, FEED_PAGES, readFeed, syncTaskService } from '
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
+import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { summarizeBeadsProject } from './task-snapshot-summary.mjs';
 import { readSyncState } from './task-service-cache.mjs';
 import { TaskServiceUnavailable } from './task-service.mjs';
@@ -37,11 +38,12 @@ async function cacheDir(t) {
 }
 
 /** A task service whose feed is `feed(after, limit)`; `down` answers nothing. */
-function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true } = {}) {
+function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, backend } = {}) {
   const calls = [];
-  const state = { down: false };
+  const state = { down: false, failBoards: false };
   const service = {
     connected: async () => connected,
+    backend: async () => backend ?? (connected ? 'ntasks' : 'local'),
     origin: async () => 'https://ntasks.example.com',
     projects: async () => { if (state.down) throw new TaskServiceUnavailable('network'); return [PROJECT]; },
     tool: async () => { throw new Error('no tools'); },
@@ -50,6 +52,7 @@ function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true } 
       if (state.down) throw new TaskServiceUnavailable('network');
       const url = new URL(call.path, 'https://ntasks.example.com');
       if (url.pathname === '/api/changes') return { status: 200, body: feed(Number(url.searchParams.get('after')), Number(url.searchParams.get('limit'))) };
+      if (state.failBoards) return { status: 503, body: { error: 'unavailable' } };
       return { status: 200, body: url.searchParams.get('status') === 'closed' ? CLOSES : BOARD };
     },
   };
@@ -143,4 +146,46 @@ test('the lanes that write to the bd hub stand down while tasks live in Ntasks',
     emit: (_level, text) => lines.push(text), stopped: () => false });
   assert.equal(map, null);
   assert.ok(lines.some((line) => /tasks live in Ntasks/u.test(line)));
+});
+
+test('a board read that failed is read again on the next tick, quiet feed or not', async (t) => {
+  const dir = await cacheDir(t);
+  let events = [{ seq: 1, projectId: PROJECT.projectId }];
+  const { service, calls, state } = ntasks({ feed: (after) => ({ events: events.filter((event) => event.seq > after), lastSeq: Math.max(after, ...events.map((event) => event.seq)) }) });
+  let clock = Date.parse('2026-11-06T12:00:00.000Z');
+  const sync = () => syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => clock });
+  await sync();
+  // The feed names the project, and its board read fails.
+  events = [...events, { seq: 2, projectId: PROJECT.projectId }];
+  clock += 60_000; state.failBoards = true;
+  const failed = await sync();
+  assert.equal(failed.body.projects[0].ok, false);
+  assert.equal((await readSyncState(dir, 'https://ntasks.example.com')).boards[PROJECT.projectId], undefined);
+  calls.length = 0; clock += 60_000; state.failBoards = false;
+  const next = await sync();
+  assert.equal(boardReads(calls).length, 2, 'the failed project is reread with no event naming it');
+  assert.equal(next.body.projects[0].ok, true);
+});
+
+test('nothing runs against the bd hub while the ingest has never said where the tasks live', async (t) => {
+  const dir = await cacheDir(t);
+  const { service } = ntasks({ backend: 'unknown' });
+  const lines = [], posted = [];
+  const never = () => { throw new Error('must not run'); };
+  const snapshot = await runBeadsPoll({ running: true, ready: true }, { taskService: service, cacheDir: dir,
+    readConfig: async () => JSON.stringify({ spokes: [{ ...SPOKES[0], database: 'ex', repo: '', unavailableReason: 'no link' }] }),
+    readToken: async () => 'operator-token', probe: never, run: never, url: 'http://door.test/api/beads-snapshot',
+    post: async () => { posted.push(1); return { ok: true, status: 201, text: async () => '' }; },
+    state: { skipping: null }, emit: (_level, text) => lines.push(text), stopped: () => false });
+  assert.equal(snapshot, null);
+  assert.deepEqual(posted, []);
+  assert.match(lines.at(-1), /the ingest has not said whether tasks live in Ntasks/u);
+  assert.equal(await runPanelReviewFiler({ running: true, ready: true }, { taskService: service, probe: never, readConfig: never, run: never,
+    state: { skipping: null, unmapped: new Set(), waiting: new Set() }, emit: (_level, text) => lines.push(text), stopped: () => false }), null);
+  assert.equal(await runTaskMapCheck({ taskService: service, readConfig: never, run: never, state: { skipping: null },
+    emit: (_level, text) => lines.push(text), stopped: () => false }), null);
+  const readbacks = await runWatchReadbackFiler({ taskService: service, readToken: async () => 'operator-token', run: never, readConfig: never,
+    fetchImpl: async () => Response.json({ pending: [{ bead: 'ex-1', asset: 'example.com' }], reviews: [] }), emit: (_level, text) => lines.push(text) });
+  assert.deepEqual(readbacks, { posted: [], failed: [] });
+  assert.ok(lines.some((line) => /watch readbacks wait — the ingest has not said/u.test(line)));
 });

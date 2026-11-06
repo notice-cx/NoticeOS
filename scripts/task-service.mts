@@ -48,9 +48,16 @@ export class TaskServiceToolRefused extends Error {
   override name = 'TaskServiceToolRefused';
 }
 
+/** Where this installation's tasks live: `local` is the task database on this
+ * machine; `unknown` means the ingest has not said since this process started. */
+export type TaskBackend = 'ntasks' | 'local' | 'unknown';
+
 export interface TaskService {
   /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say. */
   connected(): Promise<boolean>;
+  /** Where the tasks live, for choosing a route: the last answer the ingest
+   * gave when it cannot say now, and `unknown` only when it never has. */
+  backend(): Promise<TaskBackend>;
   /** Where the task service is, when one is connected. */
   origin(): Promise<string | null>;
   call(call: TaskServiceCall): Promise<TaskServiceReply>;
@@ -70,6 +77,10 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const now = options.now ?? Date.now;
   let status: { at: number; connected: boolean; origin: string | null } | null = null;
+  /** The last read that failed: reused for as long as a good answer would be, so a
+   * stalled ingest costs one wait per few seconds rather than one per call. */
+  let failed: { at: number; error: unknown } | null = null;
+  let known: boolean | null = null;
   let catalog: { at: number; projects: readonly NtasksProject[] } | null = null;
   let workspace: { at: number; id: string } | null = null;
 
@@ -87,8 +98,12 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   }
   async function read(): Promise<{ connected: boolean; origin: string | null }> {
     if (status && now() - status.at < STATUS_TTL_MS) return status;
-    const answer = await door_('GET');
+    if (failed && now() - failed.at < STATUS_TTL_MS) throw failed.error;
+    let answer: Record<string, unknown>;
+    try { answer = await door_('GET'); } catch (error) { failed = { at: now(), error }; throw error; }
+    failed = null;
     status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
+    known = status.connected;
     return status;
   }
   async function call(request: TaskServiceCall): Promise<TaskServiceReply> {
@@ -134,6 +149,10 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
 
   const service: TaskService = {
     async connected() { return (await read()).connected; },
+    async backend() {
+      try { return (await read()).connected ? 'ntasks' : 'local'; }
+      catch { return known === null ? 'unknown' : known ? 'ntasks' : 'local'; }
+    },
     async origin() { return (await read()).origin; },
     call,
     async tool(name, args, onBehalfOf) {

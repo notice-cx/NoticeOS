@@ -18,7 +18,7 @@ function Approve() {
   const answer = useInboxAnswer();
   return <button onClick={() => answer({ kind: 'approve', id: 'ex-gate', title: 'Approve the launch' })}>Approve</button>;
 }
-function mount(connected: boolean) {
+function mount(connected: boolean | null) {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false } } });
   client.setQueryData(TASK_SERVICE_KEY, { connected, origin: connected ? 'https://ntasks.example.com' : null, projects: null });
   const view = render(<QueryClientProvider client={client}><MemoryRouter><Approve /><Toaster /></MemoryRouter></QueryClientProvider>);
@@ -48,6 +48,18 @@ it.each([
   const after = shown().join(' ');
   if (confirmed) expect(after).toContain('Approved');
   else { expect(after).not.toMatch(/Approved/u); expect(after).toContain('nothing was saved'); }
+  unmount(); client.clear();
+});
+
+it('waits for the confirmation while the ingest cannot say where the tasks live', async () => {
+  vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+  vi.useFakeTimers();
+  resolve.mockResolvedValue(undefined);
+  const { shown, unmount, client } = mount(null);
+  fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(40); });
+  expect(shown().join(' ')).toContain('Approving');
+  expect(shown().join(' ')).not.toMatch(/Approved/u);
   unmount(); client.clear();
 });
 

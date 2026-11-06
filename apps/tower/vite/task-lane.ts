@@ -1040,10 +1040,15 @@ export async function handleTasksRequest(
   }
 
   if (opts.taskService) {
-    // An ingest that cannot say whether Ntasks is connected leaves the routes
-    // on `bd`, which reads the saved projects through that same ingest.
-    const remote = await opts.taskService.connected().catch(() => false);
-    if (remote) {
+    const backend = await opts.taskService.backend();
+    // Never knowing where the tasks live, a change could land in the wrong
+    // register; a read stays on `bd`, which reads the saved projects through
+    // that same ingest.
+    if (backend === "unknown" && request.method !== "GET") {
+      return { status: 503, body: { error: "task_service_unknown",
+        detail: "The installation's ingest did not answer, so it is unknown where its tasks live. Nothing was saved." } };
+    }
+    if (backend === "ntasks") {
       try {
         return await handleTaskServiceRequest(pathname, url, request, { service: opts.taskService,
           readProjects: opts.readProjects, cacheDir: opts.taskCacheDir, now: opts.now });

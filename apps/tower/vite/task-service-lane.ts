@@ -88,6 +88,7 @@ async function read(opts: TaskServiceLaneOptions, key: string, path: string, ass
       await writeCached(opts.cacheDir, key, answer, () => opts.now().getTime());
       return { status: 200, body: answer };
     }
+    if (status === 200) return { status: 502, body: { error: "task_service_invalid", detail: "Ntasks answered this read with something other than a task read." } };
     if (status !== 502 && status !== 503 && status !== 504) {
       return relayed(status === 400 ? 422 : status, body);
     }

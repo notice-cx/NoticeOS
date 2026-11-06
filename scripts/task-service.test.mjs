@@ -92,12 +92,12 @@ test('a saved task project is the Ntasks project with its prefix', () => {
   ]);
 });
 
-async function standalone(fetch) {
+async function standalone(fetch, now = Date.now) {
   const ran = [];
   const handle = await openStandaloneMcp({ store: { onlyWorkspace: async () => LOCAL, close: async () => {},
     inWorkspace: async () => [] }, receipts: memoryReceipts(Date.now),
     projects: async () => [{ projectId: PROJECT.projectId, asset: 'example.com', prefix: 'ex', cwd: '/nowhere' }],
-    run: async argv => { ran.push(argv); return { code: 0, stdout: '[]' }; }, taskService: service(fetch) });
+    run: async argv => { ran.push(argv); return { code: 0, stdout: '[]' }; }, taskService: service(fetch, now) });
   const call = async (name, args) => (await handle.handle(new Request('http://localhost/api/mcp', { method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }))).json();
@@ -153,4 +153,44 @@ test('with no task service connected the task tools stay on the linked projects'
   t.after(local.close);
   const listed = await local.call('list_projects', { workspace: LOCAL });
   assert.deepEqual(listed.result.structuredContent.projects.map(project => project.prefix), ['ex']);
+});
+
+test('where the tasks live is the ingest\'s last answer while it cannot say, and unknown before it ever has', async () => {
+  let up = true, connected = false, reads = 0, clock = 0;
+  const fetch = async (url, init) => { reads += 1; if (!up) throw new TypeError('ECONNREFUSED'); return door(async () => null, { connected })(url, init); };
+  const never = service(async () => { reads += 1; throw new TypeError('ECONNREFUSED'); }, () => clock);
+  assert.equal(await never.backend(), 'unknown');
+  assert.equal(await never.backend(), 'unknown');
+  assert.equal(reads, 1, 'a failed read is reused for a few seconds');
+  reads = 0;
+  const tasks = service(fetch, () => clock);
+  assert.equal(await tasks.backend(), 'local');
+  clock = 6_000; up = false;
+  assert.equal(await tasks.backend(), 'local');
+  clock = 12_000; up = true; connected = true;
+  assert.equal(await tasks.backend(), 'ntasks');
+  clock = 18_000; up = false;
+  assert.equal(await tasks.backend(), 'ntasks');
+  await assert.rejects(tasks.connected(), error => error instanceof TaskServiceUnavailable && error.reason === 'ingest');
+});
+
+test('a known local backend keeps the task tools local while the ingest does not answer', async t => {
+  let up = true, clock = 0, reads = 0;
+  const fetch = door(async () => { throw new Error('Ntasks must not be asked'); }, { connected: false });
+  const local = await standalone(async (url, init) => { reads += 1; if (!up) throw new TypeError('ECONNREFUSED'); return fetch(url, init); }, () => clock);
+  t.after(local.close);
+  assert.equal((await local.call('list_projects', { workspace: LOCAL })).result.isError, undefined);
+  up = false; clock = 6_000; reads = 0;
+  const listed = await local.call('list_projects', { workspace: LOCAL });
+  assert.deepEqual(listed.result.structuredContent.projects.map(project => project.prefix), ['ex']);
+  assert.equal(reads, 1, 'the ingest was asked, and its last answer stood');
+});
+
+test('a change that takes no retry key says to read the task before retrying', async t => {
+  const local = await standalone(door(async ({ path }) => path === '/api/mcp' ? null : { status: 200, body: { projects: [PROJECT] } }));
+  t.after(local.close);
+  const linked = await local.call('add_dependency', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', depends_on: 'ex-2' });
+  assert.equal(linked.result.isError, true);
+  assert.match(linked.result.content[0].text, /read the task to see whether it landed before retrying\.$/u);
+  assert.doesNotMatch(linked.result.content[0].text, /idempotency_key/u);
 });

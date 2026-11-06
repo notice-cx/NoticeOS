@@ -37,8 +37,10 @@ Every change goes through the installation's one credential. Each request names 
 ## While Ntasks does not answer
 
 - The **Tasks** pages show the copy Ntasks last gave, with **Ntasks is not answering** and the time it was read. They offer no actions until it answers.
-- A comment or a close that could not be sent is refused with **Nothing was saved.**, and its text stays in its box.
-- A task tool answers `unavailable:` with the address that did not answer. A change's answer says to read the task or retry it with the same `idempotency_key`, which applies it at most once.
+- A comment or a close that could not be sent keeps its text in its box. When Ntasks did not answer, the refusal ends with **Nothing was saved.** When Ntasks did not answer in time, it ends with **The change may have landed; reload before sending it again.** instead, because the change may have been saved.
+- A change Ntasks answers but does not offer yet is refused with **Ntasks does not accept this change yet, so nothing was saved.**
+- While the installation's ingest has not said where its tasks live, a change is refused and the runner files no task snapshot.
+- A task tool answers `unavailable:` with the address that did not answer. A change's answer says to read the task, or to retry it with the same `idempotency_key`, which applies it at most once; `add_dependency`, `remove_dependency` and `request_human_approval` take no key, so their answer says to read the task before retrying.
 - The runner files no new task snapshot, so Home keeps the last one with the time it was taken.
 
 The copies are kept under `.local/task-cache` in the installation's home folder.

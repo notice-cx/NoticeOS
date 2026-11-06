@@ -19,10 +19,12 @@ beforeEach(async () => { cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "tas
 afterEach(async () => { await fs.rm(cacheDir, { recursive: true, force: true }); });
 
 /** A task service that answers `answer(call)`; `down` makes every call unanswered. */
-function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unknown }, state = { down: false, connected: true }) {
+function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unknown },
+  state: { down: boolean; connected: boolean; unknown?: boolean } = { down: false, connected: true }) {
   const calls: TaskServiceCall[] = [];
   const service: TaskService = {
     connected: async () => state.connected,
+    backend: async () => state.unknown ? "unknown" : state.connected ? "ntasks" : "local",
     origin: async () => "https://ntasks.example.com",
     async call(call) {
       calls.push(call);
@@ -113,4 +115,20 @@ it("keeps the task routes on bd while no task service is connected", async () =>
   await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
   expect(calls).toEqual([]);
   expect(ran.length).toBeGreaterThan(0);
+});
+
+it("refuses a change while the ingest has never said where the tasks live, and reads stay on bd", async () => {
+  const ran: string[][] = [];
+  const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false, unknown: true });
+  const change = await lane(service, ran)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
+  expect(change).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
+  expect(String(change.body.detail)).toMatch(/Nothing was saved\.$/u);
+  await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
+  expect(calls).toEqual([]);
+  expect(ran.length).toBeGreaterThan(0);
+});
+
+it("does not pass off a read Ntasks answered with something else as a board", async () => {
+  const { service } = ntasks(() => ({ status: 200, body: [] }));
+  expect(await lane(service)(request("GET", "/api/tasks?project=example.com"))).toMatchObject({ status: 502, body: { error: "task_service_invalid" } });
 });

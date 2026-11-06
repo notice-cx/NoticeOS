@@ -15,10 +15,17 @@ export const FEED_PAGE = 200;
 export const FEED_PAGES = 5;
 export const BOARD_MAX_AGE_MS = 15 * 60_000;
 
-/** Whether this installation's tasks live in Ntasks. An ingest that cannot
- * say leaves a lane on `bd`, which reads its task map through that ingest too. */
-export async function tasksInNtasks(service) {
-  return service != null && await service.connected().catch(() => false);
+/** Where this installation's tasks live: `ntasks`, `local` (the bd hub), or
+ * `unknown` when the ingest has never said. No task service is `local`. */
+export async function taskBackend(service) {
+  return service == null ? 'local' : service.backend();
+}
+
+/** Why a lane that writes to the bd hub stands down, or null when it may run. */
+export function bdLaneSkip(backend, lane) {
+  if (backend === 'local') return null;
+  return backend === 'ntasks' ? `tasks live in Ntasks, where this lane does not ${lane} yet`
+    : `the ingest has not said whether tasks live in Ntasks, so this lane does not ${lane}`;
 }
 
 /** The closes the snapshot reaches back over, as one closed-only board read. */
@@ -112,7 +119,11 @@ export async function syncTaskService({ service, spokes, cacheDir, now = Date.no
     const stale = !kept || state.cursor === 0 || feed.changed.has(id) || !(now() - Date.parse(boards[id] ?? '') < BOARD_MAX_AGE_MS);
     if (!stale) continue;
     if (await refreshBoards(service, project, cacheDir, now)) boards[id] = new Date(now()).toISOString();
-    else failed.add(project.asset);
+    else {
+      // The next tick rereads it, quiet feed or not.
+      delete boards[id];
+      failed.add(project.asset);
+    }
   }
   await writeSyncState(cacheDir, { origin, cursor: feed.cursor, boards });
   const reach = { closedSince: beadsClosedSince(now()), closesSince: beadsClosesSince(now()) };
