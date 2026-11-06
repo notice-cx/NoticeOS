@@ -165,6 +165,25 @@ public hosting and remote production changes still need concrete operator
 approval. Keep the standalone path and rollback compatibility; no billing
 scope is inferred.
 
+## Parallel batches and verification
+
+Once implementation is authorized and a batch is ready, begin the fixes. Keep
+independent workers implementing while another task waits on investigation,
+verification or approval. A preparation-only request does not authorize building.
+
+Heavy verification follows the completed batch rather than interrupting each
+fix. Use quick checks for immediate implementation questions, then coordinate the
+required checks over the combined changes and reuse unchanged results. A blocker
+holds only work that actually depends on it; retain its evidence and continue
+other ready work without claiming the blocked acceptance passed.
+
+Reuse existing coverage for low-risk changes and add tests only for distinct
+behavior or failure risk, with proportionate recurring CI cost. Keep task updates
+to claims, meaningful outcomes or decisions, and evidence-backed closures; repeated
+coordination summaries must not displace implementation. The task hub remains the
+single work register, and safety, production approval and release requirements
+still apply.
+
 ## The CI bar
 
 CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
@@ -205,11 +224,11 @@ fetch (`RELEASE_REPOSITORY` in `scripts/published-image.mjs`).
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
 relevant typecheck, build or browser check; reuse passing checks when their
-inputs are unchanged. Do not skip the root
-suite: recursive pnpm commands visit workspaces, not `scripts/*.test.mjs`,
-where the runner, migration, collector, backup and task-hub contracts are
-tested. Passing CI does not make a change safe: CI checks that the code builds
-and its tests pass, while the failures that cost money are bad outcomes after
+inputs are unchanged. Include the affected root-script checks when a change
+reaches those contracts: recursive pnpm commands visit workspaces, not
+`scripts/*.test.mjs`, where the runner, migration, collector, backup and task-hub
+contracts are tested. Passing CI does not make a change safe: CI checks that the
+code builds and its tests pass, while the failures that cost money are bad outcomes after
 shipping, which only the post-ship outcome checks catch.
 
 ## Temporary test storage
@@ -321,7 +340,9 @@ or policy commitments retain their explicit action-specific approval.
 
 ## Git policy
 
-Changes go through a branch and a GitHub pull request. Do not commit to or push
+Keep the primary checkout on `main`; never switch it to a work branch. Make
+changes in a separate Git worktree, push the work branch and open a GitHub pull
+request. A local-only branch is not a completed handoff. Do not commit to or push
 `main` directly. The task hub never commits or pushes. For requested work,
 agents may create commits, push commits to PR branches, create and update PRs,
 and read their review and CI metadata without further owner approval. Prefer
