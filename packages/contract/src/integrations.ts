@@ -187,14 +187,21 @@ export interface ProviderFacts {
 /** Safe categories and numeric codes only; provider text and transport errors
  * can contain credentials and must not enter a connection response. */
 export interface ConnectionFailure {
-  kind: 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large';
+  kind: 'not-supported' | 'redirect' | 'configuration' | 'access' | 'not-found' | 'model-missing' | 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large';
   status?: number;
   providerCode?: number;
 }
 
+export interface DiscoverModelProviderInput { fields: Record<string, string> }
+export type DiscoverModelProviderResult =
+  | { ok: true; models: string[] }
+  | { ok: false; failure: ConnectionFailure };
+
 /** Only fixed labels and numeric codes cross the provider boundary. */
 export function connectionFailureLabel(failure: ConnectionFailure): string {
   const labels: Record<ConnectionFailure['kind'], string> = {
+    'not-supported': 'Available only in standalone installations', redirect: 'API address redirected · Enter its final API base URL',
+    configuration: 'Use an HTTPS API base URL, or a local HTTP address', access: 'API token refused or access denied', 'not-found': 'Models endpoint not found · Check the API base URL', 'model-missing': 'Selected model is no longer available',
     network: 'Connection failed', dns: 'Address lookup failed', tls: 'Secure connection failed',
     timeout: 'Request timed out', http: 'Request failed', 'rate-limited': 'Request limit reached · Try again later',
     'invalid-response': 'Invalid response', 'invalid-inventory': 'Incomplete or invalid database list',
@@ -539,14 +546,14 @@ export type IntegrationProviderId =
 
 export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
   {
-    id: 'local-model', label: 'Local model', scope: 'shared', lanes: [],
+    id: 'local-model', label: 'OpenAI-compatible model', scope: 'shared', lanes: [],
     docRef: 'docs/11-integrations.md#local-model',
     expiry: { known: 'operator' }, test: { cost: 'free' },
     connect: { kind: 'key', credential: 'connection', sites: false },
     fields: [
       { name: 'LOCAL_MODEL_BASE_URL', label: 'API base URL', kind: 'url', secret: false, required: true, placeholder: 'http://host.docker.internal:1234/v1',
-        description: 'Use a local server address reachable from NoticeOS. This server receives stored portfolio and task summaries.' },
-      { name: 'LOCAL_MODEL_ID', label: 'Model ID', kind: 'text', secret: false, required: true },
+        description: 'Use an API base URL reachable from NoticeOS. The selected provider receives stored portfolio and task summaries. Scheduled briefings may incur provider charges; NoticeOS does not enforce an inference spending cap.' },
+      { name: 'LOCAL_MODEL_ID', label: 'Model', kind: 'text', secret: false, required: true },
       { name: 'LOCAL_MODEL_API_TOKEN', label: 'API token', kind: 'password', secret: true, required: false },
     ],
   },

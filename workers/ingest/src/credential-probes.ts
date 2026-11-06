@@ -1,4 +1,4 @@
-import { assertLocalModelAvailable, checkLocalModel, LocalModelError } from './local-model.js';
+import { assertLocalModelAvailable, checkLocalModel, localModelFailure, LocalModelError } from './local-model.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 // Connection tests: one least-privileged call per provider. Apart from the
 // store (credentials.ts) on purpose: every collector imports the resolver, the
@@ -185,9 +185,9 @@ async function runProbe(
   if (provider === 'local-model') {
     try { await checkLocalModel(env, fields, fetchImpl); return { ok: true, result: { outcome: 'answered' } }; }
     catch (error) { return { ok: false, result: error instanceof LocalModelError && error.code === 'access'
-      ? { outcome: 'refused', fix: { kind: 'replace' } }
+      ? { outcome: 'refused', fix: { kind: 'replace' }, failure: localModelFailure(error) }
       : error instanceof LocalModelError && error.code === 'model-missing'
-        ? { outcome: 'invalid', failing: ['Model ID'] } : { outcome: 'unreachable' } }; }
+        ? { outcome: 'invalid', failing: ['Model'], failure: localModelFailure(error) } : { outcome: 'unreachable', failure: localModelFailure(error) } }; }
   }
   if (provider === 'cloudflare') {
     try { return { ok: true, result: { outcome: 'answered', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } } }; }

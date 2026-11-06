@@ -6,7 +6,7 @@
 // count and dropped, nothing returned or logged carries a credential, and the
 // answer is a verdict plus facts, never the provider's own sentence.
 
-import { assertLocalModelAvailable, checkLocalModel, LocalModelError } from './local-model.js';
+import { assertLocalModelAvailable, checkLocalModel, localModelFailure, LocalModelError } from './local-model.js';
 import type {
   ConnectCredentialResult,
   ConnectionFailure,
@@ -254,5 +254,5 @@ function withTimeout(fetchImpl: typeof fetch): typeof fetch {
 
 async function askLocalModel(env: IngestEnv, fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
   try { await checkLocalModel(env, fields, fetchImpl); return { verdict: 'accepted', facts: {} }; }
-  catch (error) { return { verdict: error instanceof LocalModelError && ['access', 'configuration', 'model-missing'].includes(error.code) ? 'refused' : 'unreachable' }; }
+  catch (error) { return { verdict: error instanceof LocalModelError && ['access', 'configuration', 'model-missing'].includes(error.code) ? 'refused' : 'unreachable', failure: localModelFailure(error) }; }
 }

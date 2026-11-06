@@ -6,7 +6,7 @@ import { connectCredential } from '../src/credential-connect.js';
 import { putCredential, resolveCredential, credentialSummary, validateCredentialFields } from '../src/credentials.js';
 import { integrationProvider } from '@noticeos/contract';
 import { probeCredential } from '../src/credential-probes.js';
-import { checkLocalModel, generateLocalModel, localModelBaseUrl } from '../src/local-model.js';
+import { checkLocalModel, discoverLocalModels, generateLocalModel, localModelBaseUrl } from '../src/local-model.js';
 
 const fields = { LOCAL_MODEL_BASE_URL: 'http://127.0.0.1:1234/v1', LOCAL_MODEL_ID: 'synthetic-model' };
 const options = { messages: [{ role: 'user' as const, content: 'Summarize synthetic evidence.' }], responseSchema: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'], additionalProperties: false } };
@@ -16,7 +16,7 @@ const completion = (content = '{"summary":"Synthetic result"}', finish_reason = 
 it('uses fixed paths, omits absent auth, requests constrained JSON and parses only final content', async () => {
   const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
     expect(String(input)).toBe('http://127.0.0.1:1234/v1/chat/completions');
-    expect(init?.redirect).toBe('error');
+    expect(init?.redirect).toBe('manual');
     expect(new Headers(init?.headers).has('authorization')).toBe(false);
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(JSON.parse(String(init?.body))).toMatchObject({ model: fields.LOCAL_MODEL_ID, stream: false, max_tokens: 4096,
@@ -39,6 +39,34 @@ it('discovers the exact configured model with bearer auth without generating', a
   await expect(checkLocalModel(standalone, fields, async () => Response.json({ data: [{ id: 'other-model' }] }))).rejects.toMatchObject({ code: 'model-missing' });
 });
 
+it.each([' synthetic-model', 'synthetic-model '])('refuses a connection whose model ID differs from the server: %j', async modelId => {
+  const selected = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
+  const previous = await resolveCredential(selected, 'local-model');
+  expect(await connectCredential(selected, { provider: 'local-model', fields: { ...fields, LOCAL_MODEL_ID: modelId } }, {
+    fetchImpl: async () => Response.json({ data: [{ id: fields.LOCAL_MODEL_ID }] }),
+  })).toMatchObject({ ok: true, verdict: 'refused', failure: { kind: 'model-missing' } });
+  expect(await resolveCredential(selected, 'local-model')).toMatchObject({ source: previous.source, fields: previous.fields });
+});
+
+it('preserves opaque model IDs through discovery, connection storage and generation', async () => {
+  const modelId = ' synthetic-model ';
+  const inventory = async () => Response.json({ data: [{ id: modelId }, { id: fields.LOCAL_MODEL_ID }] });
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, inventory))
+    .toEqual({ ok: true, models: [modelId, fields.LOCAL_MODEL_ID] });
+  const selected = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
+  expect(await connectCredential(selected, { provider: 'local-model', fields: { ...fields, LOCAL_MODEL_ID: modelId } }, {
+    fetchImpl: inventory,
+  })).toMatchObject({ ok: true, verdict: 'accepted' });
+  const saved = await resolveCredential(selected, 'local-model');
+  expect(saved.fields?.LOCAL_MODEL_ID).toBe(modelId);
+  const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    expect(JSON.parse(String(init?.body)).model).toBe(modelId);
+    return completion();
+  });
+  await generateLocalModel(standalone, saved.fields!, { ...options, fetchImpl });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it.each([[undefined], [null], [[]]])('accepts final content when the server reports no tool calls (%j)', async tool_calls => {
   const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: {
     content: '{"summary":"Synthetic result"}', reasoning_content: 'Separate reasoning is not the final answer.', tool_calls,
@@ -57,6 +85,7 @@ it.each(['hosted', 'demo'])('blocks %s credential mutation, discovery, probe and
   expect(await putCredential(selected, { provider: 'local-model', fields })).toMatchObject({ ok: false, error: 'validation' });
   expect(await connectCredential(selected, { provider: 'local-model', fields }, { fetchImpl })).toMatchObject({ ok: false, error: 'not_supported' });
   expect(await probeCredential(selected, 'local-model', { fetchImpl })).toMatchObject({ ok: false, result: { outcome: 'not-checked' } });
+  expect(await discoverLocalModels(selected, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, fetchImpl)).toEqual({ ok: false, failure: { kind: 'not-supported' } });
   await expect(checkLocalModel(selected, fields, fetchImpl)).rejects.toMatchObject({ code: 'unavailable' });
   await expect(generateLocalModel(selected, fields, { ...options, fetchImpl })).rejects.toMatchObject({ code: 'unavailable' });
   expect(fetchImpl).not.toHaveBeenCalled();
@@ -81,19 +110,20 @@ it('rejects truncated responses, excessive bodies and already cancelled work', a
 });
 
 it('sanitizes transport and provider failures', async () => {
-  await expect(checkLocalModel(standalone, fields, async () => { throw new Error('private endpoint and token'); })).rejects.toThrow('Local model: network.');
-  await expect(checkLocalModel(standalone, fields, async () => new Response('private provider message', { status: 401 }))).rejects.toMatchObject({ code: 'access', message: 'Local model: access.' });
+  await expect(checkLocalModel(standalone, fields, async () => { throw new Error('private endpoint and token'); })).rejects.toThrow('OpenAI-compatible model: network.');
+  await expect(checkLocalModel(standalone, fields, async () => new Response('private provider message', { status: 401 }))).rejects.toMatchObject({ code: 'access', message: 'OpenAI-compatible model: access.' });
 });
 
 
-it('stores a standalone connection only after discovery and keeps the token out of summaries', async () => {
+it.each([fields.LOCAL_MODEL_BASE_URL, 'https://models.example.com/custom/api'])('stores a standalone connection at %s only after discovery and keeps the token out of summaries', async baseUrl => {
   const selected = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
-  const candidate = { ...fields, LOCAL_MODEL_API_TOKEN: 'synthetic-private-model-token' };
+  const candidate = { ...fields, LOCAL_MODEL_BASE_URL: baseUrl, LOCAL_MODEL_API_TOKEN: 'synthetic-private-model-token' };
+  const previous = await resolveCredential(selected, 'local-model');
   const refused = await connectCredential(selected, { provider: 'local-model', fields: candidate }, {
     fetchImpl: async () => Response.json({ data: [] }),
   });
   expect(refused).toMatchObject({ ok: true, verdict: 'refused' });
-  expect((await resolveCredential(selected, 'local-model')).source).toBe('none');
+  expect(await resolveCredential(selected, 'local-model')).toMatchObject({ source: previous.source, fields: previous.fields });
   const accepted = await connectCredential(selected, { provider: 'local-model', fields: candidate }, {
     fetchImpl: async () => Response.json({ data: [{ id: fields.LOCAL_MODEL_ID }] }),
   });
@@ -123,7 +153,7 @@ it.each(['http://127.0.0.1:1234/v1', 'http://127.1/v1', 'http://10.1.2.3/v1', 'h
   expect(localModelBaseUrl(value).pathname).toBe('/v1/');
 });
 
-it.each(['http://8.8.8.8/v1', 'https://api.example.com/v1', 'http://model/v1', 'http://model.local/v1',
+it.each(['http://8.8.8.8/v1', 'http://model/v1', 'http://model.local/v1',
   'http://169.254.169.254/v1', 'http://172.15.255.255/v1', 'http://172.32.0.0/v1', 'http://192.169.0.1/v1',
   'http://localhost.example.com/v1', 'http://host.docker.internal.example.com/v1', 'http://0.0.0.0/v1',
   'http://[2001:4860:4860::8888]/v1', 'http://[::ffff:8.8.8.8]/v1', 'http://[fc::1]/v1', 'http://[fec0::1]/v1'])('blocks nonlocal endpoint %s before fetch', async value => {
@@ -176,4 +206,53 @@ it('still rejects an oversized serialized request before contacting the model', 
     messages: [{ role: 'user', content: 'x'.repeat(2 * PORTFOLIO_BRIEF_MAX_BYTES + 64 * 1024 + 1) }], fetchImpl,
   })).rejects.toMatchObject({ code: 'too-large' });
   expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+
+it('discovers bounded unique models without a selected model at a remote custom base path', async () => {
+  const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+    expect(String(input)).toBe('https://api.example.com/custom/api/models');
+    expect(init?.redirect).toBe('manual');
+    return Response.json({ data: [{ id: 'z-model' }, { id: 'a-model' }, { id: 'z-model' }] });
+  });
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: 'https://api.example.com/custom/api' } }, fetchImpl))
+    .toEqual({ ok: true, models: ['a-model', 'z-model'] });
+});
+
+it.each([[401, 'access'], [403, 'access'], [404, 'not-found'], [429, 'rate-limited'], [503, 'network']] as const)('returns a safe discovery failure for HTTP %s', async (status, kind) => {
+  expect(await discoverLocalModels(standalone, { fields }, async () => new Response('private provider message', { status })))
+    .toEqual({ ok: false, failure: { kind: 'configuration' } });
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, async () => new Response('private provider message', { status })))
+    .toEqual({ ok: false, failure: { kind, status } });
+});
+
+it.each([{ data: [{ id: '' }] }, { data: [{ id: 'a\nsecret' }] }, { data: [{ id: 'x'.repeat(513) }] }, { data: [null] }, {}])('rejects invalid discovery inventory safely', async response => {
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, async () => Response.json(response)))
+    .toEqual({ ok: false, failure: { kind: 'invalid-response' } });
+});
+
+
+it.each(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'CERT_HAS_EXPIRED'])('does not infer a network cause from nonportable error code %s', async code => {
+  const fetchImpl = async () => { throw new Error('private endpoint and token', { cause: { code } }); };
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, fetchImpl))
+    .toEqual({ ok: false, failure: { kind: 'network' } });
+});
+
+it('requires a selected model for generation and checking before contacting the provider', async () => {
+  const fetchImpl = vi.fn<typeof fetch>();
+  const candidate = { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL };
+  await expect(checkLocalModel(standalone, candidate, fetchImpl)).rejects.toMatchObject({ code: 'configuration' });
+  await expect(generateLocalModel(standalone, candidate, { ...options, fetchImpl })).rejects.toMatchObject({ code: 'configuration' });
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+
+it('rejects redirects without following or exposing the destination', async () => {
+  const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    expect(init?.redirect).toBe('manual');
+    return new Response(null, { status: 302, headers: { location: 'https://private.example.com/token' } });
+  });
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, fetchImpl))
+    .toEqual({ ok: false, failure: { kind: 'redirect', status: 302 } });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
 });

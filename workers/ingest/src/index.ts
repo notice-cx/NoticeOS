@@ -1,3 +1,5 @@
+import { discoverLocalModels } from './local-model.js';
+import type { DiscoverModelProviderInput, DiscoverModelProviderResult } from '@noticeos/contract';
 import { CLOUDFLARE_D1_BACKUP_PATH, CLOUDFLARE_D1_PATH } from '@noticeos/contract/cloudflare-d1';
 import { authenticateOperator } from './auth.js';
 import { GOOGLE_OAUTH_MAINTENANCE_CRON, runOAuthMaintenance } from './oauth-maintenance.js';
@@ -541,6 +543,11 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     if (input.provider === 'mediavine') return withCallStore(this.env, this.ctx, (env) => putMediavineCredential(env, input));
     return withCallStore(this.env, this.ctx, (env) => putCredential(env, input));
+  }
+
+  async discoverModelProvider(input: DiscoverModelProviderInput): Promise<DiscoverModelProviderResult> {
+    if (workspaceProfile(this.env) !== 'standalone') throw new WorkspaceEntryRefused();
+    return discoverLocalModels(this.env, input);
   }
 
   /**

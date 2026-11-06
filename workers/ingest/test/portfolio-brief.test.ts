@@ -119,7 +119,7 @@ it('keeps the last good briefing after a failed refresh and suppresses retries u
   const later = NOW + HOUR;
   const failed = await refreshPortfolioBrief(target, evidence(later), HOUR, { cache, fetchImpl, clock: () => later });
   expect(failed).toMatchObject({ state: 'unavailable', briefing: good.briefing, stale: true,
-    nextAttemptAt: new Date(later + 15 * 60_000).toISOString(), error: 'The local model could not complete the briefing.' });
+    nextAttemptAt: new Date(later + 15 * 60_000).toISOString(), error: 'The model could not complete the briefing.' });
   expect(JSON.stringify(failed)).not.toContain('private model endpoint');
   expect(await refreshPortfolioBrief(target, evidence(later + 60_000), HOUR, { cache, fetchImpl, clock: () => later + 60_000 })).toEqual(failed);
   expect(await readPortfolioBrief(target, { cache, clock: () => later + 60_000 })).toEqual(failed);

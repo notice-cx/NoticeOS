@@ -743,7 +743,7 @@ export function validateCredentialFields(
   }
   if (provider.id === 'local-model') {
     try { localModelBaseUrl(typeof fields.LOCAL_MODEL_BASE_URL === 'string' ? fields.LOCAL_MODEL_BASE_URL : ''); }
-    catch { issues.push(issue('LOCAL_MODEL_BASE_URL', 'invalid_url', 'Enter a local http or https address ending in /v1, without a password, query or fragment.')); }
+    catch { issues.push(issue('LOCAL_MODEL_BASE_URL', 'invalid_url', 'Enter an HTTPS API base URL, or a local HTTP address, without a password, query or fragment.')); }
   }
   const known = new Map(provider.fields.map((field) => [field.name, field]));
 
@@ -898,7 +898,7 @@ export async function putCredential(
     return { ok: false, error: 'unknown_provider', provider: String(input.provider) };
   }
   if (provider.id === 'local-model' && workspaceProfile(env) !== 'standalone') {
-    return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'Local model connections require a standalone installation.')] };
+    return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'Model connections require a standalone installation.')] };
   }
   const raw = input.fields;
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {

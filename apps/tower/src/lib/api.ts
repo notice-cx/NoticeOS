@@ -49,6 +49,7 @@ import type { AssetDetailResponse, AssetDetailView } from "@shared/asset-detail-
 import type {
   CollectNowResult,
   ConnectVerdict,
+  DiscoverModelProviderResult,
   RuleBacktest,
   RuleBacktestInput,
   WatchQueryHistory,
@@ -1476,6 +1477,13 @@ async function connectProviderCredentialRequest(fetch: ApiTransport,
   return (await res.json()) as ConnectVerdict;
 }
 
+async function discoverModelProviderRequest(fetch: ApiTransport, fields: Record<string, string>, signal?: AbortSignal): Promise<DiscoverModelProviderResult> {
+  const path = "/api/integrations/local-model/models";
+  const res = await fetch(path, { method: "POST", headers: JSON_WRITE_HEADERS, body: JSON.stringify({ fields }), signal });
+  if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
+  return (await res.json()) as DiscoverModelProviderResult;
+}
+
 /**
  * One site's token for a provider that issues one per site, saved on its row
  * the moment it is pasted. The ingest merges it into the per-site map; nothing
@@ -1783,6 +1791,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     deleteProviderCredential: bind(deleteProviderCredentialRequest),
     testProviderCredential: bind(testProviderCredentialRequest),
     connectProviderCredential: bind(connectProviderCredentialRequest),
+    discoverModelProvider: bind(discoverModelProviderRequest),
     saveSiteToken: bind(saveSiteTokenRequest),
     fetchProviderSites: bind(fetchProviderSitesRequest),
     collectProviderSites: bind(collectProviderSitesRequest),
@@ -1863,6 +1872,7 @@ export const {
   deleteProviderCredential,
   testProviderCredential,
   connectProviderCredential,
+  discoverModelProvider,
   saveSiteToken,
   fetchProviderSites,
   collectProviderSites,

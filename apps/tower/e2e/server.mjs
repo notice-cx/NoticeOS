@@ -96,6 +96,7 @@ const ingest = (file) => vite.ssrLoadModule(`/../../workers/ingest/src/${file}`)
 const { forgetConfigCache } = await ingest("config-store.ts");
 const { createAsset, moveAsset } = await ingest("asset-state.ts");
 const { readIntegrationHealth } = await ingest("integration-health-read.ts");
+const { readPortfolioBrief } = await ingest("portfolio-brief.ts");
 const { readCredentialSummaries } = await ingest("credential-summaries-read.ts");
 const { putCredential, deleteCredential, recordCredentialOutcome } = await ingest("credentials.ts");
 const { connectCredential } = await ingest("credential-connect.ts");
@@ -123,7 +124,7 @@ const { runPullAdapter } = await ingest("pull.ts");
 const postgres = await journeyPostgres();
 // What a failure's words may never carry: this run's database password.
 const secrets = [decodeURIComponent(new URL(postgres.appUrl).password)];
-const harness = createJourneyHarness({ forgetConfigCache, createAsset, moveAsset, readIntegrationHealth, readCredentialSummaries, putCredential,
+const harness = createJourneyHarness({ readPortfolioBrief, forgetConfigCache, createAsset, moveAsset, readIntegrationHealth, readCredentialSummaries, putCredential,
   connectCredential, putSiteToken, deleteCredential, recordCredentialOutcome, tryHealthConnection, observeIntegration, beginCollection, recordCollectedHealth,
   discoverSites, runCollectNow, runUptimeChecks, mediavineStatus, syncMediavine, disconnectMediavine, probeCredential,
   beginGoogleOAuth, completeGoogleOAuth, discoverGoogleProperties, GOOGLE_OAUTH_REVOKED_MESSAGE,

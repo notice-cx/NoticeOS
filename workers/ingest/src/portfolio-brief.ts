@@ -105,7 +105,7 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
       entry = { ...emptyPortfolioBrief('unavailable'), briefing: prior?.briefing ?? null,
         lastAttemptAt: new Date(start).toISOString(), nextAttemptAt,
         error: error instanceof LocalModelError && error.code === 'timeout' ? 'The model took too long to respond.'
-          : error instanceof LocalModelError && error.code !== 'invalid-output' ? 'The local model could not complete the briefing.'
+          : error instanceof LocalModelError && error.code !== 'invalid-output' ? 'The model could not complete the briefing.'
           : 'The model response did not pass the briefing checks.',
         staleAfter: prior?.staleAfter ?? new Date(start).toISOString() };
       if (eligible.size > 0) await observeIntegration(env, health, { capability: 'portfolio-brief', observedAt: new Date(clock()).toISOString(), ok: false, code: 'provider', evidenceSource: 'live', nextAttemptAt });

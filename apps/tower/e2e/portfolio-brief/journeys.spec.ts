@@ -1,3 +1,4 @@
+import { integrationProvider } from '@noticeos/contract/integrations';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { test, expect } from '../journey-test';
 import { wallScene } from '../wall-scene';
@@ -60,6 +61,42 @@ test('Home executive briefing keeps evidence, attribution and retained-result wa
   await expect(brief.getByRole('list')).toHaveCount(0);
   read = { ...ready, state: 'disconnected', briefing: null };
   await page.reload();
-  await expect(page.getByRole('link', { name: 'Connect a local model' })).toHaveAttribute('href', '/integrations?connect=local-model');
+  await expect(page.getByRole('link', { name: 'Connect a model' })).toHaveAttribute('href', '/integrations?connect=local-model');
   await expect(page.locator('[data-home-answer]')).toBeVisible();
+});
+
+
+test('model connection chooses an available server model before saving', { tag: '@pull-request' }, async ({ page, request }, info) => {
+  expect((await request.post('/__journey/reset')).ok()).toBe(true);
+  expect((await (await request.get('/__journey/status')).json()).isolated).toBe(true);
+  await wallScene(page, 'six');
+  await page.route('**/api/integrations/providers', route => route.fulfill({ json: {
+    generatedAt: WALL_FIXTURE_NOW, keyPresent: true, blockers: [], keyReason: null,
+    providers: [{ provider: integrationProvider('local-model'), assets: [], credential: {
+      provider: 'local-model', source: 'none', fields: [], assetsHeld: [], missingFields: ['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID'],
+      auth: null, metadata: null, keyVersion: null, createdAt: null, updatedAt: null, lastUsedAt: null, lastOkAt: null, lastError: null,
+    } }],
+  } }));
+  await page.route('**/api/integrations/local-model/models', route => route.fulfill({ json: { ok: true, models: ['example-small', 'example-large'] } }));
+  let saved: unknown;
+  await page.route('**/api/integrations/local-model/connect', route => {
+    saved = route.request().postDataJSON();
+    return route.fulfill({ json: { verdict: 'accepted', facts: {} } });
+  });
+  await page.goto('/integrations?connect=local-model');
+  const panel = page.locator('[data-connect-panel="local-model"]');
+  await panel.getByLabel(/^API base URL/).fill('https://model.example.com/v1');
+  await panel.getByRole('button', { name: 'Load models', exact: true }).click();
+  await expect(panel.getByRole('combobox')).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Connect', exact: true })).toBeDisabled();
+  await panel.getByRole('combobox').selectOption('example-large');
+  await panel.getByLabel(/^API base URL/).fill('https://other.example.com/v1');
+  await expect(panel.getByRole('combobox')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Connect', exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Load models', exact: true }).click();
+  await panel.getByRole('combobox').selectOption('example-small');
+  await page.screenshot({ path: info.outputPath('model-selection.png'), fullPage: true });
+  await panel.getByRole('button', { name: 'Connect', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Done', exact: true })).toBeVisible();
+  expect(saved).toEqual({ fields: { LOCAL_MODEL_BASE_URL: 'https://other.example.com/v1', LOCAL_MODEL_ID: 'example-small' } });
 });

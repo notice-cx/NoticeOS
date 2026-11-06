@@ -7,7 +7,7 @@ export function ExecutiveBrief({ read, readFailed = false, fallback }: { read?: 
   const brief = read?.briefing;
   if (!brief) return <>
     {fallback}
-    {read?.state === 'disconnected' ? <p className="text-sm text-muted-foreground"><Link to="/integrations?connect=local-model" className="underline underline-offset-4">Connect a local model</Link> for an executive briefing.</p>
+    {read?.state === 'disconnected' ? <p className="text-sm text-muted-foreground"><Link to="/integrations?connect=local-model" className="underline underline-offset-4">Connect a model</Link> for an executive briefing.</p>
       : read?.state === 'awaiting' ? <p className="text-sm text-muted-foreground">The first briefing will appear after the next scheduled refresh.</p>
       : readFailed || read?.state === 'unavailable' ? <p className="text-sm text-muted-foreground">Executive briefing unavailable. The figures below remain available.</p> : null}
   </>;
