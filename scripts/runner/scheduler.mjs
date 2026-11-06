@@ -235,12 +235,12 @@ function runRegularLane(job, fn, outcomeOf = (result) => (result === null ? 'ski
   const decision = scheduledDuringCatchupDecision(startupCatchupOwnership.holds(job), job);
   return runJobLane(
     job,
-    () => {
+    (capture) => {
       if (!decision.run) {
         log('WARN', decision.text);
         return REGULAR_LANE_HELD;
       }
-      return fn();
+      return fn(capture);
     },
     (result) =>
       result === REGULAR_LANE_HELD

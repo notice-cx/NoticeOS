@@ -2,15 +2,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Transaction, WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
 import { createWorkspaceAdmission, type WorkspaceAction, type WorkspaceContext, type WorkspaceAdmission } from './workspace-admission.mjs';
+import { captureWorkflowDiagnostic } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { stepResult } from './workflow-trace.mjs';
-import type { WorkflowStepOutput } from '../packages/contract/src/workflows.js';
+import type { WorkflowStepDiagnostics, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
 import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
 import { hostedJobDefinitionHash } from './hosted-job-definition.mjs';
 
 /** The registry is executable deployment code, never a request or saved config.
- * Inputs are validated by that code, kept in memory, and persisted only as a
- * digest. Retrying requires supplying the identical validated input again. */
+ * Inputs are validated by that code; redacted bounded diagnostics accompany
+ * their digest. Retrying requires supplying the identical validated input again. */
 export type JobInput = null | boolean | number | string | readonly JobInput[] | { readonly [key: string]: JobInput };
 interface StepCall {
   readonly context: WorkspaceContext;
@@ -35,12 +36,13 @@ export interface HostedJobDefinition {
 }
 type State = 'running' | 'retryable' | 'succeeded' | 'uncertain' | 'blocked' | 'exhausted';
 interface Evidence {
-  readonly state: 'succeeded' | 'skipped';
+  readonly state: 'succeeded' | 'skipped' | 'failed';
   readonly summary: string;
   readonly attempt?: number;
   readonly startedAt?: string;
   readonly finishedAt?: string;
   readonly output?: WorkflowStepOutput;
+  readonly diagnostics?: WorkflowStepDiagnostics;
 }
 export interface HostedJobReceipt {
   readonly state: State | 'busy';
@@ -122,14 +124,14 @@ async function locked(tx: Transaction, lane: string, occurrence: string): Promis
 function receipt(row: Stored, state: HostedJobReceipt['state'] = row.state): HostedJobReceipt {
   return Object.freeze({ state, attempt: row.attempt, steps: Object.freeze(structuredClone(row.steps)) });
 }
-function observed(value: unknown, startedAt: string): Evidence {
+function observed(value: unknown, startedAt: string, input: JobInput): Evidence {
   const result = stepResult(value);
   if (!['succeeded', 'skipped'].includes(result.state) || typeof result.summary !== 'string') refuse();
   const output = captureWorkflowOutput(value);
   const evidence: Evidence = { state: result.state === 'skipped' ? 'skipped' : 'succeeded', summary: result.summary,
     startedAt, finishedAt: new Date().toISOString(), ...(output ? { output } : {}) };
   if (Buffer.byteLength(JSON.stringify(evidence)) > 32_768) refuse();
-  return evidence;
+  return { ...evidence, diagnostics: { input: captureWorkflowDiagnostic(input, { maxBytes: 8192 }), output: captureWorkflowDiagnostic(value, { maxBytes: 8192 }) } };
 }
 
 /** Owns the supplied store/grant, which deployment must bind to this workspace.
@@ -205,8 +207,14 @@ export function createHostedJobRunner(options: {
     const owns = (row: Stored | null): Stored => {
       if (!row || row.lease_id !== token || row.state !== 'running') refuse(); same(row); return row;
     };
-    const finish = async (state: State): Promise<HostedJobReceipt> => write(async tx => {
-      const row = owns(await locked(tx, lane, occurrence));
+    const finish = async (state: State, failedStep?: { key: string; evidence: Evidence }): Promise<HostedJobReceipt> => write(async tx => {
+      let row = owns(await locked(tx, lane, occurrence));
+      if (failedStep) {
+        const steps = { ...row.steps, [failedStep.key]: { ...failedStep.evidence, attempt: row.attempt } };
+        await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET steps=$4::jsonb
+          WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps)]);
+        row = { ...row, steps };
+      }
       await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET state=$4,updated_at=clock_timestamp()
         WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, state]);
       await tx.execute(`UPDATE noticeos.hosted_job_attempts SET state=$4,finished_at=clock_timestamp()
@@ -249,6 +257,7 @@ export function createHostedJobRunner(options: {
       const timer = setTimeout(() => controller.abort(), EFFECT_MS);
       const startedAt = new Date().toISOString();
       let effectStarted = false, startAttempted = false, admitted = false;
+      let returned: unknown, hasReturned = false;
       try {
         await fresh(step.action, correlation, async context => {
           admitted = true;
@@ -261,17 +270,18 @@ export function createHostedJobRunner(options: {
           if (step.kind === 'database') {
             await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
-              if (Object.hasOwn(row.steps, step.key)) return;
+              if (row.steps[step.key] && row.steps[step.key]!.state !== 'failed') return;
               if (row.effect_step !== null) refuse();
               if (controller.signal.aborted) refuse();
               const value = await step.run(call, tx);
+              returned = value; hasReturned = true;
               if (controller.signal.aborted) refuse();
-              await mark(tx, row, observed(value, startedAt));
+              await mark(tx, row, observed(value, startedAt, input));
             });
           } else {
             const shouldRun = await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
-              if (Object.hasOwn(row.steps, step.key)) return false;
+              if (row.steps[step.key] && row.steps[step.key]!.state !== 'failed') return false;
               if (row.effect_step !== null) refuse();
               // A lost COMMIT acknowledgement must not be called retryable.
               startAttempted = true;
@@ -284,8 +294,9 @@ export function createHostedJobRunner(options: {
             effectStarted = true;
             if (controller.signal.aborted) refuse();
             const value = await step.run(call);
+            returned = value; hasReturned = true;
             if (controller.signal.aborted) refuse();
-            const evidence = observed(value, startedAt);
+            const evidence = observed(value, startedAt, input);
             await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
               if (row.effect_step !== step.key) refuse();
@@ -293,10 +304,15 @@ export function createHostedJobRunner(options: {
             });
           }
         });
-      } catch {
-        // Never persist the exception: providers may include credentials or
-        // private bodies. Failure after an outside start cannot prove no effect.
-        return finish(effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked');
+      } catch (error) {
+        // Failure after an outside start cannot prove no effect. Diagnostics
+        // record only redacted arguments and the observed error, never authority.
+        return finish(effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked', admitted ? {
+          key: step.key, evidence: { state: 'failed', summary: hasReturned && stepResult(returned).state === 'failed' ? stepResult(returned).summary ?? 'This step failed.' : 'This step failed.', startedAt, finishedAt: new Date().toISOString(),
+            diagnostics: { input: captureWorkflowDiagnostic(input, { maxBytes: 8192 }),
+              ...(hasReturned ? { output: captureWorkflowDiagnostic(returned, { maxBytes: 8192 }) } : {}),
+              ...(!hasReturned || stepResult(returned).state !== 'failed' ? { error: captureWorkflowDiagnostic(error, { maxBytes: 8192 }) } : {}) } },
+        } : undefined);
       } finally { clearTimeout(timer); controllers.delete(controller); }
     }
     return finish('succeeded');

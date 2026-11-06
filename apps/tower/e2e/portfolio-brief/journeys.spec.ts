@@ -192,6 +192,7 @@ test('failed briefing leads with its saved reason and next step', { tag: '@pull-
   const run: WorkflowRun = { id: `portfolio-brief@manual/${startedAt}`, workflowId: 'portfolio-brief', definitionVersion: 1,
     state: 'failed', startedAt, finishedAt: WALL_FIXTURE_NOW, trigger: { kind: 'manual' }, steps: [
       { id: 'portfolio-brief', attempt: 1, state: 'failed', startedAt, finishedAt: WALL_FIXTURE_NOW, summary: reason,
+        diagnostics: { input: { text: 'Write a portfolio briefing from Sources S1 and S2.', truncated: false, redacted: false }, output: { text: 'Headline: Review the release blocker\nSummary: The release awaits review', truncated: false, redacted: false } },
         output: captureWorkflowOutput({ operation: 'portfolio-brief', ok: false, failure: { kind: 'timeout' } }) },
     ] };
   const payload: WorkflowsPayload = { overrides: null, runtimeFresh: false, observationsFresh: true, generatedAt: WALL_FIXTURE_NOW, historyAvailable: true,
@@ -210,6 +211,16 @@ test('failed briefing leads with its saved reason and next step', { tag: '@pull-
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   await page.screenshot({ path: info.outputPath('synthetic-briefing-failure.png'), fullPage: true });
   await page.locator('main').screenshot({ path: info.outputPath('synthetic-briefing-failure-crop.png') });
+  await page.getByText('Run diagnostics', { exact: true }).click();
+  const diagnostics = page.locator('[data-run-diagnostics]');
+  await diagnostics.locator('summary').filter({ hasText: 'Refresh portfolio briefing' }).click();
+  await diagnostics.locator('summary').filter({ hasText: /^Inputs$/ }).click();
+  await expect(diagnostics.locator('pre').filter({ hasText: 'Write a portfolio briefing from Sources S1 and S2.' })).toBeVisible();
+  await diagnostics.locator('summary').filter({ hasText: /^Output$/ }).click();
+  await expect(diagnostics.locator('pre').filter({ hasText: 'Headline: Review the release blocker' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Execution stages' })).not.toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  await page.screenshot({ path: info.outputPath('synthetic-briefing-diagnostics.png'), fullPage: true });
   await page.getByText('Execution details', { exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Execution stages' })).toBeVisible();
   await expect(page.getByText(reason, { exact: true })).toHaveCount(1);

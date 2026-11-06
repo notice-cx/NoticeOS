@@ -54,6 +54,7 @@ import {
   shutdownSignal,
 } from './runner/lifecycle.mjs';
 import { closeLog, log, openLog, ts, writeLine } from './runner/log.mjs';
+import { runLocalLaneWithDiagnostics } from './runner/diagnostics.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime } from './runner/scheduler.mjs';
@@ -311,16 +312,17 @@ async function runBackup() {
 // (scripts/runner/scheduler.mjs), which decides only when. `outcomeOf` turns
 // a lane's result into its job-run outcome; without one, null is a skip.
 export function hostLanes(runtime) {
+  const traced = (id, run) => ({ run: capture => runLocalLaneWithDiagnostics(capture, id, run) });
   return {
     'beads-hub': {
       run: () => checkBeadsHub(),
       outcomeOf: (reachable) => ({ outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' }),
     },
-    'beads-snapshot': { run: () => runBeadsPoll(runtime) },
-    'panel-review': { run: () => runPanelReviewFiler(runtime) },
-    'watch-readbacks': { run: () => runWatchReadbackFiler() },
-    'task-map': { run: () => runTaskMapCheck() },
-    'panel-refresh': { run: () => runPanelRefresh(runtime) },
+    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { run: observed.runTask, emit: observed.emit })),
+    'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { run: observed.runTask, emit: observed.emit })),
+    'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ run: observed.runTask, emit: observed.emit })),
+    'task-map': traced('task-map', observed => runTaskMapCheck({ run: observed.runTask, emit: observed.emit })),
+    'panel-refresh': traced('panel-refresh', observed => runPanelRefresh(runtime, { run: observed.runCommand, emit: observed.emit })),
     backup: { run: () => runBackup(), outcomeOf: backupRunOutcome },
   };
 }

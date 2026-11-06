@@ -8,6 +8,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { createWorkflowRecorder, workflowResult } from './workflow-trace.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
@@ -51,9 +52,12 @@ export function createWorkflowHistory(root) {
             run: recorder.run,
             verdict: (outcome) => workflowResult(recorder.steps, outcome),
             adopt(steps) {
-                // The private Worker RPC emits bounded, payload-free step observations.
+                // Only bounded diagnostics from the private receiver enter retained history.
                 if (Array.isArray(steps))
-                    recorder.steps.push(...steps);
+                    recorder.steps.push(...steps.map(step => {
+                        const { diagnostics, ...rest } = step;
+                        return { ...rest, ...(isWorkflowStepDiagnostics(diagnostics) ? { diagnostics } : {}) };
+                    }));
                 run.steps = recorder.steps;
             },
             async finish(outcome) {

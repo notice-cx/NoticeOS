@@ -10,7 +10,28 @@ import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
+import { captureWorkflowDiagnostic } from '../workflow-diagnostics.mjs';
 import { checkBeadsHub, parseBeadsProjects, runBd } from './task-hub.mjs';
+
+async function responseDiagnostic(response, token) {
+  const reader = response.body?.getReader();
+  if (!reader) return captureWorkflowDiagnostic('', { secrets: [token] });
+  const decoder = new TextDecoder();
+  const limit = 65_536 + new TextEncoder().encode(token).byteLength;
+  let text = '', size = 0, truncated = false;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      const available = Math.max(0, limit - size);
+      text += decoder.decode(value.subarray(0, available), { stream: true });
+      size += value.byteLength;
+      if (size > limit) { truncated = true; break; }
+    }
+    text += decoder.decode();
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  const safe = captureWorkflowDiagnostic(text, { secrets: [token] });
+  return { ...safe, truncated: safe.truncated || truncated };
+}
 
 /**
  * One snapshot of the whole portfolio.
@@ -115,11 +136,12 @@ export async function runBeadsPoll(runtime, deps = {}) {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
+      const responseBody = await responseDiagnostic(res, token);
       emit(
         'ERROR',
-        `beads snapshot → HTTP ${res.status} (non-201) ${(await res.text()).slice(0, 200)}`,
+        `beads snapshot → HTTP ${res.status} (non-201) ${responseBody.text.slice(0, 200)}`,
       );
-      return { ...body, ok: false };
+      return { ...body, ok: false, response: { status: res.status, body: responseBody.text, truncated: responseBody.truncated, redacted: responseBody.redacted } };
     }
     emit(
       'INFO',
@@ -129,8 +151,9 @@ export async function runBeadsPoll(runtime, deps = {}) {
           : ''),
     );
   } catch (err) {
-    emit('ERROR', `beads snapshot POST failed: ${err.message}`);
-    return { ...body, ok: false };
+    const error = captureWorkflowDiagnostic(err, { secrets: [token] });
+    emit('ERROR', `beads snapshot POST failed: ${captureWorkflowDiagnostic(err.message ?? String(err), { secrets: [token] }).text}`);
+    return { ...body, ok: false, error };
   }
   return body;
 }

@@ -136,7 +136,7 @@ export async function runRecordedLane(
     // retention.
     if (trace) entry.workflowState = trace.verdict(entry.outcome);
     if (entry.trigger === 'manual' && ['failed', 'skipped'].includes(entry.workflowState)) entry.outcome = entry.workflowState;
-    if (trace) await trace.run('record', () => appendJobRun(entry, file));
+    if (trace) await trace.run('record', () => appendJobRun(entry, file), undefined, { record: entry });
     else await appendJobRun(entry, file);
     try {
       await ship(entry);
@@ -147,7 +147,7 @@ export async function runRecordedLane(
     }
   };
   try {
-    const result = trace?.local ? await trace.run('execute', fn, stepOf) : await fn();
+    const result = trace?.local ? await trace.run('execute', fn, stepOf, { job, trigger: trigger?.kind ?? 'schedule' }) : await fn();
     trace?.adopt(result?.steps);
     const mapped = outcomeOf(result) ?? 'ran';
     const outcome = typeof mapped === 'string' ? { outcome: mapped, detail: null } : mapped;

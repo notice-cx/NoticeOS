@@ -15,6 +15,7 @@ import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { MANUAL_RUN_DETAIL } from '../packages/contract/src/job-runs.ts';
 import { PORTFOLIO_BRIEF_FAILURES } from './portfolio-brief-failure.mjs';
+import { captureWorkflowDiagnostic } from './workflow-diagnostics.mjs';
 import { buildWorkflowHistory } from './workflow-history-view.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
@@ -94,6 +95,23 @@ test('coarse failure reconstruction rejects unknown text, old timeout wording, u
     assert.equal(view.selectedRun.steps, null);
     assert.ok(!JSON.stringify(view).includes('private'));
   }
+});
+
+test('retained observed step diagnostics survive projection while malformed diagnostics are dropped', () => {
+  const at = new Date(NOW - HOUR).toISOString();
+  const id = `counters@${at}`;
+  const observed = { input: captureWorkflowDiagnostic({ assets: ['example.com'], api_token: 'synthetic-private' }),
+    output: captureWorkflowDiagnostic('Actual collector output'), error: captureWorkflowDiagnostic(new Error('Actual collector failure')) };
+  const record = { job, at, ms: 10, outcome: 'failed' };
+  const trace = { id, workflowId: 'counters', definitionVersion: 1, startedAt: at, finishedAt: at, state: 'failed', steps: [
+    { id: 'google', attempt: 1, startedAt: at, finishedAt: at, state: 'failed', diagnostics: observed },
+    { id: 'custom', attempt: 1, startedAt: at, finishedAt: at, state: 'failed', diagnostics: { output: { text: 'Bearer synthetic-private', truncated: false, redacted: false } } },
+  ] };
+  const view = buildWorkflowHistory([record], [trace], [], NOW, id);
+  assert.deepEqual(view.selectedRun.steps[0].diagnostics, observed);
+  assert.equal(view.selectedRun.steps[1].diagnostics, undefined);
+  assert.ok(!JSON.stringify(view).includes('synthetic-private'));
+  assert.equal(buildWorkflowHistory([record], [], [], NOW, id).selectedRun.steps, null);
 });
 
 test('hosted daily counts and old failure links remain complete and workspace isolated', { timeout: 120000 }, async t => {

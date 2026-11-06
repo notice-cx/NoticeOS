@@ -81,6 +81,11 @@ Manual runs use the same job as scheduled runs and do not change the next schedu
 
 Backups use the installation's existing backup worker and retention settings. A deployment without manual execution support shows a disabled action with its reason.
 
+For scheduled and manual runs, **Run diagnostics** expands each recorded step's
+**Inputs** and **Output**, including returned results and errors. Text is
+copyable, size limits are marked, and credential fields are redacted. Older
+runs show when inputs or output were not captured.
+
 From a checkout, run a named job through the same runner:
 
 ```sh

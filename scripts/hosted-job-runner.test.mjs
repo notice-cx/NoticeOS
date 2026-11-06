@@ -110,13 +110,33 @@ test('hosted occurrences preserve workspace authority, atomic steps and uncertai
         database('first', async (_, tx) => { firstCalls++; await bump(tx, 'first'); return { written: 1 }; }),
         database('second', async (_, tx) => { await bump(tx, 'second'); if (!failed) { failed = true; throw new Error('private failure'); } return { written: 1 }; }),
       ]));
-      assert.equal((await r.run('synthetic', 'retry-db', null)).state, 'retryable');
+      const failedRun = await r.run('synthetic', 'retry-db', null);
+      assert.equal(failedRun.state, 'retryable');
+      assert.equal(failedRun.steps.second.state, 'failed');
+      assert.ok(failedRun.steps.second.diagnostics.error.text.includes('private failure'));
+      assert.equal(failedRun.steps.second.diagnostics.output, undefined);
       assert.equal(await count(0, 'first'), 1); assert.equal(await count(0, 'second'), 0);
       const finished = await r.run('synthetic', 'retry-db', null);
       assert.equal(finished.state, 'succeeded'); assert.equal(finished.attempt, 2); assert.equal(firstCalls, 1);
       assert.equal(await count(0, 'first'), 1); assert.equal(await count(0, 'second'), 1);
       const attempts = (await admin.query("SELECT state FROM noticeos.hosted_job_attempts WHERE occurrence='retry-db' ORDER BY attempt")).rows;
       assert.deepEqual(attempts.map(r => r.state), ['retryable', 'succeeded']);
+    });
+    await t.test('returned failures retain actual output and retry the failed database step', async () => {
+      let calls = 0;
+      const r = make(0, definition([database('collect', async (_, tx) => {
+        calls++; await bump(tx, 'returned-failure');
+        return calls === 1 ? { ok: false, reason: 'Synthetic quota failure', api_token: 'synthetic-private-token' } : { written: 1 };
+      })]));
+      const failed = await r.run('synthetic', 'returned-result', { asset: 'example.com' });
+      assert.equal(failed.state, 'retryable'); assert.equal(failed.steps.collect.state, 'failed');
+      assert.ok(failed.steps.collect.diagnostics.output.text.includes('Synthetic quota failure'));
+      assert.ok(!JSON.stringify(failed).includes('synthetic-private-token'));
+      assert.equal(failed.steps.collect.diagnostics.error, undefined);
+      assert.equal(await count(0, 'returned-failure'), 0);
+      const succeeded = await r.run('synthetic', 'returned-result', { asset: 'example.com' });
+      assert.equal(succeeded.state, 'succeeded'); assert.equal(calls, 2);
+      assert.equal(await count(0, 'returned-failure'), 1);
     });
     await t.test('outside failure is uncertain and cannot be blindly retried', async () => {
       let calls = 0; const r = make(0, definition([effect('send', async () => { calls++; throw new Error('secret provider body'); })]));

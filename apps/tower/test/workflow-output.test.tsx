@@ -1,10 +1,13 @@
-import { cleanup, fireEvent, render, screen, within } from './render';
-import { afterEach, describe, expect, it } from 'vitest';
-import { WorkflowStepOutputView } from '@/components/WorkflowVisuals';
+import { WORKFLOW_DEFINITIONS, type WorkflowRun } from '@shared/workflows';
+import { copyText } from '@/lib/clipboard';
+import { act, cleanup, fireEvent, render, screen, within } from './render';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { WorkflowStepOutputView, WorkflowRunDiagnostics } from '@/components/WorkflowVisuals';
 import { OUTCOME_WORDS } from '@/lib/agents-week';
 import { captureWorkflowOutput } from '../../../scripts/workflow-output.mjs';
 
-afterEach(cleanup);
+vi.mock('@/lib/clipboard', () => ({ copyText: vi.fn(async () => {}) }));
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe('visual step output', () => {
   it('renders actual counts and per-asset outcomes before the optional data disclosure', () => {
     render(<WorkflowStepOutputView output={captureWorkflowOutput({ attempted: 2, succeeded: 1, failed: 1, outcomes: [
@@ -57,5 +60,61 @@ describe('visual step output', () => {
     view.rerender(<WorkflowStepOutputView output={captureWorkflowOutput({ attempted: 0, succeeded: 0, failed: 0 })} />);
     expect(screen.getAllByText('0')).toHaveLength(3);
     expect(screen.queryByText('Output was not captured for this execution.')).toBeNull();
+  });
+});
+
+
+describe('actual run diagnostics', () => {
+  const at = '2026-11-06T12:00:00.000Z';
+  const snapshot = (text: string, flags = {}) => ({ text, truncated: false, redacted: false, ...flags });
+  function show(diagnostics?: NonNullable<WorkflowRun['steps']>[number]['diagnostics'], workflowId = 'portfolio-brief', state: WorkflowRun['state'] = 'failed') {
+    const definition = WORKFLOW_DEFINITIONS.find(workflow => workflow.id === workflowId)!;
+    const step = definition.stages.find(stage => stage.id !== 'config')!;
+    const run: WorkflowRun = { id: `${workflowId}@${at}`, workflowId, definitionVersion: 1, state, startedAt: at, finishedAt: at,
+      steps: [{ id: step.id, attempt: 1, state: state === 'failed' ? 'failed' : 'succeeded', startedAt: at, finishedAt: at, diagnostics }] };
+    return { ...render(<WorkflowRunDiagnostics definition={definition} run={run} />), definition, step, run };
+  }
+  const code = (text: string) => screen.getByText((_content, element) => element?.tagName === 'CODE' && element.textContent === text);
+  function openStage(container: HTMLElement) {
+    fireEvent.click(screen.getByText('Run diagnostics'));
+    const stage = container.querySelector('[data-run-diagnostics] > div > details')!;
+    fireEvent.click(stage.querySelector('summary')!);
+    return stage.querySelectorAll('details');
+  }
+  it('keeps a failed model prompt and actual answer collapsed, copies exact text, and never executes markup', async () => {
+    const input = '<script>throw new Error("not executable")</script>\nSources: S1';
+    const output = 'Headline: Review the release\nSummary: A review is needed';
+    const { container } = show({ input: snapshot(input), output: snapshot(output) });
+    expect(code(input)).not.toBeVisible();
+    expect(code(output)).not.toBeVisible();
+    expect(container.querySelector('script')).toBeNull();
+    const panels = openStage(container);
+    fireEvent.click(panels[0]!.querySelector('summary')!);
+    expect(code(input)).toBeVisible();
+    expect(code(output)).not.toBeVisible();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy inputs' })); });
+    expect(copyText).toHaveBeenCalledWith(input);
+    fireEvent.click(panels[1]!.querySelector('summary')!);
+    expect(code(output)).toBeVisible();
+    expect(screen.queryByText('Truncated')).toBeNull();
+    expect(screen.queryByText('Sensitive values removed')).toBeNull();
+  });
+  it('shows actual non-model result and error snapshots with capture indicators', () => {
+    const { container } = show({ output: snapshot('{"attempted":3,"written":2}', { truncated: true }), error: snapshot('The synthetic source was unavailable.', { redacted: true }) }, 'counters', 'succeeded');
+    const panels = openStage(container);
+    fireEvent.click(panels[1]!.querySelector('summary')!);
+    expect(screen.getByText('{"attempted":3,"written":2}')).toBeVisible();
+    expect(screen.getByText('The synthetic source was unavailable.')).toBeVisible();
+    expect(screen.getByText('Error')).toBeVisible();
+    expect(screen.getByText('Truncated')).toBeVisible();
+    expect(screen.getByText('Sensitive values removed')).toBeVisible();
+    expect(container.querySelectorAll('pre')[0]).toHaveClass('whitespace-pre-wrap', 'max-h-80');
+  });
+  it('keeps unknown historical capture availability inside the disclosure', () => {
+    show();
+    expect(screen.getByText('Inputs and output were not captured for this run.')).not.toBeVisible();
+    fireEvent.click(screen.getByText('Run diagnostics'));
+    expect(screen.getByText('Inputs and output were not captured for this run.')).toBeVisible();
+    expect(screen.queryByText('0')).toBeNull();
   });
 });

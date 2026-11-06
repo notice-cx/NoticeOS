@@ -17,7 +17,9 @@ test('briefing failures retain fixed reasons and next steps without provider tex
       { key: 'reason', label: 'Reason', value: message.summary },
       { key: 'nextAction', label: 'Next step', value: message.action },
     ]);
-    assert.ok(!JSON.stringify(step).includes('private'));
+    assert.ok(!JSON.stringify(step).includes('private token'));
+    assert.ok(step.diagnostics.output.redacted);
+    assert.ok(!JSON.stringify(step.output).includes('private'));
     const invalid = structuredClone(step.output);
     invalid.fields[1].value = 'private error';
     assert.equal(isWorkflowStepOutput(invalid), false);

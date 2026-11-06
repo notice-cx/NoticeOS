@@ -1,4 +1,6 @@
-import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefResponseSchema, portfolioBriefEvidenceSchema, portfolioBriefResultSchema, portfolioBriefFactOpening, portfolioBriefObservationOpening, type PortfolioBriefEvidence, type PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
+import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, type PortfolioBriefEvidence, type PortfolioBriefRead, type PortfolioBriefFailure, type PortfolioBriefRefreshRead } from '@noticeos/contract/portfolio-brief';
+import type { WorkflowStepDiagnostics } from '@noticeos/contract';
+import { captureWorkflowDiagnostic } from '../../../scripts/workflow-diagnostics.mjs';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { resolveCredential, type ResolvedCredential } from './credentials.js';
 import { claimLease, releaseLease } from './integration-leases.js';
@@ -7,8 +9,9 @@ import { generateLocalModel, LocalModelError, localModelFailure, LOCAL_MODEL_ID 
 import { MODEL_GENERATION_TIMEOUT_MS, portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { portfolioBriefPrompt } from './portfolio-brief-prompt.js';
+import { BriefingResponseError, parsePortfolioBrief, portfolioBriefModelEvidence } from './portfolio-brief-response.js';
 
-const VERSION = '5';
+const VERSION = '6';
 const MIN_REFRESH_MS = 15 * 60_000;
 const LEASE_MS = MODEL_GENERATION_TIMEOUT_MS + 60_000;
 const FAILURE_RETRY_MS = 15 * 60_000;
@@ -56,7 +59,7 @@ export async function readPortfolioBrief(env: IngestEnv, options: PortfolioBrief
 
 /** The scheduler owns generation; the lease also bounds manual workflow runs. */
 export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBriefEvidence, cadenceMs: number,
-  options: PortfolioBriefOptions = {}): Promise<PortfolioBriefRead> {
+  options: PortfolioBriefOptions = {}): Promise<PortfolioBriefRefreshRead> {
   if (workspaceProfile(env) !== 'standalone') return emptyPortfolioBrief('unsupported');
   if (new TextEncoder().encode(JSON.stringify(input)).byteLength > PORTFOLIO_BRIEF_MAX_BYTES) throw new Error('Briefing evidence exceeds its limit.');
   const evidence = portfolioBriefEvidenceSchema.parse(input);
@@ -75,36 +78,24 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
     takeoverAlso: { sql: '(l.cooldown_until IS NULL OR l.cooldown_until <= $5::timestamptz OR $6::boolean)', param: false } });
   if (!claim) return presented(prior, start);
   let nextAttemptAt: string | null = null;
+  const diagnostics: WorkflowStepDiagnostics = {};
+  const diagnosticOptions = { maxBytes: 65_536, secrets: Object.entries(credential.fields)
+    .filter(([key]) => key !== LOCAL_MODEL_ID).flatMap(([, value]) => [value, value.trim()]).filter(Boolean) };
   try {
     prior = await cached(cache, key);
     if (prior?.nextAttemptAt && Date.parse(prior.nextAttemptAt) > clock()) return presented(prior, clock());
     const eligible = new Set(evidence.insightEvidenceIds);
-    const facts = new Map(evidence.facts.map(fact => [fact.id, fact]));
     const health = eligible.size > 0 ? await tryHealthConnection(env, 'local-model', credential) : null;
     let entry: StoredBrief;
     try {
-      const raw = eligible.size === 0 ? PORTFOLIO_BRIEF_ABSTENTION : await generateLocalModel(env, credential.fields, {
-        messages: [{ role: 'system', content: portfolioBriefPrompt(evidence) }, { role: 'user', content: JSON.stringify(evidence) }],
-        responseSchema: portfolioBriefResponseSchema, fetchImpl: options.fetchImpl,
-      });
-      const parsed = portfolioBriefResultSchema.safeParse(raw);
-      if (!parsed.success) throw new LocalModelError('invalid-output');
-      const result = parsed.data;
-      for (const insight of result.insights) {
-        if (insight.evidenceIds.some(id => !facts.has(id)) || !insight.evidenceIds.some(id => eligible.has(id))) throw new LocalModelError('invalid-output');
-        const anchors = insight.evidenceIds.filter(id => eligible.has(id)).map(id => facts.get(id)!);
-        if (!anchors.some(fact => insight.observation.startsWith(portfolioBriefFactOpening(fact)))) throw new LocalModelError('invalid-output');
-        const comparisons = insight.evidenceIds.flatMap(id => facts.get(id)?.comparison ? [facts.get(id)!.comparison!] : []);
-        const observations = insight.evidenceIds.flatMap(id => facts.get(id)?.basis === 'period-observation' ? [facts.get(id)!] : []);
-        const observationPeriods = new Set(observations.map(fact => [fact.period!.start, fact.period!.end].join('|')));
-        if (observationPeriods.size > 1 || comparisons.length > 0 && observations.length > 0) throw new LocalModelError('invalid-output');
-        const distinct = new Set(comparisons.map(item => [item.current.start, item.current.end, item.previous.start, item.previous.end, item.timeZone].join('|')));
-        if (comparisons.length > 0) {
-          if (distinct.size !== 1 || !insight.observation.startsWith(portfolioBriefObservationOpening(comparisons[0]!))) throw new LocalModelError('invalid-output');
-        } else if (observations.length > 0 && !insight.observation.startsWith(portfolioBriefFactOpening(observations[0]!))) {
-          throw new LocalModelError('invalid-output');
-        }
-      }
+      const result = eligible.size === 0 ? PORTFOLIO_BRIEF_ABSTENTION : parsePortfolioBrief(await generateLocalModel(env, credential.fields, {
+        messages: [{ role: 'system', content: portfolioBriefPrompt() }, { role: 'user', content: portfolioBriefModelEvidence(evidence) }],
+        fetchImpl: options.fetchImpl,
+        onDiagnostics: (phase, value) => {
+          const inputTruncated = phase === 'output' && !!value && typeof value === 'object' && 'truncated' in value && value.truncated === true;
+          diagnostics[phase] = captureWorkflowDiagnostic(value, { ...diagnosticOptions, inputTruncated });
+        },
+      }), evidence);
       const finished = clock();
       nextAttemptAt = new Date(start + MIN_REFRESH_MS).toISOString();
       entry = { state: 'ready', briefing: { result, generatedAt: new Date(finished).toISOString(), evidenceAsOf: evidence.asOf,
@@ -113,20 +104,28 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
         staleAfter: new Date(start + cadenceMs * 2).toISOString() };
       if (eligible.size > 0) await observeIntegration(env, health, { capability: 'portfolio-brief', observedAt: entry.briefing!.generatedAt, ok: true, evidenceSource: 'live' });
     } catch (error) {
-      const failure = localModelFailure(error);
+      const failure: PortfolioBriefFailure = error instanceof BriefingResponseError ? { kind: error.code }
+        : error instanceof LocalModelError && (error.code === 'empty-output' || error.code === 'truncated-output' || error.code === 'refused-output') ? { kind: error.code }
+        : error instanceof LocalModelError && error.code === 'invalid-output' ? { kind: 'model-response' } : localModelFailure(error);
       nextAttemptAt = new Date(clock() + FAILURE_RETRY_MS).toISOString();
       entry = { ...emptyPortfolioBrief('unavailable'), briefing: prior?.briefing ?? null,
         lastAttemptAt: new Date(start).toISOString(), nextAttemptAt,
         error: portfolioBriefFailure(failure).summary, failure,
         staleAfter: prior?.staleAfter ?? new Date(start).toISOString() };
+      const original = diagnostics.error;
+      const classified = captureWorkflowDiagnostic({ kind: failure.kind, message: entry.error,
+        ...(original ? { error: original.text } : {}) }, diagnosticOptions);
+      diagnostics.error = { ...classified, truncated: classified.truncated || !!original?.truncated,
+        redacted: classified.redacted || !!original?.redacted };
       if (eligible.size > 0) await observeIntegration(env, health, { capability: 'portfolio-brief', observedAt: new Date(clock()).toISOString(), ok: false, code: 'provider', evidenceSource: 'live', nextAttemptAt });
     }
     // A changed or disconnected connection cannot publish its in-flight answer.
     const current = await resolveCredential(env, 'local-model');
-    if (current.source === 'none' || (await identity(env, current)).key !== key) return emptyPortfolioBrief('awaiting');
+    if (current.source === 'none' || (await identity(env, current)).key !== key) return { ...emptyPortfolioBrief('awaiting'),
+      ...(Object.keys(diagnostics).length ? { diagnostics } : {}) };
     const retentionSeconds = Math.max(7 * 86_400, Math.ceil(cadenceMs * 2 / 1_000));
     await cache.put(key, Response.json(entry, { headers: { 'cache-control': `max-age=${retentionSeconds}` } }));
-    return presented(entry, clock());
+    return { ...presented(entry, clock()), ...(Object.keys(diagnostics).length ? { diagnostics } : {}) };
   } finally {
     const cooldownUntil = nextAttemptAt;
     if (cooldownUntil) await env.STORE.write(tx => tx.execute(

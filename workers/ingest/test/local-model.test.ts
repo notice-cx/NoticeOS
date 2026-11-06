@@ -1,30 +1,101 @@
-import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, portfolioBriefResponseSchema, type PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
+import { PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, type PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
 import { portfolioBriefPrompt } from '../src/portfolio-brief-prompt.js';
 import { MODEL_GENERATION_TIMEOUT_MS } from '../../../scripts/portfolio-brief-failure.mjs';
+import { captureWorkflowDiagnostic } from '../../../scripts/workflow-diagnostics.mjs';
 import { env } from 'cloudflare:test';
 import { expect, it, vi } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
 import { putCredential, resolveCredential, credentialSummary, validateCredentialFields } from '../src/credentials.js';
 import { integrationProvider } from '@noticeos/contract';
 import { probeCredential } from '../src/credential-probes.js';
-import { checkLocalModel, discoverLocalModels, generateLocalModel, localModelBaseUrl } from '../src/local-model.js';
+import { checkLocalModel, discoverLocalModels, generateLocalModel, localModelBaseUrl, localModelFailure, LocalModelError } from '../src/local-model.js';
 
 const fields = { LOCAL_MODEL_BASE_URL: 'http://127.0.0.1:1234/v1', LOCAL_MODEL_ID: 'synthetic-model' };
-const options = { messages: [{ role: 'user' as const, content: 'Summarize synthetic evidence.' }], responseSchema: { type: 'object', properties: { summary: { type: 'string' } }, required: ['summary'], additionalProperties: false } };
+const options = { messages: [{ role: 'user' as const, content: 'Summarize synthetic evidence.' }] };
 const standalone = { NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
-const completion = (content = '{"summary":"Synthetic result"}', finish_reason = 'stop') => Response.json({ choices: [{ message: { content }, finish_reason }] });
+const completion = (content = 'Synthetic result', finish_reason = 'stop') => Response.json({ choices: [{ message: { content }, finish_reason }] });
 
-it('uses fixed paths, omits absent auth, requests constrained JSON and parses only final content', async () => {
+it('captures the exact generation body and raw response without transport credentials or addresses', async () => {
+  const onDiagnostics = vi.fn();
+  let sent = '';
+  const raw = JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'Final answer', reasoning_content: 'Separate reasoning' } }] });
+  const fetchImpl: typeof fetch = async (_input, init) => { sent = String(init?.body); return new Response(raw); };
+  expect(await generateLocalModel(standalone, { ...fields, LOCAL_MODEL_API_TOKEN: 'private-token' }, { ...options, fetchImpl, onDiagnostics })).toBe('Final answer');
+  expect(onDiagnostics.mock.calls).toEqual([['input', sent], ['output', { status: 200, body: raw, truncated: false }]]);
+  expect(JSON.stringify(onDiagnostics.mock.calls)).not.toContain('private-token');
+  expect(JSON.stringify(onDiagnostics.mock.calls)).not.toContain(fields.LOCAL_MODEL_BASE_URL);
+});
+
+it.each([
+  ['malformed', 'not JSON', 200, 'invalid-output'],
+  ['empty', JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '' } }] }), 200, 'empty-output'],
+  ['truncated', JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: 'Partial answer' } }] }), 200, 'truncated-output'],
+  ['HTTP error', 'Actual provider error body', 400, 'network'],
+] as const)('captures %s output before rejecting it', async (_name, raw, status, code) => {
+  const onDiagnostics = vi.fn();
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics, fetchImpl: async () => new Response(raw, { status }) }))
+    .rejects.toMatchObject({ code });
+  expect(onDiagnostics.mock.calls).toContainEqual(['output', { status, body: raw, truncated: false }]);
+});
+
+it('clips diagnostic bodies by bytes and keeps an oversized HTTP error classified by its status', async () => {
+  const onDiagnostics = vi.fn();
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics,
+    fetchImpl: async () => new Response('é'.repeat(40_000), { status: 401 }) })).rejects.toMatchObject({ code: 'access', status: 401 });
+  expect(onDiagnostics.mock.calls).toContainEqual(['output', { status: 401, body: 'é'.repeat(32_768), truncated: true }]);
+});
+
+it('retains the response byte limit while capturing only a bounded preview', async () => {
+  const onDiagnostics = vi.fn();
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics,
+    fetchImpl: async () => new Response('x'.repeat(1_048_577)) })).rejects.toMatchObject({ code: 'too-large' });
+  expect(onDiagnostics.mock.calls).toContainEqual(['output', { status: 200, body: 'x'.repeat(65_536), truncated: true }]);
+});
+
+it('does not let diagnostic callback exceptions change successful or failed verdicts', async () => {
+  const onDiagnostics = () => { throw new Error('Private diagnostic failure'); };
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics, fetchImpl: async () => completion() })).resolves.toBe('Synthetic result');
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics, fetchImpl: async () => new Response('bad', { status: 429 }) }))
+    .rejects.toMatchObject({ code: 'rate-limit', status: 429 });
+});
+
+it('captures the original transport exception before replacing its public error message', async () => {
+  const onDiagnostics = vi.fn();
+  const error = new TypeError('Actual transport failure', { cause: new Error('Actual connection detail') });
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics, fetchImpl: async () => { throw error; } }))
+    .rejects.toThrow('OpenAI-compatible model: network.');
+  expect(onDiagnostics).toHaveBeenLastCalledWith('error', { name: 'TypeError', message: 'Actual transport failure',
+    cause: { name: 'Error', message: 'Actual connection detail' } });
+});
+
+it('does not clip transport exception text before the credential-aware diagnostic capture can redact it', async () => {
+  const secret = 'synthetic-boundary-private-token';
+  const message = `${'x'.repeat(7988)}${secret} actual failure`;
+  const captured: { raw?: unknown; text?: string } = {};
+  await expect(generateLocalModel(standalone, fields, { ...options,
+    fetchImpl: async () => { throw new Error(message); },
+    onDiagnostics: (phase, value) => {
+      if (phase !== 'error') return;
+      captured.raw = value;
+      captured.text = captureWorkflowDiagnostic(value, { secrets: [secret], maxBytes: 16_384 }).text;
+    },
+  })).rejects.toMatchObject({ code: 'network' });
+  expect(captured.raw).toMatchObject({ message });
+  expect(captured.text).not.toContain('synthetic-boundary');
+  expect(captured.text).toContain('[REDACTED] actual failure');
+});
+
+it('uses fixed paths, omits absent auth, requests plain text and returns only final content', async () => {
   const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
     expect(String(input)).toBe('http://127.0.0.1:1234/v1/chat/completions');
     expect(init?.redirect).toBe('manual');
     expect(new Headers(init?.headers).has('authorization')).toBe(false);
     expect(init?.signal).toBeInstanceOf(AbortSignal);
-    expect(JSON.parse(String(init?.body))).toMatchObject({ model: fields.LOCAL_MODEL_ID, stream: false, max_tokens: 4096,
-      response_format: { type: 'json_schema', json_schema: { strict: true, schema: options.responseSchema } } });
+    expect(JSON.parse(String(init?.body))).toMatchObject({ model: fields.LOCAL_MODEL_ID, stream: false, max_tokens: 4096 });
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('response_format');
     return completion();
   });
-  expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toEqual({ summary: 'Synthetic result' });
+  expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toBe('Synthetic result');
 });
 
 it('discovers the exact configured model with bearer auth without generating', async () => {
@@ -70,13 +141,13 @@ it('preserves opaque model IDs through discovery, connection storage and generat
 
 it.each([[undefined], [null], [[]]])('accepts final content when the server reports no tool calls (%j)', async tool_calls => {
   const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: {
-    content: '{"summary":"Synthetic result"}', reasoning_content: 'Separate reasoning is not the final answer.', tool_calls,
+    content: 'Synthetic result', reasoning_content: 'Separate reasoning is not the final answer.', tool_calls,
   } }] });
-  expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toEqual({ summary: 'Synthetic result' });
+  expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toBe('Synthetic result');
 });
 
 it.each([[[{ type: 'function', function: { name: 'act', arguments: '{}' } }]], [{}], [false], ['']])('rejects nonempty or malformed tool calls (%j)', async tool_calls => {
-  const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"summary":"Synthetic result"}', tool_calls } }] });
+  const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: { content: 'Synthetic result', tool_calls } }] });
   await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl })).rejects.toMatchObject({ code: 'invalid-output' });
 });
 
@@ -97,12 +168,44 @@ it.each(['http://user:password@example.test/v1', 'http://example.test/v1?token=s
   expect(validateCredentialFields(integrationProvider('local-model')!, { ...fields, LOCAL_MODEL_BASE_URL: value })).not.toEqual([]);
 });
 
-it.each(['<think>reasoning</think>{"summary":"answer"}', '```json\n{"summary":"answer"}\n```', '[]', 'null'])('rejects output outside the final JSON object', async content => {
-  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => completion(content) })).rejects.toMatchObject({ code: 'invalid-output' });
+it.each(['A useful plain-language briefing.', '## Revenue\n\nReview acquisition costs.', '```text\nA final answer.\n```'])('accepts final prose without requiring model-written JSON', async content => {
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => completion(content) })).resolves.toBe(content);
+});
+
+it.each(['', '   ', '\n\t'])('categorizes blank final content as empty output', async content => {
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => completion(content) })).rejects.toMatchObject({ code: 'empty-output' });
+});
+
+it('does not substitute reasoning for an absent final answer', async () => {
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => Response.json({ choices: [
+    { finish_reason: 'stop', message: { content: null, reasoning_content: 'Private reasoning is not a final answer.' } },
+  ] }) })).rejects.toMatchObject({ code: 'empty-output' });
+});
+
+it.each([
+  { choices: [] }, { choices: [{}, {}] }, { choices: [{ finish_reason: 'stop' }] },
+  { choices: [{ finish_reason: 'stop', message: { content: ['text'] } }] },
+  { choices: [{ finish_reason: 'tool_calls', message: { content: 'Not final.' } }] },
+  { choices: [{ finish_reason: 'stop', message: { content: 'Not final.', function_call: { name: 'act', arguments: '{}' } } }] },
+])('rejects malformed or nonfinal chat envelopes', async envelope => {
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => Response.json(envelope) })).rejects.toMatchObject({ code: 'invalid-output' });
+});
+
+it.each([
+  { finish_reason: 'content_filter', message: { content: '' } },
+  { finish_reason: 'stop', message: { content: 'Answer', refusal: 'Private refusal context' } },
+])('categorizes refusals without returning their content', async choice => {
+  const pending = generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => Response.json({ choices: [choice] }) });
+  await expect(pending).rejects.toMatchObject({ code: 'refused-output' });
+  await expect(pending).rejects.toThrow('OpenAI-compatible model: refused-output.');
+});
+
+it.each(['empty-output', 'truncated-output', 'refused-output'] as const)('maps %s to the generic invalid response category', code => {
+  expect(localModelFailure(new LocalModelError(code))).toEqual({ kind: 'invalid-response' });
 });
 
 it('rejects truncated responses, excessive bodies and already cancelled work', async () => {
-  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => completion('{"summary":"partial"}', 'length') })).rejects.toMatchObject({ code: 'invalid-output' });
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => completion('Partial final answer', 'length') })).rejects.toMatchObject({ code: 'truncated-output' });
   await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => new Response('x'.repeat(1_048_577)) })).rejects.toMatchObject({ code: 'too-large' });
   const controller = new AbortController(); controller.abort();
   const fetchImpl = vi.fn<typeof fetch>();
@@ -139,7 +242,7 @@ it('allows successful slow local generation beyond the former two-minute deadlin
     const fetchImpl = vi.fn<typeof fetch>(async () => new Promise(resolve => setTimeout(() => resolve(completion()), 180_000)));
     const pending = generateLocalModel(standalone, fields, { ...options, fetchImpl });
     await vi.advanceTimersByTimeAsync(180_000);
-    await expect(pending).resolves.toEqual({ summary: 'Synthetic result' });
+    await expect(pending).resolves.toBe('Synthetic result');
     expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
   } finally { vi.useRealTimers(); }
 });
@@ -177,7 +280,7 @@ it.each(['http://8.8.8.8/v1', 'http://model/v1', 'http://model.local/v1',
 });
 
 
-it.each([1, 260])('accepts maximal escaped evidence with %s distinct period openings in the real briefing request', async factCount => {
+it.each([1, 260])('accepts maximal escaped evidence with %s facts in the real briefing request', async factCount => {
   const packet: PortfolioBriefEvidence = {
     schemaVersion: 1, asOf: '2026-11-06T12:00:00.000Z', timeZone: 'UTC',
     facts: Array.from({ length: factCount }, (_, index) => {
@@ -198,19 +301,19 @@ it.each([1, 260])('accepts maximal escaped evidence with %s distinct period open
   const evidenceJson = JSON.stringify(packet);
   expect(bytes(evidenceJson)).toBe(PORTFOLIO_BRIEF_MAX_BYTES);
   expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
-  const prompt = portfolioBriefPrompt(packet);
+  const prompt = portfolioBriefPrompt();
   const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
     const body = String(init?.body);
     expect(bytes(body)).toBeGreaterThan(131_072);
-    const sent = JSON.parse(body) as { messages: { content: string }[]; response_format: { json_schema: { schema: unknown } } };
+    const sent = JSON.parse(body) as { messages: { content: string }[] };
     expect(sent.messages.map(message => message.content)).toEqual([prompt, evidenceJson]);
-    expect(sent.response_format.json_schema.schema).toEqual(portfolioBriefResponseSchema);
-    return completion(JSON.stringify(PORTFOLIO_BRIEF_ABSTENTION));
+    expect(sent).not.toHaveProperty('response_format');
+    return completion('No additional conclusion is supported.');
   });
   expect(await generateLocalModel(standalone, fields, {
     messages: [{ role: 'system', content: prompt }, { role: 'user', content: evidenceJson }],
-    responseSchema: portfolioBriefResponseSchema, fetchImpl,
-  })).toEqual(PORTFOLIO_BRIEF_ABSTENTION);
+    fetchImpl,
+  })).toBe('No additional conclusion is supported.');
   expect(fetchImpl).toHaveBeenCalledTimes(1);
 });
 

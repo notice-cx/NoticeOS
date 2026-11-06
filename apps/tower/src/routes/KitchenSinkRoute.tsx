@@ -250,7 +250,7 @@ import {
   ScheduledLanesPanel,
   ScheduledLanesSummary,
 } from "@/components/ScheduledLanes";
-import { WorkflowStateLabel, WorkflowActivity, WorkflowStages, WorkflowScheduleTimeline, WorkflowStepOutputView } from '@/components/WorkflowVisuals';
+import { WorkflowStateLabel, WorkflowActivity, WorkflowStages, WorkflowScheduleTimeline, WorkflowStepOutputView, WorkflowRunDiagnostics } from '@/components/WorkflowVisuals';
 import { WORKFLOW_DEFINITIONS, type WorkflowState } from '@shared/workflows';
 // This page is the registry's one importer: an entry added there appears here
 // without editing this file, and `scripts/component-registry.test.mjs` fails
@@ -4308,7 +4308,7 @@ export function KitchenSinkRoute() {
             </p>
           </Section>
 
-          <Section title="WorkflowStateLabel / WorkflowActivity / WorkflowStages / WorkflowScheduleTimeline / WorkflowStepOutputView">
+          <Section title="WorkflowStateLabel / WorkflowActivity / WorkflowStages / WorkflowScheduleTimeline / WorkflowStepOutputView / WorkflowRunDiagnostics">
             <div className="flex w-full flex-wrap gap-4">{(['succeeded', 'failed', 'running', 'skipped', 'paused', 'never', 'unknown', 'waiting'] satisfies WorkflowState[]).map((state) => <WorkflowStateLabel key={state} state={state} />)}</div>
             <div className="w-80"><WorkflowActivity name="Example workflow" history={Array.from({ length: 24 }, (_, i) => ({ at: new Date(NOW - (23 - i) * 3_600_000).toISOString(), succeeded: i % 3 ? 2 : 0, failed: i === 15 ? 1 : 0, skipped: i === 5 ? 1 : 0, runId: null }))} /></div>
             <div className="w-full"><WorkflowStages definition={WORKFLOW_DEFINITIONS.find((w) => w.id === 'pull')!} run={{ id: 'example', workflowId: 'pull', definitionVersion: 1, startedAt: new Date(NOW).toISOString(), finishedAt: new Date(NOW + 3000).toISOString(), state: 'failed', steps: [
@@ -4320,6 +4320,13 @@ export function KitchenSinkRoute() {
             <div className="w-full"><WorkflowStages definition={WORKFLOW_DEFINITIONS.find((w) => w.id === 'backup')!} run={null} /></div>
             <div className="w-full"><WorkflowStepOutputView output={{ version: 1, metrics: [{ key: 'attempted', label: 'Attempted', value: 2 }, { key: 'succeeded', label: 'Succeeded', value: 1 }, { key: 'failed', label: 'Failed', value: 1 }], fields: [], totalItems: 2, truncated: false, items: [{ label: 'plume.example.com', state: 'succeeded', fields: [{ key: 'written', label: 'Rows written', value: 12 }] }, { label: 'monarch.example.org', state: 'failed', fields: [{ key: 'status', label: 'HTTP status', value: 503 }] }] }} /></div>
             <WorkflowStepOutputView /><WorkflowStepOutputView pending />
+            <div className="w-full"><WorkflowRunDiagnostics definition={WORKFLOW_DEFINITIONS.find((w) => w.id === 'pull')!} run={{ id: 'example-diagnostics', workflowId: 'pull', definitionVersion: 1, startedAt: new Date(NOW).toISOString(), state: 'failed', steps: [
+              { id: 'pull', attempt: 1, startedAt: new Date(NOW).toISOString(), state: 'failed', diagnostics: {
+                input: { text: '{"asset":"example.com","token":"[REDACTED]"}', truncated: false, redacted: true },
+                output: { text: '{"status":503,"body":"Service temporarily unavailable"}', truncated: false, redacted: false },
+                error: { text: 'The provider returned HTTP 503.', truncated: false, redacted: false },
+              } },
+            ] }} /></div>
             <div className="w-full"><WorkflowScheduleTimeline cron="*/15 * * * *" now={NOW} enabled name="Example schedule" /></div>
           </Section>
 

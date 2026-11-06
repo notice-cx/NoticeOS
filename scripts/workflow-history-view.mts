@@ -1,6 +1,7 @@
 /** Pure execution-history projection, shared by standalone files and hosted rows. */
 import type { WorkflowRun } from '../packages/contract/src/workflows.js';
 import { PORTFOLIO_BRIEF_FAILURES } from './portfolio-brief-failure.mjs';
+import { isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from './workflow-definitions.mjs';
@@ -47,6 +48,7 @@ function readTrace(value: unknown, definitions: readonly WorkflowDefinition[]): 
     steps: value.steps!.map((step) => ({ id: step.id, attempt: step.attempt, startedAt: step.startedAt, state: step.state,
       ...(step.finishedAt ? { finishedAt: step.finishedAt } : {}), ...(step.summary ? { summary: step.summary.slice(0, 500) } : {}),
       ...(isWorkflowStepOutput(step.output) ? { output: step.output } : {}),
+      ...(isWorkflowStepDiagnostics(step.diagnostics) ? { diagnostics: step.diagnostics } : {}),
     })),
   }];
 }

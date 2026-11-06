@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createWorkflowRecorder } from './workflow-trace.mjs';
+import { localLaneDiagnostics, runLocalLaneWithDiagnostics } from './runner/diagnostics.mjs';
+
+test('local command diagnostics retain actual input, stdout, stderr and reported failures without changing results', async () => {
+  const trace = createWorkflowRecorder();
+  const result = { code: 1, stdout: 'Actual command progress', stderr: 'token=synthetic-private refused', timedOut: false, error: null };
+  await trace.run('execute', async capture => {
+    const observed = localLaneDiagnostics(capture, 'panel-refresh', { command: async () => result, emit: () => {} });
+    assert.equal(await observed.runCommand('pnpm', ['signals:refresh'], { cwd: '/fixture', timeoutMs: 1000, env: { TOKEN: 'environment-private' } }), result);
+    observed.emit('ERROR', 'Actual error detail');
+    return { code: result.code };
+  });
+  const step = trace.steps[0];
+  assert.equal(step.state, 'failed');
+  assert.ok(step.diagnostics.input.text.includes('signals:refresh'));
+  assert.ok(step.diagnostics.output.text.includes('Actual command progress'));
+  assert.ok(step.diagnostics.error.text.includes('Actual error detail'));
+  assert.ok(!JSON.stringify(step).includes('synthetic-private'));
+  assert.ok(!JSON.stringify(step).includes('environment-private'));
+});
+
+test('local task command throws retain actual errors and preserve the throw', async () => {
+  const error = new Error('Actual task command failed');
+  const trace = createWorkflowRecorder();
+  await assert.rejects(trace.run('execute', async capture => {
+    const observed = localLaneDiagnostics(capture, 'task-map', { task: async () => { throw error; }, emit: () => {} });
+    await observed.runTask(['list', '--json']);
+  }), caught => caught === error);
+  assert.ok(trace.steps[0].diagnostics.input.text.includes('list'));
+  assert.ok(trace.steps[0].diagnostics.error.text.includes(error.message));
+});
+
+
+test('local final result survives alongside command diagnostics, including returned POST failures', async () => {
+  const trace = createWorkflowRecorder();
+  const result = { ok: false, response: { status: 503, body: 'Actual rejected POST response' } };
+  await trace.run('execute', capture => runLocalLaneWithDiagnostics(capture, 'beads-snapshot', async observed => {
+    await observed.runTask(['list'], 1000); return result;
+  }, { task: async () => ({ code: 0, stdout: 'Actual task output', stderr: '' }), emit: () => {} }));
+  const text = trace.steps[0].diagnostics.output.text;
+  assert.ok(text.includes('Actual rejected POST response')); assert.ok(text.includes('Actual task output'));
+  assert.equal(trace.steps[0].state, 'failed');
+});
+
+test('diagnostic callbacks cannot replace command return values or exceptions', async () => {
+  const capture = { input() { throw new Error('capture failed'); }, output() { throw new Error('capture failed'); }, error() { throw new Error('capture failed'); } };
+  const actual = { code: 1, stdout: 'Actual failure', stderr: '' };
+  const observed = localLaneDiagnostics(capture, 'task-map', { task: async () => actual, emit: () => {} });
+  assert.equal(await observed.runTask(['list']), actual);
+  const error = new Error('Actual spawn failure');
+  const thrown = localLaneDiagnostics(capture, 'task-map', { task: async () => { throw error; }, emit: () => {} });
+  await assert.rejects(thrown.runTask(['list']), caught => caught === error);
+});

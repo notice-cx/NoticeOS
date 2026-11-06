@@ -61,7 +61,7 @@ endpoints require HTTPS. Redirects are rejected. This connection is available
 in standalone installations.
 
 The connection test confirms that the selected model is listed; it does not
-prove that a model can generate the required structured response. Connection
+prove that a model can generate a useful briefing. Connection
 errors distinguish timeouts, access denial, missing endpoints and invalid responses.
 Other network errors show **Connection failed** because the runtime cannot reliably
 identify their cause. Check the API address and whether the server is reachable
@@ -107,11 +107,19 @@ A failed refresh retains prior guidance with a concise warning. Disconnecting
 or replacing the connection hides its previous briefing. The replaceable cache
 is not a permanent archive.
 
-The server must support OpenAI-compatible `/chat/completions` and JSON-schema
-structured output, such as LM Studio's [chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions)
-and [structured JSON output](https://lmstudio.ai/docs/developer/openai-compat/structured-output).
-Generation has a two-minute timeout. Invalid output, unknown evidence
-references and incomplete responses are rejected.
+The server must support OpenAI-compatible `/chat/completions`, such as
+LM Studio's [chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions).
+The model writes plain text with short section labels; JSON-schema output is
+not required. NoticeOS builds the cards, checks source references and adds
+reporting periods from the cited observations. Generation has a ten-minute
+timeout. Missing sections, unknown sources, incompatible periods and incomplete
+responses have separate failure messages.
+
+The selected execution's **Run diagnostics** section contains collapsed
+**Inputs** and **Output** sections. They include the model request, supplied
+context, raw response and validation error when captured. Diagnostic text is
+bounded and redacted; truncation is marked. Older runs without captured text
+cannot recover their inputs or output.
 
 The selected server receives the portfolio and task summaries described above.
 A remote provider may charge for scheduled generation. NoticeOS does not meter

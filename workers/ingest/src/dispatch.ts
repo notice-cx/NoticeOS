@@ -243,12 +243,13 @@ export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowReco
   const job = ingestJobForCron(cron);
   const lanes = job ? JOB_LANES[job.id] : undefined;
   if (!lanes) throw new UnknownCronError(cron);
-  const step = <T>(id: string, fn: () => Promise<T>): Promise<T> => trace ? trace.run(id, fn) : fn();
+  const step = <T>(id: string, fn: () => Promise<T>): Promise<T> => trace ? trace.run(id, fn, undefined, { cron, trigger, operation: id }) : fn();
   const cfg = { ...runConfig(await step('config', () => readCollectorConfigs(env))), notificationRecovery: trigger !== 'event' };
   if (trigger === 'manual' && job && schedulePaused(cfg.constants, job.id)) return { outcome: 'skipped', detail: 'Workflow is paused' };
   const answers: Record<string, unknown> = {};
   await settleWorkflowSteps(Object.entries(lanes.steps).map(([id, lane]) =>
-    step(id, async () => (answers[id] = await lane(env, cfg)))));
+    trace ? trace.run(id, async () => (answers[id] = await lane(env, cfg)), undefined, { cron, trigger, operation: id, config: cfg })
+      : step(id, async () => (answers[id] = await lane(env, cfg)))));
   return lanes.answeredBy ? answers[lanes.answeredBy] as ScheduledRunResult : undefined;
 }
 

@@ -1,12 +1,15 @@
-import { ArrowDown, ArrowRight, Check, Circle, CircleHelp, CircleX, Clock, Database, GitBranch, Hand, LoaderCircle, Pause, ShieldCheck, Slash, Sparkles } from 'lucide-react';
+import { ArrowDown, ArrowRight, Check, Copy, Circle, CircleHelp, CircleX, Clock, Database, GitBranch, Hand, LoaderCircle, Pause, ShieldCheck, Slash, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Cron } from 'croner';
+import { Button } from './ui/button';
+import { useCopyFlash } from '@/hooks/useCopyFlash';
+import { copyText } from '@/lib/clipboard';
 import { InfoTooltip } from './InfoTooltip';
 import { cn } from '@/lib/utils';
 import { OUTCOME_WORDS } from '@/lib/agents-week';
 import { WORKFLOW_STATE_LABEL, type WorkflowState, type WorkflowBucket, type WorkflowDefinition, type WorkflowRun } from '@shared/workflows';
 import { formatClock, formatNextRun, utcRunReference, localTimezoneLabel } from '@shared/scheduled-jobs';
-import type { WorkflowStepOutput, WorkflowOutputValue } from '@noticeos/contract';
+import type { WorkflowStepOutput, WorkflowOutputValue, WorkflowDiagnostic } from '@noticeos/contract';
 import { Kpi, KpiStrip } from './surface/KpiStrip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 
@@ -110,6 +113,45 @@ export function WorkflowStages({ definition, run, fresh = true, summarizedFailur
       </aside>
     </div>
   </div>;
+}
+
+function DiagnosticText({ label, snapshot }: { label: string; snapshot: WorkflowDiagnostic }) {
+  const [copied, flash] = useCopyFlash();
+  return <div className="min-w-0 space-y-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-xs font-medium">{label}</p>
+      <Button type="button" variant="ghost" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => { void copyText(snapshot.text).then(flash, () => {}); }}>
+        <Copy className="size-3.5" aria-hidden />{copied ? 'Copied' : 'Copy'}
+      </Button>
+    </div>
+    {snapshot.truncated || snapshot.redacted ? <p className="text-xs text-muted-foreground">{[snapshot.truncated ? 'Truncated' : '', snapshot.redacted ? 'Sensitive values removed' : ''].filter(Boolean).join(' · ')}</p> : null}
+    <pre className="max-h-80 min-w-0 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed [overflow-wrap:anywhere]"><code>{snapshot.text}</code></pre>
+  </div>;
+}
+
+export function WorkflowRunDiagnostics({ definition, run }: { definition: WorkflowDefinition; run: WorkflowRun | null }) {
+  if (!run) return null;
+  const steps = run.steps ?? [];
+  const captured = steps.some(step => step.diagnostics && Object.values(step.diagnostics).some(Boolean));
+  return <details key={run.id} className="min-w-0 border-y border-border py-3" data-run-diagnostics>
+    <summary className="cursor-pointer text-sm font-medium">Run diagnostics</summary>
+    <div className="mt-3 space-y-3">
+      {!captured ? <p className="text-sm text-muted-foreground">Inputs and output were not captured for this run.</p> : steps.map(step => <details key={`${step.id}:${step.attempt}`} className="min-w-0 rounded-lg border border-border p-3">
+        <summary className="cursor-pointer text-sm font-medium">{definition.stages.find(stage => stage.id === step.id)?.label ?? step.id}{steps.filter(attempt => attempt.id === step.id).length > 1 ? ` · Attempt ${step.attempt}` : ''}</summary>
+        <div className="mt-3 space-y-3">
+          <details className="min-w-0 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Inputs</summary>
+            <div className="mt-2">{step.diagnostics?.input ? <DiagnosticText label="Inputs" snapshot={step.diagnostics.input} /> : <p className="text-sm text-muted-foreground">Inputs were not captured for this step.</p>}</div>
+          </details>
+          <details className="min-w-0 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Output</summary>
+            <div className="mt-2 space-y-3">
+              {step.diagnostics?.output ? <DiagnosticText label="Output" snapshot={step.diagnostics.output} /> : !step.diagnostics?.error ? <p className="text-sm text-muted-foreground">Output was not captured for this step.</p> : null}
+              {step.diagnostics?.error ? <DiagnosticText label="Error" snapshot={step.diagnostics.error} /> : null}
+            </div>
+          </details>
+        </div>
+      </details>)}
+    </div>
+  </details>;
 }
 
 function outputValue(field: WorkflowOutputValue): string {

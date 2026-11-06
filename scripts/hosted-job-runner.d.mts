@@ -2,10 +2,10 @@
 import type { Transaction, WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
 import { type WorkspaceAction, type WorkspaceContext } from './workspace-admission.mjs';
-import type { WorkflowStepOutput } from '../packages/contract/src/workflows.js';
+import type { WorkflowStepDiagnostics, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
 /** The registry is executable deployment code, never a request or saved config.
- * Inputs are validated by that code, kept in memory, and persisted only as a
- * digest. Retrying requires supplying the identical validated input again. */
+ * Inputs are validated by that code; redacted bounded diagnostics accompany
+ * their digest. Retrying requires supplying the identical validated input again. */
 export type JobInput = null | boolean | number | string | readonly JobInput[] | {
     readonly [key: string]: JobInput;
 };
@@ -35,12 +35,13 @@ export interface HostedJobDefinition {
 }
 type State = 'running' | 'retryable' | 'succeeded' | 'uncertain' | 'blocked' | 'exhausted';
 interface Evidence {
-    readonly state: 'succeeded' | 'skipped';
+    readonly state: 'succeeded' | 'skipped' | 'failed';
     readonly summary: string;
     readonly attempt?: number;
     readonly startedAt?: string;
     readonly finishedAt?: string;
     readonly output?: WorkflowStepOutput;
+    readonly diagnostics?: WorkflowStepDiagnostics;
 }
 export interface HostedJobReceipt {
     readonly state: State | 'busy';

@@ -21,7 +21,12 @@ describe('manual briefing safeguards', () => {
     const state: PortfolioBriefRead = { state: 'awaiting', nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false };
     const failure = { kind: 'timeout' as const };
     const detail = portfolioBriefFailure(failure);
-    const refreshPortfolioBrief = vi.fn(async () => ({ ...state, state: 'unavailable' as const, lastAttemptAt: '2026-11-06T12:00:00.000Z', error: detail.summary, failure }));
+    const diagnostics = {
+      input: { text: 'Actual model prompt and supplied observations', truncated: false, redacted: false },
+      output: { text: 'Actual unfinished model answer', truncated: true, redacted: false },
+      error: { text: 'The request timed out', truncated: false, redacted: false },
+    };
+    const refreshPortfolioBrief = vi.fn(async () => ({ ...state, state: 'unavailable' as const, lastAttemptAt: '2026-11-06T12:00:00.000Z', error: detail.summary, failure, diagnostics }));
     const config = vi.fn(async () => ({ schedules: {}, beads: { spokes: [] }, osTimeZone: 'UTC' }));
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -37,6 +42,7 @@ describe('manual briefing safeguards', () => {
         startedAt: steps[0]!.startedAt, finishedAt: steps[0]!.finishedAt, state: 'failed', trigger: { kind: 'manual' }, steps };
       const history = buildWorkflowHistory([], [run], [], Date.now() + 1000, run.id);
       expect(history.selectedRun?.steps).toEqual(steps);
+      expect(history.selectedRun?.steps?.[0]?.diagnostics).toEqual(diagnostics);
       expect(log).toHaveBeenCalledWith(expect.stringContaining(detail.summary));
     } finally { log.mockRestore(); }
   });

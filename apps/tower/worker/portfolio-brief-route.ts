@@ -1,9 +1,9 @@
-import type { PortfolioBriefEvidence, PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
+import type { PortfolioBriefEvidence, PortfolioBriefRead, PortfolioBriefRefreshRead } from '@noticeos/contract/portfolio-brief';
 import { JSON_HEADERS } from './http';
 
 export interface PortfolioBriefIngest {
   portfolioBrief?(): Promise<PortfolioBriefRead>;
-  refreshPortfolioBrief?(evidence: PortfolioBriefEvidence, cadenceMs: number): Promise<PortfolioBriefRead>;
+  refreshPortfolioBrief?(evidence: PortfolioBriefEvidence, cadenceMs: number): Promise<PortfolioBriefRefreshRead>;
 }
 
 export async function handlePortfolioBriefRequest(request: Request, ingest: PortfolioBriefIngest): Promise<Response> {

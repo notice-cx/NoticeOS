@@ -2,6 +2,7 @@ import type { Row, WorkspaceStore } from '@noticeos/postgres';
 import { MANUAL_RUN_DETAIL, type WorkflowRun, type WorkflowStepRun } from '@noticeos/contract';
 import { WORKFLOW_DEFINITIONS } from '../../../scripts/workflow-definitions.mjs';
 import { summarizeWorkflowHistory } from '../../../scripts/workflow-history-view.mjs';
+import { isWorkflowStepDiagnostics } from '../../../scripts/workflow-diagnostics.mjs';
 import { isWorkflowStepOutput } from '../../../scripts/workflow-output.mjs';
 import { jobRunName, schedulesRefusal, type ScheduleStatus, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
 import { JSON_HEADERS } from './http';
@@ -54,13 +55,14 @@ function steps(value: unknown, attempt: number): WorkflowStepRun[] {
   const parsed: unknown = JSON.parse(String(value));
   if (!object(parsed) || Object.keys(parsed).length > 16) refused();
   return Object.entries(parsed).flatMap(([key, step]) => {
-    if (!object(step) || !['succeeded', 'skipped'].includes(String(step.state))
+    if (!object(step) || !['succeeded', 'skipped', 'failed'].includes(String(step.state))
       || typeof step.attempt !== 'number' || !Number.isInteger(step.attempt) || step.attempt < 1 || step.attempt > attempt
       || typeof step.startedAt !== 'string' || typeof step.finishedAt !== 'string'
       || !Number.isFinite(Date.parse(step.startedAt)) || !Number.isFinite(Date.parse(step.finishedAt))) return [];
-    return [{ id: key, attempt: step.attempt, state: step.state as 'succeeded' | 'skipped', startedAt: step.startedAt,
+    return [{ id: key, attempt: step.attempt, state: step.state as 'succeeded' | 'skipped' | 'failed', startedAt: step.startedAt,
       finishedAt: step.finishedAt, ...(typeof step.summary === 'string' ? { summary: step.summary.slice(0, 500) } : {}),
-      ...(isWorkflowStepOutput(step.output) ? { output: step.output } : {}) }];
+      ...(isWorkflowStepOutput(step.output) ? { output: step.output } : {}),
+      ...(isWorkflowStepDiagnostics(step.diagnostics) ? { diagnostics: step.diagnostics } : {}) }];
   });
 }
 
