@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ConnectionFailure } from './integrations.js';
+import type { WorkflowStepDiagnostics } from './workflows.js';
 
 export const PORTFOLIO_BRIEF_MAX_BYTES = 96_000;
 export const PORTFOLIO_BRIEF_CONTEXT_BYTES = 24_000;
@@ -123,7 +124,7 @@ export const portfolioBriefResultSchema = z.object({
     why: short(400).describe('One short sentence explaining the decision consequence without repeating the observation.'),
     action: short(400).describe('One short instruction for a concrete next step. A check must distinguish explanations without assuming any occurred.'),
     evidenceIds: z.array(short(400)).min(1).max(6),
-    confidence: z.enum(['high', 'medium', 'low']),
+    confidence: z.enum(['high', 'medium', 'low']).optional(),
   }).strict()).max(3).describe('Zero to three useful findings. Do not fill slots. Return an empty array when insightEvidenceIds is empty.'),
 }).strict().superRefine((value, ctx) => {
   const words = [value.headline, value.assessment, ...value.insights.flatMap(item => [item.title, item.observation, item.why, item.action])].join(' ').split(/\s+/).length;
@@ -155,6 +156,11 @@ export interface PortfolioBriefRead {
   lastAttemptAt: string | null;
   nextAttemptAt: string | null;
   error: string | null;
-  failure?: ConnectionFailure;
+  failure?: PortfolioBriefFailure;
   stale: boolean;
 }
+
+export type PortfolioBriefFailure = ConnectionFailure | { kind: 'briefing-format' | 'briefing-sources' | 'briefing-periods' | 'briefing-length' | 'empty-output' | 'truncated-output' | 'refused-output' | 'model-response' };
+
+/** Execution diagnostics return only to the workflow recorder, never the Home cache. */
+export interface PortfolioBriefRefreshRead extends PortfolioBriefRead { diagnostics?: WorkflowStepDiagnostics }

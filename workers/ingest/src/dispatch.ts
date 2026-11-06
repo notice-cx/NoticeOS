@@ -243,12 +243,18 @@ export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowReco
   const job = ingestJobForCron(cron);
   const lanes = job ? JOB_LANES[job.id] : undefined;
   if (!lanes) throw new UnknownCronError(cron);
-  const step = <T>(id: string, fn: () => Promise<T>): Promise<T> => trace ? trace.run(id, fn) : fn();
-  const cfg = { ...runConfig(await step('config', () => readCollectorConfigs(env))), notificationRecovery: trigger !== 'event' };
+  const step = <T>(id: string, fn: () => Promise<T>): Promise<T> => trace ? trace.run(id, fn, undefined, { cron, trigger, operation: id }) : fn();
+  const loaded = trace ? await trace.run('config', async capture => {
+    const configs = await readCollectorConfigs(env);
+    capture.output({ sources: configs.sources });
+    return configs;
+  }, undefined, { cron, trigger, operation: 'config' }) : await readCollectorConfigs(env);
+  const cfg = { ...runConfig(loaded), notificationRecovery: trigger !== 'event' };
   if (trigger === 'manual' && job && schedulePaused(cfg.constants, job.id)) return { outcome: 'skipped', detail: 'Workflow is paused' };
   const answers: Record<string, unknown> = {};
   await settleWorkflowSteps(Object.entries(lanes.steps).map(([id, lane]) =>
-    step(id, async () => (answers[id] = await lane(env, cfg)))));
+    trace ? trace.run(id, async () => (answers[id] = await lane(env, cfg)), undefined, { cron, trigger, operation: id, configSources: cfg.configSources })
+      : step(id, async () => (answers[id] = await lane(env, cfg)))));
   return lanes.answeredBy ? answers[lanes.answeredBy] as ScheduledRunResult : undefined;
 }
 
@@ -283,7 +289,7 @@ export function scheduledStepFailure(cron: string, step: string | null, error: u
  * One scheduled fire from the runner (`runScheduled`, the local runner's RPC):
  * the dispatch above, traced step by step. A failed step's error goes to the
  * log once, from the step that failed; the answer the runner records carries
- * the steps and never the error itself. An expression no job runs on answers
+ * fixed summaries and bounded, redacted diagnostics rather than exception objects. An expression no job runs on answers
  * `refused: 'unknown_cron'`, with no step, and the runner door turns it away.
  */
 export async function runScheduledCron(cron: string, env: IngestEnv, trigger: 'event' | 'recovery' | 'manual' = 'recovery'): Promise<ScheduledRunResult> {

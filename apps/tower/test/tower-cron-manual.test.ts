@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
-import { BRIEFING_TICK, runTowerCron, type TowerCronEnv } from '../worker/tower-cron';
+import { BRIEFING_TICK, HOURLY_TICK, runTowerCron, type TowerCronEnv } from '../worker/tower-cron';
 import { withTowerSteps } from '../worker/runner-route';
 import { portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
 import { buildWorkflowHistory } from '../../../scripts/workflow-history-view.mjs';
 
+vi.mock('../worker/connection-status-daily', async importOriginal => ({ ...await importOriginal<typeof import('../worker/connection-status-daily')>(), recordTodaysConnectionCounts: vi.fn(async () => ({ written: 1 })) }));
+vi.mock('../worker/integrations-payload', async importOriginal => ({ ...await importOriginal<typeof import('../worker/integrations-payload')>(), recordTodaysSourceHistory: vi.fn(async () => ({ outcome: 'ran', written: 1 })) }));
 vi.mock('../worker/wall-payload', () => ({ buildWallPayload: vi.fn(async () => ({ assets: [] })) }));
 vi.mock('../worker/work-payload', () => ({ buildWorkPayload: vi.fn(async () => ({})) }));
 vi.mock('../worker/daily-revenue', () => ({ loadRevenueHistories: vi.fn(async () => ({})) }));
@@ -21,7 +23,12 @@ describe('manual briefing safeguards', () => {
     const state: PortfolioBriefRead = { state: 'awaiting', nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false };
     const failure = { kind: 'timeout' as const };
     const detail = portfolioBriefFailure(failure);
-    const refreshPortfolioBrief = vi.fn(async () => ({ ...state, state: 'unavailable' as const, lastAttemptAt: '2026-11-06T12:00:00.000Z', error: detail.summary, failure }));
+    const diagnostics = {
+      input: { text: 'Actual model prompt and supplied observations', truncated: false, redacted: false },
+      output: { text: 'Actual unfinished model answer', truncated: true, redacted: false },
+      error: { text: 'The request timed out', truncated: false, redacted: false },
+    };
+    const refreshPortfolioBrief = vi.fn(async () => ({ ...state, state: 'unavailable' as const, lastAttemptAt: '2026-11-06T12:00:00.000Z', error: detail.summary, failure, diagnostics }));
     const config = vi.fn(async () => ({ schedules: {}, beads: { spokes: [] }, osTimeZone: 'UTC' }));
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -37,6 +44,7 @@ describe('manual briefing safeguards', () => {
         startedAt: steps[0]!.startedAt, finishedAt: steps[0]!.finishedAt, state: 'failed', trigger: { kind: 'manual' }, steps };
       const history = buildWorkflowHistory([], [run], [], Date.now() + 1000, run.id);
       expect(history.selectedRun?.steps).toEqual(steps);
+      expect(history.selectedRun?.steps?.[0]?.diagnostics).toEqual(diagnostics);
       expect(log).toHaveBeenCalledWith(expect.stringContaining(detail.summary));
     } finally { log.mockRestore(); }
   });
@@ -71,4 +79,19 @@ describe('manual briefing safeguards', () => {
     expect(refreshPortfolioBrief).not.toHaveBeenCalled();
     expect(config).not.toHaveBeenCalled();
   });
+});
+
+
+it('captures source-history timing and asset keys without retaining account configuration', async () => {
+  const accountId = 'private-account-fixture-947318265';
+  const at = new Date('2026-11-06T12:00:00.000Z');
+  const config = vi.fn(async () => ({ integrations: { catalog: [], assets: { 'example.com': { ga4: { ga4PropertyId: accountId } } } },
+    pullConfig: [{ asset: 'example.com', accountId }], monthlyCaps: { dataUsd: 10 }, serpPanel: { assets: { 'example.com': { accountId } } } }));
+  const steps = await runTowerCron(HOURLY_TICK, { STORE: {} as WorkspaceStore, INGEST: {}, config } as unknown as TowerCronEnv, () => at);
+  const source = steps.find(step => step.id === 'source-history')!;
+  expect(source.state).toBe('succeeded');
+  expect(JSON.parse(source.diagnostics!.input!.text)).toEqual({ now: at.toISOString(), assets: ['example.com'] });
+  expect(JSON.stringify(steps)).not.toContain(accountId);
+  expect(source.diagnostics!.input!.text).not.toContain('monthlyCaps');
+  expect(source.diagnostics!.input!.text).not.toContain('pullConfig');
 });

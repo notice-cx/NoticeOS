@@ -19,7 +19,7 @@ const script = buildSync({
           if (new URL(request.url).pathname === '/generate') {
             return Response.json(await generateLocalModel({ NOTICEOS_WORKSPACE_PROFILE: 'standalone' }, {
               LOCAL_MODEL_BASE_URL: env.BASE, LOCAL_MODEL_ID: 'fixture-model', LOCAL_MODEL_API_TOKEN: 'fixture-token'
-            }, { messages: [{ role: 'user', content: 'Fixture' }], responseSchema: { type: 'object' } }));
+            }, { messages: [{ role: 'user', content: 'Fixture' }] }));
           }
           if (new URL(request.url).pathname === '/discover') {
             return Response.json(await discoverLocalModels({ NOTICEOS_WORKSPACE_PROFILE: 'standalone' }, {
@@ -58,7 +58,7 @@ test('local-model discovery uses native workerd HTTP on a private address and pr
     }
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify(request.method === 'POST'
-      ? { choices: [{ finish_reason: 'stop', message: { content: '{"result":"fixture"}' } }] }
+      ? { choices: [{ finish_reason: 'stop', message: { content: 'Fixture answer.' } }] }
       : { data: [{ id: 'fixture-model' }] }));
   });
   t.after(() => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
@@ -78,7 +78,7 @@ test('local-model discovery uses native workerd HTTP on a private address and pr
   const discovery = await runtime.dispatchFetch('http://fixture.invalid/discover');
   assert.deepEqual(await discovery.json(), { ok: true, models: ['fixture-model'] });
   const generated = await runtime.dispatchFetch('http://fixture.invalid/generate');
-  assert.deepEqual(await generated.json(), { result: 'fixture' });
+  assert.equal(await generated.json(), 'Fixture answer.');
   assert.deepEqual(calls.map(call => call.path), ['/v1/models', '/v1/models', '/v1/chat/completions']);
   assert.deepEqual(calls[2], { path: '/v1/chat/completions', method: 'POST', authorization: 'Bearer fixture-token' });
   await runtime.setOptions({

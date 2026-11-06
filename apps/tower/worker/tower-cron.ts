@@ -7,7 +7,7 @@ import type { WorkflowStepRun } from "@noticeos/contract";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { redactLogText } from "../../../scripts/os-log.mjs";
 import { SCHEDULED_JOBS, scheduleFor, cronIntervalMinutes } from "../../../scripts/scheduled-jobs.mjs";
-import { createWorkflowRecorder, stepResult } from "../../../scripts/workflow-trace.mjs";
+import { createWorkflowRecorder, stepResult, type WorkflowDiagnosticCapture } from "../../../scripts/workflow-trace.mjs";
 import { type IntegrationHealthIngest, recordTodaysConnectionCounts } from "./connection-status-daily";
 import { type IntegrationsSettings, integrationsDeps, recordTodaysSourceHistory } from "./integrations-payload";
 import type { TowerConfig } from './config-source';
@@ -48,20 +48,20 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       message: redactLogText(error instanceof Error ? error.message : String(error)).slice(0, 500),
     })),
   });
-  const step = async (id: string, run: () => Promise<unknown>) => {
+  const step = async (id: string, run: (capture: WorkflowDiagnosticCapture) => Promise<unknown>) => {
     try {
       await trace.run(id, run, result => {
         if (id === 'portfolio-brief' && typeof result === 'string') return { state: 'skipped', summary: result };
         const verdict = stepResult(result);
         if (verdict.state === 'failed') console.error(JSON.stringify({ event: 'scheduled_step_failed', cron, step: id, message: verdict.summary }));
         return verdict;
-      });
+      }, { cron, trigger: trigger ?? 'schedule' });
     } catch {
       // Recorded as a failed step above; the next step still runs.
     }
   };
   if (cron === BRIEFING_TICK) {
-    await step('portfolio-brief', async () => {
+    await step('portfolio-brief', async capture => {
       if (!env.briefing?.ingest.refreshPortfolioBrief || !env.briefing.ingest.portfolioBrief) return 'Briefing generation is unavailable';
       const state = await env.briefing.ingest.portfolioBrief();
       if (state.state === 'disconnected') return 'Connect a model provider before generating a briefing';
@@ -85,15 +85,26 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       const base = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset });
       const evidence = packPortfolioBriefContext({ ...base, facts: [...base.facts, ...readings.facts, ...acquisition.facts],
         insightEvidenceIds: [...base.insightEvidenceIds, ...readings.insightEvidenceIds, ...acquisition.insightEvidenceIds] });
-      const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000);
+      const cadenceMs = Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000;
+      capture.input({ evidence, cadenceMs });
+      const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, cadenceMs);
+      if (result.diagnostics) capture.adopt(result.diagnostics);
       if (result.error) return { operation: 'portfolio-brief', ok: false, failure: result.failure };
       if (result.state === 'disconnected' || result.state === 'unsupported') return 'Briefing generation is unavailable';
       if (result.lastAttemptAt === state.lastAttemptAt) return 'Another briefing run or its cooldown prevented generation';
       if (trigger === 'manual' && evidence.insightEvidenceIds.length === 0) return 'No recent observations are available for briefing insights';
     });
   } else {
-    await step("connection-counts", () => recordTodaysConnectionCounts(env.INGEST, env.STORE, now()));
-    await step("source-history", async () => recordTodaysSourceHistory(env.STORE, integrationsDeps(await env.config(), now())));
+    await step("connection-counts", capture => {
+      const at = now();
+      capture.input({ now: at });
+      return recordTodaysConnectionCounts(env.INGEST, env.STORE, at);
+    });
+    await step("source-history", async capture => {
+      const deps = integrationsDeps(await env.config(), now());
+      capture.input({ now: deps.now, assets: Object.keys(deps.integrations.assets).sort() });
+      return recordTodaysSourceHistory(env.STORE, deps);
+    });
   }
   return trace.steps;
 }

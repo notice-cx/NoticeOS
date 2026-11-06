@@ -1,9 +1,10 @@
-// Portable instrumentation: no I/O, raw payloads, credentials or execution policy.
+// Portable instrumentation: bounded redacted diagnostics, no I/O or execution policy.
 //
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
 
-import type { WorkflowStepRun } from '../packages/contract/src/workflows.js';
+import type { WorkflowStepDiagnostics, WorkflowStepRun } from '../packages/contract/src/workflows.js';
+import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 
@@ -47,37 +48,62 @@ export async function settleWorkflowSteps(promises: Promise<unknown>[]): Promise
   if (failure) throw failure.reason;
 }
 
+export interface WorkflowDiagnosticMetadata { truncated?: boolean; redacted?: boolean }
+export interface WorkflowDiagnosticCapture {
+  input(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+  output(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+  error(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+  adopt(diagnostics: WorkflowStepDiagnostics): void;
+}
 export interface WorkflowRecorder {
   steps: WorkflowStepRun[];
-  run<T>(id: string, fn: () => Promise<T>, assess?: (result: T) => StepVerdict): Promise<T>;
+  run<T>(id: string, fn: (capture: WorkflowDiagnosticCapture) => Promise<T>, assess?: (result: T) => StepVerdict, input?: unknown): Promise<T>;
 }
 
-/**
- * `failed` hears each step's own error as it is recorded, so the caller can
- * write it where "Check the service logs" sends the operator. The recorder
- * itself still does no I/O and keeps no error.
- */
-export function createWorkflowRecorder({ now = Date.now, changed = () => {}, failed = () => {} }: {
+/** Diagnostics are best-effort evidence and never change the operation verdict. */
+export function createWorkflowRecorder({ now = Date.now, changed = () => {}, failed = () => {}, secrets = [] }: {
   now?: () => number;
   changed?: (steps: WorkflowStepRun[]) => void;
   failed?: (id: string, error: unknown) => void;
+  secrets?: readonly string[];
 } = {}): WorkflowRecorder {
   const steps: WorkflowStepRun[] = [];
   return {
     steps,
-    async run<T>(id: string, fn: () => Promise<T>, assess: (result: T) => StepVerdict = stepResult) {
+    async run<T>(id: string, fn: (capture: WorkflowDiagnosticCapture) => Promise<T>, assess: (result: T) => StepVerdict = stepResult, input?: unknown) {
       const step: WorkflowStepRun = { id, attempt: steps.filter((s) => s.id === id).length + 1, startedAt: new Date(now()).toISOString(), state: 'running' };
+      const diagnostics: WorkflowStepDiagnostics = {};
+      const put = (key: keyof WorkflowStepDiagnostics, value: unknown, metadata?: WorkflowDiagnosticMetadata) => {
+        try { const safe = captureWorkflowDiagnostic(value, { secrets }); diagnostics[key] = { ...safe, redacted: safe.redacted || metadata?.redacted === true, truncated: safe.truncated || metadata?.truncated === true }; step.diagnostics = diagnostics; boundWorkflowRunDiagnostics([...steps, ...(steps.includes(step) ? [] : [step])]); } catch { /* capture cannot affect work */ }
+      };
+      const capture: WorkflowDiagnosticCapture = { input: (value, metadata) => put('input', value, metadata), output: (value, metadata) => put('output', value, metadata), error: (value, metadata) => put('error', value, metadata),
+        adopt(value) {
+          try {
+            if (!isWorkflowStepDiagnostics(value)) return;
+            for (const key of ['input', 'output', 'error'] as const) {
+              const original = value[key]; if (!original) continue;
+              const safe = captureWorkflowDiagnostic(original.text, { secrets, maxBytes: 65_536 });
+              diagnostics[key] = { ...safe, truncated: safe.truncated || original.truncated, redacted: safe.redacted || original.redacted };
+            }
+            step.diagnostics = diagnostics;
+            boundWorkflowRunDiagnostics([...steps, ...(steps.includes(step) ? [] : [step])]);
+          } catch { /* capture cannot affect work */ }
+        },
+      };
+      if (input !== undefined) capture.input(input);
       steps.push(step);
       changed(steps);
       try {
-        const result = await fn();
+        const result = await fn(capture);
+        if (!diagnostics.output) capture.output(result);
         Object.assign(step, assess(result), { finishedAt: new Date(now()).toISOString() });
         // Evidence is best-effort and cannot turn a completed operation into a
         // failed operation, even if an unexpected result cannot be projected.
         try { const output = captureWorkflowOutput(result); if (output) step.output = output; } catch { /* no output captured */ }
         return result;
       } catch (error) {
-        Object.assign(step, { state: 'failed', summary: 'This step failed. Check the service logs for details.', finishedAt: new Date(now()).toISOString() });
+        if (!diagnostics.error) capture.error(error);
+        Object.assign(step, { state: 'failed', summary: diagnostics.error ? 'This step failed. Open Run diagnostics, then Output for the recorded error.' : 'This step failed. Error diagnostics were not recorded.', finishedAt: new Date(now()).toISOString() });
         try { failed(id, error); } catch { /* a listener cannot change the verdict */ }
         throw error;
       } finally { changed(steps); }

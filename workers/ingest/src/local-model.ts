@@ -7,9 +7,10 @@ export const LOCAL_MODEL_BASE_URL = 'LOCAL_MODEL_BASE_URL';
 export const LOCAL_MODEL_ID = 'LOCAL_MODEL_ID';
 export const LOCAL_MODEL_API_TOKEN = 'LOCAL_MODEL_API_TOKEN';
 const RESPONSE_BYTES = 1_048_576;
-// Encoding evidence JSON as a message can double its bytes; reserve space for the prompt, schema and envelope.
+const DIAGNOSTIC_BYTES = 65_536;
+// Encoding evidence JSON as a message can double its bytes; reserve space for the prompt and envelope.
 const REQUEST_BYTES = 2 * PORTFOLIO_BRIEF_MAX_BYTES + 64 * 1024;
-export type LocalModelCode = 'unavailable' | 'configuration' | 'redirect' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'not-found' | 'model-missing' | 'invalid-output' | 'too-large';
+export type LocalModelCode = 'unavailable' | 'configuration' | 'redirect' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'not-found' | 'model-missing' | 'invalid-output' | 'empty-output' | 'truncated-output' | 'refused-output' | 'too-large';
 export class LocalModelError extends Error {
   constructor(readonly code: LocalModelCode, readonly status?: number) { super(`OpenAI-compatible model: ${code}.`); this.name = 'LocalModelError'; }
 }
@@ -45,14 +46,29 @@ export function localModelBaseUrl(value: string): URL {
 export interface LocalModelMessage { role: 'system' | 'user' | 'assistant'; content: string }
 export interface LocalModelOptions {
   messages: readonly LocalModelMessage[];
-  responseSchema: Record<string, unknown>;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  onDiagnostics?: (phase: 'input' | 'output' | 'error', value: unknown) => void;
+}
+function diagnose(callback: LocalModelOptions['onDiagnostics'], phase: 'input' | 'output' | 'error', value: unknown): void {
+  try { callback?.(phase, value); } catch { /* Diagnostics cannot change a model verdict. */ }
+}
+function transportError(error: unknown): { name: string; message: string; cause?: { name: string; message: string } } {
+  try {
+    if (!(error instanceof Error)) return { name: 'Error', message: String(error) };
+    const cause = error.cause;
+    return { name: error.name, message: error.message,
+      ...(cause === undefined ? {} : { cause: cause instanceof Error
+        ? { name: cause.name, message: cause.message }
+        : { name: object(cause) && typeof cause.name === 'string' ? cause.name : 'Error',
+          message: typeof cause === 'string' ? cause
+            : object(cause) && typeof cause.message === 'string' ? cause.message : 'Non-text error cause' } }) };
+  } catch { return { name: 'Error', message: 'Model transport error details could not be read.' }; }
 }
 const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 async function request(env: unknown, fields: Record<string, string>, path: string, body: string | undefined,
-  fetchImpl: typeof fetch, timeoutMs: number, signal?: AbortSignal): Promise<unknown> {
+  fetchImpl: typeof fetch, timeoutMs: number, signal?: AbortSignal, onDiagnostics?: LocalModelOptions['onDiagnostics']): Promise<unknown> {
   assertLocalModelAvailable(env);
   const base = localModelBaseUrl(fields[LOCAL_MODEL_BASE_URL] ?? '');
   if (body && new TextEncoder().encode(body).byteLength > REQUEST_BYTES) throw new LocalModelError('too-large');
@@ -68,36 +84,65 @@ async function request(env: unknown, fields: Record<string, string>, path: strin
     if (body) headers.set('Content-Type', 'application/json');
     const token = fields[LOCAL_MODEL_API_TOKEN]?.trim();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    if (body) diagnose(onDiagnostics, 'input', body);
     // workerd does not support redirect: 'error'; manual handling keeps tokens off redirect destinations.
     const response = await fetchImpl(new URL(path, base), { method: body ? 'POST' : 'GET', headers, body,
       redirect: 'manual', signal: controller.signal });
-    if (response.status >= 300 && response.status < 400) {
-      await response.body?.cancel();
-      throw new LocalModelError('redirect', response.status);
-    }
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new LocalModelError(response.status === 401 || response.status === 403 ? 'access' : response.status === 429 ? 'rate-limit' : response.status === 404 ? 'not-found' : 'network', response.status);
-    }
-    if (Number(response.headers.get('content-length')) > RESPONSE_BYTES) { await response.body?.cancel(); throw new LocalModelError('too-large'); }
+    const failure = response.status >= 300 && response.status < 400 ? new LocalModelError('redirect', response.status)
+      : !response.ok ? new LocalModelError(response.status === 401 || response.status === 403 ? 'access' : response.status === 429 ? 'rate-limit' : response.status === 404 ? 'not-found' : 'network', response.status) : null;
+    if (failure && !onDiagnostics) { await response.body?.cancel(); throw failure; }
+    const oversizedHeader = Number(response.headers.get('content-length')) > RESPONSE_BYTES;
+    if (oversizedHeader && !onDiagnostics) { await response.body?.cancel(); throw new LocalModelError('too-large'); }
     const reader = response.body?.getReader();
-    if (!reader) throw new LocalModelError('invalid-output');
+    if (!reader) {
+      diagnose(onDiagnostics, 'output', { status: response.status, body: '', truncated: false });
+      throw failure ?? new LocalModelError('invalid-output');
+    }
     let size = 0;
     const decoder = new TextDecoder();
-    let text = '';
+    let text = '', diagnosticSize = 0, diagnosticTruncated = false;
+    const diagnosticChunks: Uint8Array[] = [];
+    const limit = failure || oversizedHeader ? DIAGNOSTIC_BYTES : RESPONSE_BYTES;
     try {
       for (;;) {
         controller.signal.throwIfAborted();
         const { done, value } = await reader.read();
         if (done) break;
+        if (onDiagnostics) {
+          const kept = value.subarray(0, Math.max(0, DIAGNOSTIC_BYTES - diagnosticSize));
+          if (kept.byteLength) diagnosticChunks.push(kept.slice());
+          diagnosticSize += kept.byteLength;
+          if (kept.byteLength < value.byteLength) diagnosticTruncated = true;
+        }
         size += value.byteLength;
-        if (size > RESPONSE_BYTES) throw new LocalModelError('too-large');
+        if (size > limit) {
+          diagnosticTruncated = true;
+          if (failure || oversizedHeader) break;
+          throw new LocalModelError('too-large');
+        }
         text += decoder.decode(value, { stream: true });
       }
       text += decoder.decode();
-    } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
+    } catch (error) {
+      diagnosticTruncated = true;
+      if (failure) diagnose(onDiagnostics, 'error', transportError(error));
+      if (!failure) throw error;
+    } finally {
+      await reader.cancel().catch(() => undefined); reader.releaseLock();
+      if (onDiagnostics) {
+        const captured = new Uint8Array(diagnosticSize); let offset = 0;
+        for (const chunk of diagnosticChunks) { captured.set(chunk, offset); offset += chunk.byteLength; }
+        // An incomplete final UTF-8 character is omitted, never expanded past the byte cap.
+        const body = new TextDecoder().decode(captured, { stream: diagnosticTruncated });
+        diagnose(onDiagnostics, 'output', { status: response.status, body, truncated: diagnosticTruncated });
+      }
+    }
+    if (failure) throw failure;
+    if (oversizedHeader) throw new LocalModelError('too-large');
     try { return JSON.parse(text) as unknown; } catch { throw new LocalModelError('invalid-output'); }
   } catch (error) {
+    if (!(error instanceof LocalModelError)) diagnose(onDiagnostics, 'error', transportError(error));
+    if (error instanceof LocalModelError && error.status !== undefined) throw error;
     if (timedOut) throw new LocalModelError('timeout');
     if (signal?.aborted) throw new LocalModelError('aborted');
     if (error instanceof LocalModelError) throw error;
@@ -112,11 +157,11 @@ export function localModelFailure(error: unknown): ConnectionFailure {
     : error.code === 'not-found' ? 'not-found' : error.code === 'model-missing' ? 'model-missing'
     : error.code === 'unavailable' ? 'not-supported' : error.code === 'redirect' ? 'redirect' : error.code === 'configuration' ? 'configuration'
     : error.code === 'timeout' ? 'timeout' : error.code === 'rate-limit' ? 'rate-limited'
-    : error.code === 'invalid-output' ? 'invalid-response' : error.code === 'too-large' ? 'too-large' : 'network';
+    : ['invalid-output', 'empty-output', 'truncated-output', 'refused-output'].includes(error.code) ? 'invalid-response' : error.code === 'too-large' ? 'too-large' : 'network';
   return { kind, ...(error.status === undefined ? {} : { status: error.status }) };
 }
 
-/** Discovery does not prove that a listed model can generate structured output. */
+/** Discovery does not prove that a listed model can complete a generation request. */
 export async function discoverLocalModels(env: unknown, input: DiscoverModelProviderInput, fetchImpl: typeof fetch = fetch): Promise<DiscoverModelProviderResult> {
   try {
     const fields = input?.fields;
@@ -140,21 +185,23 @@ export async function checkLocalModel(env: unknown, fields: Record<string, strin
   if (!response.data.some(row => object(row) && row.id === fields[LOCAL_MODEL_ID])) throw new LocalModelError('model-missing');
 }
 
-/** The caller validates the returned object against its own domain schema. */
-export async function generateLocalModel(env: unknown, fields: Record<string, string>, options: LocalModelOptions): Promise<unknown> {
+/** Only the server's final answer is returned; reasoning and tool calls are never an answer. */
+export async function generateLocalModel(env: unknown, fields: Record<string, string>, options: LocalModelOptions): Promise<string> {
   if (!fields[LOCAL_MODEL_ID]?.trim()) throw new LocalModelError('configuration');
   const response = await request(env, fields, 'chat/completions', JSON.stringify({ model: fields[LOCAL_MODEL_ID], messages: options.messages,
     stream: false, max_tokens: 4096, temperature: 0.2,
-    response_format: { type: 'json_schema', json_schema: { name: 'noticeos_response', strict: true, schema: options.responseSchema } },
-  }), options.fetchImpl ?? fetch, MODEL_GENERATION_TIMEOUT_MS, options.signal);
+  }), options.fetchImpl ?? fetch, MODEL_GENERATION_TIMEOUT_MS, options.signal, options.onDiagnostics);
   if (!object(response) || !Array.isArray(response.choices) || response.choices.length !== 1) throw new LocalModelError('invalid-output');
   const choice: unknown = response.choices[0];
-  if (!object(choice) || choice.finish_reason !== 'stop' || !object(choice.message)
-      || typeof choice.message.content !== 'string' || choice.message.refusal
+  if (!object(choice) || !object(choice.message)) throw new LocalModelError('invalid-output');
+  if (choice.finish_reason === 'content_filter' || choice.message.refusal) throw new LocalModelError('refused-output');
+  if (choice.finish_reason === 'length') throw new LocalModelError('truncated-output');
+  if (choice.finish_reason !== 'stop'
+      || choice.message.function_call != null
       || (choice.message.tool_calls != null && (!Array.isArray(choice.message.tool_calls) || choice.message.tool_calls.length > 0))) throw new LocalModelError('invalid-output');
-  try {
-    const value: unknown = JSON.parse(choice.message.content);
-    if (!object(value)) throw new LocalModelError('invalid-output');
-    return value;
-  } catch { throw new LocalModelError('invalid-output'); }
+  if (choice.message.content == null) throw new LocalModelError('empty-output');
+  if (typeof choice.message.content !== 'string') throw new LocalModelError('invalid-output');
+  const content = choice.message.content.trim();
+  if (!content) throw new LocalModelError('empty-output');
+  return content;
 }

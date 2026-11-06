@@ -352,3 +352,30 @@ test('the blocked list is capped, and the tasks a listed decision holds lead it'
   assert.deepEqual(entry.blocked.slice(0, 3).map((issue) => issue.id), ['shop-h1', 'shop-h2', 'shop-b0']);
   assert.deepEqual(summarizeBeadsProject(PROJECT, { active: { code: 1, stdout: '', stderr: 'down' } }).blocked, []);
 });
+
+
+test('failed snapshot POST retains bounded actual response diagnostics and redacts the known token before logging', async () => {
+  const token = 'synthetic-bare-post-token'; const lines = [];
+  const result = await runBeadsPoll({ running: true, ready: true }, {
+    readConfig: async () => JSON.stringify({ spokes: [] }), readToken: async () => token, stopped: () => false,
+    state: { skipping: null }, emit: (_level, text) => lines.push(text),
+    post: async () => new Response(`Actual rejected POST: ${token} ${'x'.repeat(100_000)}`, { status: 503 }),
+  });
+  assert.equal(result.ok, false); assert.equal(result.response.status, 503);
+  assert.ok(result.response.body.includes('Actual rejected POST'));
+  assert.equal(result.response.truncated, true); assert.equal(result.response.redacted, true);
+  assert.ok(new TextEncoder().encode(result.response.body).byteLength <= 16_384);
+  assert.ok(!JSON.stringify({ result, lines }).includes(token));
+});
+
+test('thrown snapshot POST errors retain actual error detail without bare known tokens', async () => {
+  const token = 'synthetic-bare-error-token'; const lines = [];
+  const result = await runBeadsPoll({ running: true, ready: true }, {
+    readConfig: async () => JSON.stringify({ spokes: [] }), readToken: async () => token, stopped: () => false,
+    state: { skipping: null }, emit: (_level, text) => lines.push(text),
+    post: async () => { throw new Error(`Actual POST error: ${token}`); },
+  });
+  assert.equal(result.ok, false); assert.ok(result.error.text.includes('Actual POST error'));
+  assert.equal(result.error.redacted, true);
+  assert.ok(!JSON.stringify({ result, lines }).includes(token));
+});

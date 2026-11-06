@@ -9,10 +9,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type { WorkflowRun, WorkflowStepRun } from '../packages/contract/src/workflows.js';
+import { boundWorkflowRunDiagnostics, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { createWorkflowRecorder, workflowResult, type WorkflowRecorder } from './workflow-trace.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 
+// Rich details have independent byte/count retention; the coarse ledger does not retain raw diagnostics for thirty days.
 export const WORKFLOW_HISTORY_FILE: string = '.local/logs/workflow-runs.jsonl';
 export const WORKFLOW_ACTIVE_FILE: string = '.local/workflow-active.json';
 export const WORKFLOW_SESSION_ID: string = randomUUID();
@@ -63,8 +65,12 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
       run: recorder.run,
       verdict: (outcome: string) => workflowResult(recorder.steps, outcome),
       adopt(steps?: WorkflowStepRun[]) {
-        // The private Worker RPC emits bounded, payload-free step observations.
-        if (Array.isArray(steps)) recorder.steps.push(...steps);
+        // Only bounded diagnostics from the private receiver enter retained history.
+        if (Array.isArray(steps)) recorder.steps.push(...steps.map(step => {
+          const { diagnostics, ...rest } = step;
+          return { ...rest, ...(isWorkflowStepDiagnostics(diagnostics) ? { diagnostics } : {}) };
+        }));
+        boundWorkflowRunDiagnostics(recorder.steps);
         run.steps = recorder.steps;
       },
       async finish(outcome: string) {

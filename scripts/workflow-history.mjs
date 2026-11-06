@@ -8,9 +8,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { boundWorkflowRunDiagnostics, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { createWorkflowRecorder, workflowResult } from './workflow-trace.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
+// Rich details have independent byte/count retention; the coarse ledger does not retain raw diagnostics for thirty days.
 export const WORKFLOW_HISTORY_FILE = '.local/logs/workflow-runs.jsonl';
 export const WORKFLOW_ACTIVE_FILE = '.local/workflow-active.json';
 export const WORKFLOW_SESSION_ID = randomUUID();
@@ -51,9 +53,13 @@ export function createWorkflowHistory(root) {
             run: recorder.run,
             verdict: (outcome) => workflowResult(recorder.steps, outcome),
             adopt(steps) {
-                // The private Worker RPC emits bounded, payload-free step observations.
+                // Only bounded diagnostics from the private receiver enter retained history.
                 if (Array.isArray(steps))
-                    recorder.steps.push(...steps);
+                    recorder.steps.push(...steps.map(step => {
+                        const { diagnostics, ...rest } = step;
+                        return { ...rest, ...(isWorkflowStepDiagnostics(diagnostics) ? { diagnostics } : {}) };
+                    }));
+                boundWorkflowRunDiagnostics(recorder.steps);
                 run.steps = recorder.steps;
             },
             async finish(outcome) {

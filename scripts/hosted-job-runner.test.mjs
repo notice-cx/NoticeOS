@@ -19,7 +19,7 @@ import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 const require = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'));
 const { Pool } = require('pg');
 const latch = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
-const definition = (steps, over = {}) => ({ key: 'synthetic', version: 'v1', parseInput: value => value, steps, ...over });
+const definition = (steps, over = {}) => ({ key: 'synthetic', version: 'v1', parseInput: value => value, diagnostics: { input: value => value && typeof value === 'object' ? { n: value.n, asset: value.asset } : value, output: value => ({ written: value?.written, ok: value?.ok, reason: value?.reason }), error: error => ({ name: error?.name }) }, steps, ...over });
 const database = (key, run) => ({ key, kind: 'database', action: 'assets.write', run });
 const effect = (key, run) => ({ key, kind: 'effect', action: 'tasks.write', run });
 
@@ -110,13 +110,49 @@ test('hosted occurrences preserve workspace authority, atomic steps and uncertai
         database('first', async (_, tx) => { firstCalls++; await bump(tx, 'first'); return { written: 1 }; }),
         database('second', async (_, tx) => { await bump(tx, 'second'); if (!failed) { failed = true; throw new Error('private failure'); } return { written: 1 }; }),
       ]));
-      assert.equal((await r.run('synthetic', 'retry-db', null)).state, 'retryable');
+      const failedRun = await r.run('synthetic', 'retry-db', null);
+      assert.equal(failedRun.state, 'retryable');
+      assert.equal(failedRun.steps.second.state, 'failed');
+      assert.ok(failedRun.steps.second.diagnostics.error.text.includes('Error'));
+      assert.ok(!JSON.stringify(failedRun).includes('private failure'));
+      assert.equal(failedRun.steps.second.diagnostics.output, undefined);
       assert.equal(await count(0, 'first'), 1); assert.equal(await count(0, 'second'), 0);
       const finished = await r.run('synthetic', 'retry-db', null);
       assert.equal(finished.state, 'succeeded'); assert.equal(finished.attempt, 2); assert.equal(firstCalls, 1);
       assert.equal(await count(0, 'first'), 1); assert.equal(await count(0, 'second'), 1);
       const attempts = (await admin.query("SELECT state FROM noticeos.hosted_job_attempts WHERE occurrence='retry-db' ORDER BY attempt")).rows;
       assert.deepEqual(attempts.map(r => r.state), ['retryable', 'succeeded']);
+    });
+    await t.test('explicit deployment projections exclude bare provider secrets and can disable diagnostic capture', async () => {
+      const secret = 'bare-provider-generated-private-value';
+      const r = make(0, definition([database('record', async () => ({ written: 1, message: secret }))]));
+      const result = await r.run('synthetic', 'allowlisted-diagnostics', { n: 1, extra: secret });
+      assert.equal(result.state, 'succeeded');
+      assert.ok(result.steps.record.diagnostics.output.text.includes('written'));
+      assert.ok(!JSON.stringify(result).includes(secret));
+      const disabled = make(0, definition([database('record', async () => ({ written: 1 }))], { diagnostics: false }));
+      const noDiagnostics = await disabled.run('synthetic', 'disabled-diagnostics', null);
+      assert.equal(noDiagnostics.steps.record.diagnostics, undefined);
+      const broken = make(0, definition([database('record', async () => ({ written: 1 }))], { diagnostics: {
+        input() { throw new Error(secret); }, output() { throw new Error(secret); }, error() { throw new Error(secret); },
+      } }));
+      assert.equal((await broken.run('synthetic', 'broken-diagnostic-projection', null)).state, 'succeeded');
+    });
+    await t.test('returned failures retain actual output and retry the failed database step', async () => {
+      let calls = 0;
+      const r = make(0, definition([database('collect', async (_, tx) => {
+        calls++; await bump(tx, 'returned-failure');
+        return calls === 1 ? { ok: false, reason: 'Synthetic quota failure', api_token: 'synthetic-private-token' } : { written: 1 };
+      })]));
+      const failed = await r.run('synthetic', 'returned-result', { asset: 'example.com' });
+      assert.equal(failed.state, 'retryable'); assert.equal(failed.steps.collect.state, 'failed');
+      assert.ok(failed.steps.collect.diagnostics.output.text.includes('Synthetic quota failure'));
+      assert.ok(!JSON.stringify(failed).includes('synthetic-private-token'));
+      assert.equal(failed.steps.collect.diagnostics.error, undefined);
+      assert.equal(await count(0, 'returned-failure'), 0);
+      const succeeded = await r.run('synthetic', 'returned-result', { asset: 'example.com' });
+      assert.equal(succeeded.state, 'succeeded'); assert.equal(calls, 2);
+      assert.equal(await count(0, 'returned-failure'), 1);
     });
     await t.test('outside failure is uncertain and cannot be blindly retried', async () => {
       let calls = 0; const r = make(0, definition([effect('send', async () => { calls++; throw new Error('secret provider body'); })]));
@@ -196,4 +232,15 @@ test('hosted occurrences preserve workspace authority, atomic steps and uncertai
     assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
     rmSync(root, { recursive: true, force: true }); assert.equal(existsSync(root), false);
   }
+});
+
+
+test('hosted definitions without an explicit diagnostic policy refuse before any resource access', () => {
+  let calls = 0;
+  const store = { read() { calls++; }, write() { calls++; } };
+  for (const diagnostics of [undefined, {}, { input: value => value, output: value => value }]) {
+    assert.throws(() => createHostedJobRunner({ workspaceId: randomUUID(), serviceId: randomUUID(), grant: {}, store,
+      definitions: [definition([database('record', async () => ({}))], { diagnostics })] }));
+  }
+  assert.equal(calls, 0);
 });

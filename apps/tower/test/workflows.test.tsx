@@ -236,6 +236,21 @@ describe('workflow operating surface', () => {
     expect(screen.getByText('Execution stages')).toBeVisible();
     expect(screen.getAllByText(reason)).toHaveLength(1);
   });
+  it.each(['failed', 'succeeded'] as const)('makes actual %s run diagnostics available outside the execution graph', async state => {
+    const run: WorkflowRun = { ...trace, state, steps: [{ ...trace.steps![1]!, state,
+      diagnostics: { input: { text: '{"asset":"example.com"}', truncated: false, redacted: false },
+        output: { text: '{"written":2}', truncated: false, redacted: false } },
+    }] };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: run }))));
+    mount(`/health/operations/counters?run=${encodeURIComponent(run.id)}`);
+    const disclosure = await screen.findByText('Run diagnostics');
+    expect(disclosure).toBeVisible();
+    const panel = disclosure.closest('details')!;
+    expect(panel).not.toHaveAttribute('open');
+    expect(panel.parentElement?.closest('details')).toBeNull();
+    fireEvent.click(disclosure);
+    expect(within(panel).getByText('Refresh Google signals')).toBeVisible();
+  });
   it('shows retained failure guidance without inventing a missing stage', async () => {
     const run: WorkflowRun = { ...trace, id: `portfolio-brief@${trace.startedAt}`, workflowId: 'portfolio-brief', steps: null,
       failure: { summary: 'The model server refused access.', action: 'Review the API token and model permissions in Integrations, then retry.' } };

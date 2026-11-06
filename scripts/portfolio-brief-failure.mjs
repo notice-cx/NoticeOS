@@ -2,6 +2,38 @@
 // Shared generation budget and fixed operator messages; never provider response text.
 export const MODEL_GENERATION_TIMEOUT_MS = 10 * 60_000;
 export const PORTFOLIO_BRIEF_FAILURES = {
+    'briefing-format': {
+        summary: 'The model answer was missing a briefing section.',
+        action: 'Retry the briefing. NoticeOS needs a takeaway, observation, reason and next step for each card.',
+    },
+    'briefing-sources': {
+        summary: 'The model cited unknown sources or only background context.',
+        action: 'Retry the briefing. Each insight must refer to a supplied recent observation.',
+    },
+    'briefing-periods': {
+        summary: 'The answer’s reporting periods did not match its cited sources.',
+        action: 'Retry the briefing. Measurements from different periods must stay in separate insights.',
+    },
+    'briefing-length': {
+        summary: 'The model answer exceeded the briefing length limit.',
+        action: 'Retry with a model that follows concise-answer instructions. Briefings allow up to 3 cards and 360 words.',
+    },
+    'empty-output': {
+        summary: 'The model returned no final answer.',
+        action: 'Check whether the model produced only reasoning. Adjust its reasoning settings in the model server, then retry.',
+    },
+    'truncated-output': {
+        summary: 'The model reached its output limit before finishing.',
+        action: 'Check whether reasoning used up the output budget. Adjust the model’s reasoning settings, then retry.',
+    },
+    'refused-output': {
+        summary: 'The model declined to write the briefing.',
+        action: 'Review the model server’s restrictions or choose another model in Integrations.',
+    },
+    'model-response': {
+        summary: 'The model server returned an unexpected response.',
+        action: 'Check the server’s chat completion support and selected model, then retry.',
+    },
     timeout: {
         summary: `The model did not finish within ${MODEL_GENERATION_TIMEOUT_MS / 60_000} minutes.`,
         action: 'Check whether the model is still loading or serving other requests. Retry when it is ready.',

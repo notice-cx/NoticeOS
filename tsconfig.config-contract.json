@@ -57,6 +57,7 @@
     "scripts/workflow-output.mts",
     "scripts/portfolio-brief-failure.mts",
     "scripts/workflow-trace.mts",
+    "scripts/workflow-diagnostics.mts",
     "scripts/workflow-definitions.mts",
     "scripts/scheduled-jobs.mts",
     "scripts/os-deploy-events.mts",

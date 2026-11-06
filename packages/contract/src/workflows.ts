@@ -11,6 +11,9 @@ export interface WorkflowStepDefinition {
   after: string[];
 }
 
+export interface WorkflowDiagnostic { text: string; truncated: boolean; redacted: boolean }
+export interface WorkflowStepDiagnostics { input?: WorkflowDiagnostic; output?: WorkflowDiagnostic; error?: WorkflowDiagnostic }
+
 export interface WorkflowStepRun {
   id: string;
   attempt: number;
@@ -19,6 +22,7 @@ export interface WorkflowStepRun {
   state: WorkflowStepState;
   summary?: string;
   output?: WorkflowStepOutput;
+  diagnostics?: WorkflowStepDiagnostics;
 }
 
 export interface WorkflowOutputValue {

@@ -2,15 +2,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Transaction, WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
 import { createWorkspaceAdmission, type WorkspaceAction, type WorkspaceContext, type WorkspaceAdmission } from './workspace-admission.mjs';
+import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { stepResult } from './workflow-trace.mjs';
-import type { WorkflowStepOutput } from '../packages/contract/src/workflows.js';
+import type { WorkflowStepDiagnostics, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
 import { SCHEDULED_JOBS, jobRunName } from './scheduled-jobs.mjs';
 import { hostedJobDefinitionHash } from './hosted-job-definition.mjs';
 
 /** The registry is executable deployment code, never a request or saved config.
- * Inputs are validated by that code, kept in memory, and persisted only as a
- * digest. Retrying requires supplying the identical validated input again. */
+ * Inputs are validated by that code; redacted bounded diagnostics accompany
+ * their digest. Retrying requires supplying the identical validated input again. */
 export type JobInput = null | boolean | number | string | readonly JobInput[] | { readonly [key: string]: JobInput };
 interface StepCall {
   readonly context: WorkspaceContext;
@@ -26,21 +27,29 @@ export type HostedJobStep = {
   | { readonly kind: 'database'; readonly run: (call: StepCall, tx: Transaction) => Promise<unknown> }
   | { readonly kind: 'effect'; readonly run: (call: StepCall) => Promise<unknown> }
 );
+/** Projectors select fields safe for operator history; omit credentials and raw provider bodies. */
+export interface HostedDiagnosticPolicy {
+  readonly input: (input: JobInput) => unknown;
+  readonly output: (value: unknown) => unknown;
+  readonly error: (error: unknown) => unknown;
+}
 export interface HostedJobDefinition {
   readonly key: string;
   /** Change when the implementation or its interpretation of input changes. */
   readonly version: string;
   readonly parseInput: (input: unknown) => JobInput;
+  readonly diagnostics: HostedDiagnosticPolicy | false;
   readonly steps: readonly HostedJobStep[];
 }
 type State = 'running' | 'retryable' | 'succeeded' | 'uncertain' | 'blocked' | 'exhausted';
 interface Evidence {
-  readonly state: 'succeeded' | 'skipped';
+  readonly state: 'succeeded' | 'skipped' | 'failed';
   readonly summary: string;
   readonly attempt?: number;
   readonly startedAt?: string;
   readonly finishedAt?: string;
   readonly output?: WorkflowStepOutput;
+  readonly diagnostics?: WorkflowStepDiagnostics;
 }
 export interface HostedJobReceipt {
   readonly state: State | 'busy';
@@ -122,14 +131,29 @@ async function locked(tx: Transaction, lane: string, occurrence: string): Promis
 function receipt(row: Stored, state: HostedJobReceipt['state'] = row.state): HostedJobReceipt {
   return Object.freeze({ state, attempt: row.attempt, steps: Object.freeze(structuredClone(row.steps)) });
 }
-function observed(value: unknown, startedAt: string): Evidence {
+function diagnostics(policy: HostedDiagnosticPolicy | false, input: JobInput, value: unknown, hasValue: boolean, error?: unknown): WorkflowStepDiagnostics | undefined {
+  if (policy === false) return undefined;
+  const result: WorkflowStepDiagnostics = {};
+  for (const [key, project, source] of [['input', policy.input, input], ...(hasValue ? [['output', policy.output, value]] : []),
+    ...(error !== undefined ? [['error', policy.error, error]] : [])] as const) {
+    try {
+      const projected = (project as (value: unknown) => unknown)(source);
+      if (projected !== undefined) result[key as keyof WorkflowStepDiagnostics] = captureWorkflowDiagnostic(projected, { maxBytes: 8192 });
+    } catch { /* deployment projections fail closed without affecting the job */ }
+  }
+  return Object.keys(result).length ? result : undefined;
+}
+function boundEvidence(steps: Record<string, Evidence>): void {
+  boundWorkflowRunDiagnostics(Object.values(steps));
+}
+function observed(value: unknown, startedAt: string, input: JobInput, policy: HostedDiagnosticPolicy | false): Evidence {
   const result = stepResult(value);
   if (!['succeeded', 'skipped'].includes(result.state) || typeof result.summary !== 'string') refuse();
   const output = captureWorkflowOutput(value);
   const evidence: Evidence = { state: result.state === 'skipped' ? 'skipped' : 'succeeded', summary: result.summary,
     startedAt, finishedAt: new Date().toISOString(), ...(output ? { output } : {}) };
   if (Buffer.byteLength(JSON.stringify(evidence)) > 32_768) refuse();
-  return evidence;
+  return { ...evidence, diagnostics: diagnostics(policy, input, value, true) };
 }
 
 /** Owns the supplied store/grant, which deployment must bind to this workspace.
@@ -148,6 +172,7 @@ export function createHostedJobRunner(options: {
   const definitions = new Map<string, HostedJobDefinition & { hash: string }>();
   for (const source of options.definitions) {
     if (!key(source.key) || !key(source.version) || definitions.has(source.key) || typeof source.parseInput !== 'function'
+      || !(source.diagnostics === false || source.diagnostics && ['input', 'output', 'error'].every(key => typeof (source.diagnostics as unknown as Record<string, unknown>)[key] === 'function'))
       || !Array.isArray(source.steps) || source.steps.length === 0 || source.steps.length > 16) refuse();
     const steps: readonly HostedJobStep[] = source.steps.map((step: HostedJobStep) => {
       if (!key(step.key) || !['database', 'effect'].includes(step.kind) || typeof step.run !== 'function' || typeof step.action !== 'string') refuse();
@@ -155,7 +180,7 @@ export function createHostedJobRunner(options: {
     });
     if (new Set(steps.map(step => step.key)).size !== steps.length) refuse();
     const hash = hostedJobDefinitionHash(source.version, steps);
-    definitions.set(source.key, Object.freeze({ key: source.key, version: source.version, parseInput: source.parseInput, steps: Object.freeze(steps), hash }));
+    definitions.set(source.key, Object.freeze({ key: source.key, version: source.version, parseInput: source.parseInput, diagnostics: source.diagnostics === false ? false : Object.freeze({ ...source.diagnostics }), steps: Object.freeze(steps), hash }));
   }
   const admission: WorkspaceAdmission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('hosted jobs'), authority: async () => {
     const facts = await grant.facts();
@@ -205,8 +230,15 @@ export function createHostedJobRunner(options: {
     const owns = (row: Stored | null): Stored => {
       if (!row || row.lease_id !== token || row.state !== 'running') refuse(); same(row); return row;
     };
-    const finish = async (state: State): Promise<HostedJobReceipt> => write(async tx => {
-      const row = owns(await locked(tx, lane, occurrence));
+    const finish = async (state: State, failedStep?: { key: string; evidence: Evidence }): Promise<HostedJobReceipt> => write(async tx => {
+      let row = owns(await locked(tx, lane, occurrence));
+      if (failedStep) {
+        const steps = { ...row.steps, [failedStep.key]: { ...failedStep.evidence, attempt: row.attempt } };
+        boundEvidence(steps);
+        await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET steps=$4::jsonb
+          WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps)]);
+        row = { ...row, steps };
+      }
       await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET state=$4,updated_at=clock_timestamp()
         WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, state]);
       await tx.execute(`UPDATE noticeos.hosted_job_attempts SET state=$4,finished_at=clock_timestamp()
@@ -249,29 +281,33 @@ export function createHostedJobRunner(options: {
       const timer = setTimeout(() => controller.abort(), EFFECT_MS);
       const startedAt = new Date().toISOString();
       let effectStarted = false, startAttempted = false, admitted = false;
+      let returned: unknown, hasReturned = false;
       try {
         await fresh(step.action, correlation, async context => {
           admitted = true;
           const call: StepCall = { context, occurrence, input, signal: controller.signal };
           const mark = async (tx: Transaction, row: Stored, evidence: Evidence): Promise<void> => {
+            const steps = { ...row.steps, [step.key]: { ...evidence, attempt: row.attempt } };
+            boundEvidence(steps);
             await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET steps=$4::jsonb,effect_step=NULL,
               lease_expires_at=clock_timestamp()+$5::int*interval '1 second',updated_at=clock_timestamp()
-              WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify({ ...row.steps, [step.key]: { ...evidence, attempt: row.attempt } }), LEASE_SECONDS]);
+              WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps), LEASE_SECONDS]);
           };
           if (step.kind === 'database') {
             await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
-              if (Object.hasOwn(row.steps, step.key)) return;
+              if (row.steps[step.key] && row.steps[step.key]!.state !== 'failed') return;
               if (row.effect_step !== null) refuse();
               if (controller.signal.aborted) refuse();
               const value = await step.run(call, tx);
+              returned = value; hasReturned = true;
               if (controller.signal.aborted) refuse();
-              await mark(tx, row, observed(value, startedAt));
+              await mark(tx, row, observed(value, startedAt, input, definition.diagnostics));
             });
           } else {
             const shouldRun = await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
-              if (Object.hasOwn(row.steps, step.key)) return false;
+              if (row.steps[step.key] && row.steps[step.key]!.state !== 'failed') return false;
               if (row.effect_step !== null) refuse();
               // A lost COMMIT acknowledgement must not be called retryable.
               startAttempted = true;
@@ -284,8 +320,9 @@ export function createHostedJobRunner(options: {
             effectStarted = true;
             if (controller.signal.aborted) refuse();
             const value = await step.run(call);
+            returned = value; hasReturned = true;
             if (controller.signal.aborted) refuse();
-            const evidence = observed(value, startedAt);
+            const evidence = observed(value, startedAt, input, definition.diagnostics);
             await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
               if (row.effect_step !== step.key) refuse();
@@ -293,10 +330,14 @@ export function createHostedJobRunner(options: {
             });
           }
         });
-      } catch {
-        // Never persist the exception: providers may include credentials or
-        // private bodies. Failure after an outside start cannot prove no effect.
-        return finish(effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked');
+      } catch (error) {
+        // Failure after an outside start cannot prove no effect. Diagnostics
+        // record only redacted arguments and the observed error, never authority.
+        return finish(effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked', admitted ? {
+          key: step.key, evidence: { state: 'failed', summary: hasReturned && stepResult(returned).state === 'failed' ? stepResult(returned).summary ?? 'This step failed.' : 'This step failed.', startedAt, finishedAt: new Date().toISOString(),
+            diagnostics: diagnostics(definition.diagnostics, input, returned, hasReturned,
+              !hasReturned || stepResult(returned).state !== 'failed' ? error : undefined) },
+        } : undefined);
       } finally { clearTimeout(timer); controllers.delete(controller); }
     }
     return finish('succeeded');
