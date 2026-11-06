@@ -4,6 +4,7 @@ import { shiftRevenueDate } from '../shared/revenue-projection';
 import { isAmber } from '../shared/freshness';
 import { CADENCE_HOURS, windowSpansTimeZoneChange, type AssetCard, type SignalTrend, type WallPayload } from '../shared/wall';
 import type { WorkPayload } from '../shared/work';
+import { TASK_BLOCKING_DEPENDENCIES } from '@noticeos/contract/task-gate';
 import { currencyMinorDigits } from '@noticeos/contract/money';
 
 const ASSET_LIMIT = 40;
@@ -27,7 +28,7 @@ function accounting(figure: AssetCard['booked'], recorded?: boolean) {
 }
 
 function currentComparison(asset: AssetCard, end: string, now: Date): boolean {
-  if (!asset.activeUsers.timeZone || isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.signals)) return false;
+  if (!asset.activeUsers.timeZone || Date.parse(asset.activeUsers.collectedAt ?? '') > now.getTime() || isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.signals)) return false;
   const today = calendarDateIn(asset.activeUsers.timeZone)(now);
   // GA4 collection leaves today and yesterday provisional (`ga4ProvisionalFrom`).
   // An older complete window remains context rather than a current insight.
@@ -100,7 +101,8 @@ export function buildPortfolioBriefEvidence(
   const add = (id: string, label: string, href: string, observedAt: string | null, data: Record<string, unknown>, period: PortfolioBriefFact['period'] = null, comparison?: PortfolioBriefFact['comparison']) => {
     facts.push({ id, label: clip(label), href, observedAt, period, data, ...(comparison ? { comparison } : {}) });
   };
-  const assets = [...wall.assets].sort((a, b) => a.id.localeCompare(b.id)).slice(0, ASSET_LIMIT);
+  const assets = [...wall.assets].sort((a, b) => b.openError - a.openError || b.openWarn - a.openWarn ||
+    (Date.parse(b.activeUsers.collectedAt ?? '') || 0) - (Date.parse(a.activeUsers.collectedAt ?? '') || 0) || a.id.localeCompare(b.id)).slice(0, ASSET_LIMIT);
   const booked = accounting(wall.portfolio.booked, wall.portfolio.revenueRecorded?.booked);
   const estimated = accounting(wall.portfolio.forecast, wall.portfolio.revenueRecorded?.forecast);
   if (booked || estimated || wall.portfolio.bookedDelta) add('portfolio:ledger', 'Portfolio accounting', '/financials', wall.ledgerRecordedAt, {
@@ -118,6 +120,20 @@ export function buildPortfolioBriefEvidence(
     backupLastGoodAt: wall.system.backupLastGoodAt ?? null,
     caution: 'These are saved observations, not proof that a service is running now. Reporting gaps limit conclusions about business changes.',
   });
+  const recentFailures = failedJobs.filter(job => {
+    const at = Date.parse(job.startedAt);
+    return Number.isFinite(at) && at <= now.getTime() && now.getTime() - at <= 7 * DAY;
+  }).sort((a, b) => b.failedRuns - a.failedRuns || b.startedAt.localeCompare(a.startedAt)).slice(0, 6);
+  const operations: PortfolioBriefFact = {
+    id: 'operations:recent', domain: 'operations', basis: 'current-state', label: 'Recent execution and spending', href: '/health', observedAt: now.toISOString(), period: null,
+    data: { failedJobs: recentFailures, omittedFailures: failedJobs.length - recentFailures.length,
+      spendTodayUsd: wall.system.spendTodayUsd, spendingDateUTC: now.toISOString().slice(0, 10), dailyDataBudgetPaceUsd: wall.system.dailyCapUsd,
+      backupLastGoodAt: wall.system.backupLastGoodAt ?? null,
+      reporting: { expected: wall.system.ingest.expected, fresh: wall.system.ingest.fresh, stale: wall.system.ingest.stale },
+      caution: 'Latest stored run outcomes, not live availability. Daily budget pace is not a spending forecast. Missing reports are not business decline.' },
+  };
+  facts.push(operations);
+  if (recentFailures.length || wall.system.spendTodayUsd > wall.system.dailyCapUsd && wall.system.dailyCapUsd > 0) insightEvidenceIds.push(operations.id);
   for (const asset of assets) {
     const prefix = `asset:${asset.id}`;
     const href = siteHref(asset.id);
@@ -149,8 +165,11 @@ export function buildPortfolioBriefEvidence(
       watches: asset.watches ?? null,
       caution: insightSource ? 'The edition reporting window covers its combined source archives, not necessarily every finding. Publication time does not establish observation freshness; findings alone do not prove current impact.' : 'Finding reporting periods are absent from this read model. Publication time does not establish observation freshness; findings alone do not prove current impact.',
     }, insightSource?.windowStart && insightSource.windowEnd ? { start: insightSource.windowStart, end: insightSource.windowEnd } : null);
-    if (traffic) add(`${prefix}:traffic`, `${asset.displayName}: complete seven-day traffic comparison`, href, asset.activeUsers.collectedAt,
-      { ...traffic, metric: 'daily active users summed over days; not unique weekly people', timeZone: asset.activeUsers.timeZone ?? null }, { start: traffic.previousStart, end: traffic.end }, asset.activeUsers.timeZone ? comparisonPeriods(traffic, asset.activeUsers.timeZone) : undefined);
+    if (traffic) {
+      add(`${prefix}:traffic`, `${asset.displayName}: complete seven-day traffic comparison`, href, asset.activeUsers.collectedAt,
+        { ...traffic, metric: 'daily active users summed over days; not unique weekly people', timeZone: asset.activeUsers.timeZone ?? null }, { start: traffic.previousStart, end: traffic.end }, asset.activeUsers.timeZone ? comparisonPeriods(traffic, asset.activeUsers.timeZone) : undefined);
+      if (currentComparison(asset, traffic.end, now) && traffic.current !== traffic.previous) insightEvidenceIds.push(`${prefix}:traffic`);
+    }
     const revenue = options.revenueByAsset?.get(asset.id);
     const currency = revenue?.bySource?.[0]?.currency;
     const compatibleSources = Boolean(currency && revenue?.bySource?.length && revenue.bySource.every(source =>
@@ -174,8 +193,7 @@ export function buildPortfolioBriefEvidence(
           monetaryUnit: 'minor currency units',
           currencyMinorDigits: currency ? currencyMinorDigits(currency) : null,
         }, { start: money.previousStart, end }, comparisonPeriods(money, revenue.clock.timeZone));
-        if (currentComparison(asset, end, now) && alignedTraffic.changePercent !== null && money.changePercent !== null &&
-          (alignedTraffic.current !== alignedTraffic.previous || money.current !== money.previous) && Math.abs(alignedTraffic.changePercent - money.changePercent) > 0.000001) insightEvidenceIds.push(`${prefix}:traffic-revenue`);
+        if (currentComparison(asset, end, now) && (alignedTraffic.current !== alignedTraffic.previous || money.current !== money.previous)) insightEvidenceIds.push(`${prefix}:traffic-revenue`);
       }
     }
   }
@@ -195,7 +213,7 @@ export function buildPortfolioBriefEvidence(
         decliningAssets: rows.filter(row => row.comparison!.current < row.comparison!.previous).length,
         metric: 'daily active users summed over days; not unique weekly people',
       }, { start: rows[0]!.comparison!.previousStart, end: commonEnd }, comparisonPeriods(rows[0]!.comparison!, assets[0]!.activeUsers.timeZone!));
-      if (assets.every(asset => currentComparison(asset, commonEnd, now)) && rows.some(row => row.comparison!.current > row.comparison!.previous) && rows.some(row => row.comparison!.current < row.comparison!.previous)) insightEvidenceIds.push('portfolio:traffic-divergence');
+      if (assets.every(asset => currentComparison(asset, commonEnd, now)) && rows.some(row => row.comparison!.current !== row.comparison!.previous)) insightEvidenceIds.push('portfolio:traffic-divergence');
     }
   }
 
@@ -206,6 +224,21 @@ export function buildPortfolioBriefEvidence(
     linkedTasks: alert.handoffBeads?.slice(0, 3).map(task => ({ id: task.beadId, status: task.status })) ?? null,
   });
   const readable = work.projects.filter(project => project.ok);
+  const workFresh = work.capturedAt !== null && Date.parse(work.capturedAt) <= now.getTime() && !isAmber(now.getTime(), work.capturedAt, work.pollCadenceHours);
+  for (const project of readable.slice(0, ASSET_LIMIT)) {
+    const weeks = project.weeks;
+    const fact: PortfolioBriefFact = { id: `work:${project.asset}:progress`, domain: 'delivery',
+      ...(workFresh ? { basis: 'current-state' as const } : {}), label: `${clip(project.name, 100)}: delivery progress`, href: '/tasks', observedAt: work.capturedAt, period: null,
+      data: { asset: project.asset, name: clip(project.name, 100), counts: project.counts,
+        weeklyProgress: weeks ? { weekStart: weeks.weekStart, timeZone: weeks.timeZone ?? null, daysIn: weeks.daysIn,
+          closedThisWeek: weeks.done.now, closedLastWeekAtSameElapsedTime: weeks.done.before, closedWithoutShipping: weeks.done.notDone,
+          closedObservedAt: weeks.done.observedAt ?? null,
+          currentAnd7DaysAgo: Object.fromEntries((['waiting', 'urgent', 'inProgress', 'blocked'] as const).map(key => [key, { current: weeks[key].now, previous: weeks[key].before }])) } : null,
+        caution: 'Counts overlap: blocked and ready are subsets of open; waiting and urgent cut across states. Closure is not measured business impact. Missing history is unknown.' },
+    };
+    facts.push(fact);
+    if (workFresh && (project.counts.open || project.counts.inProgress || project.counts.closedRecent)) insightEvidenceIds.push(fact.id);
+  }
   add('work:coverage', 'Saved task coverage and project bottlenecks', '/tasks', work.capturedAt, {
     capturedAt: work.capturedAt, cadenceHours: work.pollCadenceHours,
     stale: isAmber(now.getTime(), work.capturedAt, work.pollCadenceHours),
@@ -226,6 +259,35 @@ export function buildPortfolioBriefEvidence(
     dependencies: task.dependencies?.slice(0, 6) ?? null,
     caution: 'Time since last update is not time in current status; the sample does not establish all blocked dependents.',
   });
+  const dependencyFacts: PortfolioBriefFact[] = [];
+  if (workFresh) for (const project of readable) {
+    const open = (task: typeof project.waiting[number]) => ['open', 'blocked'].includes(task.status) && !task.closedAt && !task.deferUntil;
+    const waiting = [...new Map(project.waiting.filter(open).map(task => [task.id, task])).values()];
+    const blocked = [...new Map((project.blocked ?? []).filter(open).map(task => [task.id, task])).values()];
+    for (const decision of waiting) {
+      const dependents = blocked.flatMap(task => {
+        if (task.id === decision.id) return [];
+        const edge = task.dependencies?.find(edge => edge.id === decision.id && TASK_BLOCKING_DEPENDENCIES.includes(edge.type) && edge.status !== 'closed' && edge.status !== 'deferred');
+        if (!edge) return [];
+        const other = task.dependencies!.filter(edge => edge.id !== decision.id && TASK_BLOCKING_DEPENDENCIES.includes(edge.type) && edge.status !== 'closed' && edge.status !== 'deferred');
+        return [{ id: task.id, title: clip(task.title), priority: task.priority, status: task.status,
+          href: `/tasks/${component(task.id)}?project=${component(project.asset)}`, dependencyType: edge.type,
+          otherBlockingDependencyIds: [...new Set(other.map(edge => edge.id))],
+          otherBlockingDependencyStatusesKnown: other.every(edge => typeof edge.status === 'string'),
+        }];
+      }).sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id));
+      if (!dependents.length) continue;
+      dependencyFacts.push({ id: `task-dependency:${project.asset}:${decision.id}`, label: clip(`${decision.title}: sampled blocked work`),
+        href: `/tasks/${component(decision.id)}?project=${component(project.asset)}`, observedAt: work.capturedAt, period: null, basis: 'task-dependency',
+        data: { project: project.asset, decision: { id: decision.id, title: clip(decision.title), priority: decision.priority, status: decision.status, waitingOnHuman: true },
+          sampledBlockedDependentCount: dependents.length, sampledBlockedDependents: dependents.slice(0, 6), omittedDependentDetails: Math.max(0, dependents.length - 6),
+          caution: 'Only explicit blocking links in the saved same-project sample are included. Other blockers may be absent or have unknown status; resolving this decision does not establish that dependent tasks are ready. Snapshot freshness does not establish time waiting or task impact.',
+        } });
+    }
+  }
+  dependencyFacts.sort((a, b) => a.id.localeCompare(b.id));
+  for (const fact of dependencyFacts.slice(0, TASK_LIMIT)) { facts.push(fact); insightEvidenceIds.push(fact.id); }
+  if (dependencyFacts.length > TASK_LIMIT) limitations.push(`Task dependency evidence covers ${TASK_LIMIT} of ${dependencyFacts.length} sampled decisions with blocked work.`);
   const packet: PortfolioBriefEvidence = {
     schemaVersion: 1, asOf: now.toISOString(), timeZone: wall.osTimeZone ?? 'UTC', facts, limitations, insightEvidenceIds,
     coverage: { assets: wall.assets.length, includedAssets: assets.length, projects: work.projects.length, readableProjects: readable.length,
@@ -251,12 +313,12 @@ export function buildPortfolioBriefEvidence(
     };
     packet.limitations.push(`${fact.id === 'work:coverage' ? 'Task project' : 'Background job'} details were compacted for the evidence size limit; missing detail does not establish a healthy or empty state.`);
   }
-  if (size() > PORTFOLIO_BRIEF_MAX_BYTES) {
+  if (size() > PORTFOLIO_BRIEF_MAX_BYTES || packet.facts.length > 260) {
     const noteIndex = packet.limitations.length;
     packet.limitations.push('Evidence details exceed the packet size limit.');
     let omitted = 0;
     const protectedIds = new Set(['work:coverage', 'system:coverage']);
-    while (size() > PORTFOLIO_BRIEF_MAX_BYTES) {
+    while (size() > PORTFOLIO_BRIEF_MAX_BYTES || packet.facts.length > 260) {
       const priority = (fact: PortfolioBriefFact) => packet.insightEvidenceIds.includes(fact.id) ? 5 : fact.id.startsWith('portfolio:') ? 4 : fact.id.startsWith('task:') || fact.id.startsWith('alert:') ? 3 : fact.id.endsWith(':traffic-revenue') ? 2 : 1;
       const removable = packet.facts.filter(fact => !protectedIds.has(fact.id));
       if (removable.length === 0) break;

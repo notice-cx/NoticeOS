@@ -16,6 +16,7 @@ const evidence = (at = NOW): PortfolioBriefEvidence => ({ schemaVersion: 1, asOf
     data: { trafficChangePercent: 50, revenueChangePercent: -20, complete: true } }], insightEvidenceIds: ['asset:example'], limitations: ['Synthetic evidence only.'],
   coverage: { assets: 1, includedAssets: 1, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } });
 const result = () => ({ headline: 'Review the available evidence', assessment: 'Coverage supports a focused review.', insights: [{
+  title: 'Investigate the yield change',
   observation: 'Over the latest 7 days versus the previous 7, traffic rose while revenue fell.', why: 'This warrants checking the relationship between traffic and revenue.',
   action: 'Compare the complete report with the next revenue report.', evidenceIds: ['asset:example'], confidence: 'medium',
 }] });
@@ -133,7 +134,7 @@ it.each(['unknown-citation', 'malformed', 'oversized', 'too-many-words', 'too-ma
   if (kind === 'unknown-citation') invalid.insights[0]!.evidenceIds = ['not-in-evidence'];
   if (kind === 'malformed') invalid.insights[0]!.confidence = 'certain';
   if (kind === 'too-many-words') invalid.assessment = 'word '.repeat(200).trim();
-  if (kind === 'too-many-insights') invalid.insights = Array.from({ length: 3 }, () => ({ ...invalid.insights[0]! }));
+  if (kind === 'too-many-insights') invalid.insights = Array.from({ length: 4 }, () => ({ ...invalid.insights[0]! }));
   if (kind === 'unfinished-sentence') invalid.assessment = 'Reporting coverage is complete, but';
   if (kind === 'missing-timeframe') invalid.insights[0]!.observation = 'Traffic rose while revenue fell.';
   if (kind === 'wrong-current-period') invalid.insights[0]!.observation = 'Over the latest 30 days versus the previous 7, traffic rose while revenue fell.';
@@ -165,6 +166,66 @@ it('accepts multiple citations sharing the same comparison and supplies a bounde
   });
   expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl, clock: () => NOW }))
     .toMatchObject({ state: 'ready', briefing: { result: valid } });
+});
+
+it.each(['task-dependency', 'current-state', 'period-observation'] as const)('lets %s evidence reach editorial judgment without a traffic comparison', async basis => {
+  const target = selected(); await connect(target);
+  const packet = evidence();
+  packet.facts = [{ id: 'observation', domain: basis === 'period-observation' ? 'product' : 'delivery', basis,
+    label: 'Synthetic observation', href: '/tasks', observedAt: packet.asOf,
+    period: basis === 'period-observation' ? { start: '2026-10-30', end: '2026-11-05' } : null,
+    data: { decision: 'Choose release scope', sampledBlockedDependents: ['example-1', 'example-2'] } }];
+  packet.insightEvidenceIds = ['observation'];
+  const valid = result();
+  valid.insights[0] = { ...valid.insights[0]!, title: 'Review release scope', evidenceIds: ['observation'],
+    observation: `${basis === 'period-observation' ? 'Over the 7 days ending Nov 5, ' : 'Currently, '}the supplied observations support a focused review.` };
+  const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+    const request = JSON.parse(String(init?.body)) as { messages: { content: string }[] };
+    expect(request.messages[0]!.content).toContain('finance, acquisition, product, delivery, outcomes and operations');
+    expect(request.messages[0]!.content).toContain('do not assume any segment lost yield');
+    return response(valid);
+  });
+  expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl, clock: () => NOW }))
+    .toMatchObject({ state: 'ready', briefing: { result: valid } });
+  expect(fetchImpl).toHaveBeenCalledOnce();
+});
+
+it('accepts model abstention even when recent observations are available', async () => {
+  const target = selected(); await connect(target);
+  const fetchImpl = vi.fn<typeof fetch>(async () => response(PORTFOLIO_BRIEF_ABSTENTION));
+  expect(await refreshPortfolioBrief(target, evidence(), HOUR, { cache: memoryCache(), fetchImpl, clock: () => NOW }))
+    .toMatchObject({ state: 'ready', briefing: { result: { insights: [] } } });
+  expect(fetchImpl).toHaveBeenCalledOnce();
+});
+
+it('rejects an invented prior period for a current operational observation', async () => {
+  const target = selected(); await connect(target);
+  const packet = evidence();
+  packet.facts = [{ id: 'asset:example', basis: 'current-state', label: 'Current dependency', href: '/tasks', observedAt: packet.asOf, period: null, data: {} }];
+  expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl: async () => response(), clock: () => NOW }))
+    .toMatchObject({ state: 'unavailable', briefing: null });
+});
+
+it('does not let current operational context qualify an old comparison as a new insight', async () => {
+  const target = selected(); await connect(target);
+  const packet = evidence();
+  packet.facts.push({ id: 'current', basis: 'current-state', label: 'Current work', href: '/tasks', observedAt: packet.asOf, period: null, data: {} });
+  packet.insightEvidenceIds = ['current'];
+  const invalid = result(); invalid.insights[0]!.evidenceIds.push('current');
+  expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl: async () => response(invalid), clock: () => NOW }))
+    .toMatchObject({ state: 'unavailable', briefing: null });
+});
+
+it('rejects product observations from different source windows under one timeframe', async () => {
+  const target = selected(); await connect(target);
+  const packet = evidence();
+  packet.facts = ['first', 'second'].map((id, index) => ({ id, basis: 'period-observation' as const, label: 'Product observations', href: '/assets/example.com',
+    observedAt: packet.asOf, period: { start: index ? '2026-11-01' : '2026-10-30', end: '2026-11-05' }, data: {} }));
+  packet.insightEvidenceIds = ['first', 'second'];
+  const invalid = result(); invalid.insights[0]!.evidenceIds = packet.insightEvidenceIds;
+  invalid.insights[0]!.observation = 'Over the 7 days ending Nov 5, checkout errors and drop-off increased.';
+  expect(await refreshPortfolioBrief(target, packet, HOUR, { cache: memoryCache(), fetchImpl: async () => response(invalid), clock: () => NOW }))
+    .toMatchObject({ state: 'unavailable', briefing: null });
 });
 
 it.each(['reconnect', 'disconnect'])('hides an in-flight result after %s', async action => {

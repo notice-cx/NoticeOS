@@ -7,10 +7,15 @@ import { withTowerSteps } from '../worker/runner-route';
 vi.mock('../worker/wall-payload', () => ({ buildWallPayload: vi.fn(async () => ({ assets: [] })) }));
 vi.mock('../worker/work-payload', () => ({ buildWorkPayload: vi.fn(async () => ({})) }));
 vi.mock('../worker/daily-revenue', () => ({ loadRevenueHistories: vi.fn(async () => ({})) }));
-vi.mock('../worker/portfolio-brief-evidence', () => ({ buildPortfolioBriefEvidence: vi.fn(() => ({ insightEvidenceIds: [] })) }));
+vi.mock('../worker/portfolio-brief-readings', () => ({ loadPortfolioBriefReadings: vi.fn(async () => ({ facts: [], insightEvidenceIds: [] })) }));
+vi.mock('../worker/portfolio-brief-acquisition', () => ({ loadPortfolioBriefAcquisition: vi.fn(async () => ({ facts: [], insightEvidenceIds: [] })) }));
+vi.mock('../worker/portfolio-brief-evidence', () => ({ buildPortfolioBriefEvidence: vi.fn(() => ({
+  schemaVersion: 1, asOf: '2026-11-06T12:00:00.000Z', timeZone: 'UTC', facts: [], insightEvidenceIds: [], limitations: [],
+  coverage: { assets: 0, includedAssets: 0, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 },
+})) }));
 
 describe('manual briefing safeguards', () => {
-  it('records insufficient comparable evidence as skipped instead of claiming model generation', async () => {
+  it('records insufficient recent observations as skipped instead of claiming model generation', async () => {
     const state: PortfolioBriefRead = { state: 'awaiting', nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false };
     const refreshPortfolioBrief = vi.fn(async () => ({ ...state, lastAttemptAt: '2026-11-06T12:00:00.000Z' }));
     const config = vi.fn(async () => ({ schedules: {}, beads: { spokes: [] }, osTimeZone: 'UTC' }));
@@ -18,7 +23,7 @@ describe('manual briefing safeguards', () => {
       STORE: {} as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
       briefing: { config, ingest: { portfolioBrief: async () => state, refreshPortfolioBrief } },
     } as unknown as TowerCronEnv, () => new Date('2026-11-06T12:00:00.000Z'), 'manual');
-    expect(steps).toMatchObject([{ state: 'skipped', summary: 'No comparable evidence is available for briefing insights' }]);
+    expect(steps).toMatchObject([{ state: 'skipped', summary: 'No recent observations are available for briefing insights' }]);
     expect(refreshPortfolioBrief).toHaveBeenCalledOnce();
   });
   it.each([
