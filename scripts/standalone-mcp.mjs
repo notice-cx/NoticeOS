@@ -13,6 +13,9 @@ import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
 import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
+import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
+import { McpToolError } from './mcp-protocol.mjs';
+import { TaskServiceToolRefused, TaskServiceUnavailable, unavailableSentence } from './task-service.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory } from './standalone-tasks.mjs';
 import { taskChildEnvironment } from './task-client.mjs';
@@ -70,6 +73,40 @@ export function runTaskClient(argv, cwd, env = process.env, timeout = 30_000) {
             const timedOut = error !== null && error.killed === true && error.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
             resolve({ code, stdout, timedOut });
         });
+    });
+}
+/** The task tools on the task service, refusing in a sentence an agent can act on. */
+export function remoteTaskTools(service) {
+    const where = () => service.origin().catch(() => null);
+    return Object.freeze({
+        async connected() {
+            const backend = await service.backend();
+            if (backend === 'unknown') {
+                throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
+            }
+            return backend === 'ntasks';
+        },
+        async call(name, args, request) {
+            // Ntasks records the change as this agent's, under the installation's credential.
+            const actor = actorOf(request);
+            if (actor === null)
+                throw new McpToolError('refused: invalid actor; an actor is 1–128 of A–Z a–z 0–9 . _ : / - starting with a letter or digit.');
+            try {
+                return await service.tool(name, args, actor);
+            }
+            catch (error) {
+                if (error instanceof TaskServiceToolRefused)
+                    throw new McpToolError(error.message);
+                if (!(error instanceof TaskServiceUnavailable))
+                    throw error;
+                const tool = TASK_MCP_TOOLS.find(entry => entry.name === name);
+                const changes = tool?.annotations.readOnlyHint === false;
+                const keyed = Object.hasOwn(tool?.inputSchema?.properties ?? {}, 'idempotency_key');
+                throw new McpToolError(`unavailable: ${unavailableSentence(error, await where())} ${!changes ? 'Nothing was read; retry the same call.'
+                    : keyed ? 'Its outcome is not confirmed: read the task, or retry with the same idempotency_key, which lands it at most once.'
+                        : 'Its outcome is not confirmed: read the task to see whether it landed before retrying.'}`);
+            }
+        },
     });
 }
 /** Shared by the standalone Tower and MCP writers, across processes. */
@@ -131,7 +168,8 @@ export async function openStandaloneMcp(options) {
     const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;
     const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;
     const handle = createHostedMcp({ profile: 'standalone', trustedOrigin: STANDALONE_MCP_ORIGIN, standaloneWorkspaceId: workspaceId,
-        operations, readModels: async (request) => fetch(tower + MCP_PATH, { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }),
+        operations, ...(options.taskService ? { remoteTasks: remoteTaskTools(options.taskService) } : {}),
+        readModels: async (request) => fetch(tower + MCP_PATH, { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }),
         panels: createPanelOperations({ admission, root: () => panelRoot }),
         journeys: async (request) => {
             if (actorOf(request) === null)

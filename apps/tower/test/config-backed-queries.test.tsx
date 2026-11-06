@@ -253,7 +253,7 @@ const consumers = {
   "config/domain-costs.json": ["financials"],
   "config/recurring-costs.json": ["financials"],
   "config/entities.json": ["settings"],
-  "config/beads.json": ["settings", "task-source", "work"],
+  "config/beads.json": ["settings", "task-source", "task-service", "work"],
 } satisfies Record<(typeof TOWER_CONFIG_FILES)[keyof typeof TOWER_CONFIG_FILES], string[]>;
 
 describe("document consumers", () => {

@@ -10,6 +10,7 @@ import { beadsDatabaseName, readTaskProjectConfig, taskProjectDirectory } from '
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
+import { bdLaneSkip, taskBackend } from './task-service-poll.mjs';
 import { operatorToken } from './operator-token.mjs';
 import {
   HUMAN_LABEL,
@@ -254,11 +255,14 @@ export async function runTaskMapCheck(deps = {}) {
     stopped = () => isShuttingDown(),
     homeAsset = taskMapHomeAsset,
     exists = existsSync,
+    taskService = null,
   } = deps;
 
   const { skip, resume } = laneSkips('task map check', state, emit);
 
   if (stopped()) return null;
+  const standDown = bdLaneSkip(await taskBackend(taskService), 'check task databases');
+  if (standDown) return skip(standDown);
 
   const { projects: spokes, unreadable } = await readBeadsProjects(readConfig);
   if (unreadable) return skip(unreadable);

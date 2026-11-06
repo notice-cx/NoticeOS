@@ -110,6 +110,26 @@ export interface LiveTasksPayload {
   /** null when this project's `bd` could not answer `epic status` — the board
    * falls back to flat lists. */
   epics: LiveEpic[] | null;
+  /** Present when the task service could not be reached and this is the copy
+   * it last gave: `readAt` is when it read it, `reason` why it is not newer. */
+  cached?: TaskReadCached;
+}
+
+/** GET /api/tasks/service: whether this installation's tasks live in Ntasks,
+ * and the Ntasks project each saved task project maps to (by its prefix).
+ * `connected` is null when the installation's ingest cannot say. */
+export interface TaskServiceStatus {
+  connected: boolean | null;
+  origin: string | null;
+  projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string } | null }[] | null;
+  /** Why `projects` is null while connected. */
+  reason?: string;
+}
+export const TASK_SERVICE_STATUS_PATH = "/api/tasks/service";
+
+/** A task read answered from the copy kept on this machine (vite/task-service-lane.ts). */
+export interface TaskReadCached {
+  reason: string;
 }
 
 export interface TaskComment {
@@ -160,6 +180,7 @@ export interface LiveTaskDetail {
   readAt: string;
   task: LiveTask;
   comments: TaskComment[];
+  cached?: TaskReadCached;
 }
 
 /** What `POST /api/tasks` answers with: the id the hub minted. */
@@ -216,6 +237,8 @@ export const TASK_PROJECTS_PATH = "/settings/task-projects";
 /** The one line a read-only task surface shows beside its Read-only chip —
  * what to do, since the chip already says what happened. */
 export const READ_ONLY_TASKS_HINT = "Make changes from the local NoticeOS.";
+/** Why a control is off on a page showing the task service's kept copy. */
+export const TASK_SERVICE_OFFLINE_HINT = "Changes can be sent when Ntasks answers.";
 
 /** The verbs the lane will run, as the operator's own words. The client
  * renders it and the lane enforces it. `respond` closes a decision and hands

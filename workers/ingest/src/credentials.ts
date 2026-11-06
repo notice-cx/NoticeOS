@@ -40,6 +40,7 @@ import {
 } from '@noticeos/contract';
 import { getConfigDocument } from './config-store.js';
 import { localModelBaseUrl } from './local-model.js';
+import { NTASKS_URL, ntasksOrigin } from './ntasks.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
@@ -745,6 +746,10 @@ export function validateCredentialFields(
     try { localModelBaseUrl(typeof fields.LOCAL_MODEL_BASE_URL === 'string' ? fields.LOCAL_MODEL_BASE_URL : ''); }
     catch { issues.push(issue('LOCAL_MODEL_BASE_URL', 'invalid_url', 'Enter an HTTPS API base URL, or a local HTTP address, without a password, query or fragment.')); }
   }
+  if (provider.id === 'ntasks') {
+    try { ntasksOrigin(typeof fields[NTASKS_URL] === 'string' ? fields[NTASKS_URL] : ''); }
+    catch { issues.push(issue(NTASKS_URL, 'invalid_url', 'Enter the HTTPS address of the Ntasks Worker, or a local HTTP address, with no path, password, query or fragment.')); }
+  }
   const known = new Map(provider.fields.map((field) => [field.name, field]));
 
   for (const name of Object.keys(fields)) {
@@ -899,6 +904,9 @@ export async function putCredential(
   }
   if (provider.id === 'local-model' && workspaceProfile(env) !== 'standalone') {
     return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'Model connections require a standalone installation.')] };
+  }
+  if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone') {
+    return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'An Ntasks connection requires a standalone installation.')] };
   }
   const raw = input.fields;
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {

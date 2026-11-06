@@ -73,8 +73,9 @@ function access(scopes, workspace) {
 }
 export function createHostedMcp(options) {
     const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-    const { profile, operations, agents, readModels, panels, journeys } = options;
+    const { profile, operations, agents, readModels, panels, journeys, remoteTasks } = options;
     if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
+        || remoteTasks !== undefined && (profile !== 'standalone' || typeof remoteTasks.connected !== 'function' || typeof remoteTasks.call !== 'function')
         || readModels !== undefined && typeof readModels !== 'function'
         || panels !== undefined && typeof panels?.read !== 'function'
         || journeys !== undefined && (profile !== 'standalone' || typeof journeys !== 'function'))
@@ -196,6 +197,8 @@ export function createHostedMcp(options) {
                 const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
                 const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
                 try {
+                    if (task && remoteTasks && await remoteTasks.connected())
+                        return await remoteTasks.call(name, args, proof);
                     if (task)
                         return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
                     if (panel)

@@ -191,7 +191,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const {
     data, drawn, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, availableSpokes, availableProjects, selectedProject, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
-    totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken,
+    totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken, cachedProjects,
     closedHistoryState, weeks, doneRead,
   } = useTaskBoard(scope, {
     project: projectFilter, status: statusFilter, priority: priorityFilter,
@@ -316,6 +316,20 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           <span id={BOARD_READ_ONLY_REASON_ID}>{READ_ONLY_TASKS_HINT}</span>
         </StatusBanner>
       </div>
+      {/* The task service did not answer: the rows are the copy it last
+          gave, kept on this machine, without actions. */}
+      <StatusBanner
+        open={cachedProjects.length > 0}
+        subject="tasks:cached"
+        severity="warn"
+        lead="Ntasks is not answering"
+        action={{ label: "Retry", onClick: () => void queryClient.invalidateQueries({ queryKey: ["tasks"] }) }}
+      >
+        <span data-tasks-cached>
+          {shownAt ? <>Showing the tasks read <AgeBadge iso={shownAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={now} lastGood />. </> : null}
+          Changes can be sent when it answers.
+        </span>
+      </StatusBanner>
 
       {/* One composer, two ways in: New task (location state) and `?new=1`
           (a link). It inherits the project the board is showing and nothing

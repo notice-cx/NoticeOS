@@ -32,6 +32,8 @@
     "scripts/mcp-stdio.mts",
     "scripts/standalone-tasks.mts",
     "scripts/standalone-mcp.mts",
+    "scripts/task-service.mts",
+    "scripts/task-service-cache.mts",
     "scripts/signal-panel-paths.mts",
     "scripts/panel-versions.mts",
     "scripts/panel-store.mts",

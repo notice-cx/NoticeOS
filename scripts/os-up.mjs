@@ -60,7 +60,7 @@ import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime
 import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-report.mjs';
 import { checkBeadsHub, taskHubPortDescription } from './runner/task-hub.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
-import { runBeadsPoll } from './runner/task-snapshot.mjs';
+import { runBeadsPoll, runnerTaskService } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 async function ensureDirs() {
@@ -316,10 +316,10 @@ export function hostLanes(runtime) {
       run: () => checkBeadsHub(),
       outcomeOf: (reachable) => ({ outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' }),
     },
-    'beads-snapshot': { run: () => runBeadsPoll(runtime) },
-    'panel-review': { run: () => runPanelReviewFiler(runtime) },
-    'watch-readbacks': { run: () => runWatchReadbackFiler() },
-    'task-map': { run: () => runTaskMapCheck() },
+    'beads-snapshot': { run: () => runBeadsPoll(runtime, { taskService: runnerTaskService() }) },
+    'panel-review': { run: () => runPanelReviewFiler(runtime, { taskService: runnerTaskService() }) },
+    'watch-readbacks': { run: () => runWatchReadbackFiler({ taskService: runnerTaskService() }) },
+    'task-map': { run: () => runTaskMapCheck({ taskService: runnerTaskService() }) },
     'panel-refresh': { run: () => runPanelRefresh(runtime) },
     backup: { run: () => runBackup(), outcomeOf: backupRunOutcome },
   };

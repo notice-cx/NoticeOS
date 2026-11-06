@@ -530,6 +530,7 @@ export interface IntegrationProvider {
 /** The providers whose credentials the product can hold. */
 export type IntegrationProviderId =
   | 'local-model'
+  | 'ntasks'
   | 'google'
   | 'google-oauth-app'
   | 'bing-webmaster'
@@ -555,6 +556,17 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         description: 'Use an API base URL reachable from NoticeOS. The selected provider receives stored portfolio and task summaries. Scheduled briefings may incur provider charges; NoticeOS does not enforce an inference spending cap.' },
       { name: 'LOCAL_MODEL_ID', label: 'Model', kind: 'text', secret: false, required: true },
       { name: 'LOCAL_MODEL_API_TOKEN', label: 'API token', kind: 'password', secret: true, required: false },
+    ],
+  },
+  {
+    id: 'ntasks', label: 'Ntasks', scope: 'shared', lanes: [],
+    docRef: 'docs/11-integrations.md#ntasks',
+    expiry: { known: 'operator' }, test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'connection', sites: false },
+    fields: [
+      { name: 'NTASKS_URL', label: 'Ntasks address', kind: 'url', secret: false, required: true, placeholder: 'https://ntasks.example.com',
+        description: 'The task projects, the task tools and the Tower\'s task pages read and change tasks here.' },
+      { name: 'NTASKS_TOKEN', label: 'Service credential', kind: 'password', secret: true, required: true },
     ],
   },
   {

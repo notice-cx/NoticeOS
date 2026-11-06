@@ -119,6 +119,19 @@ these charges or enforce an inference spending cap. Configure a limit with the
 provider; pause **Portfolio briefing** or disconnect the model to stop future
 generation.
 
+## Ntasks {#ntasks}
+
+In **Settings** > **Task projects**, connect **Ntasks** with the address of an
+Ntasks Worker and a service credential from it. Ntasks then holds the
+installation's tasks: the task tools, the **Tasks** pages and the runner's task
+snapshot read and change them there, through the ingest Worker, which adds the
+credential to each call. The connection test lists the projects the credential
+reaches; a credential Ntasks refuses is not kept. HTTPS is required, except for
+a local address. Redirects are refused. This connection is available in
+standalone installations. [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)
+covers mapping sites to projects and what the Tower shows while Ntasks does not
+answer.
+
 ## Mediavine revenue
 
 Mediavine ships with NoticeOS as `packages/mediavine`; no separate installation,

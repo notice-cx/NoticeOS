@@ -1,4 +1,5 @@
 import { assertLocalModelAvailable, checkLocalModel, localModelFailure, LocalModelError } from './local-model.js';
+import { checkNtasks } from './ntasks.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 // Connection tests: one least-privileged call per provider. Apart from the
 // store (credentials.ts) on purpose: every collector imports the resolver, the
@@ -188,6 +189,10 @@ async function runProbe(
       ? { outcome: 'refused', fix: { kind: 'replace' }, failure: localModelFailure(error) }
       : error instanceof LocalModelError && error.code === 'model-missing'
         ? { outcome: 'invalid', failing: ['Model'], failure: localModelFailure(error) } : { outcome: 'unreachable', failure: localModelFailure(error) } }; }
+  }
+  if (provider === 'ntasks') {
+    const result = await checkNtasks(fields, fetchImpl);
+    return { ok: result.outcome === 'answered', result };
   }
   if (provider === 'cloudflare') {
     try { return { ok: true, result: { outcome: 'answered', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } } }; }

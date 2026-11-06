@@ -5,6 +5,7 @@
 import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, SECRET_FILES } from './config.mjs';
 import { log } from './log.mjs';
+import { bdLaneSkip, taskBackend } from './task-service-poll.mjs';
 import { operatorToken } from './operator-token.mjs';
 import { beadsFailure, parseBeadsProjects, runBd } from './task-hub.mjs';
 import { beadsInstant } from '../task-snapshot-values.mjs';
@@ -87,6 +88,7 @@ export async function runWatchReadbackFiler(deps = {}) {
     repoRoot = HOME_ROOT,
     now = Date.now,
     createReview = fileOutcomeReview,
+    taskService = null,
   } = deps;
 
   const token = await readToken();
@@ -113,6 +115,12 @@ export async function runWatchReadbackFiler(deps = {}) {
   }
   if (!Array.isArray(pending) || !Array.isArray(reviews)) return { posted: [], failed: [] };
   if (pending.length === 0 && reviews.length === 0) return { posted: [], failed: [] };
+  // The verdicts stay queued in the store until this lane can post them.
+  const standDown = bdLaneSkip(await taskBackend(taskService), 'post');
+  if (standDown) {
+    emit('WARN', `watch readbacks wait — ${standDown} (${pending.length + reviews.length} queued)`);
+    return { posted: [], failed: [] };
+  }
 
   let projects = [];
   try {

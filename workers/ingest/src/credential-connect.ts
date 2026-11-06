@@ -7,6 +7,8 @@
 // answer is a verdict plus facts, never the provider's own sentence.
 
 import { assertLocalModelAvailable, checkLocalModel, localModelFailure, LocalModelError } from './local-model.js';
+import { checkNtasks } from './ntasks.js';
+import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import type {
   ConnectCredentialResult,
   ConnectionFailure,
@@ -59,6 +61,7 @@ export async function connectCredential(
     try { assertLocalModelAvailable(env); }
     catch { return { ok: false, error: 'not_supported', provider: provider.id }; }
   }
+  if (provider.id === 'ntasks' && workspaceProfile(env) !== 'standalone') return { ok: false, error: 'not_supported', provider: provider.id };
   // A provider whose tokens are pasted per site (Clarity) has no one key to
   // prove; its rows save through `putSiteToken` instead.
   if (provider.connect?.kind !== 'key') {
@@ -137,6 +140,12 @@ export async function askProvider(
         ...(error instanceof CloudflareD1Error && error.failure ? { failure: error.failure } : {}),
       };
     }
+  }
+  if (provider.id === 'ntasks') {
+    const checked = await checkNtasks(fields, fetchImpl);
+    if (checked.outcome === 'answered') return { verdict: 'accepted', facts: checked.facts ?? {} };
+    return { verdict: checked.outcome === 'refused' || checked.outcome === 'invalid' ? 'refused' : 'unreachable',
+      ...(checked.failure ? { failure: checked.failure } : {}) };
   }
   if (provider.id === 'bing-webmaster') return askBing(fields, fetchImpl);
   if (provider.id === 'dataforseo') return askDataForSeo(fields, fetchImpl);

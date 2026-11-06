@@ -103,6 +103,7 @@ export default defineConfig({
           { text: 'Connect data sources', link: '/guides/connect-data-sources' },
           { text: 'Connect Google', link: '/guides/connect-google' },
           { text: 'Connect a task project', link: '/guides/connect-a-task-project' },
+          { text: 'Keep tasks in Ntasks', link: '/guides/keep-tasks-in-ntasks' },
           { text: 'Connect an agent', link: '/guides/connect-an-agent' },
           { text: 'Send your own report', link: '/guides/send-your-own-report' },
           { text: 'Measure your codebase', link: '/guides/measure-your-codebase' },

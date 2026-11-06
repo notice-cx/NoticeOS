@@ -32,7 +32,7 @@ export function createHostedTaskTransport(fetch: ApiTransport): ApiTransport {
   return async (input, init) => {
     if (typeof input !== 'string' || !(input === '/api/tasks' || input.startsWith('/api/tasks?') || input.startsWith('/api/tasks/') || input.startsWith('/api/gates/'))) return fetch(input, init);
     const url = new URL(input, 'https://task-adapter.invalid');
-    if (['/api/tasks/projects', '/api/tasks/capabilities'].includes(url.pathname)) return fetch(input, init);
+    if (['/api/tasks/projects', '/api/tasks/capabilities', '/api/tasks/service'].includes(url.pathname)) return fetch(input, init);
     // Workspace-wide statistics need no project; a selected project still uses the catalog below.
     if (url.pathname === '/api/tasks/agent-stats' && !url.searchParams.has('project')) return fetch(input, init);
     if (!/^\/api\/tasks(?:\/[^/]+(?:\/(?:comments|close|history|respond|dismiss|choose))?)?$/u.test(url.pathname)
