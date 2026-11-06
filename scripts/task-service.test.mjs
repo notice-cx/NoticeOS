@@ -106,16 +106,23 @@ async function standalone(fetch) {
 
 test('while Ntasks is connected the task tools run there and never on the local task client', async t => {
   const seen = [];
-  const local = await standalone(door(mcp({
+  const actors = [];
+  const fetch = door(mcp({
     list_tasks: async args => { seen.push(['list_tasks', args]); return { tasks: [{ id: 'ex-1', title: 'From Ntasks' }] }; },
     claim_task: async args => { seen.push(['claim_task', args]); return { task: { id: 'ex-1', status: 'in_progress' } }; },
-  })));
+  }));
+  const local = await standalone(async (url, init) => {
+    if (init.method === 'POST') actors.push(JSON.parse(init.body).onBehalfOf);
+    return fetch(url, init);
+  });
   t.after(local.close);
   const listed = await local.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
   assert.deepEqual(listed.result.structuredContent, { tasks: [{ id: 'ex-1', title: 'From Ntasks' }] });
   const claimed = await local.call('claim_task', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', idempotency_key: 'claim-12345678', model: 'm' });
   assert.equal(claimed.result.isError, undefined);
   assert.deepEqual(seen.map(([name, args]) => [name, args.workspace]), [['list_tasks', REMOTE], ['claim_task', REMOTE]]);
+  // Every task tool call names the agent; the workspace lookup is the installation's own.
+  assert.ok(actors.length >= 2 && actors.filter(actor => actor !== undefined).every(actor => actor === 'agent'));
   const missing = await local.call('close_task', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', reason: 'Done', idempotency_key: 'close-12345678' });
   assert.equal(missing.result.isError, true);
   assert.match(missing.result.content[0].text, /does not offer close_task yet/u);

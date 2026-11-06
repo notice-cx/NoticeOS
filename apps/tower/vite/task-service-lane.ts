@@ -25,6 +25,8 @@ export interface TaskServiceLaneOptions {
 const STATUS_PATTERN = /^[a-z_]+(,[a-z_]+)*$/u;
 const ACTIONS = new Set(["close", "comments", "respond", "choose", "dismiss", "dispute"]);
 const KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
+/** Who Ntasks records for a change made on the Tower's pages: `service:<credential>/tower`. */
+export const TOWER_ACTOR = "tower";
 
 class Refused extends Error {
   constructor(readonly reply: LaneReply) { super(String(reply.body.error)); }
@@ -103,7 +105,8 @@ async function read(opts: TaskServiceLaneOptions, key: string, path: string, ass
 async function write(opts: TaskServiceLaneOptions, method: "POST" | "PATCH", path: string, body: Record<string, unknown>,
   idempotencyKey: string): Promise<LaneReply> {
   try {
-    const { status, body: answer } = await opts.service.call({ method, path, body, idempotencyKey });
+    // The Tower's own changes are the operator's, under the installation's credential.
+    const { status, body: answer } = await opts.service.call({ method, path, body, idempotencyKey, onBehalfOf: TOWER_ACTOR });
     if (status >= 200 && status < 300) return { status, body: record(answer) ?? {} };
     if (status === 404 && record(answer)?.error === "not_found" && typeof record(answer)?.detail !== "string" || status === 405) {
       return { status: 501, body: { error: "task_service_unsupported", detail: "Ntasks does not accept this change yet, so nothing was saved." } };

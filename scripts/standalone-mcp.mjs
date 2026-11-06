@@ -89,9 +89,13 @@ export function remoteTaskTools(service) {
                 throw new McpToolError(`unavailable: ${unavailableSentence(error, null)} Whether this installation's tasks live in Ntasks is unknown, so nothing was read or changed.`);
             }
         },
-        async call(name, args) {
+        async call(name, args, request) {
+            // Ntasks records the change as this agent's, under the installation's credential.
+            const actor = actorOf(request);
+            if (actor === null)
+                throw new McpToolError('refused: invalid actor; an actor is 1–128 of A–Z a–z 0–9 . _ : / - starting with a letter or digit.');
             try {
-                return await service.tool(name, args);
+                return await service.tool(name, args, actor);
             }
             catch (error) {
                 if (error instanceof TaskServiceToolRefused)

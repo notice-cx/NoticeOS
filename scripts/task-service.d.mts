@@ -13,6 +13,8 @@ export interface TaskServiceCall {
     readonly path: string;
     readonly body?: unknown;
     readonly idempotencyKey?: string;
+    /** The agent the call is for, which Ntasks records as `service:<credential>/<name>`. */
+    readonly onBehalfOf?: string;
 }
 export interface TaskServiceReply {
     readonly status: number;
@@ -43,8 +45,8 @@ export interface TaskService {
     /** Where the task service is, when one is connected. */
     origin(): Promise<string | null>;
     call(call: TaskServiceCall): Promise<TaskServiceReply>;
-    /** One Ntasks MCP tool, with `workspace` set to Ntasks's own; its structured result. */
-    tool(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>;
+    /** One Ntasks MCP tool, with `workspace` set to Ntasks's own, for the agent `onBehalfOf`; its structured result. */
+    tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
     /** Ntasks's projects this credential reaches. */
     projects(): Promise<readonly NtasksProject[]>;
 }

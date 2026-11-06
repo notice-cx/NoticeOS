@@ -32,7 +32,12 @@ export interface TaskServiceCall {
   readonly path: string;
   readonly body?: string;
   readonly idempotencyKey?: string;
+  /** The agent the call is for: Ntasks records it as `service:<credential>/<name>`. */
+  readonly onBehalfOf?: string;
 }
+
+/** `x-ntasks-on-behalf-of`'s grammar, Ntasks's own. */
+export const ON_BEHALF_OF = /^[A-Za-z0-9._:/-]{1,128}$/u;
 
 /** What the caller learns: Ntasks's own status and JSON body, or why it did not answer. */
 export type TaskServiceAnswer =
@@ -69,6 +74,7 @@ export async function callNtasks(fields: Record<string, string>, call: TaskServi
   const headers = new Headers({ accept: 'application/json', authorization: `Bearer ${token}` });
   if (call.body !== undefined) headers.set('content-type', 'application/json');
   if (call.idempotencyKey !== undefined) headers.set('idempotency-key', call.idempotencyKey);
+  if (call.onBehalfOf !== undefined) headers.set('x-ntasks-on-behalf-of', call.onBehalfOf);
   // Stateless MCP: every call names the protocol version instead of a handshake.
   if (call.path === '/api/mcp') { headers.set('mcp-protocol-version', '2025-06-18'); headers.set('accept', 'application/json, text/event-stream'); }
   const controller = new AbortController();

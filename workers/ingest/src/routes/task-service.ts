@@ -6,7 +6,7 @@
 import { workspaceProfile } from '../../../../scripts/product-env.mjs';
 import { authenticateOperator } from '../auth.js';
 import { resolveCredential } from '../credentials.js';
-import { callNtasks, NTASKS_URL, ntasksOrigin, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
+import { callNtasks, NTASKS_URL, ntasksOrigin, ON_BEHALF_OF, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
 import { json } from '../responses.js';
 
 export const TASK_SERVICE_PATH = '/api/task-service';
@@ -19,18 +19,20 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
 
 function readCall(value: unknown): TaskServiceCall | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const { method, path, body, idempotencyKey, ...rest } = value as Record<string, unknown>;
+  const { method, path, body, idempotencyKey, onBehalfOf, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length || typeof method !== 'string' || !METHODS.has(method) || typeof path !== 'string') return null;
   const [pathname = '', query = ''] = path.split(/\?(.*)/su);
   if (!PATH.test(pathname) || !QUERY.test(query)) return null;
   if (body !== undefined && (typeof body !== 'string' || method === 'GET' || new TextEncoder().encode(body).byteLength > REQUEST_BYTES)) return null;
   if (idempotencyKey !== undefined && (typeof idempotencyKey !== 'string' || !IDEMPOTENCY_KEY.test(idempotencyKey) || method === 'GET')) return null;
-  return { method, path, ...(body === undefined ? {} : { body }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }) };
+  if (onBehalfOf !== undefined && (typeof onBehalfOf !== 'string' || !ON_BEHALF_OF.test(onBehalfOf))) return null;
+  return { method, path, ...(body === undefined ? {} : { body }), ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    ...(onBehalfOf === undefined ? {} : { onBehalfOf }) };
 }
 
 /**
  * GET /api/task-service: whether a task service is connected, and where.
- * POST /api/task-service: one call to it ({ method, path, body?, idempotencyKey? }).
+ * POST /api/task-service: one call to it ({ method, path, body?, idempotencyKey?, onBehalfOf? }).
  * Operator-authenticated and standalone only. The answer is always 200 with
  * a TaskServiceAnswer, so a caller tells Ntasks's own 404 from this route's.
  */

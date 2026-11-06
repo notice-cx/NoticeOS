@@ -67,11 +67,11 @@ export interface HostedMcpOptions {
   readonly remoteTasks?: RemoteTaskTools;
 }
 /** The task tools as a task service answers them. `call` gets the tool's
- * arguments with its `workspace`, and throws McpToolError with the sentence
- * an agent reads. */
+ * arguments with its `workspace` and the request that carried it, and throws
+ * McpToolError with the sentence an agent reads. */
 export interface RemoteTaskTools {
   connected(): Promise<boolean>;
-  call(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>;
+  call(name: string, args: Readonly<Record<string, unknown>>, request: Request): Promise<unknown>;
 }
 
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });
@@ -211,7 +211,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       try {
-        if (task && remoteTasks && await remoteTasks.connected()) return await remoteTasks.call(name, args);
+        if (task && remoteTasks && await remoteTasks.connected()) return await remoteTasks.call(name, args, proof);
         if (task) return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
         if (panel) return await panel.run({ proof, workspaceId: workspace, operations: panels! }, rest);
         if (journey) return await journey.run({ proof, workspaceId: workspace, transport: journeys! }, rest);

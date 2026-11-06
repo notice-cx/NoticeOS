@@ -198,7 +198,7 @@ export function createHostedMcp(options) {
                 const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
                 try {
                     if (task && remoteTasks && await remoteTasks.connected())
-                        return await remoteTasks.call(name, args);
+                        return await remoteTasks.call(name, args, proof);
                     if (task)
                         return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
                     if (panel)

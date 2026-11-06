@@ -39,10 +39,10 @@ export interface HostedMcpOptions {
     readonly remoteTasks?: RemoteTaskTools;
 }
 /** The task tools as a task service answers them. `call` gets the tool's
- * arguments with its `workspace`, and throws McpToolError with the sentence
- * an agent reads. */
+ * arguments with its `workspace` and the request that carried it, and throws
+ * McpToolError with the sentence an agent reads. */
 export interface RemoteTaskTools {
     connected(): Promise<boolean>;
-    call(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>;
+    call(name: string, args: Readonly<Record<string, unknown>>, request: Request): Promise<unknown>;
 }
 export declare function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response>;

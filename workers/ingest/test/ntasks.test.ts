@@ -38,9 +38,10 @@ it('sends the credential, the retry key and the MCP version, and never follows a
     expect(headers.get('authorization')).toBe('Bearer synthetic-service-token');
     expect(headers.get('idempotency-key')).toBe('key-12345678');
     expect(headers.get('mcp-protocol-version')).toBe('2025-06-18');
+    expect(headers.get('x-ntasks-on-behalf-of')).toBe('claude');
     return Response.json({ jsonrpc: '2.0', id: 1, result: {} });
   });
-  expect(await callNtasks(fields, { method: 'POST', path: '/api/mcp', body: '{}', idempotencyKey: 'key-12345678' }, fetchImpl))
+  expect(await callNtasks(fields, { method: 'POST', path: '/api/mcp', body: '{}', idempotencyKey: 'key-12345678', onBehalfOf: 'claude' }, fetchImpl))
     .toEqual({ status: 200, body: { jsonrpc: '2.0', id: 1, result: {} } });
   await expect(callNtasks(fields, { method: 'GET', path: '/api/tasks/projects' }, async () => new Response(null, { status: 302, headers: { location: 'https://elsewhere.example.com' } })))
     .rejects.toMatchObject({ failure: { kind: 'redirect', status: 302 } });
@@ -89,7 +90,8 @@ it('forwards one call for the operator, and says why when Ntasks gave no answer'
     async () => { throw new TypeError('down'); })).json()).toEqual({ answered: false, reason: 'network' });
 
   for (const call of [{ method: 'DELETE', path: '/api/tasks' }, { method: 'GET', path: '/api/auth/session' }, { method: 'GET', path: '/api/../admin' },
-    { method: 'GET', path: '/api/tasks', body: '{}' }, { method: 'POST', path: '/api/tasks', idempotencyKey: 'short' }, { method: 'GET', path: '/api/tasks', extra: 1 }]) {
+    { method: 'GET', path: '/api/tasks', body: '{}' }, { method: 'POST', path: '/api/tasks', idempotencyKey: 'short' }, { method: 'GET', path: '/api/tasks', extra: 1 },
+    { method: 'POST', path: '/api/mcp', onBehalfOf: 'two words' }, { method: 'POST', path: '/api/mcp', onBehalfOf: '' }]) {
     expect((await handleTaskService(door(call), inProfile('standalone'), async () => { throw new Error('must not be called'); })).status, JSON.stringify(call)).toBe(400);
   }
 });

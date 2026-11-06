@@ -85,7 +85,7 @@ it("sends a change to Ntasks with the project's id and answers only what Ntasks 
   const send = lane(service);
   const created = await send(request("POST", "/api/tasks", { project: "example.com", title: "New", labels: [] }, { "idempotency-key": "create-12345678" }));
   expect(created).toEqual({ status: 201, body: { id: "ex-2" } });
-  expect(calls.at(-1)).toEqual({ method: "POST", path: "/api/tasks", body: { title: "New", projectId: PROJECT.projectId }, idempotencyKey: "create-12345678" });
+  expect(calls.at(-1)).toEqual({ method: "POST", path: "/api/tasks", body: { title: "New", projectId: PROJECT.projectId }, idempotencyKey: "create-12345678", onBehalfOf: "tower" });
 
   const claim = await send(request("PATCH", "/api/tasks/ex-1", { claim: true }));
   expect(claim).toMatchObject({ status: 501, body: { error: "task_service_unsupported" } });

@@ -75,7 +75,8 @@ export function createTaskService(options = {}) {
     async function call(request) {
         const answer = await door_('POST', { method: request.method, path: request.path,
             ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
-            ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }) });
+            ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }),
+            ...(request.onBehalfOf === undefined ? {} : { onBehalfOf: request.onBehalfOf }) });
         if (answer.answered !== true || typeof answer.status !== 'number') {
             throw new TaskServiceUnavailable(typeof answer.reason === 'string' ? answer.reason : 'network', typeof answer.status === 'number' ? answer.status : undefined);
         }
@@ -83,9 +84,9 @@ export function createTaskService(options = {}) {
     }
     let ids = 0;
     /** One JSON-RPC tools/call; the tool's own refusals become TaskServiceToolRefused. */
-    async function rpc(name, args) {
+    async function rpc(name, args, onBehalfOf) {
         // A write tool's retry key is its own `idempotency_key` argument, as in NoticeOS's tools.
-        const reply = await call({ method: 'POST', path: '/api/mcp',
+        const reply = await call({ method: 'POST', path: '/api/mcp', ...(onBehalfOf === undefined ? {} : { onBehalfOf }),
             body: { jsonrpc: '2.0', id: ++ids, method: 'tools/call', params: { name, arguments: args } } });
         const body = row(reply.body);
         const result = row(body?.result), error = row(body?.error);
@@ -119,8 +120,8 @@ export function createTaskService(options = {}) {
         async connected() { return (await read()).connected; },
         async origin() { return (await read()).origin; },
         call,
-        async tool(name, args) {
-            return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args);
+        async tool(name, args, onBehalfOf) {
+            return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);
         },
         async projects() {
             if (catalog && now() - catalog.at < CATALOG_TTL_MS)

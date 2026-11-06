@@ -119,8 +119,11 @@ export function remoteTaskTools(service: TaskService): RemoteTaskTools {
         throw new McpToolError(`unavailable: ${unavailableSentence(error, null)} Whether this installation's tasks live in Ntasks is unknown, so nothing was read or changed.`);
       }
     },
-    async call(name: string, args: Readonly<Record<string, unknown>>) {
-      try { return await service.tool(name, args); } catch (error) {
+    async call(name: string, args: Readonly<Record<string, unknown>>, request: Request) {
+      // Ntasks records the change as this agent's, under the installation's credential.
+      const actor = actorOf(request);
+      if (actor === null) throw new McpToolError('refused: invalid actor; an actor is 1–128 of A–Z a–z 0–9 . _ : / - starting with a letter or digit.');
+      try { return await service.tool(name, args, actor); } catch (error) {
         if (error instanceof TaskServiceToolRefused) throw new McpToolError(error.message);
         if (!(error instanceof TaskServiceUnavailable)) throw error;
         const changes = TASK_MCP_TOOLS.find(tool => tool.name === name)?.annotations.readOnlyHint === false;

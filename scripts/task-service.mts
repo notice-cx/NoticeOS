@@ -30,6 +30,8 @@ export interface TaskServiceCall {
   readonly path: string;
   readonly body?: unknown;
   readonly idempotencyKey?: string;
+  /** The agent the call is for, which Ntasks records as `service:<credential>/<name>`. */
+  readonly onBehalfOf?: string;
 }
 export interface TaskServiceReply { readonly status: number; readonly body: unknown }
 export interface NtasksProject { readonly projectId: string; readonly logicalKey: string; readonly displayName: string; readonly prefix: string }
@@ -52,8 +54,8 @@ export interface TaskService {
   /** Where the task service is, when one is connected. */
   origin(): Promise<string | null>;
   call(call: TaskServiceCall): Promise<TaskServiceReply>;
-  /** One Ntasks MCP tool, with `workspace` set to Ntasks's own; its structured result. */
-  tool(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>;
+  /** One Ntasks MCP tool, with `workspace` set to Ntasks's own, for the agent `onBehalfOf`; its structured result. */
+  tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
   /** Ntasks's projects this credential reaches. */
   projects(): Promise<readonly NtasksProject[]>;
 }
@@ -92,7 +94,8 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   async function call(request: TaskServiceCall): Promise<TaskServiceReply> {
     const answer = await door_('POST', { method: request.method, path: request.path,
       ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
-      ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }) });
+      ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }),
+      ...(request.onBehalfOf === undefined ? {} : { onBehalfOf: request.onBehalfOf }) });
     if (answer.answered !== true || typeof answer.status !== 'number') {
       throw new TaskServiceUnavailable(typeof answer.reason === 'string' ? answer.reason : 'network', typeof answer.status === 'number' ? answer.status : undefined);
     }
@@ -100,9 +103,9 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   }
   let ids = 0;
   /** One JSON-RPC tools/call; the tool's own refusals become TaskServiceToolRefused. */
-  async function rpc(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown> {
+  async function rpc(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown> {
     // A write tool's retry key is its own `idempotency_key` argument, as in NoticeOS's tools.
-    const reply = await call({ method: 'POST', path: '/api/mcp',
+    const reply = await call({ method: 'POST', path: '/api/mcp', ...(onBehalfOf === undefined ? {} : { onBehalfOf }),
       body: { jsonrpc: '2.0', id: ++ids, method: 'tools/call', params: { name, arguments: args } } });
     const body = row(reply.body);
     const result = row(body?.result), error = row(body?.error);
@@ -133,8 +136,8 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     async connected() { return (await read()).connected; },
     async origin() { return (await read()).origin; },
     call,
-    async tool(name, args) {
-      return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args);
+    async tool(name, args, onBehalfOf) {
+      return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);
     },
     async projects() {
       if (catalog && now() - catalog.at < CATALOG_TTL_MS) return catalog.projects;
