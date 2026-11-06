@@ -513,8 +513,8 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     emit(
       'INFO',
       `panel review filed — ${beadId ?? '(id unread)'} in ${register ? 'Ntasks' : project.repo}: ` +
-        `"${panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false)}", due ` +
-        `${panelReviewDueDate(landing.panelDate)}`,
+        `"${panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false)}"` +
+        (register ? '' : `, due ${panelReviewDueDate(landing.panelDate)}`),
     );
   }
 
