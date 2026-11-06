@@ -189,7 +189,7 @@ test('recorder caps a complete run across replacement and adopted diagnostics wh
   await assert.rejects(trace.run('fail', async () => { throw new Error('Later actual failure'); }));
   assert.ok(trace.steps.reduce((sum, step) => sum + new TextEncoder().encode(JSON.stringify(step.diagnostics ?? {})).byteLength, 0) <= 131_072);
   assert.ok(trace.steps.at(-1).diagnostics.error.text.includes('Later actual failure'));
-  assert.match(trace.steps.at(-1).summary, /Open Run diagnostics, then Output/);
+  assert.match(trace.steps.at(-1).summary, /Open Execution details, then Output in the failed stage/);
 });
 
 test('a telemetry failure does not promise an error that was never captured or change the original throw', async () => {

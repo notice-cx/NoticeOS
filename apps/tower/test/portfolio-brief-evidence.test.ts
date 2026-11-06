@@ -42,6 +42,22 @@ function revenue(): DailyRevenueHistory {
 }
 
 describe('portfolio briefing evidence', () => {
+  it('scopes asset and task records before sampling and excludes whole-portfolio accounting for an explicit selection', () => {
+    const data = wall([asset('chosen.example'), asset('ignored.example')]);
+    data.portfolio.booked = { currency: 'USD', revenue: 999_999, cost: 1, net: 999_998 };
+    const tasks = { ...work, capturedAt: NOW.toISOString(), projects: [project({ asset: 'chosen.example', name: 'Chosen' }), project({ asset: 'ignored.example', name: 'Ignored' })] };
+    const packet = buildPortfolioBriefEvidence(data, tasks, { reviewAssetIds: ['chosen.example'], revenueByAsset: new Map() });
+    expect(JSON.stringify(packet)).not.toContain('ignored.example');
+    expect(JSON.stringify(packet)).not.toContain('999999');
+    expect(packet.facts.some(fact => fact.id === 'portfolio:ledger')).toBe(false);
+    expect(packet.coverage).toMatchObject({ assets: 1, includedAssets: 1, projects: 1 });
+    expect(packet.reviewAssetIds).toEqual(['chosen.example']);
+    expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
+    const empty = buildPortfolioBriefEvidence(data, tasks, { reviewAssetIds: [] });
+    expect(empty.facts).toEqual([]);
+    expect(empty.insightEvidenceIds).toEqual([]);
+  });
+
   it('keeps collection failures and reporting gaps beside the business readings', () => {
     const data = wall();
     data.system.ingest = { expected: 3, fresh: 1, stale: 2, notExpected: 0 };
@@ -404,4 +420,15 @@ describe('portfolio briefing evidence', () => {
     expect(packet.limitations.every(value => value.trim().length > 0)).toBe(true);
     expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
   });
+});
+
+it('retains selected OS project evidence when the Wall has no asset card', () => {
+  const tasks = {...work, capturedAt: NOW.toISOString(), projects: [project({asset: 'noticeos', name: 'NoticeOS',
+    counts: {...project().counts, open: 2}, waiting: [task('os-decision', {title: 'Choose the next improvement'})]})]};
+  const packet = buildPortfolioBriefEvidence(wall([]), tasks, {reviewAssetIds: ['noticeos']});
+  expect(packet.reviewAssetIds).toEqual(['noticeos']);
+  expect(packet.insightEvidenceIds).toContain('work:noticeos:progress');
+  expect(packet.facts.some(fact => fact.id === 'task:noticeos:os-decision')).toBe(true);
+  expect(packet.coverage.projects).toBe(1);
+  expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
 });

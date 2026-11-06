@@ -171,6 +171,7 @@ export interface SettingsPreferences {
 
 export interface SettingsPayload {
   generatedAt: string;
+  portfolioReview: { owner: string; assetIds: string[] | null; assets: { id: string; displayName: string }[] };
   /** The operator's clock (`config/constants.json`). */
   clock: ClockSettings;
   /** The shared TV display config (`config/tower.json`). Its `countdown` is

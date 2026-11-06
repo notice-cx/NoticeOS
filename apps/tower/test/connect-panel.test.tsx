@@ -349,10 +349,19 @@ describe("OpenAI-compatible model selection", () => {
       await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Load models" })); });
       expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
       fireEvent.change(screen.getByRole("combobox", { name: "Model *" }), { target: { value: modelId } });
+      const budget = screen.getByLabelText('Generation budget');
+      expect(budget).not.toBeRequired();
+      expect(budget).toHaveAttribute('placeholder', '8192');
+      fireEvent.change(budget, { target: { value: '1023' } });
+      expect(screen.getByRole('button', { name: 'Connect' })).toBeDisabled();
+      expect(screen.getByRole('combobox')).toHaveValue(modelId);
+      fireEvent.change(budget, { target: { value: '16384' } });
+      expect(screen.getByRole('combobox')).toHaveValue(modelId);
+      expect(screen.getByRole('button', { name: 'Connect' })).toBeEnabled();
       await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect" })); });
       expect(await screen.findByText("Connected")).toBeInTheDocument();
       expect(screen.queryByText("Working")).toBeNull();
-      expect(connect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "https://model.example.com/v1", LOCAL_MODEL_ID: modelId });
+      expect(connect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "https://model.example.com/v1", LOCAL_MODEL_ID: modelId, LOCAL_MODEL_OUTPUT_TOKENS: "16384" });
       expect(fetcher).toHaveBeenCalledWith("/api/integrations/local-model/models", expect.objectContaining({ method: "POST" }));
     } finally { fetcher.mockRestore(); }
   });

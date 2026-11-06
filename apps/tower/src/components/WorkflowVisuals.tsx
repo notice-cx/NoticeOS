@@ -103,23 +103,32 @@ export function WorkflowStages({ definition, run, fresh = true, summarizedFailur
         {!attempts.length ? <p className="text-xs text-muted-foreground">No execution evidence was recorded for this stage.</p> : attempts.map((attempt) => {
           const summarized = stage.id === summarizedFailure?.id && attempt.attempt === summarizedFailure.attempt;
           const output = attempt.output && summarized ? { ...attempt.output, fields: attempt.output.fields.filter(field => !['reason', 'nextAction'].includes(field.key)) } : attempt.output;
-          return <div key={attempt.attempt} className="space-y-2 border-t border-border pt-3">
+          return <div key={attempt.attempt} className="space-y-2 border-t border-border pt-3" data-stage-attempt={attempt.attempt}>
           <WorkflowStateLabel state={attempt.state === 'running' && (run?.finishedAt || !fresh) ? 'unknown' : attempt.state} />
           {attempts.length > 1 && <p className="text-xs tabular-nums">Attempt {attempt.attempt}</p>}
           {!summarized && attempt.summary ? <p className="text-sm">{attempt.summary}</p> : null}
           <dl className="space-y-1 text-xs tabular-nums"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Started</dt><dd title={utcRunReference(attempt.startedAt)}>{formatNextRun(attempt.startedAt)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Duration</dt><dd>{!fresh && !attempt.finishedAt ? 'Unconfirmed' : workflowDuration(attempt.startedAt, attempt.finishedAt)}</dd></div></dl>
-          {output && (output.metrics.length > 0 || output.items.length > 0 || output.fields.length > 0 || output.backup) ? <WorkflowStepOutputView output={output} /> : null}
+          {output && (output.metrics.length > 0 || output.items.length > 0 || output.fields.length > 0 || output.backup) ? <WorkflowStepOutputView output={output} heading={false} /> : null}
+          <details className="min-w-0 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Inputs</summary>
+            <div className="mt-2">{attempt.diagnostics?.input ? <DiagnosticText label="Inputs" snapshot={attempt.diagnostics.input} /> : <p className="text-sm text-muted-foreground">Inputs were not captured for this step.</p>}</div>
+          </details>
+          <details className="min-w-0 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Output</summary>
+            <div className="mt-2 space-y-3">
+              {attempt.diagnostics?.output ? <DiagnosticText label="Output" snapshot={attempt.diagnostics.output} /> : !attempt.diagnostics?.error ? <p className="text-sm text-muted-foreground">Output was not captured for this step.</p> : null}
+              {attempt.diagnostics?.error ? <DiagnosticText label="Error" snapshot={attempt.diagnostics.error} heading /> : null}
+            </div>
+          </details>
         </div>; })}
       </aside>
     </div>
   </div>;
 }
 
-function DiagnosticText({ label, snapshot }: { label: string; snapshot: WorkflowDiagnostic }) {
+function DiagnosticText({ label, snapshot, heading = false }: { label: string; snapshot: WorkflowDiagnostic; heading?: boolean }) {
   const [copied, flash] = useCopyFlash();
   return <div className="min-w-0 space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-xs font-medium">{label}</p>
+      <div>{heading ? <p className="text-xs font-medium">{label}</p> : null}</div>
       <Button type="button" variant="ghost" size="sm" aria-label={`Copy ${label.toLowerCase()}`} onClick={() => { void copyText(snapshot.text).then(flash, () => {}); }}>
         <Copy className="size-3.5" aria-hidden />{copied ? 'Copied' : 'Copy'}
       </Button>
@@ -129,30 +138,6 @@ function DiagnosticText({ label, snapshot }: { label: string; snapshot: Workflow
   </div>;
 }
 
-export function WorkflowRunDiagnostics({ definition, run }: { definition: WorkflowDefinition; run: WorkflowRun | null }) {
-  if (!run) return null;
-  const steps = run.steps ?? [];
-  const captured = steps.some(step => step.diagnostics && Object.values(step.diagnostics).some(Boolean));
-  return <details key={run.id} className="min-w-0 border-y border-border py-3" data-run-diagnostics>
-    <summary className="cursor-pointer text-sm font-medium">Run diagnostics</summary>
-    <div className="mt-3 space-y-3">
-      {!captured ? <p className="text-sm text-muted-foreground">Inputs and output were not captured for this run.</p> : steps.map(step => <details key={`${step.id}:${step.attempt}`} className="min-w-0 rounded-lg border border-border p-3">
-        <summary className="cursor-pointer text-sm font-medium">{definition.stages.find(stage => stage.id === step.id)?.label ?? step.id}{steps.filter(attempt => attempt.id === step.id).length > 1 ? ` · Attempt ${step.attempt}` : ''}</summary>
-        <div className="mt-3 space-y-3">
-          <details className="min-w-0 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Inputs</summary>
-            <div className="mt-2">{step.diagnostics?.input ? <DiagnosticText label="Inputs" snapshot={step.diagnostics.input} /> : <p className="text-sm text-muted-foreground">Inputs were not captured for this step.</p>}</div>
-          </details>
-          <details className="min-w-0 border-t border-border pt-3"><summary className="cursor-pointer text-sm font-medium">Output</summary>
-            <div className="mt-2 space-y-3">
-              {step.diagnostics?.output ? <DiagnosticText label="Output" snapshot={step.diagnostics.output} /> : !step.diagnostics?.error ? <p className="text-sm text-muted-foreground">Output was not captured for this step.</p> : null}
-              {step.diagnostics?.error ? <DiagnosticText label="Error" snapshot={step.diagnostics.error} /> : null}
-            </div>
-          </details>
-        </div>
-      </details>)}
-    </div>
-  </details>;
-}
 
 function outputValue(field: WorkflowOutputValue): string {
   if (typeof field.value === 'boolean') return field.value ? 'Yes' : 'No';
@@ -165,9 +150,9 @@ function OutputFields({ fields }: { fields: WorkflowOutputValue[] }) {
   return <dl className="grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">{fields.map((field) => <div key={field.key} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"><dt className="text-muted-foreground">{field.label}</dt><dd className="break-all font-medium tabular-nums">{outputValue(field)}</dd></div>)}</dl>;
 }
 
-export function WorkflowStepOutputView({ output, pending = false }: { output?: WorkflowStepOutput; pending?: boolean }) {
+export function WorkflowStepOutputView({ output, pending = false, heading = true }: { output?: WorkflowStepOutput; pending?: boolean; heading?: boolean }) {
   return <section className="space-y-4 pt-4" aria-label="Step output">
-    <div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold">Output</h4>{output && output.totalItems > 0 && <span className="text-xs text-muted-foreground tabular-nums">{output.totalItems} results</span>}</div>
+    {heading ? <div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold">Output</h4>{output && output.totalItems > 0 && <span className="text-xs text-muted-foreground tabular-nums">{output.totalItems} results</span>}</div> : null}
     {!output ? <p className="text-sm text-muted-foreground">{pending ? 'Output will appear when this step finishes.' : 'Output was not captured for this execution.'}</p> : <>
       {output.metrics.length > 0 && <KpiStrip columns={Math.min(output.metrics.length, 4)}>{output.metrics.map((metric) => <Kpi key={metric.key} label={metric.label} value={outputValue(metric)} caption="This execution" valueTone={['failed', 'projectsFailed'].includes(metric.key) && Number(metric.value) > 0 ? 'error' : ['succeeded', 'projectsRead'].includes(metric.key) && Number(metric.value) > 0 ? 'healthy' : 'default'} />)}</KpiStrip>}
       {output.fields.length > 0 && <OutputFields fields={output.fields} />}

@@ -97,6 +97,8 @@ export async function handleStoredRead(request: Request, {
       osTimeZone: cfg.osTimeZone,
       timeZoneChosen: clock.chosen,
       monthlyCaps: cfg.monthlyCaps,
+      portfolioReviewAssetIds: cfg.portfolioReviewAssetIds,
+      assets: await store.read(tx => tx.query<{id: string; displayName: string; isOs: boolean}>('SELECT asset_id AS id, display_name AS "displayName", is_os AS "isOs" FROM noticeos.assets ORDER BY display_name, asset_id')),
       operatorRateUsdPerMin: cfg.operatorRateUsdPerMin,
       flagDefaults: cfg.flagDefaults,
       signalPanels: cfg.signalPanels,

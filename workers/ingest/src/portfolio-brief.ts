@@ -1,3 +1,5 @@
+import { portfolioReviewAssetIds, PORTFOLIO_REVIEW_FILE } from '@noticeos/contract/configuration';
+import { getConfigDocument } from './config-store.js';
 import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, type PortfolioBriefEvidence, type PortfolioBriefRead, type PortfolioBriefFailure, type PortfolioBriefRefreshRead } from '@noticeos/contract/portfolio-brief';
 import type { WorkflowStepDiagnostics } from '@noticeos/contract';
 import { captureWorkflowDiagnostic } from '../../../scripts/workflow-diagnostics.mjs';
@@ -11,7 +13,7 @@ import { observeIntegration, tryHealthConnection } from './integration-health-co
 import { portfolioBriefPrompt } from './portfolio-brief-prompt.js';
 import { BriefingResponseError, parsePortfolioBrief, portfolioBriefModelEvidence } from './portfolio-brief-response.js';
 
-const VERSION = '6';
+const VERSION = '7';
 const MIN_REFRESH_MS = 15 * 60_000;
 const LEASE_MS = MODEL_GENERATION_TIMEOUT_MS + 60_000;
 const FAILURE_RETRY_MS = 15 * 60_000;
@@ -27,9 +29,14 @@ export function emptyPortfolioBrief(state: PortfolioBriefRead['state']): Portfol
   return { state, briefing: null, lastAttemptAt: null, nextAttemptAt: null, error: null, stale: false };
 }
 
-async function identity(env: IngestEnv, credential: ResolvedCredential) {
+async function reviewSelection(env: IngestEnv) {
+  const ids = portfolioReviewAssetIds((await getConfigDocument(env, PORTFOLIO_REVIEW_FILE, {fresh: true})).body);
+  return ids === null ? null : [...ids].sort();
+}
+
+async function identity(env: IngestEnv, credential: ResolvedCredential, selection: string[] | null) {
   const scope = await providerCacheScope([env.STORE.where, await env.STORE.workspaceId(), VERSION,
-    credential.connectionId, credential.revision, credential.fields]);
+    credential.connectionId, credential.revision, credential.fields, selection]);
   return { key: `https://noticeos-cache.internal/portfolio-brief/${scope}`, lease: `portfolio-brief:${scope}` };
 }
 
@@ -50,7 +57,9 @@ export async function readPortfolioBrief(env: IngestEnv, options: PortfolioBrief
   try {
     const credential = await resolveCredential(env, 'local-model');
     if (credential.source === 'none') return emptyPortfolioBrief('disconnected');
-    const { key } = await identity(env, credential);
+    const selection = await reviewSelection(env);
+    if (selection?.length === 0) return emptyPortfolioBrief('awaiting');
+    const { key } = await identity(env, credential, selection);
     return presented(await cached(options.cache ?? caches.default, key), (options.clock ?? Date.now)());
   } catch {
     return { ...emptyPortfolioBrief('unavailable'), error: 'The saved briefing could not be read.' };
@@ -69,7 +78,10 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
   if (Math.abs(Date.parse(evidence.asOf) - start) > 5 * 60_000) throw new Error('Briefing evidence is not current.');
   const credential = await resolveCredential(env, 'local-model');
   if (credential.source === 'none') return emptyPortfolioBrief('disconnected');
-  const { key, lease } = await identity(env, credential);
+  const selection = await reviewSelection(env);
+  const incoming = evidence.reviewAssetIds == null ? null : [...new Set(evidence.reviewAssetIds)].sort();
+  if (selection?.length === 0 || JSON.stringify(selection) !== JSON.stringify(incoming)) return emptyPortfolioBrief('awaiting');
+  const { key, lease } = await identity(env, credential, selection);
   const cache = options.cache ?? caches.default;
   let prior = await cached(cache, key);
   if (prior?.nextAttemptAt && Date.parse(prior.nextAttemptAt) > start) return presented(prior, start);
@@ -84,6 +96,7 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
   try {
     prior = await cached(cache, key);
     if (prior?.nextAttemptAt && Date.parse(prior.nextAttemptAt) > clock()) return presented(prior, clock());
+    if (JSON.stringify(await reviewSelection(env)) !== JSON.stringify(selection)) return emptyPortfolioBrief('awaiting');
     const eligible = new Set(evidence.insightEvidenceIds);
     const health = eligible.size > 0 ? await tryHealthConnection(env, 'local-model', credential) : null;
     let entry: StoredBrief;
@@ -105,7 +118,7 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
       if (eligible.size > 0) await observeIntegration(env, health, { capability: 'portfolio-brief', observedAt: entry.briefing!.generatedAt, ok: true, evidenceSource: 'live' });
     } catch (error) {
       const failure: PortfolioBriefFailure = error instanceof BriefingResponseError ? { kind: error.code }
-        : error instanceof LocalModelError && (error.code === 'empty-output' || error.code === 'truncated-output' || error.code === 'refused-output') ? { kind: error.code }
+        : error instanceof LocalModelError && (error.code === 'empty-output' || error.code === 'truncated-output' || error.code === 'reasoning-limit' || error.code === 'refused-output') ? { kind: error.code }
         : error instanceof LocalModelError && error.code === 'invalid-output' ? { kind: 'model-response' } : localModelFailure(error);
       nextAttemptAt = new Date(clock() + FAILURE_RETRY_MS).toISOString();
       entry = { ...emptyPortfolioBrief('unavailable'), briefing: prior?.briefing ?? null,
@@ -121,7 +134,7 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
     }
     // A changed or disconnected connection cannot publish its in-flight answer.
     const current = await resolveCredential(env, 'local-model');
-    if (current.source === 'none' || (await identity(env, current)).key !== key) return { ...emptyPortfolioBrief('awaiting'),
+    if (current.source === 'none' || (await identity(env, current, await reviewSelection(env))).key !== key) return { ...emptyPortfolioBrief('awaiting'),
       ...(Object.keys(diagnostics).length ? { diagnostics } : {}) };
     const retentionSeconds = Math.max(7 * 86_400, Math.ceil(cadenceMs * 2 / 1_000));
     await cache.put(key, Response.json(entry, { headers: { 'cache-control': `max-age=${retentionSeconds}` } }));

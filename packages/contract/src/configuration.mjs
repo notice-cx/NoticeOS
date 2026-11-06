@@ -208,6 +208,42 @@ export function noNightlyReportAssets(constants) {
         return [];
     return held.filter((id) => typeof id === 'string' && CONFIG_ASSET_KEY_RE.test(id));
 }
+export const PORTFOLIO_REVIEW_FILE = 'config/constants.json';
+export const PORTFOLIO_REVIEW_POINTER = '/portfolio_brief/asset_ids';
+export function portfolioReviewRefusal(value) {
+    if (value === null)
+        return null;
+    if (!Array.isArray(value) || value.length > 10_000 || value.some(id => typeof id !== 'string' || !CONFIG_ASSET_KEY_RE.test(id)) || new Set(value).size !== value.length) {
+        return 'AI review assets must be null or a list of distinct asset ids';
+    }
+    return null;
+}
+/** Invalid saved selections exclude all assets rather than broadening disclosure. */
+export function portfolioReviewAssetIds(constants) {
+    if (!isPlainObject(constants))
+        return [];
+    if (!('portfolio_brief' in constants))
+        return null;
+    const block = constants.portfolio_brief;
+    if (!isPlainObject(block))
+        return [];
+    if (!('asset_ids' in block) || block.asset_ids === null)
+        return null;
+    return portfolioReviewRefusal(block.asset_ids) === null ? [...block.asset_ids] : [];
+}
+export function portfolioReviewOpRefusal(op) {
+    if (op.file !== PORTFOLIO_REVIEW_FILE || typeof op.pointer !== 'string')
+        return null;
+    if (op.pointer === '/portfolio_brief') {
+        return op.kind === 'file-json-delete' || (isPlainObject(op.value) && Object.keys(op.value).length === 1 && 'asset_ids' in op.value && portfolioReviewRefusal(op.value.asset_ids) === null)
+            ? null : 'Save the AI review asset selection as one list';
+    }
+    if (!op.pointer.startsWith('/portfolio_brief/'))
+        return null;
+    if (op.pointer !== PORTFOLIO_REVIEW_POINTER)
+        return 'Save the AI review asset selection as one list';
+    return op.kind === 'file-json-delete' ? null : portfolioReviewRefusal(op.value);
+}
 // ── The older single-asset credential binding ───────────────────────────────
 // One rule for every reader; no site is written down anywhere.
 /**

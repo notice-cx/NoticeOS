@@ -2,6 +2,7 @@ import { PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, type Portfolio
 import { portfolioBriefPrompt } from '../src/portfolio-brief-prompt.js';
 import { MODEL_GENERATION_TIMEOUT_MS } from '../../../scripts/portfolio-brief-failure.mjs';
 import { captureWorkflowDiagnostic } from '../../../scripts/workflow-diagnostics.mjs';
+import { DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS, LOCAL_MODEL_OUTPUT_TOKENS } from '@noticeos/contract/local-model-settings';
 import { env } from 'cloudflare:test';
 import { expect, it, vi } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
@@ -91,11 +92,40 @@ it('uses fixed paths, omits absent auth, requests plain text and returns only fi
     expect(init?.redirect).toBe('manual');
     expect(new Headers(init?.headers).has('authorization')).toBe(false);
     expect(init?.signal).toBeInstanceOf(AbortSignal);
-    expect(JSON.parse(String(init?.body))).toMatchObject({ model: fields.LOCAL_MODEL_ID, stream: false, max_tokens: 4096 });
+    expect(JSON.parse(String(init?.body))).toMatchObject({ model: fields.LOCAL_MODEL_ID, stream: false, max_tokens: DEFAULT_LOCAL_MODEL_OUTPUT_TOKENS });
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('temperature');
     expect(JSON.parse(String(init?.body))).not.toHaveProperty('response_format');
     return completion();
   });
   expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toBe('Synthetic result');
+});
+
+it.each([['', 8192], ['   ', 8192], ['1024', 1024], ['16384', 16384], ['32768', 32768]] as const)('sends the configured whole-number output budget %j', async (value, expected) => {
+  const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    expect(JSON.parse(String(init?.body)).max_tokens).toBe(expected);
+    expect(JSON.parse(String(init?.body))).not.toHaveProperty('temperature');
+    return completion();
+  });
+  expect(validateCredentialFields(integrationProvider('local-model')!, { ...fields, [LOCAL_MODEL_OUTPUT_TOKENS]: value })).toEqual([]);
+  await expect(generateLocalModel(standalone, { ...fields, [LOCAL_MODEL_OUTPUT_TOKENS]: value }, { ...options, fetchImpl })).resolves.toBe('Synthetic result');
+});
+
+it.each(['1023', '32769', '-8192', '+8192', '8192.0', '8e3', 'NaN', 'Infinity', '8192 tokens'])('rejects invalid output budgets before any model request: %j', async value => {
+  const fetchImpl = vi.fn<typeof fetch>();
+  expect(validateCredentialFields(integrationProvider('local-model')!, { ...fields, [LOCAL_MODEL_OUTPUT_TOKENS]: value })).toEqual(expect.arrayContaining([expect.objectContaining({ path: LOCAL_MODEL_OUTPUT_TOKENS })]));
+  await expect(generateLocalModel(standalone, { ...fields, [LOCAL_MODEL_OUTPUT_TOKENS]: value }, { ...options, fetchImpl })).rejects.toMatchObject({ code: 'configuration' });
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+it('distinguishes a token budget exhausted entirely by reasoning from a truncated final answer', async () => {
+  const raw = { choices: [{ finish_reason: 'length', message: { role: 'assistant', content: '',
+    reasoning_content: 'The reasoning continued until the completion budget was exhausted.' } }],
+    usage: { prompt_tokens: 1740, completion_tokens: 4096, total_tokens: 5836, completion_tokens_details: { reasoning_tokens: 4096 } } };
+  const onDiagnostics = vi.fn();
+  await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics, fetchImpl: async () => Response.json(raw) })).rejects.toMatchObject({ code: 'reasoning-limit' });
+  expect(onDiagnostics.mock.calls).toContainEqual(['output', { status: 200, body: JSON.stringify(raw), truncated: false }]);
+  expect(localModelFailure(new LocalModelError('reasoning-limit'))).toEqual({ kind: 'invalid-response' });
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => completion('Partial final answer', 'length') })).rejects.toMatchObject({ code: 'truncated-output' });
 });
 
 it('discovers the exact configured model with bearer auth without generating', async () => {

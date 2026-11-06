@@ -3,7 +3,7 @@
 import {
   ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
-  NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal,
+  NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal, portfolioReviewOpRefusal,
 } from '../packages/contract/src/configuration.mjs';
 import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
 export type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonSetGuardedOp, FileJsonSetFirstOp, FileJsonInsertOp, FileJsonDeleteOp, StoreAssetSetOp } from '../packages/contract/src/configuration.mjs';
@@ -117,7 +117,7 @@ export const ADDABLE_CONTAINERS: ReadonlyMap<string, { shape: "object" | "array"
  */
 export const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]> = new Map([
   ['config/tower.json', ['/wall', '/countdown', WORKSPACE_VIEW_POINTER]],
-  ['config/constants.json', ['/schedules', NO_NIGHTLY_REPORT_POINTER]],
+  ['config/constants.json', ['/schedules', NO_NIGHTLY_REPORT_POINTER, '/portfolio_brief']],
 ]);
 
 /** Is this exact pointer one of the declared documents above? */
@@ -493,6 +493,8 @@ export function validateSchemaAndSafety(input: unknown): void {
     if (unviewable !== null) throw new ChangesetError(`${at}: ${unviewable}`);
     const unschedulable = schedulesOpRefusal(raw as ChangesetOp);
     if (unschedulable !== null) throw new ChangesetError(unschedulable);
+    const unreviewable = portfolioReviewOpRefusal(op);
+    if (unreviewable !== null) throw new ChangesetError(`${at}: ${unreviewable}`);
     const undeclarable = noNightlyReportOpRefusal(op);
     if (undeclarable !== null) throw new ChangesetError(`${at}: ${undeclarable}`);
   });

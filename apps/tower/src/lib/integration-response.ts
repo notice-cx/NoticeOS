@@ -1,3 +1,4 @@
+import { MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS } from '@noticeos/contract/local-model-settings';
 import type { IntegrationCredentialsPayload } from '@shared/integrations-page';
 import { integrationProvider } from '@noticeos/contract/integrations';
 import {
@@ -31,7 +32,7 @@ function credential(value: unknown, provider: string): boolean {
     auth: nullable(oneOf(['oauth', 'service-account', 'account-key', 'site-keys'])), metadata: nullable(metadata),
     keyVersion: nullable(version => integer(version) && version > 0), createdAt: nullable(instant), updatedAt: nullable(instant),
     lastUsedAt: nullable(instant), lastOkAt: nullable(instant), lastError: nullable(string),
-  }, { propertyMap: nullable(item => fields(item, {
+  }, { modelOutputTokens: value => provider === 'local-model' && integer(value) && value >= MIN_LOCAL_MODEL_OUTPUT_TOKENS && value <= MAX_LOCAL_MODEL_OUTPUT_TOKENS, propertyMap: nullable(item => fields(item, {
     needed: boolean, answersFor: list(answer => fields(answer, { asset: string, id: string, label: string })),
   }) && (item.needed === (Array.isArray(item.answersFor) && item.answersFor.length > 0))) });
 }

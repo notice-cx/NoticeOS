@@ -1,3 +1,4 @@
+import { MODEL_BUDGET_PATH, handleModelBudgetRequest, type ModelBudgetWriter } from './model-budget-route';
 import { CLOUDFLARE_D1_BACKUP_PATH } from '@noticeos/contract/cloudflare-d1';
 import { withAppRelease } from '../shared/app-release';
 import { withReadValidator } from '../shared/read-validator';
@@ -107,7 +108,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
    * pattern). Absent only where nothing reads the store — a test driving a
    * route that never does; every unit of work then refuses, naming it. */
   POSTGRES?: StoreBinding;
-  INGEST: AnnotationWriter & PortfolioBriefIngest & ModelDiscoveryReader &
+  INGEST: AnnotationWriter & PortfolioBriefIngest & ModelDiscoveryReader & ModelBudgetWriter &
     ConfigDocumentReader &
     AssetColumnWriter &
     AssetOrderWriter &
@@ -445,6 +446,10 @@ const towerHandler = {
     let profile: ReturnType<typeof workspaceProfile>;
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+    if (new URL(request.url).pathname === MODEL_BUDGET_PATH) {
+      if (profile !== 'standalone') return jsonError('model_budget_not_supported', 403);
+      return handleModelBudgetRequest(request, env.INGEST);
+    }
     if (new URL(request.url).pathname === MODEL_DISCOVERY_PATH) {
       if (profile !== 'standalone') return jsonError('model_discovery_not_supported', 403);
       return handleModelDiscoveryRequest(request, env.INGEST);

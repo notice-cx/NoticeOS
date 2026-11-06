@@ -103,7 +103,7 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => {}, fai
         return result;
       } catch (error) {
         if (!diagnostics.error) capture.error(error);
-        Object.assign(step, { state: 'failed', summary: diagnostics.error ? 'This step failed. Open Run diagnostics, then Output for the recorded error.' : 'This step failed. Error diagnostics were not recorded.', finishedAt: new Date(now()).toISOString() });
+        Object.assign(step, { state: 'failed', summary: diagnostics.error ? 'This step failed. Open Execution details, then Output in the failed stage.' : 'This step failed. Error diagnostics were not recorded.', finishedAt: new Date(now()).toISOString() });
         try { failed(id, error); } catch { /* a listener cannot change the verdict */ }
         throw error;
       } finally { changed(steps); }
