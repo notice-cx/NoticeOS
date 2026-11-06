@@ -62,11 +62,17 @@ The model receives bounded summaries of stored financial observations,
 complete traffic comparisons, aligned revenue comparisons where available,
 open alerts, sampled task progress and data coverage. It receives no
 credentials, task comments or raw provider archives. Each finding includes
-evidence links, its significance and a proposed next action. The model cannot
+evidence links, its significance and a proposed next action. Results contain
+at most two findings and 180 words. Missing data, static amounts and unchanged
+concentration do not qualify; concentration requires a sudden observed change.
+Currently, findings require recent, complete comparisons showing different
+traffic and revenue movements or opposing traffic changes across assets.
+Without such a comparison, the workflow saves an empty review without calling
+the model. The model cannot
 execute actions. Completed tasks do not establish business outcomes, and
 the briefing must identify uncertainty rather than invent causes or gains.
 
-Home shows the model name, generation time and data review time. A failed
+Home shows **Evidence reviewed** and **Updated** for a review saved without a model call. Model-generated results show the model name and generation time. The data review time remains visible. A failed
 refresh retains the last valid briefing with a failure label; without one,
 Home uses its ordinary summary. Disconnecting or replacing the connection
 hides its previous briefing. The replaceable cache is not a permanent archive.

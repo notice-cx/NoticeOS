@@ -1,5 +1,5 @@
 import { PORTFOLIO_BRIEF_MAX_BYTES, type PortfolioBriefEvidence, type PortfolioBriefFact } from '@noticeos/contract/portfolio-brief';
-import type { DailyRevenueHistory } from '../shared/daily-revenue';
+import { calendarDateIn, type DailyRevenueHistory } from '../shared/daily-revenue';
 import { shiftRevenueDate } from '../shared/revenue-projection';
 import { isAmber } from '../shared/freshness';
 import { CADENCE_HOURS, windowSpansTimeZoneChange, type AssetCard, type SignalTrend, type WallPayload } from '../shared/wall';
@@ -14,6 +14,24 @@ const change = (current: number, previous: number) => previous > 0 ? (current - 
 const clip = (value: string, length = 240) => value.slice(0, length);
 const siteHref = (id: string) => `/assets/${encodeURIComponent(id)}`;
 
+function accounting(figure: AssetCard['booked'], recorded?: boolean) {
+  if (figure.currency === null || (recorded !== true && !figure.revenue && !figure.cost)) return null;
+  return {
+    currency: figure.currency,
+    revenue: recorded === true || figure.revenue !== 0 ? figure.revenue : null,
+    cost: figure.cost !== 0 ? figure.cost : null,
+    net: figure.net,
+    revenueAvailability: recorded === true || figure.revenue !== 0 ? 'A revenue entry is recorded.' : recorded === false ? 'No revenue entry is recorded.' : 'Revenue entry availability is unknown.',
+  };
+}
+
+function currentComparison(asset: AssetCard, end: string, now: Date): boolean {
+  if (!asset.activeUsers.timeZone || isAmber(now.getTime(), asset.activeUsers.collectedAt, CADENCE_HOURS.signals)) return false;
+  const today = calendarDateIn(asset.activeUsers.timeZone)(now);
+  // GA4 collection leaves today and yesterday provisional (`ga4ProvisionalFrom`).
+  // An older complete window remains context rather than a current insight.
+  return end < today && end >= shiftRevenueDate(today, -2);
+}
 
 interface WindowComparison {
   start: string;
@@ -58,6 +76,7 @@ export function buildPortfolioBriefEvidence(
 ): PortfolioBriefEvidence {
   const now = options.now ?? new Date(wall.generatedAt);
   const facts: PortfolioBriefFact[] = [];
+  const insightEvidenceIds: string[] = [];
   const limitations = [
     'Comparisons describe observed changes, not causes or measured effects of completed tasks.',
     'Task rows are saved samples; counts cover successful project snapshots. Task closure does not establish a business outcome.',
@@ -67,14 +86,14 @@ export function buildPortfolioBriefEvidence(
     facts.push({ id, label: clip(label), href, observedAt, period, data });
   };
   const assets = [...wall.assets].sort((a, b) => a.id.localeCompare(b.id)).slice(0, ASSET_LIMIT);
-  add('portfolio:ledger', 'Portfolio accounting', '/financials', wall.ledgerRecordedAt, {
+  const booked = accounting(wall.portfolio.booked, wall.portfolio.revenueRecorded?.booked);
+  const estimated = accounting(wall.portfolio.forecast, wall.portfolio.revenueRecorded?.forecast);
+  if (booked || estimated || wall.portfolio.bookedDelta) add('portfolio:ledger', 'Portfolio accounting', '/financials', wall.ledgerRecordedAt, {
     period: wall.portfolio.period, periodIsCurrent: wall.portfolio.periodIsCurrent,
-    booked: wall.portfolio.booked, forecast: wall.portfolio.forecast,
+    reconciledAccounting: booked, estimatedAccounting: estimated,
     monetaryUnit: 'major currency units',
-    bookedClassification: 'reconciled', forecastClassification: 'estimated',
-    revenueRecorded: { booked: wall.portfolio.revenueRecorded?.booked ?? null, forecast: wall.portfolio.revenueRecorded?.forecast ?? null },
-    bookedDelta: wall.portfolio.bookedDelta, firstRun: wall.portfolio.firstRun,
-    caution: 'Revenue recorded flags distinguish a reported zero from missing or cost-only accounting. A null flag is unknown. Recorded portfolio revenue does not establish revenue coverage for every asset.',
+    bookedDelta: wall.portfolio.bookedDelta,
+    caution: 'Amounts are recorded accounting only. A missing revenue entry is not measured zero revenue or a contradiction. Portfolio entries do not establish complete coverage for every asset.',
   });
   const failedJobs = wall.system.scheduledLanes.filter(job => job.outcome === 'failed');
   add('system:coverage', 'Reporting coverage and failed background jobs', '/health', null, {
@@ -98,13 +117,15 @@ export function buildPortfolioBriefEvidence(
       reportReceivedAt: asset.pulseReceivedAt,
       findingsHaveSourcePeriods: Boolean(insightSource?.windowStart && insightSource?.windowEnd),
     });
-    add(`${prefix}:ledger`, `${asset.displayName}: accounting`, href, wall.ledgerRecordedAt, {
-      period: asset.netPeriod, booked: asset.booked,
-      monetaryUnit: 'major currency units', revenueRecorded: null,
-      historicalNetMonths: asset.netByMonth.filter(point => point.v !== null && (asset.netByMonthProvisionalFrom === null || point.t < asset.netByMonthProvisionalFrom)).slice(-3),
+    const assetAccounting = accounting(asset.booked);
+    const historicalNetMonths = asset.netByMonth.filter(point => point.v !== null && (asset.netByMonthProvisionalFrom === null || point.t < asset.netByMonthProvisionalFrom)).slice(-3);
+    if (assetAccounting || historicalNetMonths.length) add(`${prefix}:ledger`, `${asset.displayName}: accounting`, href, wall.ledgerRecordedAt, {
+      period: asset.netPeriod, reconciledAccounting: assetAccounting,
+      monetaryUnit: 'major currency units',
+      historicalNetMonths,
       historicalNetClassification: 'current ledger rows, including reconciled entries and estimates; excludes the open accounting month',
       currency: asset.netByMonthCurrency,
-      caution: 'Asset revenue-row coverage is not recorded in this read model. Zero booked revenue may mean no revenue row or no rows at all; do not infer measured zero revenue or complete coverage.',
+      caution: 'Asset revenue-entry coverage is unavailable. Missing amounts are not measured zero revenue or a contradiction.',
     });
     if (asset.product || asset.findings?.length || asset.watches) add(`${prefix}:signals`, `${asset.displayName}: stored findings and outcome checks`, href, insightSource?.generatedAt ?? asset.product?.observedAt ?? null, {
       sourceSnapshot: insightSource ?? null,
@@ -131,10 +152,14 @@ export function buildPortfolioBriefEvidence(
         previousRevenuePerDailyUserMinor: alignedTraffic.previous > 0 ? money.previous / alignedTraffic.previous : null,
         changeGapPercentagePoints: money.changePercent !== null && alignedTraffic.changePercent !== null ? money.changePercent - alignedTraffic.changePercent : null,
         revenueClassification: 'provider estimate',
+        revenueFamilies: [...new Set(revenue.bySource!.map(source => source.family))],
+        trafficMetric: 'daily active users summed over days; not unique weekly people',
         revenueCurrency: currency,
         monetaryUnit: 'minor currency units',
         currencyMinorDigits: currency ? currencyMinorDigits(currency) : null,
       }, { start: money.previousStart, end });
+      if (alignedTraffic && money && currentComparison(asset, end, now) && alignedTraffic.changePercent !== null && money.changePercent !== null &&
+        (alignedTraffic.current !== alignedTraffic.previous || money.current !== money.previous) && Math.abs(alignedTraffic.changePercent - money.changePercent) > 0.000001) insightEvidenceIds.push(`${prefix}:traffic-revenue`);
     }
   }
   if (!options.revenueByAsset) limitations.push('The Home read model lacks complete per-source daily revenue coverage; traffic versus revenue comparisons are unavailable.');
@@ -153,24 +178,10 @@ export function buildPortfolioBriefEvidence(
         decliningAssets: rows.filter(row => row.comparison!.current < row.comparison!.previous).length,
         metric: 'daily active users summed over days; not unique weekly people',
       }, { start: rows[0]!.comparison!.previousStart, end: commonEnd });
+      if (assets.every(asset => currentComparison(asset, commonEnd, now)) && rows.some(row => row.comparison!.current > row.comparison!.previous) && rows.some(row => row.comparison!.current < row.comparison!.previous)) insightEvidenceIds.push('portfolio:traffic-divergence');
     }
   }
 
-  // Positive revenue shares describe concentration only when every asset's
-  // ledger period and currency agree with the portfolio's accounting period.
-  const band = wall.portfolio;
-  const portfolioRevenue = band.booked.revenue;
-  if (!band.firstRun && portfolioRevenue !== null && portfolioRevenue > 0 && wall.assets.every(asset => asset.netPeriod === band.period && asset.booked.currency === band.booked.currency && asset.booked.revenue !== null && asset.booked.revenue >= 0)) {
-    const ranked = wall.assets.flatMap(asset => asset.booked.revenue !== null && asset.booked.revenue > 0 ? [{ asset, revenue: asset.booked.revenue }] : []).sort((a, b) => b.revenue - a.revenue || a.asset.id.localeCompare(b.asset.id));
-    add('portfolio:concentration', 'Reconciled revenue concentration and traffic divergence', '/assets', wall.ledgerRecordedAt, {
-      period: band.period, currency: band.booked.currency, portfolioRevenue: band.booked.revenue,
-      monetaryUnit: 'major currency units',
-      leaders: ranked.slice(0, 3).map(({ asset, revenue }) => ({ asset: asset.id, name: asset.displayName, revenue, portfolioShare: revenue / portfolioRevenue })),
-      nonAssetRevenue: band.residue.booked.revenue,
-      trafficComparisons: assets.flatMap(asset => { const value = trafficComparison(asset); return value ? [{ asset: asset.id, ...value }] : []; }),
-      caution: 'Traffic windows may differ by asset; compare their periods before describing a portfolio-wide trend. Revenue shares are accounting-period shares, not traffic-window shares.',
-    });
-  }
   const alerts = [...wall.attention].sort((a, b) => ({ error: 0, warn: 1, info: 2 }[a.severity] - { error: 0, warn: 1, info: 2 }[b.severity]) || a.firstFiredAt.localeCompare(b.firstFiredAt) || a.id - b.id).slice(0, ALERT_LIMIT);
   for (const alert of alerts) add(`alert:${alert.id}`, clip(alert.message), '/alerts', alert.firedAt, {
     asset: alert.asset, severity: alert.severity, kind: alert.kind, rule: alert.ruleId,
@@ -199,7 +210,7 @@ export function buildPortfolioBriefEvidence(
     caution: 'Time since last update is not time in current status; the sample does not establish all blocked dependents.',
   });
   const packet: PortfolioBriefEvidence = {
-    schemaVersion: 1, asOf: now.toISOString(), timeZone: wall.osTimeZone ?? 'UTC', facts, limitations,
+    schemaVersion: 1, asOf: now.toISOString(), timeZone: wall.osTimeZone ?? 'UTC', facts, limitations, insightEvidenceIds,
     coverage: { assets: wall.assets.length, includedAssets: assets.length, projects: work.projects.length, readableProjects: readable.length,
       omittedAlerts: wall.attention.length - alerts.length, omittedTasks: Math.max(0, unique.length - TASK_LIMIT) },
   };
@@ -208,13 +219,16 @@ export function buildPortfolioBriefEvidence(
     const noteIndex = packet.limitations.length;
     packet.limitations.push('');
     let omitted = 0;
-    while (size() > PORTFOLIO_BRIEF_MAX_BYTES && packet.facts.length > 2) {
-      const priority = (fact: PortfolioBriefFact) => fact.id.startsWith('portfolio:') ? 4 : fact.id.startsWith('task:') || fact.id.startsWith('alert:') ? 3 : fact.id.endsWith(':traffic-revenue') ? 2 : 1;
-      const removable = packet.facts.filter(fact => fact.id !== 'portfolio:ledger' && fact.id !== 'work:coverage');
+    const protectedIds = new Set(['work:coverage', 'system:coverage']);
+    while (size() > PORTFOLIO_BRIEF_MAX_BYTES) {
+      const priority = (fact: PortfolioBriefFact) => packet.insightEvidenceIds.includes(fact.id) ? 5 : fact.id.startsWith('portfolio:') ? 4 : fact.id.startsWith('task:') || fact.id.startsWith('alert:') ? 3 : fact.id.endsWith(':traffic-revenue') ? 2 : 1;
+      const removable = packet.facts.filter(fact => !protectedIds.has(fact.id));
+      if (removable.length === 0) break;
       const lowest = Math.min(...removable.map(priority));
-      const index = packet.facts.findLastIndex(fact => fact.id !== 'portfolio:ledger' && fact.id !== 'work:coverage' && priority(fact) === lowest);
+      const index = packet.facts.findLastIndex(fact => !protectedIds.has(fact.id) && priority(fact) === lowest);
       if (index < 0) break;
       packet.facts.splice(index, 1);
+      packet.insightEvidenceIds = packet.insightEvidenceIds.filter(id => packet.facts.some(fact => fact.id === id));
       packet.limitations[noteIndex] = `${++omitted} evidence facts were omitted to keep this packet within its size limit; absence is not evidence of an empty or healthy state.`;
     }
   }

@@ -35,6 +35,21 @@ describe('ExecutiveBrief', () => {
     expect(screen.queryByRole('list')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
   });
+  it('labels a deterministic empty review without attributing it to a model', () => {
+    const { container } = show({ ...ready, briefing: { ...ready.briefing!, model: null, result: { headline: 'No material finding.', assessment: 'The available data does not establish a worthwhile comparison.', insights: [] } } });
+    expect(screen.getByText(/Evidence reviewed/)).toBeVisible();
+    expect(screen.getByText(/Updated/)).toBeVisible();
+    expect(screen.queryByText(/Model-generated/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(container.querySelector('time')).toHaveAttribute('datetime', ready.briefing!.generatedAt);
+  });
+  it('caps findings at two and uses two columns for a pair', () => {
+    const insight = ready.briefing!.result.insights[0]!;
+    show({ ...ready, briefing: { ...ready.briefing!, result: { ...ready.briefing!.result, insights: [insight, { ...insight, observation: 'A second measured change.' }, { ...insight, observation: 'Excess finding.' }] } } });
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByRole('list')).toHaveClass('@3xl:grid-cols-2');
+    expect(screen.queryByText('Excess finding.')).not.toBeInTheDocument();
+  });
   it.each(['disconnected', 'awaiting', 'unavailable', 'unsupported'] as const)('keeps the observed summary for %s', state => {
     show({ ...empty, state });
     expect(screen.getByText('Observed summary')).toBeInTheDocument();

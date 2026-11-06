@@ -348,7 +348,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         for (const def of defs) await add({ connection, capability: def.id });
         continue;
       }
-      for (const def of defs.filter(def => def.trigger === 'setup' || (def.trigger === 'event' && !['google-discovery', 'discord-delivery', 'dataforseo-credit'].includes(def.id)))) await add({ connection, capability: def.id });
+      for (const def of defs.filter(def => def.trigger === 'setup' || (def.trigger === 'event' && !['google-discovery', 'discord-delivery', 'dataforseo-credit', 'portfolio-brief'].includes(def.id)))) await add({ connection, capability: def.id });
       if (provider === 'google') {
         for (const family of ['Analytics', 'Search Console']) await add({ connection, capability: 'google-discovery', family, detail: family });
         const google = await resolveGoogleCredential(env);
@@ -412,8 +412,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
             paused: cellDeclined(register.assets[site.asset]?.crux), requiredSince: since(nowMs, INTEGRATION_CADENCE_HOURS.cruxSignals) });
         }
       } else if (provider === 'local-model') {
-        await add({ connection, capability: 'portfolio-brief', paused: !briefingSchedule.enabled,
-          requiredSince: since(nowMs, Math.max(15, cronIntervalMinutes(briefingSchedule.cron) ?? 60) / 60) });
+        await add({ connection, capability: 'portfolio-brief', paused: !briefingSchedule.enabled, requiredSince: null });
       } else if (provider === 'mercury') {
         await add({ connection, capability: 'mercury-banking', paused: !mercurySchedule.enabled,
           requiredSince: since(nowMs, (cronIntervalMinutes(mercurySchedule.cron) ?? 60) / 60) });

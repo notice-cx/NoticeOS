@@ -17,6 +17,9 @@ describe('integration monitoring coverage', () => {
       expect(item.action.length).toBeGreaterThan(10);
     }
   });
+  it('observes model inference only when qualifying evidence requests it', () => {
+    expect(INTEGRATION_MONITORS['local-model'].find(item => item.id === 'portfolio-brief')?.trigger).toBe('event');
+  });
   it('cannot describe live-only or delivery-success-only evidence as durable monitoring', () => {
     expect(INTEGRATION_MONITORS.google.find((item) => item.id === 'ga4-realtime')?.evidence).toBe('live-only');
     expect(INTEGRATION_MONITORS.discord[0]?.evidence).toBe('success-only');

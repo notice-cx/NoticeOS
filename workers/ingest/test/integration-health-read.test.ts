@@ -423,17 +423,20 @@ it('uses the saved realtime schedule pause and removes the retired hourly obliga
   expect(result.items.some(item => item.capability === 'ga4-hourly')).toBe(false);
 });
 
-it('includes briefing generation separately from discovery and honors its saved pause and cadence', async () => {
+it('keeps optional briefing inference idle without inventing provider proof and honors its saved pause', async () => {
   const target = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
   expect(await putCredential(target, { provider: 'local-model', fields: {
     LOCAL_MODEL_BASE_URL: 'http://127.0.0.1:1234/v1', LOCAL_MODEL_ID: 'synthetic-model',
   } })).toMatchObject({ ok: true });
   const connection = await healthConnection(target, 'local-model');
   await observeIntegration(target, connection, { capability: 'local-model-discovery', observedAt: new Date(NOW).toISOString(), ok: true });
-  expect((await readIntegrationHealth(target, NOW)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'never-run' });
+  expect((await readIntegrationHealth(target, NOW)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'idle', lastSuccessAt: null, lastAttemptAt: null });
+  const noInference = await target.STORE.read(tx => tx.query(
+    "SELECT 1 FROM noticeos.integration_capability_state s JOIN noticeos.capability_targets t USING(workspace_id,target_seq) WHERE t.capability = 'portfolio-brief'"));
+  expect(noInference).toHaveLength(0);
   await observeIntegration(target, connection, { capability: 'portfolio-brief', observedAt: new Date(NOW).toISOString(), ok: true });
-  expect((await readIntegrationHealth(target, NOW + 20 * 60_000)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'healthy' });
-  expect((await readIntegrationHealth(target, NOW + 181 * 60_000)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'stale' });
+  expect((await readIntegrationHealth(target, NOW + 20 * 60_000)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'idle', lastSuccessAt: new Date(NOW).toISOString() });
+  expect((await readIntegrationHealth(target, NOW + 181 * 60_000)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'idle', lastSuccessAt: new Date(NOW).toISOString() });
   await observeIntegration(target, connection, { capability: 'portfolio-brief', observedAt: new Date(NOW + 182 * 60_000).toISOString(), ok: false, code: 'provider' });
   expect((await readIntegrationHealth(target, NOW + 183 * 60_000)).items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'failing' });
   await target.STORE.write(tx => tx.execute(`INSERT INTO noticeos.config_documents

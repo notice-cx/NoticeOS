@@ -50,8 +50,11 @@ describe('portfolio briefing evidence', () => {
     expect(fact.period).toEqual({ start: '2026-10-06', end: '2026-10-19' });
     expect(fact.data.changeGapPercentagePoints).toBe(-150);
     expect(fact.data.revenueCurrency).toBe('USD');
+    expect(fact.data.revenueFamilies).toEqual(['ads']);
+    expect(fact.data.trafficMetric).toBe('daily active users summed over days; not unique weekly people');
     expect(fact.data.monetaryUnit).toBe('minor currency units');
     expect(fact.data.currencyMinorDigits).toBe(2);
+    expect(packet.insightEvidenceIds).toContain('asset:example.com:traffic-revenue');
     expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
     for (const changed of [{ ...revenue(), partialDates: ['2026-10-12'] }, { ...revenue(), clock: { timeZone: 'America/New_York', label: 'Eastern', readyAfterMinute: 0 } }]) {
       expect(buildPortfolioBriefEvidence(wall(), work, { revenueByAsset: new Map([['example.com', changed]]) }).facts.some(item => item.id.endsWith(':traffic-revenue'))).toBe(false);
@@ -91,6 +94,7 @@ describe('portfolio briefing evidence', () => {
     const comparison = packet.facts.find(item => item.id === 'portfolio:traffic-divergence')!;
     expect(comparison.data.changePercent).toBe(75);
     expect(comparison.data.decliningAssets).toBe(1);
+    expect(packet.insightEvidenceIds).toContain('portfolio:traffic-divergence');
     expect((comparison.data.assets as { currentShare: number }[])[0]!.currentShare).toBeCloseTo(6 / 7);
   });
 
@@ -133,15 +137,47 @@ describe('portfolio briefing evidence', () => {
     data.assets[0]!.netByMonth = [{ t: '2026-09', v: 120 }, { t: '2026-10', v: 20 }];
     const packet = buildPortfolioBriefEvidence(data, work);
     const portfolio = packet.facts.find(item => item.id === 'portfolio:ledger')!;
-    expect(portfolio.data.revenueRecorded).toEqual({ booked: false, forecast: false });
+    expect(portfolio.data.reconciledAccounting).toMatchObject({ revenue: null, cost: 50, revenueAvailability: 'No revenue entry is recorded.' });
+    expect(portfolio.data).not.toHaveProperty('revenueRecorded');
+    expect(portfolio.data).not.toHaveProperty('firstRun');
     expect(portfolio.data.monetaryUnit).toBe('major currency units');
     const assetLedger = packet.facts.find(item => item.id === 'asset:example.com:ledger')!;
-    expect(assetLedger.data.revenueRecorded).toBeNull();
-    expect(assetLedger.data.caution).toContain('do not infer measured zero revenue');
+    expect(assetLedger.data.reconciledAccounting).toBeNull();
+    expect(assetLedger.data.caution).toContain('not measured zero revenue');
     expect(assetLedger.data.historicalNetMonths).toEqual([{ t: '2026-09', v: 120 }]);
     expect(assetLedger.data.historicalNetClassification).toContain('reconciled entries and estimates');
     delete data.portfolio.revenueRecorded;
-    expect(buildPortfolioBriefEvidence(data, work).facts.find(item => item.id === 'portfolio:ledger')!.data.revenueRecorded).toEqual({ booked: null, forecast: null });
+    expect(buildPortfolioBriefEvidence(data, work).facts.find(item => item.id === 'portfolio:ledger')!.data.reconciledAccounting).toMatchObject({ revenue: null, revenueAvailability: 'Revenue entry availability is unknown.' });
+    data.portfolio.booked = zero;
+    data.portfolio.revenueRecorded = { booked: true, forecast: false };
+    expect(buildPortfolioBriefEvidence(data, work).facts.find(item => item.id === 'portfolio:ledger')!.data.reconciledAccounting).toMatchObject({ revenue: 0, revenueAvailability: 'A revenue entry is recorded.' });
+  });
+
+  it('does not promote missing data, static concentration, flat readings or old windows into insights', () => {
+    const missing = asset();
+    missing.activeUsers.series = [];
+    const unknown = buildPortfolioBriefEvidence(wall([missing]), work);
+    expect(unknown.insightEvidenceIds).toEqual([]);
+    expect(unknown.facts.some(fact => fact.id.endsWith(':ledger'))).toBe(false);
+    const staticData = wall([asset('a.example', 100, 100), asset('b.example', 100, 100)]);
+    staticData.portfolio.booked = { ...zero, revenue: 100, net: 100 };
+    staticData.assets[0]!.booked = { ...zero, revenue: 99, net: 99 };
+    staticData.assets[1]!.booked = { ...zero, revenue: 1, net: 1 };
+    const staticPacket = buildPortfolioBriefEvidence(staticData, work);
+    expect(staticPacket.facts.some(fact => fact.id === 'portfolio:concentration')).toBe(false);
+    expect(staticPacket.insightEvidenceIds).toEqual([]);
+    const old = wall([asset('a.example', 300, 100), asset('b.example', 50, 100)]);
+    for (const site of old.assets) site.activeUsers.series = site.activeUsers.series.map(point => ({ ...point, t: shiftRevenueDate(point.t, -30) }));
+    expect(buildPortfolioBriefEvidence(old, work).insightEvidenceIds).toEqual([]);
+    const stale = wall([asset('a.example', 300, 100), asset('b.example', 50, 100)]);
+    stale.assets[0]!.activeUsers.collectedAt = '2026-10-19T00:00:00Z';
+    expect(buildPortfolioBriefEvidence(stale, work).insightEvidenceIds).toEqual([]);
+    for (const [current, previous] of [[100, 100], [50, 100]]) {
+      const aligned = revenue();
+      aligned.days = aligned.days.map((day, index) => ({ ...day, amountMinor: index < 7 ? previous! : current! }));
+      aligned.bySource = aligned.bySource!.map(source => ({ ...source, days: aligned.days }));
+      expect(buildPortfolioBriefEvidence(wall([asset('example.com', current, previous)]), work, { revenueByAsset: new Map([['example.com', aligned]]) }).insightEvidenceIds).toEqual([]);
+    }
   });
 
   it('retains immutable insight editions without making every finding current', () => {
@@ -178,6 +214,7 @@ describe('portfolio briefing evidence', () => {
     expect(packet.limitations.join(' ')).toContain('facts were omitted');
     expect(packet.facts.some(fact => fact.id === 'work:coverage')).toBe(true);
     expect(packet.facts.some(fact => fact.id === 'portfolio:traffic-divergence')).toBe(true);
+    expect(packet.insightEvidenceIds.every(id => packet.facts.some(fact => fact.id === id))).toBe(true);
     expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
   });
 });

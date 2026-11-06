@@ -11,7 +11,7 @@ vi.mock('../worker/daily-revenue', () => ({ loadRevenueHistories: models.revenue
 vi.mock('../worker/portfolio-brief-evidence', () => ({ buildPortfolioBriefEvidence: models.evidence }));
 const NOW = new Date('2026-11-06T12:00:00Z');
 const saved: PortfolioBriefRead = { state: 'awaiting', briefing: null, error: null, stale: false, lastAttemptAt: null, nextAttemptAt: null };
-const evidence: PortfolioBriefEvidence = { schemaVersion: 1, asOf: NOW.toISOString(), timeZone: 'UTC', facts: [], limitations: [], coverage: { assets: 0, includedAssets: 0, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } };
+const evidence: PortfolioBriefEvidence = { schemaVersion: 1, asOf: NOW.toISOString(), timeZone: 'UTC', facts: [], insightEvidenceIds: [], limitations: [], coverage: { assets: 0, includedAssets: 0, projects: 0, readableProjects: 0, omittedAlerts: 0, omittedTasks: 0 } };
 function environment(state: PortfolioBriefRead = saved, schedules: TowerConfig['schedules'] = null) {
   const cfg = { schedules, osTimeZone: 'UTC', beads: { spokes: [] } } as unknown as TowerConfig;
   const ingest = { portfolioBrief: vi.fn(async () => state), refreshPortfolioBrief: vi.fn(async () => ({ ...saved, state: 'ready' as const })) };

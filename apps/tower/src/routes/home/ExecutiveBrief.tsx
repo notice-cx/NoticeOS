@@ -15,13 +15,13 @@ export function ExecutiveBrief({ read, readFailed = false, fallback }: { read?: 
   const outdated = readFailed || read?.stale || read?.state === 'unavailable';
   return <section aria-labelledby="executive-brief-title" className="flex flex-col gap-3" data-executive-brief="">
     <div>
-      <p className="text-sm text-muted-foreground">Model-generated · {brief.model} · <time dateTime={brief.generatedAt}>Generated {formatTimestamp(brief.generatedAt)}</time></p>
+      <p className="text-sm text-muted-foreground">{brief.model === null ? 'Evidence reviewed' : <>Model-generated · {brief.model}</>} · <time dateTime={brief.generatedAt}>{brief.model === null ? 'Updated' : 'Generated'} {formatTimestamp(brief.generatedAt)}</time></p>
       <h2 id="executive-brief-title" className="m-0 text-figure-sm [text-wrap:balance]">{brief.result.headline}</h2>
       <p className="mt-1 max-w-prose text-sm">{brief.result.assessment}</p>
     </div>
     {outdated ? <p className="text-sm text-warn" role="status" data-status-for="read:portfolio-brief">{readFailed || read?.state === 'unavailable' ? 'The latest briefing could not be refreshed. Showing the last successful briefing.' : 'This briefing is out of date.'}</p> : null}
-    {brief.result.insights.length > 0 ? <ol className={brief.result.insights.length === 1 ? "grid gap-3" : brief.result.insights.length === 2 ? "grid gap-3 @3xl:grid-cols-2" : "grid gap-3 @3xl:grid-cols-3"}>
-      {brief.result.insights.slice(0, 3).map((insight, index) => <li key={index} className="min-w-0 rounded-xl bg-card p-4 ring-1 ring-border/70">
+    {brief.result.insights.length > 0 ? <ol className={brief.result.insights.length === 1 ? "grid gap-3" : "grid gap-3 @3xl:grid-cols-2"}>
+      {brief.result.insights.slice(0, 2).map((insight, index) => <li key={index} className="min-w-0 rounded-xl bg-card p-4 ring-1 ring-border/70">
         <h3 className="text-sm font-medium">{insight.observation}</h3>
         <p className="mt-2 text-sm text-muted-foreground">{insight.why}</p>
         <p className="mt-2 text-sm"><span className="font-medium">Next: </span>{insight.action}</p>

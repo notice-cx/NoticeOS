@@ -7,12 +7,10 @@ const ready: PortfolioBriefRead = { state: 'ready', error: null, stale: false, l
   generatedAt: WALL_FIXTURE_NOW, evidenceAsOf: '2026-09-22T18:30:00Z', model: 'example-local-model', limitations: ['One asset has no revenue report.'],
   result: { headline: 'Fix checkout before increasing acquisition spend.', assessment: 'Revenue depends on recovering existing demand while checkout failures persist.', insights: [
     { observation: 'Checkout losses rose while visits stayed level.', why: 'More acquisition would send visitors into the same failure.', action: 'Review the checkout errors before increasing spend.', evidenceIds: ['checkout'], confidence: 'high' },
-    { observation: 'Search growth is concentrated in one asset.', why: 'The portfolio depends more heavily on that asset.', action: 'Compare its landing pages with the other assets.', evidenceIds: ['search'], confidence: 'medium' },
-    { observation: 'Completed changes still lack outcome readings.', why: 'More completed work does not establish a return.', action: 'Read the completed measurement windows before extending the approach.', evidenceIds: ['tasks'], confidence: 'low' },
+    { observation: 'One asset gained search visits while the others declined.', why: 'The portfolio is becoming more dependent on that asset.', action: 'Compare the changed landing pages across the assets.', evidenceIds: ['search'], confidence: 'medium' },
   ] }, sources: [
     { id: 'checkout', label: 'Checkout errors', href: '/alerts', observedAt: WALL_FIXTURE_NOW, period: null },
     { id: 'search', label: 'Search readings', href: '/sites', observedAt: WALL_FIXTURE_NOW, period: null },
-    { id: 'tasks', label: 'Outcome reviews', href: '/tasks/all', observedAt: WALL_FIXTURE_NOW, period: null },
   ],
 } };
 
@@ -26,7 +24,7 @@ test('Home executive briefing keeps evidence, attribution and retained-result wa
   const brief = page.locator('[data-executive-brief]');
   await expect(brief).toBeVisible();
   await expect(brief.getByRole('heading', { level: 2 })).toHaveText(ready.briefing!.result.headline);
-  await expect(brief.getByRole('listitem')).toHaveCount(3);
+  await expect(brief.getByRole('listitem')).toHaveCount(2);
   await expect(brief.getByRole('link', { name: 'Checkout errors' })).toHaveAttribute('href', '/alerts');
   await expect(brief).toContainText('Model-generated · example-local-model');
   await expect(brief.getByText('One asset has no revenue report.')).not.toBeVisible();
