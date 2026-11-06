@@ -340,7 +340,9 @@ or policy commitments retain their explicit action-specific approval.
 
 ## Git policy
 
-Changes go through a branch and a GitHub pull request. Do not commit to or push
+Keep the primary checkout on `main`; never switch it to a work branch. Make
+changes in a separate Git worktree, push the work branch and open a GitHub pull
+request. A local-only branch is not a completed handoff. Do not commit to or push
 `main` directly. The task hub never commits or pushes. For requested work,
 agents may create commits, push commits to PR branches, create and update PRs,
 and read their review and CI metadata without further owner approval. Prefer
