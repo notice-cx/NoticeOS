@@ -146,7 +146,7 @@ it('keeps the last good briefing after a failed refresh and suppresses retries u
   expect(failed.diagnostics?.error?.text).toContain('network');
   expect(failed.diagnostics?.error?.redacted).toBe(true);
   expect(JSON.stringify(failed)).not.toContain(SECRET);
-  expect(JSON.stringify(failed)).not.toContain(fields.LOCAL_MODEL_BASE_URL);
+  expect(failed.diagnostics?.error?.text).toContain(fields.LOCAL_MODEL_BASE_URL);
   expect(JSON.stringify(readOnlyResult(failed))).not.toContain('Connection refused');
   expect(await refreshPortfolioBrief(target, evidence(later + 60_000), HOUR, { cache, fetchImpl, clock: () => later + 60_000 })).toEqual(readOnlyResult(failed));
   expect(await readPortfolioBrief(target, { cache, clock: () => later + 60_000 })).toEqual(readOnlyResult(failed));
@@ -166,7 +166,7 @@ it.each([
   expect(failed.diagnostics?.output?.text).toContain('private provider response');
   expect(failed.diagnostics?.output?.redacted).toBe(true);
   expect(JSON.stringify(failed)).not.toContain(SECRET);
-  expect(JSON.stringify(failed)).not.toContain(fields.LOCAL_MODEL_BASE_URL);
+  expect(failed.diagnostics?.output?.text).toContain(fields.LOCAL_MODEL_BASE_URL);
   expect(JSON.stringify(await readPortfolioBrief(target, { cache, clock: () => NOW }))).not.toContain('private provider response');
 });
 
@@ -198,6 +198,13 @@ it('redacts a credential fragment at the raw response preview boundary', async (
     fetchImpl: async () => new Response(`${'x'.repeat(65_400)}${token}`, { status: 401 }) });
   expect(failed.diagnostics?.output).toMatchObject({ truncated: true, redacted: true });
   expect(failed.diagnostics?.output?.text).not.toContain('sensitive-diagnostic-boundary-');
+});
+
+it('does not treat a clipped API-address prefix as credential material', async () => {
+  const target = selected(); await connect(target);
+  const failed = await refreshPortfolioBrief(target, evidence(), HOUR, { cache: memoryCache(), clock: () => NOW,
+    fetchImpl: async () => new Response(`${'x'.repeat(65_535)}h trailing`, { status: 401 }) });
+  expect(failed.diagnostics?.output).toMatchObject({ truncated: true, redacted: false });
 });
 
 it('persists the bounded timeout classification without exception details', async () => {

@@ -4,7 +4,7 @@
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepDiagnostics, WorkflowStepRun } from '../packages/contract/src/workflows.js';
-import { captureWorkflowDiagnostic, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
+import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 
@@ -48,10 +48,11 @@ export async function settleWorkflowSteps(promises: Promise<unknown>[]): Promise
   if (failure) throw failure.reason;
 }
 
+export interface WorkflowDiagnosticMetadata { truncated?: boolean; redacted?: boolean }
 export interface WorkflowDiagnosticCapture {
-  input(value: unknown): void;
-  output(value: unknown): void;
-  error(value: unknown): void;
+  input(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+  output(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+  error(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
   adopt(diagnostics: WorkflowStepDiagnostics): void;
 }
 export interface WorkflowRecorder {
@@ -72,10 +73,10 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => {}, fai
     async run<T>(id: string, fn: (capture: WorkflowDiagnosticCapture) => Promise<T>, assess: (result: T) => StepVerdict = stepResult, input?: unknown) {
       const step: WorkflowStepRun = { id, attempt: steps.filter((s) => s.id === id).length + 1, startedAt: new Date(now()).toISOString(), state: 'running' };
       const diagnostics: WorkflowStepDiagnostics = {};
-      const put = (key: keyof WorkflowStepDiagnostics, value: unknown) => {
-        try { diagnostics[key] = captureWorkflowDiagnostic(value, { secrets }); step.diagnostics = diagnostics; } catch { /* capture cannot affect work */ }
+      const put = (key: keyof WorkflowStepDiagnostics, value: unknown, metadata?: WorkflowDiagnosticMetadata) => {
+        try { const safe = captureWorkflowDiagnostic(value, { secrets }); diagnostics[key] = { ...safe, redacted: safe.redacted || metadata?.redacted === true, truncated: safe.truncated || metadata?.truncated === true }; step.diagnostics = diagnostics; boundWorkflowRunDiagnostics([...steps, ...(steps.includes(step) ? [] : [step])]); } catch { /* capture cannot affect work */ }
       };
-      const capture: WorkflowDiagnosticCapture = { input: value => put('input', value), output: value => put('output', value), error: value => put('error', value),
+      const capture: WorkflowDiagnosticCapture = { input: (value, metadata) => put('input', value, metadata), output: (value, metadata) => put('output', value, metadata), error: (value, metadata) => put('error', value, metadata),
         adopt(value) {
           try {
             if (!isWorkflowStepDiagnostics(value)) return;
@@ -85,6 +86,7 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => {}, fai
               diagnostics[key] = { ...safe, truncated: safe.truncated || original.truncated, redacted: safe.redacted || original.redacted };
             }
             step.diagnostics = diagnostics;
+            boundWorkflowRunDiagnostics([...steps, ...(steps.includes(step) ? [] : [step])]);
           } catch { /* capture cannot affect work */ }
         },
       };
@@ -101,7 +103,7 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => {}, fai
         return result;
       } catch (error) {
         if (!diagnostics.error) capture.error(error);
-        Object.assign(step, { state: 'failed', summary: 'This step failed. Open Output for the recorded error.', finishedAt: new Date(now()).toISOString() });
+        Object.assign(step, { state: 'failed', summary: diagnostics.error ? 'This step failed. Open Run diagnostics, then Output for the recorded error.' : 'This step failed. Error diagnostics were not recorded.', finishedAt: new Date(now()).toISOString() });
         try { failed(id, error); } catch { /* a listener cannot change the verdict */ }
         throw error;
       } finally { changed(steps); }

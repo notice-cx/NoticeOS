@@ -7,3 +7,8 @@ export declare function captureWorkflowDiagnostic(value: unknown, { secrets, max
     inputTruncated?: boolean;
 }): WorkflowDiagnostic;
 export declare function isWorkflowStepDiagnostics(value: unknown): value is WorkflowStepDiagnostics;
+export declare const WORKFLOW_RUN_DIAGNOSTIC_BYTES = 131072;
+/** Cap aggregate serialized diagnostic JSON, rebalancing large inputs so new errors receive space. */
+export declare function boundWorkflowRunDiagnostics(steps: readonly {
+    diagnostics?: WorkflowStepDiagnostics;
+}[], maxBytes?: number): void;

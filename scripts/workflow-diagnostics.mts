@@ -11,6 +11,24 @@ function prefix(value: string, maxBytes: number): string {
   for (const character of value) { const bytes = byteLength(character); if (size + bytes > maxBytes) break; result += character; size += bytes; }
   return result;
 }
+function redactText(value: string): string {
+  return redactLogText(value).replace(/-----BEGIN [^-\r\n]+-----[\s\S]*$/gu, '[REDACTED PRIVATE MATERIAL]');
+}
+function clippedText(value: string, maxBytes: number): string {
+  let result = prefix(value, maxBytes);
+  for (const marker of ['[REDACTED]', '[REDACTED PRIVATE MATERIAL]']) {
+    for (let count = 1; count < marker.length; count++) if (result.endsWith(marker.slice(0, count))) {
+      result = result.slice(0, -count); break;
+    }
+  }
+  // A cut credential assignment must not become an unstable partial redaction.
+  for (let count = 0; count < 16 && redactText(result) !== result; count++) {
+    const boundary = Math.max(...[' ', '\n', '\t', '?', '&', ',', '{', ';'].map(character => result.lastIndexOf(character)));
+    result = boundary >= 0 ? result.slice(0, boundary) : '';
+  }
+  return redactText(result) === result ? result : '';
+}
+
 function tailMatch(text: string, pattern: string, fallback: readonly number[]): number {
   let matched = 0;
   for (let index = 0; index < text.length; index++) {
@@ -58,7 +76,7 @@ export function captureWorkflowDiagnostic(value: unknown, { secrets = [], maxByt
       for (const { pattern, fallback } of tailMatchers) matched = Math.max(matched, tailMatch(text, pattern, fallback));
       if (matched > 0) text = `${text.slice(0, -matched)}[REDACTED]`;
     }
-    text = redactLogText(text);
+    text = redactText(text);
     if (text !== value) redacted = true;
     return text;
   };
@@ -66,7 +84,7 @@ export function captureWorkflowDiagnostic(value: unknown, { secrets = [], maxByt
     if (++visited > 1000 || depth > 6) { truncated = true; return '[Details omitted]'; }
     if (typeof value === 'string') {
       const text = scrub(value, inputTruncated);
-      if (byteLength(text) > MAX_BYTES) { truncated = true; return prefix(text, MAX_BYTES); }
+      if (byteLength(text) > MAX_BYTES) { truncated = true; return clippedText(text, MAX_BYTES); }
       return text;
     }
     if (value === null || typeof value === 'number' || typeof value === 'boolean') return value;
@@ -107,7 +125,7 @@ export function captureWorkflowDiagnostic(value: unknown, { secrets = [], maxByt
   try { safe = walk(value, 0); } catch { safe = '[Value unavailable]'; truncated = true; }
   let text = typeof safe === 'string' ? safe : JSON.stringify(safe, null, 2);
   text = scrub(text);
-  if (byteLength(text) > maxBytes) { text = prefix(text, maxBytes); truncated = true; }
+  if (byteLength(text) > maxBytes) { text = clippedText(text, maxBytes); truncated = true; }
   return { text, truncated, redacted };
 }
 
@@ -121,4 +139,34 @@ export function isWorkflowStepDiagnostics(value: unknown): value is WorkflowStep
       && typeof row.truncated === 'boolean' && typeof row.redacted === 'boolean' && byteLength(row.text) <= MAX_BYTES
       && captureWorkflowDiagnostic(row.text, { maxBytes: MAX_BYTES }).text === row.text;
   });
+}
+
+
+export const WORKFLOW_RUN_DIAGNOSTIC_BYTES = 131_072;
+/** Cap aggregate serialized diagnostic JSON, rebalancing large inputs so new errors receive space. */
+export function boundWorkflowRunDiagnostics(steps: readonly { diagnostics?: WorkflowStepDiagnostics }[], maxBytes = WORKFLOW_RUN_DIAGNOSTIC_BYTES): void {
+  const fields: { owner: WorkflowStepDiagnostics; key: keyof WorkflowStepDiagnostics; value: WorkflowDiagnostic; size: number }[] = [];
+  const cost = (key: string, value: WorkflowDiagnostic) => byteLength(JSON.stringify({ [key]: value }));
+  for (const step of steps) if (step.diagnostics) for (const key of ['input', 'output', 'error'] as const) {
+    const value = step.diagnostics[key]; if (value) fields.push({ owner: step.diagnostics, key, value, size: cost(key, value) });
+  }
+  if (fields.reduce((sum, field) => sum + field.size, 0) <= maxBytes) return;
+  let remaining = maxBytes;
+  const pending = [...fields].sort((a, b) => a.size - b.size);
+  for (let index = 0; index < pending.length; index++) {
+    const field = pending[index]!;
+    const share = Math.floor(remaining / (pending.length - index));
+    const overhead = cost(field.key, { text: '', truncated: true, redacted: field.value.redacted });
+    if (share < overhead) { delete field.owner[field.key]; continue; }
+    let limit = Math.min(byteLength(field.value.text), MAX_BYTES);
+    let safe = { ...field.value };
+    while (cost(field.key, safe) > share) {
+      const content = Math.max(1, cost(field.key, safe) - overhead);
+      limit = Math.max(0, Math.min(limit - 1, Math.floor(limit * (share - overhead) / content) - 1));
+      const clipped = limit ? captureWorkflowDiagnostic(field.value.text, { maxBytes: limit }) : { text: '', truncated: true, redacted: false };
+      safe = { ...clipped, truncated: true, redacted: clipped.redacted || field.value.redacted };
+    }
+    field.owner[field.key] = safe;
+    remaining -= cost(field.key, safe);
+  }
 }

@@ -19,6 +19,16 @@ import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-de
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 
 const LANE = DEMO_ACTIVITY_DEFINITION.key;
+const demoDiagnostics = {
+  input: (input: JobInput) => typeof input === 'string' ? { date: input }
+    : { scheduledAt: input && typeof input === 'object' && 'scheduledAt' in input ? input.scheduledAt : undefined },
+  output: (value: unknown) => {
+    const counts = ['written', 'filed', 'closed', 'skipped', 'checked', 'scanned', 'evaluated', 'readings', 'found', 'sent', 'failed'];
+    return value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key, count]) =>
+      counts.includes(key) && typeof count === 'number' && Number.isFinite(count))) : {};
+  },
+  error: () => ({ message: 'The demo operation failed.' }),
+};
 /** Version of the demo's implementations of the release's scheduled jobs. */
 const SCHEDULE_VERSION = 'demo-v1';
 const READBACKS_PER_PASS = 4;
@@ -130,7 +140,7 @@ export function createHostedDemo(options: HostedDemoOptions): {
     if (typeof input !== 'string') refuse(); activity.day(input); return input;
   };
   const runner = createHostedJobRunner({ workspaceId, serviceId, store, grant, definitions: [{
-    key: LANE, version: DEMO_ACTIVITY_DEFINITION.version, parseInput: dateOf,
+    key: LANE, version: DEMO_ACTIVITY_DEFINITION.version, parseInput: dateOf, diagnostics: demoDiagnostics,
     steps: [{ ...DEMO_ACTIVITY_DEFINITION.steps[0], run: async ({ input, signal }, tx) => {
       const date = dateOf(input), facts = activity.day(date);
       if (date !== anchor) {
@@ -243,27 +253,27 @@ export function createHostedDemo(options: HostedDemoOptions): {
   const adSites = Object.freeze(scenario.manifest.adSites.map(site => Object.freeze({ ...site,
     since: scenario.assets.find(asset => asset.id === site.asset)!.createdAt.slice(0, 10) })));
   const schedule: readonly HostedJobDefinition[] = Object.freeze([
-    { key: 'mercury', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'banking', kind: 'database', action: 'workflows.run',
+    { key: 'mercury', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'banking', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.banking(scoped, demoBankingReading(scenario, minuteOf(input)))) }] },
-    ...(adSites.length ? [{ key: 'mediavine', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'revenue', kind: 'database' as const, action: 'workflows.run' as const,
+    ...(adSites.length ? [{ key: 'mediavine', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'revenue', kind: 'database' as const, action: 'workflows.run' as const,
       run: async ({ input, signal }: { input: JobInput; signal: AbortSignal }, tx: Transaction) => inTransaction(tx, signal, scoped =>
         writer.revenue(scoped, { at: minuteOf(input), sites: adSites, amount: activity.adRevenue })) }] }] : []),
-    { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
+    { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.collect(scoped, activity.collection(minuteOf(input)))) }] },
-    { key: 'freshness', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'freshness', kind: 'database', action: 'workflows.run',
+    { key: 'freshness', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'freshness', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.freshness(scoped, minuteOf(input))) },
     { key: 'uptime', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => {
         const at = minuteOf(input);
         return writer.uptime(scoped, at, activity.homeFetch(at));
       }) }] },
-    { key: 'notifications', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'notify', kind: 'database', action: 'workflows.run',
+    { key: 'notifications', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'notify', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.notify(scoped, minuteOf(input))) }] },
-    { key: 'watch-windows', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'outcomes', kind: 'database', action: 'workflows.run',
+    { key: 'watch-windows', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'outcomes', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.outcomes(scoped, minuteOf(input))) }] },
-    { key: 'watch-readbacks', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'tasks.write',
+    { key: 'watch-readbacks', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'execute', kind: 'database', action: 'tasks.write',
       run: async ({ input, signal }, tx) => postReadbacks(minuteOf(input), signal, tx) }] },
-    { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',
+    { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, diagnostics: demoDiagnostics, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',
       run: async ({ signal }, tx) => refreshBoard(signal, tx) }] },
   ]);
   async function tick(): Promise<HostedDemoTick> {

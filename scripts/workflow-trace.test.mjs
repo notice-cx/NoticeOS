@@ -178,3 +178,25 @@ test('explicit adoption preserves truncation flags and does not auto-adopt arbit
   assert.deepEqual(trace.steps[0].diagnostics.input, { text: 'observed input', truncated: true, redacted: true });
   assert.notEqual(trace.steps[0].diagnostics.output.text, 'untrusted nested property');
 });
+
+
+test('recorder caps a complete run across replacement and adopted diagnostics while preserving later errors', async () => {
+  const trace = createWorkflowRecorder();
+  for (let index = 0; index < 12; index++) await trace.run('collect', async capture => {
+    capture.adopt({ input: { text: 'x'.repeat(60_000), truncated: false, redacted: true } });
+    capture.output('A short actual result'); return {};
+  });
+  await assert.rejects(trace.run('fail', async () => { throw new Error('Later actual failure'); }));
+  assert.ok(trace.steps.reduce((sum, step) => sum + new TextEncoder().encode(JSON.stringify(step.diagnostics ?? {})).byteLength, 0) <= 131_072);
+  assert.ok(trace.steps.at(-1).diagnostics.error.text.includes('Later actual failure'));
+  assert.match(trace.steps.at(-1).summary, /Open Run diagnostics, then Output/);
+});
+
+test('a telemetry failure does not promise an error that was never captured or change the original throw', async () => {
+  const error = new Error('Actual operation failure');
+  const secrets = { [Symbol.iterator]() { throw new Error('Diagnostic capture unavailable'); } };
+  const trace = createWorkflowRecorder({ secrets });
+  await assert.rejects(trace.run('fail', async () => { throw error; }), caught => caught === error);
+  assert.equal(trace.steps[0].diagnostics?.error, undefined);
+  assert.equal(trace.steps[0].summary, 'This step failed. Error diagnostics were not recorded.');
+});

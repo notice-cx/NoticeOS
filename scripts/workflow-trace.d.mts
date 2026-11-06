@@ -5,10 +5,14 @@ export declare function stepResult(result: unknown): StepVerdict;
 export declare function workflowResult(steps: WorkflowStepRun[], outcome: string): 'failed' | 'skipped' | 'succeeded';
 /** Return only after every started branch has supplied its terminal evidence. */
 export declare function settleWorkflowSteps(promises: Promise<unknown>[]): Promise<void>;
+export interface WorkflowDiagnosticMetadata {
+    truncated?: boolean;
+    redacted?: boolean;
+}
 export interface WorkflowDiagnosticCapture {
-    input(value: unknown): void;
-    output(value: unknown): void;
-    error(value: unknown): void;
+    input(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+    output(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
+    error(value: unknown, metadata?: WorkflowDiagnosticMetadata): void;
     adopt(diagnostics: WorkflowStepDiagnostics): void;
 }
 export interface WorkflowRecorder {

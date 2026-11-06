@@ -114,6 +114,23 @@ test('retained observed step diagnostics survive projection while malformed diag
   assert.equal(buildWorkflowHistory([record], [], [], NOW, id).selectedRun.steps, null);
 });
 
+test('unchanged trace projections are cached while nested diagnostic mutations are revalidated', () => {
+  const at = new Date(NOW - HOUR).toISOString(), id = `counters@${at}`;
+  const record = { job, at, ms: 10, outcome: 'failed' };
+  const trace = { id, workflowId: 'counters', definitionVersion: 1, startedAt: at, finishedAt: at, state: 'failed', steps: [
+    { id: 'google', attempt: 1, startedAt: at, finishedAt: at, state: 'failed', diagnostics: { output: captureWorkflowDiagnostic('Actual output') } },
+  ] };
+  const first = buildWorkflowHistory([record], [trace], [], NOW, id).selectedRun;
+  const second = buildWorkflowHistory([record], [trace], [], NOW, id).selectedRun;
+  assert.equal(first.steps, second.steps);
+  trace.steps[0].diagnostics.output.text = 'Bearer synthetic-private';
+  const changed = buildWorkflowHistory([record], [trace], [], NOW, id).selectedRun;
+  assert.notEqual(changed.steps, first.steps);
+  assert.equal(changed.steps[0].diagnostics, undefined);
+  assert.equal(first.steps[0].diagnostics.output.text, 'Actual output');
+  assert.ok(!JSON.stringify(changed).includes('synthetic-private'));
+});
+
 test('hosted daily counts and old failure links remain complete and workspace isolated', { timeout: 120000 }, async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'workflow-week-'));
   let cluster, closePool;

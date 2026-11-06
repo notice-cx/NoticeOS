@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { Transaction, WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
 import { createWorkspaceAdmission, type WorkspaceAction, type WorkspaceContext, type WorkspaceAdmission } from './workspace-admission.mjs';
-import { captureWorkflowDiagnostic } from './workflow-diagnostics.mjs';
+import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { stepResult } from './workflow-trace.mjs';
 import type { WorkflowStepDiagnostics, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
@@ -27,11 +27,18 @@ export type HostedJobStep = {
   | { readonly kind: 'database'; readonly run: (call: StepCall, tx: Transaction) => Promise<unknown> }
   | { readonly kind: 'effect'; readonly run: (call: StepCall) => Promise<unknown> }
 );
+/** Projectors select fields safe for operator history; omit credentials and raw provider bodies. */
+export interface HostedDiagnosticPolicy {
+  readonly input: (input: JobInput) => unknown;
+  readonly output: (value: unknown) => unknown;
+  readonly error: (error: unknown) => unknown;
+}
 export interface HostedJobDefinition {
   readonly key: string;
   /** Change when the implementation or its interpretation of input changes. */
   readonly version: string;
   readonly parseInput: (input: unknown) => JobInput;
+  readonly diagnostics: HostedDiagnosticPolicy | false;
   readonly steps: readonly HostedJobStep[];
 }
 type State = 'running' | 'retryable' | 'succeeded' | 'uncertain' | 'blocked' | 'exhausted';
@@ -124,14 +131,29 @@ async function locked(tx: Transaction, lane: string, occurrence: string): Promis
 function receipt(row: Stored, state: HostedJobReceipt['state'] = row.state): HostedJobReceipt {
   return Object.freeze({ state, attempt: row.attempt, steps: Object.freeze(structuredClone(row.steps)) });
 }
-function observed(value: unknown, startedAt: string, input: JobInput): Evidence {
+function diagnostics(policy: HostedDiagnosticPolicy | false, input: JobInput, value: unknown, hasValue: boolean, error?: unknown): WorkflowStepDiagnostics | undefined {
+  if (policy === false) return undefined;
+  const result: WorkflowStepDiagnostics = {};
+  for (const [key, project, source] of [['input', policy.input, input], ...(hasValue ? [['output', policy.output, value]] : []),
+    ...(error !== undefined ? [['error', policy.error, error]] : [])] as const) {
+    try {
+      const projected = (project as (value: unknown) => unknown)(source);
+      if (projected !== undefined) result[key as keyof WorkflowStepDiagnostics] = captureWorkflowDiagnostic(projected, { maxBytes: 8192 });
+    } catch { /* deployment projections fail closed without affecting the job */ }
+  }
+  return Object.keys(result).length ? result : undefined;
+}
+function boundEvidence(steps: Record<string, Evidence>): void {
+  boundWorkflowRunDiagnostics(Object.values(steps));
+}
+function observed(value: unknown, startedAt: string, input: JobInput, policy: HostedDiagnosticPolicy | false): Evidence {
   const result = stepResult(value);
   if (!['succeeded', 'skipped'].includes(result.state) || typeof result.summary !== 'string') refuse();
   const output = captureWorkflowOutput(value);
   const evidence: Evidence = { state: result.state === 'skipped' ? 'skipped' : 'succeeded', summary: result.summary,
     startedAt, finishedAt: new Date().toISOString(), ...(output ? { output } : {}) };
   if (Buffer.byteLength(JSON.stringify(evidence)) > 32_768) refuse();
-  return { ...evidence, diagnostics: { input: captureWorkflowDiagnostic(input, { maxBytes: 8192 }), output: captureWorkflowDiagnostic(value, { maxBytes: 8192 }) } };
+  return { ...evidence, diagnostics: diagnostics(policy, input, value, true) };
 }
 
 /** Owns the supplied store/grant, which deployment must bind to this workspace.
@@ -150,6 +172,7 @@ export function createHostedJobRunner(options: {
   const definitions = new Map<string, HostedJobDefinition & { hash: string }>();
   for (const source of options.definitions) {
     if (!key(source.key) || !key(source.version) || definitions.has(source.key) || typeof source.parseInput !== 'function'
+      || !(source.diagnostics === false || source.diagnostics && ['input', 'output', 'error'].every(key => typeof (source.diagnostics as unknown as Record<string, unknown>)[key] === 'function'))
       || !Array.isArray(source.steps) || source.steps.length === 0 || source.steps.length > 16) refuse();
     const steps: readonly HostedJobStep[] = source.steps.map((step: HostedJobStep) => {
       if (!key(step.key) || !['database', 'effect'].includes(step.kind) || typeof step.run !== 'function' || typeof step.action !== 'string') refuse();
@@ -157,7 +180,7 @@ export function createHostedJobRunner(options: {
     });
     if (new Set(steps.map(step => step.key)).size !== steps.length) refuse();
     const hash = hostedJobDefinitionHash(source.version, steps);
-    definitions.set(source.key, Object.freeze({ key: source.key, version: source.version, parseInput: source.parseInput, steps: Object.freeze(steps), hash }));
+    definitions.set(source.key, Object.freeze({ key: source.key, version: source.version, parseInput: source.parseInput, diagnostics: source.diagnostics === false ? false : Object.freeze({ ...source.diagnostics }), steps: Object.freeze(steps), hash }));
   }
   const admission: WorkspaceAdmission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('hosted jobs'), authority: async () => {
     const facts = await grant.facts();
@@ -211,6 +234,7 @@ export function createHostedJobRunner(options: {
       let row = owns(await locked(tx, lane, occurrence));
       if (failedStep) {
         const steps = { ...row.steps, [failedStep.key]: { ...failedStep.evidence, attempt: row.attempt } };
+        boundEvidence(steps);
         await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET steps=$4::jsonb
           WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps)]);
         row = { ...row, steps };
@@ -263,9 +287,11 @@ export function createHostedJobRunner(options: {
           admitted = true;
           const call: StepCall = { context, occurrence, input, signal: controller.signal };
           const mark = async (tx: Transaction, row: Stored, evidence: Evidence): Promise<void> => {
+            const steps = { ...row.steps, [step.key]: { ...evidence, attempt: row.attempt } };
+            boundEvidence(steps);
             await tx.execute(`UPDATE noticeos.hosted_job_occurrences SET steps=$4::jsonb,effect_step=NULL,
               lease_expires_at=clock_timestamp()+$5::int*interval '1 second',updated_at=clock_timestamp()
-              WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify({ ...row.steps, [step.key]: { ...evidence, attempt: row.attempt } }), LEASE_SECONDS]);
+              WHERE workspace_id=$1::uuid AND lane=$2 AND occurrence=$3`, [...selected, JSON.stringify(steps), LEASE_SECONDS]);
           };
           if (step.kind === 'database') {
             await write(async tx => {
@@ -276,7 +302,7 @@ export function createHostedJobRunner(options: {
               const value = await step.run(call, tx);
               returned = value; hasReturned = true;
               if (controller.signal.aborted) refuse();
-              await mark(tx, row, observed(value, startedAt, input));
+              await mark(tx, row, observed(value, startedAt, input, definition.diagnostics));
             });
           } else {
             const shouldRun = await write(async tx => {
@@ -296,7 +322,7 @@ export function createHostedJobRunner(options: {
             const value = await step.run(call);
             returned = value; hasReturned = true;
             if (controller.signal.aborted) refuse();
-            const evidence = observed(value, startedAt, input);
+            const evidence = observed(value, startedAt, input, definition.diagnostics);
             await write(async tx => {
               const row = owns(await locked(tx, lane, occurrence));
               if (row.effect_step !== step.key) refuse();
@@ -309,9 +335,8 @@ export function createHostedJobRunner(options: {
         // record only redacted arguments and the observed error, never authority.
         return finish(effectStarted || startAttempted ? 'uncertain' : admitted ? 'retryable' : 'blocked', admitted ? {
           key: step.key, evidence: { state: 'failed', summary: hasReturned && stepResult(returned).state === 'failed' ? stepResult(returned).summary ?? 'This step failed.' : 'This step failed.', startedAt, finishedAt: new Date().toISOString(),
-            diagnostics: { input: captureWorkflowDiagnostic(input, { maxBytes: 8192 }),
-              ...(hasReturned ? { output: captureWorkflowDiagnostic(returned, { maxBytes: 8192 }) } : {}),
-              ...(!hasReturned || stepResult(returned).state !== 'failed' ? { error: captureWorkflowDiagnostic(error, { maxBytes: 8192 }) } : {}) } },
+            diagnostics: diagnostics(definition.diagnostics, input, returned, hasReturned,
+              !hasReturned || stepResult(returned).state !== 'failed' ? error : undefined) },
         } : undefined);
       } finally { clearTimeout(timer); controllers.delete(controller); }
     }

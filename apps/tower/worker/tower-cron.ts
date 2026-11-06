@@ -102,7 +102,7 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
     });
     await step("source-history", async capture => {
       const deps = integrationsDeps(await env.config(), now());
-      capture.input(deps);
+      capture.input({ now: deps.now, assets: Object.keys(deps.integrations.assets).sort() });
       return recordTodaysSourceHistory(env.STORE, deps);
     });
   }

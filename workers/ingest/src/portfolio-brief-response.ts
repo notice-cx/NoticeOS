@@ -58,10 +58,14 @@ function sourceOpening(facts: PortfolioBriefFact[], eligible: Set<string>): stri
 }
 
 function observationWithPeriod(observation: string, opening: string): string {
-  if (observation.startsWith(opening)) return sentence(observation);
-  // An explicit model-written period must agree; never conceal it under another prefix.
-  if (/^(?:Currently\b|In \w+ versus\b|In \w+ \d{4} versus\b|Over the\b|During\b|On \w+ \d|From \d{4}-|(?:Last|This|Next) (?:week|month|quarter|year)\b)/i.test(observation)) return fail('briefing-periods');
-  return `${opening}${sentence(observation)}`;
+  // Only the exact source opening establishes a reporting period. Other explicit
+  // period claims cannot be verified from prose, even after a correct opening.
+  const suppliedOpening = observation.startsWith(opening);
+  const body = suppliedOpening ? observation.slice(opening.length) : observation;
+  const month = '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)';
+  const periodClaim = new RegExp(`\\b(?:currently|today|yesterday|(?:last|this|next|previous|prior)\\s+(?:week|month|quarter|year)|(?:over|during|in|for|across|throughout)\\s+(?:(?:the|a)\\s+)?(?:(?:last|latest|past|previous|prior|next)\\s+)?\\d+\\s+(?:days?|weeks?|months?|quarters?|years?)|(?:in|during|for|since|from|through|until|on|as of)\\s+${month}\\b|(?:from|since|through|until|on|as of)\\s+\\d{4}-\\d{2}-\\d{2}|(?:in|during|for)\\s+\\d{4}\\b|(?:in|during|for)\\s+Q[1-4]\\b)`, 'i');
+  if (periodClaim.test(body)) return fail('briefing-periods');
+  return sentence(suppliedOpening ? observation : `${opening}${observation}`);
 }
 
 /** Parse presentation only. Source selection and timeframe checks stay application-owned. */

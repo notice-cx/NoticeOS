@@ -4,12 +4,14 @@ import { runBd } from './task-hub.mjs';
 import { log } from './log.mjs';
 
 /** Capture existing local command results without changing their return or verdict. */
-export function localLaneDiagnostics(capture, job, { task = runBd, command = runCommand, emit = log } = {}) {
+export function localLaneDiagnostics(capture, job, { task = runBd, command = runCommand, emit = log, resultMetadata = () => ({}) } = {}) {
   if (!capture) return { runTask: task, runCommand: command, emit, finish() {} };
   const calls = [], errors = [];
   let omitted = 0;
   const telemetry = fn => { try { fn(); } catch { /* diagnostics cannot change a command result */ } };
   const diagnostic = value => { try { return captureWorkflowDiagnostic(value); } catch { return { text: '[Diagnostic unavailable]', truncated: true, redacted: false }; } };
+  const flags = values => ({ redacted: values.some(value => value?.redacted === true), truncated: values.some(value => value?.truncated === true) });
+  const commandFlags = () => flags(calls.flatMap(row => [row.output, row.error]));
   const observe = async (input, run) => {
     const row = { input };
     calls.push(row); if (calls.length > 20) { calls.shift(); omitted++; }
@@ -19,25 +21,25 @@ export function localLaneDiagnostics(capture, job, { task = runBd, command = run
       row.output = diagnostic(result);
       if (result?.error || result?.code !== undefined && result.code !== 0) {
         errors.push(diagnostic(result)); if (errors.length > 20) errors.shift();
-        telemetry(() => capture.error(errors));
+        telemetry(() => capture.error(errors, flags(errors)));
       }
       return result;
     } catch (error) {
       row.error = diagnostic(error);
       errors.push(row.error); if (errors.length > 20) errors.shift();
-      telemetry(() => capture.error(errors)); throw error;
-    } finally { telemetry(() => capture.output({ commands: calls, omittedCommands: omitted })); }
+      telemetry(() => capture.error(errors, flags(errors))); throw error;
+    } finally { telemetry(() => capture.output({ commands: calls, omittedCommands: omitted }, commandFlags())); }
   };
   return {
     finish(result, error) {
-      if (error) { errors.push(diagnostic(error)); telemetry(() => capture.error(errors)); }
-      telemetry(() => capture.output({ result, commands: calls, omittedCommands: omitted }));
+      if (error) { errors.push(diagnostic(error)); telemetry(() => capture.error(errors, flags(errors))); }
+      telemetry(() => capture.output({ result, commands: calls, omittedCommands: omitted }, flags([commandFlags(), resultMetadata(result)])));
     },
     runTask: (args, timeoutMs) => observe({ command: 'task client', args, ...(timeoutMs !== undefined ? { timeoutMs } : {}) }, () => task(args, timeoutMs)),
     runCommand: (name, args, options = {}) => observe({ command: name, args, cwd: options.cwd, timeoutMs: options.timeoutMs }, () => command(name, args, options)),
     emit(level, text) {
       emit(level, text);
-      if (level === 'ERROR') { errors.push(diagnostic(text)); if (errors.length > 20) errors.shift(); telemetry(() => capture.error(errors)); }
+      if (level === 'ERROR') { errors.push(diagnostic(text)); if (errors.length > 20) errors.shift(); telemetry(() => capture.error(errors, flags(errors))); }
     },
   };
 }

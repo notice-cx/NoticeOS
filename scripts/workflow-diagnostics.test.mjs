@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { captureWorkflowDiagnostic, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
+import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic, isWorkflowStepDiagnostics, WORKFLOW_RUN_DIAGNOSTIC_BYTES } from './workflow-diagnostics.mjs';
 
 const bytes = value => new TextEncoder().encode(value).byteLength;
 test('diagnostics retain useful nested settings and actual values while redacting credential keys and patterns', () => {
@@ -92,4 +92,42 @@ test('retained diagnostics reject unbounded, malformed and unsanitized text', ()
   for (const invalid of [{ output: { ...valid, text: 'x'.repeat(65_537) } }, { output: { ...valid, arbitrary: 'x' } },
     { output: { ...valid, text: 'Bearer synthetic-private' } }, { credential: valid }, { error: { ...valid, redacted: 'false' } }]) assert.equal(isWorkflowStepDiagnostics(invalid), false);
   for (const limit of [0, -1, NaN, 65_537, 1.5]) assert.throws(() => captureWorkflowDiagnostic('x', { maxBytes: limit }), RangeError);
+});
+
+
+test('every clipping point preserves stable redaction validation without leaking partial credentials', () => {
+  for (const value of ['Authorization: Bearer synthetic-private-token', 'https://example.com/?token=synthetic-private-token', '{"password":"synthetic-private-token"}']) {
+    for (let maxBytes = 1; maxBytes <= 100; maxBytes++) {
+      const captured = captureWorkflowDiagnostic(value, { maxBytes });
+      assert.ok(bytes(captured.text) <= maxBytes);
+      assert.ok(isWorkflowStepDiagnostics({ output: captured }), `${maxBytes}: ${captured.text}`);
+      assert.ok(!captured.text.includes('synthetic-private'));
+    }
+  }
+});
+
+test('an unfinished PEM block is redacted before storage clipping', () => {
+  for (const kind of ['PRIVATE KEY', 'RSA PRIVATE KEY']) {
+    const captured = captureWorkflowDiagnostic(`Actual error\n-----BEGIN ${kind}-----\nsensitive-key-material`, { inputTruncated: true });
+    assert.ok(!captured.text.includes('sensitive-key-material'));
+    assert.equal(captured.redacted, true);
+    assert.ok(isWorkflowStepDiagnostics({ error: captured }));
+  }
+});
+
+test('arbitrary provider metadata cannot claim diagnostic redaction or truncation', () => {
+  const captured = captureWorkflowDiagnostic({ result: { response: { body: 'Observed bounded response', redacted: true, truncated: true } } });
+  assert.equal(captured.redacted, false); assert.equal(captured.truncated, false);
+  assert.ok(captured.text.includes('Observed bounded response'));
+});
+
+test('a run-level byte budget rebalances prior large fields instead of dropping new errors', () => {
+  const steps = Array.from({ length: 20 }, () => ({ diagnostics: { input: captureWorkflowDiagnostic('\n名'.repeat(20_000), { maxBytes: 65_536 }),
+    output: captureWorkflowDiagnostic('x'.repeat(60_000), { maxBytes: 65_536 }) } }));
+  steps.push({ diagnostics: { error: captureWorkflowDiagnostic('A later actual error') } });
+  boundWorkflowRunDiagnostics(steps);
+  assert.ok(steps.reduce((sum, step) => sum + bytes(JSON.stringify(step.diagnostics)), 0) <= WORKFLOW_RUN_DIAGNOSTIC_BYTES);
+  assert.equal(steps.at(-1).diagnostics.error.text, 'A later actual error');
+  assert.ok(steps[0].diagnostics.input.truncated);
+  for (const step of steps) assert.ok(isWorkflowStepDiagnostics(step.diagnostics));
 });

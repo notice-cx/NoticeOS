@@ -53,3 +53,26 @@ test('diagnostic callbacks cannot replace command return values or exceptions', 
   const thrown = localLaneDiagnostics(capture, 'task-map', { task: async () => { throw error; }, emit: () => {} });
   await assert.rejects(thrown.runTask(['list']), caught => caught === error);
 });
+
+
+test('local command aggregation retains upstream redaction flags even when the final text fits', async () => {
+  const trace = createWorkflowRecorder();
+  await trace.run('execute', capture => runLocalLaneWithDiagnostics(capture, 'task-map', async observed => {
+    await observed.runTask(['list']);
+    return { response: { body: 'Observed shortened body', truncated: true, redacted: true } };
+  }, { task: async () => ({ code: 0, stdout: 'Actual output', password: 'synthetic-private' }), emit: () => {}, resultMetadata: result => result.response }));
+  assert.equal(trace.steps[0].diagnostics.output.redacted, true);
+  assert.equal(trace.steps[0].diagnostics.output.truncated, true);
+  assert.ok(!JSON.stringify(trace.steps).includes('synthetic-private'));
+});
+
+
+test('real raw command captures retain redaction and byte truncation metadata through the recorder', async () => {
+  const trace = createWorkflowRecorder();
+  await trace.run('execute', capture => runLocalLaneWithDiagnostics(capture, 'panel-refresh', async observed => {
+    await observed.runCommand('pnpm', ['signals:refresh']); return { code: 0 };
+  }, { command: async () => ({ code: 0, stdout: 'x'.repeat(30_000), api_token: 'synthetic-private' }), emit: () => {} }));
+  const output = trace.steps[0].diagnostics.output;
+  assert.equal(output.redacted, true); assert.equal(output.truncated, true);
+  assert.ok(!JSON.stringify(trace.steps).includes('synthetic-private'));
+});

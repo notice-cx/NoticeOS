@@ -76,3 +76,22 @@ it('rejects a model-written period that conflicts with the cited comparison', ()
   const answer = prose.replace('Observation: Traffic', 'Observation: Over the last 30 days, traffic');
   expect(() => parsePortfolioBrief(answer, evidence)).toThrowError(expect.objectContaining({ code: 'briefing-periods' }));
 });
+
+it.each([
+  'Traffic rose 50% over the last 30 days.',
+  'In March, revenue rose.',
+  'Revenue rose. In March, traffic fell.',
+  'Traffic fell during the previous 2 weeks.',
+  'Revenue rose during 2025.',
+  'Over the latest 7 days versus the previous 7, traffic rose over the last 30 days.',
+])('rejects additional period claims anywhere in the observation: %s', observation => {
+  expect(() => parsePortfolioBrief(prose.replace('Traffic rose 50%. Revenue fell 20%.', observation), evidence))
+    .toThrowError(expect.objectContaining({ code: 'briefing-periods' }));
+});
+
+it('keeps a correct source opening and ordinary non-temporal prose', () => {
+  const observation = 'Over the latest 7 days versus the previous 7, traffic rose. Revenue fell.';
+  expect(parsePortfolioBrief(prose.replace('Traffic rose 50%. Revenue fell 20%.', observation), evidence).insights[0]?.observation).toBe(observation);
+  expect(parsePortfolioBrief(prose.replace('Traffic rose 50%. Revenue fell 20%.', 'During checkout, errors increased.'), evidence).insights[0]?.observation)
+    .toContain('During checkout, errors increased.');
+});

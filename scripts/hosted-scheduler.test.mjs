@@ -125,7 +125,7 @@ test('hosted schedules dispatch and publish evidence separately for two customer
       finally { await s.close(); }
     };
     let failOnce = false;
-    const definition = index => ({ key: 'counters', version: 'v1', parseInput(value) {
+    const definition = index => ({ key: 'counters', version: 'v1', diagnostics: false, parseInput(value) {
       assert.deepEqual(Object.keys(value), ['scheduledAt']); assert.ok(Number.isFinite(Date.parse(value.scheduledAt))); return value;
     }, steps: [{ key: 'record', kind: 'database', action: 'assets.write', async run({ context, occurrence, input }, tx) {
       assert.equal(context.workspaceId, workspaces[index]); assert.equal(context.principalId, services[index]);

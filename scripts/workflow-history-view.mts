@@ -1,7 +1,7 @@
 /** Pure execution-history projection, shared by standalone files and hosted rows. */
 import type { WorkflowRun } from '../packages/contract/src/workflows.js';
 import { PORTFOLIO_BRIEF_FAILURES } from './portfolio-brief-failure.mjs';
-import { isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
+import { boundWorkflowRunDiagnostics, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from './workflow-definitions.mjs';
@@ -40,7 +40,7 @@ function readTrigger(value: unknown): WorkflowRun['trigger'] {
   return { kind: value.kind as NonNullable<WorkflowRun['trigger']>['kind'] };
 }
 
-function readTrace(value: unknown, definitions: readonly WorkflowDefinition[]): WorkflowRun[] {
+function projectTrace(value: unknown, definitions: readonly WorkflowDefinition[]): WorkflowRun[] {
   if (!validTrace(value, definitions)) return [];
   return [{ id: value.id, workflowId: value.workflowId, definitionVersion: value.definitionVersion, startedAt: value.startedAt,
     ...(value.finishedAt ? { finishedAt: value.finishedAt } : {}), state: value.state,
@@ -51,6 +51,28 @@ function readTrace(value: unknown, definitions: readonly WorkflowDefinition[]): 
       ...(isWorkflowStepDiagnostics(step.diagnostics) ? { diagnostics: step.diagnostics } : {}),
     })),
   }];
+}
+
+const traceCache = new WeakMap<object, { fingerprint: string; definitions: string; result: WorkflowRun[] }>();
+function freezeProjection<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const item of Object.values(value)) freezeProjection(item);
+    Object.freeze(value);
+  }
+  return value;
+}
+function readTrace(value: unknown, definitions: readonly WorkflowDefinition[]): WorkflowRun[] {
+  if (!value || typeof value !== 'object') return [];
+  let fingerprint: string;
+  try { fingerprint = JSON.stringify(value); } catch { return []; }
+  const definitionIds = definitions.map(definition => definition.id).join('|');
+  const cached = traceCache.get(value);
+  if (cached?.fingerprint === fingerprint && cached.definitions === definitionIds) return cached.result;
+  const result = JSON.parse(JSON.stringify(projectTrace(value, definitions))) as WorkflowRun[];
+  for (const run of result) if (run.steps) boundWorkflowRunDiagnostics(run.steps);
+  freezeProjection(result);
+  traceCache.set(value, { fingerprint, definitions: definitionIds, result });
+  return result;
 }
 
 /**

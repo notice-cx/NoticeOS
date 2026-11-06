@@ -312,13 +312,13 @@ async function runBackup() {
 // (scripts/runner/scheduler.mjs), which decides only when. `outcomeOf` turns
 // a lane's result into its job-run outcome; without one, null is a skip.
 export function hostLanes(runtime) {
-  const traced = (id, run) => ({ run: capture => runLocalLaneWithDiagnostics(capture, id, run) });
+  const traced = (id, run, adapters) => ({ run: capture => runLocalLaneWithDiagnostics(capture, id, run, adapters) });
   return {
     'beads-hub': {
       run: () => checkBeadsHub(),
       outcomeOf: (reachable) => ({ outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' }),
     },
-    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
+    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit }), { resultMetadata: result => result?.response ?? result?.error ?? {} }),
     'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
     'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
     'task-map': traced('task-map', observed => runTaskMapCheck({ taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),

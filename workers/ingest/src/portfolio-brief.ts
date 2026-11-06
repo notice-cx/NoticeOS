@@ -79,8 +79,8 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
   if (!claim) return presented(prior, start);
   let nextAttemptAt: string | null = null;
   const diagnostics: WorkflowStepDiagnostics = {};
-  const diagnosticOptions = { maxBytes: 65_536, secrets: Object.entries(credential.fields)
-    .filter(([key]) => key !== LOCAL_MODEL_ID).flatMap(([, value]) => [value, value.trim()]).filter(Boolean) };
+  const token = credential.fields.LOCAL_MODEL_API_TOKEN ?? '';
+  const diagnosticOptions = { maxBytes: 65_536, secrets: [token, token.trim()].filter(Boolean) };
   try {
     prior = await cached(cache, key);
     if (prior?.nextAttemptAt && Date.parse(prior.nextAttemptAt) > clock()) return presented(prior, clock());

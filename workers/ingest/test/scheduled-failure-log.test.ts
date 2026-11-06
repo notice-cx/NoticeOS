@@ -1,16 +1,15 @@
-// What "check the service logs" finds.
-//
-// A failed step's Workflows row tells the operator to check the service logs,
-// so the step that failed writes one structured line — cron, step, code,
-// message — and nothing credential-shaped reaches it.
+// Summaries remain fixed while run diagnostics and structured service logs
+// retain the useful cause without credential material.
 
+import { createWorkflowRecorder } from '../../../scripts/workflow-trace.mjs';
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { seedConfigDocuments, forgetConfigCache } from '../src/config-store.js';
 import { putCredential } from '../src/credentials.js';
 import { COUNTERS_CRON } from '../src/crons.js';
 import { runScheduledCron, scheduledStepFailure } from '../src/dispatch.js';
 import { SignalError } from '../src/signal-store.js';
-import { reset } from './helpers.js';
+import { reset, forgetConfigDocuments } from './helpers.js';
 
 const STORED_TOKEN = 'synthetic-refresh-token-9f3c';
 
@@ -47,6 +46,16 @@ describe('the line a failed scheduled step writes', () => {
     expect(JSON.stringify(line)).not.toContain('eyJhbGciOi');
   });
 
+  it('retains a useful diagnostic error while removing credential material', async () => {
+    const trace = createWorkflowRecorder();
+    await expect(trace.run('google', async () => { throw new Error(`GOOGLE_SIGNAL_ACCOUNTS request failed; Authorization: Bearer ${STORED_TOKEN}`); })).rejects.toThrow();
+    const step = trace.steps[0]!;
+    expect(step.summary ?? '').not.toContain('GOOGLE_SIGNAL_ACCOUNTS');
+    expect(step.diagnostics?.error?.text).toContain('GOOGLE_SIGNAL_ACCOUNTS');
+    expect(step.diagnostics?.error?.redacted).toBe(true);
+    expect(JSON.stringify(step)).not.toContain(STORED_TOKEN);
+  });
+
   it('keeps a plain error’s name as its code, and bounds the message', () => {
     const line = scheduledStepFailure('0 3 * * *', null, new TypeError('x'.repeat(2_000)));
 
@@ -71,14 +80,23 @@ describe('a scheduled fire whose step throws', () => {
     vi.stubGlobal('fetch', (async () => new Response('unavailable', { status: 503 })) as typeof fetch);
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+  afterEach(async () => {
+    try { await forgetConfigDocuments(['config/integrations.json']); } finally {
+      forgetConfigCache(env.STORE);
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
   });
 
-  it('writes one line from the step that failed, and the answer carries no error', async () => {
+  it('keeps the summary safe while retaining the actual redacted error and configuration provenance', async () => {
     // A Google row this Worker cannot open (its key is gone) with no binding
     // beside it: the Google step throws config_missing.
+    await forgetConfigDocuments(['config/integrations.json']);
+    const accountId = '947318265';
+    expect((await seedConfigDocuments(env, { actor: 'diagnostic-fixture', documents: {
+      'config/integrations.json': { catalog: [], assets: { 'example.com': { ga4: { ga4PropertyId: accountId } } } },
+    } })).ok).toBe(true);
+    forgetConfigCache(env.STORE);
     const bare = { ...env } as Record<string, unknown>;
     delete bare.GOOGLE_SIGNAL_ACCOUNTS;
     const stored = await putCredential(bare as unknown as IngestEnv, {
@@ -101,6 +119,16 @@ describe('a scheduled fire whose step throws', () => {
       },
     ]);
     expect(logged.join('\n')).not.toContain(STORED_TOKEN);
-    expect(JSON.stringify(result)).not.toContain('GOOGLE_SIGNAL_ACCOUNTS');
+    expect(result.detail ?? '').not.toContain('GOOGLE_SIGNAL_ACCOUNTS');
+    const google = result.steps?.find(step => step.id === 'google');
+    expect(google?.summary ?? '').not.toContain('GOOGLE_SIGNAL_ACCOUNTS');
+    expect(google?.diagnostics?.error?.text).toContain('GOOGLE_SIGNAL_ACCOUNTS');
+    expect(JSON.stringify(result)).not.toContain(STORED_TOKEN);
+    expect(JSON.parse(google!.diagnostics!.input!.text)).toMatchObject({ configSources: { 'config/integrations.json': 'store' } });
+    const config = result.steps?.find(step => step.id === 'config');
+    expect(JSON.parse(config!.diagnostics!.output!.text)).toMatchObject({ sources: { 'config/integrations.json': 'store' } });
+    expect(config?.diagnostics?.output?.text).not.toContain('documents');
+    for (const step of result.steps ?? []) expect(step.diagnostics?.input?.text ?? '').not.toContain(accountId);
+    expect(config?.diagnostics?.output?.text).not.toContain(accountId);
   });
 });

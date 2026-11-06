@@ -3,7 +3,7 @@
 //
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
-import { captureWorkflowDiagnostic, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
+import { boundWorkflowRunDiagnostics, captureWorkflowDiagnostic, isWorkflowStepDiagnostics } from './workflow-diagnostics.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
 import { portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 export function stepResult(result) {
@@ -52,14 +52,16 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => { }, fa
         async run(id, fn, assess = stepResult, input) {
             const step = { id, attempt: steps.filter((s) => s.id === id).length + 1, startedAt: new Date(now()).toISOString(), state: 'running' };
             const diagnostics = {};
-            const put = (key, value) => {
+            const put = (key, value, metadata) => {
                 try {
-                    diagnostics[key] = captureWorkflowDiagnostic(value, { secrets });
+                    const safe = captureWorkflowDiagnostic(value, { secrets });
+                    diagnostics[key] = { ...safe, redacted: safe.redacted || metadata?.redacted === true, truncated: safe.truncated || metadata?.truncated === true };
                     step.diagnostics = diagnostics;
+                    boundWorkflowRunDiagnostics([...steps, ...(steps.includes(step) ? [] : [step])]);
                 }
                 catch { /* capture cannot affect work */ }
             };
-            const capture = { input: value => put('input', value), output: value => put('output', value), error: value => put('error', value),
+            const capture = { input: (value, metadata) => put('input', value, metadata), output: (value, metadata) => put('output', value, metadata), error: (value, metadata) => put('error', value, metadata),
                 adopt(value) {
                     try {
                         if (!isWorkflowStepDiagnostics(value))
@@ -72,6 +74,7 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => { }, fa
                             diagnostics[key] = { ...safe, truncated: safe.truncated || original.truncated, redacted: safe.redacted || original.redacted };
                         }
                         step.diagnostics = diagnostics;
+                        boundWorkflowRunDiagnostics([...steps, ...(steps.includes(step) ? [] : [step])]);
                     }
                     catch { /* capture cannot affect work */ }
                 },
@@ -98,7 +101,7 @@ export function createWorkflowRecorder({ now = Date.now, changed = () => { }, fa
             catch (error) {
                 if (!diagnostics.error)
                     capture.error(error);
-                Object.assign(step, { state: 'failed', summary: 'This step failed. Open Output for the recorded error.', finishedAt: new Date(now()).toISOString() });
+                Object.assign(step, { state: 'failed', summary: diagnostics.error ? 'This step failed. Open Run diagnostics, then Output for the recorded error.' : 'This step failed. Error diagnostics were not recorded.', finishedAt: new Date(now()).toISOString() });
                 try {
                     failed(id, error);
                 }

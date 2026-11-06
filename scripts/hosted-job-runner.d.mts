@@ -26,11 +26,18 @@ export type HostedJobStep = {
     readonly kind: 'effect';
     readonly run: (call: StepCall) => Promise<unknown>;
 });
+/** Projectors select fields safe for operator history; omit credentials and raw provider bodies. */
+export interface HostedDiagnosticPolicy {
+    readonly input: (input: JobInput) => unknown;
+    readonly output: (value: unknown) => unknown;
+    readonly error: (error: unknown) => unknown;
+}
 export interface HostedJobDefinition {
     readonly key: string;
     /** Change when the implementation or its interpretation of input changes. */
     readonly version: string;
     readonly parseInput: (input: unknown) => JobInput;
+    readonly diagnostics: HostedDiagnosticPolicy | false;
     readonly steps: readonly HostedJobStep[];
 }
 type State = 'running' | 'retryable' | 'succeeded' | 'uncertain' | 'blocked' | 'exhausted';
