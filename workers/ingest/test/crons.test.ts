@@ -5,6 +5,8 @@ import { WORKFLOW_DEFINITIONS } from '../../../scripts/workflow-definitions.mjs'
 import { JOB_LANES, UnknownCronError, runCron, runScheduledCron } from '../src/dispatch.js';
 import IngestWorker from '../src/index.js';
 import { reset } from './helpers.js';
+import { seedConfigDocuments } from '../src/config-store.js';
+import constantsJson from './fixture-config/constants.json';
 
 // One list of scheduled jobs. scripts/scheduled-jobs.mts names every job and
 // its dispatch key; wrangler.jsonc registers the keys of the jobs the ingest
@@ -122,6 +124,20 @@ describe('each scheduled job’s own expression', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('a manual run cannot execute a paused workflow', async () => {
+    const network = vi.fn(async () => new Response('{}'));
+    vi.stubGlobal('fetch', network);
+    const job = INGEST_JOBS.find(job => job.id === 'freshness')!;
+    const seeded = await seedConfigDocuments(env, { documents: {
+      'config/constants.json': { ...structuredClone(constantsJson), schedules: { [job.id]: { enabled: false, cron: job.cron } } },
+    }, actor: 'config:seed' });
+    expect(seeded.ok).toBe(true);
+    const answer = await new IngestWorker(createExecutionContext(), env).runScheduled(job.cron, 'manual');
+    expect(answer).toMatchObject({ outcome: 'skipped', detail: 'Workflow is paused' });
+    expect(answer.steps?.map(step => step.id)).toEqual(['config']);
+    expect(network).not.toHaveBeenCalled();
   });
 
   it.each(INGEST_JOBS.map((job) => [job.label, job] as const))('%s runs its own steps, each one in the run record', async (_label, job) => {

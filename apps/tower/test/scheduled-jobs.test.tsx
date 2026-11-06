@@ -163,12 +163,13 @@ describe('schedule status read endpoint', () => {
   });
 });
 
-describe('named local job submission on the existing workflows boundary', () => {
+describe('named scheduled job submission on the existing workflows boundary', () => {
   const request = { method: 'POST', url: '/api/workflows', headers: { host: 'localhost:4187', origin: 'http://localhost:4187', 'content-type': 'application/json' }, body: JSON.stringify({ id: 'panel-refresh' }) };
-  it('forwards one allowed job ID to the private runner channel and returns its result', async () => {
-    const runJob = vi.fn(async () => ({ status: 200, body: { job: 'panel-refresh', outcome: 'ran' } }));
-    expect(await handleScheduledJobsRequest(request, { runJob })).toEqual({ status: 200, body: { job: 'panel-refresh', outcome: 'ran' } });
-    expect(runJob).toHaveBeenCalledExactlyOnceWith('panel-refresh');
+  it.each(['panel-refresh', 'portfolio-brief', 'counters', 'backup', 'notifications', 'dataforseo'])('forwards the exact named operation %s to its existing runner', async id => {
+    const runJob = vi.fn(async () => ({ status: 200, body: { job: id, outcome: 'ran' } }));
+    expect(await handleScheduledJobsRequest({ ...request, body: JSON.stringify({ id }) }, { runJob }))
+      .toEqual({ status: 200, body: { job: id, outcome: 'ran' } });
+    expect(runJob).toHaveBeenCalledExactlyOnceWith(id);
   });
   it('rejects cross-origin, non-JSON and malformed or unapproved jobs before contacting the runner', async () => {
     const runJob = vi.fn();
@@ -176,12 +177,22 @@ describe('named local job submission on the existing workflows boundary', () => 
       { ...request, headers: { ...request.headers, origin: 'https://foreign.example' } },
       { ...request, headers: { ...request.headers, 'sec-fetch-site': 'cross-site' } },
       { ...request, headers: { ...request.headers, 'content-type': 'text/plain' } },
-      ...['counters', 'backup', 'missing', '../panel-refresh', 'panel-refresh;id'].map(id => ({ ...request, body: JSON.stringify({ id }) })),
+      ...['missing', '../panel-refresh', 'panel-refresh;id', 'migrate', 'restore', 'deploy'].map(id => ({ ...request, body: JSON.stringify({ id }) })),
       ...['{', '[]', '{}', JSON.stringify({ id: 'panel-refresh', command: 'id' })].map(body => ({ ...request, body })),
       { ...request, url: '/api/scheduled-jobs' },
     ];
     for (const attempt of attempts) expect((await handleScheduledJobsRequest(attempt, { runJob })).status).toBeGreaterThanOrEqual(400);
     expect(runJob).not.toHaveBeenCalled();
+  });
+  it.each([
+    { status: 409, body: { error: 'job_paused' } },
+    { status: 409, body: { error: 'job_busy' } },
+    { status: 503, body: { error: 'runner_unavailable' } },
+    { status: 500, body: { job: 'portfolio-brief', outcome: 'failed' } },
+    { status: 200, body: { job: 'portfolio-brief', outcome: 'skipped' } },
+  ])('preserves the runner outcome without claiming a successful run: %j', async reply => {
+    expect(await handleScheduledJobsRequest({ ...request, body: JSON.stringify({ id: 'portfolio-brief' }) }, { runJob: async () => reply }))
+      .toEqual(reply);
   });
   it('rejects a synthetic demo before contacting the runner', async () => {
     const runJob = vi.fn();

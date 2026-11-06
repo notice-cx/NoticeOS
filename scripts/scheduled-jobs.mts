@@ -14,6 +14,7 @@ export interface ScheduledJob {
   /** How System health's operations footer names this job's work, for a local
    * job an installation runs only once it is set up. */
   footer?: string;
+  manualNotice?: string;
   /** Steps of this job an operator can run now for chosen sites. */
   collectNow?: CollectNowStep[];
   /**
@@ -73,10 +74,12 @@ export const SCHEDULES_POINTER = '/schedules';
 export const SCHEDULE_STATUS_FILE: string = '.local/scheduled-jobs.json';
 export const LOCAL_JOB_SOCKET: string = '.local/runner-jobs.sock';
 
-/** Backups retain their dedicated command and worker admission. */
-export function manualLocalJob(id: unknown): ScheduledJob | null {
-  return SCHEDULED_JOBS.find((job) => job.id === id && job.local && job.id !== 'backup') ?? null;
+/** Requests name an existing job; its registered execution owns all effects. */
+export function manualScheduledJob(id: unknown): ScheduledJob | null {
+  return SCHEDULED_JOBS.find((job) => job.id === id) ?? null;
 }
+
+export const manualLocalJob = manualScheduledJob;
 
 export interface LocalJobReply {
   status: number;
@@ -93,7 +96,7 @@ export const WORKFLOW_GROUPS: { label: string }[] = [
 ];
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
-  { id: 'portfolio-brief', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'Local model', connections: ['local-model'] },
+  { id: 'portfolio-brief', manualNotice: 'Uses the connected model. Remote providers may charge for generation.', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'OpenAI-compatible model', connections: ['local-model'] },
   { id: 'mercury', surface: 'system', label: 'Bank balances and activity', group: 'Business signals', cron: '40 * * * *', source: 'Mercury',
     keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
   { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',
@@ -116,7 +119,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     connections: ['google', 'bing-webmaster'] },
   { id: 'posthog', surface: 'system', label: 'Product analytics archives', group: 'Business signals', cron: '30 12 * * *', source: 'PostHog',
     collectNow: [{ provider: 'posthog', step: 'product' }], connections: ['posthog'] },
-  { id: 'dataforseo', surface: 'system', label: 'Search rankings and backlinks', group: 'Business signals', cron: '45 12 * * 1', source: 'DataForSEO',
+  { id: 'dataforseo', manualNotice: 'Requests paid search data within the configured spending caps.', surface: 'system', label: 'Search rankings and backlinks', group: 'Business signals', cron: '45 12 * * 1', source: 'DataForSEO',
     collectNow: [{ provider: 'dataforseo', step: 'search', metered: true }], connections: ['dataforseo'] },
   { id: 'ga4-realtime', surface: 'system', label: 'Realtime traffic', group: 'Business signals', cron: '* * * * *', source: 'Google Analytics', connections: ['google'] },
   { id: 'counters', surface: 'system', label: 'Live traffic and counters', group: 'Business signals', cron: '*/15 * * * *',

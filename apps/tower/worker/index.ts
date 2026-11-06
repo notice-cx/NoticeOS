@@ -148,7 +148,7 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
   // The local runner's private lane into the ingest Worker, first and behind
   // a compile-time flag.
   if (__RUNNER_LANE__ && url.pathname.startsWith(RUNNER_PATH_PREFIX)) {
-    return handleRunnerRequest(request, url, env.INGEST, (cron) => runTowerCron(cron, { STORE: env.STORE, INGEST: env.INGEST, config, briefing: { ingest: env.INGEST, config } }));
+    return handleRunnerRequest(request, url, env.INGEST, (cron, trigger) => runTowerCron(cron, { STORE: env.STORE, INGEST: env.INGEST, config, briefing: { ingest: env.INGEST, config } }, undefined, trigger));
   }
 
   if (url.pathname === "/api/ga4/realtime" && request.method === "GET") {

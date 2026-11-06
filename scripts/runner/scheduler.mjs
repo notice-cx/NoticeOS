@@ -24,7 +24,7 @@ import {
 } from '../job-runs.mjs';
 import { workerCrons } from '../os-runtime.mjs';
 import { createScheduledJobRunner } from '../scheduled-job-runner.mjs';
-import { SCHEDULED_JOBS, SCHEDULE_STATUS_FILE, jobRunName, manualLocalJob } from '../scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, SCHEDULE_STATUS_FILE, jobRunName, manualScheduledJob } from '../scheduled-jobs.mjs';
 import { publishWorkflowHeartbeat, WORKFLOW_SESSION_ID } from '../workflow-history.mjs';
 import { stepResult } from '../workflow-trace.mjs';
 import { CONFIG, HOME_ROOT, INGEST_WRANGLER } from './config.mjs';
@@ -121,7 +121,7 @@ export function scheduledUrl(expr) {
 /** `runtime` is the child whose workerd hosts the ingest — the tower. One
  * process now serves both Workers, so its readiness is the ingest's — but
  * readiness alone is not permission to fire (see runner/door-ownership.mjs). */
-async function fireScheduled(expr, runtime) {
+async function fireScheduled(expr, runtime, trigger) {
   if (isShuttingDown()) return { outcome: 'skipped', detail: 'shutting down' };
 
   // Only ask who owns the door once the child is up: a subprocess per tick is
@@ -135,7 +135,7 @@ async function fireScheduled(expr, runtime) {
   if (decision.level) log(decision.level, decision.text);
   if (!decision.fire) return { outcome: decision.outcome, detail: decision.detail };
 
-  return fireScheduledTrigger(MANAGED_DOOR_URL, expr, { emit: log, shutdownSignal });
+  return fireScheduledTrigger(MANAGED_DOOR_URL, expr, { emit: log, shutdownSignal, ...(trigger ? { trigger } : {}) });
 }
 
 let scheduledJobRunner = null;
@@ -154,15 +154,9 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
     jobs,
     run: async (job, manual = false) => {
       if (job.local) return runLocalLane(job.id, lanes[job.id], manual);
-      const name = jobRunName(job);
-      const result = await runRegularLane(name, () => fireScheduled(job.cron, runtime), (fired) => fired);
-      retryFailedFiring(name, result, {
-        // A schedule paused since the failure is not fired again.
-        retry: () => scheduledJobRunner?.current(job.id)?.enabled
-          ? runJobLane(name, () => fireScheduled(job.cron, runtime), retryOutcome((fired) => fired))
-          : null,
-      });
-      return result;
+      return runWorkerLane(job, runtime, manual, { retry: () => scheduledJobRunner?.current(job.id)?.enabled
+        ? runJobLane(jobRunName(job), () => fireScheduled(job.cron, runtime), retryOutcome((fired) => fired))
+        : null });
     },
     onReady: () => {
       fireFirstBeadsPoll(runtime, lanes);
@@ -173,7 +167,7 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
       });
     },
     publish: async (status) => {
-      status.manualJobs = jobs.filter((job) => manualLocalJob(job.id)).map((job) => job.id);
+      status.manualJobs = jobs.filter((job) => manualScheduledJob(job.id)).map((job) => job.id);
       await publishWorkflowHeartbeat();
       const destination = path.join(HOME_ROOT, SCHEDULE_STATUS_FILE);
       await fs.mkdir(path.dirname(destination), { recursive: true });
@@ -211,6 +205,18 @@ export function retryFailedFiring(job, result, { retry, schedule = setTimeout, p
   }, delayMs);
   oneShotTimers.add(timer);
   return timer;
+}
+
+export async function runWorkerLane(job, runtime, manual = false, {
+  fire = fireScheduled, record = runRegularLane, retry = () => null, scheduleRetry = retryFailedFiring,
+} = {}) {
+  const name = jobRunName(job);
+  let recorded;
+  const result = await record(name, () => fire(job.cron, runtime, manual ? 'manual' : undefined), (fired) => fired,
+    manual ? { trigger: { kind: 'manual' }, onRecord: value => { recorded = value; } } : {});
+  if (!manual) { scheduleRetry(name, result, { retry }); return result; }
+  const state = recorded?.workflowState ?? recorded?.outcome ?? result?.outcome ?? 'failed';
+  return { ...(result && typeof result === 'object' ? result : {}), outcome: state === 'failed' || state === 'skipped' ? state : 'ran' };
 }
 
 export async function runLocalLane(id, lane, manual = false, deps = {}) {

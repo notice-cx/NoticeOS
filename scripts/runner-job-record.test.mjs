@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { parseJobRuns } from './job-runs.mjs';
+import { parseJobRuns, jobRunPostBody } from './job-runs.mjs';
 import { fireScheduledTrigger } from './ingest-door.mjs';
 import { createWorkflowHistory, WORKFLOW_HISTORY_FILE } from './workflow-history.mjs';
 import { REPO_ROOT, runnerPaths, CONFIG } from './runner/config.mjs';
@@ -136,4 +136,22 @@ test('shipping waits for a runtime, then posts to this runner’s door', async (
   armJobRunShipping({ running: true, ready: true }, [record], NOW, state);
   await shipJobRuns(null, deps);
   assert.equal(posted[0]?.url, jobRunsUrl(CONFIG));
+});
+
+
+test('manual worker and backup records keep their trigger after rich traces expire and ship one manual marker', async () => {
+  const lane = throwaway();
+  try {
+    for (const job of ['cron 0 * * * *', 'backup']) {
+      await runJobLane(job, async () => ({ outcome: 'skipped' }), result => result, {
+        ...lane.deps, trigger: { kind: 'manual' }, ship: async () => {},
+      });
+    }
+    const records = lane.read();
+    assert.equal(records.length, 2);
+    assert.ok(records.every(record => record.trigger === 'manual' && record.outcome === 'skipped'));
+    const body = jobRunPostBody(records);
+    assert.ok(body.runs.every(run => run.detail === 'trigger:manual'));
+    assert.equal(body.runs.length, 2);
+  } finally { lane.cleanup(); }
 });

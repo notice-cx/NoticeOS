@@ -11,6 +11,7 @@ export interface ScheduledJob {
     /** How System health's operations footer names this job's work, for a local
      * job an installation runs only once it is set up. */
     footer?: string;
+    manualNotice?: string;
     /** Steps of this job an operator can run now for chosen sites. */
     collectNow?: CollectNowStep[];
     /**
@@ -85,8 +86,9 @@ export declare const SCHEDULES_FILE = "config/constants.json";
 export declare const SCHEDULES_POINTER = "/schedules";
 export declare const SCHEDULE_STATUS_FILE: string;
 export declare const LOCAL_JOB_SOCKET: string;
-/** Backups retain their dedicated command and worker admission. */
-export declare function manualLocalJob(id: unknown): ScheduledJob | null;
+/** Requests name an existing job; its registered execution owns all effects. */
+export declare function manualScheduledJob(id: unknown): ScheduledJob | null;
+export declare const manualLocalJob: typeof manualScheduledJob;
 export interface LocalJobReply {
     status: number;
     body: {

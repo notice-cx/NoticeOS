@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useView } from "@/hooks/useView";
 import type { ViewId } from "@shared/views";
 import { WorkflowViewEvidence, workflowDefaultSort, workflowViewFigures } from "./workflows/workflow-view";
@@ -25,7 +26,7 @@ import { useNow } from '@/hooks/useNow';
 import { cn } from '@/lib/utils';
 import { HealthNavigation } from './health/HealthNavigation';
 import { ScheduleEditor } from './workflows/ScheduleEditor';
-import { RunLocalJob } from './workflows/RunLocalJob';
+import { RunWorkflow } from './workflows/RunWorkflow';
 
 const ATTENTION = new Set<WorkflowState>(['failed', 'unknown']);
 const INACTIVE = new Set<WorkflowState>(['skipped', 'paused', 'never']);
@@ -173,6 +174,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
 }
 
 function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface }) {
+  const queryClient = useQueryClient();
   const { view } = useView();
   const ExecutionContainer = id === 'backup' ? BackupExecutionDetails : Fragment;
   const demoReadonly = useDemoReadonly();
@@ -222,10 +224,13 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
             nothing is connected for has no link. Every other job's one editor
             is still this one. */}
         <div className="flex flex-wrap items-start gap-3">
-        {!demoReadonly && data.runtime?.manualJobs?.includes(id) && <RunLocalJob key={id} id={id} label={definition.label}
-          disabledReason={!writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
+        {!demoReadonly && <RunWorkflow key={id} id={id} label={definition.label}
+          spendNotice={definition.manualNotice}
+          disabledReason={!data.runtime?.manualJobs?.includes(id) ? 'Run now is unavailable on this installation.' : !writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
           onComplete={async () => {
-            const fresh = await query.refetch();
+            const [fresh] = await Promise.all([query.refetch(),
+              ...(id === 'portfolio-brief' ? [queryClient.invalidateQueries({ queryKey: ['portfolio-brief'] })] : []),
+            ]);
             const latest = fresh.data?.workflows.find((workflow) => workflow.id === id)?.latest;
             if (latest) { const next = new URLSearchParams(search); next.set('run', latest.id); setSearch(next, { replace: true }); }
           }} />}

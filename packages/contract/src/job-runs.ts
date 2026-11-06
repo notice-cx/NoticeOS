@@ -1,8 +1,8 @@
 /**
  * A firing a person started from the product rather than the scheduler. It is
  * recorded in `job_runs` like any firing, marked in its `detail` column, so
- * the Workflows page can list it marked Manual. The runner never writes this
- * detail.
+ * the Workflows page can list it marked Manual. Runner and Worker manual
+ * executions use the same marker.
  */
 export const MANUAL_RUN_DETAIL = "trigger:manual";
 export const MANUAL_JOB_RUN_LIMIT = 200;

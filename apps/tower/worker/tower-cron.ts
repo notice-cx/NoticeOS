@@ -7,7 +7,7 @@ import type { WorkflowStepRun } from "@noticeos/contract";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { redactLogText } from "../../../scripts/os-log.mjs";
 import { SCHEDULED_JOBS, scheduleFor, cronIntervalMinutes } from "../../../scripts/scheduled-jobs.mjs";
-import { createWorkflowRecorder } from "../../../scripts/workflow-trace.mjs";
+import { createWorkflowRecorder, stepResult } from "../../../scripts/workflow-trace.mjs";
 import { type IntegrationHealthIngest, recordTodaysConnectionCounts } from "./connection-status-daily";
 import { type IntegrationsSettings, integrationsDeps, recordTodaysSourceHistory } from "./integrations-payload";
 import type { TowerConfig } from './config-source';
@@ -37,7 +37,7 @@ export interface TowerCronEnv {
  * ingest's steps of the same tick stand. An expression with no Tower step
  * returns no steps.
  */
-export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => Date = () => new Date()): Promise<WorkflowStepRun[]> {
+export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => Date = () => new Date(), trigger?: 'event' | 'recovery' | 'manual'): Promise<WorkflowStepRun[]> {
   if (cron !== HOURLY_TICK && cron !== BRIEFING_TICK) return [];
   const trace = createWorkflowRecorder({
     failed: (step, error) => console.error(JSON.stringify({
@@ -47,21 +47,25 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
   });
   const step = async (id: string, run: () => Promise<unknown>) => {
     try {
-      await trace.run(id, run);
+      await trace.run(id, run, result => {
+        if (id === 'portfolio-brief' && typeof result === 'string') return { state: 'skipped', summary: result };
+        return stepResult(result);
+      });
     } catch {
       // Recorded as a failed step above; the next step still runs.
     }
   };
   if (cron === BRIEFING_TICK) {
     await step('portfolio-brief', async () => {
-      if (!env.briefing?.ingest.refreshPortfolioBrief || !env.briefing.ingest.portfolioBrief) return;
+      if (!env.briefing?.ingest.refreshPortfolioBrief || !env.briefing.ingest.portfolioBrief) return 'Briefing generation is unavailable';
       const state = await env.briefing.ingest.portfolioBrief();
-      if (state.state === 'disconnected' || state.state === 'unsupported') return;
+      if (state.state === 'disconnected') return 'Connect a model provider before generating a briefing';
+      if (state.state === 'unsupported') return 'Briefing generation is unavailable';
       const at = now();
-      if (state.nextAttemptAt && Date.parse(state.nextAttemptAt) > at.getTime()) return;
+      if (state.nextAttemptAt && Date.parse(state.nextAttemptAt) > at.getTime()) return 'Briefing generation is limited to once every 15 minutes';
       const cfg = await env.briefing.config();
       const schedule = scheduleFor(SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief')!, cfg.schedules ?? {});
-      if (!schedule.enabled) return;
+      if (!schedule.enabled) return 'Workflow is paused';
       const [wall, work] = await Promise.all([
         buildWallPayload(env.STORE, { now: at, constants: cfg.monthlyCaps, integrations: cfg.integrations, pullConfig: cfg.pullConfig,
           dashboard: cfg.dashboard, serpPanel: cfg.serpPanel, osTimeZone: cfg.osTimeZone, noNightlyReport: cfg.noNightlyReport, counters: cfg.counters, schedules: cfg.schedules }),
@@ -72,6 +76,9 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       const evidence = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset });
       const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000);
       if (result.error) throw new Error(result.error);
+      if (result.state === 'disconnected' || result.state === 'unsupported') return 'Briefing generation is unavailable';
+      if (result.lastAttemptAt === state.lastAttemptAt) return 'Another briefing run or its cooldown prevented generation';
+      if (trigger === 'manual' && evidence.insightEvidenceIds.length === 0) return 'No comparable evidence is available for briefing insights';
     });
   } else {
     await step("connection-counts", () => recordTodaysConnectionCounts(env.INGEST, env.STORE, now()));

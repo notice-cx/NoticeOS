@@ -282,7 +282,7 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
    * Binding is the capability, and the only path to it is the loopback door
    * (apps/tower/vite/runner-door.ts).
    */
-  async runScheduled(cron: string, trigger: 'event' | 'recovery' = 'recovery') {
+  async runScheduled(cron: string, trigger: 'event' | 'recovery' | 'manual' = 'recovery') {
     return withCallStore(this.env, this.ctx, (env) => runScheduledCron(cron, env, trigger));
   }
 

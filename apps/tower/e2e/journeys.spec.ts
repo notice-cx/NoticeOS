@@ -12,6 +12,7 @@ import { WALL_FEED_LAYOUT, openWall, wallAt, wallScene } from "./wall-scene";
 import { installGoogleConsent } from "./google-consent.mjs";
 import { fetchToRewrite } from "./rewritten-read.mjs";
 import { buildWorkflowHistory } from "../vite/workflow-history";
+import { SCHEDULED_JOBS, jobRunName } from "../shared/scheduled-jobs";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
 import { READ_ONLY_DEPLOYMENT } from "@shared/tasks";
@@ -3933,13 +3934,14 @@ test("core Tasks creates, opens and completes work before any user asset", { tag
   expect(pageErrors).toEqual([]);
 });
 
-{
+for (const [jobId, label] of [['panel-refresh', 'Local research summaries'], ['portfolio-brief', 'Portfolio briefing'], ['dataforseo', 'Search rankings and backlinks'], ['backup', 'Backups']] as const) {
+  const job = SCHEDULED_JOBS.find(entry => entry.id === jobId)!;
   const theme = 'dark' as const;
-  test(`named local job runs once with keyboard control and clear results in ${theme} mode`, async ({ page }, testInfo) => {
+  test(`scheduled ${label} runs once with keyboard control and clear results in ${theme} mode`, { tag: jobId === 'portfolio-brief' ? [PR_SMOKE] : [] }, async ({ page }, testInfo) => {
     await page.addInitScript(color => localStorage.setItem('noticeos:theme', color), theme);
     const now = Date.parse(JOURNEY_NOW);
-    const runtime = { updatedAt: JOURNEY_NOW, error: null, manualJobs: ['panel-refresh'],
-      jobs: [{ id: 'panel-refresh', cron: '10 13 * * *', enabled: true, nextRun: new Date(now + 86_400_000).toISOString() }] };
+    const runtime = { updatedAt: JOURNEY_NOW, error: null, manualJobs: [jobId],
+      jobs: [{ id: jobId, cron: job.cron, enabled: true, nextRun: new Date(now + 86_400_000).toISOString() }] };
     let payload: WorkflowsPayload = { overrides: null, runtime, runtimeFresh: true, observationsFresh: true,
       generatedAt: JOURNEY_NOW, historyAvailable: true, ...buildWorkflowHistory([], [], [], now) };
     let attempts = 0;
@@ -3947,23 +3949,23 @@ test("core Tasks creates, opens and completes work before any user asset", { tag
     const completion = new Promise<void>(resolve => { finish = resolve; });
     await page.route('**/api/workflows*', async route => {
       if (route.request().method() !== 'POST') { await route.fulfill({ json: payload }); return; }
-      expect(route.request().postDataJSON()).toEqual({ id: 'panel-refresh' });
+      expect(route.request().postDataJSON()).toEqual({ id: jobId });
       attempts++;
       if (attempts === 1) { await route.fulfill({ status: 409, json: { error: 'job_busy' } }); return; }
       await completion;
       const startedAt = JOURNEY_NOW;
       const finishedAt = new Date(now + 1_000).toISOString();
-      const trace: WorkflowRun = { id: `panel-refresh@${startedAt}`, workflowId: 'panel-refresh', definitionVersion: 1,
+      const trace: WorkflowRun = { id: `${jobId}@manual/${startedAt}`, workflowId: jobId, definitionVersion: 1,
         startedAt, finishedAt, state: 'succeeded', trigger: { kind: 'manual' }, steps: [
           { id: 'execute', attempt: 1, startedAt, finishedAt, state: 'succeeded' },
           { id: 'record', attempt: 1, startedAt: finishedAt, finishedAt, state: 'succeeded' },
         ] };
-      payload = { ...payload, ...buildWorkflowHistory([{ job: 'panel-refresh', at: startedAt, outcome: 'ran', ms: 1_000 }], [trace], [], now, trace.id) };
-      await route.fulfill({ json: { job: 'panel-refresh', outcome: 'ran' } });
+      payload = { ...payload, ...buildWorkflowHistory([{ job: jobRunName(job), at: startedAt, outcome: 'ran', ms: 1_000, trigger: 'manual' }], [trace], [], now, trace.id) };
+      await route.fulfill({ json: { job: jobId, outcome: 'ran' } });
     });
     try {
-      await page.goto('/health/operations/panel-refresh');
-      const run = page.getByRole('button', { name: 'Run Local research summaries now' });
+      await page.goto(`/health/operations/${jobId}`);
+      const run = page.getByRole('button', { name: `Run ${label} now` });
       await expect(run).toBeEnabled();
       await keyboardFocus(page, run);
       await page.keyboard.press('Enter');
@@ -3980,7 +3982,7 @@ test("core Tasks creates, opens and completes work before any user asset", { tag
       await assertNoPageOverflow(page);
       finish();
       await expect(page.getByText('Run completed.', { exact: true })).toBeVisible();
-      await expect(page.getByText('Manual', { exact: true }).first()).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Recent runs' }).getByText('Manual', { exact: true })).toBeVisible();
       await expect(run).toBeEnabled();
       await assertNoPageOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`local-job-complete-${theme}.png`), fullPage: true });

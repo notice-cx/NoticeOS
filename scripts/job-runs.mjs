@@ -14,6 +14,7 @@
 // open.
 
 import fs from 'node:fs/promises';
+import { MANUAL_RUN_DETAIL } from '../packages/contract/src/job-runs.ts';
 import { Cron } from 'croner';
 import { SCHEDULED_JOBS, jobRunName, scheduleTimezone } from './scheduled-jobs.mjs';
 import { stepResult } from './workflow-trace.mjs';
@@ -124,15 +125,17 @@ export async function runRecordedLane(
   job,
   fn,
   outcomeOf = (result) => (result === null ? 'skipped' : 'ran'),
-  { file, emit, now = Date.now, ship, begin = null, stepOf = stepResult },
+  { file, emit, now = Date.now, ship, begin = null, stepOf = stepResult, trigger },
 ) {
   const startedAtMs = now();
   const trace = begin ? begin(job, startedAtMs) : null;
   // Disk first, then the store, always.
   const keep = async (entry) => {
+    if (trigger?.kind === 'manual') entry.trigger = 'manual';
     // The workflow verdict is kept with the ledger independently of rich-step
     // retention.
     if (trace) entry.workflowState = trace.verdict(entry.outcome);
+    if (entry.trigger === 'manual' && ['failed', 'skipped'].includes(entry.workflowState)) entry.outcome = entry.workflowState;
     if (trace) await trace.run('record', () => appendJobRun(entry, file));
     else await appendJobRun(entry, file);
     try {
@@ -209,8 +212,9 @@ export function jobRunCatchup(records, nowMs, { days = JOB_RUN_CATCHUP_DAYS, max
   for (const record of usable) if (record.at >= cutoff) chosen.set(key(record), record);
   const latest = new Map();
   for (const record of usable) {
-    const held = latest.get(record.job);
-    if (!held || record.at > held.at) latest.set(record.job, record);
+    const identity = `${record.job}\u0000${record.trigger === 'manual' ? 'manual' : 'schedule'}`;
+    const held = latest.get(identity);
+    if (!held || record.at > held.at) latest.set(identity, record);
   }
   for (const record of latest.values()) chosen.set(key(record), record);
   return [...chosen.values()]
@@ -233,7 +237,7 @@ export function jobRunPostBody(records) {
       startedAt: record.at,
       ms: record.ms ?? 0,
       outcome: record.outcome,
-      ...(record.detail ? { detail: record.detail } : {}),
+      ...(record.trigger === 'manual' ? { detail: MANUAL_RUN_DETAIL } : record.detail ? { detail: record.detail } : {}),
     })),
   };
 }
@@ -367,6 +371,7 @@ export const CRON_CATCHUP_POLICIES = Object.freeze([
 function latestJobRunMap(records) {
   const latest = new Map();
   for (const record of records) {
+    if (record?.trigger === 'manual') continue;
     if (typeof record?.job !== 'string' || !Number.isFinite(Date.parse(record?.at ?? ''))) continue;
     const held = latest.get(record.job);
     if (!held || record.at > held.at) latest.set(record.job, record);

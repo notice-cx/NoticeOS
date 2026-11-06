@@ -3,13 +3,13 @@ import { createServer, request } from 'node:http';
 import { createConnection } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { LOCAL_JOB_SOCKET, manualLocalJob, type LocalJobReply } from './scheduled-jobs.mjs';
+import { LOCAL_JOB_SOCKET, manualScheduledJob, type LocalJobReply } from './scheduled-jobs.mjs';
 import type { ScheduledJobRunner } from './scheduled-job-runner.mjs';
 
 export async function invokeLocalJob(id: unknown, {
   scheduler, ready, stopped,
 }: { scheduler: ScheduledJobRunner; ready: () => boolean; stopped: () => boolean }): Promise<LocalJobReply> {
-  const job = manualLocalJob(id);
+  const job = manualScheduledJob(id);
   if (!job) return { status: 422, body: { error: 'local_job_not_allowed' } };
   // Initialization may start recovery and first-snapshot work. Only the
   // regular scheduler refresh may do that, never a named manual request.
@@ -87,7 +87,7 @@ export async function startLocalJobControl({ root, ...deps }: {
 export async function requestLocalJob(id: string, { root, timeoutMs = 20 * 60_000 }: {
   root: string; timeoutMs?: number;
 }): Promise<LocalJobReply> {
-  if (!manualLocalJob(id)) return { status: 422, body: { error: 'local_job_not_allowed' } };
+  if (!manualScheduledJob(id)) return { status: 422, body: { error: 'local_job_not_allowed' } };
   return new Promise((resolve) => {
     const unavailable = () => resolve({ status: 503, body: { error: 'runner_unavailable' } });
     const req = request({ socketPath: path.join(root, LOCAL_JOB_SOCKET), path: '/', method: 'POST',
