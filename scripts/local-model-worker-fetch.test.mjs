@@ -13,6 +13,7 @@ const script = buildSync({
   stdin: {
     contents: `
       import { checkLocalModel, discoverLocalModels, generateLocalModel } from './workers/ingest/src/local-model.ts';
+      import { connectionFailureLabel } from './packages/contract/src/integrations.ts';
       export default { async fetch(request, env) {
         try {
           if (new URL(request.url).pathname === '/generate') {
@@ -24,6 +25,12 @@ const script = buildSync({
             return Response.json(await discoverLocalModels({ NOTICEOS_WORKSPACE_PROFILE: 'standalone' }, {
               fields: { LOCAL_MODEL_BASE_URL: env.BASE }
             }));
+          }
+          if (new URL(request.url).pathname === '/discover-failure') {
+            const result = await discoverLocalModels({ NOTICEOS_WORKSPACE_PROFILE: 'standalone' }, {
+              fields: { LOCAL_MODEL_BASE_URL: env.BASE, LOCAL_MODEL_API_TOKEN: 'fixture-secret-token' }
+            });
+            return Response.json({ result, ...(!result.ok ? { label: connectionFailureLabel(result.failure) } : {}) });
           }
           await checkLocalModel({ NOTICEOS_WORKSPACE_PROFILE: 'standalone' }, {
             LOCAL_MODEL_BASE_URL: env.BASE, LOCAL_MODEL_ID: 'fixture-model'
@@ -89,4 +96,27 @@ test('local-model discovery uses native workerd HTTP on a private address and pr
   assert.deepEqual(calls.map(call => call.path), [
     '/v1/models', '/v1/models', '/v1/chat/completions', '/redirect/v1/models', '/redirect/v1/chat/completions',
   ]);
+});
+
+test('native workerd closed-port discovery returns a safe generic network failure', { timeout: 30_000 }, async t => {
+  const server = createServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  const runtime = new Miniflare({
+    modules: true, script, compatibilityDate: '2026-07-06',
+    compatibilityFlags: ['nodejs_compat'], cf: false, log: new Log(0),
+    bindings: { BASE: `http://127.0.0.1:${port}/v1` },
+    handleStructuredLogs: () => {},
+  });
+  t.after(() => runtime.dispose());
+  const response = await runtime.dispatchFetch('http://fixture.invalid/discover-failure');
+  assert.equal(response.status, 200);
+  const text = await response.text();
+  const body = JSON.parse(text);
+  assert.deepEqual(body.result, { ok: false, failure: { kind: 'network' } });
+  assert.equal(body.label, 'Connection failed');
+  for (const detail of ['fixture-secret-token', '127.0.0.1', String(port), 'DISCONNECTED', 'TypeError', 'stack', 'cause']) {
+    assert.ok(!text.includes(detail), `Public response exposed ${detail}`);
+  }
 });

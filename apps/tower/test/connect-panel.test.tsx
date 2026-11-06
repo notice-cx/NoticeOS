@@ -340,19 +340,19 @@ describe("OpenAI-compatible model selection", () => {
     } finally { fetcher.mockRestore(); }
   });
 
-  it("loads server models and connects only an explicit selection", async () => {
-    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, models: ["model-a", "model-b"] }), { status: 200 }));
+  it.each(["model-b", " model-b "])("loads server models and connects the exact selected ID: %j", async modelId => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, models: ["model-a", modelId] }), { status: 200 }));
     const connect = vi.fn(async () => ({ verdict: "accepted", facts: {} }) as ConnectVerdict);
     try {
       renderPanel(integrationProvider("local-model")!, connect);
       fireEvent.change(screen.getByLabelText(/^API base URL/), { target: { value: "https://model.example.com/v1" } });
       await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Load models" })); });
       expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
-      fireEvent.change(screen.getByRole("combobox", { name: "Model *" }), { target: { value: "model-b" } });
+      fireEvent.change(screen.getByRole("combobox", { name: "Model *" }), { target: { value: modelId } });
       await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Connect" })); });
       expect(await screen.findByText("Connected")).toBeInTheDocument();
       expect(screen.queryByText("Working")).toBeNull();
-      expect(connect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "https://model.example.com/v1", LOCAL_MODEL_ID: "model-b" });
+      expect(connect).toHaveBeenCalledWith({ LOCAL_MODEL_BASE_URL: "https://model.example.com/v1", LOCAL_MODEL_ID: modelId });
       expect(fetcher).toHaveBeenCalledWith("/api/integrations/local-model/models", expect.objectContaining({ method: "POST" }));
     } finally { fetcher.mockRestore(); }
   });

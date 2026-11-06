@@ -187,7 +187,7 @@ export interface ProviderFacts {
 /** Safe categories and numeric codes only; provider text and transport errors
  * can contain credentials and must not enter a connection response. */
 export interface ConnectionFailure {
-  kind: 'not-supported' | 'redirect' | 'connection-refused' | 'configuration' | 'access' | 'not-found' | 'model-missing' | 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large';
+  kind: 'not-supported' | 'redirect' | 'configuration' | 'access' | 'not-found' | 'model-missing' | 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large';
   status?: number;
   providerCode?: number;
 }
@@ -201,7 +201,7 @@ export type DiscoverModelProviderResult =
 export function connectionFailureLabel(failure: ConnectionFailure): string {
   const labels: Record<ConnectionFailure['kind'], string> = {
     'not-supported': 'Available only in standalone installations', redirect: 'API address redirected · Enter its final API base URL',
-    'connection-refused': 'Connection refused · Check the server is running and listening on this port', configuration: 'Use an HTTPS API base URL, or a local HTTP address', access: 'API token refused or access denied', 'not-found': 'Models endpoint not found · Check the API base URL', 'model-missing': 'Selected model is no longer available',
+    configuration: 'Use an HTTPS API base URL, or a local HTTP address', access: 'API token refused or access denied', 'not-found': 'Models endpoint not found · Check the API base URL', 'model-missing': 'Selected model is no longer available',
     network: 'Connection failed', dns: 'Address lookup failed', tls: 'Secure connection failed',
     timeout: 'Request timed out', http: 'Request failed', 'rate-limited': 'Request limit reached · Try again later',
     'invalid-response': 'Invalid response', 'invalid-inventory': 'Incomplete or invalid database list',

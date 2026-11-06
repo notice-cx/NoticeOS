@@ -39,6 +39,34 @@ it('discovers the exact configured model with bearer auth without generating', a
   await expect(checkLocalModel(standalone, fields, async () => Response.json({ data: [{ id: 'other-model' }] }))).rejects.toMatchObject({ code: 'model-missing' });
 });
 
+it.each([' synthetic-model', 'synthetic-model '])('refuses a connection whose model ID differs from the server: %j', async modelId => {
+  const selected = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
+  const previous = await resolveCredential(selected, 'local-model');
+  expect(await connectCredential(selected, { provider: 'local-model', fields: { ...fields, LOCAL_MODEL_ID: modelId } }, {
+    fetchImpl: async () => Response.json({ data: [{ id: fields.LOCAL_MODEL_ID }] }),
+  })).toMatchObject({ ok: true, verdict: 'refused', failure: { kind: 'model-missing' } });
+  expect(await resolveCredential(selected, 'local-model')).toMatchObject({ source: previous.source, fields: previous.fields });
+});
+
+it('preserves opaque model IDs through discovery, connection storage and generation', async () => {
+  const modelId = ' synthetic-model ';
+  const inventory = async () => Response.json({ data: [{ id: modelId }, { id: fields.LOCAL_MODEL_ID }] });
+  expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, inventory))
+    .toEqual({ ok: true, models: [modelId, fields.LOCAL_MODEL_ID] });
+  const selected = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
+  expect(await connectCredential(selected, { provider: 'local-model', fields: { ...fields, LOCAL_MODEL_ID: modelId } }, {
+    fetchImpl: inventory,
+  })).toMatchObject({ ok: true, verdict: 'accepted' });
+  const saved = await resolveCredential(selected, 'local-model');
+  expect(saved.fields?.LOCAL_MODEL_ID).toBe(modelId);
+  const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    expect(JSON.parse(String(init?.body)).model).toBe(modelId);
+    return completion();
+  });
+  await generateLocalModel(standalone, saved.fields!, { ...options, fetchImpl });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
 it.each([[undefined], [null], [[]]])('accepts final content when the server reports no tool calls (%j)', async tool_calls => {
   const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: {
     content: '{"summary":"Synthetic result"}', reasoning_content: 'Separate reasoning is not the final answer.', tool_calls,
@@ -204,10 +232,10 @@ it.each([{ data: [{ id: '' }] }, { data: [{ id: 'a\nsecret' }] }, { data: [{ id:
 });
 
 
-it.each([['ECONNREFUSED', 'connection-refused'], ['ENOTFOUND', 'dns'], ['EAI_AGAIN', 'dns'], ['CERT_HAS_EXPIRED', 'tls']] as const)('classifies safe native transport code %s without returning error text', async (code, kind) => {
+it.each(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'CERT_HAS_EXPIRED'])('does not infer a network cause from nonportable error code %s', async code => {
   const fetchImpl = async () => { throw new Error('private endpoint and token', { cause: { code } }); };
   expect(await discoverLocalModels(standalone, { fields: { LOCAL_MODEL_BASE_URL: fields.LOCAL_MODEL_BASE_URL } }, fetchImpl))
-    .toEqual({ ok: false, failure: { kind } });
+    .toEqual({ ok: false, failure: { kind: 'network' } });
 });
 
 it('requires a selected model for generation and checking before contacting the provider', async () => {

@@ -185,7 +185,7 @@ export function ConnectPanel({
       const value = values[field.name] ?? "";
       if (!filled(field, value)) continue;
       if (field.kind !== "url-list") {
-        sent[field.name] = value.trim();
+        sent[field.name] = modelProvider && field.name === "LOCAL_MODEL_ID" ? value : value.trim();
         continue;
       }
       const parsed = parseUrlList(feedLines(feedRows(value)));

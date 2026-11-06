@@ -8,7 +8,7 @@ export const LOCAL_MODEL_API_TOKEN = 'LOCAL_MODEL_API_TOKEN';
 const RESPONSE_BYTES = 1_048_576;
 // Encoding evidence JSON as a message can double its bytes; reserve space for the prompt, schema and envelope.
 const REQUEST_BYTES = 2 * PORTFOLIO_BRIEF_MAX_BYTES + 64 * 1024;
-export type LocalModelCode = 'unavailable' | 'configuration' | 'dns' | 'tls' | 'connection-refused' | 'redirect' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'not-found' | 'model-missing' | 'invalid-output' | 'too-large';
+export type LocalModelCode = 'unavailable' | 'configuration' | 'redirect' | 'network' | 'timeout' | 'aborted' | 'access' | 'rate-limit' | 'not-found' | 'model-missing' | 'invalid-output' | 'too-large';
 export class LocalModelError extends Error {
   constructor(readonly code: LocalModelCode, readonly status?: number) { super(`OpenAI-compatible model: ${code}.`); this.name = 'LocalModelError'; }
 }
@@ -100,15 +100,14 @@ async function request(env: unknown, fields: Record<string, string>, path: strin
     if (timedOut) throw new LocalModelError('timeout');
     if (signal?.aborted) throw new LocalModelError('aborted');
     if (error instanceof LocalModelError) throw error;
-    const cause = object(error) && object(error.cause) ? error.cause : error;
-    const code = object(cause) && typeof cause.code === 'string' ? cause.code : '';
-    throw new LocalModelError(code === 'ECONNREFUSED' ? 'connection-refused' : ['ENOTFOUND', 'EAI_AGAIN'].includes(code) ? 'dns' : ['CERT_HAS_EXPIRED', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'ERR_TLS_CERT_ALTNAME_INVALID'].includes(code) ? 'tls' : 'network');
+    // workerd does not expose reliable DNS, TLS or refused-connection codes.
+    throw new LocalModelError('network');
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
 
 export function localModelFailure(error: unknown): ConnectionFailure {
   if (!(error instanceof LocalModelError)) return { kind: 'network' };
-  const kind: ConnectionFailure['kind'] = ['dns', 'tls', 'connection-refused'].includes(error.code) ? error.code as 'dns' | 'tls' | 'connection-refused' : error.code === 'access' ? 'access'
+  const kind: ConnectionFailure['kind'] = error.code === 'access' ? 'access'
     : error.code === 'not-found' ? 'not-found' : error.code === 'model-missing' ? 'model-missing'
     : error.code === 'unavailable' ? 'not-supported' : error.code === 'redirect' ? 'redirect' : error.code === 'configuration' ? 'configuration'
     : error.code === 'timeout' ? 'timeout' : error.code === 'rate-limit' ? 'rate-limited'
@@ -127,7 +126,7 @@ export async function discoverLocalModels(env: unknown, input: DiscoverModelProv
     const models: string[] = [];
     for (const row of response.data) {
       if (!object(row) || typeof row.id !== 'string' || row.id.trim().length === 0 || row.id.length > 512 || /[\u0000-\u001f\u007f]/u.test(row.id)) throw new LocalModelError('invalid-output');
-      models.push(row.id.trim());
+      models.push(row.id);
     }
     return { ok: true, models: [...new Set(models)].sort() };
   } catch (error) { return { ok: false, failure: localModelFailure(error) }; }
@@ -137,7 +136,7 @@ export async function checkLocalModel(env: unknown, fields: Record<string, strin
   if (!fields[LOCAL_MODEL_ID]?.trim()) throw new LocalModelError('configuration');
   const response = await request(env, fields, 'models', undefined, fetchImpl, 10_000);
   if (!object(response) || !Array.isArray(response.data)) throw new LocalModelError('invalid-output');
-  if (!response.data.some(row => object(row) && typeof row.id === 'string' && row.id.trim() === fields[LOCAL_MODEL_ID]?.trim())) throw new LocalModelError('model-missing');
+  if (!response.data.some(row => object(row) && row.id === fields[LOCAL_MODEL_ID])) throw new LocalModelError('model-missing');
 }
 
 /** The caller validates the returned object against its own domain schema. */

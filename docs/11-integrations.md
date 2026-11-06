@@ -62,8 +62,10 @@ in standalone installations.
 
 The connection test confirms that the selected model is listed; it does not
 prove that a model can generate the required structured response. Connection
-errors distinguish address lookup, refused connections, timeouts, access denial,
-missing endpoints and invalid responses. The **Portfolio briefing** workflow runs
+errors distinguish timeouts, access denial, missing endpoints and invalid responses.
+Other network errors show **Connection failed** because the runtime cannot reliably
+identify their cause. Check the API address and whether the server is reachable
+from the NoticeOS application container. The **Portfolio briefing** workflow runs
 hourly by default. Its schedule is editable in the connection panel and on
 Workflows. Generation attempts are at least fifteen minutes apart. Opening
 Home reads the saved briefing and makes no model request.
