@@ -34,6 +34,9 @@ import { standaloneProjectId } from "../../../scripts/standalone-tasks.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
+import { createTaskService, type TaskService } from "../../../scripts/task-service.mjs";
+import { taskCacheDir } from "../../../scripts/task-service-cache.mjs";
+import { handleTaskServiceRequest } from "./task-service-lane";
 import {
   DEFAULT_REPO_ROOT,
   crossOrigin,
@@ -163,10 +166,17 @@ export interface TaskLaneOptions {
   run?: (argv: string[], cwd: string) => BdResult;
   /** The audit name every write carries; defaults to the repo's `git user.name`. */
   actor?: string;
+  /** While this installation's task service is connected, every route here
+   * is answered from it (task-service-lane.ts) and `bd` is never run. */
+  taskService?: TaskService | null;
+  /** Where the task service's answers are kept; defaults to the home checkout's `.local/task-cache`. */
+  taskCacheDir?: string;
 }
 
 interface Resolved {
   withMutation?: TaskLaneOptions["withMutation"];
+  taskService: TaskService | null;
+  taskCacheDir: string;
   repoRoot: string;
   readProjects: () => Promise<Spoke[]>;
   log: (line: string) => void;
@@ -221,6 +231,8 @@ function resolveOptions(options: TaskLaneOptions = {}): Resolved {
   const run = options.run ?? defaultRun;
   return {
     ...(options.withMutation ? { withMutation: options.withMutation } : {}),
+    taskService: viewer === null ? options.taskService ?? null : null,
+    taskCacheDir: options.taskCacheDir ?? taskCacheDir(options.repoRoot ?? DEFAULT_REPO_ROOT),
     repoRoot: options.repoRoot ?? DEFAULT_REPO_ROOT,
     readProjects: options.readProjects ?? (() => readSpokes(options.repoRoot ?? DEFAULT_REPO_ROOT)),
     log: options.log ?? (() => {}),
@@ -1021,6 +1033,20 @@ export async function handleTasksRequest(
     return { status: 403, body: { error: "forbidden" } };
   }
 
+  if (opts.taskService) {
+    // An ingest that cannot say whether Ntasks is connected leaves the routes
+    // on `bd`, which reads the saved projects through that same ingest.
+    const remote = await opts.taskService.connected().catch(() => false);
+    if (remote) {
+      try {
+        return await handleTaskServiceRequest(pathname, url, request, { service: opts.taskService,
+          readProjects: opts.readProjects, cacheDir: opts.taskCacheDir, now: opts.now });
+      } catch (err) {
+        return { status: 500, body: { error: "task_lane_failed", detail: err instanceof Error ? err.message : String(err) } };
+      }
+    }
+  }
+
   try {
     return await (request.method !== "GET" && opts.withMutation
       ? opts.withMutation(() => route(pathname, url, request, opts)) : route(pathname, url, request, opts));
@@ -1134,6 +1160,7 @@ export function taskLane(options: TaskLaneOptions = {}): Plugin {
       viteDevServer.middlewares.use(
         taskLaneMiddleware({
           ...options,
+          taskService: options.taskService === undefined ? createTaskService() : options.taskService,
           withMutation: options.withMutation ?? withLocalTaskMutation,
           log: options.log ?? ((line) => logger.info(`  [tasks] ${line}`)),
         }),

@@ -110,6 +110,14 @@ export interface LiveTasksPayload {
   /** null when this project's `bd` could not answer `epic status` — the board
    * falls back to flat lists. */
   epics: LiveEpic[] | null;
+  /** Present when the task service could not be reached and this is the copy
+   * it last gave: `readAt` is when it read it, `reason` why it is not newer. */
+  cached?: TaskReadCached;
+}
+
+/** A task read answered from the copy kept on this machine (vite/task-service-lane.ts). */
+export interface TaskReadCached {
+  reason: string;
 }
 
 export interface TaskComment {
@@ -160,6 +168,7 @@ export interface LiveTaskDetail {
   readAt: string;
   task: LiveTask;
   comments: TaskComment[];
+  cached?: TaskReadCached;
 }
 
 /** What `POST /api/tasks` answers with: the id the hub minted. */
