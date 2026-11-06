@@ -4,6 +4,7 @@
 // the local runner through runner-route.ts, as one run of the job.
 
 import type { WorkflowStepRun } from "@noticeos/contract";
+import { assetDisplayName } from '@noticeos/contract/asset-name';
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { redactLogText } from "../../../scripts/os-log.mjs";
 import { SCHEDULED_JOBS, scheduleFor, cronIntervalMinutes } from "../../../scripts/scheduled-jobs.mjs";
@@ -78,9 +79,10 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
         buildWallPayload(env.STORE, { now: at, constants: cfg.monthlyCaps, integrations: cfg.integrations, pullConfig: cfg.pullConfig,
           dashboard: cfg.dashboard, serpPanel: cfg.serpPanel, osTimeZone: cfg.osTimeZone, noNightlyReport: cfg.noNightlyReport, counters: cfg.counters, schedules: cfg.schedules }),
         buildWorkPayload(env.STORE, { now: at, projects: cfg.beads.spokes.filter(project => selected === null || selected.has(project.asset)), timeZone: cfg.osTimeZone }),
-        env.STORE.read(tx => tx.query<{ id: string; displayName: string }>('SELECT asset_id AS id, display_name AS "displayName" FROM noticeos.assets ORDER BY asset_id')),
+        env.STORE.read(tx => tx.query<{ id: string; displayName: string; isOs: boolean }>('SELECT asset_id AS id, display_name AS "displayName", is_os AS "isOs" FROM noticeos.assets ORDER BY asset_id')),
       ]);
-      const assets = inventory.filter(asset => selected === null || selected.has(asset.id));
+      const assets = inventory.filter(asset => selected === null || selected.has(asset.id))
+        .map(asset => ({ id: asset.id, displayName: assetDisplayName(asset.isOs, asset.displayName) }));
       if (reviewAssetIds !== null && assets.length === 0) return 'No selected assets are available for AI portfolio review';
       const assetIds = assets.map(asset => asset.id);
       const [revenueByAsset, readings, acquisition] = await Promise.all([

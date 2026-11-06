@@ -250,4 +250,6 @@ describe("buildSettingsPayload", () => {
      .toEqual({owner: 'config/constants.json', assetIds: ['second', 'example'], assets});
    expect(buildSettingsPayload(deps()).portfolioReview.assetIds).toBeNull();
    expect(buildSettingsPayload(deps({portfolioReviewAssetIds: []})).portfolioReview.assetIds).toEqual([]);
+   expect(buildSettingsPayload(deps({assets: [{id: 'os.example', displayName: 'Stored name, never shown', isOs: true}]})).portfolioReview.assets)
+     .toEqual([{id: 'os.example', displayName: 'System'}]);
  });

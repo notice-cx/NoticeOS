@@ -8,6 +8,7 @@
 // `buildCatalog`, because a save's `expect` guard must be what the file holds.
 
 import type { PullConfigEntry } from "./asset-config";
+import { assetDisplayName } from '@noticeos/contract/asset-name';
 import { buildPortfolio, buildRules } from "./portfolio-settings";
 import { OWNER } from "../shared/asset-detail";
 import { resolvePointer, type JsonValue } from "../shared/changeset";
@@ -33,7 +34,7 @@ export const BEADS_OWNER = "config/beads.json";
 export interface SettingsDeps {
   now: Date;
   portfolioReviewAssetIds?: string[] | null;
-  assets?: {id: string; displayName: string}[];
+  assets?: {id: string; displayName: string; isOs?: boolean | number}[];
   /** config/constants.json `os_time_zone` — the operator's clock. */
   osTimeZone: string;
   /** Whether somebody chose that clock (`timeZoneChosen`). Read by the route
@@ -73,7 +74,8 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
 
   return {
     generatedAt: deps.now.toISOString(),
-    portfolioReview: { owner: OWNER.constants, assetIds: deps.portfolioReviewAssetIds ?? null, assets: deps.assets ?? [] },
+    portfolioReview: { owner: OWNER.constants, assetIds: deps.portfolioReviewAssetIds ?? null,
+      assets: (deps.assets ?? []).map(asset => ({ id: asset.id, displayName: assetDisplayName(asset.isOs, asset.displayName) })) },
     clock: {
       owner: OWNER.constants,
       timeZone: deps.osTimeZone,
