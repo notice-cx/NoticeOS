@@ -8,7 +8,7 @@
 // Tower's portfolio screens read from those boards.
 
 import { ALL_STATUSES, boardKey, readCached, readSyncState, writeCached, writeSyncState } from '../task-service-cache.mjs';
-import { mapTaskProjects, TaskServiceUnavailable } from '../task-service.mjs';
+import { mapTaskProjects, TaskServiceUnavailable, withNoticeosRecords } from '../task-service.mjs';
 import { BEADS_CLOSES_DAYS, beadsClosedSince, beadsClosesSince, beadsProjectError, summarizeBeadsProject } from '../task-snapshot-summary.mjs';
 
 export const FEED_PAGE = 200;
@@ -21,11 +21,9 @@ export async function taskBackend(service) {
   return service == null ? 'local' : service.backend();
 }
 
-/** Why a lane that writes to the bd hub stands down, or null when it may run. */
+/** Why a lane that writes tasks stands down while it is unknown where they live, or null. */
 export function bdLaneSkip(backend, lane) {
-  if (backend === 'local') return null;
-  return backend === 'ntasks' ? `tasks live in Ntasks, where this lane does not ${lane} yet`
-    : `the ingest has not said whether tasks live in Ntasks, so this lane does not ${lane}`;
+  return backend === 'unknown' ? `the ingest has not said whether tasks live in Ntasks, so this lane does not ${lane}` : null;
 }
 
 /** The closes the snapshot reaches back over, as one closed-only board read. */
@@ -33,7 +31,8 @@ const closesKey = (asset) => boardKey(asset, 'closed', BEADS_CLOSES_DAYS);
 
 /** One board task as `bd list --json` reported it: the shape the snapshot
  * summary reads (scripts/task-snapshot-summary.mjs). */
-export function bdRow(task) {
+export function bdRow(ntasksTask) {
+  const task = withNoticeosRecords(ntasksTask);
   return {
     id: task.id, title: task.title, status: task.status, priority: task.priority, issue_type: task.issueType,
     assignee: task.assignee, updated_at: task.updatedAt, closed_at: task.closedAt, created_at: task.createdAt,

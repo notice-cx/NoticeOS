@@ -135,19 +135,6 @@ test('the snapshot lane files the Ntasks snapshot and never runs bd', async (t) 
   assert.match(lines.at(-1), /Ntasks did not answer \(network\)/u);
 });
 
-test('the lanes that write to the bd hub stand down while tasks live in Ntasks', async () => {
-  const { service } = ntasks();
-  const lines = [];
-  const never = () => { throw new Error('must not run'); };
-  const panel = await runPanelReviewFiler({ running: true, ready: true }, { taskService: service, probe: never, readConfig: never, run: never,
-    state: { skipping: null, unmapped: new Set(), waiting: new Set() }, emit: (_level, text) => lines.push(text), stopped: () => false });
-  assert.equal(panel, null);
-  const map = await runTaskMapCheck({ taskService: service, readConfig: never, run: never, state: { skipping: null },
-    emit: (_level, text) => lines.push(text), stopped: () => false });
-  assert.equal(map, null);
-  assert.ok(lines.some((line) => /tasks live in Ntasks/u.test(line)));
-});
-
 test('a board read that failed is read again on the next tick, quiet feed or not', async (t) => {
   const dir = await cacheDir(t);
   let events = [{ seq: 1, projectId: PROJECT.projectId }];

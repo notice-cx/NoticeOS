@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 import type { LaneReply, LaneRequest } from "./lane";
 import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, type TaskServiceStatus } from "../shared/tasks";
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
-import { mapTaskProjects, TaskServiceUnavailable, unavailableSentence, type MappedTaskProject, type NtasksProject,
+import { mapTaskProjects, TaskServiceUnavailable, unavailableSentence, withNoticeosRecords, type MappedTaskProject, type NtasksProject,
   type TaskService } from "../../../scripts/task-service.mjs";
 import { ALL_STATUSES, boardKey, readCached, taskKey, writeCached } from "../../../scripts/task-service-cache.mjs";
 
@@ -78,13 +78,20 @@ function projectFor(projects: readonly MappedTaskProject[], match: (project: Map
 }
 const prefixOf = (id: string) => id.slice(0, Math.max(0, id.indexOf("-"))).toLowerCase();
 
+/** A board or a task read with each task's close and claim under the keys the pages read. */
+function withRecords(body: Record<string, unknown>): Record<string, unknown> {
+  const tasks = Array.isArray(body.tasks) ? body.tasks.map(task => record(task) ? withNoticeosRecords(record(task)!) : task) : body.tasks;
+  const task = record(body.task) ? withNoticeosRecords(record(body.task)!) : body.task;
+  return { ...body, ...(tasks === undefined ? {} : { tasks }), ...(task === undefined ? {} : { task }) };
+}
+
 /** A read: Ntasks's answer, kept; or, when Ntasks gave none, the kept copy. */
 async function read(opts: TaskServiceLaneOptions, key: string, path: string, asset: string): Promise<LaneReply> {
   let reason: string;
   try {
     const { status, body } = await opts.service.call({ method: "GET", path });
     if (status === 200 && record(body)) {
-      const answer = { ...record(body)!, project: asset };
+      const answer = { ...withRecords(record(body)!), project: asset };
       await writeCached(opts.cacheDir, key, answer, () => opts.now().getTime());
       return { status: 200, body: answer };
     }
@@ -149,7 +156,7 @@ async function agentStats(opts: TaskServiceLaneOptions, url: URL): Promise<LaneR
       const tasks = boards.flatMap(board => {
         const rows = record(board.body)?.tasks;
         if (board.status !== 200 || !Array.isArray(rows)) throw new Error("unreadable");
-        return rows as AgentStatsProject["tasks"];
+        return rows.map(task => record(task) ? withNoticeosRecords(record(task)!) : task) as AgentStatsProject["tasks"];
       });
       read.push({ project: project.asset, tasks });
     } catch { broken.push(project.asset); }

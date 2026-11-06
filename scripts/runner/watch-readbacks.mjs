@@ -6,6 +6,11 @@ import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-con
 import { CONFIG, HOME_ROOT, SECRET_FILES } from './config.mjs';
 import { log } from './log.mjs';
 import { bdLaneSkip, taskBackend } from './task-service-poll.mjs';
+import { ntasksRegister } from './task-service-register.mjs';
+
+/** Who Ntasks records for this lane's verdict comments and for the reviews it files. */
+export const OUTCOME_UPDATES_ACTOR = 'outcome-task-updates';
+export const OUTCOME_REVIEW_ACTOR = 'outcome-review-filer';
 import { operatorToken } from './operator-token.mjs';
 import { beadsFailure, parseBeadsProjects, runBd } from './task-hub.mjs';
 import { beadsInstant } from '../task-snapshot-values.mjs';
@@ -43,6 +48,30 @@ export async function fileOutcomeReview(project, entry, { open = openStandaloneT
     }
     return outcome.value.id;
   } finally { await tasks.close(); }
+}
+
+/** The same outcome review filed in Ntasks, under a key for the project's
+ * prefix, then linked to the task whose reading it reviews. */
+export async function fileNtasksOutcomeReview(register, project, entry) {
+  const key = 'outcome-review:' + createHash('sha256').update(JSON.stringify(
+    ['ntasks', project.prefix, entry.asset, entry.windowId, entry.bead])).digest('hex');
+  const id = await register.create(project, {
+    title: `Review the ${entry.asset} outcome (${entry.bead})`, type: 'task', priority: 2, labels: ['outcome-review'],
+    metadata: { [TASK_METADATA.source.name]: 'outcome-review', [TASK_METADATA.asset.name]: entry.asset,
+      [TASK_METADATA.rule.name]: 'watch-window-closed', [TASK_METADATA.key.name]: entry.windowId },
+    description: `WHAT: Review the recorded outcome for ${entry.asset}.\n` +
+      `WHY: The original task ${entry.bead} was closed before this result was delivered; the measurement still needs review.\n` +
+      `WHERE: Outcome window ${entry.windowId}; related task ${entry.bead}.\n` +
+      'FIX: Review the result comment posted by Outcome task updates, record the decision and evidence, and file any required follow-up work.',
+    acceptance: 'Record the review decision and evidence, then close this review task. Preserve the measured outcome and original implementation evidence.',
+  }, key);
+  await register.relate(project, id, entry.bead);
+  return id;
+}
+
+/** A verdict comment's key: one comment per window and task, however often it is retried. */
+function verdictKey(entry, bead) {
+  return 'readback:' + createHash('sha256').update(JSON.stringify([entry.windowId, bead])).digest('hex');
 }
 
 async function readLinkedTask(run, directory, id) {
@@ -115,12 +144,17 @@ export async function runWatchReadbackFiler(deps = {}) {
   }
   if (!Array.isArray(pending) || !Array.isArray(reviews)) return { posted: [], failed: [] };
   if (pending.length === 0 && reviews.length === 0) return { posted: [], failed: [] };
-  // The verdicts stay queued in the store until this lane can post them.
-  const standDown = bdLaneSkip(await taskBackend(taskService), 'post');
-  if (standDown) {
-    emit('WARN', `watch readbacks wait — ${standDown} (${pending.length + reviews.length} queued)`);
+  // The verdicts stay queued in the store until it is known where to post them.
+  const backend = await taskBackend(taskService);
+  if (backend === 'unknown') {
+    emit('WARN', `watch readbacks wait — ${bdLaneSkip(backend, 'post')} (${pending.length + reviews.length} queued)`);
     return { posted: [], failed: [] };
   }
+  // While tasks live in Ntasks, a verdict is posted and a review filed there.
+  const ntasks = backend === 'ntasks' ? { updates: ntasksRegister(taskService, OUTCOME_UPDATES_ACTOR),
+    reviews: ntasksRegister(taskService, OUTCOME_REVIEW_ACTOR) } : null;
+  const show = (spoke, id) => ntasks ? ntasks.updates.show(spoke, id) : readLinkedTask(run, taskProjectDirectory(spoke, repoRoot), id);
+  const fileReview = (spoke, entry) => ntasks ? fileNtasksOutcomeReview(ntasks.reviews, spoke, entry) : createReview(spoke, entry);
 
   let projects = [];
   try {
@@ -141,7 +175,8 @@ export async function runWatchReadbackFiler(deps = {}) {
       failed.push(`${entry.bead}: no beads spoke is configured for ${entry.asset}`);
       continue;
     }
-    if (spoke.unavailableReason) {
+    // A project's bd link on this host says nothing about its Ntasks project.
+    if (!ntasks && spoke.unavailableReason) {
       failed.push(`${entry.bead}: ${spoke.unavailableReason}`);
       continue;
     }
@@ -150,14 +185,18 @@ export async function runWatchReadbackFiler(deps = {}) {
     // the inventory's paths are relative to it, not to the code folder.
     let result;
     try {
-      const directory = taskProjectDirectory(spoke, repoRoot);
-      const task = await readLinkedTask(run, directory, entry.bead);
+      const task = await show(spoke, entry.bead);
       let bead = entry.bead;
       if (task.status === 'closed' && entry.reviewRequired !== false) {
-        bead = await createReview(spoke, entry);
+        bead = await fileReview(spoke, entry);
         await attachReview(fetchImpl, url, auth, entry, bead, null);
       }
-      result = await run(['-C', directory, 'comment', bead, entry.comment]);
+      if (ntasks) {
+        await ntasks.updates.comment(spoke, bead, entry.comment, verdictKey(entry, bead));
+        result = { code: 0 };
+      } else {
+        result = await run(['-C', taskProjectDirectory(spoke, repoRoot), 'comment', bead, entry.comment]);
+      }
       if (result.code === 0) expectedTasks[entry.windowId] = bead;
     } catch (err) {
       failed.push(`${entry.bead}: result delivery failed: ${err.message}`);
@@ -206,18 +245,18 @@ export async function runWatchReadbackFiler(deps = {}) {
   while (reviews.length > 0) {
     for (const review of reviews) {
       const spoke = spokes.get(review.asset);
-      if (!spoke || spoke.unavailableReason) {
+      if (!spoke || (!ntasks && spoke.unavailableReason)) {
         const failure = `${review.bead}: ${spoke?.unavailableReason ?? 'task project unavailable'}`;
         failed.push(failure);
         emit('WARN', `watch readbacks: ${failure}`);
         continue;
       }
       try {
-        const task = await readLinkedTask(run, taskProjectDirectory(spoke, repoRoot), review.bead);
+        const task = await show(spoke, review.bead);
         const closedAt = beadsInstant(task?.closed_at);
         const checkedAt = new Date(now()).toISOString();
         if (task.status === 'closed' && closedAt && closedAt <= review.postedAt) {
-          const bead = await createReview(spoke, review);
+          const bead = await fileReview(spoke, review);
           await attachReview(fetchImpl, url, auth, review, bead, review.postedAt);
           // Delivery stays pending until the new task's comment is confirmed.
           continue;

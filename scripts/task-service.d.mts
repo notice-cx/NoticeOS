@@ -71,3 +71,9 @@ export declare function mapTaskProjects(spokes: readonly {
 }[], projects: readonly NtasksProject[]): MappedTaskProject[];
 /** The sentence an operator or agent reads when Ntasks gave no answer. */
 export declare function unavailableSentence(error: TaskServiceUnavailable, origin: string | null): string;
+/** A task as Ntasks's task routes answer it, with its close and its claim also
+ * written under the NoticeOS metadata keys the task snapshot, the readback lane
+ * and the Tower's close attribution read (packages/contract/src/task-metadata.mts).
+ * Ntasks keeps them on the task itself; a close it imported without a closer
+ * gains none. */
+export declare function withNoticeosRecords<T extends Record<string, unknown>>(task: T): T;
