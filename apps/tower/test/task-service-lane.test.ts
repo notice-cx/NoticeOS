@@ -132,3 +132,12 @@ it("does not pass off a read Ntasks answered with something else as a board", as
   const { service } = ntasks(() => ({ status: 200, body: [] }));
   expect(await lane(service)(request("GET", "/api/tasks?project=example.com"))).toMatchObject({ status: 502, body: { error: "task_service_invalid" } });
 });
+
+it("shows who closed a task and how, from the close Ntasks records", async () => {
+  const closed = { id: "ex-1", title: "Done", status: "closed", metadata: {}, closedAt: "2026-11-06T09:00:00.000Z",
+    closedBy: "service:noticeos/claude", closedModel: "claude-opus-5-5", resolution: "wont-do", duplicateOf: null };
+  const { service } = ntasks(() => ({ status: 200, body: { ...BOARD, tasks: [closed] } }));
+  const reply = await lane(service)(request("GET", "/api/tasks?project=example.com"));
+  expect((reply.body.tasks as { metadata: Record<string, unknown> }[])[0]!.metadata).toMatchObject({
+    noticeos_closed_by: "service:noticeos/claude", noticeos_closed_at: closed.closedAt, noticeos_closed_model: "claude-opus-5-5", noticeos_resolution: "wont-do" });
+});

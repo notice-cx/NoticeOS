@@ -9,6 +9,7 @@
  * and the `.d.mts` the Tower's Vite lanes read.
  */
 import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
+import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 export const TASK_SERVICE_ROUTE = 'api/task-service';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
 const STATUS_TTL_MS = 5_000;
@@ -173,4 +174,31 @@ export function unavailableSentence(error, origin) {
     if (error.reason === 'refused')
         return `${where} refused this installation's service credential; replace it in Settings → Task projects.`;
     return `${where} did not answer (${error.reason}).`;
+}
+/** A task as Ntasks's task routes answer it, with its close and its claim also
+ * written under the NoticeOS metadata keys the task snapshot, the readback lane
+ * and the Tower's close attribution read (packages/contract/src/task-metadata.mts).
+ * Ntasks keeps them on the task itself; a close it imported without a closer
+ * gains none. */
+export function withNoticeosRecords(task) {
+    const recorded = {};
+    const text = (value) => typeof value === 'string' && value.trim() !== '' ? value : null;
+    const closedBy = text(task.closedBy), closedAt = text(task.closedAt);
+    if (closedBy !== null && closedAt !== null) {
+        recorded[TASK_METADATA.closedBy.name] = closedBy;
+        recorded[TASK_METADATA.closedAt.name] = closedAt;
+        const model = text(task.closedModel), resolution = text(task.resolution), duplicateOf = text(task.duplicateOf);
+        if (model !== null)
+            recorded[TASK_METADATA.closedModel.name] = model;
+        if (resolution !== null)
+            recorded[TASK_METADATA.resolution.name] = resolution;
+        if (duplicateOf !== null)
+            recorded[TASK_METADATA.duplicateOf.name] = duplicateOf;
+    }
+    const claimedModel = text(task.assigneeModel);
+    if (claimedModel !== null)
+        recorded[TASK_METADATA.claimedModel.name] = claimedModel;
+    if (Object.keys(recorded).length === 0)
+        return task;
+    return { ...task, metadata: { ...(row(task.metadata) ?? {}), ...recorded } };
 }
