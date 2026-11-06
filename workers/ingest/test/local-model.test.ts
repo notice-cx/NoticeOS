@@ -37,6 +37,18 @@ it('discovers the exact configured model with bearer auth without generating', a
   await expect(checkLocalModel(standalone, fields, async () => Response.json({ data: [{ id: 'other-model' }] }))).rejects.toMatchObject({ code: 'model-missing' });
 });
 
+it.each([undefined, null, []])('accepts final content when the server reports no tool calls (%j)', async tool_calls => {
+  const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: {
+    content: '{"summary":"Synthetic result"}', reasoning_content: 'Separate reasoning is not the final answer.', tool_calls,
+  } }] });
+  expect(await generateLocalModel(standalone, fields, { ...options, fetchImpl })).toEqual({ summary: 'Synthetic result' });
+});
+
+it.each([[{ type: 'function', function: { name: 'act', arguments: '{}' } }], {}, false, ''])('rejects nonempty or malformed tool calls (%j)', async tool_calls => {
+  const fetchImpl = async () => Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"summary":"Synthetic result"}', tool_calls } }] });
+  await expect(generateLocalModel(standalone, fields, { ...options, fetchImpl })).rejects.toMatchObject({ code: 'invalid-output' });
+});
+
 it.each(['hosted', 'demo'])('blocks %s credential mutation, discovery, probe and inference before fetch', async profile => {
   const selected = { ...env, NOTICEOS_WORKSPACE_PROFILE: profile };
   const fetchImpl = vi.fn<typeof fetch>();

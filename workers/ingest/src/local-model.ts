@@ -113,7 +113,8 @@ export async function generateLocalModel(env: unknown, fields: Record<string, st
   if (!object(response) || !Array.isArray(response.choices) || response.choices.length !== 1) throw new LocalModelError('invalid-output');
   const choice: unknown = response.choices[0];
   if (!object(choice) || choice.finish_reason !== 'stop' || !object(choice.message)
-      || typeof choice.message.content !== 'string' || choice.message.tool_calls || choice.message.refusal) throw new LocalModelError('invalid-output');
+      || typeof choice.message.content !== 'string' || choice.message.refusal
+      || (choice.message.tool_calls != null && (!Array.isArray(choice.message.tool_calls) || choice.message.tool_calls.length > 0))) throw new LocalModelError('invalid-output');
   try {
     const value: unknown = JSON.parse(choice.message.content);
     if (!object(value)) throw new LocalModelError('invalid-output');
