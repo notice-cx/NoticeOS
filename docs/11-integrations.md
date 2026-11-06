@@ -72,24 +72,40 @@ Home reads the saved briefing and makes no model request. To refresh it on deman
 open **System health** > **Background operations** > **Portfolio briefing** and
 select **Run now**. The same 15-minute minimum between attempts applies.
 
-The model receives bounded summaries of stored financial observations,
-complete traffic comparisons, aligned revenue comparisons where available,
-open alerts, sampled task progress and data coverage. It receives no
-credentials, task comments or raw provider archives. Each finding includes
-evidence links, its significance and a proposed next action. Each observation includes the measurement period and baseline, such as “over the latest 7 days versus the previous 7”. Precise current and previous date ranges, years and reporting time zones appear beside their sources under **Evidence and coverage**. Results contain
-at most two findings and 180 words. Missing data, static amounts and unchanged
-concentration do not qualify; concentration requires a sudden observed change.
-Currently, findings require recent, complete comparisons showing different
-traffic and revenue movements or opposing traffic changes across assets.
-Without such a comparison, the workflow saves an empty review without calling
-the model. The model cannot
-execute actions. Completed tasks do not establish business outcomes, and
-the briefing must identify uncertainty rather than invent causes or gains.
+The model receives a context packet capped at 24 KB, with space reserved for
+each area below. Queries use stored observations with one refresh cutoff; they
+make no provider requests. Daily series become aligned comparisons before
+inference, and missing values remain unknown.
 
-Home shows **Evidence reviewed** and **Updated** for a review saved without a model call. Model-generated results show the model name and generation time. The data review time remains visible. A failed
-refresh retains the last valid briefing with a failure label; without one,
-Home uses its ordinary summary. Disconnecting or replacing the connection
-hides its previous briefing. The replaceable cache is not a permanent archive.
+| Area | Context used for judgment |
+|---|---|
+| Finance | Current accounting and costs, the previous two completed months, currency and booking status, and aligned traffic/revenue estimates. |
+| Acquisition | Separate Google, Bing and analytics comparisons, including search visibility, clicks, click-through rate and usage. |
+| Product | Recent funnel steps, errors affecting people and slow segments, with each source's reporting window. |
+| Delivery | Current progress, comparable weekly activity, explicit decision dependencies and recent recorded changes. |
+| Outcomes | Open measurement checks, upcoming readbacks and recently recorded verdicts with their metric and scope. |
+| Operations | Recent failed runs, reporting coverage, backup observations and today's metered spending. |
+
+Every area includes availability and omission counts. The packet favors recent
+observations and explicit relationships while sharing space across assets.
+Credentials, task comments and raw provider archives are excluded. An eligible
+observation allows model judgment; it does not require a finding.
+
+Results contain at most three findings and 360 words. Home shows each takeaway
+in a compact card. **Details** expands its observation, implication and next
+action. Sentences stay short, with timeframes in the narrative. A visual
+highlight cycles between cards. Interaction and open details pause it;
+**Pause highlights** stops it. Reduced-motion preferences disable cycling.
+Missing evidence, static totals and unchanged revenue
+concentration do not establish an insight. The model can return no findings.
+It cannot execute actions; task completion does not establish business impact,
+and temporal coincidence does not establish a cause.
+
+Home shows useful findings with contextual action links and no evidence
+inventory or routine timestamps. An empty result uses its ordinary summary.
+A failed refresh retains prior guidance with a concise warning. Disconnecting
+or replacing the connection hides its previous briefing. The replaceable cache
+is not a permanent archive.
 
 The server must support OpenAI-compatible `/chat/completions` and JSON-schema
 structured output, such as LM Studio's [chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions)

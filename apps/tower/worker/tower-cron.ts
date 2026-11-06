@@ -17,6 +17,9 @@ import { buildWorkPayload } from './work-payload';
 import { loadRevenueHistories } from './daily-revenue';
 import { operatorRevenueClock } from '../shared/daily-revenue';
 import { buildPortfolioBriefEvidence } from './portfolio-brief-evidence';
+import { loadPortfolioBriefReadings } from './portfolio-brief-readings';
+import { loadPortfolioBriefAcquisition } from './portfolio-brief-acquisition';
+import { packPortfolioBriefContext } from './portfolio-brief-context';
 
 /** The hourly tick's expression: the Data freshness checks job's dispatch key,
  * which the runner fires whatever time the operator saved for it. */
@@ -72,13 +75,19 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
         buildWorkPayload(env.STORE, { now: at, projects: cfg.beads.spokes, timeZone: cfg.osTimeZone }),
       ]);
       const assetIds = wall.assets.map(asset => asset.id);
-      const revenueByAsset = await loadRevenueHistories(env.STORE, { now: at, days: 28, fallback: operatorRevenueClock(cfg.osTimeZone), assets: assetIds });
-      const evidence = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset });
+      const [revenueByAsset, readings, acquisition] = await Promise.all([
+        loadRevenueHistories(env.STORE, { now: at, days: 28, fallback: operatorRevenueClock(cfg.osTimeZone), assets: assetIds }),
+        loadPortfolioBriefReadings(env.STORE, { now: at, assets: wall.assets, timeZone: cfg.osTimeZone }),
+        loadPortfolioBriefAcquisition(env.STORE, { now: at, assets: wall.assets }),
+      ]);
+      const base = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset });
+      const evidence = packPortfolioBriefContext({ ...base, facts: [...base.facts, ...readings.facts, ...acquisition.facts],
+        insightEvidenceIds: [...base.insightEvidenceIds, ...readings.insightEvidenceIds, ...acquisition.insightEvidenceIds] });
       const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000);
       if (result.error) throw new Error(result.error);
       if (result.state === 'disconnected' || result.state === 'unsupported') return 'Briefing generation is unavailable';
       if (result.lastAttemptAt === state.lastAttemptAt) return 'Another briefing run or its cooldown prevented generation';
-      if (trigger === 'manual' && evidence.insightEvidenceIds.length === 0) return 'No comparable evidence is available for briefing insights';
+      if (trigger === 'manual' && evidence.insightEvidenceIds.length === 0) return 'No recent observations are available for briefing insights';
     });
   } else {
     await step("connection-counts", () => recordTodaysConnectionCounts(env.INGEST, env.STORE, now()));

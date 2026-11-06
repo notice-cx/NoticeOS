@@ -1,4 +1,4 @@
-import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefResponseSchema, portfolioBriefEvidenceSchema, portfolioBriefResultSchema, portfolioBriefObservationOpening, type PortfolioBriefEvidence, type PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
+import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefResponseSchema, portfolioBriefEvidenceSchema, portfolioBriefResultSchema, portfolioBriefFactOpening, portfolioBriefObservationOpening, type PortfolioBriefEvidence, type PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { resolveCredential, type ResolvedCredential } from './credentials.js';
 import { claimLease, releaseLease } from './integration-leases.js';
@@ -7,7 +7,7 @@ import { generateLocalModel, LocalModelError, LOCAL_MODEL_ID } from './local-mod
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { portfolioBriefPrompt } from './portfolio-brief-prompt.js';
 
-const VERSION = '4';
+const VERSION = '5';
 const MIN_REFRESH_MS = 15 * 60_000;
 const LEASE_MS = 3 * 60_000;
 const FAILURE_RETRY_MS = 15 * 60_000;
@@ -89,9 +89,18 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
       const result = portfolioBriefResultSchema.parse(raw);
       for (const insight of result.insights) {
         if (insight.evidenceIds.some(id => !facts.has(id)) || !insight.evidenceIds.some(id => eligible.has(id))) throw new LocalModelError('invalid-output');
+        const anchors = insight.evidenceIds.filter(id => eligible.has(id)).map(id => facts.get(id)!);
+        if (!anchors.some(fact => insight.observation.startsWith(portfolioBriefFactOpening(fact)))) throw new LocalModelError('invalid-output');
         const comparisons = insight.evidenceIds.flatMap(id => facts.get(id)?.comparison ? [facts.get(id)!.comparison!] : []);
+        const observations = insight.evidenceIds.flatMap(id => facts.get(id)?.basis === 'period-observation' ? [facts.get(id)!] : []);
+        const observationPeriods = new Set(observations.map(fact => [fact.period!.start, fact.period!.end].join('|')));
+        if (observationPeriods.size > 1 || comparisons.length > 0 && observations.length > 0) throw new LocalModelError('invalid-output');
         const distinct = new Set(comparisons.map(item => [item.current.start, item.current.end, item.previous.start, item.previous.end, item.timeZone].join('|')));
-        if (distinct.size !== 1 || !insight.observation.startsWith(portfolioBriefObservationOpening(comparisons[0]!))) throw new LocalModelError('invalid-output');
+        if (comparisons.length > 0) {
+          if (distinct.size !== 1 || !insight.observation.startsWith(portfolioBriefObservationOpening(comparisons[0]!))) throw new LocalModelError('invalid-output');
+        } else if (observations.length > 0 && !insight.observation.startsWith(portfolioBriefFactOpening(observations[0]!))) {
+          throw new LocalModelError('invalid-output');
+        }
       }
       const finished = clock();
       nextAttemptAt = new Date(start + MIN_REFRESH_MS).toISOString();

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, portfolioBriefResultSchema } from '@noticeos/contract/portfolio-brief';
 import type { AssetCard, WallPayload } from '../shared/wall';
-import type { WorkPayload, WorkProject } from '../shared/work';
+import type { WorkItem, WorkPayload, WorkProject } from '../shared/work';
 import type { DailyRevenueHistory } from '../shared/daily-revenue';
 import { buildPortfolioBriefEvidence } from '../worker/portfolio-brief-evidence';
 import { shiftRevenueDate } from '../shared/revenue-projection';
@@ -28,6 +28,10 @@ function wall(assets = [asset()]): WallPayload {
 const work: WorkPayload = { generatedAt: NOW.toISOString(), capturedAt: null, pollCadenceHours: 1 / 60, owner: 'config/beads.json', projects: [], archivedProjects: [], historyDays: 0 };
 function project(overrides: Partial<WorkProject> = {}): WorkProject {
   return { asset: 'example.com', prefix: 'ex', name: 'Example', ok: true, error: null, counts: { open: 0, ready: 0, blocked: 0, inProgress: 0, highPriority: null, closedRecent: 0, deferred: null, waiting: null }, history: { waiting: [], urgent: [], open: [], inProgress: [], blocked: [], closed: [] }, priorities: null, epics: null, ready: [], waiting: [], inProgress: [], deferred: [], recentlyClosed: [], ...overrides };
+}
+function task(id: string, overrides: Partial<WorkItem> = {}): WorkItem {
+  return { id, title: id, status: 'open', priority: 1, issueType: 'task', assignee: null, updatedAt: '2026-10-01T00:00:00Z',
+    closedAt: null, parent: null, deferUntil: null, ...overrides };
 }
 function revenue(): DailyRevenueHistory {
   const clock = { timeZone: 'UTC', label: 'UTC', readyAfterMinute: 0 };
@@ -94,7 +98,7 @@ describe('portfolio briefing evidence', () => {
     history.partialDates = ['2026-10-18', '2026-10-19'];
     const old = buildPortfolioBriefEvidence(wall([site]), work, { revenueByAsset: new Map([[site.id, history]]) });
     expect(old.facts.find(item => item.id.endsWith(':traffic-revenue'))!.comparison!.current.end).toBe('2026-10-17');
-    expect(old.insightEvidenceIds).toEqual([]);
+    expect(old.insightEvidenceIds).not.toContain('asset:example.com:traffic-revenue');
   });
 
   it('uses the actual source currency and rejects missing or mixed source metadata', () => {
@@ -247,13 +251,108 @@ describe('portfolio briefing evidence', () => {
     expect(buildPortfolioBriefEvidence(old, work).insightEvidenceIds).toEqual([]);
     const stale = wall([asset('a.example', 300, 100), asset('b.example', 50, 100)]);
     stale.assets[0]!.activeUsers.collectedAt = '2026-10-19T00:00:00Z';
-    expect(buildPortfolioBriefEvidence(stale, work).insightEvidenceIds).toEqual([]);
-    for (const [current, previous] of [[100, 100], [50, 100]]) {
+    expect(buildPortfolioBriefEvidence(stale, work).insightEvidenceIds).toEqual(['asset:b.example:traffic']);
+    for (const [current, previous] of [[100, 100]]) {
       const aligned = revenue();
       aligned.days = aligned.days.map((day, index) => ({ ...day, amountMinor: index < 7 ? previous! : current! }));
       aligned.bySource = aligned.bySource!.map(source => ({ ...source, days: aligned.days }));
       expect(buildPortfolioBriefEvidence(wall([asset('example.com', current, previous)]), work, { revenueByAsset: new Map([['example.com', aligned]]) }).insightEvidenceIds).toEqual([]);
     }
+  });
+
+  it.each([[200, 100], [50, 100], [100, 0], [0, 100]])('offers each fresh complete changed traffic comparison (%s versus %s) for judgment', (current, previous) => {
+    const packet = buildPortfolioBriefEvidence(wall([asset('example.com', current, previous)]), work);
+    expect(packet.insightEvidenceIds).toContain('asset:example.com:traffic');
+    expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
+  });
+
+  it('offers proportional traffic and revenue changes without requiring a divergence', () => {
+    const history = revenue();
+    history.days = history.days.map((day, index) => ({ ...day, amountMinor: index < 7 ? 1000 : 2000 }));
+    history.bySource = history.bySource!.map(source => ({ ...source, days: history.days }));
+    const packet = buildPortfolioBriefEvidence(wall(), work, { revenueByAsset: new Map([['example.com', history]]) });
+    expect(packet.insightEvidenceIds).toContain('asset:example.com:traffic');
+    expect(packet.insightEvidenceIds).toContain('asset:example.com:traffic-revenue');
+    expect(packet.facts.find(fact => fact.id.endsWith(':traffic-revenue'))!.data.changeGapPercentagePoints).toBe(0);
+  });
+
+  it('offers same-direction portfolio changes and keeps fresh individual evidence when another asset is stale or unmatched', () => {
+    const data = wall([asset('a.example', 200, 100), asset('b.example', 300, 100)]);
+    expect(buildPortfolioBriefEvidence(data, work).insightEvidenceIds).toEqual(['asset:a.example:traffic', 'asset:b.example:traffic', 'portfolio:traffic-divergence']);
+    data.assets[1]!.activeUsers.collectedAt = '2026-10-01T00:00:00Z';
+    expect(buildPortfolioBriefEvidence(data, work).insightEvidenceIds).toEqual(['asset:a.example:traffic']);
+    data.assets[1]!.activeUsers.series = [];
+    expect(buildPortfolioBriefEvidence(data, work).insightEvidenceIds).toEqual(['asset:a.example:traffic']);
+  });
+
+  it.each(['blocks', 'waits-for', 'conditional-blocks'])('offers fresh explicit sampled %s dependencies as current operational evidence', type => {
+    const decision = task('ex-decision', { title: 'Choose the checkout flow' });
+    const blocked = task('ex-build', { dependencies: [{ id: decision.id, type, status: 'open' }, { id: 'ex-other', type: 'blocks' }] });
+    const packet = buildPortfolioBriefEvidence(wall([]), { ...work, capturedAt: NOW.toISOString(), projects: [project({ waiting: [decision], blocked: [blocked] })] });
+    const fact = packet.facts.find(fact => fact.basis === 'task-dependency')!;
+    expect(packet.insightEvidenceIds).toEqual([fact.id]);
+    expect(fact.observedAt).toBe(NOW.toISOString());
+    expect(fact.period).toBeNull();
+    expect(fact.comparison).toBeUndefined();
+    expect(fact.data.sampledBlockedDependentCount).toBe(1);
+    expect(fact.data.sampledBlockedDependents).toEqual([expect.objectContaining({ id: blocked.id, dependencyType: type,
+      otherBlockingDependencyIds: ['ex-other'], otherBlockingDependencyStatusesKnown: false })]);
+    expect(fact.data.caution).toContain('does not establish that dependent tasks are ready');
+    expect(portfolioBriefEvidenceSchema.safeParse(packet).success).toBe(true);
+  });
+
+  it('does not infer operational evidence from task age, related links, closed or missing decisions, foreign projects or stale snapshots', () => {
+    const decision = task('ex-decision');
+    const dependent = task('ex-build', { dependencies: [{ id: decision.id, type: 'blocks', status: 'open' }] });
+    const source = project({ waiting: [decision], blocked: [dependent] });
+    const scenarios: WorkPayload[] = [
+      { ...work, capturedAt: null, projects: [source] },
+      { ...work, capturedAt: '2026-10-20T11:00:00Z', projects: [source] },
+      { ...work, capturedAt: '2026-10-21T12:00:00Z', projects: [source] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, ok: false }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, waiting: [] }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, waiting: [{ ...decision, status: 'closed' }] }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, blocked: [{ ...dependent, status: 'closed' }] }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, blocked: [{ ...dependent, dependencies: [{ id: decision.id, type: 'related' }] }] }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, blocked: [{ ...dependent, dependencies: [{ id: decision.id, type: 'blocks', status: 'closed' }] }] }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, blocked: [{ ...dependent, dependencies: undefined }] }] },
+      { ...work, capturedAt: NOW.toISOString(), projects: [{ ...source, blocked: [] }, project({ asset: 'other.example', blocked: [dependent] })] },
+    ];
+    for (const snapshot of scenarios) expect(buildPortfolioBriefEvidence(wall([]), snapshot).insightEvidenceIds).toEqual([]);
+  });
+
+  it('offers current delivery counts only from fresh nonfuture project snapshots', () => {
+    const active = project();
+    active.counts = { ...active.counts, open: 8, inProgress: 2, blocked: 3, waiting: 1, closedRecent: 4 };
+    const fresh = buildPortfolioBriefEvidence(wall([]), { ...work, capturedAt: NOW.toISOString(), projects: [active] });
+    const id = 'work:example.com:progress';
+    expect(fresh.insightEvidenceIds).toContain(id);
+    expect(fresh.facts.find(fact => fact.id === id)).toMatchObject({ domain: 'delivery', basis: 'current-state', observedAt: NOW.toISOString(), period: null,
+      data: { counts: active.counts, weeklyProgress: null } });
+    for (const capturedAt of [null, '2026-10-20T11:00:00Z', '2026-10-21T12:00:00Z']) {
+      const packet = buildPortfolioBriefEvidence(wall([]), { ...work, capturedAt, projects: [active] });
+      expect(packet.insightEvidenceIds).not.toContain(id);
+      expect(packet.facts.find(fact => fact.id === id)).not.toHaveProperty('basis');
+    }
+    const unread = buildPortfolioBriefEvidence(wall([]), { ...work, capturedAt: NOW.toISOString(), projects: [{ ...active, ok: false }] });
+    expect(unread.facts.some(fact => fact.id === id)).toBe(false);
+  });
+
+  it('offers recent operational failures while retaining old failed runs only as coverage context', () => {
+    const data = wall([]);
+    const old = { job: 'old-job', outcome: 'failed' as const, startedAt: '2026-10-01T12:00:00Z', lastRanAt: null, failedRuns: 2, failingSince: '2026-10-01T12:00:00Z' };
+    const recent = { ...old, job: 'recent-job', startedAt: '2026-10-20T11:00:00Z' };
+    const future = { ...old, job: 'future-job', startedAt: '2026-10-21T12:00:00Z' };
+    data.system.scheduledLanes = [old, recent, future];
+    const packet = buildPortfolioBriefEvidence(data, work);
+    expect(packet.insightEvidenceIds).toContain('operations:recent');
+    const current = packet.facts.find(fact => fact.id === 'operations:recent')!;
+    expect(current).toMatchObject({ domain: 'operations', basis: 'current-state', observedAt: NOW.toISOString(), period: null });
+    expect(current.data.failedJobs).toEqual([recent]);
+    expect(current.data.omittedFailures).toBe(2);
+    expect(packet.facts.find(fact => fact.id === 'system:coverage')!.data.failedJobs).toHaveLength(3);
+    data.system.scheduledLanes = [old, future];
+    expect(buildPortfolioBriefEvidence(data, work).insightEvidenceIds).not.toContain('operations:recent');
   });
 
   it('retains immutable insight editions without making every finding current', () => {
