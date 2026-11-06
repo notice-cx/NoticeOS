@@ -316,6 +316,20 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           <span id={BOARD_READ_ONLY_REASON_ID}>{READ_ONLY_TASKS_HINT}</span>
         </StatusBanner>
       </div>
+      {/* The task service did not answer: the rows are the copy it last
+          gave, kept on this machine, without actions. */}
+      <StatusBanner
+        open={cachedProjects.length > 0}
+        subject="tasks:cached"
+        severity="warn"
+        lead="Ntasks is not answering"
+        action={{ label: "Retry", onClick: () => void queryClient.invalidateQueries({ queryKey: ["tasks"] }) }}
+      >
+        <span data-tasks-cached>
+          {shownAt ? <>Showing the tasks read <AgeBadge iso={shownAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={now} lastGood />. </> : null}
+          Changes can be sent when it answers.
+        </span>
+      </StatusBanner>
 
       {/* One composer, two ways in: New task (location state) and `?new=1`
           (a link). It inherits the project the board is showing and nothing
@@ -410,21 +424,6 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           <p id="tasks-search-scope" className="m-0 text-xs text-muted-foreground">
             Titles/ids only · live closes: last {TASKS_CLOSED_WINDOW_DAYS} days; snapshots: listed tasks only.
           </p>
-
-          {/* The task service did not answer: the rows are the copy it last
-              gave, kept on this machine, without actions. */}
-          <StatusBanner
-            open={cachedProjects.length > 0}
-            subject="tasks:cached"
-            severity="warn"
-            lead="Ntasks is not answering"
-            action={{ label: "Retry", onClick: () => void queryClient.invalidateQueries({ queryKey: ["tasks"] }) }}
-          >
-            <span data-tasks-cached>
-              {shownAt ? <>Showing the tasks read <AgeBadge iso={shownAt} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={now} lastGood />. </> : null}
-              Changes can be sent when it answers.
-            </span>
-          </StatusBanner>
 
           {/* One banner for projects that could not be read: which, and a way
               to try again. Their rows stay on the board, from the last read or

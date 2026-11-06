@@ -21,6 +21,7 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ageMs, formatAge } from "@shared/freshness";
 import {
   READ_ONLY_TASKS_HINT,
+  TASK_SERVICE_OFFLINE_HINT,
   taskWritesAvailable,
   taskFieldAvailable,
   taskOperationAvailable,
@@ -271,7 +272,7 @@ export function TaskRoute() {
           {returnTo.startsWith("/assets/") ? "Back to asset" : "Back to Home"}
         </Link>
       )}
-      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={pageWritable} readAt={detail.data?.readAt ?? null} nowMs={now}>
+      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={pageWritable} offline={detail.data?.cached !== undefined} readAt={detail.data?.readAt ?? null} nowMs={now}>
         {closedSummary}
       </TaskHeader>
       {/* The task service did not answer: this is the copy it last gave. A
@@ -370,6 +371,7 @@ function TaskHeader({
   head,
   crumbs,
   writable,
+  offline = false,
   readAt,
   nowMs,
   children,
@@ -378,6 +380,8 @@ function TaskHeader({
   head: TaskHeadFacts | null;
   crumbs: PageHeaderCrumb[];
   writable: boolean;
+  /** The page shows the task service's kept copy, so nothing can be sent. */
+  offline?: boolean;
   /** When the live read the page shows was taken: an answer sent after it
    * hides the verbs until the next read. */
   readAt: string | null;
@@ -392,7 +396,7 @@ function TaskHeader({
   const reasonId = useId();
   const claimable = head !== null && head.status === "open" && head.holder === null;
   const closed = head?.status === "closed";
-  const blocked = writable ? null : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
+  const blocked = writable ? null : offline ? TASK_SERVICE_OFFLINE_HINT : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
   const answered = answerHides(id, readAt);
   const waitsOnOperator = (head?.ask ?? null) !== null;
   const choosing = head?.ask === "choose";

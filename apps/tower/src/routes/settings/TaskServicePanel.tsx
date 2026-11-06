@@ -28,15 +28,17 @@ export function NtasksConnection() {
   const status = providers.data?.providers.find((entry) => entry.provider.id === "ntasks") ?? null;
   const blockers = providers.data ? connectBlockers(providers.data) : [];
   const state = service.data?.connected;
+  const checking = service.isPending;
   const changed = async () => {
     await Promise.all([INTEGRATION_PROVIDERS_KEY, INTEGRATION_HEALTH_KEY, TASK_SERVICE_KEY, TASK_SOURCE_KEY]
       .map((queryKey) => queryClient.invalidateQueries({ queryKey })));
   };
   return (
-    <div className="flex flex-wrap items-center gap-3" data-ntasks-connection={state === true ? "connected" : state === false ? "not-connected" : "unknown"}>
+    <div className="flex flex-wrap items-center gap-3"
+      data-ntasks-connection={checking ? "checking" : state === true ? "connected" : state === false ? "not-connected" : "unknown"}>
       <span className="font-medium">Ntasks</span>
-      <StateChip tone={state === true ? "affirmative" : state === false ? "na" : "caution"}
-        label={state === true ? "Connected" : state === false ? "Not connected" : "Unknown"} subject="tasks:ntasks" />
+      <StateChip tone={checking ? "na" : state === true ? "affirmative" : state === false ? "na" : "caution"}
+        label={checking ? "Checking" : state === true ? "Connected" : state === false ? "Not connected" : "Unknown"} subject="tasks:ntasks" />
       {service.data?.origin ? <span className="min-w-0 break-all font-mono text-[11px] text-muted-foreground">{service.data.origin}</span> : null}
       {status && !demoReadonly ? (
         <Button type="button" size="sm" variant={state === true ? "outline" : "default"} onClick={() => setOpened(providerPanelOpening(status))}>
@@ -59,7 +61,9 @@ export function ntasksProjectColumn(status: TaskServiceStatus): DerivedColumn {
     name: "ntasks",
     label: "Ntasks project",
     render: (row) => {
-      if (status.projects === null) {
+      const entry = byAsset.get(row.key);
+      // A row saved after the status was read is not in it yet: unknown, not unmapped.
+      if (status.projects === null || entry === undefined) {
         return (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title={status.reason} data-ntasks-project-unknown>
             <CircleDashed aria-hidden className="size-3.5 shrink-0" />
@@ -67,7 +71,7 @@ export function ntasksProjectColumn(status: TaskServiceStatus): DerivedColumn {
           </span>
         );
       }
-      const project = byAsset.get(row.key)?.project ?? null;
+      const project = entry.project;
       if (project === null) {
         return (
           <span className="inline-flex items-center gap-1.5 text-xs text-warn" data-ntasks-unmapped>

@@ -237,6 +237,8 @@ export const TASK_PROJECTS_PATH = "/settings/task-projects";
 /** The one line a read-only task surface shows beside its Read-only chip —
  * what to do, since the chip already says what happened. */
 export const READ_ONLY_TASKS_HINT = "Make changes from the local NoticeOS.";
+/** Why a control is off on a page showing the task service's kept copy. */
+export const TASK_SERVICE_OFFLINE_HINT = "Changes can be sent when Ntasks answers.";
 
 /** The verbs the lane will run, as the operator's own words. The client
  * renders it and the lane enforces it. `respond` closes a decision and hands
