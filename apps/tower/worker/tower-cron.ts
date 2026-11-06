@@ -6,20 +6,29 @@
 import type { WorkflowStepRun } from "@noticeos/contract";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { redactLogText } from "../../../scripts/os-log.mjs";
-import { SCHEDULED_JOBS } from "../../../scripts/scheduled-jobs.mjs";
+import { SCHEDULED_JOBS, scheduleFor, cronIntervalMinutes } from "../../../scripts/scheduled-jobs.mjs";
 import { createWorkflowRecorder } from "../../../scripts/workflow-trace.mjs";
 import { type IntegrationHealthIngest, recordTodaysConnectionCounts } from "./connection-status-daily";
 import { type IntegrationsSettings, integrationsDeps, recordTodaysSourceHistory } from "./integrations-payload";
+import type { TowerConfig } from './config-source';
+import type { PortfolioBriefIngest } from './portfolio-brief-route';
+import { buildWallPayload } from './wall-payload';
+import { buildWorkPayload } from './work-payload';
+import { loadRevenueHistories } from './daily-revenue';
+import { operatorRevenueClock } from '../shared/daily-revenue';
+import { buildPortfolioBriefEvidence } from './portfolio-brief-evidence';
 
 /** The hourly tick's expression: the Data freshness checks job's dispatch key,
  * which the runner fires whatever time the operator saved for it. */
 export const HOURLY_TICK: string = SCHEDULED_JOBS.find((job) => job.id === "freshness")!.cron;
+export const BRIEFING_TICK: string = SCHEDULED_JOBS.find((job) => job.id === 'portfolio-brief')!.cron;
 
 export interface TowerCronEnv {
   STORE: WorkspaceStore;
   INGEST: IntegrationHealthIngest;
   /** Resolved as a request resolves them, so the matrix matches the page. */
   config: () => Promise<IntegrationsSettings>;
+  briefing?: { ingest: PortfolioBriefIngest; config: () => Promise<TowerConfig> };
 }
 
 /**
@@ -29,7 +38,7 @@ export interface TowerCronEnv {
  * returns no steps.
  */
 export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => Date = () => new Date()): Promise<WorkflowStepRun[]> {
-  if (cron !== HOURLY_TICK) return [];
+  if (cron !== HOURLY_TICK && cron !== BRIEFING_TICK) return [];
   const trace = createWorkflowRecorder({
     failed: (step, error) => console.error(JSON.stringify({
       event: "scheduled_step_failed", cron, step,
@@ -43,7 +52,30 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       // Recorded as a failed step above; the next step still runs.
     }
   };
-  await step("connection-counts", () => recordTodaysConnectionCounts(env.INGEST, env.STORE, now()));
-  await step("source-history", async () => recordTodaysSourceHistory(env.STORE, integrationsDeps(await env.config(), now())));
+  if (cron === BRIEFING_TICK) {
+    await step('portfolio-brief', async () => {
+      if (!env.briefing?.ingest.refreshPortfolioBrief || !env.briefing.ingest.portfolioBrief) return;
+      const state = await env.briefing.ingest.portfolioBrief();
+      if (state.state === 'disconnected' || state.state === 'unsupported') return;
+      const at = now();
+      if (state.nextAttemptAt && Date.parse(state.nextAttemptAt) > at.getTime()) return;
+      const cfg = await env.briefing.config();
+      const schedule = scheduleFor(SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief')!, cfg.schedules ?? {});
+      if (!schedule.enabled) return;
+      const [wall, work] = await Promise.all([
+        buildWallPayload(env.STORE, { now: at, constants: cfg.monthlyCaps, integrations: cfg.integrations, pullConfig: cfg.pullConfig,
+          dashboard: cfg.dashboard, serpPanel: cfg.serpPanel, osTimeZone: cfg.osTimeZone, noNightlyReport: cfg.noNightlyReport, counters: cfg.counters, schedules: cfg.schedules }),
+        buildWorkPayload(env.STORE, { now: at, projects: cfg.beads.spokes, timeZone: cfg.osTimeZone }),
+      ]);
+      const assetIds = wall.assets.map(asset => asset.id);
+      const revenueByAsset = await loadRevenueHistories(env.STORE, { now: at, days: 28, fallback: operatorRevenueClock(cfg.osTimeZone), assets: assetIds });
+      const evidence = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset });
+      const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000);
+      if (result.error) throw new Error(result.error);
+    });
+  } else {
+    await step("connection-counts", () => recordTodaysConnectionCounts(env.INGEST, env.STORE, now()));
+    await step("source-history", async () => recordTodaysSourceHistory(env.STORE, integrationsDeps(await env.config(), now())));
+  }
   return trace.steps;
 }

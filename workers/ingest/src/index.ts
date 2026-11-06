@@ -141,6 +141,8 @@ import { handleWatchWindows, writeWatchWindow } from './routes/watch-windows.js'
 import { json } from './responses.js';
 import { readGa4Realtime } from './ga4-realtime.js';
 import { calendarUpcoming as readCalendarUpcoming } from './calendar.js';
+import { readPortfolioBrief, refreshPortfolioBrief } from './portfolio-brief.js';
+import type { PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
 import { readWatchQueryHistory } from './watch-windows.js';
 // The cron dispatch table and cron constants are not here: workerd requires
 // every named export of the entry module to be a handler.
@@ -312,6 +314,16 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     return withCallStore(this.env, this.ctx, env => readCalendarUpcoming(env));
+  }
+
+  async portfolioBrief() {
+    if (workspaceProfile(this.env) !== 'standalone') throw new WorkspaceEntryRefused();
+    return withCallStore(this.env, this.ctx, env => readPortfolioBrief(env));
+  }
+
+  async refreshPortfolioBrief(evidence: PortfolioBriefEvidence, cadenceMs: number) {
+    if (workspaceProfile(this.env) !== 'standalone') throw new WorkspaceEntryRefused();
+    return withCallStore(this.env, this.ctx, env => refreshPortfolioBrief(env, evidence, cadenceMs));
   }
 
   /** Private Service Binding RPC: bounded provider-final history for one query. */

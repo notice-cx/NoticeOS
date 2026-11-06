@@ -5,7 +5,7 @@ import {
   type IntegrationMonitorDefinition, type IntegrationProviderId, type IntegrationObservation,
 } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
-import { cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
 import { getConfigDocument } from './config-store.js';
 import { resolveCredential } from './credentials.js';
 import { resolveGoogleCredential } from './google-oauth.js';
@@ -156,6 +156,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   let custom: Ga4CustomDimensionConfig;
   let panel: SerpPanelConfig;
   let realtimeSchedule: { enabled: boolean; cron: string } = { enabled: true, cron: "* * * * *" };
+  let briefingSchedule = { enabled: true, cron: SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief')!.cron };
   let mercurySchedule = { enabled: true, cron: '40 * * * *' };
   try {
     const reads = await Promise.all(['config/integrations.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json', 'config/constants.json'].map(file => getConfigDocument(env, file)));
@@ -166,6 +167,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const schedules = (reads[3]?.body as { schedules?: ScheduleOverrides } | undefined)?.schedules;
     realtimeSchedule = schedules?.['ga4-realtime'] ?? realtimeSchedule;
     mercurySchedule = schedules?.mercury ?? mercurySchedule;
+    briefingSchedule = schedules?.['portfolio-brief'] ?? briefingSchedule;
     if (!register.assets || typeof register.assets !== 'object') throw new Error('Inventory unavailable');
   } catch { return { ...payload, available: false }; }
 
@@ -346,7 +348,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         for (const def of defs) await add({ connection, capability: def.id });
         continue;
       }
-      for (const def of defs.filter(def => def.trigger === 'setup' || (def.trigger === 'event' && !['google-discovery', 'discord-delivery', 'dataforseo-credit'].includes(def.id)))) await add({ connection, capability: def.id });
+      for (const def of defs.filter(def => def.trigger === 'setup' || (def.trigger === 'event' && !['google-discovery', 'discord-delivery', 'dataforseo-credit', 'portfolio-brief'].includes(def.id)))) await add({ connection, capability: def.id });
       if (provider === 'google') {
         for (const family of ['Analytics', 'Search Console']) await add({ connection, capability: 'google-discovery', family, detail: family });
         const google = await resolveGoogleCredential(env);
@@ -409,6 +411,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           await add({ connection, capability: CRUX_DAILY_CAPABILITY, asset: site.asset, target: site.domain,
             paused: cellDeclined(register.assets[site.asset]?.crux), requiredSince: since(nowMs, INTEGRATION_CADENCE_HOURS.cruxSignals) });
         }
+      } else if (provider === 'local-model') {
+        await add({ connection, capability: 'portfolio-brief', paused: !briefingSchedule.enabled, requiredSince: null });
       } else if (provider === 'mercury') {
         await add({ connection, capability: 'mercury-banking', paused: !mercurySchedule.enabled,
           requiredSince: since(nowMs, (cronIntervalMinutes(mercurySchedule.cron) ?? 60) / 60) });

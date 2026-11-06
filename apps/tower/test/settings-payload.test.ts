@@ -113,7 +113,7 @@ describe("buildSettingsPayload", () => {
   it("carries the two budget knobs with the pointers the write lane needs", () => {
     const { budget } = buildSettingsPayload(deps());
     expect(budget.owner).toBe("config/constants.json");
-    // No inference cap: nothing in the OS calls a model. Asserted as an exact
+    // Local briefing computation is unmetered. Asserted as an exact
     // list so it cannot come back by accident.
     expect(budget.knobs.map((k) => k.key)).toEqual([
       "monthly_caps.data_usd",

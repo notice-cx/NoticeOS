@@ -149,6 +149,8 @@ export interface JobLanes {
  * jobs is that file's; test/crons.test.ts keeps the two naming the same jobs.
  */
 export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
+  // The Tower assembles the evidence and completes this job in tower-cron.ts.
+  'portfolio-brief': { steps: {} },
   mercury: { steps: { banking: (env) => runMercuryBanking(env) }, answeredBy: 'banking' },
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
   stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister }) }, answeredBy: 'subscriptions' },

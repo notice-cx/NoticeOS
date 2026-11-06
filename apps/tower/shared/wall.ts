@@ -714,6 +714,15 @@ export interface AssetCard {
   /** The newest reading's findings, the kind and the title only, for a
    * portfolio-level list. Absent on an older payload. */
   findings?: CardFinding[];
+  /** Immutable edition owning the findings and product reading above. */
+  insightSource?: CardInsightSource | null;
+}
+
+export interface CardInsightSource {
+  snapshotId: string;
+  generatedAt: string;
+  windowStart: string | null;
+  windowEnd: string | null;
 }
 
 /** A product rule's state, as `ProductCheckState` names it. */

@@ -15,7 +15,7 @@ NoticeOS enforces **one hard cap**: the monthly metered data spend.
 - Before every paid DataForSEO read, the amount is reserved against the cap. If the reservation would cross the cap, the read does not happen and the job records that it paused. The cap fails closed: an unreadable cap means no spend.
 - The Budget section shows a meter of this month's metered spend against the cap, and what happens when it is reached.
 
-Nothing else in NoticeOS spends money on your behalf. There is no model gateway and no inference cap, because no part of the product calls a language model. If you run an agent that does, its bill is outside NoticeOS.
+Home briefings use the local model connected on Integrations. The connection accepts local network addresses, not metered public model providers. Local computing costs are not measured. Pause **Portfolio briefing** on Workflows or disconnect **Local model** to stop future generation. There is no model gateway or inference spending cap. An agent session's provider bill is outside NoticeOS.
 
 ## Other budget settings
 
@@ -62,4 +62,4 @@ Stopping the installation stops collection and notifications; it does not touch 
 
 Some settings are permanently yours alone: authentication, billing, security headers, database migrations, consent surfaces, analytics pipelines, holdout assignments and the three alert thresholds. No automation inside NoticeOS changes them, and none can ever be made eligible for automation.
 
-Related: [Scheduled jobs](/operate/scheduled-jobs), [Settings](/tower/settings), [Tasks and agents](/concepts/tasks-and-agents). The full design, including the gateway, loop detectors and velocity breaker for the day NoticeOS makes its first model call, is in [doc 06, Operations & self-observability](../06-operations.md#budget-enforcement-hard-caps-alerts-are-not-enforcement).
+Related: [Scheduled jobs](/operate/scheduled-jobs), [Settings](/tower/settings), [Tasks and agents](/concepts/tasks-and-agents). The requirements for metered inference and automated execution, including the gateway, loop detectors and velocity limits, are in [doc 06, Operations & self-observability](../06-operations.md#budget-enforcement-hard-caps-alerts-are-not-enforcement).

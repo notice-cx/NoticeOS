@@ -136,7 +136,7 @@ const entities = (entitiesJson as { entities?: unknown[] }).entities ?? [];
 const beadsSpokes = (beadsJson as { spokes?: unknown[] }).spokes ?? [];
 const beadsHub = (beadsJson as { hub?: TaskHubConnection }).hub ?? null;
 
-// One cap: metered data spend. The OS makes no model calls of its own.
+// This cap covers metered data collection; local briefing inference is separate.
 const monthlyCaps = {
   dataUsd: constants.monthly_caps.data_usd,
 };

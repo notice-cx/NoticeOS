@@ -56,7 +56,7 @@ export interface IntegrationStateChipProps {
    * recorded state, which is read in the same vocabulary. */
   state: ConnectionKind | IntegrationHealthState;
   /** What an accepted connection was given (`acceptedAs`): a key, a
-   * sign-in or an address — Key accepted, Signed in, URL accepted. */
+   * sign-in, address or server connection. */
   accepted?: AcceptedAs;
   /** Appends "· N" — a count of subjects in this state. */
   count?: number;

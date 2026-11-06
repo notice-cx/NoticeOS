@@ -3,7 +3,7 @@
 // A site with nothing stored is absent from the map, never a row of zeros.
 
 import { CODEBASE_COMPARISON_MAX_DAYS, daysBetween, pickComparisonReport } from "@noticeos/contract/codebase-measures";
-import type { WorkspaceStore } from "@noticeos/postgres";
+import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import type { ProductFunnel, ProductSnapshot, WebVitalRating } from "../shared/asset-detail";
 import { funnelStepLabel, segmentRating } from "../shared/product";
 import { parseProductSnapshot } from "../shared/product-snapshot";
@@ -15,18 +15,21 @@ import type {
   CardFinding,
   CardFunnelDrop,
   CardProduct,
+  CardInsightSource,
 } from "../shared/wall";
 import { parseMeasures } from "./codebase-history";
 
 /** Each site's newest snapshot, by the order the store keeps two by
  * (`noticeos.insight_snapshot_is_kept`), with only the blocks a card reads. */
 export const CARD_INSIGHTS_SQL = `SELECT a.asset_id AS asset,
+       p.snapshot_id AS snapshot_id, p.generated_at,
+       p.window_start::text AS window_start, p.window_end::text AS window_end,
        json_build_object('schemaVersion', p.payload -> 'schemaVersion', 'asset', p.payload -> 'asset',
                          'items', p.payload -> 'items', 'suppressedItems', p.payload -> 'suppressedItems',
                          'product', p.payload -> 'product', 'channels', p.payload -> 'channels')::text AS reading
   FROM noticeos.assets a
  CROSS JOIN LATERAL (
-       SELECT q.payload
+       SELECT q.payload, q.snapshot_id, q.generated_at, q.window_start, q.window_end
          FROM noticeos.asset_insight_snapshots q
         WHERE q.workspace_id = a.workspace_id AND q.asset_id = a.asset_id
         ORDER BY q.generated_at DESC, q.created_at DESC, q.snapshot_id DESC
@@ -47,6 +50,7 @@ export const CARD_CODEBASE_SQL = `SELECT r.asset_id AS asset, r.report_date::tex
  ORDER BY r.asset_id, r.report_date ASC`;
 
 export interface CardInsightReading {
+  source: CardInsightSource;
   product: CardProduct | null;
   channels: CardChannels | null;
   findings: CardFinding[];
@@ -189,13 +193,14 @@ function cardChannels(value: unknown): CardChannels | null {
  * fails the executive snapshot's gate (version, owner, findings list) is no
  * reading at all. */
 export async function loadCardInsights(store: WorkspaceStore): Promise<Map<string, CardInsightReading>> {
-  const rows = await store.read((tx) => tx.query<{ asset: string; reading: string }>(CARD_INSIGHTS_SQL));
+  const rows = await store.read((tx) => tx.query<{ asset: string; reading: string; snapshot_id: string; generated_at: string; window_start: string | null; window_end: string | null }>(CARD_INSIGHTS_SQL));
   const out = new Map<string, CardInsightReading>();
   for (const row of rows) {
     const reading = obj(parseJson(row.reading));
     if (!reading || reading.schemaVersion !== 1 || reading.asset !== row.asset || !Array.isArray(reading.items)) continue;
     const findings = findingsOf(reading.items, reading.suppressedItems);
     out.set(row.asset, {
+      source: { snapshotId: row.snapshot_id, generatedAt: javascriptInstant(row.generated_at), windowStart: row.window_start, windowEnd: row.window_end },
       product: cardProduct(reading.product, findings),
       channels: cardChannels(reading.channels),
       findings,

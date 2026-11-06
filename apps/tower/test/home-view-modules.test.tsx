@@ -80,6 +80,7 @@ function wall(assets: AssetCard[]): WallPayload {
   } as unknown as WallPayload;
 }
 
+vi.mock('@/hooks/usePortfolioBrief', () => ({ usePortfolioBrief: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/api")>(),
   fetchTasksCapabilities: async () => ({ live: true, reason: null }),

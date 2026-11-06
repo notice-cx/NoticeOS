@@ -1,3 +1,4 @@
+import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import type { AlertDailyPayload } from "@shared/alert-daily";
 import { demoFetch } from './demo-visit';
 import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
@@ -99,6 +100,12 @@ async function fetchWallRequest(fetch: ApiTransport, signal?: AbortSignal): Prom
     throw new ApiError(`GET /api/wall failed: ${res.status}`, res.status);
   }
   return decodeWallMoney(await responseJson(res, 'Portfolio money'));
+}
+
+async function fetchPortfolioBriefRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<PortfolioBriefRead> {
+  const res = await fetch('/api/portfolio-brief', { signal, headers: { accept: 'application/json' } });
+  if (!res.ok) throw new Error(`GET /api/portfolio-brief failed: ${res.status}`);
+  return await responseJson(res, 'Executive briefing') as PortfolioBriefRead;
 }
 
 /** The Wall's live feed: its own 30-second read, apart from `/api/wall`, so a
@@ -1727,6 +1734,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchInstallation: bind(fetchInstallationRequest),
     fetchWall: bind(fetchWallRequest),
     fetchWallFeed: bind(fetchWallFeedRequest),
+    fetchPortfolioBrief: bind(fetchPortfolioBriefRequest),
     fetchIntegrationHealth: bind(fetchIntegrationHealthRequest),
     fetchGa4Realtime: bind(fetchGa4RealtimeRequest),
     fetchCalendarUpcoming: bind(fetchCalendarUpcomingRequest),
@@ -1806,6 +1814,7 @@ export const {
   fetchInstallation,
   fetchWall,
   fetchWallFeed,
+  fetchPortfolioBrief,
   fetchIntegrationHealth,
   fetchGa4Realtime,
   fetchCalendarUpcoming,

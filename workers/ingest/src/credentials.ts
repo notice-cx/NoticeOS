@@ -39,6 +39,7 @@ import {
   readEnvCredential,
 } from '@noticeos/contract';
 import { getConfigDocument } from './config-store.js';
+import { localModelBaseUrl } from './local-model.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
@@ -740,6 +741,10 @@ export function validateCredentialFields(
     if (Object.hasOwn(fields, CLOUDFLARE_D1_TARGETS)) issues.push(issue(CLOUDFLARE_D1_TARGETS, 'invalid', 'Choose databases in the Cloudflare panel.'));
     if (!cloudflareAccountId(fields.CLOUDFLARE_ACCOUNT_ID)) issues.push(issue('CLOUDFLARE_ACCOUNT_ID', 'invalid', 'Account ID must contain 32 hexadecimal characters.'));
   }
+  if (provider.id === 'local-model') {
+    try { localModelBaseUrl(typeof fields.LOCAL_MODEL_BASE_URL === 'string' ? fields.LOCAL_MODEL_BASE_URL : ''); }
+    catch { issues.push(issue('LOCAL_MODEL_BASE_URL', 'invalid_url', 'Enter a local http or https address ending in /v1, without a password, query or fragment.')); }
+  }
   const known = new Map(provider.fields.map((field) => [field.name, field]));
 
   for (const name of Object.keys(fields)) {
@@ -891,6 +896,9 @@ export async function putCredential(
   const provider = integrationProvider(input.provider);
   if (provider === null) {
     return { ok: false, error: 'unknown_provider', provider: String(input.provider) };
+  }
+  if (provider.id === 'local-model' && workspaceProfile(env) !== 'standalone') {
+    return { ok: false, error: 'validation', issues: [issue('provider', 'unavailable', 'Local model connections require a standalone installation.')] };
   }
   const raw = input.fields;
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {

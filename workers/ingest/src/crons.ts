@@ -14,6 +14,7 @@ function dispatchKey(id: string): string {
 }
 
 export const FRESHNESS_CRON = dispatchKey('freshness');
+export const PORTFOLIO_BRIEF_CRON = dispatchKey('portfolio-brief');
 // Local 06:10 is checked by the collector. Later ticks only service bounded retries/catch-up.
 export const MEDIAVINE_CRON = dispatchKey('mediavine');
 // :20 past every hour: Stripe subscription revenue. The collector asks only

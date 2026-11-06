@@ -844,7 +844,7 @@ describe("buildAssetDetailPayload", () => {
     const keys = p.portfolio.knobs.map((k) => k.key);
     expect(keys).toContain("monthly_caps.data_usd");
     expect(keys).toContain("operator_rate_usd_per_min");
-    // Nothing in the OS calls a model, so no inference cap.
+    // Local briefing computation has no inference spending meter.
     expect(keys).not.toContain("monthly_caps.inference_usd");
     const dataCap = p.portfolio.knobs.find((k) => k.key === "monthly_caps.data_usd")!;
     expect(dataCap.pointer).toBe("/monthly_caps/data_usd");

@@ -389,6 +389,8 @@ function KeyField({
         // against Discord's own screen, and a mask hides the typo that 404s.
         type={field.kind === "password" ? "password" : "text"}
         value={value}
+        placeholder={field.placeholder}
+        aria-describedby={field.description ? `${id}-description` : undefined}
         disabled={disabled}
         required={field.required}
         autoComplete="off"
@@ -398,6 +400,7 @@ function KeyField({
         onChange={(event) => onChange(event.target.value)}
         className={cn(fieldClass, "h-10 w-full px-3 font-mono", error ? "border-error" : null)}
       />
+      {field.description ? <p id={`${id}-description`} className="text-xs text-muted-foreground">{field.description}</p> : null}
       {error ? <p className="text-xs text-error">{error}</p> : null}
     </div>
   );

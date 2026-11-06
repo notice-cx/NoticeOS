@@ -338,6 +338,8 @@ export const CRON_CATCHUP_POLICIES = Object.freeze([
   { job: 'cron 20 * * * *', expression: '20 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   // Bank recovery reads current balances once rather than replaying missed snapshots.
   { job: 'cron 40 * * * *', expression: '40 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
+  // Generate one current briefing after downtime; old summaries are not replayed.
+  { job: 'cron 35 * * * *', expression: '35 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
   // The operator notification lane: two hours, like the freshness lane it
   // follows. Catching it up cannot duplicate anything; the lane records what
   // it has already said.

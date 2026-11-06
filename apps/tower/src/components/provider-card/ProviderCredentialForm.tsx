@@ -187,6 +187,7 @@ function FieldInput({
             "w-full font-mono text-xs",
             error ? "border-error" : "border-border",
           )}
+          aria-describedby={field.description ? `${id}-description` : undefined}
           aria-invalid={error ? true : undefined}
           aria-required={field.required}
         />
@@ -209,6 +210,7 @@ function FieldInput({
             field.kind === "url" ? "w-full font-mono text-xs" : "w-72 max-w-full",
             error ? "border-error" : "border-border",
           )}
+          aria-describedby={field.description ? `${id}-description` : undefined}
           aria-invalid={error ? true : undefined}
           aria-required={field.required}
         />
@@ -239,6 +241,7 @@ function FieldInput({
         </label>
       ) : null}
 
+      {field.description ? <p id={`${id}-description`} className="text-xs text-muted-foreground">{field.description}</p> : null}
       {fileError ? <span className="text-xs text-error">{fileError}</span> : null}
       {error ? (
         <span className="text-xs text-error" data-field-error={field.name}>
