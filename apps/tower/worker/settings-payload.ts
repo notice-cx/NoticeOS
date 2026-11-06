@@ -32,6 +32,8 @@ export const BEADS_OWNER = "config/beads.json";
 
 export interface SettingsDeps {
   now: Date;
+  portfolioReviewAssetIds?: string[] | null;
+  assets?: {id: string; displayName: string}[];
   /** config/constants.json `os_time_zone` — the operator's clock. */
   osTimeZone: string;
   /** Whether somebody chose that clock (`timeZoneChosen`). Read by the route
@@ -71,6 +73,7 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
 
   return {
     generatedAt: deps.now.toISOString(),
+    portfolioReview: { owner: OWNER.constants, assetIds: deps.portfolioReviewAssetIds ?? null, assets: deps.assets ?? [] },
     clock: {
       owner: OWNER.constants,
       timeZone: deps.osTimeZone,

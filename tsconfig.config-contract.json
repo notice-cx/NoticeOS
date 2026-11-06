@@ -39,6 +39,7 @@
     "packages/contract/src/task-snapshot.mts",
     "packages/contract/src/provider-requests.mts",
     "packages/contract/src/asset-name.mts",
+    "packages/contract/src/local-model-settings.mts",
     "packages/contract/src/views.mts",
     "scripts/config-documents.mts",
     "scripts/config-defaults.mts",

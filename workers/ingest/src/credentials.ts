@@ -1,8 +1,8 @@
 // The credential store: every provider secret, encrypted under one bootstrap
 // key, and the resolver every provider client goes through.
 //
-// Plaintext exists inside this Worker, at call time, and nowhere else: no RPC,
-// route or log line returns a stored value. AES-GCM with a fresh IV on every
+// Credential plaintext exists inside this Worker, at call time: no RPC,
+// route or log line returns a credential value. AES-GCM with a fresh IV on every
 // write (a change re-seals the whole fields object; there is no patch path) and
 // a `key_version` per row so a rotation can re-seal rows one at a time.
 // Store-first, env-fallback, all or nothing: a provider with a stored row is
@@ -32,6 +32,8 @@ import {
   type PutCredentialResult,
   type SetCredentialExpiryInput,
   type SetCredentialExpiryResult,
+  type SetModelOutputTokensInput,
+  type SetModelOutputTokensResult,
   INTEGRATION_PROVIDERS,
   credentialAuthState,
   exactUsd,
@@ -40,6 +42,7 @@ import {
 } from '@noticeos/contract';
 import { getConfigDocument } from './config-store.js';
 import { localModelBaseUrl } from './local-model.js';
+import { LOCAL_MODEL_OUTPUT_TOKENS, MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS, parseLocalModelOutputTokens } from '@noticeos/contract/local-model-settings';
 import { NTASKS_URL, ntasksOrigin } from './ntasks.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
@@ -456,7 +459,7 @@ async function replaceSecret(
 }
 
 // ---------------------------------------------------------------------------
-// Summaries — names and metadata, never values
+// Summaries — names, metadata and safe generation settings, never credentials
 // ---------------------------------------------------------------------------
 
 /** The connection's metadata, or null when nothing was recorded. Read
@@ -655,10 +658,19 @@ function summarize(
   };
 }
 
+async function modelBudgetSummary(env: IngestEnv, provider: IntegrationProvider, row: CredentialRow | null, summary: CredentialSummary, register: unknown): Promise<CredentialSummary> {
+  if (provider.id !== 'local-model' || summary.source === 'none') return summary;
+  try {
+    const fields = row ? await open(env, row) : envCredential(env, provider, register).fields;
+    const modelOutputTokens = parseLocalModelOutputTokens(fields[LOCAL_MODEL_OUTPUT_TOKENS]);
+    return modelOutputTokens === null ? summary : { ...summary, modelOutputTokens };
+  } catch { return summary; }
+}
+
 /**
  * Every provider's connection state, in catalog order. Always all of them: a
  * provider with nothing stored is a card that says "not connected". Never a
- * value: this is the function the Tower calls, so its return type is the
+ * credential value: this is the function the Tower calls, so its return type is the
  * security boundary.
  */
 export async function listCredentialSummaries(
@@ -674,10 +686,11 @@ export async function listCredentialSummaries(
     keyPresent: key.present,
     keyReason: demo ? null : key.reason,
     blockers: key.blocker === null || demo ? [] : [key.blocker],
-    summaries: INTEGRATION_PROVIDERS.map((provider) =>
-      demo && DEMO_CONNECTED_PROVIDERS.includes(provider.id) && !byProvider.has(provider.id) ? demoSummary(provider)
-        : summarize(provider, byProvider.get(provider.id) ?? null, env, register),
-    ),
+    summaries: await Promise.all(INTEGRATION_PROVIDERS.map((provider) => {
+      const row = byProvider.get(provider.id) ?? null;
+      const summary = demo && DEMO_CONNECTED_PROVIDERS.includes(provider.id) && !row ? demoSummary(provider) : summarize(provider, row, env, register);
+      return modelBudgetSummary(env, provider, row, summary, register);
+    })),
   };
 }
 
@@ -692,7 +705,8 @@ export async function credentialSummary(
   const row = await readRow(env.STORE, provider.id);
   if (row === null && await demoConnection(env, provider.id)) return demoSummary(provider);
   if (row === null && policy === 'store-only') return null;
-  return summarize(provider, row, env, policy === 'store-only' ? undefined : await legacyRegister(env));
+  const register = policy === 'store-only' ? undefined : await legacyRegister(env);
+  return modelBudgetSummary(env, provider, row, summarize(provider, row, env, register), register);
 }
 
 /**
@@ -788,7 +802,9 @@ export function validateCredentialFields(
       );
       continue;
     }
-    issues.push(...validateFieldShape(field, value));
+    if (provider.id === 'local-model' && field.name === LOCAL_MODEL_OUTPUT_TOKENS) {
+      if (parseLocalModelOutputTokens(value) === null) issues.push(issue(field.name, 'invalid', `Enter a whole number from ${MIN_LOCAL_MODEL_OUTPUT_TOKENS} to ${MAX_LOCAL_MODEL_OUTPUT_TOKENS}.`));
+    } else issues.push(...validateFieldShape(field, value));
   }
   return issues;
 }
@@ -1442,6 +1458,30 @@ export async function saveCloudflareSelection(env: IngestEnv, captured: Resolved
     if (saved) await tx.execute('UPDATE noticeos.integration_connections SET updated_at = $1::timestamptz WHERE connection_id = $2', [at, row.connection_id]);
     return saved;
   });
+}
+
+/** A generation setting changes no endpoint, credential, connection identity or health verdict. */
+export async function setModelOutputTokens(env: IngestEnv, input: SetModelOutputTokensInput): Promise<SetModelOutputTokensResult> {
+  if (workspaceProfile(env) !== 'standalone') return { ok: false, error: 'not_supported' };
+  if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'modelOutputTokens' ||
+    typeof input.modelOutputTokens !== 'number' || !Number.isInteger(input.modelOutputTokens) ||
+    input.modelOutputTokens < MIN_LOCAL_MODEL_OUTPUT_TOKENS || input.modelOutputTokens > MAX_LOCAL_MODEL_OUTPUT_TOKENS) return { ok: false, error: 'validation' };
+  const row = await readRow(env.STORE, 'local-model');
+  if (!row) {
+    const existing = await credentialSummary(env, 'local-model');
+    return { ok: false, error: existing?.source === 'env' ? 'store_required' : 'not_connected' };
+  }
+  try {
+    const fields = { ...await open(env, row), [LOCAL_MODEL_OUTPUT_TOKENS]: String(input.modelOutputTokens) };
+    const sealed = await seal(env, fields);
+    const saved = await env.STORE.write(async tx => replaceSecret(tx, row.connection_id, row.secret_version, {
+      ciphertext: sealed.ciphertext, iv: sealed.iv, keyVersion: await currentKeyVersion(tx), fieldNames: Object.keys(fields), assetIds: row.asset_ids,
+    }, new Date().toISOString()));
+    return saved ? { ok: true } : { ok: false, error: 'conflict' };
+  } catch (error) {
+    if (error instanceof CredentialKeyError) return { ok: false, error: 'key_missing' };
+    throw error;
+  }
 }
 
 /** Internal session persistence. Guarded on the secret version it read, so a

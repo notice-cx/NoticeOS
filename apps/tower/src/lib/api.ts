@@ -1,3 +1,4 @@
+import { MIN_LOCAL_MODEL_OUTPUT_TOKENS, MAX_LOCAL_MODEL_OUTPUT_TOKENS } from '@noticeos/contract/local-model-settings';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import type { AlertDailyPayload } from "@shared/alert-daily";
 import { demoFetch } from './demo-visit';
@@ -1488,6 +1489,21 @@ async function connectProviderCredentialRequest(fetch: ApiTransport,
   return (await res.json()) as ConnectVerdict;
 }
 
+async function saveModelOutputTokensRequest(fetch: ApiTransport, modelOutputTokens: number): Promise<void> {
+  const response = await fetch('/api/integrations/local-model/budget', { method: 'PUT', headers: JSON_WRITE_HEADERS, body: JSON.stringify({ modelOutputTokens }) });
+  if (response.ok) return;
+  const result = await response.json().catch(() => ({})) as { error?: string };
+  const messages: Record<string, string> = {
+    model_budget_validation: `Use a whole number from ${MIN_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')} to ${MAX_LOCAL_MODEL_OUTPUT_TOKENS.toLocaleString('en-US')}.`,
+    model_budget_not_connected: 'Connect a model before changing its generation budget.',
+    model_budget_store_required: 'Replace this connection to change its generation budget.',
+    model_budget_not_supported: 'Generation budget changes are unavailable on this installation.',
+    model_budget_key_missing: 'Restore the credential key before changing the generation budget.',
+    model_budget_conflict: 'The connection changed. Reload it before saving.',
+  };
+  throw new ApiError(messages[result.error ?? ''] ?? 'The generation budget could not be saved. Try again.', response.status);
+}
+
 async function discoverModelProviderRequest(fetch: ApiTransport, fields: Record<string, string>, signal?: AbortSignal): Promise<DiscoverModelProviderResult> {
   const path = "/api/integrations/local-model/models";
   const res = await fetch(path, { method: "POST", headers: JSON_WRITE_HEADERS, body: JSON.stringify({ fields }), signal });
@@ -1804,6 +1820,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     testProviderCredential: bind(testProviderCredentialRequest),
     connectProviderCredential: bind(connectProviderCredentialRequest),
     discoverModelProvider: bind(discoverModelProviderRequest),
+    saveModelOutputTokens: bind(saveModelOutputTokensRequest),
     saveSiteToken: bind(saveSiteTokenRequest),
     fetchProviderSites: bind(fetchProviderSitesRequest),
     collectProviderSites: bind(collectProviderSitesRequest),
@@ -1886,6 +1903,7 @@ export const {
   testProviderCredential,
   connectProviderCredential,
   discoverModelProvider,
+  saveModelOutputTokens,
   saveSiteToken,
   fetchProviderSites,
   collectProviderSites,

@@ -9,7 +9,7 @@ import { defineConfig } from "vite";
 // Vite's resolver exists, and the barrel's `./schema.js` specifiers only
 // resolve inside a bundler graph.
 import { parseOsTimeZone } from "../../packages/contract/src/time-zone-setting";
-import { noNightlyReportAssets } from "../../packages/contract/src/configuration.mjs";
+import { portfolioReviewAssetIds, noNightlyReportAssets } from "../../packages/contract/src/configuration.mjs";
 import { readProductEnv } from "../../scripts/product-env.mjs";
 import { applyResourceNames, readResourceNames } from "../../scripts/resource-names.mjs";
 import beadsJson from "../../config/beads.json";
@@ -304,6 +304,7 @@ export default defineConfig(({ command }) => {
     __DASHBOARD__: JSON.stringify(dashboard),
     __OS_TIME_ZONE__: JSON.stringify(osTimeZone),
     // Fallbacks only, like the zone: the saved values are read store first.
+    __PORTFOLIO_REVIEW_ASSET_IDS__: JSON.stringify(portfolioReviewAssetIds(constantsJson)),
     __NO_NIGHTLY_REPORT__: JSON.stringify(noNightlyReportAssets(constantsJson)),
     __SCHEDULES__: JSON.stringify(
       (constantsJson as { schedules?: unknown }).schedules !== null &&

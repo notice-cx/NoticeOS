@@ -5,6 +5,7 @@ import { Tabs, type TabSpec } from "@/components/Tabs";
  * live, and the host. `general` is the index tab: `/settings` is General. */
 export const SETTINGS_TABS = [
   "general",
+  "ai",
   "alert-rules",
   "data-collection",
   "tv-dashboard",
@@ -18,6 +19,7 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 const TAB_LABEL: Record<SettingsTab, string> = {
   general: "General",
+  ai: "AI",
   "alert-rules": "Alert rules",
   "data-collection": "Data collection",
   "tv-dashboard": "TV dashboard",
@@ -52,6 +54,7 @@ export function settingsTabFromParam(
  */
 const SECTION_TAB: Readonly<Record<string, SettingsTab>> = {
   general: "general",
+  "portfolio-review": "ai",
   "alert-rules": "alert-rules",
   "data-collection": "data-collection",
   // Schedules are rows of Data collection.

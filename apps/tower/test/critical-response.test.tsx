@@ -46,6 +46,13 @@ describe('settings response', () => {
     expect(value.sources.rows[0]).not.toHaveProperty('credential');
   });
   it.each([
+    ['missing review settings', (value: ReturnType<typeof settings>) => { Reflect.deleteProperty(value, 'portfolioReview'); }],
+    ['review owner', (value: ReturnType<typeof settings>) => { value.portfolioReview.owner = 'config/pull.json'; }],
+    ['review selection shape', (value: ReturnType<typeof settings>) => { Object.assign(value.portfolioReview, { assetIds: 'all' }); }],
+    ['review duplicate selection', (value: ReturnType<typeof settings>) => { value.portfolioReview.assetIds = ['example.com', 'example.com']; }],
+    ['review invalid asset', (value: ReturnType<typeof settings>) => { value.portfolioReview.assetIds = ['invalid/asset']; }],
+    ['review inventory', (value: ReturnType<typeof settings>) => { value.portfolioReview.assets = [{ id: 'example.com', displayName: 'Example' }, { id: 'example.com', displayName: 'Duplicate' }]; }],
+    ['review asset name', (value: ReturnType<typeof settings>) => { value.portfolioReview.assets = [{ id: 'example.com', displayName: '' }]; }],
     ['clock truth', (value: ReturnType<typeof settings>) => { Object.assign(value.clock, { chosen: 'false' }); }],
     ['clock zone', (value: ReturnType<typeof settings>) => { value.clock.timeZone = 'invalid-zone'; }],
     ['owner', (value: ReturnType<typeof settings>) => { value.budget.owner = 'config/pull.json'; }],
@@ -61,6 +68,13 @@ describe('settings response', () => {
   ] as const)('refuses malformed %s without repairing the payload', (_name, mutate) => {
     const value = settings(); mutate(value);
     expect(() => decodeSettings(value)).toThrow('invalid response');
+  });
+  it('keeps the exact saved asset selection order for guarded edits', () => {
+    const value = settings();
+    value.portfolioReview.assetIds = ['second.example', 'first.example'];
+    value.portfolioReview.assets = [{ id: 'first.example', displayName: 'First' }, { id: 'second.example', displayName: 'Second' }];
+    expect(decodeSettings(value)).toBe(value);
+    expect(value.portfolioReview.assetIds).toEqual(['second.example', 'first.example']);
   });
   it('preserves countdown/layout history, retired originals and named refusals without normalizing them', () => {
     const value = settings();

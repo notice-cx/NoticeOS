@@ -4,8 +4,9 @@ import { PORTFOLIO_BRIEF_ABSTENTION, portfolioBriefFactOpening, type PortfolioBr
 import { beforeEach, expect, it, vi } from 'vitest';
 import { putCredential, deleteCredential } from '../src/credentials.js';
 import { readPortfolioBrief, refreshPortfolioBrief } from '../src/portfolio-brief.js';
-import { asOwner, reset } from './helpers.js';
+import { asOwner, reset, emptyTables } from './helpers.js';
 import { MODEL_GENERATION_TIMEOUT_MS, portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
+import { forgetConfigCache } from '../src/config-store.js';
 import { LocalModelError } from '../src/local-model.js';
 
 const NOW = Date.parse('2026-11-06T12:00:00Z');
@@ -53,7 +54,7 @@ function gate<T>() {
   const promise = new Promise<T>(resolve => { release = resolve; });
   return { promise, release };
 }
-beforeEach(reset);
+beforeEach(async () => { await reset(); await emptyTables(['config_changes', 'config_documents']); forgetConfigCache(); });
 
 it('reads an empty or populated cache without ever asking the model', async () => {
   const target = selected();
@@ -179,6 +180,17 @@ it('keeps malformed prose out of the Home cache while capturing the actual respo
   expect(await readPortfolioBrief(target, { cache, clock: () => NOW })).toEqual(readOnlyResult(failed));
   expect(failed.diagnostics?.output?.text).toContain('private malformed prose');
   expect(JSON.stringify(await readPortfolioBrief(target, { cache, clock: () => NOW }))).not.toContain('private malformed prose');
+});
+
+it('reports reasoning-only budget exhaustion and retains the actual usage for troubleshooting', async () => {
+  const target = selected(); await connect(target);
+  const failed = await refreshPortfolioBrief(target, evidence(), HOUR, { cache: memoryCache(), clock: () => NOW,
+    fetchImpl: async () => Response.json({ choices: [{ finish_reason: 'length', message: {
+      content: '', reasoning_content: 'Synthetic reasoning that reached the generation limit.',
+    } }], usage: { completion_tokens: 8192, completion_tokens_details: { reasoning_tokens: 8192 } } }) });
+  expect(failed).toMatchObject({ state: 'unavailable', briefing: null, failure: { kind: 'reasoning-limit' } });
+  expect(failed.error).toBe(portfolioBriefFailure({ kind: 'reasoning-limit' }).summary);
+  expect(failed.diagnostics?.output?.text).toContain('reasoning_tokens');
 });
 
 it('redacts the trimmed token sent to the provider from captured error bodies', async () => {
@@ -431,4 +443,39 @@ it('does not let the longest schedule gap suppress shorter scheduled intervals',
     "SELECT s.next_attempt_at FROM noticeos.integration_capability_state s JOIN noticeos.capability_targets t USING(workspace_id,target_seq) WHERE t.capability = 'portfolio-brief'"));
   expect(health).toHaveLength(1);
   expect(health[0]!.next_attempt_at).toBeNull();
+});
+
+async function selectReviewAssets(ids: string[] | null) {
+  await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.config_documents(workspace_id, document_key, body, version, updated_at, updated_by)
+    VALUES ($2::uuid, 'constants', $1::json, 1, now(), 'fixture')
+    ON CONFLICT (workspace_id, document_key) DO UPDATE SET body = EXCLUDED.body, version = noticeos.config_documents.version + 1`,
+    [JSON.stringify({ flag_defaults: {}, portfolio_brief: { asset_ids: ids } }), tx.workspaceId]));
+}
+
+it('hides cached briefings immediately when review scope changes, including none', async () => {
+  const target = selected(); await connect(target);
+  const cache = memoryCache(); const fetchImpl = vi.fn<typeof fetch>(async () => response());
+  await refreshPortfolioBrief(target, evidence(), HOUR, {cache, fetchImpl, clock: () => NOW});
+  await selectReviewAssets(['example']);
+  expect(await readPortfolioBrief(target, {cache, clock: () => NOW})).toMatchObject({state: 'awaiting', briefing: null});
+  expect(await refreshPortfolioBrief(target, evidence(), HOUR, {cache, fetchImpl, clock: () => NOW})).toMatchObject({state: 'awaiting', briefing: null});
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  await selectReviewAssets([]);
+  const packet = {...evidence(), reviewAssetIds: []};
+  expect(await refreshPortfolioBrief(target, packet, HOUR, {cache, fetchImpl, clock: () => NOW})).toMatchObject({state: 'awaiting', briefing: null});
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
+it('accepts equivalent selection order and rejects an in-flight answer after a scope change', async () => {
+  const target = selected(); await connect(target); await selectReviewAssets(['second', 'example']);
+  const cache = memoryCache(); const started = gate<void>(), finished = gate<Response>();
+  const packet = {...evidence(), reviewAssetIds: ['example', 'second']};
+  const fetchImpl = vi.fn<typeof fetch>(async () => {started.release(); return finished.promise;});
+  const pending = refreshPortfolioBrief(target, packet, HOUR, {cache, fetchImpl, clock: () => NOW});
+  await started.promise;
+  await selectReviewAssets(['example']);
+  finished.release(response());
+  expect(await pending).toMatchObject({state: 'awaiting', briefing: null});
+  expect(cache.put).not.toHaveBeenCalled();
+  expect(await readPortfolioBrief(target, {cache, clock: () => NOW})).toMatchObject({state: 'awaiting', briefing: null});
 });

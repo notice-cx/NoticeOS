@@ -1,3 +1,4 @@
+import { CONFIG_ASSET_KEY_RE } from './configuration.mjs';
 import { z } from 'zod';
 import type { ConnectionFailure } from './integrations.js';
 import type { WorkflowStepDiagnostics } from './workflows.js';
@@ -66,6 +67,7 @@ export interface PortfolioBriefEvidence {
   schemaVersion: 1;
   asOf: string;
   timeZone: string;
+  reviewAssetIds?: string[] | null;
   facts: PortfolioBriefFact[];
   insightEvidenceIds: string[];
   limitations: string[];
@@ -85,6 +87,7 @@ export const portfolioBriefEvidenceSchema = z.object({
   schemaVersion: z.literal(1),
   asOf: instant,
   timeZone: short(100),
+  reviewAssetIds: z.array(z.string().regex(CONFIG_ASSET_KEY_RE)).max(10_000).nullable().optional(),
   facts: z.array(z.object({
     id: short(400), label: short(240),
     href: z.string().max(500).regex(/^\/(?!\/)[a-zA-Z0-9/_%?=&.#-]*$/),
@@ -160,7 +163,7 @@ export interface PortfolioBriefRead {
   stale: boolean;
 }
 
-export type PortfolioBriefFailure = ConnectionFailure | { kind: 'briefing-format' | 'briefing-sources' | 'briefing-periods' | 'briefing-length' | 'empty-output' | 'truncated-output' | 'refused-output' | 'model-response' };
+export type PortfolioBriefFailure = ConnectionFailure | { kind: 'briefing-format' | 'briefing-sources' | 'briefing-periods' | 'briefing-length' | 'empty-output' | 'truncated-output' | 'reasoning-limit' | 'refused-output' | 'model-response' };
 
 /** Execution diagnostics return only to the workflow recorder, never the Home cache. */
 export interface PortfolioBriefRefreshRead extends PortfolioBriefRead { diagnostics?: WorkflowStepDiagnostics }

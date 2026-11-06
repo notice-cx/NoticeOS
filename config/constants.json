@@ -2,6 +2,9 @@
   "readme": "config/constants.README.md",
   "os_time_zone": "UTC",
   "operator_rate_usd_per_min": 2,
+  "portfolio_brief": {
+    "asset_ids": null
+  },
   "explore_sleeve": 0.15,
   "monthly_caps": {
     "data_usd": 25

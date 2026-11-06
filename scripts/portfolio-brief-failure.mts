@@ -26,6 +26,10 @@ export const PORTFOLIO_BRIEF_FAILURES: Readonly<Record<string, { summary: string
     summary: 'The model reached its output limit before finishing.',
     action: 'Check whether reasoning used up the output budget. Adjust the model’s reasoning settings, then retry.',
   },
+  'reasoning-limit': {
+    summary: 'The model used its generation budget for thinking and returned no final answer.',
+    action: 'Increase Generation budget on the model connection in Integrations, or reduce thinking in the model server, then retry.',
+  },
   'refused-output': {
     summary: 'The model declined to write the briefing.',
     action: 'Review the model server’s restrictions or choose another model in Integrations.',

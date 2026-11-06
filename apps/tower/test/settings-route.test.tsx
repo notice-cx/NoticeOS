@@ -96,6 +96,7 @@ const READ_ONLY_REASON =
 function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
   return {
     generatedAt: "2026-09-04T12:00:00.000Z",
+    portfolioReview: { owner: "config/constants.json", assetIds: null, assets: [] },
     clock: {
       owner: "config/constants.json",
       timeZone: "America/Los_Angeles",
@@ -495,6 +496,7 @@ describe("/settings", () => {
     expect(screen.queryByRole("navigation", { name: "Settings sections" })).toBeNull();
     expect(tabHrefs()).toEqual([
       "/settings",
+      "/settings/ai",
       "/settings/alert-rules",
       "/settings/data-collection",
       "/settings/tv-dashboard",
@@ -504,6 +506,7 @@ describe("/settings", () => {
     ]);
     expect(within(tabList()).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "General",
+      "AI",
       "Alert rules",
       "Data collection",
       "TV dashboard",
@@ -512,7 +515,7 @@ describe("/settings", () => {
       "Installation",
     ]);
 
-    for (const id of ["general", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
+    for (const id of ["general", "ai", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
       pickSection(id);
       expect(container.querySelector(`#${id}`), `tab #${id} is missing`).not.toBeNull();
       expect(container.querySelectorAll("[data-settings-tab]")).toHaveLength(1);
@@ -529,7 +532,7 @@ describe("/settings", () => {
     stubFetch();
     const { container } = renderPage();
     const tabs = within(tabList()).getAllByRole("tab");
-    expect(tabs.map((tab) => tab.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1", "-1", "-1"]);
+    expect(tabs.map((tab) => tab.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1", "-1", "-1", "-1"]);
     tabs[0]!.focus();
     fireEvent.keyDown(tabs[0]!, { key: "ArrowRight" });
     expect(document.activeElement).toBe(tabs[1]);
@@ -612,7 +615,7 @@ describe("/settings", () => {
       taskSourceMock.connected = null;
       state.settings = payload({ taskHub: { owner: "config/beads.json", spokes: [], hub: null } });
       const fresh = renderPage("general");
-      expect(tabHrefs()).toEqual(["/settings", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation"]);
+      expect(tabHrefs()).toEqual(["/settings", "/settings/ai", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation"]);
       fresh.unmount();
       const connecting = renderPage("task-projects");
       expect(connecting.container.querySelector("#task-projects")).not.toBeNull();

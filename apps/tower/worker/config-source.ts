@@ -22,7 +22,7 @@ import type { IntegrationsConfig } from "../shared/integrations";
 import { logicalTaskProjects, type BeadsConfig } from "../shared/settings";
 import { type DashboardConfig, readDashboardConfig } from "../shared/dashboard";
 import { savedOsTimeZone } from "@noticeos/contract/time-zone-setting";
-import { noNightlyReportAssets } from "@noticeos/contract/configuration";
+import { portfolioReviewAssetIds, noNightlyReportAssets } from "@noticeos/contract/configuration";
 import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 
@@ -47,6 +47,7 @@ export type TowerConfigKey = keyof typeof TOWER_CONFIG_FILES;
  * read here so this module never touches a `define`. */
 export interface TowerConfigFallbacks {
   monthlyCaps: { dataUsd: number };
+  portfolioReviewAssetIds?: string[] | null;
   flagDefaults: Record<string, number | string>;
   operatorRateUsdPerMin: number;
   osTimeZone: string;
@@ -264,6 +265,7 @@ export async function resolveTowerConfig(
 
   return {
     monthlyCaps,
+    portfolioReviewAssetIds: constants === undefined ? fallbacks.portfolioReviewAssetIds ?? null : portfolioReviewAssetIds(constants),
     flagDefaults,
     operatorRateUsdPerMin,
     osTimeZone,

@@ -1,3 +1,4 @@
+import { PortfolioReviewPanel } from '@/routes/settings/PortfolioReviewPanel';
 import {
   Ban,
   CalendarPlus,
@@ -158,6 +159,8 @@ export function SettingsRoute() {
       )
     ) : tab === 'general' ? (
       <GeneralSection settings={data} anchor={hash.slice(1)} />
+    ) : tab === 'ai' ? (
+      <PortfolioReviewPanel settings={data.portfolioReview} />
     ) : tab === 'alert-rules' ? (
       <AlertRulesSection settings={data} />
     ) : tab === 'data-collection' ? (
