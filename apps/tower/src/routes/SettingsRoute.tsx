@@ -76,6 +76,8 @@ import { cn } from "@/lib/utils";
 import { useBrowserContext } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
+import { NtasksConnection, ntasksProjectColumn } from "@/routes/settings/TaskServicePanel";
+import { useTaskService } from "@/hooks/useTaskService";
 import { ViewPanel } from "@/routes/settings/ViewPanel";
 import {
   SETTINGS_TABS,
@@ -1318,15 +1320,20 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const marked = taskHub.spokes.filter((spoke) => drifting?.has(spoke.asset));
   const serverDown = taskServerFailure(work?.projects);
   const found = drifting !== null ? FOUND_COLUMN(drifting) : serverDown !== null ? FOUND_UNKNOWN : null;
+  // While tasks live in Ntasks, the task database server and its checks no
+  // longer decide anything: each row shows its Ntasks project instead.
+  const { data: service } = useTaskService();
+  const inNtasks = service?.connected === true;
 
   return (
     <>
       <SettingsPanel title="Connection">
         {/* At the panel's row size, as every other row on the page. */}
-        <div className="text-sm">
+        <div className="flex flex-col gap-2 text-sm">
+          {taskHub.hub === null ? null : <NtasksConnection />}
           <TaskSourceSection />
         </div>
-        <HubConnection hub={taskHub.hub} failure={serverDown} />
+        {inNtasks ? null : <HubConnection hub={taskHub.hub} failure={serverDown} />}
       </SettingsPanel>
       <SettingsPanel
         title="Projects"
@@ -1361,13 +1368,13 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
             slug="map-a-project"
             fieldOptions={known.length === 0 ? undefined : { asset: unclaimed }}
             rowGlyph={(row) => <ProjectSite id={row.key} name={siteNames.get(row.key)} />}
-            derived={found === null ? undefined : [found]}
+            derived={inNtasks ? [ntasksProjectColumn(service)] : found === null ? undefined : [found]}
             onAdded={(row) => setAdded(spokeOf(row))}
             commit="auto"
           />
         )}
-        {taskHub.hub !== null && drifting !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} tasks={drifting} hub={taskHub.hub} /> : null}
-        {taskHub.hub !== null && added ? (
+        {!inNtasks && taskHub.hub !== null && drifting !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} tasks={drifting} hub={taskHub.hub} /> : null}
+        {!inNtasks && taskHub.hub !== null && added ? (
           <div className="mt-4">
             <TaskProjectSteps
               spoke={added}

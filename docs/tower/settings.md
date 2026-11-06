@@ -47,7 +47,7 @@ Under the schedules are the search panels' history window (**Each pass requests*
 
 ### Task projects
 
-The map from an asset to the project its tasks are stored in: the **Task database** status, the **Projects** table (**Asset**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line. Under a marked project, the note **No database named md · task sys-4f2** names the task the hourly check filed, as a link to its page.
+The map from an asset to the project its tasks are stored in: the **Ntasks** connection with **Connect** or **Manage**, the **Task database** status, the **Projects** table (**Asset**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line. While Ntasks is connected, the table's last column is **Ntasks project**, the Ntasks project with the row's prefix, and the server line, the **Found** column and the checklist are not shown. Under a marked project, the note **No database named md · task sys-4f2** names the task the hourly check filed, as a link to its page.
 
 ### Installation
 
@@ -88,6 +88,7 @@ Shown only when this installation manages members: where people are invited to t
 - **Nightly report pulls** shows each asset as **Enabled** or **Paused**, or **None · assets send their own**.
 - **No countdown set.** means the top strip shows none; **Saved countdown is invalid** shows why a saved countdown cannot be drawn.
 - Unclaimed assets are marked **No owner**.
+- **Ntasks** shows **Checking**, **Connected** with the address, **Not connected**, or **Unknown** when the installation's ingest did not answer. **Ntasks project** shows **No project with this prefix** when the credential reaches no project with that prefix, and **Unknown** before Ntasks has been read.
 - **Found** shows **Unknown** when no project could be read, instead of marking every row as found. On a hosted view the Task projects section shows **Read-only here**.
 - **Updates** shows **Current**, **Newer version published** with the update command, **Live source** on a development stack, or **Unknown** when the image registry returned no result. From a checkout, a newer version adds **Pull main in the checkout first.**
 - **Last good backup** shows **never** before the first completed backup. **Failed** is amber after one scheduled backup fails and red after two, and clears when a backup completes.
@@ -99,5 +100,6 @@ Shown only when this installation manages members: where people are invited to t
 
 - [Arrange the Wall](/guides/arrange-the-wall)
 - [Connect a task project](/guides/connect-a-task-project)
+- [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)
 - [Budgets and the kill switch](/operate/budgets-and-the-kill-switch)
 - Which settings live in the product and which in files, in [doc 23, Configuration ownership](../23-configuration-ownership.md)

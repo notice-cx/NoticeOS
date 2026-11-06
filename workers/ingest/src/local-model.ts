@@ -18,7 +18,7 @@ export function assertLocalModelAvailable(env: unknown): void {
   if (!env || typeof env !== 'object' || workspaceProfile(env) !== 'standalone') throw new LocalModelError('unavailable');
 }
 /** Plain HTTP is limited to local address classes; remote providers require TLS. */
-function localHost(hostname: string): boolean {
+export function isLocalAddress(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/u, '');
   if (host === 'localhost' || host.endsWith('.localhost') || host === 'host.docker.internal') return true;
   if (host.startsWith('[') && host.endsWith(']')) {
@@ -39,7 +39,7 @@ export function localModelBaseUrl(value: string): URL {
   let url: URL;
   try { url = new URL(value.trim()); } catch { throw new LocalModelError('configuration'); }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash
-      || (url.protocol === 'http:' && !localHost(url.hostname))) throw new LocalModelError('configuration');
+      || (url.protocol === 'http:' && !isLocalAddress(url.hostname))) throw new LocalModelError('configuration');
   url.pathname = `${url.pathname.replace(/\/+$/u, '')}/`;
   return url;
 }

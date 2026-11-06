@@ -12,6 +12,16 @@ import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 import { captureWorkflowDiagnostic } from '../workflow-diagnostics.mjs';
 import { checkBeadsHub, parseBeadsProjects, runBd } from './task-hub.mjs';
+import { syncTaskService, taskBackend } from './task-service-poll.mjs';
+import { createTaskService, TaskServiceUnavailable } from '../task-service.mjs';
+import { taskCacheDir } from '../task-service-cache.mjs';
+
+let sharedTaskService = null;
+/** The installation's task service, one per runner, so its answers' short reuse holds across ticks. */
+export function runnerTaskService() {
+  sharedTaskService ??= createTaskService();
+  return sharedTaskService;
+}
 
 async function responseDiagnostic(response, token) {
   const reader = response.body?.getReader();
@@ -98,6 +108,11 @@ export async function runBeadsPoll(runtime, deps = {}) {
     // the stack's door and home checkout, unless the caller names its own.
     url = beadsSnapshotUrl(CONFIG),
     repoRoot = HOME_ROOT,
+    // While tasks live in Ntasks the snapshot comes from its change feed
+    // (runner/task-service-poll.mjs) and `bd` is never run. Only the runner
+    // itself passes one (os-up.mjs), so no test reaches a real ingest.
+    taskService = null,
+    cacheDir = taskCacheDir(repoRoot),
   } = deps;
 
   const { skip, resume } = laneSkips('beads snapshot', state, emit);
@@ -115,15 +130,30 @@ export async function runBeadsPoll(runtime, deps = {}) {
   } catch (err) {
     return skip(`the task map is unreadable (${err.message})`);
   }
+  const backend = await taskBackend(taskService);
+  // A snapshot from the wrong register would look current; the last one keeps its own time.
+  if (backend === 'unknown') return skip('the ingest has not said whether tasks live in Ntasks');
+  const remote = backend === 'ntasks';
   // An acknowledged empty map must clear the last snapshot even when the hub
   // is down. Store failures above never turn into a fabricated empty roster.
-  if (projects.length > 0 && !(await probe())) return skip('the beads task hub is unreachable');
+  if (!remote && projects.length > 0 && !(await probe())) return skip('the beads task hub is unreachable');
 
   const token = await readToken().catch(() => null);
   if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
-  resume();
 
-  const body = await collectBeadsSnapshot({ projects, run, nowMs: now(), repoRoot });
+  let body;
+  if (remote) {
+    try {
+      ({ body } = await syncTaskService({ service: taskService, spokes: projects, cacheDir, now }));
+    } catch (err) {
+      // Nothing is filed, so the last snapshot keeps the time it was taken.
+      if (err instanceof TaskServiceUnavailable) return skip(`Ntasks did not answer (${err.reason})`);
+      throw err;
+    }
+  } else {
+    body = await collectBeadsSnapshot({ projects, run, nowMs: now(), repoRoot });
+  }
+  resume();
   const failed = body.projects.filter((entry) => !entry.ok);
 
   try {

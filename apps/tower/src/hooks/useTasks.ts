@@ -10,7 +10,7 @@ import {
 import { useCallback } from "react";
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
+import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject, TaskServiceStatus } from "@shared/tasks";
 import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { TASK_RESOLUTION_LABELS, type TaskResolution } from "@noticeos/contract/task-resolution";
 import { chooseOnTask, closeTask, dismissTask, resolveGate, respondToTask, type CloseTaskOptions, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
@@ -19,6 +19,7 @@ import { chooseOnTask, closeTask, dismissTask, resolveGate, respondToTask, type 
 type NotDone = Exclude<TaskResolution, "done">;
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { closeAsReason } from "@/lib/close-as";
+import { useTaskService } from "@/hooks/useTaskService";
 import { taskPath } from "@/lib/task-path";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
@@ -303,6 +304,21 @@ const ANSWERED: Record<InboxAnswer["kind"], string> = {
   close: "Closed",
 };
 
+/** While tasks live in Ntasks, or the ingest cannot say where they live, an
+ * answer reads as done only once it is confirmed: the Undo window's toast
+ * names what is about to be sent, and the done toast follows the confirmation.
+ * A status not read yet keeps the local wording. */
+function confirmsBeforeDone(service: TaskServiceStatus | undefined): boolean {
+  return service !== undefined && service.connected !== false;
+}
+const SENDING: Record<InboxAnswer["kind"], string> = {
+  approve: "Approving",
+  answer: "Sending answer",
+  choose: "Sending choice",
+  dismiss: "Dismissing",
+  close: "Closing",
+};
+
 /** The toast's heading for one answer: a pick names its option and a close
  * its resolution, so Undo is offered against what was sent. */
 function answeredAs(answer: InboxAnswer): string {
@@ -348,6 +364,7 @@ function answeredMany(answers: readonly InboxAnswer[]): string {
  */
 export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: { closedAlready?: readonly string[] }) => void {
   const toast = useOwnerToast();
+  const confirmsFirst = confirmsBeforeDone(useTaskService().data);
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
   const api = useTowerApi();
@@ -361,7 +378,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
       batches += 1;
       const group = `inbox-batch-${batches}`;
       const titles = answers.length === 1 ? answers[0]!.title : `${answers[0]!.title} and ${answers.length - 1} more`;
-      toast.success(answeredMany(answers), {
+      (confirmsFirst ? toast.message : toast.success)(confirmsFirst ? `${SENDING[answers[0]!.kind]} ${answers.length}` : answeredMany(answers), {
         id: group,
         description: closedAlready.length === 0 ? titles : `${titles} · ${nameIds(closedAlready)} closed already`,
         duration: UNDO_WINDOW_MS,
@@ -375,6 +392,8 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
         if (settled < answers.length) return;
         toast.dismiss(group);
         void refresh();
+        const sent = answers.filter((answer) => !failed.some((entry) => entry.id === answer.id));
+        if (confirmsFirst && sent.length > 0) toast.success(answeredMany(sent), { description: sent.length === 1 ? sent[0]!.title : `${sent[0]!.title} and ${sent.length - 1} more` });
         if (failed.length === 0) return;
         const reason = failed[0]!.error instanceof Error && failed[0]!.error.message !== "" ? failed[0]!.error.message : undefined;
         toast.error(`Not sent: ${nameIds(failed.map((entry) => entry.id))}`, {
@@ -398,7 +417,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
         });
       }
     },
-    [refresh, api, selected, toast, scheduleAnswer, undoGroup, open],
+    [refresh, api, selected, toast, scheduleAnswer, undoGroup, open, confirmsFirst],
   );
 }
 
@@ -409,6 +428,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
  */
 export function useInboxAnswer(): (answer: InboxAnswer) => void {
   const toast = useOwnerToast();
+  const confirmsFirst = confirmsBeforeDone(useTaskService().data);
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
   const api = useTowerApi();
@@ -423,7 +443,7 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
       // An exiting toast must never share the next answer's Undo lifecycle;
       // document-local IDs also work on plain-HTTP LAN origins.
       const toastId = `inbox-answer-${++answerToasts}`;
-      toast.success(answeredAs(answer), {
+      (confirmsFirst ? toast.message : toast.success)(confirmsFirst ? SENDING[answer.kind] : answeredAs(answer), {
         id: toastId,
         description: answer.title,
         duration: UNDO_WINDOW_MS,
@@ -437,6 +457,7 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
           // Undo goes the moment the call is made, even under a hovering
           // pointer that paused the toast's own timer.
           toast.dismiss(toastId);
+          if (confirmsFirst) toast.success(answeredAs(answer), { description: answer.title });
           void refresh();
         },
         onFailed: (error) => {
@@ -446,6 +467,6 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
         onUndo: () => toast.dismiss(toastId),
       });
     },
-    [refresh, api, selected, toast, scheduleAnswer, undoGroup, open],
+    [refresh, api, selected, toast, scheduleAnswer, undoGroup, open, confirmsFirst],
   );
 }

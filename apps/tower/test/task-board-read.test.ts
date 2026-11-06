@@ -105,6 +105,17 @@ function read(options: Partial<Parameters<typeof readTaskBoard>[0]> = {}) {
 function success(data: LiveTasksPayload): ProjectTaskRead { return { data, isError: false, error: null }; }
 
 describe("task board read", () => {
+  it("shows a task service's kept copy with its read time and no actions", () => {
+    const kept = { ...board([liveTask({ id: "md-1", ready: true })]), cached: { reason: "https://ntasks.example.com did not answer (network)." } };
+    const view = read({ reads: new Map([["meadow.example", success(kept)]]) });
+    expect(view.projects[0]).toMatchObject({ source: "live", actionable: false, cached: kept.cached.reason, readAt: kept.readAt });
+    expect(view.cachedProjects.map(row => row.asset)).toEqual(["meadow.example"]);
+    expect(view.rows.map(row => row.id)).toContain("md-1");
+    const fresh = read({ reads: new Map([["meadow.example", success(board([liveTask({ id: "md-1", ready: true })]))]]) });
+    expect(fresh.cachedProjects).toEqual([]);
+    expect(fresh.projects[0]?.actionable).toBe(true);
+  });
+
   it.each([true, false])("scopes every board result to the project filter, preserving project choices (live=%s)", live => {
     const other = project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ok: false, ready: [], inProgress: [] });
     const options = { snapshot: payload({ projects: [project(), other] }), capabilities: { live, reason: null },

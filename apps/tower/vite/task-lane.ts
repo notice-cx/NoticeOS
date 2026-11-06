@@ -21,7 +21,7 @@ import type {
   LiveTaskDetail,
   LiveTasksPayload,
 } from "../shared/tasks";
-import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
+import { isTaskId, TASK_SERVICE_STATUS_PATH, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
 import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
@@ -34,6 +34,9 @@ import { standaloneProjectId } from "../../../scripts/standalone-tasks.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
+import type { TaskService } from "../../../scripts/task-service.mjs";
+import { taskCacheDir } from "../../../scripts/task-service-cache.mjs";
+import { handleTaskServiceRequest, taskServiceStatus } from "./task-service-lane";
 import {
   DEFAULT_REPO_ROOT,
   crossOrigin,
@@ -163,10 +166,18 @@ export interface TaskLaneOptions {
   run?: (argv: string[], cwd: string) => BdResult;
   /** The audit name every write carries; defaults to the repo's `git user.name`. */
   actor?: string;
+  /** While this installation's task service is connected, every route here
+   * is answered from it (task-service-lane.ts) and `bd` is never run. Only
+   * the Tower's own config passes one, so no test reaches a real ingest. */
+  taskService?: TaskService | null;
+  /** Where the task service's answers are kept; defaults to the home checkout's `.local/task-cache`. */
+  taskCacheDir?: string;
 }
 
 interface Resolved {
   withMutation?: TaskLaneOptions["withMutation"];
+  taskService: TaskService | null;
+  taskCacheDir: string;
   repoRoot: string;
   readProjects: () => Promise<Spoke[]>;
   log: (line: string) => void;
@@ -221,6 +232,8 @@ function resolveOptions(options: TaskLaneOptions = {}): Resolved {
   const run = options.run ?? defaultRun;
   return {
     ...(options.withMutation ? { withMutation: options.withMutation } : {}),
+    taskService: viewer === null ? options.taskService ?? null : null,
+    taskCacheDir: options.taskCacheDir ?? taskCacheDir(options.repoRoot ?? DEFAULT_REPO_ROOT),
     repoRoot: options.repoRoot ?? DEFAULT_REPO_ROOT,
     readProjects: options.readProjects ?? (() => readSpokes(options.repoRoot ?? DEFAULT_REPO_ROOT)),
     log: options.log ?? (() => {}),
@@ -1019,6 +1032,30 @@ export async function handleTasksRequest(
   // Same origin for reads too: every path here spawns a process.
   if (crossOrigin(request.headers)) {
     return { status: 403, body: { error: "forbidden" } };
+  }
+
+  if (pathname === TASK_SERVICE_STATUS_PATH) {
+    if (request.method !== "GET") return { status: 405, body: { error: "method_not_allowed" } };
+    return { status: 200, body: { ...await taskServiceStatus(opts.taskService, opts.readProjects) } };
+  }
+
+  if (opts.taskService) {
+    const backend = await opts.taskService.backend();
+    // Never knowing where the tasks live, a change could land in the wrong
+    // register; a read stays on `bd`, which reads the saved projects through
+    // that same ingest.
+    if (backend === "unknown" && request.method !== "GET") {
+      return { status: 503, body: { error: "task_service_unknown",
+        detail: "The installation's ingest did not answer, so it is unknown where its tasks live. Nothing was saved." } };
+    }
+    if (backend === "ntasks") {
+      try {
+        return await handleTaskServiceRequest(pathname, url, request, { service: opts.taskService,
+          readProjects: opts.readProjects, cacheDir: opts.taskCacheDir, now: opts.now });
+      } catch (err) {
+        return { status: 500, body: { error: "task_lane_failed", detail: err instanceof Error ? err.message : String(err) } };
+      }
+    }
   }
 
   try {

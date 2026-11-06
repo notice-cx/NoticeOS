@@ -15,6 +15,7 @@ export const CONFIG_BACKED_QUERIES = [
   "integrations",
   "integration-providers",
   "task-source",
+  "task-service",
   "work",
   "wall-feed",
 ] as const;
@@ -38,7 +39,7 @@ const DOCUMENT_QUERIES: Partial<Record<FileOp["file"], readonly ConfigQueryFamil
   "config/domain-costs.json": ["financials"],
   "config/recurring-costs.json": ["financials"],
   "config/entities.json": ["settings"],
-  "config/beads.json": ["settings", "task-source", "work"],
+  "config/beads.json": ["settings", "task-source", "task-service", "work"],
 };
 
 /** Forward and Undo operations use the same union, with no caller-owned lists. */

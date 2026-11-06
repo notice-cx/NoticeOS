@@ -60,6 +60,7 @@ describe('INTEGRATION_PROVIDERS', () => {
   it('lists each supported credential and keeps the OAuth prerequisite off its own card', () => {
     expect(INTEGRATION_PROVIDER_IDS).toEqual([
       'local-model',
+      'ntasks',
       'mercury',
       'cloudflare',
       'mediavine',
@@ -78,6 +79,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // not a provider you connect.
     expect(integrationProviderCards().map((provider) => provider.id)).toEqual([
       'local-model',
+      'ntasks',
       'mercury',
       'cloudflare',
       'mediavine',
@@ -148,7 +150,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // every browser that starts a sign-in, and an operator who cannot
     // proof-read it against the console cannot see a mismatch that produces
     // `invalid_client`.
-    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
+    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'NTASKS_URL', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
@@ -237,9 +239,9 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
-    expect(panel.map((provider) => provider.id)).toEqual(['local-model', 'mercury', 'cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
+    expect(panel.map((provider) => provider.id)).toEqual(['local-model', 'ntasks', 'mercury', 'cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
     // Installation-wide connections have no site list after discovery.
-    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['local-model', 'mercury', 'cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
+    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['local-model', 'ntasks', 'mercury', 'cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
     // Clarity connects in the panel too, a token pasted per site: no one key,
     // and no free read to prove it.
     const perSite = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'site-tokens');
@@ -257,6 +259,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       // Operator-selected server addresses and account logins need no issuance link.
       if (provider.id === 'mediavine') expect(provider.fields.map((field) => field.kind)).toEqual(['text', 'password']);
       else if (provider.id === 'local-model') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'text', 'password']);
+      else if (provider.id === 'ntasks') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'password']);
       else expect(provider.fields[0]!.link?.url.startsWith('https://')).toBe(true);
     }
   });
@@ -265,7 +268,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     const named = Object.fromEntries(INTEGRATION_PROVIDERS.filter((provider) => provider.connect)
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
-      'local-model': 'connection',
+      'local-model': 'connection', ntasks: 'connection',
       mediavine: 'sign-in', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
       calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key', crux: 'key', stripe: 'key', mercury: 'key',
     });

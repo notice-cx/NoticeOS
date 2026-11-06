@@ -21,6 +21,7 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ageMs, formatAge } from "@shared/freshness";
 import {
   READ_ONLY_TASKS_HINT,
+  TASK_SERVICE_OFFLINE_HINT,
   taskWritesAvailable,
   taskFieldAvailable,
   taskOperationAvailable,
@@ -37,7 +38,7 @@ import {
   type LiveTasksPayload,
 } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
-import { PRIORITY_BANDS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { PRIORITY_BANDS, WORK_POLL_CADENCE_HOURS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { FactChip, factChipClass, type FactChoice } from "@/components/FactChip";
@@ -49,6 +50,7 @@ import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { STATE_TONE } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
+import { AgeBadge } from "@/components/AgeBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
@@ -253,8 +255,10 @@ export function TaskRoute() {
   const notFound = detail.error instanceof ApiError && detail.error.status === 404;
   const laneError = live && detail.error !== null && !notFound;
 
+  // A kept copy is shown, not acted on: the task service did not answer.
+  const pageWritable = writable && detail.data?.cached === undefined;
   return (
-    <TaskWritePermission.Provider value={writable}>
+    <TaskWritePermission.Provider value={pageWritable}>
     <TaskActors.Provider value={actors}>
     <TaskDraftProject.Provider value={draftProject}>
     {/* Every button on the page gives under a press, as the board's rows and
@@ -268,9 +272,16 @@ export function TaskRoute() {
           {returnTo.startsWith("/assets/") ? "Back to asset" : "Back to Home"}
         </Link>
       )}
-      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={writable} readAt={detail.data?.readAt ?? null} nowMs={now}>
+      <TaskHeader key={JSON.stringify([selectedProject, id])} id={id} head={head} crumbs={crumbs} writable={pageWritable} offline={detail.data?.cached !== undefined} readAt={detail.data?.readAt ?? null} nowMs={now}>
         {closedSummary}
       </TaskHeader>
+      {/* The task service did not answer: this is the copy it last gave. A
+          change sent now is refused and its text stays in its box. */}
+      <StatusBanner open={detail.data?.cached !== undefined} severity="warn" lead="Ntasks is not answering" subject="tasks:cached">
+        <span data-task-cached>
+          Showing this task as read <AgeBadge iso={detail.data?.readAt ?? null} cadenceHours={WORK_POLL_CADENCE_HOURS} nowMs={now} lastGood />. Changes can be sent when it answers.
+        </span>
+      </StatusBanner>
       {capability.projectSelection ? <select aria-label="Task project" value={selectedProject ?? ''}
         className={cn(fieldClass, 'w-fit max-w-full')} onChange={event => {
           const next = new URLSearchParams(params); next.set('project', event.target.value); setParams(next, { replace: true });
@@ -360,6 +371,7 @@ function TaskHeader({
   head,
   crumbs,
   writable,
+  offline = false,
   readAt,
   nowMs,
   children,
@@ -368,6 +380,8 @@ function TaskHeader({
   head: TaskHeadFacts | null;
   crumbs: PageHeaderCrumb[];
   writable: boolean;
+  /** The page shows the task service's kept copy, so nothing can be sent. */
+  offline?: boolean;
   /** When the live read the page shows was taken: an answer sent after it
    * hides the verbs until the next read. */
   readAt: string | null;
@@ -382,7 +396,7 @@ function TaskHeader({
   const reasonId = useId();
   const claimable = head !== null && head.status === "open" && head.holder === null;
   const closed = head?.status === "closed";
-  const blocked = writable ? null : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
+  const blocked = writable ? null : offline ? TASK_SERVICE_OFFLINE_HINT : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
   const answered = answerHides(id, readAt);
   const waitsOnOperator = (head?.ask ?? null) !== null;
   const choosing = head?.ask === "choose";

@@ -9,6 +9,7 @@ import type { Connect, Plugin } from "vite";
 import { LOCAL_CONNECTION_VARIABLE } from "../../../scripts/database-address.mjs";
 import { MCP_PATH, READ_MODELS_HEADER } from "../../../scripts/hosted-mcp.mjs";
 import { openStandaloneMcp, STANDALONE_MCP_ORIGIN, type StandaloneMcp } from "../../../scripts/standalone-mcp.mjs";
+import type { TaskService } from "../../../scripts/task-service.mjs";
 import { readBody } from "./lane";
 
 /** Request headers a handler reads; the hop's own framing stays with the hop. */
@@ -60,15 +61,17 @@ export interface McpLaneOptions {
   env?: NodeJS.ProcessEnv;
   /** Opens the endpoint with the Tower's own address for its read models. */
   open?: (tower: string) => Promise<StandaloneMcp>;
+  /** The installation's task service, which the task tools use while it is connected. */
+  taskService?: TaskService;
 }
 
-export function mcpLane({ env = process.env, open }: McpLaneOptions = {}): Plugin {
+export function mcpLane({ env = process.env, open, taskService }: McpLaneOptions = {}): Plugin {
   return {
     name: "mcp", apply: "serve", enforce: "pre",
     configureServer(server) {
       const tower = () => `http://127.0.0.1:${(server.httpServer?.address() as AddressInfo | null)?.port ?? 5173}`;
       const middleware = createMcpMiddleware(() => (open ?? ((address: string) =>
-        openStandaloneMcp({ databaseUrl: env[LOCAL_CONNECTION_VARIABLE], tower: address })))(tower()));
+        openStandaloneMcp({ databaseUrl: env[LOCAL_CONNECTION_VARIABLE], tower: address, ...(taskService ? { taskService } : {}) })))(tower()));
       server.middlewares.use(middleware);
       server.httpServer?.once("close", () => { void middleware.close(); });
     },

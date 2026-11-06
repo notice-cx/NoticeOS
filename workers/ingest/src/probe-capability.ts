@@ -8,6 +8,7 @@ import type { IntegrationProviderId } from '@noticeos/contract';
  */
 export const PROBE_CAPABILITY: Record<IntegrationProviderId, string> = {
   'local-model': 'local-model-discovery',
+  ntasks: 'ntasks-test',
   mercury: 'mercury-test',
   cloudflare: 'cloudflare-test',
   google: 'google-test',

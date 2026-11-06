@@ -123,10 +123,12 @@ describe('a GA4 read lease', () => {
       const first = await Promise.race(readers.map((reader) => reader.then(() => 'read', (error: unknown) => error)));
       expect(first).toBeInstanceOf(Ga4ReadError);
       expect((first as Ga4ReadError).code).toBe('ga4_read_in_progress');
-      expect(reads).toBe(1);
       held.open();
       const settled = await Promise.allSettled(readers);
       expect(settled.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      // Counted once both settle: the refused reader can answer before the
+      // lease holder, still checking the cache, has asked Google.
+      expect(reads).toBe(1);
     }
   });
 

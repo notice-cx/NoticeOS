@@ -25,6 +25,9 @@ export const INTEGRATION_MONITORS = {
     // Evidence review requests inference only when comparable observations qualify.
     monitor('portfolio-brief', 'Portfolio briefing', [], 'portfolio-brief', 'account', 'event', 'live-only', 'Review the model and briefing schedule in Integrations.'),
   ],
+  ntasks: [
+    monitor('ntasks-test', 'Ntasks connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the Ntasks address and service credential in Settings → Task projects.'),
+  ],
   mercury: [
     monitor('mercury-banking', 'Bank balances and activity', [], 'mercury', 'account', 'scheduled', 'live-only', 'Review the Mercury token and bank collection schedule.'),
     monitor('mercury-test', 'Mercury connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the read-only Mercury token in Integrations.'),

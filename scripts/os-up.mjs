@@ -61,7 +61,7 @@ import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime
 import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-report.mjs';
 import { checkBeadsHub, taskHubPortDescription } from './runner/task-hub.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
-import { runBeadsPoll } from './runner/task-snapshot.mjs';
+import { runBeadsPoll, runnerTaskService } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 async function ensureDirs() {
@@ -318,10 +318,10 @@ export function hostLanes(runtime) {
       run: () => checkBeadsHub(),
       outcomeOf: (reachable) => ({ outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' }),
     },
-    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { run: observed.runTask, emit: observed.emit })),
-    'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { run: observed.runTask, emit: observed.emit })),
-    'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ run: observed.runTask, emit: observed.emit })),
-    'task-map': traced('task-map', observed => runTaskMapCheck({ run: observed.runTask, emit: observed.emit })),
+    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
+    'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
+    'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
+    'task-map': traced('task-map', observed => runTaskMapCheck({ taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
     'panel-refresh': traced('panel-refresh', observed => runPanelRefresh(runtime, { run: observed.runCommand, emit: observed.emit })),
     backup: { run: () => runBackup(), outcomeOf: backupRunOutcome },
   };
