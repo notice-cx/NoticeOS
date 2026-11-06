@@ -261,7 +261,10 @@ export async function runTaskMapCheck(deps = {}) {
   const { skip, resume } = laneSkips('task map check', state, emit);
 
   if (stopped()) return null;
-  const standDown = bdLaneSkip(await taskBackend(taskService), 'check task databases');
+  const backend = await taskBackend(taskService);
+  // The check compares saved projects with the bd hub's databases; Ntasks has none.
+  if (backend === 'ntasks') return skip('tasks live in Ntasks, which keeps no task databases to check');
+  const standDown = bdLaneSkip(backend, 'check task databases');
   if (standDown) return skip(standDown);
 
   const { projects: spokes, unreadable } = await readBeadsProjects(readConfig);

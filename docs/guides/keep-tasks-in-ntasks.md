@@ -49,4 +49,4 @@ The copies are kept under `.local/task-cache` in the installation's home folder.
 
 Once a minute the runner reads Ntasks's change feed from where it last stopped, at most 1,000 changes per minute. It rereads the boards of each project the feed names, and of any project whose boards are more than 15 minutes old. The task snapshot is built from those boards.
 
-While Ntasks is connected, the runner does not file panel reviews or post watch readbacks, and does not check task databases. Readbacks stay queued until they can be posted.
+While Ntasks is connected, the runner files panel reviews and outcome reviews in Ntasks and posts each outcome's result as a comment there, recorded as `service:<credential name>/os-up-panel-filer`, `/outcome-review-filer` and `/outcome-task-updates`. A panel review filed there has no due date, because Ntasks takes none on a new task. The runner does not check task databases, which Ntasks does not have. While the installation's ingest has not said where its tasks live, the runner files nothing and results stay queued.

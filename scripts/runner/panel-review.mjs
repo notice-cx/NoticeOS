@@ -19,6 +19,7 @@ import { CONFIG, HOME_ROOT, OS_CHECKOUT, SECRET_FILES } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
 import { bdLaneSkip, taskBackend } from './task-service-poll.mjs';
+import { ntasksRegister } from './task-service-register.mjs';
 import { operatorToken } from './operator-token.mjs';
 import {
   beadsCreateArgs,
@@ -351,6 +352,21 @@ export async function filePanelReview(project, landing, { open = openStandaloneT
   } finally { await tasks.close(); }
 }
 
+/** The same review filed in Ntasks (runner/task-service-register.mjs): the
+ * same fields and the same once-only rule, under a key for the project's
+ * prefix. Ntasks takes no due date on a new task, so the review has none. */
+export async function fileNtasksPanelReview(register, project, landing) {
+  const key = 'panel-review:' + createHash('sha256').update(JSON.stringify(
+    ['ntasks', project.prefix, landing.asset, landing.panelDate, [...new Set(landing.invalidated ?? [])].sort()])).digest('hex');
+  return register.create(project, {
+    title: panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false), type: 'task', priority: 2,
+    labels: [PANEL_REVIEW_LABEL],
+    metadata: { [PANEL_REVIEW_ASSET_KEY]: landing.asset, [PANEL_REVIEW_DATE_KEY]: landing.panelDate,
+      ...(landing.version ? { [PANEL_REVIEW_VERSION_KEY]: landing.version } : {}) },
+    description: panelReviewDescription(landing), acceptance: panelReviewAcceptance(landing.panel !== false),
+  }, key);
+}
+
 /** The panel filer's name for the same reader, kept because this lane's
  * vocabulary block is a contract other readers navigate by name. */
 export const panelReviewCreatedId = beadsCreatedId;
@@ -386,10 +402,11 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
   if (stopped()) return null;
   // The tower's child hosts both Workers, so its readiness is the ingest's.
   if (!runtime.running || !runtime.ready) return skip('ingest is down/restarting');
-  // This lane files into the bd hub only, which may no longer hold the register.
-  const standDown = bdLaneSkip(await taskBackend(taskService), 'file reviews');
-  if (standDown) return skip(standDown);
-  if (!(await probe())) return skip('the beads task hub is unreachable');
+  const backend = await taskBackend(taskService);
+  if (backend === 'unknown') return skip(bdLaneSkip(backend, 'file reviews'));
+  // While tasks live in Ntasks the reviews are read and filed there.
+  const register = backend === 'ntasks' ? ntasksRegister(taskService, PANEL_REVIEW_ACTOR) : null;
+  if (!register && !(await probe())) return skip('the beads task hub is unreachable');
   const { projects, unreadable } = await readBeadsProjects(readConfig);
   if (unreadable) return skip(unreadable);
   if (projects.length === 0) return skip('no beads spokes are configured');
@@ -429,13 +446,19 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
       continue;
     }
     state.unmapped.delete(landing.asset);
-    if (project.unavailableReason) {
+    // A project's bd link on this host says nothing about its Ntasks project.
+    if (!register && project.unavailableReason) {
       emit('WARN', `panel review: ${project.unavailableReason}`);
       continue;
     }
-    const repoDir = taskProjectDirectory(project, HOME_ROOT);
 
-    const existing = await readBeadsList(run, panelReviewListArgs(repoDir), 'panel review list');
+    let existing;
+    if (register) {
+      try { existing = { rows: await register.labelled(project, PANEL_REVIEW_LABEL) }; }
+      catch (err) { existing = { failure: `the Ntasks review list could not be read: ${err.message}` }; }
+    } else {
+      existing = await readBeadsList(run, panelReviewListArgs(taskProjectDirectory(project, HOME_ROOT)), 'panel review list');
+    }
     if (existing.failure) {
       emit('ERROR', `panel review: ${landing.asset} — ${existing.failure}`);
       continue;
@@ -476,8 +499,9 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     waiting.delete(collection);
 
+    const file = register ? (spoke, review) => fileNtasksPanelReview(register, spoke, review) : createReview;
     let beadId;
-    try { beadId = await createReview(project, { ...landing, version,
+    try { beadId = await file(project, { ...landing, version,
       invalidated: existing.rows.filter(row => invalidPanelReview(row) && panelReviewPanelDate(row) === landing.panelDate)
         .map(row => beadsText(row.id)).filter(Boolean),
     }); }
@@ -488,7 +512,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     filed.push({ asset: landing.asset, panelDate: landing.panelDate, beadId });
     emit(
       'INFO',
-      `panel review filed — ${beadId ?? '(id unread)'} in ${project.repo}: ` +
+      `panel review filed — ${beadId ?? '(id unread)'} in ${register ? 'Ntasks' : project.repo}: ` +
         `"${panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false)}", due ` +
         `${panelReviewDueDate(landing.panelDate)}`,
     );
