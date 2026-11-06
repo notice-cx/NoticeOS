@@ -34,5 +34,15 @@ export interface HostedMcpOptions {
     readonly panels?: PanelOperations;
     /** Standalone only: the Tower's typed journey resource; never collects. */
     readonly journeys?: (request: Request) => Promise<Response>;
+    /** Standalone only: while `connected()`, every task tool runs on the task
+     * service (standalone-mcp.mts remoteTaskTools) instead of `operations`. */
+    readonly remoteTasks?: RemoteTaskTools;
+}
+/** The task tools as a task service answers them. `call` gets the tool's
+ * arguments with its `workspace`, and throws McpToolError with the sentence
+ * an agent reads. */
+export interface RemoteTaskTools {
+    connected(): Promise<boolean>;
+    call(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>;
 }
 export declare function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response>;

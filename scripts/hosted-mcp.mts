@@ -62,6 +62,16 @@ export interface HostedMcpOptions {
   readonly panels?: PanelOperations;
   /** Standalone only: the Tower's typed journey resource; never collects. */
   readonly journeys?: (request: Request) => Promise<Response>;
+  /** Standalone only: while `connected()`, every task tool runs on the task
+   * service (standalone-mcp.mts remoteTaskTools) instead of `operations`. */
+  readonly remoteTasks?: RemoteTaskTools;
+}
+/** The task tools as a task service answers them. `call` gets the tool's
+ * arguments with its `workspace`, and throws McpToolError with the sentence
+ * an agent reads. */
+export interface RemoteTaskTools {
+  connected(): Promise<boolean>;
+  call(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>;
 }
 
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });
@@ -102,8 +112,9 @@ function access(scopes: readonly string[], workspace: HostedMcpWorkspace): strin
 
 export function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response> {
   const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-  const { profile, operations, agents, readModels, panels, journeys } = options;
+  const { profile, operations, agents, readModels, panels, journeys, remoteTasks } = options;
   if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
+    || remoteTasks !== undefined && (profile !== 'standalone' || typeof remoteTasks.connected !== 'function' || typeof remoteTasks.call !== 'function')
     || readModels !== undefined && typeof readModels !== 'function'
     || panels !== undefined && typeof panels?.read !== 'function'
     || journeys !== undefined && (profile !== 'standalone' || typeof journeys !== 'function')) throw new Error('MCP configuration refused');
@@ -200,6 +211,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       try {
+        if (task && remoteTasks && await remoteTasks.connected()) return await remoteTasks.call(name, args);
         if (task) return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
         if (panel) return await panel.run({ proof, workspaceId: workspace, operations: panels! }, rest);
         if (journey) return await journey.run({ proof, workspaceId: workspace, transport: journeys! }, rest);

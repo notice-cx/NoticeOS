@@ -13,6 +13,7 @@ import { invokedDirectly } from './invoked-directly.mjs';
 import { serveMcpStdio } from './mcp-stdio.mjs';
 import { SECRET_FILES } from './runner/config.mjs';
 import { ACTOR_HEADER, openStandaloneMcp, STANDALONE_MCP_ORIGIN } from './standalone-mcp.mjs';
+import { createTaskService } from './task-service.mjs';
 
 const ACTOR = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
 const HELP = 'Usage: local-mcp.mjs [--actor <name>]';
@@ -30,7 +31,7 @@ export async function main(argv = process.argv.slice(2), { input = process.stdin
   let mcp;
   try {
     const { bindings } = await readDevSecretBindings(secretFiles);
-    mcp = await openStandaloneMcp({ databaseUrl: bindings[DATABASE_URL] });
+    mcp = await openStandaloneMcp({ databaseUrl: bindings[DATABASE_URL], taskService: createTaskService() });
   } catch (error) {
     err.write(`NoticeOS MCP could not reach the installation's database: ${error.message}\n`);
     return 1;

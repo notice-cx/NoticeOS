@@ -9,6 +9,7 @@ import type { Connect, Plugin } from "vite";
 import { LOCAL_CONNECTION_VARIABLE } from "../../../scripts/database-address.mjs";
 import { MCP_PATH, READ_MODELS_HEADER } from "../../../scripts/hosted-mcp.mjs";
 import { openStandaloneMcp, STANDALONE_MCP_ORIGIN, type StandaloneMcp } from "../../../scripts/standalone-mcp.mjs";
+import { createTaskService } from "../../../scripts/task-service.mjs";
 import { readBody } from "./lane";
 
 /** Request headers a handler reads; the hop's own framing stays with the hop. */
@@ -68,7 +69,7 @@ export function mcpLane({ env = process.env, open }: McpLaneOptions = {}): Plugi
     configureServer(server) {
       const tower = () => `http://127.0.0.1:${(server.httpServer?.address() as AddressInfo | null)?.port ?? 5173}`;
       const middleware = createMcpMiddleware(() => (open ?? ((address: string) =>
-        openStandaloneMcp({ databaseUrl: env[LOCAL_CONNECTION_VARIABLE], tower: address })))(tower()));
+        openStandaloneMcp({ databaseUrl: env[LOCAL_CONNECTION_VARIABLE], tower: address, taskService: createTaskService() })))(tower()));
       server.middlewares.use(middleware);
       server.httpServer?.once("close", () => { void middleware.close(); });
     },
