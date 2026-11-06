@@ -19,6 +19,7 @@ import { explorationDateOffset } from '@noticeos/contract/session-exploration';
 import { storeReports } from '../test/alert-rows';
 import { ORDERED_JOURNEY_DEFINITIONS, orderedJourneyFixture } from './ordered-journeys-fixture';
 import { storeCodebaseReports, weeklyStoredReports } from '../test/codebase-fixture';
+import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { importCodebaseHistory } from '../../../workers/ingest/src/codebase-history';
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
 import { MISSING, applyDocumentOps, configDocumentKey, resolveOps, validateSchemaAndSafety, type Changeset, type Mismatch } from "../../../scripts/config-documents.mjs";
@@ -90,6 +91,7 @@ interface JourneyCollectionMonitoring { readonly connection: Readonly<JourneyHea
  * loads them through Vite and hands them over unchanged; their Worker types stay
  * out of the Tower's typecheck, so these are the shapes this file relies on. */
 export interface JourneyIngest {
+  readPortfolioBrief(env: JourneyIngestEnv): Promise<PortfolioBriefRead>;
   /** workers/ingest/src/config-store.ts: the settings read cache, forgotten
    * after the fixture copies its documents in (this server's clock never
    * moves, so the cache's one second never passes). */
@@ -653,6 +655,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   }
 
   const ingest: TowerEnv["INGEST"] = {
+    portfolioBrief: () => ingestCode.readPortfolioBrief(ingestEnv()),
     // The site's revenue status and sync are the production ones over the
     // fixture store, the saved documents published first as a real run reads
     // them.

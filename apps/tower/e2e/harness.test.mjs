@@ -53,6 +53,13 @@ const setup = { ops: [
     value: { enabled: false, reason: "no-lane-yet", since: "2026-09-06" } },
 ] };
 
+test("an unconnected model returns a saved-briefing state without a service failure", async () => {
+  await request("/__journey/reset", "POST");
+  const read = await request("/api/portfolio-brief");
+  assert.equal(read.status, 200);
+  assert.deepEqual(read.body, { state: "disconnected", briefing: null, error: null, stale: false, lastAttemptAt: null, nextAttemptAt: null });
+});
+
 test("the isolated standalone profile survives repeated workspace resets", async () => {
   for (let reset = 0; reset < 2; reset += 1) {
     assert.equal((await request("/__journey/reset", "POST")).status, 200);
