@@ -6,6 +6,7 @@
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Worker and Node import and the `.d.mts` beside it.
 import { isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
+import { PORTFOLIO_BRIEF_FAILURES, portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 const METRICS = {
     attempted: 'Attempted', succeeded: 'Succeeded', failed: 'Failed', skipped: 'Skipped', unchanged: 'Unchanged',
     checked: 'Checked', found: 'Found', fresh: 'Fresh', sent: 'Sent', stale: 'Stale',
@@ -34,6 +35,11 @@ function numbers(value, labels) {
 }
 function fields(value) {
     const result = [];
+    if (value?.operation === 'portfolio-brief' && value.ok === false) {
+        const failure = portfolioBriefFailure(value.failure);
+        result.push(entry('reason', 'Reason', failure.summary), entry('nextAction', 'Next step', failure.action));
+        return result;
+    }
     if (typeof value?.ok === 'boolean')
         result.push(entry('ok', 'Operation confirmed', value.ok));
     if (typeof value?.providerTruncated === 'boolean')
@@ -111,6 +117,8 @@ export function captureWorkflowOutput(value) {
 export function isWorkflowStepOutput(value) {
     const only = (item, keys) => item && typeof item === 'object' && !Array.isArray(item) && Object.keys(item).every((key) => keys.includes(key));
     const validValue = (item) => {
+        if (item.key === 'nextAction')
+            return item.label === 'Next step' && Object.values(PORTFOLIO_BRIEF_FAILURES).some(failure => failure.action === item.value);
         if (!Object.hasOwn(LABELS, item.key) || item.label !== LABELS[item.key])
             return false;
         if (['ok', 'providerTruncated'].includes(item.key))
@@ -120,7 +128,7 @@ export function isWorkflowStepOutput(value) {
         if (['reportDate', 'date'].includes(item.key))
             return typeof item.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.value);
         if (item.key === 'reason')
-            return [...Object.values(REASONS), ...DETAILS].includes(item.value);
+            return [...Object.values(REASONS), ...DETAILS, ...Object.values(PORTFOLIO_BRIEF_FAILURES).map(failure => failure.summary)].includes(item.value);
         if (item.key === 'finding')
             return ['ok', 'warn', 'error', 'unreachable'].includes(item.value);
         if (item.key === 'outcome')

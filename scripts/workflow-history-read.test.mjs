@@ -14,6 +14,7 @@ import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { MANUAL_RUN_DETAIL } from '../packages/contract/src/job-runs.ts';
+import { PORTFOLIO_BRIEF_FAILURES } from './portfolio-brief-failure.mjs';
 import { buildWorkflowHistory } from './workflow-history-view.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
@@ -59,6 +60,40 @@ test('one retained manual journal entry and its stored copy remain one manual ru
   assert.equal(own.runs[0].trigger.kind, 'manual');
   assert.equal(view.selectedRun.id, selected);
   assert.equal(view.selectedRun.state, 'skipped');
+});
+
+test('retained fixed briefing failures preserve useful diagnostics without inventing stage timestamps', () => {
+  const at = new Date(NOW - 20 * 60_000).toISOString();
+  const briefingJob = jobRunName(WORKFLOW_DEFINITIONS.find(definition => definition.id === 'portfolio-brief'));
+  for (const failure of Object.values(PORTFOLIO_BRIEF_FAILURES)) {
+    const record = { job: briefingJob, at, ms: 610_321, outcome: 'failed', detail: failure.summary, trigger: 'manual' };
+    const id = `portfolio-brief@manual/${at}`;
+    const view = buildWorkflowHistory([record], [], [], NOW, id);
+    assert.deepEqual(view.selectedRun.failure, failure);
+    assert.equal(view.selectedRun.steps, null);
+    assert.equal(view.selectedRun.startedAt, at);
+    assert.equal(view.selectedRun.finishedAt, new Date(Date.parse(at) + record.ms).toISOString());
+    assert.equal(view.selectedRun.trigger.kind, 'manual');
+  }
+});
+
+test('coarse failure reconstruction rejects unknown text, old timeout wording, unrelated jobs and successful runs', () => {
+  const at = new Date(NOW - HOUR).toISOString();
+  const briefingJob = jobRunName(WORKFLOW_DEFINITIONS.find(definition => definition.id === 'portfolio-brief'));
+  const known = PORTFOLIO_BRIEF_FAILURES.timeout.summary;
+  for (const record of [
+    { job: briefingJob, at, ms: 120_000, outcome: 'failed', detail: 'The model did not finish within 2 minutes.' },
+    { job: briefingJob, at, ms: 600_000, outcome: 'failed', detail: `${known} private-token` },
+    { job: briefingJob, at, ms: 600_000, outcome: 'failed', detail: 'private endpoint and token' },
+    { job, at, ms: 600_000, outcome: 'failed', detail: known },
+    { job: briefingJob, at, ms: 600_000, outcome: 'ran', detail: known },
+  ]) {
+    const own = WORKFLOW_DEFINITIONS.find(definition => jobRunName(definition) === record.job);
+    const view = buildWorkflowHistory([record], [], [], NOW, `${own.id}@${at}`);
+    assert.equal(view.selectedRun.failure, undefined);
+    assert.equal(view.selectedRun.steps, null);
+    assert.ok(!JSON.stringify(view).includes('private'));
+  }
 });
 
 test('hosted daily counts and old failure links remain complete and workspace isolated', { timeout: 120000 }, async t => {

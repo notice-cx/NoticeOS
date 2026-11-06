@@ -21,12 +21,12 @@ export function withTowerSteps(
 ): void | ScheduledRunResult {
   if (towerSteps.length === 0) return result;
   const ran = result ?? { outcome: "ran" as const, detail: "Execution completed" };
-  const failed = towerSteps.some((step) => step.state === "failed");
+  const failed = towerSteps.find((step) => step.state === "failed");
   const actions = [...(ran.steps ?? []), ...towerSteps].filter(step => step.id !== 'config' && step.id !== 'record');
   const skipped = actions.length > 0 && actions.every(step => step.state === 'skipped');
   return {
     ...ran,
-    ...(failed ? { outcome: "failed" as const, detail: "A workflow step failed. Check service logs for details." } : {}),
+    ...(failed ? { outcome: "failed" as const, detail: failed.summary ?? "A workflow step failed. Check service logs for details." } : {}),
     ...(!failed && ran.outcome !== 'failed' && skipped ? { outcome: 'skipped' as const, detail: towerSteps.find(step => step.state === 'skipped')?.summary ?? 'No work was performed on this pass.' } : {}),
     steps: [...(ran.steps ?? []), ...towerSteps],
   };

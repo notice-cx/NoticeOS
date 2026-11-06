@@ -5,6 +5,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { putCredential, deleteCredential } from '../src/credentials.js';
 import { readPortfolioBrief, refreshPortfolioBrief } from '../src/portfolio-brief.js';
 import { asOwner, reset } from './helpers.js';
+import { MODEL_GENERATION_TIMEOUT_MS, portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
+import { LocalModelError } from '../src/local-model.js';
 
 const NOW = Date.parse('2026-11-06T12:00:00Z');
 const HOUR = 3_600_000;
@@ -101,6 +103,10 @@ it('coordinates concurrent refreshes through the database and enforces cooldown 
   const first = refreshPortfolioBrief(target, evidence(), HOUR, { cache, fetchImpl, clock: () => NOW });
   await started.promise;
   expect(await refreshPortfolioBrief(target, evidence(), HOUR, { cache, fetchImpl, clock: () => NOW })).toMatchObject({ state: 'awaiting' });
+  const pastOldLease = NOW + 4 * 60_000;
+  expect(await refreshPortfolioBrief(target, evidence(pastOldLease), HOUR, { cache, fetchImpl, clock: () => pastOldLease })).toMatchObject({ state: 'awaiting' });
+  const active = await target.STORE.read(tx => tx.query<{ expires_at: string }>('SELECT expires_at FROM noticeos.integration_leases WHERE lease_key LIKE $1', ['portfolio-brief:%']));
+  expect(Date.parse(active[0]!.expires_at)).toBe(NOW + MODEL_GENERATION_TIMEOUT_MS + 60_000);
   expect(fetchImpl).toHaveBeenCalledTimes(1);
   finished.release(response());
   expect(await first).toMatchObject({ state: 'ready' });
@@ -120,11 +126,43 @@ it('keeps the last good briefing after a failed refresh and suppresses retries u
   const later = NOW + HOUR;
   const failed = await refreshPortfolioBrief(target, evidence(later), HOUR, { cache, fetchImpl, clock: () => later });
   expect(failed).toMatchObject({ state: 'unavailable', briefing: good.briefing, stale: true,
-    nextAttemptAt: new Date(later + 15 * 60_000).toISOString(), error: 'The model could not complete the briefing.' });
+    nextAttemptAt: new Date(later + 15 * 60_000).toISOString(), error: portfolioBriefFailure({ kind: 'network' }).summary, failure: { kind: 'network' } });
   expect(JSON.stringify(failed)).not.toContain('private model endpoint');
   expect(await refreshPortfolioBrief(target, evidence(later + 60_000), HOUR, { cache, fetchImpl, clock: () => later + 60_000 })).toEqual(failed);
   expect(await readPortfolioBrief(target, { cache, clock: () => later + 60_000 })).toEqual(failed);
   expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
+
+it.each([
+  [401, 'access'], [429, 'rate-limited'], [404, 'not-found'], [302, 'redirect'], [503, 'network'],
+] as const)('persists safe %s model failure details without provider response text', async (status, kind) => {
+  const target = selected(); await connect(target);
+  const cache = memoryCache();
+  const failed = await refreshPortfolioBrief(target, evidence(), HOUR, {
+    cache, clock: () => NOW, fetchImpl: async () => new Response('private provider response', { status }),
+  });
+  expect(failed).toMatchObject({ state: 'unavailable', failure: { kind, status }, error: portfolioBriefFailure({ kind }).summary });
+  expect(await readPortfolioBrief(target, { cache, clock: () => NOW })).toEqual(failed);
+  expect(JSON.stringify(failed)).not.toContain('private provider response');
+});
+
+it('persists schema validation failures as invalid responses', async () => {
+  const target = selected(); await connect(target);
+  const cache = memoryCache();
+  const invalid = { ...result(), unexpectedPrivateField: 'private schema context' };
+  const failed = await refreshPortfolioBrief(target, evidence(), HOUR, { cache, clock: () => NOW, fetchImpl: async () => response(invalid) });
+  expect(failed).toMatchObject({ state: 'unavailable', failure: { kind: 'invalid-response' }, error: portfolioBriefFailure({ kind: 'invalid-response' }).summary });
+  expect(await readPortfolioBrief(target, { cache, clock: () => NOW })).toEqual(failed);
+  expect(JSON.stringify(failed)).not.toContain('private schema context');
+});
+
+it('persists the bounded timeout classification without exception details', async () => {
+  const target = selected(); await connect(target);
+  const cache = memoryCache();
+  const failed = await refreshPortfolioBrief(target, evidence(), HOUR, { cache, clock: () => NOW,
+    fetchImpl: async () => { throw new LocalModelError('timeout'); } });
+  expect(failed).toMatchObject({ state: 'unavailable', failure: { kind: 'timeout' }, error: portfolioBriefFailure({ kind: 'timeout' }).summary });
+  expect(await readPortfolioBrief(target, { cache, clock: () => NOW })).toEqual(failed);
 });
 
 it.each(['unknown-citation', 'malformed', 'oversized', 'too-many-words', 'too-many-insights', 'unfinished-sentence', 'missing-timeframe', 'wrong-current-period', 'wrong-baseline'])('never publishes %s model output', async kind => {

@@ -60,7 +60,7 @@ export function workflowDuration(start: string, end?: string): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : ms < 60_000 ? `${(ms / 1000).toFixed(1)} s` : `${(ms / 60_000).toFixed(1)} min`;
 }
 
-export function WorkflowStages({ definition, run, fresh = true }: { definition: WorkflowDefinition; run: WorkflowRun | null; fresh?: boolean }) {
+export function WorkflowStages({ definition, run, fresh = true, summarizedFailure }: { definition: WorkflowDefinition; run: WorkflowRun | null; fresh?: boolean; summarizedFailure?: { id: string; attempt: number } }) {
   const [selected, setSelected] = useState<string | null>(null);
   const firstFailure = run?.steps?.find((s) => s.state === 'failed')?.id;
   const selectedId = selected ?? firstFailure ?? definition.stages[0]?.id;
@@ -97,13 +97,16 @@ export function WorkflowStages({ definition, run, fresh = true }: { definition: 
       <aside className="min-w-0 space-y-3 rounded-lg border border-border p-4" aria-label="Stage details">
         <h3 className="text-sm font-semibold">{stage.label}</h3>
         <p className="text-sm leading-relaxed text-muted-foreground">{stage.description}</p>
-        {!attempts.length ? <p className="text-xs text-muted-foreground">No execution evidence was recorded for this stage.</p> : attempts.map((attempt) => <div key={attempt.attempt} className="space-y-2 border-t border-border pt-3">
+        {!attempts.length ? <p className="text-xs text-muted-foreground">No execution evidence was recorded for this stage.</p> : attempts.map((attempt) => {
+          const summarized = stage.id === summarizedFailure?.id && attempt.attempt === summarizedFailure.attempt;
+          const output = attempt.output && summarized ? { ...attempt.output, fields: attempt.output.fields.filter(field => !['reason', 'nextAction'].includes(field.key)) } : attempt.output;
+          return <div key={attempt.attempt} className="space-y-2 border-t border-border pt-3">
           <WorkflowStateLabel state={attempt.state === 'running' && (run?.finishedAt || !fresh) ? 'unknown' : attempt.state} />
           {attempts.length > 1 && <p className="text-xs tabular-nums">Attempt {attempt.attempt}</p>}
-          <p className="text-sm">{attempt.summary}</p>
+          {!summarized && attempt.summary ? <p className="text-sm">{attempt.summary}</p> : null}
           <dl className="space-y-1 text-xs tabular-nums"><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Started</dt><dd title={utcRunReference(attempt.startedAt)}>{formatNextRun(attempt.startedAt)}</dd></div><div className="flex justify-between gap-3"><dt className="text-muted-foreground">Duration</dt><dd>{!fresh && !attempt.finishedAt ? 'Unconfirmed' : workflowDuration(attempt.startedAt, attempt.finishedAt)}</dd></div></dl>
-          <WorkflowStepOutputView output={attempt.output} pending={attempt.state === 'running' && fresh} />
-        </div>)}
+          {output && (output.metrics.length > 0 || output.items.length > 0 || output.fields.length > 0 || output.backup) ? <WorkflowStepOutputView output={output} /> : null}
+        </div>; })}
       </aside>
     </div>
   </div>;

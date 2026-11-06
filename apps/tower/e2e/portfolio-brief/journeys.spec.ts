@@ -1,3 +1,7 @@
+import { captureWorkflowOutput } from '../../../../scripts/workflow-output.mjs';
+import { MODEL_GENERATION_TIMEOUT_MS, portfolioBriefFailure } from '../../../../scripts/portfolio-brief-failure.mjs';
+import { buildWorkflowHistory } from '../../vite/workflow-history';
+import type { WorkflowsPayload, WorkflowRun } from '../../shared/workflows';
 import { integrationProvider } from '@noticeos/contract/integrations';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import { test, expect } from '../journey-test';
@@ -176,4 +180,37 @@ test('model connection chooses an available server model before saving', { tag: 
   await panel.getByRole('button', { name: 'Connect', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Done', exact: true })).toBeVisible();
   expect(saved).toEqual({ fields: { LOCAL_MODEL_BASE_URL: 'https://other.example.com/v1', LOCAL_MODEL_ID: 'example-small' } });
+});
+
+
+test('failed briefing leads with its saved reason and next step', { tag: '@pull-request' }, async ({ page, request }, info) => {
+  expect((await request.post('/__journey/reset')).ok()).toBe(true);
+  expect((await (await request.get('/__journey/status')).json()).isolated).toBe(true);
+  await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
+  const { summary: reason, action } = portfolioBriefFailure({ kind: 'timeout' });
+  const startedAt = new Date(Date.parse(WALL_FIXTURE_NOW) - MODEL_GENERATION_TIMEOUT_MS).toISOString();
+  const run: WorkflowRun = { id: `portfolio-brief@manual/${startedAt}`, workflowId: 'portfolio-brief', definitionVersion: 1,
+    state: 'failed', startedAt, finishedAt: WALL_FIXTURE_NOW, trigger: { kind: 'manual' }, steps: [
+      { id: 'portfolio-brief', attempt: 1, state: 'failed', startedAt, finishedAt: WALL_FIXTURE_NOW, summary: reason,
+        output: captureWorkflowOutput({ operation: 'portfolio-brief', ok: false, failure: { kind: 'timeout' } }) },
+    ] };
+  const payload: WorkflowsPayload = { overrides: null, runtimeFresh: false, observationsFresh: true, generatedAt: WALL_FIXTURE_NOW, historyAvailable: true,
+    runtime: { updatedAt: WALL_FIXTURE_NOW, error: null, manualJobs: ['portfolio-brief'], jobs: [{ id: 'portfolio-brief', enabled: true, cron: '35 * * * *', nextRun: null }] },
+    ...buildWorkflowHistory([], [run], [], Date.parse(WALL_FIXTURE_NOW), run.id), selectedRun: run };
+  await page.route('**/api/workflows*', route => route.fulfill({ json: payload }));
+  await page.goto(`/health/operations/portfolio-brief?run=${encodeURIComponent(run.id)}`);
+  await expect(page.locator('#boot-splash')).toHaveCount(0);
+  const failure = page.getByRole('region', { name: 'Run failure' });
+  await expect(failure.getByText(reason)).toBeVisible();
+  await expect(failure.getByText(action)).toBeVisible();
+  await expect(page.getByText(reason, { exact: true })).toHaveCount(1);
+  await expect(page.getByText('Schedule · Local time')).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Execution stages' })).not.toBeVisible();
+  await expect(page.getByText('Output was not captured for this execution.')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
+  await page.screenshot({ path: info.outputPath('synthetic-briefing-failure.png'), fullPage: true });
+  await page.locator('main').screenshot({ path: info.outputPath('synthetic-briefing-failure-crop.png') });
+  await page.getByText('Execution details', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Execution stages' })).toBeVisible();
+  await expect(page.getByText(reason, { exact: true })).toHaveCount(1);
 });

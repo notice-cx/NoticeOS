@@ -2,6 +2,32 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { captureWorkflowOutput, isWorkflowStepOutput } from './workflow-output.mjs';
 import { createWorkflowRecorder } from './workflow-trace.mjs';
+import { PORTFOLIO_BRIEF_FAILURES } from './portfolio-brief-failure.mjs';
+
+test('briefing failures retain fixed reasons and next steps without provider text', async () => {
+  for (const [kind, message] of Object.entries(PORTFOLIO_BRIEF_FAILURES)) {
+    const trace = createWorkflowRecorder();
+    await trace.run('portfolio-brief', async () => ({ operation: 'portfolio-brief', ok: false,
+      failure: { kind, body: 'private provider response', token: 'private token' }, error: 'private error' }));
+    const step = trace.steps[0];
+    assert.equal(step.state, 'failed');
+    assert.equal(step.summary, message.summary);
+    assert.ok(isWorkflowStepOutput(step.output));
+    assert.deepEqual(step.output.fields, [
+      { key: 'reason', label: 'Reason', value: message.summary },
+      { key: 'nextAction', label: 'Next step', value: message.action },
+    ]);
+    assert.ok(!JSON.stringify(step).includes('private'));
+    const invalid = structuredClone(step.output);
+    invalid.fields[1].value = 'private error';
+    assert.equal(isWorkflowStepOutput(invalid), false);
+  }
+  for (const kind of ['unknown-provider-text', '__proto__', null]) {
+    const output = captureWorkflowOutput({ operation: 'portfolio-brief', ok: false, failure: { kind } });
+    assert.ok(isWorkflowStepOutput(output));
+    assert.equal(output.fields[0].value, PORTFOLIO_BRIEF_FAILURES.unknown.summary);
+  }
+});
 
 test('captures actual collector counts and per-asset results, excluding raw responses', () => {
   const output = captureWorkflowOutput({ attempted: 2, succeeded: 1, failed: 1, response: { body: 'private response' }, outcomes: [

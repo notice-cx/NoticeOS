@@ -4,7 +4,11 @@
 // Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
 import { captureWorkflowOutput } from './workflow-output.mjs';
+import { portfolioBriefFailure } from './portfolio-brief-failure.mjs';
 export function stepResult(result) {
+    if (result?.operation === 'portfolio-brief' && result?.ok === false) {
+        return { state: 'failed', summary: portfolioBriefFailure(result?.failure).summary };
+    }
     const failed = typeof result?.failed === 'number' ? result.failed : Array.isArray(result?.failed) ? result.failed.length : 0;
     if (result === false || result?.outcome === 'failed' || result?.ok === false || failed > 0 ||
         (typeof result?.code === 'number' && result.code !== 0) ||

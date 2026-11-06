@@ -1,5 +1,6 @@
 import { PORTFOLIO_BRIEF_ABSTENTION, PORTFOLIO_BRIEF_MAX_BYTES, portfolioBriefEvidenceSchema, portfolioBriefResponseSchema, type PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
 import { portfolioBriefPrompt } from '../src/portfolio-brief-prompt.js';
+import { MODEL_GENERATION_TIMEOUT_MS } from '../../../scripts/portfolio-brief-failure.mjs';
 import { env } from 'cloudflare:test';
 import { expect, it, vi } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
@@ -132,6 +133,17 @@ it.each([fields.LOCAL_MODEL_BASE_URL, 'https://models.example.com/custom/api'])(
   expect(JSON.stringify(await credentialSummary(selected, 'local-model'))).not.toContain(candidate.LOCAL_MODEL_API_TOKEN);
 });
 
+it('allows successful slow local generation beyond the former two-minute deadline', async () => {
+  vi.useFakeTimers();
+  try {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Promise(resolve => setTimeout(() => resolve(completion()), 180_000)));
+    const pending = generateLocalModel(standalone, fields, { ...options, fetchImpl });
+    await vi.advanceTimersByTimeAsync(180_000);
+    await expect(pending).resolves.toEqual({ summary: 'Synthetic result' });
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
 it('times out generation and aborts the underlying request', async () => {
   vi.useFakeTimers();
   try {
@@ -140,7 +152,9 @@ it('times out generation and aborts the underlying request', async () => {
     }));
     const pending = generateLocalModel(standalone, fields, { ...options, fetchImpl });
     const verdict = expect(pending).rejects.toMatchObject({ code: 'timeout' });
-    await vi.advanceTimersByTimeAsync(120_000);
+    await vi.advanceTimersByTimeAsync(MODEL_GENERATION_TIMEOUT_MS - 1);
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
     await verdict;
     expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   } finally { vi.useRealTimers(); }

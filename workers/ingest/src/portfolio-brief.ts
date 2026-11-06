@@ -3,13 +3,14 @@ import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { resolveCredential, type ResolvedCredential } from './credentials.js';
 import { claimLease, releaseLease } from './integration-leases.js';
 import { providerCacheScope } from './provider-read-cache.js';
-import { generateLocalModel, LocalModelError, LOCAL_MODEL_ID } from './local-model.js';
+import { generateLocalModel, LocalModelError, localModelFailure, LOCAL_MODEL_ID } from './local-model.js';
+import { MODEL_GENERATION_TIMEOUT_MS, portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { portfolioBriefPrompt } from './portfolio-brief-prompt.js';
 
 const VERSION = '5';
 const MIN_REFRESH_MS = 15 * 60_000;
-const LEASE_MS = 3 * 60_000;
+const LEASE_MS = MODEL_GENERATION_TIMEOUT_MS + 60_000;
 const FAILURE_RETRY_MS = 15 * 60_000;
 
 interface StoredBrief extends PortfolioBriefRead { staleAfter: string }
@@ -86,7 +87,9 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
         messages: [{ role: 'system', content: portfolioBriefPrompt(evidence) }, { role: 'user', content: JSON.stringify(evidence) }],
         responseSchema: portfolioBriefResponseSchema, fetchImpl: options.fetchImpl,
       });
-      const result = portfolioBriefResultSchema.parse(raw);
+      const parsed = portfolioBriefResultSchema.safeParse(raw);
+      if (!parsed.success) throw new LocalModelError('invalid-output');
+      const result = parsed.data;
       for (const insight of result.insights) {
         if (insight.evidenceIds.some(id => !facts.has(id)) || !insight.evidenceIds.some(id => eligible.has(id))) throw new LocalModelError('invalid-output');
         const anchors = insight.evidenceIds.filter(id => eligible.has(id)).map(id => facts.get(id)!);
@@ -110,12 +113,11 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
         staleAfter: new Date(start + cadenceMs * 2).toISOString() };
       if (eligible.size > 0) await observeIntegration(env, health, { capability: 'portfolio-brief', observedAt: entry.briefing!.generatedAt, ok: true, evidenceSource: 'live' });
     } catch (error) {
+      const failure = localModelFailure(error);
       nextAttemptAt = new Date(clock() + FAILURE_RETRY_MS).toISOString();
       entry = { ...emptyPortfolioBrief('unavailable'), briefing: prior?.briefing ?? null,
         lastAttemptAt: new Date(start).toISOString(), nextAttemptAt,
-        error: error instanceof LocalModelError && error.code === 'timeout' ? 'The model took too long to respond.'
-          : error instanceof LocalModelError && error.code !== 'invalid-output' ? 'The model could not complete the briefing.'
-          : 'The model response did not pass the briefing checks.',
+        error: portfolioBriefFailure(failure).summary, failure,
         staleAfter: prior?.staleAfter ?? new Date(start).toISOString() };
       if (eligible.size > 0) await observeIntegration(env, health, { capability: 'portfolio-brief', observedAt: new Date(clock()).toISOString(), ok: false, code: 'provider', evidenceSource: 'live', nextAttemptAt });
     }

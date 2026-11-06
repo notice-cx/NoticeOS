@@ -1,5 +1,6 @@
 /** Pure execution-history projection, shared by standalone files and hosted rows. */
 import type { WorkflowRun } from '../packages/contract/src/workflows.js';
+import { PORTFOLIO_BRIEF_FAILURES } from './portfolio-brief-failure.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from './workflow-definitions.mjs';
@@ -67,8 +68,8 @@ export function manualRecords(runs: unknown): unknown[] {
   });
 }
 
-// Reconstruct only typed operational evidence. The older log's free-text detail
-// is deliberately absent: it may contain arbitrary subprocess/provider output.
+// Only exact fixed briefing diagnostics survive coarse reconstruction; arbitrary
+// detail can contain subprocess/provider output and never enters this projection.
 export function buildWorkflowHistory(records: unknown[], traces: unknown[], active: unknown[], now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = WORKFLOW_DEFINITIONS) {
   const byTrace = new Map(traces.flatMap(value => readTrace(value, definitions)).map((r) => [r.id, r]));
   const names = new Map(definitions.map((w) => [jobRunName(w), w.id]));
@@ -83,9 +84,12 @@ export function buildWorkflowHistory(records: unknown[], traces: unknown[], acti
     if (seenRuns.has(id)) return [];
     seenRuns.add(id);
     const trace = byTrace.get(id);
+    const failure = workflowId === 'portfolio-brief' && !trace?.steps?.length && (record.outcome === 'failed' || record.workflowState === 'failed')
+      ? Object.values(PORTFOLIO_BRIEF_FAILURES).find(failure => failure.summary === record.detail) : undefined;
     return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
       finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',
       ...(record.trigger === 'manual' ? { trigger: { kind: 'manual' as const } } : trace?.trigger ? { trigger: trace.trigger } : {}),
+      ...(failure ? { failure: { summary: failure.summary, action: failure.action } } : {}),
       steps: trace?.steps ?? null } satisfies WorkflowRun];
   });
   const recordedIds = new Set(runs.map((run) => run.id));
