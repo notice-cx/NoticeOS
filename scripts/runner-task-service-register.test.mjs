@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PANEL_REVIEW_ACTOR, runPanelReviewFiler } from './runner/panel-review.mjs';
+import { fileNtasksPanelReview, PANEL_REVIEW_ACTOR, panelReviewDueDate, runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
@@ -87,6 +87,8 @@ test('a panel review is filed in Ntasks once per collection, under the filer\'s 
   assert.deepEqual(body.labels, ['panel-review']);
   assert.deepEqual(body.metadata, { noticeos_panel_asset: 'shop.example', noticeos_panel_date: '2026-09-21', noticeos_panel_version: VERSION });
   assert.match(body.title, /2026-09-21/u);
+  assert.equal(body.dueAt, panelReviewDueDate('2026-09-21'));
+  assert.match(body.dueAt, /^\d{4}-\d{2}-\d{2}$/u);
 
   // An invalidated review permits exactly one replacement, under another key.
   state.tasks[0].labels.push('invalid-automation');
@@ -94,6 +96,13 @@ test('a panel review is filed in Ntasks once per collection, under the filer\'s 
   await runPanelReviewFiler(UP, deps);
   assert.equal(state.creates.length, 2);
   assert.notEqual(state.creates[1].idempotencyKey, idempotencyKey);
+});
+
+test('a panel day that gives no due date files the review without one', async () => {
+  const bodies = [];
+  const register = { create: async (_project, body) => { bodies.push(body); return 'shop-9'; } };
+  assert.equal(await fileNtasksPanelReview(register, { prefix: 'shop' }, { asset: 'shop.example', panelDate: 'not-a-date', version: VERSION }), 'shop-9');
+  assert.equal(Object.hasOwn(bodies[0], 'dueAt'), false);
 });
 
 test('a review closed long ago still counts as filed', async () => {

@@ -353,14 +353,15 @@ export async function filePanelReview(project, landing, { open = openStandaloneT
 }
 
 /** The same review filed in Ntasks (runner/task-service-register.mjs): the
- * same fields and the same once-only rule, under a key for the project's
- * prefix. Ntasks takes no due date on a new task, so the review has none. */
+ * same fields, due date included, and the same once-only rule, under a key
+ * for the project's prefix. */
 export async function fileNtasksPanelReview(register, project, landing) {
   const key = 'panel-review:' + createHash('sha256').update(JSON.stringify(
     ['ntasks', project.prefix, landing.asset, landing.panelDate, [...new Set(landing.invalidated ?? [])].sort()])).digest('hex');
+  const dueAt = panelReviewDueDate(landing.panelDate);
   return register.create(project, {
     title: panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false), type: 'task', priority: 2,
-    labels: [PANEL_REVIEW_LABEL],
+    labels: [PANEL_REVIEW_LABEL], ...(dueAt ? { dueAt } : {}),
     metadata: { [PANEL_REVIEW_ASSET_KEY]: landing.asset, [PANEL_REVIEW_DATE_KEY]: landing.panelDate,
       ...(landing.version ? { [PANEL_REVIEW_VERSION_KEY]: landing.version } : {}) },
     description: panelReviewDescription(landing), acceptance: panelReviewAcceptance(landing.panel !== false),
@@ -513,8 +514,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     emit(
       'INFO',
       `panel review filed — ${beadId ?? '(id unread)'} in ${register ? 'Ntasks' : project.repo}: ` +
-        `"${panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false)}"` +
-        (register ? '' : `, due ${panelReviewDueDate(landing.panelDate)}`),
+        `"${panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false)}", due ${panelReviewDueDate(landing.panelDate)}`,
     );
   }
 
