@@ -4,10 +4,12 @@ import type { TaskChoiceKey, TaskChoices } from "@noticeos/contract/task-choices
 import { ChoiceButtons } from "@/components/ChoiceButtons";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
+import { useNtasksTaskPage } from "@/hooks/useTaskService";
 import { useInboxAnswer } from "@/hooks/useTasks";
 import type { InboxAsk } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 import { useCloseAs } from "./close-actions";
+import { DecideInNtasks } from "./decide-in-ntasks";
 
 /**
  * What a task waiting on the operator offers, for its board row and its own
@@ -17,7 +19,9 @@ import { useCloseAs } from "./close-actions";
  * choices one button per option (the choose operation) with Answer and Close
  * as under them, each after the Undo window (`lib/answer-queue.ts`). `buttons`
  * sit beside the title and `box` under it, because each surface seats them
- * differently; both are null when nothing is asked.
+ * differently; both are null when nothing is asked. While tasks live in
+ * Ntasks, which takes these only from a person signed in to it, `buttons` is
+ * one link to the task there and `box` is null.
  */
 export function useAskActions({
   ask,
@@ -57,6 +61,7 @@ export function useAskActions({
   const [answering, setAnswering] = useState(false);
   const [text, setText] = useState("");
   const answer = useInboxAnswer();
+  const ntasksPage = useNtasksTaskPage();
   // Declining is a close where nothing shipped: Won't do, or the resolution that says why.
   const closeAs = useCloseAs({
     id,
@@ -88,6 +93,7 @@ export function useAskActions({
   }
 
   if (ask === null) return { buttons: null, box: null };
+  if (ntasksPage !== null) return { buttons: <DecideInNtasks href={ntasksPage(id)} />, box: null };
 
   const choosing = ask === "choose" && choices !== null;
   // Under a set of options the free-text verbs step back: the options are

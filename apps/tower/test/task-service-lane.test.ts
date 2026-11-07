@@ -102,6 +102,28 @@ it("sends a change to Ntasks with the project's id and answers only what Ntasks 
   }
 });
 
+it("shows Ntasks's own sentence when a decision is refused for not coming from a person, and blames the credential otherwise", async () => {
+  const PERSON_ONLY = "Only a person signed in to Ntasks answers a decision, approves an approval or disputes one. Answer it in the Ntasks web app.";
+  const CREDENTIAL = "Ntasks refused this installation's service credential; replace it in Settings → Task projects.";
+  let refusal: { status: number; body: unknown } = { status: 403, body: { error: "insufficient_scope", detail: PERSON_ONLY } };
+  const { service } = ntasks(() => refusal);
+  const send = lane(service);
+  for (const [url, body] of [["/api/tasks/ex-1/respond", { response: "Yes" }], ["/api/tasks/ex-1/choose", { option: "a" }],
+    ["/api/tasks/ex-1/dismiss", {}], ["/api/tasks/ex-1/dispute", {}], ["/api/gates/ex-1/resolve", {}]] as const) {
+    expect(await send(request("POST", url, body)), url).toEqual({ status: 403, body: { error: "insufficient_scope", detail: PERSON_ONLY } });
+  }
+
+  // A route the credential should reach: the credential is what to fix.
+  refusal = { status: 403, body: { error: "insufficient_scope", detail: "this route needs tasks:write" } };
+  expect(await send(request("POST", "/api/tasks/ex-1/close", { reason: "Done" })))
+    .toEqual({ status: 502, body: { error: "task_service_refused", detail: CREDENTIAL } });
+  for (const answer of [{ status: 401, body: { error: "unauthorized" } }, { status: 403, body: { error: "forbidden", detail: "origin refused" } }]) {
+    refusal = answer;
+    expect(await send(request("POST", "/api/tasks/ex-1/choose", { option: "a" })), String(answer.status))
+      .toEqual({ status: 502, body: { error: "task_service_refused", detail: CREDENTIAL } });
+  }
+});
+
 it("names a site with no Ntasks project instead of reading another", async () => {
   const { service } = ntasks(() => ({ status: 200, body: BOARD }));
   const reply = await handleTasksRequest(request("GET", "/api/tasks?project=shop.example"), { taskService: service, taskCacheDir: cacheDir,

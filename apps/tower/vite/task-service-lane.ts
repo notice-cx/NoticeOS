@@ -39,11 +39,18 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 const CREDENTIAL_REFUSED = "Ntasks refused this installation's service credential; replace it in Settings → Task projects.";
+/** The routes only a person signed in to Ntasks may use; the installation's credential is refused them by design. */
+const PERSON_ACTIONS = new Set(["respond", "choose", "dismiss", "dispute"]);
 
-/** Ntasks's refusal, in the `{ error, detail }` shape the pages read. */
-function relayed(status: number, body: unknown): LaneReply {
-  if (status === 401 || status === 403) return { status: 502, body: { error: "task_service_refused", detail: CREDENTIAL_REFUSED } };
+/** Ntasks's refusal, in the `{ error, detail }` shape the pages read. On a
+ * route only a person may use, Ntasks's own sentence says where to decide;
+ * there the credential is not at fault. */
+function relayed(status: number, body: unknown, personOnly = false): LaneReply {
   const answer = record(body) ?? {};
+  if (personOnly && status === 403 && answer.error === "insufficient_scope" && typeof answer.detail === "string") {
+    return { status: 403, body: { error: "insufficient_scope", detail: answer.detail } };
+  }
+  if (status === 401 || status === 403) return { status: 502, body: { error: "task_service_refused", detail: CREDENTIAL_REFUSED } };
   return { status, body: { error: typeof answer.error === "string" ? answer.error : "task_service_refused",
     ...(typeof answer.detail === "string" ? { detail: answer.detail } : {}) } };
 }
@@ -111,7 +118,7 @@ async function read(opts: TaskServiceLaneOptions, key: string, path: string, ass
 
 /** A write: Ntasks's own answer, or a refusal that says nothing was saved. */
 async function write(opts: TaskServiceLaneOptions, method: "POST" | "PATCH", path: string, body: Record<string, unknown>,
-  idempotencyKey: string): Promise<LaneReply> {
+  idempotencyKey: string, personOnly = false): Promise<LaneReply> {
   try {
     // The Tower's own changes are the operator's, under the installation's credential.
     const { status, body: answer } = await opts.service.call({ method, path, body, idempotencyKey, onBehalfOf: TOWER_ACTOR });
@@ -119,7 +126,7 @@ async function write(opts: TaskServiceLaneOptions, method: "POST" | "PATCH", pat
     if (status === 404 && record(answer)?.error === "not_found" && typeof record(answer)?.detail !== "string" || status === 405) {
       return { status: 501, body: { error: "task_service_unsupported", detail: "Ntasks does not accept this change yet, so nothing was saved." } };
     }
-    return relayed(status === 400 ? 422 : status, answer);
+    return relayed(status === 400 ? 422 : status, answer, personOnly);
   } catch (error) {
     if (!(error instanceof TaskServiceUnavailable)) throw error;
     const sentence = unavailableSentence(error, await opts.service.origin().catch(() => null));
@@ -223,7 +230,8 @@ export async function handleTaskServiceRequest(pathname: string, url: URL, reque
     if (one && method === "GET") return await read(opts, taskKey(id), `/api/tasks/${encodeURIComponent(id)}?project=${encodeURIComponent(projectId)}`, asset);
     if (one ? method !== "PATCH" : method !== "POST") return { status: 405, body: { error: "method_not_allowed" } };
     const { project: _project, ...fields } = parseBody(request);
-    return await write(opts, one ? "PATCH" : "POST", pathname, { ...fields, projectId }, idempotencyKey);
+    const personOnly = gate !== null || (action !== null && PERSON_ACTIONS.has(action[2]!));
+    return await write(opts, one ? "PATCH" : "POST", pathname, { ...fields, projectId }, idempotencyKey, personOnly);
   } catch (error) {
     if (error instanceof Refused) return error.reply;
     if (error instanceof TaskServiceUnavailable) {

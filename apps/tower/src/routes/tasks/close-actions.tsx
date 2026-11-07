@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { taskOperationAvailable, type TasksCapabilities } from "@shared/tasks";
 import { CloseAsMenu, CloseNoteForm, type NotDone } from "@/components/CloseResolution";
 import { useInboxAnswer, useInboxAnswers } from "@/hooks/useTasks";
 
@@ -11,6 +12,13 @@ export function declinedOnClose(task: { readonly labels: readonly string[] }): b
 /** The task operation a workspace must offer for that close. */
 export function closeOperation(task: { readonly labels: readonly string[] }): "dismiss" | "close" {
   return declinedOnClose(task) ? "dismiss" : "close";
+}
+
+/** Whether a row may close this task: the workspace offers its close, and a
+ * task waiting on a person is not declined here while tasks live in Ntasks,
+ * which takes that only from a person signed in to it. */
+export function closableHere(task: { readonly labels: readonly string[] }, capabilities: TasksCapabilities, inNtasks: boolean): boolean {
+  return taskOperationAvailable(capabilities, closeOperation(task)) && !(inNtasks && declinedOnClose(task));
 }
 
 /**

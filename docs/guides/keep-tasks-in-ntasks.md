@@ -34,6 +34,10 @@ Every change goes through the installation's one credential. Each request names 
 - an agent's change is recorded under the name the agent was started with, such as `service:noticeos/claude` for `pnpm os:mcp -- --actor claude`;
 - a change made on the Tower's pages is recorded as `service:noticeos/tower`.
 
+## Decisions and approvals
+
+Ntasks takes an answer, a choice, a dismissal, an approval or a dispute only from a person signed in to Ntasks, never from the installation's credential. While tasks live in Ntasks, each decision on the **Tasks** pages shows **Decide in Ntasks** in place of its buttons, and an approval that can be disputed shows **Dispute in Ntasks**. Each opens the task's page in Ntasks in a new tab. The decisions queue offers no **Select**, and on **All tasks** a task waiting on a person has no **Close as**. A decision sent from a page opened before the switch is refused with Ntasks's own sentence, which names where to answer it.
+
 ## While Ntasks does not answer
 
 - The **Tasks** pages show the copy Ntasks last gave, with **Ntasks is not answering** and the time it was read. They offer no actions until it answers.
