@@ -1,7 +1,7 @@
 // The worker chooses the operation from its protected configuration. A client
 // can request that operation once, but cannot choose executable or resource;
-// it can only say that the installation's tasks live in Ntasks, which leaves
-// the Dolt task hub out (validateBackupRequest).
+// it can only say that the installation's tasks live in Ntasks, and the set
+// then keeps the export in the request's own folder (validateBackupRequest).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readBackupRequest, completedBackupRequest, finishBackupRequest } from './container-backup-channel.mjs';

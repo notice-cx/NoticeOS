@@ -14,6 +14,7 @@ import { assertOffsiteOutsideInstallation } from './installation-path-guard.mjs'
 import { dumpPostgres, POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { readDoltProfile } from './dolt-host.mjs';
 import { backupDolt } from './dolt-backup.mjs';
+import { NTASKS_BACKUP_FORMAT, readNtasksBackup } from './ntasks-backup.mjs';
 import { backupAsset, validateAssetBackups } from './asset-backup.mjs';
 import { createCloudflareD1BackupClient, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
 import { backupDate, backupReportComplete, retainedBackupDates, validateBackupRetention } from './backup-retention.mjs';
@@ -169,10 +170,13 @@ export async function assertOffsiteBackupDestination({ repoRoot, directory, tran
  * whose host runs no hub of its own backs up only the task databases its
  * host links, each through its own linked checkout; linking none is
  * `not_configured`, like an offsite folder nobody named. `ntasks` — the
- * installation's tasks live in Ntasks and nothing writes to Dolt, so the
- * stage is `not_configured` and no Dolt or `bd` command runs.
+ * installation's tasks live in Ntasks and nothing writes to Dolt: no Dolt or
+ * `bd` command runs, and the stage keeps `tasksExport`, the export the caller
+ * took from Ntasks for this run (ntasks-backup.mjs), or fails with
+ * `tasksExportError` when it has none.
  */
-export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdBinary = 'bd', taskHub = 'required', doltHome, transport }, adapters = {}) {
+export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdBinary = 'bd', taskHub = 'required', doltHome, transport,
+  tasksExport, tasksExportError }, adapters = {}) {
   const io = adapters.fs ?? fs;
   const launch = adapters.spawn ?? spawn;
   const now = adapters.now ?? Date.now;
@@ -478,7 +482,17 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
 
       await attempt('taskHub', async (result) => {
         if (taskHub === 'ntasks') {
-          stages.taskHub = stage('not_configured');
+          result.expected = 1;
+          result.targets = ['ntasks'];
+          if (!tasksExport) throw new Error(tasksExportError ?? 'no Ntasks export came with this backup');
+          const output = path.join(working, 'ntasks', 'backup.json');
+          await copyItem(result, 'Ntasks', output, async () => {
+            const kept = await readNtasksBackup(tasksExport, { fs: io });
+            await io.copyFile(tasksExport, output, fs.constants.COPYFILE_EXCL);
+            await io.chmod(output, 0o600);
+            result.takenAt = kept.takenAt;
+            result.rows = kept.rows;
+          });
           return;
         }
         // A declared container profile owns its storage boundary. A malformed
@@ -696,6 +710,7 @@ function restoreInstructions(startedAt, stages, retentionDays, retention, compos
   const stores = ['postgres', 'r2', 'taskHub', 'assets', 'history', ...(containerMode ? ['recovery'] : [])].map((key) => {
     const result = stages[key];
     return `- ${LABELS[key]}: ${result.status}; ${result.copied}/${result.expected ?? 'unknown'} copied`
+      + (result.rows ? `; rows: ${Object.entries(result.rows).map(([table, rows]) => `${table} ${rows}`).join(', ')}` : '')
       + result.errors.map((error) => `\n  - ${error.item}: ${error.detail}`).join('');
   }).join('\n');
   return `# NoticeOS backup — ${startedAt.slice(0, 10)}
@@ -724,7 +739,7 @@ the synchronization folder does not establish completed remote synchronization.
   ${containerMode ? 'protected role credentials and bootstrap secrets are kept separately in `recovery/`.' : 'role passwords and host bootstrap secrets are excluded.'}
 - \`r2/\`: immutable blobs and online SQLite metadata snapshots from \`.wrangler/state/v3/r2/\`.
 ${tasksInNtasks
-    ? '- No `beads/`: the installation\'s tasks live in Ntasks, so this set holds no Dolt task hub.'
+    ? `- \`ntasks/backup.json\`: every row of the Ntasks task store, as its backup route hands them out (${NTASKS_BACKUP_FORMAT}).`
     : composeTaskHub
     ? '- `beads/`: online Dolt database snapshots, server metadata and a complete-backup manifest for the declared Compose task hub.'
     : '- `beads/<db>/`: consistent Dolt backups of the physical databases in the installation\'s `task-host.json`.'}
@@ -766,7 +781,9 @@ replacing an existing installation requires an explicitly approved maintenance w
   The receipt links Cloudflare's REST import procedure. Import into a named
   remote database is a separate, explicitly approved operation; this backup
   performs no restore, database deletion or schema migration.
-${composeTaskHub
+${tasksInNtasks
+    ? '- Task hub: in an Ntasks checkout of the version the set was taken from, run\n  `node tools/migrate/src/cli.ts restore --from <this-dir>/ntasks/backup.json --store restored.sqlite`.\n  It loads every row into a new store copy and prints `0 differences.` when the copy matches the file.'
+    : composeTaskHub
     ? '- Task hub: follow `db/dolt/host/README.md` to restore `beads/` into a new, empty Compose project with the pinned Dolt image. Restore the database snapshots and server metadata together, then verify task records, history and access before accepting recovery. Database snapshots are taken sequentially while the source stays online; they are not one transaction across all projects.'
     : '- Task hub: from an empty scratch directory, run\n  `dolt backup restore file://<this-dir>/beads/<db> <db>`, then inspect with `dolt sql`.\n  Move it into the hub\'s data directory only with the hub service stopped.'}
 

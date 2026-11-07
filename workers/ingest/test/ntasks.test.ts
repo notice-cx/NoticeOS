@@ -84,12 +84,17 @@ it('forwards one call for the operator, and says why when Ntasks gave no answer'
   });
   expect(await answer.json()).toEqual({ answered: true, status: 200, body: { events: [], lastSeq: 4 } });
   expect(seen).toEqual(['https://ntasks.example.com/api/changes?after=4&limit=200']);
+  // The nightly backup reads Ntasks's backup route, page token and all.
+  expect(await (await handleTaskService(door({ method: 'GET', path: '/api/backup?page=WyJhIiwxXQ' }), inProfile('standalone'), async input => {
+    seen.push(String(input)); return Response.json({ format: 'ntasks-backup-v1', table: 'tasks', rows: [], next: null });
+  })).json()).toMatchObject({ answered: true, status: 200 });
+  expect(seen.at(-1)).toBe('https://ntasks.example.com/api/backup?page=WyJhIiwxXQ');
   expect(await (await handleTaskService(door({ method: 'GET', path: '/api/tasks/ex-1' }), inProfile('standalone'),
     async () => Response.json({ error: 'not_found' }, { status: 404 }))).json()).toEqual({ answered: true, status: 404, body: { error: 'not_found' } });
   expect(await (await handleTaskService(door({ method: 'GET', path: '/api/tasks' }), inProfile('standalone'),
     async () => { throw new TypeError('down'); })).json()).toEqual({ answered: false, reason: 'network' });
 
-  for (const call of [{ method: 'DELETE', path: '/api/tasks' }, { method: 'GET', path: '/api/auth/session' }, { method: 'GET', path: '/api/../admin' },
+  for (const call of [{ method: 'DELETE', path: '/api/tasks' }, { method: 'GET', path: '/api/auth/session' }, { method: 'GET', path: '/api/../admin' }, { method: 'GET', path: '/api/backup/x' },
     { method: 'GET', path: '/api/tasks', body: '{}' }, { method: 'POST', path: '/api/tasks', idempotencyKey: 'short' }, { method: 'GET', path: '/api/tasks', extra: 1 },
     { method: 'POST', path: '/api/mcp', onBehalfOf: 'two words' }, { method: 'POST', path: '/api/mcp', onBehalfOf: '' }]) {
     expect((await handleTaskService(door(call), inProfile('standalone'), async () => { throw new Error('must not be called'); })).status, JSON.stringify(call)).toBe(400);

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { BACKUP_PATHS, readBackupWorker, backupWorkerEnvironment } from '../../scripts/container-backup-profile.mjs';
-import { readBackupClient } from '../../scripts/container-backup-channel.mjs';
+import { readBackupClient, tasksExportFile } from '../../scripts/container-backup-channel.mjs';
 import { serviceBackupRequest } from '../../scripts/container-backup-worker.mjs';
 import { backupNamespace } from '../../scripts/backup-claim.mjs';
 import { runBackup } from '../../scripts/host-backup.mjs';
@@ -38,7 +38,7 @@ export async function main() {
     await publish(true);
     while (!stopping) {
       await serviceBackupRequest(client, request => runBackup({ repoRoot: '/state', retentionDays: worker.retentionDays, transport: 'container',
-        ...(request.tasks === 'ntasks' ? { taskHub: 'ntasks' } : {}) }));
+        ...(request.tasks === 'ntasks' ? { taskHub: 'ntasks', tasksExport: tasksExportFile(client) } : {}) }));
       if (!stopping) await new Promise(resolve => setTimeout(resolve, 250));
     }
     return 0;
