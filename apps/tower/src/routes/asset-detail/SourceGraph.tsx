@@ -37,11 +37,6 @@ export function SourceGraph({
         dense
         ariaLabel={`${asset.displayName}'s data sources, each feeding the asset`}
       />
-      {graph.notConnected.length > 0 ? (
-        <p className="m-0 mt-3 text-xs text-muted-foreground" data-source-graph-not-connected="">
-          Not connected: {graph.notConnected.join(" · ")}
-        </p>
-      ) : null}
     </section>
   );
 }

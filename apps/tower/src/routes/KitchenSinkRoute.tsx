@@ -3108,11 +3108,10 @@ export function KitchenSinkRoute() {
               its visible half, the Sidebar, at its real width. */}
           <Section title="PageHeader (plain / breadcrumb + actions + meta / rich title)">
             <div className="flex w-full flex-col gap-6">
-              <PageHeader title="Home" description="Portfolio overview" />
+              <PageHeader title="Home" />
               <div className="border-t border-border pt-4">
                 <PageHeader
                   title="Tasks"
-                  description="What every repo has queued and in flight, read from the task hub."
                   breadcrumb={[{ label: "Home", to: "/" }]}
                   meta={
                     <AgeBadge

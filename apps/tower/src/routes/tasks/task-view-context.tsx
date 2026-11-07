@@ -47,7 +47,7 @@ export function taskViewFacts(view: ViewId, tasks: readonly BoardTask[]): { titl
 export function TaskViewContext({ tasks, complete = true, decision = false }: { tasks: readonly BoardTask[]; complete?: boolean; decision?: boolean }) {
   const { view } = useView();
   const summary = taskViewFacts(view.id, tasks);
-  if (!summary) return null;
+  if (!summary || tasks.length === 0) return null;
   const card = decision && tasks[0] ? cardOf(tasks[0]) : null;
   return <section className="space-y-3 border-y border-border py-4" aria-label={summary.title} data-task-view-context={view.id}>
     <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -58,7 +58,6 @@ export function TaskViewContext({ tasks, complete = true, decision = false }: { 
       <dt className="text-xs text-muted-foreground">{fact.label}</dt><dd className="m-0 mt-1 text-lg font-semibold">{fact.value}</dd>
     </div>)}</dl>
     {card && view.id === 'growth' ? <p className="m-0 text-sm text-muted-foreground">{TASK_MEASURABILITY_LABELS[card.measurability]}{card.note ? ` · ${card.note}` : ''}</p> : null}
-    {view.id === 'revenue' ? <p className="m-0 text-xs text-muted-foreground">Predictions are task estimates. Actual revenue and agent costs are not recorded here.</p> : null}
     {(view.id === 'delivery' || view.id === 'reliability') && tasks.some(task => task.acceptance === undefined || task.dependencies === undefined) ? <p className="m-0 text-xs text-muted-foreground">Some listed records omit done criteria or dependencies. Open a task for its available evidence.</p> : null}
   </section>;
 }

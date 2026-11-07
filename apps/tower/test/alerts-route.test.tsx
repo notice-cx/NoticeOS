@@ -459,11 +459,12 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByText("All clear.")).toBeNull();
   });
 
-  it("states the all-clear when nothing at all is open", () => {
+  it("states the empty portfolio once and omits filters with nothing to filter", () => {
     const { container } = renderAlerts([]);
 
     expect(answer(container)).toBe("No open alerts");
-    expect(container.querySelector('[data-finish-line="quiet"]')).toHaveTextContent("All clear.");
+    expect(container.querySelector('[data-finish-line="quiet"]')).toBeNull();
+    expect(container.querySelector('[data-alert-filters]')).toBeNull();
     expect(container.querySelector("[data-kpi]")).toBeNull();
   });
 
@@ -662,7 +663,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
   });
 
   it.each(["/alerts", "/alerts?view=history"])("excludes archived assets from the selector at %s", url => {
-    const data = payload([]);
+    const data = payload([alert()]);
     state.data = { ...data, assets: data.assets.map((row, index) => index === 0 ? { ...row, status: "retired" } : row) };
     render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[url]}><AlertsRoute /></MemoryRouter></QueryClientProvider>);
     expect(within(screen.getByLabelText("Asset")).queryByRole("option", { name: "Meadow Board" })).toBeNull();

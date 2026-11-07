@@ -11,12 +11,12 @@ const SOURCES: Record<ViewId, readonly string[]> = {
   reliability: ["uptime", "egress", "nightly-report", "crux", "cloudflare"],
 };
 
-export const SOURCE_CONTEXT: Record<ViewId, { title: string; detail: string }> = {
-  overview: { title: "Source coverage", detail: "Collection and connection evidence" },
-  growth: { title: "Acquisition and conversion inputs", detail: "Search, traffic and product analytics coverage" },
-  revenue: { title: "Financial inputs", detail: "Revenue collection and asset reports" },
-  delivery: { title: "Work and release inputs", detail: "Code, deploy history and coordination coverage" },
-  reliability: { title: "Availability and freshness inputs", detail: "Uptime, connectivity and asset report coverage" },
+export const SOURCE_CONTEXT: Record<ViewId, { title: string }> = {
+  overview: { title: "Source coverage" },
+  growth: { title: "Acquisition and conversion inputs" },
+  revenue: { title: "Financial inputs" },
+  delivery: { title: "Work and release inputs" },
+  reliability: { title: "Availability and freshness inputs" },
 };
 
 export function sourceInView(id: string, view: ViewId): boolean {

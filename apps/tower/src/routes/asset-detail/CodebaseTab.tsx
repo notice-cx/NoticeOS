@@ -70,7 +70,7 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
     return (
       <div className="@container flex flex-col gap-5" data-codebase="setup">
         <section data-surface-hero="" aria-labelledby={answerId} className="flex flex-col gap-4">
-          <PageAnswer id={answerId} answer={answer.answer} detail="Send the first report one of these ways."
+          <PageAnswer id={answerId} answer={answer.answer}
             marks={{ "data-codebase-answer": "" }} />
           <CodebaseSetup assetId={data.asset.id} />
         </section>
@@ -136,11 +136,12 @@ function WidgetKpi({ widget, report }: { widget: CodebaseWidget; report: Codebas
       caption={widget.value === null
         ? widget.unmeasured
         : pass ? (widget.passes ? passText(widget.passes) : undefined)
-        : !change ? "No report from a month before yet"
+        : !change ? undefined
         : change.change === 0 ? `No change in ${change.days} days`
         : <ChangeChip widget={widget} />}
       explanation={<>
         <span>{widget.meaning}</span>
+        {widget.value !== null && !change && !pass ? <span>Monthly comparison unavailable.</span> : null}
         {change && !pass ? <span className="tabular-nums">{changeAgainst(change)}: {formatFigure(widget.unit, change.from.value)} → {formatFigure(widget.unit, change.to.value)}</span> : null}
       </>}
       spark={widget.spark}

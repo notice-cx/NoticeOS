@@ -423,7 +423,7 @@ describe("/health — the page leads with what to unblock next", () => {
     expect([...list.querySelectorAll("li")].map((row) => row.textContent)).toEqual([
       expect.stringContaining("Nightly report overdue"),
     ]);
-    expect(container.textContent).toContain("1 other source not working");
+    expect(container.textContent).toContain("1 source is not working");
     expect(container.textContent).not.toContain("source failing");
     const evidence = [...container.querySelectorAll<HTMLElement>("span[title]")]
       .find((label) => label.title.startsWith("Daily asset report ·") || label.title.startsWith("Nightly report ·"));

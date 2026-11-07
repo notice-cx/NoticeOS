@@ -8,8 +8,7 @@ vi.mock("@/hooks/useAlertDaily", () => ({ useAlertDaily: () => state }));
 import { AlertDaily } from "@/routes/alerts/AlertDaily";
 
 beforeEach(() => { state.data = undefined; state.isError = false; state.isFetching = false; state.refetch.mockClear(); });
-const current = { attention: [{ severity: "warn" }], generatedAt: "2026-09-22T12:00:00Z" };
-function show() { return render(<MemoryRouter><AlertDaily current={current} /></MemoryRouter>); }
+function show() { return render(<MemoryRouter><AlertDaily /></MemoryRouter>); }
 
 it("exposes dated rising/falling snapshots, missing days and zero in a data table", async () => {
   state.data = { generatedAt: "2026-09-22T12:00:00Z", days: [7, 12, null, 3, 0].map((open, i) => ({
@@ -17,6 +16,8 @@ it("exposes dated rising/falling snapshots, missing days and zero in a data tabl
     observedAt: open === null ? null : `2026-09-${18 + i}T06:00:00Z`,
   })) };
   const { container } = show();
+  expect(screen.getByText(/Missing days are unknown/)).not.toBeVisible();
+  fireEvent.click(screen.getByText('How daily totals are counted'));
   expect(screen.getByText(/not newly fired alerts/)).toBeVisible();
   expect(screen.getByText(/Missing days are unknown/)).toBeVisible();
   fireEvent.click(screen.getByText(/^View data/));
@@ -34,11 +35,11 @@ it("shows loading, empty history and an initial read error as distinct states wi
   const view = show();
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
   state.data = { generatedAt: "2026-09-22T12:00:00Z", days: [] };
-  view.rerender(<MemoryRouter><AlertDaily current={current} /></MemoryRouter>);
+  view.rerender(<MemoryRouter><AlertDaily /></MemoryRouter>);
   expect(screen.getByText("No daily alert snapshots recorded yet.")).toBeVisible();
   state.data = undefined;
   state.isError = true;
-  view.rerender(<MemoryRouter><AlertDaily current={current} /></MemoryRouter>);
+  view.rerender(<MemoryRouter><AlertDaily /></MemoryRouter>);
   expect(screen.queryByText("No daily alert snapshots recorded yet.")).toBeNull();
   expect(screen.getByRole("status")).toHaveTextContent("Counts are unknown");
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -50,15 +51,15 @@ it("identifies retained data after a failed refresh", () => {
   state.isError = true;
   show();
   expect(screen.getByRole("status")).toHaveTextContent("Showing the last successful read");
-  expect(screen.getByText("Warnings and errors at daily observation")).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Open alerts by day' })).toBeVisible();
 });
 
 it("excludes informational notices and distinguishes an earlier daily count from the current total", async () => {
-  state.data = { generatedAt: current.generatedAt, days: [{ day: "2026-09-22", open: 12, errors: 1, warnings: 1,
+  state.data = { generatedAt: '2026-09-22T12:00:00Z', days: [{ day: "2026-09-22", open: 12, errors: 1, warnings: 1,
     observedAt: "2026-09-22T03:00:00Z" }] };
   const { container } = show();
-  expect(container.querySelector('[data-alert-daily-current]')).toHaveTextContent("Now: 1 open alert, a warning");
-  expect(container.querySelector('[data-alert-daily-current] time')).toHaveAttribute("dateTime", current.generatedAt);
+  expect(container.querySelector('[data-alert-daily-current]')).toBeNull();
+  fireEvent.click(screen.getByText('How daily totals are counted'));
   expect(screen.getByText(/Informational notices are excluded/)).toBeVisible();
   fireEvent.click(screen.getByText(/^View data/));
   const table = await screen.findByRole("table");

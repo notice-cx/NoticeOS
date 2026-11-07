@@ -114,9 +114,6 @@ export function HealthModule({ cards, issues, nowMs = null }: { cards: readonly 
           })}
         </ul>
       </div>
-      <p className="m-0 text-xs text-muted-foreground">
-        From the hourly home-page check, what visitors’ browsers recorded, four weeks of visits from search and each asset’s code report.
-      </p>
     </section>
   );
 }

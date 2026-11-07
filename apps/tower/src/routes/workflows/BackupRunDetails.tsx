@@ -35,14 +35,14 @@ export function BackupRunDetails({ run, captured, pending }: { run: WorkflowRun 
   const recorded = run && captured?.runId === run.id ? captured : null;
   if (!recorded) return <section aria-label="Backup contents" className="space-y-3 rounded-lg border border-border p-5">
     <h2 className="text-lg font-semibold">{pending ? 'Loading backup contents' : run?.state === 'running' ? 'Backup in progress' : !run ? 'No backup run available' : 'Backup contents unavailable'}</h2>
-    <p className="text-sm text-muted-foreground">{pending ? 'Loading this run’s backup evidence.' : run?.state === 'running' ? 'Captured contents and destinations appear when this run finishes.' : !run ? 'Select a recorded run to inspect its contents and destinations.' : 'This run has no matching contents or destination record. Its success status alone does not establish which assets or offsite copies it contains.'}</p>
+    {!pending && run?.state !== 'running' ? <p className="text-sm text-muted-foreground">{!run ? 'Select a recorded run to inspect its contents and destinations.' : 'This run has no matching contents or destination record. Its success status alone does not establish which assets or offsite copies it contains.'}</p> : null}
   </section>;
   const { evidence } = recorded;
   const sites = evidence.parts.find(part => part.id === 'assets')!;
   return <section aria-label="Backup contents" className="space-y-5">
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
       <div><h2 className="text-2xl font-semibold">{evidence.complete ? 'Local backup complete' : 'Backup incomplete'}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">{sites.status === 'not_configured' ? 'No asset databases were selected for this run.' : 'Contents captured by this execution.'}</p></div>
+        {sites.status === 'not_configured' ? <p className="mt-1 text-sm text-muted-foreground">No asset databases were selected for this run.</p> : null}</div>
       <time dateTime={evidence.finishedAt} title={utcRunReference(evidence.finishedAt)} className="text-sm text-muted-foreground tabular-nums">{formatNextRun(evidence.finishedAt)}</time>
     </div>
     <div className="grid items-stretch overflow-hidden rounded-lg border border-border md:grid-cols-[1fr_auto_1fr]">

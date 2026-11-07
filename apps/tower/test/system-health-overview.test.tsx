@@ -33,7 +33,8 @@ describe('System Health status evidence', () => {
 
   it('links internal failures to their exact run and excludes operator workflows from the summary', () => {
     mount();
-    expect(screen.getByText('1 background operation failed')).toBeVisible();
+    expect(screen.queryByText('1 background operation failed')).toBeNull();
+    expect(document.querySelectorAll('[aria-label="Failed background operations"] a')).toHaveLength(1);
     expect(screen.getByRole('link', { name: /Backups/ })).toHaveAttribute('href', '/health/operations/backup?run=backup%402026-09-09T11%3A59%3A00Z');
     expect(screen.queryByText('Operator notifications')).toBeNull();
   });
@@ -113,7 +114,8 @@ describe('System Health status evidence', () => {
     mock.data!.workflows = WORKFLOW_DEFINITIONS.map((definition) => ({ id: definition.id, active: null, history: [], runs: [], latest: { id: `${definition.id}@latest`, workflowId: definition.id, definitionVersion: 1, startedAt: '2026-09-09T11:59:00Z', finishedAt: '2026-09-09T11:59:10Z', state: 'succeeded', steps: null } }));
     mount(true, { current: true, available: true, items: [], providers: [], attention: 1, failing: 1, unconfirmed: 0, working: 1, idle: 0, affectedAssets: ['meadow.example'] });
     expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
-    expect(screen.getAllByText('1 connection needs attention')).toHaveLength(2);
+    expect(screen.getAllByText('1 connection needs attention')).toHaveLength(1);
+    expect(screen.getByText('1 affected asset')).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Checks are reporting normally' })).toBeNull();
   });
 });

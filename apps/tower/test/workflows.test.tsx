@@ -9,6 +9,7 @@ import { WORKFLOW_DEFINITIONS, workflowState, type WorkflowsPayload, type Workfl
 import { buildWorkflowHistory, createWorkflowHistoryReader, manualRecords } from '../vite/workflow-history';
 import { readManualRuns } from '../vite/scheduled-jobs-lane';
 import { WorkflowStages } from '@/components/WorkflowVisuals';
+import { formatNextRun, utcRunReference } from '@shared/scheduled-jobs';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -326,7 +327,9 @@ describe('workflow operating surface', () => {
     mount(`/health/operations/counters?run=${encodeURIComponent(run.id)}`);
     expect(await screen.findByText('Version unavailable')).toBeInTheDocument();
     expect(screen.queryByText('Earlier execution')).toBeNull();
-    expect(document.querySelector(`time[datetime="${run.startedAt}"]`)).toBeInTheDocument();
+    const option = within(screen.getByRole('combobox', { name: 'Run' })).getByRole('option', { selected: true });
+    expect(option).toHaveTextContent(`${formatNextRun(run.startedAt)} · Failed`);
+    expect(option).toHaveAttribute('title', utcRunReference(run.startedAt));
     if (kind === 'current hosted') expect(screen.getByText('One collection failed.')).toBeInTheDocument();
     else expect(screen.getAllByText('Not observed').length).toBeGreaterThan(0);
   });

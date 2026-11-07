@@ -24,10 +24,11 @@ export function BlockerImpact({ projects }: { projects: readonly BoardProject[] 
             marks={{ "data-blocker-task": task.id, "data-blocker-project": project.asset }} />
         ))}
       </ListPanel>
-      <p className="m-0 text-xs text-muted-foreground">
-        Distinct unfinished tasks downstream, including parked work. Could become ready counts only work with no other blocker or human hold.
-        {partial ? " Available reads may omit tasks or dependencies; counts are known lower bounds. A dash means readiness is unknown." : null}
-      </p>
+      {partial ? <p className="m-0 text-xs text-muted-foreground">Available reads may omit tasks or dependencies; counts are known lower bounds. A dash means readiness is unknown.</p> : null}
+      {rows.length > 0 ? <details className="text-xs text-muted-foreground">
+        <summary className="cursor-pointer underline underline-offset-4">How impact is counted</summary>
+        <p className="mt-2">Distinct unfinished tasks downstream, including parked work. Could become ready counts only work with no other blocker or human hold.</p>
+      </details> : null}
     </div>
   );
 }

@@ -155,9 +155,9 @@ function ClarityLead({ snapshot, aside }: { snapshot: ClaritySnapshot; aside?: R
       ) : null}
       <KpiStrip columns={snapshot.page ? 2 : 1}>
         {snapshot.page ? <>
-          <Kpi label="Page sessions" value={value(snapshot.page.sessions)} caption="72-hour count" seriesUnavailable={reason} />
-          <Kpi label="Script errors" value={value(snapshot.page.scriptErrors)} caption="72-hour count" seriesUnavailable={reason} />
-        </> : <Kpi label="Unattributed sessions" value={value(snapshot.unattributedSessions)} caption="72-hour count" seriesUnavailable={reason} />}
+          <Kpi label="Page sessions" value={value(snapshot.page.sessions)} seriesUnavailable={reason} />
+          <Kpi label="Script errors" value={value(snapshot.page.scriptErrors)} seriesUnavailable={reason} />
+        </> : <Kpi label="Unattributed sessions" value={value(snapshot.unattributedSessions)} seriesUnavailable={reason} />}
       </KpiStrip>
     </section>
   );

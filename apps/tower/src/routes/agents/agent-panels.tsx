@@ -16,7 +16,6 @@ export function WorkerRows({ workers, emphasis }: { workers: readonly ModelStats
   return (
     <section aria-label="Who's working" data-agent-rows="" className={PANEL}>
       <h2 className={cn("m-0", eyebrowClass)}>Who's working</h2>
-      <p className="m-0 text-xs text-muted-foreground">Grouped by model · active now or closed in the last 7 days</p>
       {workers.length === 0 ? <EmptyState size="sm" title="No work in progress or closed in the last 7 days" /> : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -64,9 +63,9 @@ function DayTicks({ days, ceiling, label }: { days: readonly number[]; ceiling: 
 const AWARD_ICON = { most: Trophy, fastest: Zap, streak: Flame, urgent: Timer } as const;
 
 /** The last seven days' awards, one figure each. */
-export function AgentTrophies({ trophies }: { trophies: readonly AgentAward[] }) {
+export function AgentTrophies({ trophies, className }: { trophies: readonly AgentAward[]; className?: string }) {
   return (
-    <section aria-label="Leaders" data-agent-trophies="" className={PANEL}>
+    <section aria-label="Leaders" data-agent-trophies="" className={cn(PANEL, className)}>
       <h2 className={cn("m-0", eyebrowClass)}>Leaders · last 7 days</h2>
       {trophies.length === 0 ? <EmptyState size="sm" title="No agent closed a task in the last 7 days" /> : (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
