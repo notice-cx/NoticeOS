@@ -348,11 +348,11 @@ function IntegrationViewCoverage({ cards, items, view }: { cards: readonly Integ
   const context = SOURCE_CONTEXT[view];
   return (
     <section data-integration-view={view} aria-label={context.title} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
-      <SectionLabel title={context.title} caption={context.detail} className="px-5 pt-4 pb-3" />
+      <SectionLabel title={context.title} className="px-5 pt-4 pb-3" />
       <KpiStrip columns={3}>
-        <Kpi label="Working connections" value={`${coverage.working} / ${coverage.total}`} caption="observed collection, not just saved keys" />
-        <Kpi label="Need attention" value={coverage.attention} valueTone={coverage.attention > 0 ? "warn" : "default"} caption="failing or overdue connections" />
-        <Kpi label="Unverified" value={coverage.unverified} caption="unknown or not checked" />
+        <Kpi label="Working connections" value={`${coverage.working} / ${coverage.total}`} explanation="Observed collection, not just saved keys" />
+        <Kpi label="Need attention" value={coverage.attention} valueTone={coverage.attention > 0 ? "warn" : "default"} />
+        <Kpi label="Unverified" value={coverage.unverified} />
       </KpiStrip>
       <p className="px-5 py-3 text-xs text-muted-foreground">{relevant.length > 0 ? relevant.map((status) => providerName(status.provider)).join(" · ") : "No matching providers are in this installation’s catalog."}</p>
     </section>

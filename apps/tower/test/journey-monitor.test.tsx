@@ -101,10 +101,14 @@ describe("JourneyMonitor", () => {
     expect(container.querySelector('[data-step-index="0"]')!.textContent).toContain("50% did not enter");
     expect(container.querySelector('[data-step-index="2"]')!.textContent).toContain("61.7% drop-off");
     expect(container.querySelector('[data-step-index="4"]')!.textContent).toContain("11%of visitors");
-    expect(screen.getByRole("heading", { name: "Choose save" })).toBeInTheDocument();
+    const history = screen.getByRole("region", { name: "Selected step history" });
+    expect(history).toHaveAttribute("data-step-id", JOURNEY_DEMO_DEFINITIONS[0]!.steps[2]!.id);
     fireEvent.click(screen.getByRole("button", { name: "Inspect Visit calculator" }));
-    expect(screen.getByRole("heading", { name: "Visit calculator" })).toBeInTheDocument();
-    expect(screen.getByText("people entered")).toBeInTheDocument();
+    expect(history).toHaveAttribute("data-step-id", JOURNEY_DEMO_DEFINITIONS[0]!.steps[0]!.id);
+    const mapping = history.querySelector('details')!;
+    fireEvent.click(mapping.querySelector('summary')!);
+    expect(mapping).toHaveAttribute('open');
+    expect(mapping.querySelector('code')).toHaveTextContent(JOURNEY_DEMO_DEFINITIONS[0]!.steps[0]!.alternatives[0]!.eventName);
   });
 
   it("keeps the funnel visible while step selection changes its history and weekly counts", () => {

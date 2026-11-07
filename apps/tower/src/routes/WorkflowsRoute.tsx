@@ -7,7 +7,7 @@ import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react';
 import { BackupExecutionDetails, BackupRunDetails } from './workflows/BackupRunDetails';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Clock, GitBranch, Pencil, Search } from 'lucide-react';
-import { WORKFLOW_DEFINITIONS, WORKFLOW_STATE_LABEL, installedWorkflows, workflowBasePath, type WorkflowSurface, workflowState, workflowRunAge, type WorkflowsPayload, type WorkflowDefinition, type WorkflowState } from '@shared/workflows';
+import { WORKFLOW_DEFINITIONS, WORKFLOW_STATE_LABEL, installedWorkflows, workflowBasePath, type WorkflowSurface, workflowState, workflowRunAge, type WorkflowsPayload, type WorkflowDefinition, type WorkflowState, type WorkflowRun } from '@shared/workflows';
 import { SCHEDULES_WAITING, WORKFLOW_GROUPS, formatNextRun, utcRunReference, localTimezone, scheduleTimezone, scheduleFor, scheduleLabel, isCollectionJob, scheduleHref, type ScheduleOverrides } from '@shared/scheduled-jobs';
 import { PageHeader } from '@/components/PageHeader';
 import { ReadFailed } from '@/components/ReadFailed';
@@ -31,6 +31,27 @@ import { RunWorkflow } from './workflows/RunWorkflow';
 const ATTENTION = new Set<WorkflowState>(['failed', 'unknown']);
 const INACTIVE = new Set<WorkflowState>(['skipped', 'paused', 'never']);
 const rank: Record<WorkflowState, number> = { failed: 0, unknown: 1, waiting: 2, running: 3, never: 4, skipped: 5, succeeded: 6, paused: 7 };
+
+function runOptionLabel(run: WorkflowRun, startedAt = formatNextRun(run.startedAt)): string {
+  const trigger = run.trigger?.kind;
+  return `${startedAt} · ${WORKFLOW_STATE_LABEL[run.state]}${trigger === 'manual' ? ' · Manual' : trigger === 'event' ? ' · Event' : trigger === 'recovery' ? ' · Recovery' : ''}`;
+}
+
+function runOptionLabels(runs: readonly WorkflowRun[]): Map<string, string> {
+  const choices = [...new Map(runs.map(run => [run.id, run])).values()];
+  const labels = choices.map(run => runOptionLabel(run));
+  if (new Set(labels).size === labels.length) return new Map(choices.map((run, index) => [run.id, labels[index]!]));
+  const preciseTime = new Intl.DateTimeFormat('en', {
+    timeZone: localTimezone(), weekday: 'short', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hourCycle: 'h23',
+  });
+  const preciseLabels = choices.map((run, index) => labels.indexOf(labels[index]!) === labels.lastIndexOf(labels[index]!)
+    ? labels[index]! : runOptionLabel(run, preciseTime.format(new Date(run.startedAt))));
+  return new Map(choices.map((run, index) => {
+    const label = preciseLabels[index]!;
+    return [run.id, preciseLabels.indexOf(label) === preciseLabels.lastIndexOf(label) ? label : `${label} · ${run.id}`];
+  }));
+}
 
 function RuntimeNotice({ data }: { data: WorkflowsPayload }) {
   if (data.runtimeFresh && !data.runtime?.error && data.historyAvailable && data.observationsFresh) return null;
@@ -56,7 +77,8 @@ export function workflowsAnswer(states: readonly WorkflowState[], noun: string):
 
 function WorkflowsAnswer({ states, noun, view }: { states: readonly WorkflowState[]; noun: string; view: ViewId }) {
   const answer = workflowsAnswer(states, noun);
-  return <PageAnswer answer={answer.answer} detail={answer.detail || undefined} figures={workflowViewFigures(view, states)} marks={{ 'data-workflows-answer': answer.mark }} />;
+  const figures = workflowViewFigures(view, states);
+  return <PageAnswer answer={answer.answer} detail={figures.length === 0 ? answer.detail || undefined : undefined} figures={figures} marks={{ 'data-workflows-answer': answer.mark }} />;
 }
 
 function NextRun({ workflow, data, showCadence = true }: { workflow: WorkflowDefinition; data: WorkflowsPayload; showCadence?: boolean }) {
@@ -200,6 +222,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     if (!runId && defaultRun) { const next = new URLSearchParams(search); next.set('run', defaultRun.id); setSearch(next, { replace: true }); }
   }, [runId, defaultRun?.id, search, setSearch]);
   const selected = runId ? data?.selectedRun?.workflowId === id && data.selectedRun.id === runId ? data.selectedRun : null : defaultRun ?? null;
+  const runLabels = runOptionLabels([...(summary?.runs ?? []), ...(summary?.active ? [summary.active] : []), ...(selected ? [selected] : [])]);
   const failed = (selected ?? (runId === defaultRun?.id ? defaultRun : null))?.state === 'failed';
   const failedStep = failed ? selected?.steps?.findLast(step => step.state === 'failed') : undefined;
   const retainedFailure = failedStep ? undefined : selected?.failure;
@@ -271,18 +294,18 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
       </RunSettings>
       <ExecutionContainer><section className="space-y-4" aria-label="Workflow execution">
         {failed && <RuntimeNotice data={data} />}
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex min-w-0 max-w-full items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'min-w-0 max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>
           {!runId && <option value="">No recorded run</option>}
-          {summary.active && <option value={summary.active.id}>Running now</option>}
-          {runId && !summary.runs.some((r) => r.id === runId) && summary.active?.id !== runId && <option value={runId}>{selected ? formatNextRun(selected.startedAt) : 'Requested run unavailable'}</option>}
-          {summary.runs.map((run) => <option key={run.id} value={run.id} title={utcRunReference(run.startedAt)}>{formatNextRun(run.startedAt)} · {WORKFLOW_STATE_LABEL[run.state]}{run.trigger?.kind === 'manual' ? ' · Manual' : run.trigger?.kind === 'event' ? ' · Event' : run.trigger?.kind === 'recovery' ? ' · Recovery' : ''}</option>)}
+          {summary.active && <option value={summary.active.id} title={utcRunReference(summary.active.startedAt)}>{runLabels.get(summary.active.id)}</option>}
+          {runId && !summary.runs.some((r) => r.id === runId) && summary.active?.id !== runId && <option value={runId} title={selected ? utcRunReference(selected.startedAt) : undefined}>{selected ? runLabels.get(selected.id) : 'Requested run unavailable'}</option>}
+          {summary.runs.map((run) => <option key={run.id} value={run.id} title={utcRunReference(run.startedAt)}>{runLabels.get(run.id)}</option>)}
         </select></label></div>
-        {selected ? <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground tabular-nums"><WorkflowStateLabel state={selected.state === 'running' && (!data.runtimeFresh || !data.observationsFresh) ? 'unknown' : selected.state} /><time dateTime={selected.startedAt} title={utcRunReference(selected.startedAt)}>{formatNextRun(selected.startedAt)}</time><WorkflowRunTrigger run={selected} /><span>{workflowDuration(selected.startedAt, selected.finishedAt)}</span><span>{selected.definitionVersion ? `Version ${selected.definitionVersion}` : 'Version unavailable'}</span></div> : runId ? query.isPlaceholderData ? <p role="status" data-status-for={`workflow-run:${runId}`} className="text-sm text-muted-foreground">Loading execution…</p> : <p className="text-sm text-warn">This run is not in the retained execution history.</p> : null}
+        {selected ? <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground tabular-nums">{selected.state === 'running' && (!data.runtimeFresh || !data.observationsFresh) ? <WorkflowStateLabel state="unknown" label="Progress unconfirmed" /> : null}<span>Duration {workflowDuration(selected.startedAt, selected.finishedAt)}</span><span>{selected.definitionVersion ? `Version ${selected.definitionVersion}` : 'Version unavailable'}</span></div> : runId ? query.isPlaceholderData ? <p role="status" data-status-for={`workflow-run:${runId}`} className="text-sm text-muted-foreground">Loading execution…</p> : <p className="text-sm text-warn">This run is not in the retained execution history.</p> : null}
         <WorkflowStages key={selected?.id ?? 'definition'} definition={definition} run={selected ?? null} fresh={data.runtimeFresh && data.observationsFresh} summarizedFailure={failedStep ? { id: failedStep.id, attempt: failedStep.attempt } : undefined} />
       </section></ExecutionContainer>
-      <section className="space-y-3" aria-label="Recent runs"><div className="flex items-center justify-between"><h2 className="text-base font-semibold">Recent runs</h2><span className="text-xs text-muted-foreground">Latest 10 · Local time</span></div>
-        <div className="divide-y divide-border rounded-lg border border-border">{summary.runs.slice(0, 10).map((run) => <Link key={run.id} to={`${base}/${id}?run=${encodeURIComponent(run.id)}`} className={cn('grid min-h-14 grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 py-3 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring', selected?.id === run.id && 'bg-muted/40')} data-workflow-run={run.id}><span className="flex flex-wrap items-center gap-x-3 gap-y-1"><time dateTime={run.startedAt} title={utcRunReference(run.startedAt)} className="text-sm tabular-nums">{formatNextRun(run.startedAt)}</time><WorkflowRunTrigger run={run} /></span><WorkflowStateLabel state={run.state} /><span className="text-right text-xs text-muted-foreground tabular-nums">{workflowDuration(run.startedAt, run.finishedAt)}</span></Link>)}{!summary.runs.length && <p className="p-5 text-sm text-muted-foreground">No recorded runs for this workflow.</p>}</div>
-      </section>
+      {summary.runs.length > 1 ? <details className="space-y-3" aria-label="Recent runs"><summary className="cursor-pointer text-sm text-muted-foreground underline underline-offset-4">Recent runs · {Math.min(10, summary.runs.length)}</summary>
+        <div className="divide-y divide-border rounded-lg border border-border">{summary.runs.slice(0, 10).map((run) => <Link key={run.id} to={`${base}/${id}?run=${encodeURIComponent(run.id)}`} className={cn('grid min-h-14 grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 py-3 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring', selected?.id === run.id && 'bg-muted/40')} data-workflow-run={run.id}><span className="flex flex-wrap items-center gap-x-3 gap-y-1"><time dateTime={run.startedAt} title={utcRunReference(run.startedAt)} className="text-sm tabular-nums">{formatNextRun(run.startedAt)}</time><WorkflowRunTrigger run={run} /></span><WorkflowStateLabel state={run.state} /><span className="text-right text-xs text-muted-foreground tabular-nums">{workflowDuration(run.startedAt, run.finishedAt)}</span></Link>)}</div>
+      </details> : null}
     </>}
   </div>;
 }

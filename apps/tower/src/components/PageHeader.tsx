@@ -14,7 +14,7 @@ export interface PageHeaderProps {
   /** What this page is. A plain string, or a rich identity row (favicon, name,
    * severity dot, badges) — either way it is the page's one `h1`. */
   title: ReactNode;
-  /** One line saying what the page answers. */
+  /** Context needed for an action; omit descriptions already conveyed by nearby content. */
   description?: ReactNode;
   /** Where this page sits, above the title. Rendered small, separated by `/`. */
   breadcrumb?: PageHeaderCrumb[];

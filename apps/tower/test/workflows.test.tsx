@@ -9,6 +9,7 @@ import { WORKFLOW_DEFINITIONS, workflowState, type WorkflowsPayload, type Workfl
 import { buildWorkflowHistory, createWorkflowHistoryReader, manualRecords } from '../vite/workflow-history';
 import { readManualRuns } from '../vite/scheduled-jobs-lane';
 import { WorkflowStages } from '@/components/WorkflowVisuals';
+import { formatNextRun, utcRunReference } from '@shared/scheduled-jobs';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -317,18 +318,34 @@ describe('workflow operating surface', () => {
     expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
     expect(screen.queryByRole('form', { name: 'Live traffic and counters schedule' })).toBeNull();
   });
-  it.each(['current hosted', 'legacy'] as const)('labels a %s run with no definition version without inferring its age', async (kind) => {
+  it.each(['current hosted', 'legacy'] as const)('retains a requested %s run with no definition version', async (kind) => {
     const run: WorkflowRun = { ...trace, definitionVersion: null,
       ...(kind === 'legacy' ? { id: 'legacy-counters', startedAt: '2026-08-01T16:15:00.000Z',
         finishedAt: '2026-08-01T16:15:00.500Z', steps: null } : {}),
     };
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: run }))));
     mount(`/health/operations/counters?run=${encodeURIComponent(run.id)}`);
-    expect(await screen.findByText('Version unavailable')).toBeInTheDocument();
-    expect(screen.queryByText('Earlier execution')).toBeNull();
-    expect(document.querySelector(`time[datetime="${run.startedAt}"]`)).toBeInTheDocument();
-    if (kind === 'current hosted') expect(screen.getByText('One collection failed.')).toBeInTheDocument();
-    else expect(screen.getAllByText('Not observed').length).toBeGreaterThan(0);
+    const picker = await screen.findByRole('combobox', { name: 'Run' });
+    expect(picker).toHaveValue(run.id);
+    const option = within(picker).getByRole('option', { selected: true });
+    expect(option).toHaveTextContent(formatNextRun(run.startedAt));
+    expect(option).toHaveAttribute('title', utcRunReference(run.startedAt));
+  });
+  it('distinguishes and selects runs with the same minute or exact start time', async () => {
+    const runs: WorkflowRun[] = ['100', '900', '900'].map((milliseconds, index) => ({ ...trace,
+      id: `counters-same-minute-${index}`, state: 'succeeded', steps: [], trigger: { kind: 'manual' },
+      startedAt: `2026-09-09T16:24:10.${milliseconds}Z`, finishedAt: '2026-09-09T16:24:12.000Z',
+    }));
+    data = { ...data, ...buildWorkflowHistory([], runs, [], now) };
+    mount(`/health/operations/counters?run=${encodeURIComponent(runs[0]!.id)}`);
+    const picker = await screen.findByRole('combobox', { name: 'Run' });
+    const options = within(picker).getAllByRole('option');
+    expect(new Set(options.map(option => option.textContent)).size).toBe(runs.length);
+    for (const run of runs) {
+      fireEvent.change(picker, { target: { value: run.id } });
+      await waitFor(() => expect(picker).toHaveValue(run.id));
+      expect(within(picker).getByRole('option', { selected: true })).toHaveValue(run.id);
+    }
   });
   // A collection a connection feeds is changed on that connection's Manage
   // panel, so its page links there, or nowhere while none of its sources is connected.
@@ -537,9 +554,12 @@ describe('workflow history evidence', () => {
     expect(manualRecords([{ ...pressed, finishedAt: '2026-09-09T14:00:00.000Z' }, { job: 7 }, null])).toEqual([]);
   });
   it('marks a manual run on its row and in the run picker', async () => {
-    data = { ...data, ...buildWorkflowHistory([...records, ...manualRecords([pressed])], [trace], [], now) };
+    data = { ...data, ...buildWorkflowHistory([...records, { job: pressed.job, at: '2026-09-09T02:30:00.000Z', outcome: 'ran', ms: 900 }, ...manualRecords([pressed])], [trace], [], now) };
     mount('/health/operations/pull');
-    const recent = await screen.findByRole('region', { name: 'Recent runs' });
+    const recent = await screen.findByRole('group', { name: 'Recent runs' });
+    expect(recent).not.toHaveAttribute('open');
+    fireEvent.click(recent.querySelector('summary')!);
+    expect(recent).toHaveAttribute('open');
     expect(within(recent).getByText('Manual')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /· Manual$/ })).toBeInTheDocument();
   });
@@ -556,7 +576,6 @@ it('shows notification events separately from recovery timing and keeps event ru
   expect(screen.getByText('On new alerts')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Manage delivery' })).toBeVisible();
-  expect(screen.getAllByText('Event').length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole('button', { name: 'Manage delivery' }));
   expect(screen.getByText('Recovery frequency')).toBeVisible();
   expect(screen.getByText('Delivery')).toBeVisible();

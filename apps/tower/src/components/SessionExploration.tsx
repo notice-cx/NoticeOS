@@ -122,11 +122,11 @@ export function SessionExploration({ snapshot, rangeDays }: SessionExplorationPr
   }
   return <div className="session-exploration" data-session-exploration>
     <header className="session-heading"><div><h2>Where sessions go</h2><p>{formatCalendarRange(period.startDate, period.endDate)} · {period.timeZone ?? "Reporting time zone unavailable"}{period.estimatedDays ? ` · ${period.estimatedDays} estimated days` : ''}</p></div><span className="session-unit">Sessions</span></header>
-    {!available ? <div className="session-empty"><h3>{total === 0 ? "No sessions in this period" : "Session paths are unavailable"}</h3><p>{period.reason ?? (total === 0 ? "The report records zero sessions for these dates." : "No complete session-path report has been received for these dates.")}</p></div> : <>
+    {!available ? <div className="session-empty"><h3>{total === 0 ? "No sessions in this period" : "Session paths are unavailable"}</h3>{period.reason || total !== 0 ? <p>{period.reason ?? "No complete session-path report has been received for these dates."}</p> : null}</div> : <>
       <div className="session-summary">
-        <div><span>{period.coveredDays < period.expectedDays ? "All reported sessions" : "All sessions"}</span><strong>{formatInt(total!)}</strong><p>100% · all reported sessions</p></div>
-        <div><span>Explored beyond one section</span><strong>{uncertain > 0 ? "≥ " : ""}{percent(explored, total!)}</strong><p>{formatInt(explored)} sessions · two or more distinct sections</p></div>
-        <div><span>Returned to a section</span><strong>{unresolvedEndings ? "≥ " : ""}{percent(returnSessions, total!)}</strong><p>{formatInt(returnSessions)} sessions · visited a section again</p></div>
+        <div><span>{period.coveredDays < period.expectedDays ? "All reported sessions" : "All sessions"}</span><strong>{formatInt(total!)}</strong></div>
+        <div><span>Explored beyond one section</span><strong>{uncertain > 0 ? "≥ " : ""}{percent(explored, total!)}</strong><p>{formatInt(explored)} sessions</p></div>
+        <div><span>Returned to a section</span><strong>{unresolvedEndings ? "≥ " : ""}{percent(returnSessions, total!)}</strong><p>{formatInt(returnSessions)} sessions</p></div>
         <div className="session-change" data-trend={change === null || change === 0 ? "neutral" : change > 0 ? "positive" : "negative"}><span>Change in exploration</span><strong>{change === null ? "—" : `${change > 0 ? "+" : ""}${Number(Math.abs(change) >= .1 ? change.toFixed(1) : change.toPrecision(2))} pts`}</strong><p>{change === null ? "No comparable prior period" : `vs ${formatCalendarRange(prior.startDate, prior.endDate)}`}</p></div>
       </div>
       <div className="session-coverage"><span>{period.coveredDays} of {period.expectedDays} complete days</span><span>{percent(represented, total!)} with displayed paths</span>{period.quality === "partial" && <strong>Partial coverage</strong>}{period.reason && <p>{period.reason}</p>}</div>

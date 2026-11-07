@@ -238,12 +238,12 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
             </div>
           </>}
         </section>
-        {reading.counts.length > 0 && canRead ? <StepInspector definition={definition} period={period!} index={selectedIndex}/> : null}
         {canRead ? <section className="journey-chart journey-history" aria-label="Selected step history" data-step-id={definition.steps[selectedIndex]?.id}>
           <div className="journey-chart-heading">
             <div><div className="journey-eyebrow">SELECTED STEP</div><h3>{definition.steps[selectedIndex]?.label} over time</h3><p>Weekly reach · percentage of {historyBasis}</p></div>
             <span>People</span>
           </div>
+          {reading.counts.length > 0 ? <StepMapping definition={definition} period={period!} index={selectedIndex}/> : null}
           <p>Dates mark the start of each Monday–Sunday week. Complete weeks are ready for collection on Tuesday, after a two-day reporting delay.</p>
           <JourneyHistory definition={definition} weeks={weeks} basis={historyBasis} selectedWeek={selectedWeek} selectedStep={selectedIndex} onSelect={(week, index) => {
             if (index !== undefined) setSelectedStep(definition.steps[index]!.id);
@@ -258,30 +258,16 @@ export function JourneyMonitor({ definitions, snapshot, onSave, readOnlyReason, 
     </div>
   </div>;
 }
-function StepInspector({ definition, period, index }: {
+function StepMapping({ definition, period, index }: {
     definition: JourneyDefinition;
     period: JourneyPeriod;
     index: number;
 }) {
-    const { counts } = journeyReading(definition, period);
-    const count = counts[index] ?? 0;
-    const previous = index > 0 ? counts[index - 1] ?? 0 : null;
     const step = definition.steps[index]!;
-    return <section className="journey-inspector" aria-live="polite">
-    <div>
-    <div className="journey-eyebrow">{index === 0 ? "ROUTE ENTRY" : "SELECTED STEP"}</div>
-    <h3>{step.label}</h3>
-    <p>{index === 0 ? `${formatInt(count)} people entered this route.` : `${formatInt(count)} of ${formatInt(previous ?? 0)} people continued · ${percent(previous ? count / previous * 100 : null)}`}</p>
-    <details>
+    return <details className="journey-mapping">
     <summary>Event mapping and scope</summary>{step.alternatives.map((alternative, i) => <p key={i}>
         <code>{alternative.eventName}</code>{alternative.pagePath ? ` · exact page path ${alternative.pagePath}` : ""}{alternative.parameters?.map((parameter) => ` · ${parameter.name} = ${parameter.value}`).join("")}{i > 0 ? " · OR alternative" : ""}</p>)}<p>{formatCalendarRange(period.startDate, period.endDate)} · ordered users</p>
-    </details>
-    </div>
-    <div className="journey-inspector-count">
-    <Count value={index === 0 ? count : (previous ?? 0) - count}/>
-    <small>{index === 0 ? "people entered" : "people did not continue"}</small>
-    </div>
-    </section>;
+    </details>;
 }
 function JourneyHistory({ definition, weeks, basis, selectedWeek, selectedStep, onSelect }: {
     definition: JourneyDefinition;

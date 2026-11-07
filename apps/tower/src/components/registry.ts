@@ -1131,9 +1131,9 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PageHeader",
     file: "components/PageHeader.tsx",
     purpose:
-      "One page header for every desk surface: title, description, breadcrumb, an eyebrow line over the title, right-aligned actions, an inline meta slot and a full-width children slot for tabs. It carries no back link (navigation is the shell's), and `title` is a ReactNode so the asset page's identity row can be the h1.",
+      "One page header for each page: title, breadcrumb, an eyebrow line over the title, right-aligned actions, an inline meta slot and a full-width children slot for tabs. Add a description only for context needed to act that nearby content does not already convey. It carries no back link, and `title` is a ReactNode so the asset page's identity row can be the h1.",
     variants: [
-      "plain title + description",
+      "plain title",
       "breadcrumb",
       "breadcrumb crumb with an icon (a project's favicon, on a task page)",
       "eyebrow (a task page's type word and id)",

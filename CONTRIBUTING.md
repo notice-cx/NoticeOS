@@ -84,7 +84,9 @@ work than a full pass, while retaining the checks needed to assess the change.
 - Prose or images: check links, formatting, inclusion in the public source and
   the affected preview. Runtime suites are unnecessary.
 - UI: run related rendering/interaction tests and affected flow checks. Use a
-  focused browser journey when the changed behavior needs a real browser.
+  focused browser journey when the changed behavior needs a real browser. Follow
+  the [behavior-focused testing rule](AGENTS.md#conventions); copy review does not
+  require assertions that freeze authored wording.
 - Worker or script logic: run its tests and affected callers' critical paths.
   Include rejection, timeout and cleanup behavior where those paths change.
 - Store, tenancy or backups: keep the relevant isolated database, ownership,

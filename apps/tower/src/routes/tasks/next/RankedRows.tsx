@@ -134,7 +134,7 @@ export function AgentsNext({ rows, projects, nowMs }: {
   const shown = all ? rows : rows.slice(0, LIST_ROWS);
   return (
     <section className="flex flex-col gap-2" data-agents-next="">
-      <SectionLabel title="Agents, next up" caption="what the agents take next, and why · nothing here needs you" />
+      <SectionLabel title="Agents, next up" />
       <Rows>
         {shown.map((row) => (
           <AgentRow key={row.task.id} row={row} project={projects.get(row.task.project) ?? null} nowMs={nowMs} />

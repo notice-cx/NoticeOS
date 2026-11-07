@@ -31,12 +31,12 @@ export function MoneyViewContext({ data, rows, view }: { data: FinancialsPayload
   ];
   return (
     <section aria-label={title} data-money-view={view} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
-      <SectionLabel title={title} caption="Selected ledger month" className="px-5 pt-4 pb-3" />
+      <SectionLabel title={title} className="px-5 pt-4 pb-3" />
       <KpiStrip columns={3}>
         {metrics.map((metric) => <Kpi key={metric.label} {...metric} />)}
       </KpiStrip>
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-xs text-muted-foreground">
-        <span>{view === "growth" ? "Revenue movement does not establish channel attribution." : view === "delivery" ? "Costs are attributed only where the ledger records an asset." : view === "reliability" ? "Coverage describes stored reports for the selected month." : "Asset net excludes unallocated overhead."}</span>
+        {view !== "reliability" ? <span>{view === "growth" ? "Revenue movement does not establish channel attribution." : view === "delivery" ? "Costs are attributed only where the ledger records an asset." : "Asset net excludes unallocated overhead."}</span> : null}
         <Link className="inline-flex min-h-9 items-center underline underline-offset-4" to={view === "reliability" ? "/health" : view === "delivery" ? "/agents" : "/assets"}>{view === "reliability" ? "Inspect source health" : view === "delivery" ? "Inspect recorded agent work" : "Compare assets"}</Link>
       </div>
     </section>

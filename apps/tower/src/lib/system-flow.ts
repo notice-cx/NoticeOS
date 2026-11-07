@@ -37,10 +37,8 @@ const BACKUP_NODE: Record<BackupState, FlowState> = {
 };
 
 const PROVIDER_WORD: Partial<Record<ConnectionKind, string>> = {
-  working: "collecting on schedule",
   collecting: "first collection running",
   overdue: "a report is late",
-  failing: "failing",
   "key-accepted": "key accepted, nothing collected yet",
   "not-checked": "not checked yet",
   unknown: "not read yet",
@@ -124,7 +122,7 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
       column: 2,
       icon: Database,
       state: system ? "ok" : "idle",
-      caption: system ? "answering" : "not read yet",
+      caption: system ? undefined : "not read yet",
     },
     {
       id: "tower",
@@ -132,7 +130,6 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
       column: 3,
       icon: MonitorSmartphone,
       state: "ok",
-      caption: "reading the store",
     },
     {
       id: "backups",

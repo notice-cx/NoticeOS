@@ -478,13 +478,10 @@ test('session exploration preserves branches, common percentages and selected-se
   await monitor.getByRole('button',{name:/Discover useful pages/}).click();
   const exploration=monitor.locator('[data-session-exploration]');
   await expect(exploration.getByRole('heading',{name:'Where sessions go'})).toBeVisible();
-  await expect(exploration.locator('.session-summary')).toContainText('100%');
   await expect(exploration.locator('.session-coverage')).toContainText('28 of 28 complete days');
-  await expect(exploration).toContainText('Largest recorded exit');
   await exploration.locator('.session-surface-controls').getByRole('button',{name:/^Tools/}).click();
   await expect(exploration.getByRole('heading',{name:'Tools over time',exact:true})).toBeVisible();
   await expect(exploration.getByRole('img',{name:/Tools, weekly percentage of all sessions/})).toBeVisible();
-  await expect(exploration.locator('.session-inspection')).toContainText('Each session counts once');
   const clear=exploration.getByRole('button',{name:'Clear selection'});
   await clear.focus(); await page.keyboard.press('Enter');
   await expect(exploration.getByRole('heading',{name:'Explored beyond one section over time'})).toBeVisible();
@@ -2676,9 +2673,8 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   // Home over six synthetic sites with collected numbers, so it draws the
   // dashboard rather than the first-run guide.
   await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
-  // Home's answer and Problems summary, which include integration health.
-  await recordDraws(page, `() => document.querySelector("[data-home-answer]") && document.querySelector("[data-incident-list]")
-    ? document.querySelector("[data-home-answer]").innerText + " | " + document.querySelector("[data-incident-list]").innerText : null`);
+  // Problems include integration health in their first completed draw.
+  await recordDraws(page, `() => document.querySelector("[data-incident-list]")?.innerText ?? null`);
   requests.length = 0;
   await page.goto("/");
   await expect(page.locator("[data-home-brief]")).toHaveCount(1);
@@ -3522,7 +3518,7 @@ test("a one-asset install uses singular copy and hides filters with one choice",
     ["/assets", main.locator('[data-portfolio-row="journey.example"]').first()],
     ["/health", main.getByRole("region", { name: "System status" })],
     ["/financials", main.locator("[data-money-answer]")],
-    ["/alerts", main.locator("[data-alert-filters]")],
+    ["/alerts", main.locator("[data-alerts-answer]")],
     ["/tasks/all", main.locator("[data-tasks-filters]")],
   ];
   const found: string[] = [];
@@ -3564,7 +3560,7 @@ test("a one-asset install uses singular copy and hides filters with one choice",
 
   // A filter with one answer is not drawn.
   await page.goto("/alerts");
-  await expect(page.locator("[data-alert-filters]")).toBeVisible();
+  await expect(page.locator("[data-alert-filters]")).toHaveCount(0);
   await expect(page.locator("#alerts-asset")).toHaveCount(0);
   await page.goto("/tasks/all");
   await expect(page.locator("[data-tasks-filters]")).toBeVisible();
@@ -3982,8 +3978,10 @@ for (const [jobId, label] of [['panel-refresh', 'Local research summaries'], ['p
       await page.screenshot({ path: testInfo.outputPath(`local-job-pending-${theme}.png`), fullPage: true });
       await assertNoPageOverflow(page);
       finish();
-      await expect(page.getByText('Run completed.', { exact: true })).toBeVisible();
-      await expect(page.getByRole('region', { name: 'Recent runs' }).getByText('Manual', { exact: true })).toBeVisible();
+      if (jobId === 'backup') await page.getByText('Execution details', { exact: true }).click();
+      const picker = page.getByRole('combobox', { name: 'Run', exact: true });
+      await expect(picker).toHaveValue(`${jobId}@manual/${JOURNEY_NOW}`);
+      await expect(picker.locator('option:checked')).toContainText('Manual');
       await expect(run).toBeEnabled();
       await assertNoPageOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`local-job-complete-${theme}.png`), fullPage: true });
@@ -4091,6 +4089,17 @@ test("global purpose switching preserves routes, filters and asset tabs while th
   expect(await tabPaths()).toEqual(pathsBefore);
   await choose("Growth");
   expect(await tabPaths()).toEqual(pathsBefore);
+
+  await page.goto('/agents');
+  const agents = page.locator('[data-agents-page]');
+  await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
+  for (const purpose of ['Revenue', 'Delivery', 'Reliability']) {
+    await choose(purpose);
+    await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
+    await assertNoPageOverflow(page);
+  }
+  await page.evaluate(() => document.fonts.ready);
+  await testInfo.attach('agents-reliability', { body: await page.screenshot({ fullPage: true, animations: 'disabled' }), contentType: 'image/png' });
 
   await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
   await page.goto("/wall?view=business");

@@ -262,6 +262,9 @@ function SiteRow({ row, formatMoney, index, showSources, columnOrder }: { row: P
         {/* Too narrow for its own column, the people line rides under the name
             rather than leaving the row with no time in it at all. */}
         {columnOrder?.[0] !== "people" ? <span aria-hidden className="mt-1.5 flex min-w-0 items-center gap-2 @lg:hidden">{people}</span> : null}
+        {row.share !== null && (columnOrder === undefined || columnOrder.includes('share')) ? <span className={cn('mt-1 block text-micro tabular-nums text-muted-foreground', columnOrder?.[0] === 'share' ? 'hidden' : columnOrder?.[1] === 'share' ? '@lg:hidden' : '@3xl:hidden')}>
+          {formatPercent(row.share * 100)}% of month’s revenue
+        </span> : null}
         {showSources ? <span className="sr-only">{sentence}</span> : null}
       </span>
       {(columnOrder ?? ["people", "revenue", "share", "sources"] as const).filter((key) => showSources || key !== "sources").map((key) => cells[key])}

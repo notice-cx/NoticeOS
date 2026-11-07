@@ -150,12 +150,7 @@ export function ScheduledLanesPanel({
       aria-label="Scheduled automation"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="font-semibold">Scheduled automation</h3>
-          <p className="text-sm text-muted-foreground">
-            Latest recorded run of each job, including paused jobs
-          </p>
-        </div>
+        <h3 className="font-semibold">Scheduled automation</h3>
         {lanes.length > 0 ? (
           <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
             {lanes.length} tracked

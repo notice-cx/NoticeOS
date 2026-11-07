@@ -61,44 +61,38 @@ function AgentsBoard({ work, broken, complete, failed }: {
       <div data-surface-hero="" className="flex flex-col gap-5">
         <PageAnswer
           answer={presentation.answer}
-          detail={!complete ? "Some projects could not be read"
-            : view.id === "delivery" || view.id === "reliability" || view.id === "revenue" ? `${formatInt(work.week)} closed in the last 7 days`
-            : change === 0 ? "As many as the 7 days before"
-            : `${formatInt(Math.abs(change))} ${change > 0 ? "more" : "fewer"} than the 7 days before (${formatInt(work.lastWeek!)})`}
+          detail={complete && (view.id === "overview" || view.id === "growth") ? change === 0 ? "As many as the 7 days before"
+            : `${formatInt(Math.abs(change))} ${change > 0 ? "more" : "fewer"} than the 7 days before (${formatInt(work.lastWeek!)})` : undefined}
           figures={presentation.figures}
           marks={{ "data-agents-answer": "" }}
         />
       </div>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2" data-agent-evidence="">
+        <Link to="/tasks" className="text-sm font-medium underline-offset-2 hover:underline">Review tasks →</Link>
+        {view.id === 'growth' ? <Link to="/assets" className="text-sm font-medium underline-offset-2 hover:underline">View asset journeys and measurements →</Link> : null}
+        {view.id === 'revenue' ? <Link to="/financials" className="text-sm font-medium underline-offset-2 hover:underline">View recorded financials →</Link> : null}
+      </div>
       <div className="grid gap-4 lg:grid-cols-2" data-agent-section-order={view.id}>
         {AGENT_SECTION_ORDER[view.id].map(section => <Fragment key={section}>{({
-          velocity: <section aria-label="Velocity" data-agent-velocity="" className={cn(PANEL, "shadow-raised", view.id === "overview" && "lg:col-span-2")}>
+          velocity: work.velocity.weeks.some(week => week.total > 0) ? <section aria-label="Velocity" data-agent-velocity="" className={cn(PANEL, "shadow-raised", (view.id === "overview" || work.workers.length === 0) && "lg:col-span-2")}>
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className={cn("m-0", eyebrowClass)}>Velocity · tasks closed a week</h2>
             <span className="text-xs text-muted-foreground">{complete ? "last 8 weeks" : "last 8 weeks · incomplete read"}</span>
           </header>
           <StackedWeeks weeks={work.velocity.weeks} keys={work.velocity.keys} names={work.velocity.names} unit="tasks"
             ariaLabel="Tasks closed a week, by model" className="min-h-56" />
-        </section>,
-          workers: <WorkerRows workers={work.workers} emphasis={view.id === "reliability" ? "blocked" : view.id === "delivery" ? "inHand" : undefined} />,
-          ranking: <section aria-label="Ranking" data-agent-race="" className={PANEL}>
+        </section> : null,
+          workers: work.workers.length > 0 ? <WorkerRows workers={work.workers} emphasis={view.id === "reliability" ? "blocked" : view.id === "delivery" ? "inHand" : undefined} /> : null,
+          ranking: work.race.players.length > 0 ? <section aria-label="Ranking" data-agent-race="" className={PANEL}>
           <h2 className={cn("m-0", eyebrowClass)}>Ranking · models, last 7 days</h2>
-          {work.race.players.length === 0 ? <EmptyState size="sm" title="No agent closed a task in the last 7 days" /> : (
-            <RaceChart
+          <RaceChart
               entries={work.race.players.map((player) => ({ key: player.key, name: player.name,
                 mark: <AgentMark name={player.name} size="small" />, at: player.closes, score: player.points }))}
               from={work.race.from} to={work.race.to} unit="task" ticks={ticks}
               ariaLabel="Tasks closed in the last 7 days, running total per model, ranked by points" className="min-h-64" />
-          )}
           <span className="text-xs text-muted-foreground">Ranked by points: a top-priority task counts 5, high 3, normal 2, low and lowest 1.</span>
-        </section>,
-          leaders: <AgentTrophies trophies={work.trophies} />,
-          evidence: <section aria-label="Task and outcome evidence" className={PANEL} data-agent-evidence="">
-            <h2 className={eyebrowClass}>Task and outcome evidence</h2>
-            <p className="m-0 text-sm text-muted-foreground">{presentation.evidence}</p>
-            <Link to="/tasks" className="self-start text-sm font-medium underline-offset-2 hover:underline">View tasks and close evidence →</Link>
-            {view.id === 'growth' ? <Link to="/assets" className="self-start text-sm font-medium underline-offset-2 hover:underline">View asset journeys and measurements →</Link> : null}
-            {view.id === 'revenue' ? <Link to="/financials" className="self-start text-sm font-medium underline-offset-2 hover:underline">View recorded financials →</Link> : null}
-          </section>,
+        </section> : null,
+          leaders: work.trophies.length > 0 ? <AgentTrophies trophies={work.trophies} className={view.id === 'overview' ? 'lg:col-span-2' : undefined} /> : null,
         } satisfies Record<AgentSection, ReactNode>)[section]}</Fragment>)}
       </div>
     </>

@@ -1786,7 +1786,6 @@ describe("/financials — the month, drawn", () => {
     }), "/financials?period=2026-09");
     const hero = container.querySelector<HTMLElement>("[data-money-answer]")!;
     expect(hero).toHaveAttribute("data-money-answer", "open");
-    expect(hero.querySelector("[data-money-context]")).toHaveTextContent("Projected $450 revenue · 9 days left");
     const pace = hero.querySelector("[data-pace-bar]")!;
     expect(pace).toHaveTextContent("projected $450 · Aug total $400");
     expect(pace.querySelector("[data-pace-projection]")).not.toBeNull();
@@ -1803,11 +1802,7 @@ describe("/financials — the month, drawn", () => {
       months: [month("2026-07", 360), month("2026-08", 440.94, 200)],
       properties: [site("northwind.example", "Northwind", 140.94, 160), site("meadow.example", "Meadow Board", 300, 200)],
     }));
-    const split = container.querySelector("[data-money-answer] [data-money-by-site]")!;
-    expect([...split.querySelectorAll("[data-money-site-share]")].map((item) => item.textContent)).toEqual([
-      "Meadow Board $300 · 68%",
-      "Northwind $141 · 32%",
-    ]);
+    expect(container.querySelectorAll('[data-revenue-share]')).toHaveLength(2);
     expect([...container.querySelectorAll("[data-money-site]")].map((row) => row.getAttribute("data-money-site"))).toEqual(["meadow.example", "northwind.example"]);
     const meadow = container.querySelector('[data-money-site="meadow.example"] [data-money-change]')!;
     expect(meadow).toHaveAttribute("data-money-change", "month");
@@ -1877,13 +1872,12 @@ describe("/financials — one asset states its money once", () => {
       overhead: none, costLines: [], dailyRevenue: daily,
     }));
     expect(screen.getByRole("heading", { name: "By asset" })).toBeInTheDocument();
-    // No overhead: "Sites, direct" would be the total again.
-    expect(summaries(container)).toEqual(["total"]);
+    expect(summaries(container)).toEqual([]);
     openPanel("days");
     expect(container.querySelector("[data-source-coverage]")).not.toBeNull();
   });
 
-  it("keeps the whole split, subtotal included, from two assets", () => {
+  it("keeps both asset rows without repeating the hero's net total", () => {
     wall.sites = 2;
     const { container } = renderPage(payload({
       properties: [site("journey.example", "Journey Example", 60), site("second.example", "Second Example", 22)],
@@ -1891,7 +1885,7 @@ describe("/financials — one asset states its money once", () => {
     }));
     expect(screen.getByRole("heading", { name: "By asset" })).toBeInTheDocument();
     expect(siteRows(container)).toEqual(["journey.example", "second.example"]);
-    expect(summaries(container)).toEqual(["total"]);
+    expect(summaries(container)).toEqual([]);
   });
 });
 

@@ -1,17 +1,10 @@
 import { useId, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { SegmentBar } from "@/components/SegmentBar";
 import { BarStrip } from "@/components/viz/BarStrip";
 import { PaceBar } from "@/components/viz/PaceBar";
-import { formatMoney, formatPercent, formatPeriodMonth, formatPeriodMonthLong, formatPeriodMonthYear, formatSignedMoney } from "@/lib/format";
-import type { MonthDays, MonthEquation, SiteShare } from "@/lib/money-page";
+import { formatMoney, formatPeriodMonth, formatPeriodMonthLong, formatPeriodMonthYear, formatSignedMoney } from "@/lib/format";
+import type { MonthDays, MonthEquation } from "@/lib/money-page";
 import { cn } from "@/lib/utils";
-import { SHARE_FILL } from "@/routes/home/MoneyHero";
-
-/** Home's ramp for each site's share, strongest first; past the fourth they
- * share the last. */
-const shareFill = (index: number) => SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)]!;
-
 export interface MonthHeroProps {
   equation: MonthEquation;
   /** The month's days as reported, or null when no daily source covers it. */
@@ -19,7 +12,6 @@ export interface MonthHeroProps {
   lastMonth: { period: string; revenue: number | null };
   /** Where an open month is heading, the number Home and the TV state. */
   pace: { projected: number; daysLeft: number } | null;
-  bySite: readonly SiteShare[];
   className?: string;
 }
 
@@ -27,18 +19,17 @@ export interface MonthHeroProps {
  * Money's lead: the month as one equation, revenue less cost is net, with the
  * net the largest figure on the screen; its days as bars against the usual
  * day; the month against last month's whole total (and, while it is open,
- * where it is heading); and which sites earned it.
+ * where it is heading).
  */
-export function MonthHero({ equation, days, lastMonth, pace, bySite, className }: MonthHeroProps) {
+export function MonthHero({ equation, days, lastMonth, pace, className }: MonthHeroProps) {
   const id = useId();
   const { currency, open } = equation;
   const whole = (value: number) => formatMoney(value, currency);
   const cents = (value: number) => formatMoney(value, currency, { cents: true });
   const month = formatPeriodMonthLong(equation.period);
   const reported = days?.days.filter((day) => day.v !== null).length ?? 0;
-  const total = bySite.reduce((sum, site) => sum + site.amount, 0);
   const context: ReactNode[] = [
-    open && pace ? <>Projected <b>{whole(pace.projected)}</b> revenue · <b>{pace.daysLeft}</b> {pace.daysLeft === 1 ? "day" : "days"} left</> : null,
+    open && pace ? <><b>{pace.daysLeft}</b> {pace.daysLeft === 1 ? "day" : "days"} left</> : null,
     equation.confirmed !== null && equation.turnover !== null && equation.turnover > 0
       ? <span data-money-confirmed="">{equation.confirmed === 0 ? "none confirmed yet" : <><b>{whole(equation.confirmed)}</b> of {whole(equation.turnover)} confirmed</>}</span>
       : null,
@@ -100,24 +91,6 @@ export function MonthHero({ equation, days, lastMonth, pace, bySite, className }
         />
       ) : null}
 
-      {bySite.length >= 2 && total > 0 ? (
-        <div className="flex flex-col gap-2 border-t border-border/60 pt-4" data-money-by-site="">
-          <span className="text-xs font-medium text-muted-foreground">Where {month} came from</span>
-          <SegmentBar
-            ariaLabel={`${month} revenue by asset: ${bySite.map((site) => `${site.name} ${whole(site.amount)}`).join(", ")}`}
-            className="h-2"
-            segments={bySite.map((site, index) => ({ name: site.id, value: site.amount, fill: shareFill(index) }))}
-          />
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-muted-foreground">
-            {bySite.map((site, index) => (
-              <span key={site.id} className="inline-flex items-center gap-1.5 whitespace-nowrap" data-money-site-share={site.id}>
-                <span aria-hidden className={cn("size-2 rounded-full", shareFill(index))} />
-                {site.name} <b className="font-semibold text-foreground">{whole(site.amount)}</b> · {formatPercent((site.amount / total) * 100)}%
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

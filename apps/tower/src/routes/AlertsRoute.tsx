@@ -205,7 +205,7 @@ export function AlertsRoute() {
           <AlertsAnswer items={data.attention} settled={settled.data} settledFailed={settled.isError} nowMs={now} />
           <AlertWeek open={data.attention} settled={settled.data?.rows ?? []} assets={data.assets} nowMs={now} openHref={openHref} />
 
-          <AlertDaily current={data} />
+          <AlertDaily />
 
           <Tabs
             label="Alert views"
@@ -338,7 +338,7 @@ function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; 
     <>
       {/* On a phone the selects wait behind one Filters press (the shared
           fold); on a desk they are this row. */}
-      <FilterBar
+      {data.attention.length > 0 || filtering ? <FilterBar
         active={[asset, severity, kind].filter((value) => value !== "all").length}
         className="flex flex-wrap items-center gap-2"
         marks={{ "data-alert-filters": "" }}
@@ -397,7 +397,7 @@ function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; 
             </option>
           ))}
         </select>
-      </FilterBar>
+      </FilterBar> : null}
 
       {filtered.length > 0 ? (
         <AlertBoard items={filtered} total={data.attention.length} filtering={filtering} nowMs={nowMs} focusId={focusId} />
@@ -413,9 +413,7 @@ function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; 
           title="No open alerts match these filters"
           hint="Widen a filter above to see the rest."
         />
-      ) : (
-        <FinishLine quiet line="All clear." age={readingAge(data.generatedAt, nowMs)} />
-      )}
+      ) : null}
 
       <SnoozedAlerts items={data.snoozed} nowMs={nowMs} />
     </>

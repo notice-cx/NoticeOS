@@ -35,7 +35,6 @@ export function ViewBar({ value, onChosen, className }: {
             </button>
           ))}
         </div>
-        <p className="ml-auto hidden text-xs text-muted-foreground xl:block">{spec.detail}</p>
       </div>
       <div className="md:hidden">
         <Popover open={open} onOpenChange={setOpen}>

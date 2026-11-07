@@ -210,13 +210,13 @@ function HealthViewInputs({ matrix, credentials, items, nowMs }: {
   const shown = [...rows].sort((a, b) => connectionUrgency(b.status.kind) - connectionUrgency(a.status.kind)).slice(0, 5);
   return (
     <section aria-label={context.title} data-health-view={choice.view} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
-      <SectionLabel title={context.title} caption={context.detail} className="px-5 pt-4 pb-3" />
-      <KpiStrip columns={4}>
+      <SectionLabel title={context.title} className="px-5 pt-4 pb-3" />
+      {rows.length > 0 ? <KpiStrip columns={4}>
         <Kpi label="Applicable sources" value={rows.length} caption="asset and source pairs" />
-        <Kpi label="Working" value={working} caption="observed successful collection" />
-        <Kpi label="Need attention" value={attention} valueTone={attention > 0 ? "warn" : "default"} caption="failing or overdue" />
-        <Kpi label="Unverified" value={unverified} caption="unknown or not checked" />
-      </KpiStrip>
+        <Kpi label="Working" value={working} />
+        <Kpi label="Need attention" value={attention} valueTone={attention > 0 ? "warn" : "default"} />
+        <Kpi label="Unverified" value={unverified} />
+      </KpiStrip> : null}
       {shown.length === 0 ? <p className="px-5 py-3 text-xs text-muted-foreground">No applicable sources are recorded for this purpose.</p> : (
         <ul className="divide-y divide-border/60 px-5">
           {shown.map(({ cell, status }) => (
