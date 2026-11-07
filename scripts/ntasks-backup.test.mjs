@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { EXPORT_ATTEMPTS, NTASKS_BACKUP_FORMAT, pullNtasksBackup, readNtasksBackup, takeNtasksExport } from './ntasks-backup.mjs';
+import { execFileSync } from 'node:child_process';
+import { EXPORT_ATTEMPTS, NTASKS_BACKUP_FORMAT, pullNtasksBackup, readNtasksBackup, readPrivateExport, takeNtasksExport } from './ntasks-backup.mjs';
 
 // scripts/ntasks-backup.mjs: Ntasks's whole store, read page by page through a
 // scripted task service and written in the file format Ntasks's restore reads.
@@ -119,4 +120,20 @@ test('a backup keeps only a private file holding one whole export', async (t) =>
   const link = path.join(dir, 'link.json');
   await fs.symlink(await write('target.json', whole), link);
   await assert.rejects(readNtasksBackup(link), /not a private file/u);
+});
+
+test('an export is read through one opened file: no link, no special file, and no more than the bound however it grows', async (t) => {
+  const dir = await scratch(t);
+  const fifo = path.join(dir, 'pipe');
+  execFileSync('mkfifo', ['-m', '600', fifo]);
+  await assert.rejects(readPrivateExport(fifo), /not a private file/u, 'a pipe is refused without waiting on a writer');
+  const opened = [];
+  const growing = { open: async (file, flags) => {
+    opened.push(flags);
+    return { stat: async () => ({ isFile: () => true, nlink: 1, mode: 0o100600, size: 4 }),
+      read: async (buffer, offset, length) => { buffer.fill(32, offset, offset + length); return { bytesRead: length }; },
+      close: async () => {} };
+  } };
+  await assert.rejects(readPrivateExport('/export', { fs: growing, maxBytes: 64 }), /larger than 64 bytes/u);
+  assert.ok(opened[0] & fs.constants.O_NOFOLLOW, 'opened without following a link');
 });

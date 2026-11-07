@@ -107,23 +107,46 @@ export async function takeNtasksExport(service, parent, { fs: io = fs, ...option
  * answers when it was taken, the store's migrations and the rows of each
  * table. Throws with the reason otherwise.
  */
-/** Checks that `file` is a private regular file no larger than `maxBytes`, and answers its size. */
-export async function privateExportSize(file, { fs: io = fs, maxBytes = EXPORT_BYTES } = {}) {
-  let stat;
-  try { stat = await io.lstat(file); }
+/**
+ * The bytes of `file`, read through one descriptor opened without following
+ * a link or waiting on a special file, so what is checked is what is read:
+ * a private regular file of at most `maxBytes`, or a throw with the reason.
+ */
+export async function readPrivateExport(file, { fs: io = fs, maxBytes = EXPORT_BYTES } = {}) {
+  let handle;
+  try { handle = await io.open(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
   catch (error) {
     if (error?.code === 'ENOENT') throw new Error('no Ntasks export came with this backup; the runner\'s log names why');
+    if (error?.code === 'ELOOP') throw new Error('the Ntasks export is not a private file');
     throw error;
   }
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || (stat.mode & 0o077)) throw new Error('the Ntasks export is not a private file');
-  if (stat.size > maxBytes) throw new Error(`the Ntasks export is larger than ${maxBytes} bytes`);
-  return stat.size;
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o077)) throw new Error('the Ntasks export is not a private file');
+    const larger = new Error(`the Ntasks export is larger than ${maxBytes} bytes`);
+    if (stat.size > maxBytes) throw larger;
+    // Bounded by what is read, not by the size above: the file may grow.
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const chunk = Buffer.allocUnsafe(Math.min(1 << 20, maxBytes + 1 - total));
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
+      if (bytesRead === 0) return Buffer.concat(chunks, total);
+      total += bytesRead;
+      if (total > maxBytes) throw larger;
+      chunks.push(chunk.subarray(0, bytesRead));
+    }
+  } finally { await handle.close(); }
 }
 
-export async function readNtasksBackup(file, { fs: io = fs, maxBytes = EXPORT_BYTES } = {}) {
-  const size = await privateExportSize(file, { fs: io, maxBytes });
+/**
+ * When an export was taken, the store's migrations and the rows of each
+ * table, after checking `bytes` hold one whole Ntasks backup; throws with
+ * the reason otherwise.
+ */
+export function parseNtasksBackup(bytes) {
   let value;
-  try { value = JSON.parse(await io.readFile(file, 'utf8')); }
+  try { value = JSON.parse(bytes.toString('utf8')); }
   catch { throw new Error('the Ntasks export is not JSON'); }
   const tables = value?.tables;
   if (value?.format !== NTASKS_BACKUP_FORMAT || typeof value.takenAt !== 'string' || !Number.isFinite(Date.parse(value.takenAt))
@@ -132,5 +155,10 @@ export async function readNtasksBackup(file, { fs: io = fs, maxBytes = EXPORT_BY
     || !Object.entries(tables).every(([table, rows]) => TABLE.test(table) && Array.isArray(rows) && rows.every(isRow))) {
     throw new Error(`the Ntasks export is not a whole ${NTASKS_BACKUP_FORMAT} backup`);
   }
-  return { takenAt: value.takenAt, migrations: value.migrations, rows: rowCounts(tables), bytes: size };
+  return { takenAt: value.takenAt, migrations: value.migrations, rows: rowCounts(tables), bytes: bytes.length };
+}
+
+/** readPrivateExport, then parseNtasksBackup. */
+export async function readNtasksBackup(file, options = {}) {
+  return parseNtasksBackup(await readPrivateExport(file, options));
 }

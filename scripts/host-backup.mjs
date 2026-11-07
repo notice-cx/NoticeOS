@@ -14,7 +14,7 @@ import { assertOffsiteOutsideInstallation } from './installation-path-guard.mjs'
 import { dumpPostgres, POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { readDoltProfile } from './dolt-host.mjs';
 import { backupDolt } from './dolt-backup.mjs';
-import { NTASKS_BACKUP_FORMAT, privateExportSize, readNtasksBackup } from './ntasks-backup.mjs';
+import { NTASKS_BACKUP_FORMAT, parseNtasksBackup, readPrivateExport } from './ntasks-backup.mjs';
 import { backupAsset, validateAssetBackups } from './asset-backup.mjs';
 import { createCloudflareD1BackupClient, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
 import { backupDate, backupReportComplete, retainedBackupDates, validateBackupRetention } from './backup-retention.mjs';
@@ -487,11 +487,10 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
           if (!tasksExport) throw new Error(tasksExportError ?? 'no Ntasks export came with this backup');
           const output = path.join(working, 'ntasks', 'backup.json');
           await copyItem(result, 'Ntasks', output, async () => {
-            await privateExportSize(tasksExport, { fs: io });
-            await io.copyFile(tasksExport, output, fs.constants.COPYFILE_EXCL);
-            await io.chmod(output, 0o600);
-            // The copy is checked, so the set keeps exactly what was counted.
-            const kept = await readNtasksBackup(output, { fs: io });
+            // One read through one descriptor: the set keeps the bytes that were checked and counted.
+            const bytes = await readPrivateExport(tasksExport, { fs: io });
+            const kept = parseNtasksBackup(bytes);
+            await io.writeFile(output, bytes, { flag: 'wx', mode: 0o600 });
             result.takenAt = kept.takenAt;
             result.rows = kept.rows;
           });
