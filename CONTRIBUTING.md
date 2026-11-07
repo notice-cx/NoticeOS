@@ -77,12 +77,8 @@ adapter keeps host permissions and runtime credentials separate.
 ## Local verification
 
 Before adding or pruning tests, apply the
-[test design and pruning rules](AGENTS.md#test-design-and-pruning).
-Compare behavioral contracts and business preconditions before merging cases;
-keep distinct states, failures and compatibility boundaries. Test the real data
-or action rather than authored wording or internal implementation names. Keep
-pure cases outside database setup, share only read-only fixtures with explicit
-cleanup, and preserve meaningful concurrency and timeout proofs.
+[test design and pruning rules](AGENTS.md#test-design-and-pruning): preserve
+unique behavior contracts and keep fixture cost proportional to their value.
 
 Choose checks from the diff and the critical paths it affects. Full repository
 gates run in GitHub CI on pushes to `main` and pull requests; do not duplicate
