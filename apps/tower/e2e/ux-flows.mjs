@@ -49,12 +49,16 @@
 //   - Arrange the Wall: edit straight from the TV entry, move, then Save; the
 //     reason is optional (Grafana); versions are the safety net.
 
-import { JOURNEY_ASSET as ASSET, JOURNEY_KEY as KEY, JOURNEY_SITE as SITE } from "./fixtures.ts";
+import { JOURNEY_ASSET as ASSET, JOURNEY_KEY as KEY, JOURNEY_SITE as SITE, JOURNEY_NOW } from "./fixtures.ts";
 import {
   SAVED, assetTab, awaitSaved, connectFromSource, connectInPanel, knobSave, nav, openAsset,
   openSourceRow, settle,
 } from "./ux-walk.mjs";
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from "../../../scripts/wall-layout.mjs";
+import { WORKFLOW_DEFINITIONS } from "../../../scripts/workflow-definitions.mjs";
+import { buildWorkflowHistory } from "../../../scripts/workflow-history-view.mjs";
+import { jobRunName } from "../../../scripts/scheduled-jobs.mjs";
+import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 
 /** The synthetic Mediavine login the fixture accepts (harness.ts). */
 const MEDIAVINE_EMAIL = "journey@example.test";
@@ -126,6 +130,25 @@ async function seedSurvey(page, fixture) {
   // two write the same site row, so only one of them can run).
   await seedMediavineConnected(page);
   await fixture("/__journey/revenue-history");
+  await fixture("/__journey/codebase-report");
+  await fixture("/__journey/ordered-journeys");
+  await fixture("/__journey/session-exploration");
+  const startedAt = '2026-09-06T11:40:00.000Z', finishedAt = '2026-09-06T11:40:01.000Z';
+  const traces = ['portfolio-brief', 'watch-windows'].map(id => ({
+    id: `${id}@${startedAt}`, workflowId: id, definitionVersion: 1, startedAt, finishedAt,
+    state: id === 'portfolio-brief' ? 'failed' : 'succeeded', steps: [{
+      id: id === 'portfolio-brief' ? 'portfolio-brief' : 'outcomes', attempt: 1, startedAt, finishedAt,
+      state: id === 'portfolio-brief' ? 'failed' : 'succeeded',
+      ...(id === 'portfolio-brief' ? { summary: 'The model server refused access.' } : {}),
+      output: captureWorkflowOutput(id === 'portfolio-brief' ? { status: 401, reason: 'Synthetic API token expired' } : { scanned: 3, evaluated: 2, closed: [] }),
+    }],
+  }));
+  const records = traces.map(trace => ({ job: jobRunName(WORKFLOW_DEFINITIONS.find(job => job.id === trace.workflowId)), at: startedAt, ms: 1000, outcome: trace.state === 'failed' ? 'failed' : 'ran' }));
+  await page.route('**/api/workflows*', route => route.fulfill({ json: {
+    overrides: null, generatedAt: JOURNEY_NOW, historyAvailable: true, runtimeFresh: true, observationsFresh: true,
+    runtime: { updatedAt: JOURNEY_NOW, error: null, jobs: WORKFLOW_DEFINITIONS.map(job => ({ id: job.id, cron: job.cron, enabled: true, nextRun: null })) },
+    ...buildWorkflowHistory(records, traces, [], Date.parse(JOURNEY_NOW), new URL(route.request().url()).searchParams.get('run') ?? undefined),
+  } }));
 }
 
 // ── the flows ─────────────────────────────────────────────────────────────────
@@ -889,10 +912,11 @@ FLOWS["arrange-sites"] = {
 // not apply to it.
 
 const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/growth`, `/assets/${ASSET}/financials`,
-  `/assets/${ASSET}/search`, `/assets/${ASSET}/health`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
+  `/assets/${ASSET}/search`, `/assets/${ASSET}/journeys`, `/assets/${ASSET}/codebase`, `/assets/${ASSET}/health`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
   `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/tasks/projects", "/tasks/all", "/agents", "/integrations",
   "/integrations?provider=bing-webmaster", "/integrations?provider=google", "/integrations?provider=mediavine",
-  "/health", "/health/operations", "/financials", "/settings", "/wall"];
+  "/health", "/health/operations", "/health/operations/portfolio-brief", "/workflows", "/workflows/watch-windows", "/financials",
+  "/settings", "/settings/ai", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation", "/wall"];
 
 FLOWS["survey"] = {
   title: "Screen survey: every main screen, populated (statuses and lists)",

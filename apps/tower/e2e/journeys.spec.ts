@@ -3521,7 +3521,7 @@ test("a one-asset install uses singular copy and hides filters with one choice",
     ["/assets", main.locator('[data-portfolio-row="journey.example"]').first()],
     ["/health", main.getByRole("region", { name: "System status" })],
     ["/financials", main.locator("[data-money-answer]")],
-    ["/alerts", main.locator("[data-alert-filters]")],
+    ["/alerts", main.locator("[data-alerts-answer]")],
     ["/tasks/all", main.locator("[data-tasks-filters]")],
   ];
   const found: string[] = [];
@@ -3563,7 +3563,9 @@ test("a one-asset install uses singular copy and hides filters with one choice",
 
   // A filter with one answer is not drawn.
   await page.goto("/alerts");
-  await expect(page.locator("[data-alert-filters]")).toBeVisible();
+  await expect(page.locator("[data-alert-filters]")).toHaveCount(0);
+  await expect(main.getByRole('heading', { name: 'No open alerts', exact: true })).toBeVisible();
+  await expect(main.getByText('All clear.', { exact: true })).toHaveCount(0);
   await expect(page.locator("#alerts-asset")).toHaveCount(0);
   await page.goto("/tasks/all");
   await expect(page.locator("[data-tasks-filters]")).toBeVisible();
@@ -4090,6 +4092,17 @@ test("global purpose switching preserves routes, filters and asset tabs while th
   expect(await tabPaths()).toEqual(pathsBefore);
   await choose("Growth");
   expect(await tabPaths()).toEqual(pathsBefore);
+
+  await page.goto('/agents');
+  const agents = page.locator('[data-agents-page]');
+  await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
+  for (const purpose of ['Revenue', 'Delivery', 'Reliability']) {
+    await choose(purpose);
+    await expect(agents.getByRole('link', { name: 'Review tasks →', exact: true })).toBeVisible();
+    await assertNoPageOverflow(page);
+  }
+  await page.evaluate(() => document.fonts.ready);
+  await testInfo.attach('agents-reliability', { body: await page.screenshot({ fullPage: true, animations: 'disabled' }), contentType: 'image/png' });
 
   await wallScene(page, "six", { layout: WALL_PRESETS.product, view: "reliability" });
   await page.goto("/wall?view=business");
