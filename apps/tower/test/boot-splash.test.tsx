@@ -68,10 +68,9 @@ describe("the splash index.html draws", () => {
   const element = page.getElementById(BOOT_SPLASH_ID)!;
 
   it("is a status named for screen readers, its drawing hidden from them", () => {
-    expect(element.getAttribute("role")).toBe("status");
-    expect(element.getAttribute("aria-label")).toBe("Loading NoticeOS");
-    expect(element.getAttribute("data-status-for")).toBe("app:boot");
-    for (const child of element.children) expect(child.getAttribute("aria-hidden")).toBe("true");
+    mountSplash();
+    expect(screen.getByRole("status", { name: "Loading NoticeOS" })).toHaveAttribute("data-status-for", "app:boot");
+    expect(screen.queryByRole("img", { name: "NoticeOS" })).toBeNull();
   });
 
   it("sits beside #root, never inside it, so React's first render leaves it alone", () => {

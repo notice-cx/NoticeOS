@@ -739,51 +739,17 @@
   }
 }
 
-/* The NoticeOS lockup: the Notice mark in the current ink and the wordmark
-   set in Stack Sans Notch, "Notice" at 600 with tight tracking, "OS" lighter
-   and in the muted ink. The mark is drawn in capitals of the surrounding
-   words (1.4 of them), so it follows every size. */
 .brand-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45em;
+  --notice-wordmark-muted: var(--muted-foreground);
   color: var(--foreground);
-  white-space: nowrap;
   line-height: 1.2;
   font-size: 1.3125rem;
-}
-.brand-mark {
-  flex-shrink: 0;
-  height: 1.4cap;
-  width: auto;
-  aspect-ratio: 354 / 394;
-}
-.brand-wordmark {
-  font-family: var(--brand-wordmark-font);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-}
-.brand-os {
-  font-weight: 400;
-  color: var(--muted-foreground);
 }
 .brand-lockup--compact {
   font-size: 1.125rem;
 }
-/* Set in a line of text (the Wall's strip): the lockup flows as words do,
-   its name at the line's own size, on the line's baseline, and its mark with
-   its middle on the capitals' middle, which for a mark 1.4 capitals tall is
-   lowering it by 0.2 of one. */
 .brand-lockup--text {
-  display: inline-block;
   font-size: 1em;
-}
-.brand-lockup--text .brand-wordmark {
-  margin-inline-start: 0.35em;
-}
-.brand-lockup--text .brand-mark {
-  display: inline-block;
-  vertical-align: -0.2cap;
 }
 
 /* One two-row rhythm; dividers follow whole widgets as the strip reflows. */

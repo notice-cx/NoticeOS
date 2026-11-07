@@ -20,6 +20,26 @@
   font-weight: 100 900;
   font-display: swap;
 }
+.notice-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--brand-wordmark-font);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.notice-wordmark-mark {
+  height: 0.95em;
+  width: auto;
+  aspect-ratio: 354 / 394;
+  flex-shrink: 0;
+  /* The N's scaled side bearing plus the wordmark's tracking. */
+  margin-right: calc(0.95 * 0.075em + 0.02em);
+}
+.notice-wordmark-os {
+  font-weight: 400;
+  color: var(--notice-wordmark-muted, var(--brand-muted));
+}
 [data-theme="dark"],
 :root {
   --brand-provider-surface: #ffffff;

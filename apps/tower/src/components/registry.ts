@@ -90,7 +90,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "BrandLockup",
     file: "components/BrandLockup.tsx",
-    purpose: "The Notice mark (NoticeMark, drawn in the current ink) and the live NoticeOS wordmark in Stack Sans Notch, shared by desktop navigation, the mobile header and TV. Product identity only; operational states use their own semantic tokens.",
+    purpose: "The NoticeOS logo for desktop navigation, the mobile header and TV. The Notice mark replaces the N in the Stack Sans Notch wordmark.",
     variants: ["default", "compact", "text"],
   },
   {

@@ -42,12 +42,13 @@ same shape is also available as files: [notice-mark.svg](../apps/tower/public/br
 (light). Reserve clear space of at least one quarter of the mark's width
 around a standalone lockup.
 
-Pair the mark with a **NoticeOS** wordmark set as text, the way www.notice.cx
-sets it: Stack Sans Notch at 600 with tight tracking (−0.04em) for “Notice”,
-and a lighter “OS” in the secondary text colour. The mark is 1.4 times the
-height of the capitals beside it, the website's proportion, so the lockup
-scales with its text, from the phone's header to the TV strip. At 16px, use
-the mark alone.
+The mark replaces the N in **NoticeOS**. Set “otice” in Stack Sans Notch at
+weight 600 in the foreground colour and “OS” at weight 400 in the muted text
+colour. Apply +0.02em letter spacing throughout. The mark is 0.95em tall and
+its bottom sits on the text baseline. Set its right margin to
+`calc(0.95 * 0.075em + 0.02em)` to match the scaled side bearing of the N
+plus the letter spacing. The full lockup has the accessible name “NoticeOS”.
+For a 16px favicon, use the mark alone.
 
 The favicon set is the website's: a dark N for light tab bars
 (`notice-icon-32.png`), a white N for dark ones (`notice-icon-32-dark.png`,

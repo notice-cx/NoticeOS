@@ -71,8 +71,7 @@ export default defineConfig({
     plugins: [llmstxt({ domain: site.replace(/\/$/u, ''), title: 'NoticeOS', description: 'Install, use and operate NoticeOS, the self-hosted app that shows traffic, revenue, costs, alerts and work for your websites and software products in one place.' })],
   },
   themeConfig: {
-    logo: { light: '/notice-mark.svg', dark: '/notice-mark-light.svg', alt: 'The Notice mark' },
-    siteTitle: 'NoticeOS',
+    siteTitle: false,
     search: { provider: 'local' },
     nav: [
       { text: 'Start', link: '/start/what-is-noticeos' },

@@ -274,34 +274,18 @@
         min-width: 44px;
       }
       .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45em;
-        white-space: nowrap;
+        --notice-wordmark-muted: var(--muted);
         font-size: 20px;
         line-height: 1;
       }
-      .brand > span {
-        font-family: var(--brand-wordmark-font);
-        letter-spacing: -0.04em;
-        font-weight: 600;
+      .logo-stage .brand,
+      .tv .brand {
+        --notice-wordmark-muted: var(--brand-muted);
       }
-      .brand .os {
-        font-weight: 400;
-        color: var(--muted);
-      }
-      .logo-stage .brand .os {
-        color: inherit;
-        opacity: 0.7;
-      }
-      .brand svg,
       .mark {
         flex-shrink: 0;
         width: auto;
         aspect-ratio: 354 / 394;
-      }
-      .brand svg {
-        height: 1.4cap;
       }
       .topbar {
         position: sticky;
@@ -459,7 +443,6 @@
       }
       .logo-stage .brand {
         font-size: 32px;
-        gap: 16px;
       }
       .logo-note {
         margin-top: 12px;
@@ -728,7 +711,6 @@
       .demo-nav .brand {
         margin: 3px 0 23px 4px;
         font-size: 15px;
-        gap: 7px;
       }
       .demo-nav button {
         min-height: 44px;
@@ -1481,9 +1463,12 @@
     </svg>
     <header class="topbar">
       <div class="top-inner">
-        <a class="brand" href="#identity" aria-label="NoticeOS design system"
-          ><svg height="34" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></a
-        >
+        <a href="#identity" aria-label="NoticeOS design system">
+          <span class="brand notice-wordmark" role="img" aria-label="NoticeOS">
+            <svg class="notice-wordmark-mark" aria-hidden="true"><use href="#notice-mark" /></svg>
+            <span>otice<span class="notice-wordmark-os">OS</span></span>
+          </span>
+        </a>
         <div class="row gap8">
           <span class="pill preview-tag">Notice identity · Design system v2</span
           ><button class="btn" id="theme-toggle">
@@ -1531,23 +1516,24 @@
             </div>
           </div>
           <p class="hero-note">
-            The Notice mark and a NoticeOS wordmark in Stack Sans Notch, as
-            www.notice.cx wears them.
+            The Notice mark replaces the N in the Stack Sans Notch wordmark.
           </p>
           <div class="grid two" style="margin-top: 24px">
             <div class="panel pad">
               <div class="logo-stage light">
-                <span class="brand"
-                  ><svg height="56" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
-                >
+                <span class="brand notice-wordmark" role="img" aria-label="NoticeOS">
+                  <svg class="notice-wordmark-mark" aria-hidden="true"><use href="#notice-mark" /></svg>
+                  <span>otice<span class="notice-wordmark-os">OS</span></span>
+                </span>
               </div>
               <p class="logo-note">Primary lockup · ink wordmark on paper</p>
             </div>
             <div class="panel pad">
-              <div class="logo-stage dark">
-                <span class="brand"
-                  ><svg height="56" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
-                >
+              <div class="logo-stage dark" data-theme="dark">
+                <span class="brand notice-wordmark" role="img" aria-label="NoticeOS">
+                  <svg class="notice-wordmark-mark" aria-hidden="true"><use href="#notice-mark" /></svg>
+                  <span>otice<span class="notice-wordmark-os">OS</span></span>
+                </span>
               </div>
               <p class="logo-note">Reversed lockup · paper wordmark on ink</p>
             </div>
@@ -1914,9 +1900,10 @@
           </div>
           <div class="panel app-demo">
             <aside class="demo-nav" aria-label="Example product navigation">
-              <span class="brand"
-                ><svg height="24" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
-              ><button data-view="workflow" aria-pressed="true">
+              <span class="brand notice-wordmark" role="img" aria-label="NoticeOS">
+                <svg class="notice-wordmark-mark" aria-hidden="true"><use href="#notice-mark" /></svg>
+                <span>otice<span class="notice-wordmark-os">OS</span></span>
+              </span><button data-view="workflow" aria-pressed="true">
                 <svg class="icon"><use href="#i-flow" /></svg>Workflows</button
               ><button data-view="health" aria-pressed="false">
                 <svg class="icon"><use href="#i-heart" /></svg>System health</button
@@ -2196,11 +2183,12 @@
             </div>
           </div>
 
-          <div class="tv" style="margin-top: 20px">
+          <div class="tv" style="margin-top: 20px" data-theme="dark">
             <div class="row between wrap">
-              <span class="brand" style="font-size: 18px"
-                ><svg height="30" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
-              ><span class="demo-label" style="color: #a4aec3"
+              <span class="brand notice-wordmark" style="font-size: 18px" role="img" aria-label="NoticeOS">
+                <svg class="notice-wordmark-mark" aria-hidden="true"><use href="#notice-mark" /></svg>
+                <span>otice<span class="notice-wordmark-os">OS</span></span>
+              </span><span class="demo-label" style="color: #a4aec3"
                 >TV overview / Illustrative data</span
               >
             </div>

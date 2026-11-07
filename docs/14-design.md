@@ -586,9 +586,9 @@ repeated as a breadcrumb. Actions are on the row they act on: Snooze and
 Resolve on an alert, Acknowledge and Tune in its expansion.
 
 **Opening the Tower shows the Notice lockup until the first screen is
-drawn.** `index.html` draws the boot splash before any script runs: the mark,
-the NoticeOS wordmark and, under them, a thin line with one segment sweeping
-from left to right. It shows nothing for its first 180 ms, so a fast start
+drawn.** `index.html` draws the boot splash before any script runs. A thin
+line beneath the NoticeOS lockup has one segment sweeping from left to right.
+The splash shows nothing for its first 180 ms, so a fast start
 goes straight to the screen. It stays while the session is checked and the
 first screen's code and first reads arrive, then fades out over the drawn
 screen in 240 ms (`lib/boot-splash.ts`). The first reads hold it for at most
