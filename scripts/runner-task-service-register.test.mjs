@@ -35,6 +35,8 @@ function ntasks(tasks = []) {
       const url = new URL(path, 'https://ntasks.example.com');
       if (method === 'GET' && url.pathname === '/api/tasks') {
         assert.equal(url.searchParams.get('project'), PROJECT.projectId);
+        const label = url.searchParams.get('label');
+        if (label !== null) return { status: 200, body: { tasks: state.tasks.filter(task => task.labels.includes(label)), next: null } };
         const closedOnly = url.searchParams.get('status') === 'closed';
         return { status: 200, body: { tasks: state.tasks.filter(task => closedOnly ? task.status === 'closed' : true) } };
       }
@@ -94,9 +96,9 @@ test('a panel review is filed in Ntasks once per collection, under the filer\'s 
   assert.notEqual(state.creates[1].idempotencyKey, idempotencyKey);
 });
 
-test('a review closed in the last 56 days still counts as filed', async () => {
+test('a review closed long ago still counts as filed', async () => {
   const { service, state } = ntasks([{ id: 'shop-9', title: 'Triage the shop.example SERP panel (2026-09-21)', status: 'closed',
-    labels: ['panel-review'], metadata: { noticeos_panel_date: '2026-09-21' }, closedAt: '2026-09-25T10:00:00.000Z' }]);
+    labels: ['panel-review'], metadata: { noticeos_panel_date: '2026-09-21' }, closedAt: '2025-12-25T10:00:00.000Z' }]);
   assert.deepEqual((await runPanelReviewFiler(UP, panelDeps(service).deps)).filed, []);
   assert.equal(state.creates.length, 0);
 });

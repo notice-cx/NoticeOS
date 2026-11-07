@@ -5,6 +5,8 @@ export declare function taskCacheDir(homeRoot: string): string;
 /** One project board, as the Tower names it: its site, statuses and closed reach. */
 export declare function boardKey(asset: string, statuses?: string, closedDays?: number): string;
 export declare function taskKey(taskId: string): string;
+/** Every task of a site's project carrying one of a read's labels, closed of any age. */
+export declare function labelKey(asset: string, read: string): string;
 export interface CachedAnswer {
     readonly key: string;
     /** When this machine stored it; the answer's own `readAt` is when Ntasks read it. */
