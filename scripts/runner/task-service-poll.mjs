@@ -93,7 +93,7 @@ export function bdRow(ntasksTask) {
   return {
     id: task.id, title: task.title, status: task.status, priority: task.priority, issue_type: task.issueType,
     assignee: task.assignee, updated_at: task.updatedAt, closed_at: task.closedAt, created_at: task.createdAt,
-    started_at: task.startedAt, parent: task.parent, defer_until: task.deferUntil, description: task.description,
+    started_at: task.startedAt, parent: task.parent, defer_until: task.deferUntil, due_at: task.dueAt ?? null, description: task.description,
     acceptance_criteria: task.acceptance, labels: task.labels, comment_count: task.comments, metadata: task.metadata,
     close_reason: task.closeReason, ...(task.awaitType ? { await_type: task.awaitType } : {}),
     dependencies: (task.dependencies ?? []).map((edge) => ({ id: edge.id, dependency_type: edge.type, title: edge.title, status: edge.status })),

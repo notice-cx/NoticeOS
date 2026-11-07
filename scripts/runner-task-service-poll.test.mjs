@@ -190,7 +190,7 @@ test('the snapshot carries handoffs and panel triage from Ntasks, closes of any 
   const legacy = task({ id: 'ex-21', labels: ['reindex-handoff'],
     metadata: { reindex_source: 'reindex-handoff', reindex_asset: 'example.com', reindex_kind: 'query', reindex_rule: 'striking-distance', reindex_key: 'striking:recipes' } });
   const review = task({ id: 'ex-22', status: 'closed', labels: ['panel-review'], closedAt: '2026-05-10T09:00:00.000Z', title: 'Triage the 2026-05-04 serp panel for example.com',
-    metadata: { noticeos_panel_date: '2026-05-04' } });
+    dueAt: '2026-05-11T00:00:00.000Z', metadata: { noticeos_panel_date: '2026-05-04' } });
   const { service, calls } = ntasks({ labelled: { 'noticeos-handoff': [handoff], 'reindex-handoff': [legacy], 'panel-review': [review] } });
   const { body } = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
   assert.equal(labelReads(calls).length, 3);
@@ -199,6 +199,7 @@ test('the snapshot carries handoffs and panel triage from Ntasks, closes of any 
     [['ex-20', 'closed', 'thin-content:/recipes'], ['ex-21', 'open', 'striking:recipes']]);
   assert.equal(entry.handoffs.find((row) => row.beadId === 'ex-20').closedAt, '2026-06-01T09:00:00.000Z', 'a close five months old');
   assert.ok(entry.panelReview, 'panel triage reads as asked');
+  assert.equal(entry.panelReview.dueAt, '2026-05-11T00:00:00.000Z', 'the review keeps the due date Ntasks holds');
 });
 
 test('a label read Ntasks does not answer is shown as not asked, and the project still reads', async (t) => {
