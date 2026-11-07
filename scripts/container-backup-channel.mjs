@@ -10,6 +10,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const failure = detail => ({ ok: false, detail });
 const refusal = () => { throw new Error('The declared backup channel is unavailable.'); };
 const claimFile = (profile, name) => path.join(profile.transportDir, 'request.lock', name);
+/** Where a request that says `tasks: 'ntasks'` keeps the export the runner took from Ntasks for it. */
+export const tasksExportFile = profile => claimFile(profile, 'tasks-export.json');
 
 export function validateBackupClient(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -61,8 +63,9 @@ export async function containerBackupStatus(file, { fs: io = fs, now = Date.now 
 }
 
 /** A request names its id and, while the installation's tasks live in Ntasks,
- * `tasks: 'ntasks'`, which leaves the Dolt task hub out of the set. Nothing
- * else: the worker chooses every executable and resource itself. */
+ * `tasks: 'ntasks'`: the set then keeps the request's own tasksExportFile in
+ * place of the Dolt task hub. Nothing else: the worker chooses every
+ * executable and resource itself. */
 export function validateBackupRequest(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
     !['format,id', 'format,id,tasks'].includes(Object.keys(value).sort().join()) || value.format !== FORMAT || !UUID.test(value.id ?? '') ||
@@ -85,6 +88,16 @@ async function atomicJson(profile, name, value, io) {
     await io.writeFile(temporary, JSON.stringify(value) + '\n', { flag: 'wx', mode: 0o600 });
     await io.chown(temporary, profile.uid, profile.gid);
     await io.rename(temporary, claimFile(profile, name));
+  } finally { await io.rm(temporary, { force: true }); }
+}
+
+async function privateCopy(profile, source, target, io) {
+  const temporary = `${target}.${randomUUID()}`;
+  try {
+    await io.copyFile(source, temporary, fs.constants.COPYFILE_EXCL);
+    await io.chmod(temporary, 0o600);
+    await io.chown(temporary, profile.uid, profile.gid);
+    await io.rename(temporary, target);
   } finally { await io.rm(temporary, { force: true }); }
 }
 
@@ -136,7 +149,7 @@ async function retireCompleted(profile, id, io) {
   await io.rm(retired, { recursive: true });
 }
 
-export async function requestContainerBackup(file, { tasks, fs: io = fs, timeoutMs = 600_000, intervalMs = 250 } = {}) {
+export async function requestContainerBackup(file, { tasks, tasksExport, fs: io = fs, timeoutMs = 600_000, intervalMs = 250 } = {}) {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 900_000 || intervalMs < 1 || intervalMs > 1000) return failure('The backup request wait is invalid.');
   if (tasks !== undefined && tasks !== 'ntasks') return failure('The backup request names an unknown task store.');
   let profile;
@@ -157,6 +170,8 @@ export async function requestContainerBackup(file, { tasks, fs: io = fs, timeout
       await io.mkdir(claim, { mode: 0o700 });
     }
     await io.writeFile(path.join(claim, 'owner.json'), JSON.stringify({ id: request.id }), { flag: 'wx', mode: 0o600 });
+    // The export goes in before the request, so a worker that reads the request finds it whole.
+    if (tasks && tasksExport) await privateCopy(profile, tasksExport, tasksExportFile(profile), io);
     await atomicJson(profile, 'request.json', request, io);
     const deadline = Date.now() + timeoutMs;
     const result = await new Promise((resolve, reject) => {

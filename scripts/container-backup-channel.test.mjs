@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { readBackupClient, readBackupRequest, validateBackupRequest, finishBackupRequest, requestContainerBackup, containerBackupStatus } from './container-backup-channel.mjs';
+import { readBackupClient, readBackupRequest, validateBackupRequest, finishBackupRequest, requestContainerBackup, containerBackupStatus, tasksExportFile } from './container-backup-channel.mjs';
 import { serviceBackupRequest } from './container-backup-worker.mjs';
 import { BACKUP_PARTS } from '../packages/contract/src/backup-evidence.mjs';
 import { captureWorkflowOutput } from './workflow-output.mjs';
@@ -47,16 +47,25 @@ test('the private channel carries only a generated identity, and completion fenc
 
 test('a request can say only that tasks live in Ntasks, and the worker receives it', async t => {
   const f = await fixture(t);
-  const waiting = requestContainerBackup(f.file, { tasks: 'ntasks', timeoutMs: 2000, intervalMs: 5 });
+  const exported = path.join(await fs.mkdtemp(path.join(os.tmpdir(), 'ntasks-export-')), 'backup.json');
+  t.after(() => fs.rm(path.dirname(exported), { recursive: true, force: true }));
+  await fs.writeFile(exported, '{"format":"ntasks-backup-v1"}', { mode: 0o600 });
+  const waiting = requestContainerBackup(f.file, { tasks: 'ntasks', tasksExport: exported, timeoutMs: 2000, intervalMs: 5 });
   const request = await requested(f.profile);
   assert.deepEqual(Object.keys(request).sort(), ['format', 'id', 'tasks']);
   assert.equal(request.tasks, 'ntasks');
   for (const tasks of ['dolt', '', null, { store: 'ntasks' }]) assert.throws(() => validateBackupRequest({ ...request, tasks }), /unavailable/u);
   assert.throws(() => validateBackupRequest({ ...request, path: '/other' }), /unavailable/u);
-  let executed;
-  await serviceBackupRequest(f.profile, async seen => { executed = seen; return { ok: true, detail: 'Backup complete.' }; });
+  let executed, carried;
+  await serviceBackupRequest(f.profile, async seen => {
+    executed = seen;
+    carried = { text: await fs.readFile(tasksExportFile(f.profile), 'utf8'), mode: (await fs.stat(tasksExportFile(f.profile))).mode & 0o777 };
+    return { ok: true, detail: 'Backup complete.' };
+  });
   assert.equal(executed.tasks, 'ntasks');
+  assert.deepEqual(carried, { text: '{"format":"ntasks-backup-v1"}', mode: 0o600 }, 'the export travels in the request\'s own private folder');
   assert.deepEqual(await waiting, { ok: true, detail: 'Backup complete.' });
+  assert.deepEqual(await fs.readdir(f.profile.transportDir), [], 'and leaves with it');
   assert.deepEqual(await requestContainerBackup(f.file, { tasks: 'dolt' }), { ok: false, detail: 'The backup request names an unknown task store.' });
 });
 

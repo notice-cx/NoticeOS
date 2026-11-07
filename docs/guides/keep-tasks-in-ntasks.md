@@ -16,7 +16,7 @@ Nothing reads or changes the local task database while Ntasks is connected. Ntas
 ## Before you begin
 
 - The installation's tasks are in Ntasks: imported from the task database, or filed there.
-- From Ntasks, a **service credential** with access to each project this installation uses. A project the credential does not reach does not exist for this installation.
+- From Ntasks, a **service credential** with access to each project this installation uses, made with the backup choice (`"backup": true`) so the nightly backup can read the whole store. A project the credential does not reach does not exist for this installation.
 - The address Ntasks answers at. HTTPS is required, except for a local address such as `http://host.docker.internal:8787`.
 
 ## Connect
@@ -44,6 +44,20 @@ Every change goes through the installation's one credential. Each request names 
 - The runner files no new task snapshot, so Home keeps the last one with the time it was taken.
 
 The copies are kept under `.local/task-cache` in the installation's home folder.
+
+## The nightly backup
+
+While Ntasks is connected, the nightly backup and `pnpm os:backup` read Ntasks's whole store through its backup route and keep it in the backup set as `ntasks/backup.json`. The set's `RESTORE.md` and the backup report list the rows of each table. The local task database is not backed up.
+
+The backup is incomplete, with its **Task hub** part failed, when:
+
+- Ntasks does not answer;
+- the credential was not made with the backup choice;
+- Ntasks was written to during each of three reads of the store. Run `pnpm os:backup` again when agents are quiet.
+
+The backup's line in the runner's log, and its record on the Tower, name the reason.
+
+To restore, use an Ntasks checkout of the version the backup was taken from: `node tools/migrate/src/cli.ts restore --from ntasks/backup.json --store restored.sqlite` loads the file into a new store copy and compares the two.
 
 ## How the snapshot stays current
 

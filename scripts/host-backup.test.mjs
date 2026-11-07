@@ -920,21 +920,55 @@ test('a declared Compose task hub with no inventory fails even in linked-install
   assert.equal(result.stages.publication.status, 'blocked');
 });
 
+async function ntasksExport(f, tables = { projects: [{ id: 'p1' }], tasks: [{ id: 'ex-1' }, { id: 'ex-2' }], write_receipts: [] }) {
+  const file = path.join(f.repoRoot, 'export', 'backup.json');
+  await f.write(file, JSON.stringify({ format: 'ntasks-backup-v1', takenAt: '2026-11-07T03:59:00.000Z', migrations: ['0001_tasks.sql'], tables }));
+  await fs.chmod(file, 0o600);
+  return file;
+}
+
 for (const hub of ['declared Compose hub', 'checkout hub']) {
-  test(`while tasks live in Ntasks a ${hub} is left out and no Dolt or bd command runs`, async (t) => {
+  test(`while tasks live in Ntasks a ${hub} is left out and the set keeps Ntasks's export with its rows`, async (t) => {
     const f = await fixture(t);
     if (hub === 'declared Compose hub') await composeHubFixture(f);
-    const result = await runBackup({ ...f.settings, taskHub: 'ntasks' }, {
+    const tasksExport = await ntasksExport(f);
+    const result = await runBackup({ ...f.settings, taskHub: 'ntasks', tasksExport }, {
       ...f.adapters, runDolt: () => assert.fail('no Dolt command while tasks live in Ntasks'),
     });
     assert.equal(result.ok, true, result.detail);
-    assert.equal(result.stages.taskHub.status, 'not_configured');
     assert.equal(result.backupSet.complete, true);
     assert.equal(f.calls.some((call) => call.binary === '/controlled/bd'), false);
     await absent(path.join(f.destination, 'beads'));
-    assert.match(await fs.readFile(path.join(f.destination, 'RESTORE.md'), 'utf8'), /No `beads\/`: the installation's tasks live in Ntasks/u);
+    const kept = path.join(f.destination, 'ntasks', 'backup.json');
+    assert.equal(await fs.readFile(kept, 'utf8'), await fs.readFile(tasksExport, 'utf8'));
+    assert.equal((await fs.stat(kept)).mode & 0o777, 0o600);
+    assert.deepEqual({ ...result.stages.taskHub, errors: undefined }, { status: 'completed', expected: 1, copied: 1, failureCount: 0, errors: undefined,
+      targets: ['ntasks'], takenAt: '2026-11-07T03:59:00.000Z', rows: { projects: 1, tasks: 2, write_receipts: 0 } });
+    const report = JSON.parse(await fs.readFile(path.join(f.repoRoot, '.local/backup-report.json'), 'utf8'));
+    assert.deepEqual(report.stages.taskHub.rows, { projects: 1, tasks: 2, write_receipts: 0 });
+    const restore = await fs.readFile(path.join(f.destination, 'RESTORE.md'), 'utf8');
+    assert.match(restore, /Task hub: completed; 1\/1 copied; rows: projects 1, tasks 2, write_receipts 0/u);
+    assert.match(restore, /`ntasks\/backup\.json`: every row of the Ntasks task store/u);
+    assert.match(restore, /Task hub: in an Ntasks checkout .*\n.*restore --from <this-dir>\/ntasks\/backup\.json/u);
+    assert.doesNotMatch(restore, /dolt backup restore|db\/dolt\/host/u);
   });
 }
+
+test('while tasks live in Ntasks a backup with no export, or a damaged one, is incomplete on its Task hub', async (t) => {
+  for (const damage of ['none', 'unreadable', 'other format']) {
+    const f = await fixture(t);
+    const tasksExport = damage === 'none' ? undefined : await ntasksExport(f);
+    if (damage === 'unreadable') await fs.chmod(tasksExport, 0o644);
+    if (damage === 'other format') await f.write(tasksExport, JSON.stringify({ format: 'other' }));
+    const result = await runBackup({ ...f.settings, taskHub: 'ntasks', ...(tasksExport ? { tasksExport } : { tasksExportError: 'Ntasks did not answer (network)' }) }, f.adapters);
+    assert.equal(result.ok, false, damage);
+    assert.equal(result.stages.taskHub.status, 'failed', damage);
+    assert.equal(result.backupSet.complete, false, damage);
+    assert.match(result.detail, /Task hub: failed/u, damage);
+    if (damage === 'none') assert.match(result.stages.taskHub.errors[0].detail, /Ntasks did not answer/u);
+    await absent(path.join(f.destination, 'ntasks', 'backup.json'));
+  }
+});
 
 for (const store of ['postgres', 'r2', 'taskHub']) {
   test(`${store} inventory unavailable records failure and still copies other stores`, async (t) => {
