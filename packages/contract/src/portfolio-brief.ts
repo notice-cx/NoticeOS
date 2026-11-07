@@ -117,8 +117,8 @@ export const portfolioBriefEvidenceSchema = z.object({
   if (value.context && portfolioBriefUtf8Bytes(JSON.stringify(value)) > value.context.maxBytes) ctx.addIssue({ code: 'custom', message: 'The evidence exceeds its model context budget.' });
 });
 export const portfolioBriefResultSchema = z.object({
-  headline: short(110).describe('At most 10 words. One clear priority, without numeric results or joined clauses.'),
-  assessment: short(220).describe('One short, direct sentence setting the priority. No numeric results or joined clauses.'),
+  headline: short(110).optional().describe('Legacy overall heading; current briefings present individual findings.'),
+  assessment: short(220).optional().describe('Legacy overall summary; current briefings present individual findings.'),
   insights: z.array(z.object({
     title: short(90).describe('A short decision-focused heading, at most 8 words.'),
     observation: short(800).regex(/^(?:Currently|In [A-Z][a-z]+(?: \d{4})? versus [A-Z][a-z]+(?: \d{4})?|Over the [1-9]\d* days ending [A-Z][a-z]{2} [1-9]\d?|On [A-Z][a-z]{2} [1-9]\d?|Over the latest [1-9]\d* days? versus the previous [1-9]\d*|From \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2} versus \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}), \S/,
@@ -130,9 +130,9 @@ export const portfolioBriefResultSchema = z.object({
     confidence: z.enum(['high', 'medium', 'low']).optional(),
   }).strict()).max(3).describe('Zero to three useful findings. Do not fill slots. Return an empty array when insightEvidenceIds is empty.'),
 }).strict().superRefine((value, ctx) => {
-  const words = [value.headline, value.assessment, ...value.insights.flatMap(item => [item.title, item.observation, item.why, item.action])].join(' ').split(/\s+/).length;
+  const words = [value.headline, value.assessment, ...value.insights.flatMap(item => [item.title, item.observation, item.why, item.action])].filter(Boolean).join(' ').split(/\s+/).length;
   if (words > 360) ctx.addIssue({ code: 'custom', message: 'The briefing must contain at most 360 words.' });
-  const sentences = [value.assessment, ...value.insights.flatMap(item => [item.observation, item.why, item.action])];
+  const sentences = [...(value.assessment ? [value.assessment] : []), ...value.insights.flatMap(item => [item.observation, item.why, item.action])];
   if (sentences.some(sentence => !/[.!?]$/.test(sentence))) ctx.addIssue({ code: 'custom', message: 'Briefing sentences must end with punctuation.' });
 });
 export type PortfolioBriefResult = z.infer<typeof portfolioBriefResultSchema>;

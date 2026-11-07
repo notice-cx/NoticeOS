@@ -96,6 +96,10 @@ present.
   `pnpm audit:flows` walks every declared flow in a browser and reports what it
   costs. The jargon ban is enforced: `scripts/ui-lexicon.test.mjs` and
   `scripts/ui-noun.test.mjs` fail on a system word on a screen.
+- **Review the whole screen for repeated messages.** Apply the
+  [screen composition rule](docs/14-design.md#screen-composition) to new and
+  changed UX, including AI output and descriptions beside summaries, headings,
+  controls and cards.
 - **Every change works for any installation, not only this one.**
   Product code names no installation's own assets, accounts, paths or time
   zone; those come from the store, with generic defaults (fixtures use

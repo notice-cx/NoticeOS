@@ -91,11 +91,13 @@ observations and explicit relationships while sharing space across assets.
 Credentials, task comments and raw provider archives are excluded. An eligible
 observation allows model judgment; it does not require a finding.
 
-Results contain at most three findings and 360 words. Home shows each takeaway
-in a compact card. **Details** expands its observation, implication and next
-action. Sentences stay short, with timeframes in the narrative. A visual
-highlight cycles between cards. Interaction and open details pause it;
-**Pause highlights** stops it. Reduced-motion preferences disable cycling.
+Results contain at most three findings and 360 words. Home shows one full-width
+finding and its next action at a time. **Details** expands its observation and
+reasoning. Sentences stay short, with timeframes in the narrative. Findings
+rotate every 7 seconds; vertical dots select a finding and pause rotation.
+Interaction and open Details pause it; **Pause rotation** stops it.
+Reduced-motion preferences disable automatic rotation, with manual navigation
+still available. An overall headline and summary are not requested or shown.
 Missing evidence, static totals and unchanged revenue
 concentration do not establish an insight. The model can return no findings.
 It cannot execute actions; task completion does not establish business impact,
