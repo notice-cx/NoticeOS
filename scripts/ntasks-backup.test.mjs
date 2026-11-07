@@ -75,6 +75,21 @@ test('a refused or malformed export says why and leaves no file', async (t) => {
   }
   const unanswered = { call: async () => { throw new Error('Ntasks did not answer (network)'); } };
   assert.match((await takeNtasksExport(unanswered, dir)).error, /did not answer/u);
+  const large = await takeNtasksExport(ntasks().service, dir, { maxBytes: 20 });
+  assert.match(large.error, /larger than 20 bytes/u, 'an export past the bound stops before it is written');
+  assert.deepEqual(await fs.readdir(large.dir), []);
+});
+
+test('an export folder that cannot be made fails the export alone, with the reason', async (t) => {
+  const dir = await scratch(t);
+  const blocker = path.join(dir, 'a-file');
+  await fs.writeFile(blocker, '');
+  const { service, asked } = ntasks();
+  const exported = await takeNtasksExport(service, path.join(blocker, 'task-export'));
+  assert.equal(exported.dir, null);
+  assert.equal(exported.file, undefined);
+  assert.match(exported.error, /ENOTDIR|EEXIST/u);
+  assert.deepEqual(asked, [], 'Ntasks is not read');
 });
 
 test('a backup keeps only a private file holding one whole export', async (t) => {

@@ -319,7 +319,7 @@ async function runBackup() {
     log(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
     return result;
   } finally {
-    if (exported) await fs.rm(exported.dir, { recursive: true, force: true });
+    if (exported?.dir) await fs.rm(exported.dir, { recursive: true, force: true });
   }
 }
 

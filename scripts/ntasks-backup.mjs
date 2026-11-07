@@ -29,10 +29,11 @@ function refused(status, body) {
   return new Error(`Ntasks's backup route answered HTTP ${status}${typeof body?.error === 'string' ? ` ${body.error}` : ''}${detail}`);
 }
 
-async function collect(service) {
+async function collect(service, maxBytes) {
   const tables = {};
   let first = null;
   let token = null;
+  let bytes = 0;
   for (let pages = 1; pages <= EXPORT_PAGES; pages += 1) {
     const { status, body } = await service.call({ method: 'GET', path: token === null ? '/api/backup' : `/api/backup?page=${encodeURIComponent(token)}` });
     if (status === 409 && body?.error === 'store_changed') throw new StoreChanged();
@@ -46,6 +47,9 @@ async function collect(service) {
     if (body.takenAt !== first.takenAt || body.migrations.join() !== first.migrations.join()) {
       throw new Error(`page ${pages} of Ntasks's backup is from another export than the first`);
     }
+    // The file holds at least these bytes, so an export past the bound stops here, not after it is written.
+    bytes += Buffer.byteLength(JSON.stringify(body.rows));
+    if (bytes > maxBytes) throw new Error(`Ntasks's backup is larger than ${maxBytes} bytes`);
     const rows = tables[body.table] ??= [];
     for (const row of body.rows) rows.push(row);
     if (body.next === null) return { format: NTASKS_BACKUP_FORMAT, takenAt: first.takenAt, migrations: [...first.migrations], tables };
@@ -65,10 +69,10 @@ export function rowCounts(tables) {
  * written to while the pages are read. Throws with the reason when no whole
  * export was taken.
  */
-export async function pullNtasksBackup(service, file, { attempts = EXPORT_ATTEMPTS, fs: io = fs } = {}) {
+export async function pullNtasksBackup(service, file, { attempts = EXPORT_ATTEMPTS, maxBytes = EXPORT_BYTES, fs: io = fs } = {}) {
   for (let attempt = 1; ; attempt += 1) {
     let backup;
-    try { backup = await collect(service); }
+    try { backup = await collect(service, maxBytes); }
     catch (error) {
       if (!(error instanceof StoreChanged)) throw error;
       if (attempt >= attempts) throw new Error(`Ntasks was written to during each of ${attempts} attempts, so no task export was taken`);
@@ -81,15 +85,19 @@ export async function pullNtasksBackup(service, file, { attempts = EXPORT_ATTEMP
 
 /**
  * One backup run's export in a private folder under `parent`: `{ dir, file }`
- * when Ntasks gave a whole export, `{ dir, error }` with the reason when not.
- * The caller removes `dir` once the backup has kept the file.
+ * when Ntasks gave a whole export, `{ dir, error }` with the reason when not,
+ * `dir` null when no folder was made. Never throws, so a failed export fails
+ * only the backup's task part. The caller removes `dir` once the backup has
+ * kept the file.
  */
 export async function takeNtasksExport(service, parent, { fs: io = fs, ...options } = {}) {
-  await io.mkdir(parent, { recursive: true, mode: 0o700 });
-  const dir = await io.mkdtemp(path.join(parent, 'ntasks-export-'));
-  const file = path.join(dir, 'backup.json');
-  try { return { dir, file, ...await pullNtasksBackup(service, file, { fs: io, ...options }) }; }
-  catch (error) { return { dir, error: String(error?.message ?? error).slice(0, 300) }; }
+  let dir = null;
+  try {
+    await io.mkdir(parent, { recursive: true, mode: 0o700 });
+    dir = await io.mkdtemp(path.join(parent, 'ntasks-export-'));
+    const file = path.join(dir, 'backup.json');
+    return { dir, file, ...await pullNtasksBackup(service, file, { fs: io, ...options }) };
+  } catch (error) { return { dir, error: String(error?.message ?? error).slice(0, 300) }; }
 }
 
 /**
@@ -97,7 +105,8 @@ export async function takeNtasksExport(service, parent, { fs: io = fs, ...option
  * answers when it was taken, the store's migrations and the rows of each
  * table. Throws with the reason otherwise.
  */
-export async function readNtasksBackup(file, { fs: io = fs, maxBytes = EXPORT_BYTES } = {}) {
+/** Checks that `file` is a private regular file no larger than `maxBytes`, and answers its size. */
+export async function privateExportSize(file, { fs: io = fs, maxBytes = EXPORT_BYTES } = {}) {
   let stat;
   try { stat = await io.lstat(file); }
   catch (error) {
@@ -106,6 +115,11 @@ export async function readNtasksBackup(file, { fs: io = fs, maxBytes = EXPORT_BY
   }
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || (stat.mode & 0o077)) throw new Error('the Ntasks export is not a private file');
   if (stat.size > maxBytes) throw new Error(`the Ntasks export is larger than ${maxBytes} bytes`);
+  return stat.size;
+}
+
+export async function readNtasksBackup(file, { fs: io = fs, maxBytes = EXPORT_BYTES } = {}) {
+  const size = await privateExportSize(file, { fs: io, maxBytes });
   let value;
   try { value = JSON.parse(await io.readFile(file, 'utf8')); }
   catch { throw new Error('the Ntasks export is not JSON'); }
@@ -116,5 +130,5 @@ export async function readNtasksBackup(file, { fs: io = fs, maxBytes = EXPORT_BY
     || !Object.entries(tables).every(([table, rows]) => TABLE.test(table) && Array.isArray(rows) && rows.every(isRow))) {
     throw new Error(`the Ntasks export is not a whole ${NTASKS_BACKUP_FORMAT} backup`);
   }
-  return { takenAt: value.takenAt, migrations: value.migrations, rows: rowCounts(tables), bytes: stat.size };
+  return { takenAt: value.takenAt, migrations: value.migrations, rows: rowCounts(tables), bytes: size };
 }
