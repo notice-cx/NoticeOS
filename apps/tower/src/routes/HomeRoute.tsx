@@ -222,7 +222,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     // monitor or a narrow window all leave Home less than the viewport, and
     // the twelve columns need room to be twelve.
     <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
-      <ExecutiveBrief read={brief.data} readFailed={brief.isError} fallback={<Answer
+      <ExecutiveBrief read={brief.data} readFailed={brief.isError} assets={data.assets} fallback={<Answer
         money={money}
         issues={issues}
         since={since}

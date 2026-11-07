@@ -1,9 +1,24 @@
 import { type ReactNode, useEffect, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Layers3, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PropertyFavicon } from '@/components/PropertyFavicon';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import type { PortfolioBrief, PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
+import { CONFIG_ASSET_KEY_RE } from '@noticeos/contract/configuration';
+import type { AssetCard } from '@shared/wall';
+
+type BriefAsset = Pick<AssetCard, 'id' | 'displayName' | 'icons'>;
+
+/** Source routes and identifiers are application-owned; model prose never assigns identity. */
+function sourceAsset(source: PortfolioBrief['sources'][number]): string | null {
+  try {
+    const path = /^\/assets\/([^/?#]+)(?:\/|$)/.exec(source.href);
+    const project = /^\/tasks(?:\/[^/?#]+)?\?/.test(source.href) ? new URLSearchParams(source.href.split('?')[1]).get('project') : null;
+    const id = path ? decodeURIComponent(path[1]!) : project ?? /^(?:asset|work|task|task-dependency|acquisition|product):([^:]+):[^:]+$/.exec(source.id)?.[1];
+    return id && CONFIG_ASSET_KEY_RE.test(id) ? id : null;
+  } catch { return null; }
+}
 
 function actionDestination(href: string): string | null {
   if (/^\/tasks(?:\/[^/?#]+)?(?:\?project=[a-zA-Z0-9_%.-]+)?$/.test(href)) return 'Review tasks';
@@ -14,7 +29,7 @@ function actionDestination(href: string): string | null {
   return null;
 }
 
-export function ExecutiveBrief({ read, readFailed = false, fallback }: { read?: PortfolioBriefRead; readFailed?: boolean; fallback: ReactNode }) {
+export function ExecutiveBrief({ read, readFailed = false, fallback, assets = [] }: { read?: PortfolioBriefRead; readFailed?: boolean; fallback: ReactNode; assets?: readonly BriefAsset[] }) {
   const brief = read?.briefing;
   const [paused, setPaused] = useState(false);
   if (!brief || brief.result.insights.length === 0) return <>
@@ -24,10 +39,10 @@ export function ExecutiveBrief({ read, readFailed = false, fallback }: { read?: 
   </>;
   const outdated = readFailed || read?.stale || read?.state === 'unavailable';
   const warning = !outdated ? null : readFailed || read?.state === 'unavailable' ? 'Refresh failed. Showing the previous briefing.' : 'This briefing is out of date.';
-  return <BriefingFindings key={`${brief.generatedAt}:${brief.result.insights.length}`} brief={brief} warning={warning} paused={paused} onPausedChange={setPaused} />;
+  return <BriefingFindings key={`${brief.generatedAt}:${brief.result.insights.length}`} brief={brief} assets={assets} warning={warning} paused={paused} onPausedChange={setPaused} />;
 }
 
-function BriefingFindings({ brief, warning, paused, onPausedChange }: { brief: PortfolioBrief; warning: string | null; paused: boolean; onPausedChange: (paused: boolean) => void }) {
+function BriefingFindings({ brief, assets, warning, paused, onPausedChange }: { brief: PortfolioBrief; assets: readonly BriefAsset[]; warning: string | null; paused: boolean; onPausedChange: (paused: boolean) => void }) {
   const findings = brief.result.insights.slice(0, 3);
   const count = findings.length;
   const [index, setIndex] = useState(0);
@@ -53,6 +68,8 @@ function BriefingFindings({ brief, warning, paused, onPausedChange }: { brief: P
 
   const insight = findings[index]!;
   const sources = new Map(brief.sources.map(source => [source.id, source]));
+  const identities = [...new Set(insight.evidenceIds.flatMap(id => { const source = sources.get(id); const asset = source && sourceAsset(source); return asset ? [asset] : []; }))]
+    .map(id => assets.find(asset => asset.id === id) ?? { id, displayName: id, icons: null });
   const destination = insight.evidenceIds.map(id => sources.get(id)).find(source => source && actionDestination(source.href));
   return <section aria-label="Portfolio briefing" aria-roledescription="carousel" className="w-full min-w-0 rounded-xl bg-card p-5 ring-1 ring-border/70"
     data-executive-brief="" data-brief-cycle={cycling ? 'running' : 'paused'}
@@ -63,7 +80,13 @@ function BriefingFindings({ brief, warning, paused, onPausedChange }: { brief: P
       <div className="min-w-0 flex-1" aria-live={cycling ? 'off' : 'polite'} aria-atomic="true">
         <div key={index} role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${count}`} data-brief-finding={index}
           className="viz-arrive flex min-h-48 flex-col gap-4 sm:min-h-40">
-          <h2 className="m-0 text-figure-sm [text-wrap:balance]">{insight.title}</h2>
+          <div className="flex items-start gap-3">
+            {identities.length ? <span role="img" aria-label={`About ${identities.map(asset => asset.displayName).join(', ')}`} title={identities.map(asset => asset.displayName).join(', ')} className="flex shrink-0 flex-wrap items-center gap-1">
+              {identities.slice(0, 3).map(asset => <PropertyFavicon key={asset.id} domain={asset.id} displayName={asset.displayName} icons={asset.icons} className="size-7" />)}
+              {identities.length > 3 ? <span aria-hidden className="text-xs text-muted-foreground">+{identities.length - 3}</span> : null}
+            </span> : <span role="img" aria-label="Portfolio finding" title="Portfolio" className="shrink-0 text-muted-foreground"><Layers3 aria-hidden className="size-7" /></span>}
+            <h2 className="m-0 min-w-0 text-figure-sm [text-wrap:balance]">{insight.title}</h2>
+          </div>
           <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next</p><p className="mt-1 max-w-prose text-sm leading-relaxed">{insight.action}</p></div>
           <details onToggle={event => setDetailsOpen(event.currentTarget.open)}>
             <summary className="w-fit cursor-pointer text-sm text-muted-foreground underline underline-offset-4">Details<span className="sr-only">: {insight.title}</span></summary>

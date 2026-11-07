@@ -15,9 +15,9 @@ const ready: PortfolioBriefRead = { state: 'ready', error: null, stale: false, l
     { title: 'Find what drove search growth', observation: 'Over the latest 28 days, search visits rose for one asset. Other assets declined.', why: 'Growth is concentrated in one asset.', action: 'Inspect the growing pages.', evidenceIds: ['search'], confidence: 'medium' },
     { title: 'Review the release blocker', observation: 'Currently, the release task depends on an unfinished review.', why: 'The release cannot proceed until that review is complete.', action: 'Review the blocking task.', evidenceIds: ['tasks'], confidence: 'high' },
   ] }, sources: [
-    { id: 'checkout', label: 'Checkout completion', href: '/alerts', observedAt: WALL_FIXTURE_NOW, period: null, comparison: { current: { start: '2026-08-25', end: '2026-09-21' }, previous: { start: '2026-07-28', end: '2026-08-24' }, timeZone: 'America/Los_Angeles' } },
-    { id: 'search', label: 'Search readings', href: '/assets/example.com/search', observedAt: WALL_FIXTURE_NOW, period: null, comparison: { current: { start: '2026-08-25', end: '2026-09-21' }, previous: { start: '2026-07-28', end: '2026-08-24' }, timeZone: 'America/Los_Angeles' } },
-    { id: 'tasks', label: 'Release dependency', href: '/tasks?project=example.com', observedAt: null, period: null },
+    { id: 'checkout', label: 'Checkout completion', href: '/assets/acorn.example/product', observedAt: WALL_FIXTURE_NOW, period: null, comparison: { current: { start: '2026-08-25', end: '2026-09-21' }, previous: { start: '2026-07-28', end: '2026-08-24' }, timeZone: 'America/Los_Angeles' } },
+    { id: 'search', label: 'Search readings', href: '/assets/plume.example/search', observedAt: WALL_FIXTURE_NOW, period: null, comparison: { current: { start: '2026-08-25', end: '2026-09-21' }, previous: { start: '2026-07-28', end: '2026-08-24' }, timeZone: 'America/Los_Angeles' } },
+    { id: 'tasks', label: 'Release dependency', href: '/tasks?project=acorn.example', observedAt: null, period: null },
   ],
 } };
 
@@ -69,6 +69,7 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await expect(brief).toBeVisible();
   await expect(heading).toHaveText(ready.briefing!.result.insights[0]!.title);
   await expect(brief.getByRole('heading')).toHaveCount(1);
+  await expect(brief.getByRole('img', { name: 'About Acorn Atlas' })).toBeVisible();
   await expect(brief.locator('[data-brief-finding]')).toHaveCount(1);
   await expect(brief).not.toContainText(ready.briefing!.result.headline!);
   await expect(brief).not.toContainText(ready.briefing!.result.assessment!);
@@ -91,6 +92,7 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await page.clock.fastForward(7_000);
   await expect(heading).toHaveText(ready.briefing!.result.insights[1]!.title);
   await expect(dots.nth(1)).toHaveAttribute('aria-current', 'true');
+  await expect(brief.getByRole('img', { name: 'About Plume Studio' })).toBeVisible();
   await brief.getByRole('button', { name: 'Pause finding rotation' }).click();
   await page.clock.fastForward(14_000);
   await expect(heading).toHaveText(ready.briefing!.result.insights[1]!.title);
@@ -109,7 +111,7 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await expect(brief.getByText(ready.briefing!.result.insights[0]!.observation)).toBeVisible();
   await expect(brief.getByText(ready.briefing!.result.insights[0]!.why)).toBeVisible();
   await expect(brief.getByText(ready.briefing!.result.insights[0]!.action)).toHaveCount(1);
-  await expect(brief.getByRole('link', { name: 'Review alerts' })).toHaveAttribute('href', '/alerts');
+  await expect(brief.getByRole('link', { name: 'Review asset' })).toHaveAttribute('href', '/assets/acorn.example/product');
   await page.clock.fastForward(14_000);
   await expect(heading).toHaveText(ready.briefing!.result.insights[0]!.title);
   await brief.screenshot({ path: info.outputPath('single-finding-expanded.png'), animations: 'disabled' });

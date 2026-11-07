@@ -20,7 +20,8 @@ const ready: PortfolioBriefRead = { ...empty, state: 'ready', briefing: {
     { id: 'tasks', label: 'Task report', href: '/tasks?project=example.com', observedAt: '2026-11-06T11:00:00Z', period: null },
   ],
 } };
-const element = (read?: PortfolioBriefRead, readFailed = false) => <MemoryRouter><ExecutiveBrief read={read} readFailed={readFailed} fallback={<p>Observed summary</p>} /></MemoryRouter>;
+const assets = [{ id: 'example.com', displayName: 'Example', icons: null }, { id: 'another.example', displayName: 'Another', icons: null }];
+const element = (read?: PortfolioBriefRead, readFailed = false) => <MemoryRouter><ExecutiveBrief read={read} readFailed={readFailed} assets={assets} fallback={<p>Observed summary</p>} /></MemoryRouter>;
 const show = (read: PortfolioBriefRead | undefined = ready, readFailed = false) => render(element(read, readFailed));
 const single = (): PortfolioBriefRead => ({ ...ready, briefing: { ...ready.briefing!, result: { ...ready.briefing!.result, insights: findings.slice(0, 1) } } });
 const advance = () => act(() => vi.advanceTimersByTime(7_000));
@@ -84,6 +85,42 @@ describe('ExecutiveBrief', () => {
     const read = single();
     show({ ...read, briefing: { ...read.briefing!, sources: [{ ...read.briefing!.sources[0]!, href: 'https://external.example.com' }] } });
     expect(screen.queryByRole('link', { hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('uses only cited source assets for the icon and deduplicates repeated references', () => {
+    const read = single();
+    const source = read.briefing!.sources[0]!;
+    const { container } = show({ ...read, briefing: { ...read.briefing!, sources: [source, { ...source, id: 'other' }, { ...source, id: 'uncited', href: '/assets/another.example' }],
+      result: { insights: [{ ...findings[0]!, evidenceIds: ['checkout', 'other'] }] } } });
+    expect(screen.getByRole('img', { name: 'About Example' })).toBeVisible();
+    expect(container.querySelectorAll('[data-property-favicon]')).toHaveLength(1);
+    expect(container.querySelector('[data-property-favicon]')).toHaveAttribute('data-property-favicon', 'example.com');
+  });
+
+  it('shows multiple asset icons for a finding supported by multiple assets', () => {
+    const read = single();
+    const { container } = show({ ...read, briefing: { ...read.briefing!, sources: [...read.briefing!.sources,
+      { ...read.briefing!.sources[0]!, id: 'second', href: '/assets/another.example/search' }],
+      result: { insights: [{ ...findings[0]!, evidenceIds: ['checkout', 'second'] }] } } });
+    expect(screen.getByRole('img', { name: 'About Example, Another' })).toBeVisible();
+    expect(container.querySelectorAll('[data-property-favicon]')).toHaveLength(2);
+  });
+
+  it.each([
+    ['/tasks/ex-1?project=example%2Ecom', 'task-source'], ['/tasks', 'work:example.com:progress'],
+  ])('identifies a task project from its saved source %s', (href, id) => {
+    const read = single();
+    show({ ...read, briefing: { ...read.briefing!, sources: [{ ...read.briefing!.sources[0]!, href, id }],
+      result: { insights: [{ ...findings[0]!, evidenceIds: [id] }] } } });
+    expect(screen.getByRole('img', { name: 'About Example' })).toBeVisible();
+  });
+
+  it.each(['/financials', '/assets/%ZZ'])('uses a portfolio mark for %s rather than guessing from the model title', href => {
+    const read = single();
+    show({ ...read, briefing: { ...read.briefing!, sources: [{ ...read.briefing!.sources[0]!, href }],
+      result: { insights: [{ ...findings[0]!, title: 'Example revenue needs a review' }] } } });
+    expect(screen.getByRole('img', { name: 'Portfolio finding' })).toBeVisible();
+    expect(screen.queryByRole('img', { name: 'About Example' })).not.toBeInTheDocument();
   });
 
   it('retains a finding with one warning when a refresh fails', () => {
