@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, readFeed, readLabelled, syncTaskService } from './runner/task-service-poll.mjs';
+import { backupTaskHub, boardResults, FEED_PAGE, FEED_PAGES, HUB_IN_NTASKS, LABEL_PAGE, LABEL_PAGES, readFeed, readLabelled, syncTaskService, taskHubCheck, taskHubOutcome } from './runner/task-service-poll.mjs';
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
@@ -190,7 +190,7 @@ test('the snapshot carries handoffs and panel triage from Ntasks, closes of any 
   const legacy = task({ id: 'ex-21', labels: ['reindex-handoff'],
     metadata: { reindex_source: 'reindex-handoff', reindex_asset: 'example.com', reindex_kind: 'query', reindex_rule: 'striking-distance', reindex_key: 'striking:recipes' } });
   const review = task({ id: 'ex-22', status: 'closed', labels: ['panel-review'], closedAt: '2026-05-10T09:00:00.000Z', title: 'Triage the 2026-05-04 serp panel for example.com',
-    metadata: { noticeos_panel_date: '2026-05-04' } });
+    dueAt: '2026-05-11T00:00:00.000Z', metadata: { noticeos_panel_date: '2026-05-04' } });
   const { service, calls } = ntasks({ labelled: { 'noticeos-handoff': [handoff], 'reindex-handoff': [legacy], 'panel-review': [review] } });
   const { body } = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
   assert.equal(labelReads(calls).length, 3);
@@ -199,6 +199,7 @@ test('the snapshot carries handoffs and panel triage from Ntasks, closes of any 
     [['ex-20', 'closed', 'thin-content:/recipes'], ['ex-21', 'open', 'striking:recipes']]);
   assert.equal(entry.handoffs.find((row) => row.beadId === 'ex-20').closedAt, '2026-06-01T09:00:00.000Z', 'a close five months old');
   assert.ok(entry.panelReview, 'panel triage reads as asked');
+  assert.equal(entry.panelReview.dueAt, '2026-05-11T00:00:00.000Z', 'the review keeps the due date Ntasks holds');
 });
 
 test('a label read Ntasks does not answer is shown as not asked, and the project still reads', async (t) => {
@@ -253,4 +254,18 @@ test('a label read past the page bound fails, and replaces the list kept before 
   assert.equal(Object.hasOwn(entry, 'panelReview'), false, 'a cut read is not shown as the earlier list');
   assert.equal(Object.hasOwn(entry, 'handoffs'), false);
   assert.equal((await readCached(dir, labelKey('example.com', 'panelReview'))).body, null);
+});
+
+test('the Dolt hub check and the backup leave Dolt alone only while tasks live in Ntasks', async () => {
+  for (const [backend, checked, setting] of [['ntasks', 0, 'ntasks'], ['local', 1, undefined], ['unknown', 1, undefined]]) {
+    const service = { backend: async () => backend };
+    let checks = 0;
+    const reachable = await taskHubCheck(service, async () => { checks += 1; return false; });
+    assert.equal(checks, checked, backend);
+    assert.deepEqual(taskHubOutcome(reachable), backend === 'ntasks'
+      ? { outcome: 'skipped', detail: HUB_IN_NTASKS } : { outcome: 'ran', detail: 'hub down' });
+    assert.equal(await backupTaskHub(service), setting, backend);
+  }
+  assert.equal(await taskHubCheck(null, async () => true), true, 'no task service is the bd hub');
+  assert.equal(await backupTaskHub(null), undefined);
 });

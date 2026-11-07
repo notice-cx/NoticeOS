@@ -1,5 +1,7 @@
 // The worker chooses the operation from its protected configuration. A client
-// can request that operation once, but cannot choose executable or resource.
+// can request that operation once, but cannot choose executable or resource;
+// it can only say that the installation's tasks live in Ntasks, which leaves
+// the Dolt task hub out (validateBackupRequest).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readBackupRequest, completedBackupRequest, finishBackupRequest } from './container-backup-channel.mjs';
@@ -32,7 +34,7 @@ export async function serviceBackupRequest(profile, execute, { fs: io = fs } = {
   // recovery; an exact finished response lets the client retire everything.
   let result;
   try {
-    result = await execute();
+    result = await execute(request);
     if (typeof result?.ok !== 'boolean' || typeof result?.detail !== 'string') throw new Error();
   } catch { result = { ok: false, detail: 'The declared backup worker failed; the previous complete set was preserved.' }; }
   await finishBackupRequest(profile, request, { ok: result.ok, detail: result.detail.slice(0, 4000), ...(result.backup ? { backup: result.backup } : {}) }, { fs: io });

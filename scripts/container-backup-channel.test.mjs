@@ -45,6 +45,21 @@ test('the private channel carries only a generated identity, and completion fenc
   assert.deepEqual(await fs.readdir(f.profile.transportDir), []);
 });
 
+test('a request can say only that tasks live in Ntasks, and the worker receives it', async t => {
+  const f = await fixture(t);
+  const waiting = requestContainerBackup(f.file, { tasks: 'ntasks', timeoutMs: 2000, intervalMs: 5 });
+  const request = await requested(f.profile);
+  assert.deepEqual(Object.keys(request).sort(), ['format', 'id', 'tasks']);
+  assert.equal(request.tasks, 'ntasks');
+  for (const tasks of ['dolt', '', null, { store: 'ntasks' }]) assert.throws(() => validateBackupRequest({ ...request, tasks }), /unavailable/u);
+  assert.throws(() => validateBackupRequest({ ...request, path: '/other' }), /unavailable/u);
+  let executed;
+  await serviceBackupRequest(f.profile, async seen => { executed = seen; return { ok: true, detail: 'Backup complete.' }; });
+  assert.equal(executed.tasks, 'ntasks');
+  assert.deepEqual(await waiting, { ok: true, detail: 'Backup complete.' });
+  assert.deepEqual(await requestContainerBackup(f.file, { tasks: 'dolt' }), { ok: false, detail: 'The backup request names an unknown task store.' });
+});
+
 test('the worker preserves validated per-run evidence through the channel into execution output', async t => {
   const f = await fixture(t);
   const backup = { version: 1, startedAt: '2026-09-09T04:00:00.000Z', finishedAt: '2026-09-09T04:00:25.000Z', complete: true,

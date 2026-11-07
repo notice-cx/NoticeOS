@@ -28,6 +28,25 @@ export function bdLaneSkip(backend, lane) {
   return backend === 'unknown' ? `the ingest has not said whether tasks live in Ntasks, so this lane does not ${lane}` : null;
 }
 
+export const HUB_IN_NTASKS = 'tasks live in Ntasks, so the Dolt task hub is not checked';
+
+/** The Dolt hub's check (`check`, true when it answers), or null while tasks
+ * live in Ntasks, where nothing reads or writes Dolt. */
+export async function taskHubCheck(service, check) {
+  return await taskBackend(service) === 'ntasks' ? null : check();
+}
+
+/** The task-hub lane's record of one taskHubCheck answer. */
+export function taskHubOutcome(reachable) {
+  return reachable === null ? { outcome: 'skipped', detail: HUB_IN_NTASKS } : { outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' };
+}
+
+/** The nightly backup's task-hub setting: `ntasks` while tasks live there,
+ * which leaves Dolt out of the set; otherwise none, the backup's default. */
+export async function backupTaskHub(service) {
+  return await taskBackend(service) === 'ntasks' ? 'ntasks' : undefined;
+}
+
 /** Ntasks's label read: at most this many pages of LABEL_PAGE per label. */
 export const LABEL_PAGES = 10;
 export const LABEL_PAGE = 200;
@@ -74,7 +93,7 @@ export function bdRow(ntasksTask) {
   return {
     id: task.id, title: task.title, status: task.status, priority: task.priority, issue_type: task.issueType,
     assignee: task.assignee, updated_at: task.updatedAt, closed_at: task.closedAt, created_at: task.createdAt,
-    started_at: task.startedAt, parent: task.parent, defer_until: task.deferUntil, description: task.description,
+    started_at: task.startedAt, parent: task.parent, defer_until: task.deferUntil, due_at: task.dueAt ?? null, description: task.description,
     acceptance_criteria: task.acceptance, labels: task.labels, comment_count: task.comments, metadata: task.metadata,
     close_reason: task.closeReason, ...(task.awaitType ? { await_type: task.awaitType } : {}),
     dependencies: (task.dependencies ?? []).map((edge) => ({ id: edge.id, dependency_type: edge.type, title: edge.title, status: edge.status })),

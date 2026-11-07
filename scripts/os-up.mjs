@@ -62,6 +62,7 @@ import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-
 import { checkBeadsHub, taskHubPortDescription } from './runner/task-hub.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runBeadsPoll, runnerTaskService } from './runner/task-snapshot.mjs';
+import { backupTaskHub, HUB_IN_NTASKS, taskHubCheck, taskHubOutcome } from './runner/task-service-poll.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 async function ensureDirs() {
@@ -296,12 +297,14 @@ function waitForExit(children, timeoutMs) {
 async function runBackup() {
   // The offsite folder is read by the backup itself (scripts/host-backup.mjs),
   // so an edit applies at the next run.
+  const taskHub = await backupTaskHub(runnerTaskService());
   const result = process.env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
-    ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE)
+    ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub } : {})
     : await backupHost({
     repoRoot: HOME_ROOT,
     retentionDays: CONFIG.backupRetentionDays,
     bdBinary: bdBin(),
+    ...(taskHub ? { taskHub } : {}),
     ...(process.env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: process.env.NOTICEOS_DOLT_HOME } : {}),
   });
   log(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
@@ -315,8 +318,8 @@ export function hostLanes(runtime) {
   const traced = (id, run, adapters) => ({ run: capture => runLocalLaneWithDiagnostics(capture, id, run, adapters) });
   return {
     'beads-hub': {
-      run: () => checkBeadsHub(),
-      outcomeOf: (reachable) => ({ outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' }),
+      run: () => taskHubCheck(runnerTaskService(), () => checkBeadsHub()),
+      outcomeOf: taskHubOutcome,
     },
     'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit }), { resultMetadata: result => result?.response ?? result?.error ?? {} }),
     'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
@@ -481,7 +484,7 @@ async function supervise({ exposeTowerToLan }) {
     }
   }
   // force: say where the hub stands every startup, even when nothing changed.
-  await checkBeadsHub({ force: true });
+  if (await taskHubCheck(runnerTaskService(), () => checkBeadsHub({ force: true })) === null) log('INFO', HUB_IN_NTASKS);
   // Read before the lanes arm, so a restart answers "has the nightly backup
   // been running?" without a scroll.
   const recorded = await reportJobRuns();
