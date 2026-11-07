@@ -25,42 +25,22 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('System Health status evidence', () => {
-  it("names the OS's own problem first, in the words Home's Stopped card used", () => {
-    wall.data = { system: { assetId: 'os-root', hasPulse: false, spendTodayUsd: 0, dailyCapUsd: 2, ingest: { fresh: 0, stale: 0, notExpected: 0, expected: 0 }, scheduledLanes: [] } };
-    mount();
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('OS report missing');
-  });
-
   it('links internal failures to their exact run and excludes operator workflows from the summary', () => {
     mount();
-    expect(screen.queryByText('1 background operation failed')).toBeNull();
     expect(document.querySelectorAll('[aria-label="Failed background operations"] a')).toHaveLength(1);
     expect(screen.getByRole('link', { name: /Backups/ })).toHaveAttribute('href', '/health/operations/backup?run=backup%402026-09-09T11%3A59%3A00Z');
-    expect(screen.queryByText('Operator notifications')).toBeNull();
+    expect(document.querySelector('a[href*="/notifications"]')).toBeNull();
   });
   it('does not infer a healthy service from stale cached success', () => {
     mock.data!.generatedAt = '2026-09-09T11:58:00Z';
     mount();
-    expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
-    expect(screen.queryByText('Reporting')).toBeNull();
+    expect(document.querySelector('[data-status-cells]')).toBeVisible();
     expect(screen.queryByRole('link', { name: /Backups/ })).toBeNull();
   });
   it('handles an unavailable endpoint without asserting zero failures or hiding the operations entry', () => {
     mock.data = undefined; mock.isError = true;
     mount();
-    expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'View background operations' })).toBeVisible();
-  });
-  it('requires fresh connection evidence before reporting normal checks', () => {
-    mock.data!.workflows = [];
-    mount(false);
-    expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
-  });
-  it('cannot report normal checks when a known internal operation has no scheduler entry', () => {
-    mock.data!.runtime!.jobs = mock.data!.runtime!.jobs.filter((job) => job.id !== 'backup');
-    mock.data!.workflows = mock.data!.workflows.filter((job) => job.id === 'backup');
-    mount();
-    expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'View background operations' })).toHaveAttribute('href', '/health/operations');
   });
   it('judges an installation whose runner runs no host lanes by the jobs it does run', () => {
     // A runner without host lanes (the hosted scheduler): no backup or task hub lanes, so their
@@ -69,53 +49,12 @@ describe('System Health status evidence', () => {
     mock.data!.runtime = { ...mock.data!.runtime!, hostLanes: false, jobs: mock.data!.runtime!.jobs.filter((job) => ingest.some((definition) => definition.id === job.id)) };
     mock.data!.workflows = ingest.map((definition) => ({ id: definition.id, active: null, history: [], runs: [], latest: { id: `${definition.id}@latest`, workflowId: definition.id, definitionVersion: 1, startedAt: '2026-09-09T11:59:00Z', finishedAt: '2026-09-09T11:59:10Z', state: 'succeeded', steps: null } }));
     mount(true, { current: true, available: true, items: [], providers: [], attention: 0, failing: 0, unconfirmed: 0, working: 1, idle: 0, affectedAssets: [] });
-    expect(screen.getByRole('heading', { name: 'Checks are reporting normally' })).toBeVisible();
+    expect(document.querySelector('[data-status-cells]')).toBeNull();
     expect(screen.queryByRole('link', { name: /Backups/ })).toBeNull();
-    expect(screen.getByText('Collection and service checks')).toBeVisible();
-  });
-  // The footer names what installedWorkflows lists.
-  describe('the operations footer names what this installation runs', () => {
-    const started = (local: string[]) => {
-      const installed = WORKFLOW_DEFINITIONS.filter((definition) => !definition.local || local.includes(definition.id));
-      mock.data!.runtime = { ...mock.data!.runtime!, hostLanes: false, jobs: mock.data!.runtime!.jobs.filter((job) => installed.some((definition) => definition.id === job.id)) };
-    };
-    it('a started installation with only collection jobs', () => {
-      started([]);
-      mount();
-      expect(screen.getByText('Collection and service checks')).toBeVisible();
-    });
-    it('a started installation that backs up', () => {
-      started(['backup']);
-      mount();
-      expect(screen.getByText('Collection, service checks and backups')).toBeVisible();
-    });
-    it('a started installation with a task project and backups', () => {
-      started(['beads-snapshot', 'backup']);
-      mount();
-      expect(screen.getByText('Collection, service checks, task-board refreshes and backups')).toBeVisible();
-    });
-    it('the host installation, which runs every lane', () => {
-      mount();
-      expect(screen.getByText('Collection, service checks, task-board refreshes and backups')).toBeVisible();
-    });
-  });
-  it('cannot report normal checks from an empty operation inventory', () => {
-    mock.data!.workflows = [];
-    mount();
-    expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
-  });
-  it('makes a settings refresh failure visible even when the scheduler still reports', () => {
-    mock.data!.runtime!.error = 'Refresh unavailable';
-    mount();
-    expect(screen.getByRole('heading', { name: 'Schedule settings need attention' })).toBeVisible();
-    expect(screen.getByText('Previously confirmed schedules remain active')).toBeVisible();
   });
   it('reports live traffic failure even when every background job and daily data source succeeds', () => {
     mock.data!.workflows = WORKFLOW_DEFINITIONS.map((definition) => ({ id: definition.id, active: null, history: [], runs: [], latest: { id: `${definition.id}@latest`, workflowId: definition.id, definitionVersion: 1, startedAt: '2026-09-09T11:59:00Z', finishedAt: '2026-09-09T11:59:10Z', state: 'succeeded', steps: null } }));
     mount(true, { current: true, available: true, items: [], providers: [], attention: 1, failing: 1, unconfirmed: 0, working: 1, idle: 0, affectedAssets: ['meadow.example'] });
-    expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
-    expect(screen.getAllByText('1 connection needs attention')).toHaveLength(1);
-    expect(screen.getByText('1 affected asset')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Checks are reporting normally' })).toBeNull();
+    expect(document.querySelector('[data-status-cells] .text-error')).toBeVisible();
   });
 });

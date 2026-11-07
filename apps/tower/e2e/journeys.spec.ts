@@ -3564,8 +3564,6 @@ test("a one-asset install uses singular copy and hides filters with one choice",
   // A filter with one answer is not drawn.
   await page.goto("/alerts");
   await expect(page.locator("[data-alert-filters]")).toHaveCount(0);
-  await expect(main.getByRole('heading', { name: 'No open alerts', exact: true })).toBeVisible();
-  await expect(main.getByText('All clear.', { exact: true })).toHaveCount(0);
   await expect(page.locator("#alerts-asset")).toHaveCount(0);
   await page.goto("/tasks/all");
   await expect(page.locator("[data-tasks-filters]")).toBeVisible();

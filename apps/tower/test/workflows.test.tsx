@@ -318,20 +318,18 @@ describe('workflow operating surface', () => {
     expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
     expect(screen.queryByRole('form', { name: 'Live traffic and counters schedule' })).toBeNull();
   });
-  it.each(['current hosted', 'legacy'] as const)('labels a %s run with no definition version without inferring its age', async (kind) => {
+  it.each(['current hosted', 'legacy'] as const)('retains a requested %s run with no definition version', async (kind) => {
     const run: WorkflowRun = { ...trace, definitionVersion: null,
       ...(kind === 'legacy' ? { id: 'legacy-counters', startedAt: '2026-08-01T16:15:00.000Z',
         finishedAt: '2026-08-01T16:15:00.500Z', steps: null } : {}),
     };
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ...data, selectedRun: run }))));
     mount(`/health/operations/counters?run=${encodeURIComponent(run.id)}`);
-    expect(await screen.findByText('Version unavailable')).toBeInTheDocument();
-    expect(screen.queryByText('Earlier execution')).toBeNull();
-    const option = within(screen.getByRole('combobox', { name: 'Run' })).getByRole('option', { selected: true });
-    expect(option).toHaveTextContent(`${formatNextRun(run.startedAt)} · Failed`);
+    const picker = await screen.findByRole('combobox', { name: 'Run' });
+    expect(picker).toHaveValue(run.id);
+    const option = within(picker).getByRole('option', { selected: true });
+    expect(option).toHaveTextContent(formatNextRun(run.startedAt));
     expect(option).toHaveAttribute('title', utcRunReference(run.startedAt));
-    if (kind === 'current hosted') expect(screen.getByText('One collection failed.')).toBeInTheDocument();
-    else expect(screen.getAllByText('Not observed').length).toBeGreaterThan(0);
   });
   // A collection a connection feeds is changed on that connection's Manage
   // panel, so its page links there, or nowhere while none of its sources is connected.

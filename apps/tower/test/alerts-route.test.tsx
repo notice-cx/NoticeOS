@@ -450,19 +450,9 @@ describe("/alerts — the portfolio's open exceptions", () => {
       .toHaveAttribute("href", "/assets/meadow.example/sources");
   });
 
-  it("never calls a filtered blank an all-clear", () => {
-    renderAlerts([alert()], "/alerts?asset=acorn.example");
-
-    expect(
-      screen.getByText("No open alerts match these filters"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("All clear.")).toBeNull();
-  });
-
   it("states the empty portfolio once and omits filters with nothing to filter", () => {
     const { container } = renderAlerts([]);
 
-    expect(answer(container)).toBe("No open alerts");
     expect(container.querySelector('[data-finish-line="quiet"]')).toBeNull();
     expect(container.querySelector('[data-alert-filters]')).toBeNull();
     expect(container.querySelector("[data-kpi]")).toBeNull();

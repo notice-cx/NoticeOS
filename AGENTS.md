@@ -59,6 +59,11 @@ present.
   counts only when it is a test; describing it in a comment does not count.
   Generated reports, logs, screenshots, hashes and verification writeups are
   not committed. Passing tests need no documentation update or separate receipt.
+- **Test behavior, not static copy.** Do not add or retain assertions,
+  snapshots or source searches whose only proof is that authored wording exists
+  or matches a frozen sentence. Review copy in source and in the rendered page.
+  Tests cover state, data selection, actions, navigation, accessibility and
+  layout. Accessible text may locate a control; assert the effect of using it.
 - **Comments say what the code cannot.** A non-obvious why, an invariant, a
   trap, or the one place a fact lives, in a line or two. No decision numbers,
   task ids, dates of past changes, attributions, histories of what the code

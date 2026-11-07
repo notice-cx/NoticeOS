@@ -47,7 +47,6 @@ describe("the Wall's metric work tile", () => {
     for (const title of ["In progress", "Blocked", "Done this week"]) {
       const tile = within(container).getByRole("region", { name: title });
       expect(tile).toHaveTextContent("At least");
-      expect(tile).not.toHaveTextContent("Some task counts unavailable");
       expect(tile.querySelector("[data-metric-movement]")).toBeNull();
       expect(tile.querySelector("svg[role=img]")).toBeNull();
     }

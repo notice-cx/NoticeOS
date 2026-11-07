@@ -1786,8 +1786,6 @@ describe("/financials — the month, drawn", () => {
     }), "/financials?period=2026-09");
     const hero = container.querySelector<HTMLElement>("[data-money-answer]")!;
     expect(hero).toHaveAttribute("data-money-answer", "open");
-    expect(hero.querySelector("[data-money-context]")).toHaveTextContent("9 days left");
-    expect(hero.querySelector("[data-money-context]")).not.toHaveTextContent("$450");
     const pace = hero.querySelector("[data-pace-bar]")!;
     expect(pace).toHaveTextContent("projected $450 · Aug total $400");
     expect(pace.querySelector("[data-pace-projection]")).not.toBeNull();
