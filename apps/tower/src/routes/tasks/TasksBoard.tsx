@@ -54,6 +54,7 @@ import {
 } from "@/hooks/useTasks";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useTaskBoard } from "@/hooks/useTaskBoard";
+import { useNtasksTaskPage } from "@/hooks/useTaskService";
 import { PARKED, TASK_STATUSES, isGate, type BoardTask, type BoardProject } from "@/lib/task-board-read";
 import { boardInOut, boardWorkRows, epicGraphs, inOutDrawn } from "@/lib/task-board-viz";
 import { formatInt } from "@/lib/format";
@@ -62,7 +63,7 @@ import { taskPath } from '@/lib/task-path';
 import { taskFieldAvailable, taskOperationAvailable } from '@shared/tasks';
 import { SelectBox, SelectToggle, useSelection } from "@/components/SelectionBar";
 import { AskQueue } from "./ask-queue";
-import { closeOperation, declinedOnClose, useCloseAs } from "./close-actions";
+import { closableHere, declinedOnClose, useCloseAs } from "./close-actions";
 import { EpicPanel, InOutPanel, WorkByProject } from "./board-pictures";
 import { TaskTitleLink } from "./next/parts";
 import { OpenTaskLink } from "./open-task-link";
@@ -726,12 +727,13 @@ function Board({
   searchUnavailable: boolean;
 }) {
   const capabilities = useTasksLive();
+  const inNtasks = useNtasksTaskPage() !== null;
   const selection = useSelection();
   const { selecting, picked } = selection;
   // Only a picked row the board still shows, and this workspace can close,
   // counts: a row a filter hides, or one under its Undo, is never sent.
   const selectable = rows.filter((task) => projects.get(task.project)?.actionable === true
-    && taskOperationAvailable(capabilities, closeOperation(task)));
+    && closableHere(task, capabilities, inNtasks));
   const selectableIds = new Set(selectable.map((task) => task.id));
   const chosen = selectable.filter((task) => picked.has(task.id));
   const offered = selectable.filter((task) => task.status !== "closed").length >= 2;
@@ -864,8 +866,9 @@ function BoardRow({
   // project that cannot close here draws none. While selecting, the
   // selection's Close as stands in for the row's.
   const capabilities = useTasksLive();
+  const inNtasks = useNtasksTaskPage() !== null;
   const closable = selection === null && task.status !== "closed"
-    && (!capabilities.live || (actionable && taskOperationAvailable(capabilities, closeOperation(task))));
+    && (!capabilities.live || (actionable && closableHere(task, capabilities, inNtasks)));
   const closeAs = useCloseAs({
     id: task.id,
     title: task.title,

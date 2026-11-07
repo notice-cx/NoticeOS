@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { pillControlClass } from "@/components/ui/pill";
 import { WhyItRanks } from "@/components/viz/WhyItRanks";
+import { useNtasksTaskPage } from "@/hooks/useTaskService";
 import { useInboxAnswer } from "@/hooks/useTasks";
 import { useDocumentTitle } from "@/lib/document-title";
 import { formatInt } from "@/lib/format";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useAskReasons } from "./next/NextDecision";
 import { ASK_LINE, epicOf, waitedShort, whySentence, type EpicFacts } from "./next/next-read";
 import { AskGlyph, SiteMark, TaskTitleLink } from "./next/parts";
+import { DecideInNtasks } from "./decide-in-ntasks";
 import { useNextBoard } from "./next/useNextBoard";
 
 /** Where Leave focus goes when the page was opened without a way back. */
@@ -123,7 +125,8 @@ export function FocusRoute() {
 }
 
 /** One decision, with every way of answering it as a large press and the
- * keys that do the same. */
+ * keys that do the same; while tasks live in Ntasks, one link to decide it
+ * there, and only the skip key. */
 function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSent }: {
   row: RankedTask;
   project: BoardProject | null;
@@ -136,14 +139,16 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
 }) {
   const { task, card, score, ask } = row;
   const answer = useInboxAnswer();
+  const ntasksPage = useNtasksTaskPage();
   const reasons = useAskReasons(row, project);
   const noteId = useId();
   const reasonId = useId();
   const [note, setNote] = useState("");
   const [text, setText] = useState("");
-  const choices = ask === "choose" ? task.choices ?? null : null;
+  const inNtasks = ntasksPage !== null;
+  const choices = ask === "choose" && !inNtasks ? task.choices ?? null : null;
   const options = choices ? choiceOrder(choices) : [];
-  const reason = choices ? reasons.choose : reasons.ask;
+  const reason = inNtasks ? null : choices ? reasons.choose : reasons.ask;
   const scope = { project: task.project };
   const why = whySentence(row.why);
   const waited = waitedShort(row.ageDays);
@@ -157,7 +162,7 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
     onSent();
   }
   function approve() {
-    if (reason !== null) return;
+    if (reason !== null || inNtasks) return;
     answer({ kind: "approve", id: task.id, title: task.title, ...scope });
     onSent();
   }
@@ -198,7 +203,7 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
 
   const hint = choices
     ? `${options.map((option) => option.key.toUpperCase()).join(" ")} choose · → skip`
-    : ask === "approve" ? "Enter approve · → skip" : "→ skip";
+    : ask === "approve" && !inNtasks ? "Enter approve · → skip" : "→ skip";
 
   return (
     <section className="flex flex-col gap-5" data-focus-decision={task.id}>
@@ -225,7 +230,11 @@ function FocusDecision({ row, project, epic, after, afterSite, of, onSkip, onSen
       {why ? <p className="m-0 text-base text-muted-foreground">{why}</p> : null}
       {card ? <WhyItRanks card={card} score={score} rank={score ? { position: row.rank, of } : null} size="sm" /> : null}
 
-      {choices ? (
+      {ntasksPage !== null ? (
+        <div>
+          <DecideInNtasks href={ntasksPage(task.id)} size="default" className="min-h-11 px-6 text-base" />
+        </div>
+      ) : choices ? (
         <div role="group" aria-labelledby={`${noteId}-question`} className="flex flex-col gap-3" data-focus-options="">
           <p id={`${noteId}-question`} className="m-0 text-base font-medium text-foreground [overflow-wrap:anywhere]">{choices.question}</p>
           <ul className="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] gap-3 p-0">

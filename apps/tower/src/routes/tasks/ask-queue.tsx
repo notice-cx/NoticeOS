@@ -3,6 +3,7 @@ import { taskOperationAvailable, type TasksCapabilities } from "@shared/tasks";
 import { SelectBox, SelectToggle, useSelection } from "@/components/SelectionBar";
 import { ListRow } from "@/components/surface/ListPanel";
 import { DecisionQueue, ageLabel, ageLength } from "@/components/viz/DecisionQueue";
+import { useNtasksTaskPage } from "@/hooks/useTaskService";
 import { useTasksLive } from "@/hooks/useTasks";
 import { askVerb, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
 import { queueItem } from "@/lib/task-board-viz";
@@ -39,7 +40,8 @@ function answerable(ask: Ask, capabilities: TasksCapabilities): boolean {
  *
  * Select turns the rows into a selection, every row shown, so several asks
  * decided together take one action (`AskSelection`) instead of one per row.
- * It is offered when two or more rows can be answered here. The All tasks
+ * It is offered when two or more rows can be answered here, and never while
+ * tasks live in Ntasks, where each is decided on its own page. The All tasks
  * table's Select is the same pieces (`SelectionBar`).
  */
 export function AskQueue({ asks, total, complete, filtered, nowMs, showProject, className }: {
@@ -54,9 +56,10 @@ export function AskQueue({ asks, total, complete, filtered, nowMs, showProject, 
 }) {
   const items = asks.map((ask) => queueItem(ask, nowMs));
   const capabilities = useTasksLive();
+  const inNtasks = useNtasksTaskPage() !== null;
   const selection = useSelection();
   const { selecting, picked } = selection;
-  const selectable = asks.filter((ask) => answerable(ask, capabilities));
+  const selectable = inNtasks ? [] : asks.filter((ask) => answerable(ask, capabilities));
   // A row answered or gone since it was picked leaves the selection with it.
   const chosen = selectable.filter((ask) => picked.has(ask.task.id));
   return (
@@ -74,7 +77,7 @@ export function AskQueue({ asks, total, complete, filtered, nowMs, showProject, 
     >
       {asks.map((ask, index) => (
         <AskRow key={ask.task.id} {...ask} ageDays={items[index]!.ageDays} showProject={showProject} capabilities={capabilities}
-          selection={selecting && answerable(ask, capabilities) ? { checked: picked.has(ask.task.id), toggle: () => selection.flip(ask.task.id) } : null} />
+          selection={selecting && selectable.includes(ask) ? { checked: picked.has(ask.task.id), toggle: () => selection.flip(ask.task.id) } : null} />
       ))}
     </DecisionQueue>
   );
