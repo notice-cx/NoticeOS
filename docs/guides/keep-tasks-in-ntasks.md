@@ -47,6 +47,6 @@ The copies are kept under `.local/task-cache` in the installation's home folder.
 
 ## How the snapshot stays current
 
-Once a minute the runner reads Ntasks's change feed from where it last stopped, at most 1,000 changes per minute. It rereads the boards of each project the feed names, and of any project whose boards are more than 15 minutes old. The task snapshot is built from those boards.
+Once a minute the runner reads Ntasks's change feed from where it last stopped, at most 1,000 changes per minute. It rereads the boards of each project the feed names, and of any project whose boards are more than 15 minutes old, together with every task of that project carrying a handoff or panel-review label, closed at any time. The task snapshot is built from those reads, so a finding card shows its task and a site shows its panel triage. Where Ntasks does not answer the label read, the card shows the task as not asked.
 
 While Ntasks is connected, the runner files panel reviews and outcome reviews in Ntasks and posts each outcome's result as a comment there, recorded as `service:<credential name>/os-up-panel-filer`, `/outcome-review-filer` and `/outcome-task-updates`. A panel review filed there has no due date, because Ntasks takes none on a new task. The runner does not check task databases, which Ntasks does not have. While the installation's ingest has not said where its tasks live, the runner files nothing and results stay queued.

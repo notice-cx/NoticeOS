@@ -7,7 +7,9 @@
 // them offline (scripts/task-service-cache.mts), and builds the snapshot the
 // Tower's portfolio screens read from those boards.
 
-import { ALL_STATUSES, boardKey, readCached, readSyncState, writeCached, writeSyncState } from '../task-service-cache.mjs';
+import { ALL_STATUSES, boardKey, labelKey, readCached, readSyncState, writeCached, writeSyncState } from '../task-service-cache.mjs';
+import { HANDOFF_LABELS } from '../../packages/contract/src/task-metadata.mjs';
+import { PANEL_REVIEW_LABEL } from '../panel-review-summary.mjs';
 import { mapTaskProjects, TaskServiceUnavailable, withNoticeosRecords } from '../task-service.mjs';
 import { BEADS_CLOSES_DAYS, beadsClosedSince, beadsClosesSince, beadsProjectError, summarizeBeadsProject } from '../task-snapshot-summary.mjs';
 
@@ -24,6 +26,42 @@ export async function taskBackend(service) {
 /** Why a lane that writes tasks stands down while it is unknown where they live, or null. */
 export function bdLaneSkip(backend, lane) {
   return backend === 'unknown' ? `the ingest has not said whether tasks live in Ntasks, so this lane does not ${lane}` : null;
+}
+
+/** Ntasks's label read: at most this many pages of LABEL_PAGE per label. */
+export const LABEL_PAGES = 10;
+export const LABEL_PAGE = 200;
+/** The snapshot's two label reads and the labels each takes in, as bd's list did. */
+export const LABEL_READS = Object.freeze({ handoffs: HANDOFF_LABELS, panelReview: [PANEL_REVIEW_LABEL] });
+
+/**
+ * Every task of the project carrying `label`, in every status and closed at
+ * any time, through Ntasks's label read. Throws when Ntasks does not answer
+ * it, and when more than LABEL_PAGES pages carry it: a cut list would read
+ * as complete.
+ */
+export async function readLabelled(service, projectId, label, { pages = LABEL_PAGES } = {}) {
+  const tasks = [];
+  let after = null;
+  for (let page = 0; page < pages; page += 1) {
+    const query = new URLSearchParams({ project: projectId, label, limit: String(LABEL_PAGE), ...(after === null ? {} : { after }) });
+    const { status, body } = await service.call({ method: 'GET', path: `/api/tasks?${query}` });
+    if (status !== 200 || !Array.isArray(body?.tasks)) {
+      const detail = typeof body?.detail === 'string' ? `: ${body.detail}` : '';
+      throw new Error(`Ntasks's read of the ${label} label answered HTTP ${status}${detail}`);
+    }
+    tasks.push(...body.tasks);
+    if (typeof body.next !== 'string') return tasks;
+    after = body.next;
+  }
+  throw new Error(`more than ${pages * LABEL_PAGE} tasks carry the ${label} label`);
+}
+
+/** The tasks a read's labels name, each once. */
+async function readLabels(service, projectId, labels) {
+  const rows = new Map();
+  for (const label of labels) for (const task of await readLabelled(service, projectId, label)) rows.set(task.id, task);
+  return [...rows.values()];
 }
 
 /** The closes the snapshot reaches back over, as one closed-only board read. */
@@ -47,10 +85,10 @@ const answered = (rows) => ({ code: 0, stdout: JSON.stringify(rows), stderr: '' 
 const waitsOnBlocker = (task) => (task.dependencies ?? []).some((edge) => edge.type === 'blocks' && edge.status !== 'closed');
 
 /** The snapshot summary's inputs from a project's two boards: every status
- * (with its epics), and the closes over BEADS_CLOSES_DAYS. The panel-review
- * and handoff reads stay absent: they reach closes of any age, which these
- * boards do not hold, and an absent read is shown as one never made. */
-export function boardResults(board, closes) {
+ * (with its epics), and the closes over BEADS_CLOSES_DAYS, and the label reads
+ * (LABEL_READS) where Ntasks answered them; a read it did not answer stays
+ * absent, which the cards show as one never made. */
+export function boardResults(board, closes, labelled = {}) {
   const tasks = Array.isArray(board?.tasks) ? board.tasks : [];
   const open = tasks.filter((task) => task.status !== 'closed');
   const active = open.filter((task) => ['open', 'in_progress', 'blocked'].includes(task.status));
@@ -62,6 +100,8 @@ export function boardResults(board, closes) {
     deferred: answered(open.filter((task) => task.status === 'deferred').map(bdRow)),
     human: answered(open.filter((task) => task.issueType !== 'gate' && (task.labels ?? []).includes('human')).map(bdRow)),
     gates: answered(open.filter((task) => task.issueType === 'gate').map((task) => ({ ...bdRow(task), await_type: task.awaitType ?? 'human' }))),
+    ...Object.fromEntries(Object.keys(LABEL_READS).filter((read) => Array.isArray(labelled[read]))
+      .map((read) => [read, answered(labelled[read].map(bdRow))])),
     ...(Array.isArray(board?.epics) ? { epics: answered(board.epics.map((epic) => ({
       epic: { id: epic.id, title: epic.title, status: epic.status, priority: epic.priority },
       total_children: epic.total, closed_children: epic.closed, eligible_for_close: epic.eligibleForClose === true,
@@ -95,6 +135,11 @@ async function refreshBoards(service, project, cacheDir, now) {
   if (board.status !== 200 || closes.status !== 200) return false;
   await writeCached(cacheDir, boardKey(project.asset, ALL_STATUSES), { ...board.body, project: project.asset }, now);
   await writeCached(cacheDir, closesKey(project.asset), { ...closes.body, project: project.asset }, now);
+  // A label read Ntasks did not answer is kept as unknown, never as the last answer.
+  for (const [read, labels] of Object.entries(LABEL_READS)) {
+    const tasks = await readLabels(service, project.project.projectId, labels).catch(() => null);
+    await writeCached(cacheDir, labelKey(project.asset, read), tasks, now);
+  }
   return true;
 }
 
@@ -132,7 +177,12 @@ export async function syncTaskService({ service, spokes, cacheDir, now = Date.no
     const board = await readCached(cacheDir, boardKey(project.asset, ALL_STATUSES));
     const closes = await readCached(cacheDir, closesKey(project.asset));
     if (failed.has(project.asset) || !board || !closes) { entries.push(beadsProjectError(project, `Ntasks did not answer for ${project.project.displayName}`)); continue; }
-    entries.push(summarizeBeadsProject(project, boardResults(board.body, closes.body), reach));
+    const labelled = {};
+    for (const read of Object.keys(LABEL_READS)) {
+      const kept = await readCached(cacheDir, labelKey(project.asset, read));
+      if (Array.isArray(kept?.body)) labelled[read] = kept.body;
+    }
+    entries.push(summarizeBeadsProject(project, boardResults(board.body, closes.body, labelled), reach));
   }
   return { body: { capturedAt: new Date(now()).toISOString(), projects: entries }, feed };
 }

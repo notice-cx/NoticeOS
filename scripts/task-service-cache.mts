@@ -26,6 +26,10 @@ export function boardKey(asset: string, statuses: string = ALL_STATUSES, closedD
 export function taskKey(taskId: string): string {
   return `task\u0000${taskId}`;
 }
+/** Every task of a site's project carrying one of a read's labels, closed of any age. */
+export function labelKey(asset: string, read: string): string {
+  return `labels\u0000${asset}\u0000${read}`;
+}
 
 export interface CachedAnswer {
   readonly key: string;

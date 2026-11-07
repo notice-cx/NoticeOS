@@ -3,13 +3,13 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { boardResults, FEED_PAGE, FEED_PAGES, readFeed, syncTaskService } from './runner/task-service-poll.mjs';
+import { boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, readFeed, readLabelled, syncTaskService } from './runner/task-service-poll.mjs';
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { summarizeBeadsProject } from './task-snapshot-summary.mjs';
-import { readSyncState } from './task-service-cache.mjs';
+import { labelKey, readCached, readSyncState } from './task-service-cache.mjs';
 import { TaskServiceUnavailable } from './task-service.mjs';
 
 // scripts/runner/task-service-poll.mjs: the task snapshot from Ntasks's change
@@ -38,9 +38,9 @@ async function cacheDir(t) {
 }
 
 /** A task service whose feed is `feed(after, limit)`; `down` answers nothing. */
-function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, backend } = {}) {
+function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, backend, labelled = {}, labelStatus = 200 } = {}) {
   const calls = [];
-  const state = { down: false, failBoards: false };
+  const state = { down: false, failBoards: false, labelPage: null };
   const service = {
     connected: async () => connected,
     backend: async () => backend ?? (connected ? 'ntasks' : 'local'),
@@ -53,12 +53,18 @@ function ntasks({ feed = () => ({ events: [], lastSeq: 0 }), connected = true, b
       const url = new URL(call.path, 'https://ntasks.example.com');
       if (url.pathname === '/api/changes') return { status: 200, body: feed(Number(url.searchParams.get('after')), Number(url.searchParams.get('limit'))) };
       if (state.failBoards) return { status: 503, body: { error: 'unavailable' } };
+      if (url.searchParams.has('label')) {
+        if (labelStatus !== 200) return { status: labelStatus, body: { error: 'invalid_request', detail: 'unknown parameter label' } };
+        if (state.labelPage) return { status: 200, body: state.labelPage(url.searchParams.get('label'), url.searchParams.get('after')) };
+        return { status: 200, body: { tasks: labelled[url.searchParams.get('label')] ?? [], next: null } };
+      }
       return { status: 200, body: url.searchParams.get('status') === 'closed' ? CLOSES : BOARD };
     },
   };
   return { service, calls, state };
 }
-const boardReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks?'));
+const boardReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks?') && !call.includes('label='));
+const labelReads = (calls) => calls.filter((call) => call.startsWith('/api/tasks?') && call.includes('label='));
 
 test('a board reads as the bd lists the snapshot summary was written for', () => {
   const entry = summarizeBeadsProject(SPOKES[0], boardResults(BOARD, CLOSES));
@@ -175,4 +181,76 @@ test('nothing runs against the bd hub while the ingest has never said where the 
     fetchImpl: async () => Response.json({ pending: [{ bead: 'ex-1', asset: 'example.com' }], reviews: [] }), emit: (_level, text) => lines.push(text) });
   assert.deepEqual(readbacks, { posted: [], failed: [] });
   assert.ok(lines.some((line) => /watch readbacks wait — the ingest has not said/u.test(line)));
+});
+
+test('the snapshot carries handoffs and panel triage from Ntasks, closes of any age included', async (t) => {
+  const dir = await cacheDir(t);
+  const handoff = task({ id: 'ex-20', status: 'closed', labels: ['noticeos-handoff'], closedAt: '2026-06-01T09:00:00.000Z',
+    metadata: { noticeos_source: 'noticeos-handoff', noticeos_asset: 'example.com', noticeos_kind: 'finding', noticeos_rule: 'thin-content', noticeos_key: 'thin-content:/recipes' } });
+  const legacy = task({ id: 'ex-21', labels: ['reindex-handoff'],
+    metadata: { reindex_source: 'reindex-handoff', reindex_asset: 'example.com', reindex_kind: 'query', reindex_rule: 'striking-distance', reindex_key: 'striking:recipes' } });
+  const review = task({ id: 'ex-22', status: 'closed', labels: ['panel-review'], closedAt: '2026-05-10T09:00:00.000Z', title: 'Triage the 2026-05-04 serp panel for example.com',
+    metadata: { noticeos_panel_date: '2026-05-04' } });
+  const { service, calls } = ntasks({ labelled: { 'noticeos-handoff': [handoff], 'reindex-handoff': [legacy], 'panel-review': [review] } });
+  const { body } = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
+  assert.equal(labelReads(calls).length, 3);
+  const [entry] = body.projects;
+  assert.deepEqual(entry.handoffs.map((row) => [row.beadId, row.status, row.key]).sort(),
+    [['ex-20', 'closed', 'thin-content:/recipes'], ['ex-21', 'open', 'striking:recipes']]);
+  assert.equal(entry.handoffs.find((row) => row.beadId === 'ex-20').closedAt, '2026-06-01T09:00:00.000Z', 'a close five months old');
+  assert.ok(entry.panelReview, 'panel triage reads as asked');
+});
+
+test('a label read Ntasks does not answer is shown as not asked, and the project still reads', async (t) => {
+  const dir = await cacheDir(t);
+  const { service } = ntasks({ labelStatus: 400 });
+  const { body } = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
+  const [entry] = body.projects;
+  assert.equal(entry.ok, true);
+  assert.equal(Object.hasOwn(entry, 'handoffs'), false);
+  assert.equal(Object.hasOwn(entry, 'panelReview'), false);
+});
+
+test('a label read follows the cursor Ntasks answers, and a task under both handoff labels reads once', async (t) => {
+  const pages = { '': { tasks: [task({ id: 'ex-30' }), task({ id: 'ex-31' })], next: 'ex-31' }, 'ex-31': { tasks: [task({ id: 'ex-32' })], next: null } };
+  const asked = [];
+  const paged = { call: async ({ path: target }) => {
+    const query = new URL(target, 'https://ntasks.example.com').searchParams;
+    asked.push([query.get('label'), query.get('limit'), query.get('after')]);
+    return { status: 200, body: pages[query.get('after') ?? ''] };
+  } };
+  assert.deepEqual((await readLabelled(paged, PROJECT.projectId, 'noticeos-handoff')).map((row) => row.id), ['ex-30', 'ex-31', 'ex-32']);
+  assert.deepEqual(asked, [['noticeos-handoff', String(LABEL_PAGE), null], ['noticeos-handoff', String(LABEL_PAGE), 'ex-31']]);
+
+  const dir = await cacheDir(t);
+  const both = task({ id: 'ex-20', labels: ['noticeos-handoff', 'reindex-handoff'],
+    metadata: { noticeos_source: 'noticeos-handoff', noticeos_asset: 'example.com', noticeos_kind: 'finding', noticeos_rule: 'thin-content', noticeos_key: 'thin-content:/recipes' } });
+  const { service } = ntasks({ labelled: { 'noticeos-handoff': [both], 'reindex-handoff': [both] } });
+  const { body } = await syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => Date.parse('2026-11-06T12:00:00.000Z') });
+  assert.deepEqual(body.projects[0].handoffs.map((row) => row.beadId), ['ex-20']);
+});
+
+test('a label read past the page bound fails, and replaces the list kept before it', async (t) => {
+  const endless = { call: async ({ path: target }) => ({ status: 200,
+    body: { tasks: [task({ id: `ex-${new URL(target, 'https://ntasks.example.com').searchParams.get('after') ?? 0}9` })], next: 'ex-99' } }) };
+  await assert.rejects(readLabelled(endless, PROJECT.projectId, 'panel-review', { pages: 2 }), /more than 400 tasks carry the panel-review label/u);
+
+  const dir = await cacheDir(t);
+  let events = [{ seq: 1, projectId: PROJECT.projectId }];
+  const review = task({ id: 'ex-22', labels: ['panel-review'], title: 'Triage the 2026-11-02 serp panel for example.com', metadata: { noticeos_panel_date: '2026-11-02' } });
+  const { service, calls, state } = ntasks({ labelled: { 'panel-review': [review] },
+    feed: (after) => ({ events: events.filter((event) => event.seq > after), lastSeq: Math.max(after, ...events.map((event) => event.seq)) }) });
+  let clock = Date.parse('2026-11-06T12:00:00.000Z');
+  const sync = () => syncTaskService({ service, spokes: SPOKES, cacheDir: dir, now: () => clock });
+  assert.ok((await sync()).body.projects[0].panelReview, 'the first read is kept');
+
+  events = [...events, { seq: 2, projectId: PROJECT.projectId }];
+  state.labelPage = () => ({ tasks: [review], next: 'ex-22' });
+  calls.length = 0; clock += 60_000;
+  const [entry] = (await sync()).body.projects;
+  assert.equal(labelReads(calls).length, 2 * LABEL_PAGES, 'each read stops at the first label past the bound');
+  assert.equal(entry.ok, true);
+  assert.equal(Object.hasOwn(entry, 'panelReview'), false, 'a cut read is not shown as the earlier list');
+  assert.equal(Object.hasOwn(entry, 'handoffs'), false);
+  assert.equal((await readCached(dir, labelKey('example.com', 'panelReview'))).body, null);
 });

@@ -6,10 +6,7 @@
 // so the lanes' rules read them unchanged.
 
 import { mapTaskProjects, TaskServiceUnavailable } from '../task-service.mjs';
-import { bdRow } from './task-service-poll.mjs';
-
-/** Closed tasks a label read reaches back over: Ntasks's longest closed read. */
-export const LABEL_CLOSED_DAYS = 56;
+import { bdRow, readLabelled } from './task-service-poll.mjs';
 
 function failed(what, reply) {
   const detail = typeof reply.body?.detail === 'string' ? `: ${reply.body.detail}` : '';
@@ -33,16 +30,9 @@ export function ntasksRegister(service, actor) {
     return reply.body;
   }
   return Object.freeze({
-    /** Every task carrying `label`, open or closed in the last LABEL_CLOSED_DAYS days. */
+    /** Every task carrying `label`, open or closed at any time. */
     async labelled(spoke, label) {
-      const id = encodeURIComponent(await projectOf(spoke));
-      const [board, closes] = await Promise.all([get(`/api/tasks?project=${id}`, 'board read'),
-        get(`/api/tasks?project=${id}&status=closed&closedDays=${LABEL_CLOSED_DAYS}`, 'closed read')]);
-      const rows = new Map();
-      for (const task of [...(board?.tasks ?? []), ...(closes?.tasks ?? [])]) {
-        if (typeof task?.id === 'string' && Array.isArray(task.labels) && task.labels.includes(label)) rows.set(task.id, bdRow(task));
-      }
-      return [...rows.values()];
+      return (await readLabelled(service, await projectOf(spoke), label)).map(bdRow);
     },
     async show(spoke, taskId) {
       const body = await get(`/api/tasks/${encodeURIComponent(taskId)}?project=${encodeURIComponent(await projectOf(spoke))}`, 'task read');

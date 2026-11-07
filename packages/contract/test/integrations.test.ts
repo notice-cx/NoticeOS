@@ -139,7 +139,8 @@ describe('INTEGRATION_PROVIDERS', () => {
 
   it('marks every secret field as one a form must mask', () => {
     // Managed connection metadata never renders a credential form control.
-    // The server address and model ID identify the local inference target.
+    // The server address and model ID identify the local inference target,
+    // and its generation budget is a token count.
     // The DataForSEO API login identifies the account rather than authenticating
     // it, and a masked field an operator
     // cannot proof-read is a support ticket.
@@ -150,7 +151,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // every browser that starts a sign-in, and an operator who cannot
     // proof-read it against the console cannot see a mismatch that produces
     // `invalid_client`.
-    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'NTASKS_URL', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
+    expect(clear).toEqual(['LOCAL_MODEL_BASE_URL', 'LOCAL_MODEL_ID', 'LOCAL_MODEL_OUTPUT_TOKENS', 'NTASKS_URL', 'CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
@@ -258,7 +259,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       expect(provider.fields.some((field) => field.managed !== true)).toBe(true);
       // Operator-selected server addresses and account logins need no issuance link.
       if (provider.id === 'mediavine') expect(provider.fields.map((field) => field.kind)).toEqual(['text', 'password']);
-      else if (provider.id === 'local-model') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'text', 'password']);
+      else if (provider.id === 'local-model') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'text', 'password', 'text']);
       else if (provider.id === 'ntasks') expect(provider.fields.map(field => field.kind)).toEqual(['url', 'password']);
       else expect(provider.fields[0]!.link?.url.startsWith('https://')).toBe(true);
     }
