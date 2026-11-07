@@ -16,9 +16,11 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { syncDevVarsIfPresent } from './dev-secrets.mjs';
 import { runBackup as backupHost, backupRunOutcome } from './host-backup.mjs';
 import { requestContainerBackup } from './container-backup-channel.mjs';
+import { takeNtasksExport } from './ntasks-backup.mjs';
 import { doorErrorCode, localDoorFetch, fireScheduledTrigger } from './ingest-door.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runtimeChildEnv, samePath } from './os-runtime.mjs';
@@ -298,17 +300,27 @@ async function runBackup() {
   // The offsite folder is read by the backup itself (scripts/host-backup.mjs),
   // so an edit applies at the next run.
   const taskHub = await backupTaskHub(runnerTaskService());
-  const result = process.env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
-    ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub } : {})
-    : await backupHost({
-    repoRoot: HOME_ROOT,
-    retentionDays: CONFIG.backupRetentionDays,
-    bdBinary: bdBin(),
-    ...(taskHub ? { taskHub } : {}),
-    ...(process.env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: process.env.NOTICEOS_DOLT_HOME } : {}),
-  });
-  log(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
-  return result;
+  // While tasks live in Ntasks the set keeps Ntasks's own export, taken now.
+  const exported = taskHub ? await takeNtasksExport(runnerTaskService(), path.join(HOME_ROOT, '.local', 'task-export')) : null;
+  if (exported?.error) log('ERROR', `backup: no Ntasks export — ${exported.error}`);
+  const tasks = exported ? { tasksExport: exported.file, tasksExportError: exported.error } : {};
+  try {
+    let result = process.env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
+      ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub, tasksExport: tasks.tasksExport } : {})
+      : await backupHost({
+      repoRoot: HOME_ROOT,
+      retentionDays: CONFIG.backupRetentionDays,
+      bdBinary: bdBin(),
+      ...(taskHub ? { taskHub, ...tasks } : {}),
+      ...(process.env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: process.env.NOTICEOS_DOLT_HOME } : {}),
+    });
+    // The worker sees only that no export came; the reason is the runner's.
+    if (exported?.error && typeof result?.detail === 'string') result = { ...result, detail: `${result.detail} Ntasks export: ${exported.error}` };
+    log(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
+    return result;
+  } finally {
+    if (exported) await fs.rm(exported.dir, { recursive: true, force: true });
+  }
 }
 
 // The host lanes: what each local scheduled job runs, for the scheduler

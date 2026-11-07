@@ -12,8 +12,8 @@ import { json } from '../responses.js';
 export const TASK_SERVICE_PATH = '/api/task-service';
 const REQUEST_BYTES = 512 * 1024;
 const METHODS = new Set(['GET', 'POST', 'PATCH']);
-/** The Ntasks routes a caller may name: the MCP endpoint, the task routes and the change feed. */
-const PATH = /^\/api\/(?:mcp|changes|tasks(?:\/[A-Za-z0-9._-]+){0,2}|gates\/[A-Za-z0-9._-]+\/resolve)$/u;
+/** The Ntasks routes a caller may name: the MCP endpoint, the task routes, the change feed and the backup route. */
+const PATH = /^\/api\/(?:mcp|changes|backup|tasks(?:\/[A-Za-z0-9._-]+){0,2}|gates\/[A-Za-z0-9._-]+\/resolve)$/u;
 const QUERY = /^[A-Za-z0-9._~%&=,+-]*$/u;
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
 
