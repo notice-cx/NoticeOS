@@ -248,7 +248,7 @@ test('a label read past the page bound fails, and replaces the list kept before 
   state.labelPage = () => ({ tasks: [review], next: 'ex-22' });
   calls.length = 0; clock += 60_000;
   const [entry] = (await sync()).body.projects;
-  assert.equal(labelReads(calls).length, 2 * LABEL_PAGES, 'each read stops at the first label past the bound');
+  assert.equal(labelReads(calls).length, 3 * LABEL_PAGES, 'each label stops at the bound');
   assert.equal(entry.ok, true);
   assert.equal(Object.hasOwn(entry, 'panelReview'), false, 'a cut read is not shown as the earlier list');
   assert.equal(Object.hasOwn(entry, 'handoffs'), false);

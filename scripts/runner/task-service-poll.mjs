@@ -57,10 +57,12 @@ export async function readLabelled(service, projectId, label, { pages = LABEL_PA
   throw new Error(`more than ${pages * LABEL_PAGE} tasks carry the ${label} label`);
 }
 
-/** The tasks a read's labels name, each once. */
+/** The tasks a read's labels name, each once. Labels are read side by side; one label's pages in order. */
 async function readLabels(service, projectId, labels) {
   const rows = new Map();
-  for (const label of labels) for (const task of await readLabelled(service, projectId, label)) rows.set(task.id, task);
+  for (const tasks of await Promise.all(labels.map((label) => readLabelled(service, projectId, label)))) {
+    for (const task of tasks) rows.set(task.id, task);
+  }
   return [...rows.values()];
 }
 
@@ -136,10 +138,10 @@ async function refreshBoards(service, project, cacheDir, now) {
   await writeCached(cacheDir, boardKey(project.asset, ALL_STATUSES), { ...board.body, project: project.asset }, now);
   await writeCached(cacheDir, closesKey(project.asset), { ...closes.body, project: project.asset }, now);
   // A label read Ntasks did not answer is kept as unknown, never as the last answer.
-  for (const [read, labels] of Object.entries(LABEL_READS)) {
+  await Promise.all(Object.entries(LABEL_READS).map(async ([read, labels]) => {
     const tasks = await readLabels(service, project.project.projectId, labels).catch(() => null);
     await writeCached(cacheDir, labelKey(project.asset, read), tasks, now);
-  }
+  }));
   return true;
 }
 
