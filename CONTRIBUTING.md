@@ -195,5 +195,8 @@ maintainers' private task database to contribute. Use the public repository's
 issue and pull request mechanisms when they are available. Report
 vulnerabilities privately through the [security policy](SECURITY.md).
 
+Contributions are licensed under the project's licence,
+[AGPL-3.0-only](LICENSE). There is no separate agreement to sign.
+
 See the [release policy](docs/reference/release-policy.md) for installation, upgrade and
 publication rules.
