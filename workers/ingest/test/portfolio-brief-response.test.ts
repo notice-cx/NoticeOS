@@ -28,6 +28,16 @@ it('turns readable prose into cards with verified source IDs and an application-
   expect(result.insights[0]).not.toHaveProperty('confidence');
 });
 
+it('accepts findings without an overall headline or a repeated summary', () => {
+  const findingsOnly = prose.slice(prose.indexOf('## '));
+  const result = parsePortfolioBrief(findingsOnly, evidence);
+  expect(result.insights).toEqual(parsePortfolioBrief(prose, evidence).insights);
+  expect(result).not.toHaveProperty('headline');
+  expect(result).not.toHaveProperty('assessment');
+  expect(() => parsePortfolioBrief(findingsOnly.replace(/^Why:.*\n/m, ''), evidence))
+    .toThrowError(expect.objectContaining({ code: 'briefing-format' }));
+});
+
 it('accepts ordinary Markdown labels and line wrapping without JSON repair', () => {
   const markdown = prose.replace('Headline:', '#').replace('Summary: ', '')
     .replace('Sources: S1', '- **Sources:** [S1]').replace('Observation:', '**Observation**:')

@@ -224,6 +224,25 @@ graph, and an alert appears on the chart of the metric it is about, so the
 operator never has to piece the picture together from boxes scattered across
 the page.
 
+### Screen composition
+
+**Each message adds information.** State a finding, priority or status once
+on a screen. Rewording the same claim is still repetition. A page heading,
+summary and nearby card must not repeat the same conclusion, especially with
+the same visual emphasis. Choose one place for that conclusion; additional
+text adds a new fact, a decision consequence or an action. Omit explanations
+and descriptions that restate words already visible in nearby components.
+When labels, values or actions already convey the information, remove the
+description entirely rather than replacing it with a shorter paraphrase.
+Descriptions appear only when they add context needed for a decision or action;
+they do not repeat control labels or summarize what nearby components already
+state. Supporting
+measurements and reasoning belong in Details when they are not needed for the
+next action. Remove a summary that only previews or paraphrases its findings.
+Apply this to generated copy as well as interface copy, and review the whole
+screen at desktop and phone widths. Repeated labels needed to identify a
+separate control or accessible name do not justify repeating a business claim.
+
 **Annotate in place.** Put labels on the marks instead of in a legend: the
 newest value at the line's end, a named reference point ("Busiest day · Jul 11
 · $42"), shaded bands for an outage, a measurement window or a usual range, a
@@ -398,7 +417,7 @@ column, two from about 768 px of content, twelve from about 1150 px, so a
 narrow window or a portrait monitor gets a layout made for it instead of a
 squeezed desktop one.
 
-**Home's executive briefing** precedes the modules when a saved result contains useful findings. It shows a headline and short assessment, then up to three compact takeaway cards. Each card keeps its observation, implication and next action under **Details**, collapsed by default; the full briefing can contain 360 words. A highlight cycles between cards, pauses during interaction or while details are open, and respects reduced-motion preferences. **Pause highlights** stops the cycle. Time context appears in the narrative. One contextual action link can open the relevant page; source inventories, model metadata and routine timestamps do not appear. The model receives a bounded packet covering finance, acquisition, product performance, delivery, measured outcomes and operational health. Recent observations can support judgment across these areas without a prescribed finding pattern. Missing evidence and unchanged revenue concentration do not establish insights. An empty result uses Home's observed summary. Failed refreshes retain useful prior guidance with a concise warning; outdated results are labelled. Reading Home never starts generation or delays the first screen. When no model is connected, Home also shows a **Connect a model** link. First-run setup remains separate.
+**Home's executive briefing** precedes the modules when a saved result contains useful findings. One full-width component shows one finding and its next action, with supporting observations and reasoning under **Details**. There is no separate overall headline or summary. Up to three findings rotate every 7 seconds; vertical dots select a finding and pause rotation. **Pause rotation** and **Resume rotation** control automatic changes. Rotation pauses during interaction, while Details is open and while the page is hidden; reduced-motion preferences disable automatic changes. The full briefing can contain 360 words. Time context appears in the narrative. One contextual action link can open the relevant page; source inventories, model metadata and routine timestamps do not appear. The model receives a bounded packet covering finance, acquisition, product performance, delivery, measured outcomes and operational health. Recent observations can support judgment across these areas without a prescribed finding pattern. Missing evidence and unchanged revenue concentration do not establish insights. An empty result uses Home's observed summary. Failed refreshes retain useful prior guidance with a concise warning; outdated results are labelled. Reading Home never starts generation or delays the first screen. When no model is connected, Home also shows a **Connect a model** link. First-run setup remains separate.
 
 **Home is drawn from modules, in the order the person's view lists them**
 (`HOME_MODULES`, `routes/home/modules.tsx`). Overview shows the combined

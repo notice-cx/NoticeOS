@@ -111,7 +111,7 @@ export function parsePortfolioBrief(text: string, evidence: PortfolioBriefEviden
       header.summary = line; target = { record: header, field: 'summary' };
     } else return fail('briefing-format');
   }
-  if (!clean(header.headline) || !clean(header.summary) || !cards.length) return fail('briefing-format');
+  if (!cards.length) return fail('briefing-format');
   const eligible = new Set(evidence.insightEvidenceIds);
   const insights = cards.map(card => {
     if (Object.values(card).some(value => !clean(value))) return fail('briefing-format');
@@ -120,7 +120,10 @@ export function parsePortfolioBrief(text: string, evidence: PortfolioBriefEviden
     return { title: clean(card.title), observation: observationWithPeriod(clean(card.observation), opening),
       why: sentence(clean(card.why)), action: sentence(clean(card.next)), evidenceIds: cited.map(fact => fact.id) };
   });
-  const result = portfolioBriefResultSchema.safeParse({ headline: clean(header.headline), assessment: sentence(clean(header.summary)), insights });
+  const result = portfolioBriefResultSchema.safeParse({
+    ...(clean(header.headline) ? { headline: clean(header.headline) } : {}),
+    ...(clean(header.summary) ? { assessment: sentence(clean(header.summary)) } : {}), insights,
+  });
   if (!result.success) return fail('briefing-length');
   return result.data;
 }
