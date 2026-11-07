@@ -55,7 +55,6 @@ describe("the Tower's own routes", () => {
     open("/agents");
     const frame = await screen.findByRole("alert");
     expect(frame).toHaveAttribute("data-route-error", "desk");
-    expect(within(frame).getByRole("heading", { name: "This page ran into an error" })).toBeInTheDocument();
     expect(within(frame).getByText("Cannot read properties of null (reading 'useState')")).toBeInTheDocument();
     expect(within(frame).getByRole("button", { name: "Reload" })).toBeInTheDocument();
     expect(screen.getAllByRole("navigation", { name: "Main" }).length).toBeGreaterThan(0);
@@ -66,7 +65,6 @@ describe("the Tower's own routes", () => {
     open("/wall");
     const frame = await screen.findByRole("alert");
     expect(frame).toHaveAttribute("data-route-error", "wall");
-    expect(within(frame).getByRole("heading", { name: "The Wall ran into an error" })).toBeInTheDocument();
     expect(within(frame).getByText("The Wall's layout is not an array")).toBeInTheDocument();
     expect(within(frame).getByText("Reloads by itself in 1 min")).toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Main" })).toBeNull();

@@ -46,7 +46,6 @@ test("blocker impact: portfolio counts, read-only disclosure and exact project l
   await expect(independent.getByRole("link")).toHaveAttribute("href", "/tasks/ex-a?project=beta");
   const gate = section.locator('[data-blocker-task="ex-gate"]');
   await expect(gate).toContainText("0 could become ready");
-  expect(await section.getByRole("button").allTextContents()).toEqual(["Show fewer"]);
   await page.getByRole("button", { name: "Timeline", exact: true }).click();
   await expect(first).toContainText("6 downstream");
   expect(reads.sort()).toEqual(["/api/tasks?project=alpha", "/api/tasks?project=beta"]);

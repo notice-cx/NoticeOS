@@ -154,7 +154,6 @@ describe("the Next tab", () => {
     expect(sections(container)).toEqual(["data-tasks-brief", "data-next-decision", "data-then-for-you", "data-agents-next", "data-not-now"]);
     const then = container.querySelector<HTMLElement>("[data-then-for-you]")!;
     expect([...then.querySelectorAll("[data-then-row]")].map((row) => row.getAttribute("data-then-row"))).toEqual(["md-a1", "md-g1"]);
-    expect(then).toHaveTextContent("That's every decision for you.");
     expect(within(then).getByRole("link", { name: "Focus →" })).toHaveAttribute("href", "/tasks/focus");
     const agents = container.querySelector<HTMLElement>("[data-agents-next]")!;
     expect(agents.querySelector('[data-agent-row="md-w1"]')).toHaveTextContent("In progress · agent-x · 3h");

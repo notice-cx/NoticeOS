@@ -64,7 +64,7 @@ it('captures the original transport exception before replacing its public error 
   const onDiagnostics = vi.fn();
   const error = new TypeError('Actual transport failure', { cause: new Error('Actual connection detail') });
   await expect(generateLocalModel(standalone, fields, { ...options, onDiagnostics, fetchImpl: async () => { throw error; } }))
-    .rejects.toThrow('OpenAI-compatible model: network.');
+    .rejects.toMatchObject({ code: 'network', message: expect.not.stringContaining(error.message) });
   expect(onDiagnostics).toHaveBeenLastCalledWith('error', { name: 'TypeError', message: 'Actual transport failure',
     cause: { name: 'Error', message: 'Actual connection detail' } });
 });
@@ -226,8 +226,7 @@ it.each([
   { finish_reason: 'stop', message: { content: 'Answer', refusal: 'Private refusal context' } },
 ])('categorizes refusals without returning their content', async choice => {
   const pending = generateLocalModel(standalone, fields, { ...options, fetchImpl: async () => Response.json({ choices: [choice] }) });
-  await expect(pending).rejects.toMatchObject({ code: 'refused-output' });
-  await expect(pending).rejects.toThrow('OpenAI-compatible model: refused-output.');
+  await expect(pending).rejects.toMatchObject({ code: 'refused-output', message: expect.not.stringContaining('Private refusal context') });
 });
 
 it.each(['empty-output', 'truncated-output', 'refused-output'] as const)('maps %s to the generic invalid response category', code => {
@@ -244,8 +243,10 @@ it('rejects truncated responses, excessive bodies and already cancelled work', a
 });
 
 it('sanitizes transport and provider failures', async () => {
-  await expect(checkLocalModel(standalone, fields, async () => { throw new Error('private endpoint and token'); })).rejects.toThrow('OpenAI-compatible model: network.');
-  await expect(checkLocalModel(standalone, fields, async () => new Response('private provider message', { status: 401 }))).rejects.toMatchObject({ code: 'access', message: 'OpenAI-compatible model: access.' });
+  await expect(checkLocalModel(standalone, fields, async () => { throw new Error('private endpoint and token'); }))
+    .rejects.toMatchObject({ code: 'network', message: expect.not.stringContaining('private endpoint and token') });
+  await expect(checkLocalModel(standalone, fields, async () => new Response('private provider message', { status: 401 })))
+    .rejects.toMatchObject({ code: 'access', message: expect.not.stringContaining('private provider message') });
 });
 
 

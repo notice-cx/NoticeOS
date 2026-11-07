@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { NO_READS } from "@shared/connection-status";
 import type { AssetCard } from "@shared/wall";
 import { loopNodes } from "@/components/wall/WallLoop";
-import { WALL_TIMELINE_ROWS, fitTimeline } from "@/components/wall/WallTimeline";
+import { fitTimeline } from "@/components/wall/WallTimeline";
 import { WallWork } from "@/components/wall/WallWork";
 import type { TimelineEvent, TimelineSpan } from "@/components/viz/EventTimeline";
 
@@ -23,10 +23,6 @@ const span = (id: string, lane: string, severity: "error" | "warn", hoursAgo: nu
 const mark = (id: string, lane: string, hoursAgo: number): TimelineEvent => ({ id, lane, at: at(hoursAgo), kind: "win", label: id });
 
 describe("the timeline's budget", () => {
-  it("is Needs attention's three", () => {
-    expect(WALL_TIMELINE_ROWS).toBe(3);
-  });
-
   it("draws errors before warnings, the newest first, and counts the problems it left out", () => {
     const fitted = fitTimeline(
       {

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "./render";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SNOOZE_MAX_DAYS } from "@shared/snooze";
 import { FlagActions } from "@/components/FlagActions";
 import { SnoozeUntil } from "@/components/SnoozeUntil";
@@ -45,8 +45,11 @@ function withClient(node: ReactNode) {
   );
 }
 
+const NOW = Date.parse("2026-09-04T12:00:00.000Z");
+beforeEach(() => vi.setSystemTime(NOW));
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   toasts.success.mockClear();
   toasts.error.mockClear();
 });
@@ -54,13 +57,6 @@ afterEach(() => {
 const DAY = 86_400_000;
 
 describe("FlagActions — the snooze menu", () => {
-  it("offers Snooze beside the two actions it always had", () => {
-    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
-    expect(screen.getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Snooze alert" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resolve alert" })).toBeInTheDocument();
-  });
-
   it("opens the horizons in place, and Escape puts the row back", () => {
     render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
@@ -84,9 +80,7 @@ describe("FlagActions — the snooze menu", () => {
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]!.url).toBe("/api/flags/7");
     expect(calls[0]!.body.action).toBe("snooze");
-    const until = Date.parse(calls[0]!.body.until!);
-    expect(until - Date.now()).toBeGreaterThan(3 * DAY - 5_000);
-    expect(until - Date.now()).toBeLessThan(3 * DAY + 5_000);
+    expect(calls[0]!.body.until).toBe("2026-09-07T12:00:00.000Z");
   });
 
   it("bounds the date picker to the horizon the Worker enforces", () => {
@@ -96,10 +90,8 @@ describe("FlagActions — the snooze menu", () => {
 
     // Tomorrow at the earliest, and never past SNOOZE_MAX_DAYS, so the field
     // cannot offer what the store would refuse.
-    expect(Date.parse(`${picker.min}T00:00:00.000Z`) - Date.now()).toBeGreaterThan(0);
-    expect(picker.max).toBe(
-      new Date(Date.now() + SNOOZE_MAX_DAYS * DAY).toISOString().slice(0, 10),
-    );
+    expect(picker.min).toBe("2026-09-05");
+    expect(picker.max).toBe(new Date(NOW + SNOOZE_MAX_DAYS * DAY).toISOString().slice(0, 10));
   });
 
   it("refuses a past date without sending it, and says what is allowed", async () => {
@@ -213,8 +205,6 @@ describe("FlagActions — every outcome re-reads the settled archive", () => {
 });
 
 describe("SnoozeUntil — when a parked alert comes back", () => {
-  const NOW = Date.parse("2026-09-04T12:00:00.000Z");
-
   it("counts down to the date while the snooze is running", () => {
     const { container } = render(
       <SnoozeUntil until="2026-09-07T12:00:00.000Z" nowMs={NOW} />,

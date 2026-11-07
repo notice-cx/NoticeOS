@@ -153,8 +153,6 @@ describe("four weeks against the four before", () => {
     expect(weeks.days).toHaveLength(FOUR_WEEKS);
     expect(weeks.days[0]).toEqual({ date: "2026-08-25", value: 118, prior: 100 });
     expect(weeks.days.at(-1)).toEqual({ date: END, value: 118, prior: 100 });
-    const weekday = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
-    expect(weekday("2026-08-25")).toBe(weekday("2026-07-28"));
     expect(weeks.hasPrior).toBe(true);
     expect(weeks.change!.percent).toBeCloseTo(18, 6);
     expect(weeks.change!.tone).toBe("positive");

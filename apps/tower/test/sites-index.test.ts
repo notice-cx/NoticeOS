@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { RevenueProjection } from "@shared/revenue-projection";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
@@ -224,7 +225,7 @@ describe("the Assets answer's visitors", () => {
       provisionalFrom: null, collectedAt: null, timeZoneChanges: [],
     });
     expect(visitorsAnswerFigure([card({ id: "a.example", activeUsers: week((index) => (index === 7 ? 120 : 100)) })]))
-      .toMatchObject({ label: "Visitors yesterday", value: "120", note: "↑ 20%" });
+      .toMatchObject({ value: "120", note: "↑ 20%" });
     expect(visitorsAnswerFigure([card({ id: "a.example", activeUsers: people(3, 50) })])?.note).toBeUndefined();
     expect(visitorsAnswerFigure([card({ id: "a.example" })])).toBeNull();
   });

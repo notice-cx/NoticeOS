@@ -78,8 +78,7 @@ describe("PATCH /api/flags/:id — the alert lifecycle over HTTP", () => {
   });
 
   it("normalizes the date it stores rather than trusting the request's spelling", async () => {
-    // A `<input type="date">` value, and an instant with no milliseconds:
-    // both legal, neither is what the column should end up holding twice over.
+    // The stored instant includes milliseconds even when the request omits them.
     await send({ action: "snooze", until: "2026-08-05T00:00:00Z" });
     expect(await columns(["snooze_until"])).toEqual({ snooze_until: "2026-08-05T00:00:00.000Z" });
   });
@@ -157,7 +156,7 @@ describe("PATCH /api/flags/:id — the alert lifecycle over HTTP", () => {
     expect((await handleFlagRequest(notJson, URL_, store, ID, NOW)).status).toBe(415);
   });
 
-  it("still carries the two actions it always had", async () => {
+  it("acknowledges an open alert and prevents resolving it after acknowledgement", async () => {
     expect(await send({ action: "acknowledge" })).toMatchObject({
       status: 200,
       json: { action: "acknowledge", snoozeUntil: null },
@@ -224,13 +223,11 @@ describe("PATCH /api/flags/:id — recording a tune", () => {
 
   it("refuses a row that is no longer open, and leaves it exactly as it was", async () => {
     await send({ action: "acknowledge" });
+    const before = await columns(["disposition", "disposition_note"]);
     expect(await send({ action: "tune", tuned: TUNED })).toMatchObject({
       status: 409,
       json: { error: "flag_not_open" },
     });
-    expect(await columns(["disposition", "disposition_note"])).toEqual({
-      disposition: "ack",
-      disposition_note: "Marked read by operator",
-    });
+    expect(await columns(["disposition", "disposition_note"])).toEqual(before);
   });
 });

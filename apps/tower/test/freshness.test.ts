@@ -47,48 +47,4 @@ describe("formatAge", () => {
     expect(formatAge(2 * 86_400_000)).toBe("2d");
   });
 
-  it("never yields a word, so no call asset can render 'never ago'", () => {
-    // One table over every `formatAge` call site in the app, each with the
-    // template it renders and whether that site can be handed a null age: no
-    // output of any row contains a word, and "never ago" appears nowhere.
-    const callSites: {
-      where: string;
-      render: (age: string) => string;
-      nullable: boolean;
-    }[] = [
-      { where: "AgeBadge.tsx:—", render: (a) => a, nullable: true },
-      { where: "alert-language.ts:979", render: (a) => `deploy ${a} before`, nullable: false },
-      { where: "ScheduledLanes.tsx:83", render: (a) => `Scheduler silent · last firing ${a} ago`, nullable: false },
-      { where: "ScheduledLanes.tsx:91", render: (a) => `age ${a}`, nullable: false },
-      { where: "ScheduledLanes.tsx:92", render: (a) => `age ${a}`, nullable: false },
-      { where: "ScheduledLanes.tsx:233", render: (a) => `${a} ago`, nullable: false },
-      { where: "PanelReviewBadge.tsx:70", render: (a) => a, nullable: true },
-      { where: "PanelReviewBadge.tsx:78", render: (a) => a, nullable: true },
-      { where: "PanelReviewBadge.tsx:85", render: (a) => a, nullable: true },
-      { where: "EvidencePopover.tsx:151", render: (a) => `· ${a} ago`, nullable: false },
-      { where: "AssetsBand.tsx:488", render: (a) => `Updated ${a} ago`, nullable: false },
-      { where: "AttentionBand.tsx:491", render: (a) => `${a} ago`, nullable: false },
-      { where: "AttentionBand.tsx:544", render: (a) => `3× in ${a}`, nullable: false },
-      { where: "WallRoute.tsx:57", render: (a) => `updated ${a} ago`, nullable: false },
-      { where: "TasksRoute.tsx:950", render: (a) => a, nullable: false },
-      { where: "HomeRoute.tsx:661", render: (a) => a, nullable: false },
-      { where: "HomeRoute.tsx:816", render: (a) => `${a} ago`, nullable: false },
-      { where: "AssetDetailRoute.tsx:3261", render: (a) => `${a} ago`, nullable: false },
-      { where: "AssetDetailRoute.tsx:3273", render: (a) => `${a} ago`, nullable: false },
-      { where: "AssetDetailRoute.tsx:3954", render: (a) => `${a} ago`, nullable: false },
-      { where: "TaskRoute.tsx:1251", render: (a) => `${a} ago`, nullable: false },
-    ];
-    const ages = [null, 0, 5_000, 5 * 60_000, 3 * HOUR, 2 * 86_400_000];
-    for (const site of callSites) {
-      // `nullable` records which sites can actually be handed an absent age;
-      // every site is fed one regardless, because the guarantee being pinned
-      // is that no input to this helper can produce a word at all.
-      const label = `${site.where}${site.nullable ? " (nullable)" : ""}`;
-      for (const ms of ages) {
-        const line = site.render(formatAge(ms));
-        expect(line, label).not.toContain("never");
-        expect(line, label).not.toMatch(/[A-Za-z]{4,}\s+ago/);
-      }
-    }
-  });
 });

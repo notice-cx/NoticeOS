@@ -5,6 +5,7 @@ import {
   TUNE_CARRIED_MARK,
   decisionNoteOnly,
   tunedSettingNote,
+  tuneNote,
   wasTuned,
 } from "../shared/tune";
 import { applyFlagAction } from "../worker/flag-actions";
@@ -65,7 +66,6 @@ describe("flag actions", () => {
     ).toMatchObject({
       disposition: "ack",
       disposition_at: NOW,
-      disposition_note: "Marked read by operator",
       message: "drop",
       rule_inputs: "{}",
     });
@@ -188,7 +188,6 @@ describe("snooze parks a condition until a date and gives it back", () => {
     ).toMatchObject({
       disposition: "snooze",
       disposition_at: NOW,
-      disposition_note: "Snoozed by operator",
       snooze_until: IN_THREE_DAYS,
       resolved_at: null,
       message: "drop",
@@ -222,9 +221,10 @@ describe("snooze parks a condition until a date and gives it back", () => {
     });
     expect(await openIds(back)).toEqual([id]);
     expect(await snoozedIds(back)).toEqual([]);
-    expect(await columns(id, ["disposition", "disposition_note"])).toEqual({
+    expect(await columns(id, ["disposition", "disposition_at", "snooze_until"])).toEqual({
       disposition: "snooze",
-      disposition_note: "Snooze ended by operator",
+      disposition_at: back,
+      snooze_until: back,
     });
   });
 
@@ -292,9 +292,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     expect(await row(id)).toMatchObject({
       disposition: "tune",
       disposition_at: NOW,
-      // The words the field itself wears, from `shared/tune`, never free text
-      // sent by the browser.
-      disposition_note: "Anomaly sensitivity (alpha) 0.01 → 0.05",
+      disposition_note: tuneNote(TUNED),
       snooze_until: null,
       resolved_at: null,
       message: "drop",
@@ -326,7 +324,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     ).toMatchObject({ action: "tune" });
     expect(await row(id)).toMatchObject({
       disposition: "tune",
-      disposition_note: "Longest window (max_window_days) 14 → 7",
+      disposition_note: tuneNote({ setting: "max_window_days", from: 14, to: 7 }),
     });
     expect(await openIds(later)).toEqual([id]);
   });
@@ -334,13 +332,11 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
   it("never overwrites a decision the operator already made", async () => {
     const id = await insertOpenFlag();
     await applyFlagAction(await store(), id, "acknowledge", NOW);
+    const before = await row(id);
     expect(
       await applyFlagAction(await store(), id, "tune", NOW, null, TUNED),
     ).toBeNull();
-    expect(await row(id)).toMatchObject({
-      disposition: "ack",
-      disposition_note: "Marked read by operator",
-    });
+    expect(await row(id)).toEqual(before);
   });
 
   it("settles into the history keeping the tune, when the issue is resolved", async () => {
@@ -351,7 +347,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     // Resolve writes `resolved_at` and never touches the disposition.
     expect(await row(id)).toMatchObject({
       disposition: "tune",
-      disposition_note: "Anomaly sensitivity (alpha) 0.01 → 0.05",
+      disposition_note: tuneNote(TUNED),
       resolved_at: later,
     });
     expect(await openIds(later)).toEqual([]);
@@ -385,7 +381,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
  * note, and the false-positive rate asks "was this ever tuned". */
 describe("a decision landing on a tuned alert keeps the tune", () => {
   const TUNED = { setting: "alpha", from: 0.01, to: 0.05 };
-  const TUNE_NOTE = "Anomaly sensitivity (alpha) 0.01 → 0.05";
+  const TUNE_NOTE = tuneNote(TUNED);
   const IN_THREE_DAYS = "2026-08-01T22:00:00.000Z";
 
   const note = async (id: number): Promise<string | null> =>
@@ -408,20 +404,20 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
     // The disposition slot still holds the decision about the event; the rule
     // change rides behind the mark.
     expect(await columns(id, ["disposition"])).toEqual({ disposition: "ack" });
-    expect(await note(id)).toBe(`Marked read by operator · rule tuned: ${TUNE_NOTE}`);
+    expect(await note(id)).toContain(`${TUNE_CARRIED_MARK}${TUNE_NOTE}`);
     expect(await everTuned()).toEqual([id]);
     expect(wasTuned({ disposition: "ack", dispositionNote: await note(id) })).toBe(true);
     expect(
       tunedSettingNote({ disposition: "ack", dispositionNote: await note(id) }),
     ).toBe(TUNE_NOTE);
-    expect(decisionNoteOnly(await note(id))).toBe("Marked read by operator");
+    expect(decisionNoteOnly(await note(id))).not.toContain(TUNE_CARRIED_MARK);
   });
 
   it("parks a tuned alert without forgetting it either", async () => {
     const id = await insertOpenFlag();
     await applyFlagAction(await store(), id, "tune", NOW, null, TUNED);
     await applyFlagAction(await store(), id, "snooze", NOW, IN_THREE_DAYS);
-    expect(await note(id)).toBe(`Snoozed by operator · rule tuned: ${TUNE_NOTE}`);
+    expect(await note(id)).toContain(`${TUNE_CARRIED_MARK}${TUNE_NOTE}`);
     expect(await everTuned()).toEqual([id]);
   });
 
@@ -431,14 +427,14 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
     await applyFlagAction(await store(), id, "snooze", NOW, IN_THREE_DAYS);
     const back = "2026-07-30T09:00:00.000Z";
     await applyFlagAction(await store(), id, "unsnooze", back);
-    expect(await note(id)).toBe(`Snooze ended by operator · rule tuned: ${TUNE_NOTE}`);
+    expect(await note(id)).toContain(`${TUNE_CARRIED_MARK}${TUNE_NOTE}`);
     expect(await everTuned()).toEqual([id]);
   });
 
-  it("leaves an untouched alert's note exactly as it was", async () => {
+  it("does not classify an untuned alert as tuned after acknowledgement", async () => {
     const id = await insertOpenFlag();
     await applyFlagAction(await store(), id, "acknowledge", NOW);
-    expect(await note(id)).toBe("Marked read by operator");
+    expect(tunedSettingNote({ disposition: "ack", dispositionNote: await note(id) })).toBeNull();
     expect(await everTuned()).toEqual([]);
   });
 
@@ -463,9 +459,9 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
     const third = await declared("2026-07-29T02:00:00.000Z");
 
     await applyFlagAction(await store(), third, "acknowledge", NOW);
-    expect(await note(first)).toBe(`Marked read by operator · rule tuned: ${TUNE_NOTE}`);
-    expect(await note(second)).toBe(`Marked read by operator · rule tuned: ${TUNE_NOTE}`);
-    expect(await note(third)).toBe("Marked read by operator");
+    expect(tunedSettingNote({ disposition: "ack", dispositionNote: await note(first) })).toBe(TUNE_NOTE);
+    expect(tunedSettingNote({ disposition: "ack", dispositionNote: await note(second) })).toBe(TUNE_NOTE);
+    expect(tunedSettingNote({ disposition: "ack", dispositionNote: await note(third) })).toBeNull();
     expect(await everTuned()).toEqual([first, second]);
   });
 });

@@ -31,10 +31,10 @@ let ctx: TestStore;
 /** This test's Postgres copy, the call's store a Worker would hand the rollup. */
 let store: () => WorkspaceStore;
 
-beforeEach(async () => {
+async function prepareStore() {
   ctx = await createTestStore();
   store = () => ctx.call;
-});
+}
 
 function cell(
   effective: IntegrationCellBase["effective"],
@@ -120,6 +120,7 @@ async function rows(): Promise<Record<string, unknown>[]> {
 }
 
 needsPostgres("recording a day of the integrations matrix", () => {
+  beforeEach(prepareStore);
   it("writes one row per lane, declared and derived alike", async () => {
     expect(await recordConnectionDay(await store(), matrix(), NOW)).toBe(2);
 
@@ -222,6 +223,7 @@ describe("what a lane's day says", () => {
 });
 
 needsPostgres("the freshness series", () => {
+  beforeEach(prepareStore);
   it("is hours between the day's observation and its newest evidence", async () => {
     await recordConnectionDay(await store(), matrix(), NOW);
     const history = (await loadConnectionHistory(await store()))!;
@@ -260,6 +262,7 @@ needsPostgres("the freshness series", () => {
 });
 
 needsPostgres("the payload shape", () => {
+  beforeEach(prepareStore);
   it("says how many days it holds once the table is there", async () => {
     await recordConnectionDay(await store(), matrix(), new Date("2026-09-03T09:00:00.000Z"));
     await recordConnectionDay(await store(), matrix(), NOW);

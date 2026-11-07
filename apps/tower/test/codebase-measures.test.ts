@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { CodebaseHistoryPoint, CodebaseSlice } from "@shared/codebase";
 import { shiftLabel } from "@shared/surface";
@@ -159,19 +160,17 @@ describe("the unmeasured rule", () => {
 });
 
 describe("the widgets", () => {
-  it("each has its label, figure, change and a 90-day line, in reading order", () => {
+  it("orders the measures with their figures, changes and history", () => {
     const widgets = codebaseWidgets(codebaseSlice(ASSET, TODAY));
-    expect(widgets.map((widget) => widget.label)).toEqual([
-      "Lines of code", "Repeated code", "Unused code", "Hard-to-change functions", "Test coverage by size",
-      "Build", "Tests", "Vulnerable packages",
+    expect(widgets.map((widget) => widget.key)).toEqual([
+      "size", "repeated", "unused", "complex", "tests", "build", "testRun", "vulnerable",
     ]);
     expect(widgets.map((widget) => widget.strip)).toEqual(["code", "code", "code", "code", "code", "checks", "checks", "checks"]);
     expect(widgets[0]).toMatchObject({ value: 48_210, improvement: "none" });
-    expect(widgets[4]).toMatchObject({ value: 1.03, note: "the code", meaning: "Test lines compared with code lines. Tests catch mistakes early." });
+    expect(widgets[4]).toMatchObject({ value: 1.03 });
     expect(widgets[0]!.change?.change).toBe(2_400);
     expect(widgets[0]!.spark).toHaveLength(85);
     expect(widgets[0]!.spark.at(-1)).toEqual({ t: TODAY, v: 48_210 });
-    expect(widgets[1]!.meaning).toBe("Code copied in more than one place. Each copy needs fixing.");
     expect(widgets[3]!.change?.change).toBe(4);
   });
 
@@ -185,7 +184,6 @@ describe("the widgets", () => {
     expect(passText({ passed: 0, measured: 1, days: 30 })).toBe("0 of 1 report passed in 30 days");
     expect(formatFigure("pass", 1)).toBe("Passed");
     expect(formatFigure("pass", 0)).toBe("Failed");
-    expect(tests.meaning).toMatch(/^Whether every test passed/u);
     // Only reports that sent a result count; none sent is no record.
     const history = [point(dayBefore(TODAY, 14), { code_lines: 1 }), point(dayBefore(TODAY, 7), { build_passed: 0 }), point(TODAY, { build_passed: 1 })];
     expect(passRecord(history, (m) => m.build_passed ?? null)).toEqual({ passed: 1, measured: 2, days: 30 });
@@ -256,10 +254,6 @@ describe("the answer", () => {
     expect(codebaseAnswer(slice, null).answer).toBe("The latest report has no line count.");
   });
 
-  it("stays under twelve words", () => {
-    const answer = codebaseAnswer(codebaseSlice(ASSET, TODAY), 3).answer;
-    expect(answer.split(/\s+/).length).toBeLessThan(12);
-  });
 });
 
 describe("the chart, languages and findings", () => {

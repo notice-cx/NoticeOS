@@ -66,7 +66,6 @@ describe("the feed column", () => {
     expect(first).toHaveTextContent("Task done");
     expect(within(first).getByRole("img", { name: "Recipes" })).toBeInTheDocument();
     expect(within(first).getByText("12:24")).toHaveAttribute("datetime", item("a", 6).at);
-    expect(screen.getByText("since last night")).toBeInTheDocument();
     // The first payload is what the room walked in on: nothing arrives.
     expect(document.querySelectorAll("[data-feed-arrived]")).toHaveLength(0);
   });

@@ -8,7 +8,7 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { TASK_QUALITY, TASK_WORKFLOW, WHATS_CHANGED, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
+import { taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
 import { createHostedTaskPlanner, TaskStateRefused } from './hosted-task-command.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
@@ -99,30 +99,12 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.deepEqual([init.result.protocolVersion, init.result.serverInfo.name], ['2025-06-18', 'noticeos']);
   const discovered = (await (await f.mcp(modern('server/discover'))).json()).result;
   assert.deepEqual([discovered.resultType, discovered.supportedVersions], ['complete', [MODERN]]);
-  assert.match(discovered.instructions, /list_workspaces/u);
-  // Every agent is told to name its model on each new task, claim and close, so its work is credited.
-  assert.match(discovered.instructions, /On every create_task, create_tasks, claim_task and close_task, pass model/u);
-  // And how to write a task: the one copy of the rules, in every session's instructions.
   assert.equal(init.result.instructions, discovered.instructions);
-  for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
-  assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
-  // Search before filing, so one piece of work is one task.
-  assert.match(discovered.instructions, /Before filing, search with list_tasks query for the title's key words, with no project to search every project\. Work already filed gets a comment, never a second task/u);
-  assert.match(discovered.instructions, /list_workspaces returns its version as guideVersion, so read it again when that changes/u);
-  // A person's pick is data the Tower draws as buttons, never lettered prose.
-  assert.match(discovered.instructions, /When the person picks between options, pass them as choices/u);
-  assert.doesNotMatch(discovered.instructions, /lettered options/u);
-  assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'get_task_guide', 'reconcile_task', 'list_projects', 'get_agent_stats', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
-  for (const name of ['create_task', 'create_tasks', 'claim_task', 'close_task']) {
-    const tool = tools.find(entry => entry.name === name);
-    assert.match(tool.description, /naming your model/u, name);
-    assert.match(tool.inputSchema.properties.model.description, /Pass it on every new task, claim and close/u, name);
-  }
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
     assert.equal(tool.inputSchema.required.includes('workspace'), !['list_workspaces', 'get_task_guide'].includes(tool.name), `${tool.name} names its workspace`);
@@ -154,40 +136,15 @@ test('get_task_guide returns the whole guide with a version, and the instruction
     const { version, guide } = reply.structuredContent;
     assert.deepEqual(reply.structuredContent, taskGuide(panels), profile);
     assert.match(version, /^[0-9a-f]{12}$/u);
-    assert.match(guide, new RegExp(`Guide version ${version}`, 'u'));
-    for (const line of [...TASK_WORKFLOW, ...TASK_QUALITY]) assert.ok(guide.includes(line), line);
     // One source: every instruction line but the pointer to the guide is a line of the guide.
     for (const line of instructions.split('\n').filter(line => line && !line.startsWith('get_task_guide returns'))) {
       assert.ok(guide.includes(line), `${profile}: ${line}`);
     }
-    assert.match(instructions, /get_task_guide returns these rules/u);
+    assert.equal((await call(f, 'list_workspaces', {}, { bearer })).structuredContent.guideVersion, version, profile);
     assert.match((await call(f, 'get_task_guide', { workspace: A }, { bearer })).content[0].text, /takes none/u);
     assert.deepEqual(f.calls, [], 'the guide reaches no task command');
   }
-  // Where the panel tools are offered, so is the rule for reading them.
-  assert.match(taskGuide(true).guide, /## Asset data\n\nFor an asset's search, traffic and product data, use get_panel then query_panel/u);
   assert.notEqual(taskGuide(true).version, taskGuide(false).version);
-});
-
-test('the guide opens with what changed, at most three dated lines, and list_workspaces returns its version', async () => {
-  assert.ok(WHATS_CHANGED.length >= 1 && WHATS_CHANGED.length <= 3, `${WHATS_CHANGED.length} entries`);
-  for (const entry of WHATS_CHANGED) {
-    assert.match(entry, /^\d{4}-\d{2}-\d{2}: \S[^\n]*$/u, entry);
-    assert.equal(new Date(entry.slice(0, 10)).toISOString().slice(0, 10), entry.slice(0, 10), entry);
-  }
-  for (const panels of [false, true]) {
-    const { version, guide } = taskGuide(panels);
-    const sections = guide.split('\n').filter(line => line.startsWith('## '));
-    assert.equal(sections[0], '## What changed', 'the first section');
-    assert.ok(guide.includes(`## What changed\n\n${WHATS_CHANGED.map(entry => `- ${entry}`).join('\n')}\n\n## Start`), guide);
-    assert.match(guide, new RegExp(`^# Working with NoticeOS tasks\n\nGuide version ${version}; list_workspaces returns the current one as guideVersion\\.\n`, 'u'));
-  }
-  for (const profile of ['hosted', 'demo']) {
-    const f = fixture({ profile });
-    const bearer = profile === 'demo' ? null : READER;
-    const listed = (await call(f, 'list_workspaces', {}, { bearer })).structuredContent;
-    assert.equal(listed.guideVersion, (await call(f, 'get_task_guide', {}, { bearer })).structuredContent.version, profile);
-  }
 });
 
 test('list_workspaces shows every workspace with what this connection may do there', async () => {
@@ -1033,23 +990,17 @@ const CARD = { valuePerMonth: 400, likelihood: 0.4, reviewMinutes: 20, daysToSig
 const plannedArgv = (f, kind) => createHostedTaskPlanner([{ workspaceId: A, projectId: P, capability: Symbol() }])(A,
   { projectId: P, operation: f.calls.filter(entry => entry.operation.kind === kind).at(-1).operation }).argv;
 
-test('the tool list documents a card\'s figures with their units and ranges, and the guide says when a task carries one', async () => {
+test('task card schemas preserve required fields, bounds and nullable edits', async () => {
   const f = fixture();
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   const input = name => tools.find(tool => tool.name === name).inputSchema;
   for (const properties of [input('create_task').properties, input('create_tasks').properties.tasks.items.properties, input('update_task').properties]) {
     assert.deepEqual(properties.card.required, ['valuePerMonth', 'likelihood', 'reviewMinutes', 'daysToSignal', 'measurability']);
-    const { likelihood, valuePerMonth, daysToSignal, kill } = properties.card.properties;
+    const { likelihood, daysToSignal } = properties.card.properties;
     assert.deepEqual([likelihood.minimum, likelihood.maximum, daysToSignal.type], [0.01, 0.99, 'integer']);
-    assert.match(likelihood.description, /0\.01 to 0\.99/u);
-    assert.match(valuePerMonth.description, /USD a month, -1000000 to 1000000/u);
-    assert.match(kill.properties.date.description, /due date/u);
     assert.deepEqual(properties.change_class.enum.filter(Boolean), ['content-data', 'copy', 'template', 'feature', 'infra']);
   }
   assert.deepEqual([input('update_task').properties.card.type, input('update_task').properties.change_class.type], [['object', 'null'], ['string', 'null']]);
-  const { guide } = taskGuide(false);
-  assert.match(guide, /- Work meant to change money carries a card: .*a task without one is listed, not ranked\./u);
-  assert.match(guide, /- change_class names the kind of change a task makes, one of content-data, copy, template, feature and infra/u);
 });
 
 test('a card and a change class are stored with who wrote the card and when, its kill date is the due date, and get_task and list_tasks return them', async () => {

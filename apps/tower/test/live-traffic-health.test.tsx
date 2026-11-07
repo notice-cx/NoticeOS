@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { Ga4RealtimeAsset } from '@noticeos/contract';
 import { liveTrafficCardIssue, liveTrafficFailure } from '@shared/live-traffic-health';

@@ -184,12 +184,12 @@ describe("GET /api/integrations/google/oauth/callback", () => {
   const arriving = (query: string, site = "cross-site") =>
     navigation(`${CALLBACK}?${query}`, site);
 
-  it("finishes the sign-in and lands the operator back on the page", async () => {
+  it("finishes a cross-site sign-in and returns to the page without the authorization code", async () => {
     const stub = stubIngest();
     const url = new URL(`${CALLBACK}?code=${CODE}&state=abc`);
     const landed = landedOn(
       await handleGoogleOAuthCallbackRequest(
-        arriving(`code=${CODE}&state=abc`),
+        arriving(`code=${CODE}&state=abc`, "cross-site"),
         url,
         stub.ingest,
       ),
@@ -197,6 +197,7 @@ describe("GET /api/integrations/google/oauth/callback", () => {
     expect(landed.pathname).toBe("/integrations");
     expect(landed.searchParams.get("google")).toBe("connected");
     expect(landed.searchParams.get("connect")).toBe("google");
+    expect(landed.href).not.toContain(CODE);
 
     // The redirect URI is re-derived from this request rather than taken from
     // the state, so the two have to agree: that binds a state to the origin it
@@ -204,31 +205,6 @@ describe("GET /api/integrations/google/oauth/callback", () => {
     expect(stub.completions).toEqual([
       { code: CODE, state: "abc", redirectUri: CALLBACK },
     ]);
-  });
-
-  it("never writes the authorization code into the URL it answers with", async () => {
-    const stub = stubIngest();
-    const url = new URL(`${CALLBACK}?code=${CODE}&state=abc`);
-    const response = await handleGoogleOAuthCallbackRequest(
-      arriving(`code=${CODE}&state=abc`),
-      url,
-      stub.ingest,
-    );
-    expect(response.headers.get("location")).not.toContain(CODE);
-  });
-
-  it("works when the browser says the navigation is cross-asset — it IS", async () => {
-    // The signed, expiring, redirect-bound state stands in for the origin
-    // check here; an origin guard on this route would break every real sign-in.
-    const stub = stubIngest();
-    const url = new URL(`${CALLBACK}?code=${CODE}&state=abc`);
-    const response = await handleGoogleOAuthCallbackRequest(
-      arriving(`code=${CODE}&state=abc`, "cross-site"),
-      url,
-      stub.ingest,
-    );
-    expect(response.status).toBe(302);
-    expect(stub.completions).toHaveLength(1);
   });
 
   it("treats Cancel on Google's screen as its own answer", async () => {

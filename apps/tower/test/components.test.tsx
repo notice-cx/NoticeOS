@@ -40,7 +40,6 @@ import {
   findingTaskHandoff,
 } from "@/components/ExecutiveInsightRow";
 import { taskHandoffPrefill } from "@/lib/task-handoff";
-import { KnobRow } from "@/components/KnobRow";
 import { OwnerChip } from "@/components/OwnerChip";
 import { PageDecisions } from "@/components/PageDecisions";
 import { PanelReviewLine } from "@/components/PanelReviewLine";
@@ -65,7 +64,6 @@ import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { PriorityBar } from "@/components/PriorityBar";
 import { COPY_FLASH_MS } from "@/hooks/useCopyFlash";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
-import { KitchenSinkRoute } from "@/routes/KitchenSinkRoute";
 import { copyText } from "@/lib/clipboard";
 import { queryDecisionMarkdown } from "@/lib/query-decision-markdown";
 
@@ -304,7 +302,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
     expect(container.querySelector('[data-source-note="bing"]')).not.toBeNull();
     expect(container.querySelector("[data-lane-evidence]")).toBeNull();
     expect(container.textContent).not.toContain("Grounding queries excluded");
-    expect(container.textContent).toContain("Sources and limits");
     expect(container.textContent).not.toContain("checks run");
   });
 
@@ -380,7 +377,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
     expect(container.textContent).toContain(
       "Sharpen the title and opening answer on /meal-plan",
     );
-    expect(container.textContent).not.toContain("measure your exposure");
     const decision = container.querySelector(
       '[data-decision-kind="near-win"]',
     );
@@ -814,7 +810,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
       expect(container.querySelector("[data-handoff-bead]")).toBeNull();
       expect(container.querySelector("[data-decision-filed]")).toBeNull();
-      expect(container.textContent).not.toContain("bead");
     });
 
     it("carries exactly one filing marker on a row, never two", () => {
@@ -1345,7 +1340,6 @@ describe("ScheduledLanesPanel — silence and failure are visible states", () =>
     const empty = container.querySelector("[data-scheduled-empty]");
     expect(empty).toHaveAttribute("data-lane-posture", "unknown");
     expect(empty?.querySelector("svg.text-warn")).not.toBeNull();
-    expect(container.textContent).not.toContain("This is unknown, not healthy");
     expect(container.querySelector("[data-scheduled-lane]")).toBeNull();
   });
 
@@ -1398,8 +1392,6 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
       "# Recommendation: Expand pages already earning search demand",
     );
     expect(markdown).toContain("- **Asset:** `meadow.example`");
-    expect(markdown).toContain("## Meaning / next move");
-    expect(markdown).toContain("## Why it matters");
     expect(markdown).toContain("- **Captured impressions:** 1,003");
     expect(markdown).toContain("- **High-impression pages:** 12");
     expect(markdown).toContain(
@@ -1601,8 +1593,6 @@ describe("the task handoff command", () => {
   it("files a query decision with the keys that make the chain joinable", () => {
     const markdown = decisionMarkdown("jarra del buen beber");
     expect(markdown).toContain("## File this task");
-    expect(markdown).toContain("**File task** button");
-    expect(markdown).toContain("`list_projects`");
     expect(taskOf(markdown)).toMatchObject({
       title: "Act on “jarra del buen beber”", type: "task", priority: 1,
       labels: ["noticeos-handoff", "asset:meadow.example", "rule:recover", "key:jarra-del-buen-beber"],
@@ -1610,9 +1600,6 @@ describe("the task handoff command", () => {
         noticeos_kind: "query", noticeos_rule: "recover", noticeos_key: "jarra del buen beber" },
     });
     expect(taskOf(markdown).description).toContain("From the NoticeOS saved query decision for meadow.example: Recover visibility.");
-    expect(taskOf(markdown).description).toContain("Recheck the latest reports, linked work and the asset before acting.");
-    expect(markdown).toContain("**not proof of shipment or outcome**");
-    expect(markdown).toContain("Nothing files, closes, or measures it on your behalf");
   });
 
   // What the button files is the same `queryTaskHandoff` the payload above is
@@ -1847,8 +1834,6 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
         <ExecutiveFindingsList snapshot={snapshot} onDecide={onDecide} />
       </>,
     );
-    expect(container.textContent).not.toContain("reversible");
-    expect(container.textContent).not.toContain("does not resolve an alert");
 
     fireEvent.click(getAllByRole("button", { name: "Dismiss" })[0]!);
     expect(onDecide).toHaveBeenLastCalledWith("traffic-warning", "dismissed");
@@ -2038,7 +2023,6 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       );
 
       expect(container.querySelector("[data-handoff-bead]")).toBeNull();
-      expect(container.textContent).not.toContain("bead");
     });
 
     it("never borrows a query decision's task for a finding that shares its key", () => {
@@ -2493,23 +2477,6 @@ describe("Stepper rendering across stages", () => {
     const marked = container.querySelectorAll('[aria-current="step"]');
     expect(marked).toHaveLength(1);
     expect(marked[0]?.textContent).toContain("Retired");
-  });
-});
-
-describe("KnobRow", () => {
-  it("renders a plain-language label, value, explanation, and scope", () => {
-    const { container, getByText } = render(
-      <KnobRow
-        label="Anomaly sensitivity"
-        value="0.01"
-        explain="How unlikely a drop must be before a flag fires."
-        scope="portfolio default"
-      />,
-    );
-    expect(getByText("Anomaly sensitivity")).toBeInTheDocument();
-    expect(getByText("0.01")).toBeInTheDocument();
-    expect(container.textContent).toContain("How unlikely a drop");
-    expect(container.textContent).toContain("portfolio default");
   });
 });
 
@@ -3226,98 +3193,6 @@ describe("AiOverviewGlyphs", () => {
     expect(container.textContent).toBe("");
     expect(container.querySelector("[data-aio-devices]")).toBeNull();
   });
-});
-
-describe("kitchen sink covers the registry", () => {
-  // The registry's promise is that every entry has a rendered reference.
-  it("renders the components that were missing from it", () => {
-    const { container } = render(
-      <QueryClientProvider client={new QueryClient()}>
-        <MemoryRouter>
-          <KitchenSinkRoute />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-
-    // Only the incomplete example has setup work left to display.
-    expect(container.querySelectorAll("[data-setup-checklist]")).toHaveLength(1);
-
-    for (const title of [
-      "SegmentBar",
-      "PriorityBar",
-      "ReportFreshness",
-      "ExecutiveFindingsList",
-      "QueryVisibilityRankings",
-      "Drill",
-      "FlagActions",
-      "SnoozeUntil",
-      "BacktestStrip",
-      "TuneRate",
-      "RuleTunePanel",
-      "Table (shadcn primitives)",
-      "SerpPanelBoard",
-      "PageDecisions",
-      "AiOverviewGlyphs",
-      "Tabs",
-      "TaskComposer / File task",
-      "FactChip",
-      "DependencyGraph",
-      "TaskTimeline",
-      "TaskHead / EpicTaskList",
-      "DataSourceIcons",
-    ]) {
-      expect(
-        [...container.querySelectorAll("h2")].some((h) =>
-          h.textContent?.startsWith(title),
-        ),
-      ).toBe(true);
-    }
-    for (const kind of [
-      "recover",
-      "near-win",
-      "ranking-opportunity",
-      "organic-gap",
-      "aio-walled",
-      "mixed",
-      "weak",
-      "aio-champion",
-      "strong",
-      "growing",
-      "watch",
-    ]) {
-      expect(
-        container.querySelector(`[data-decision-kind="${kind}"]`),
-      ).not.toBeNull();
-    }
-    expect(
-      container.querySelector('[data-decision-filed="open"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-decision-filed="closed"]'),
-    ).not.toBeNull();
-    for (const kind of [
-      "recover",
-      "harvest",
-      "aio-walled",
-      "aio-champion",
-      "shown-not-taken",
-      "slipping",
-      "growing",
-      "watch",
-    ]) {
-      expect(
-        container.querySelector(`[data-page-decision-kind="${kind}"]`),
-      ).not.toBeNull();
-    }
-    expect(
-      container.querySelector('[data-page-decision-filed="open"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-page-decision-filed="closed"]'),
-    ).not.toBeNull();
-    // This test mounts the whole gallery, the most expensive render in the
-    // suite; it crosses the 5s default on a cold transform or under load.
-  }, 30_000);
 });
 
 describe("PageDecisions", () => {

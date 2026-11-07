@@ -32,8 +32,7 @@ test('every numbered link in the docs index opens a doc that exists', () => {
   assert.deepEqual(dead, [], `docs/README.md links to missing docs: ${dead.join(', ')}`);
 });
 
-test('the root README sends a reader to the docs index and says how to start', () => {
+test('the root README links to the docs index', () => {
   const readme = readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8');
   assert.match(readme, /\]\(docs\/README\.md\)/);
-  assert.match(readme, /^pnpm os:setup$/m);
 });

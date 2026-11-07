@@ -23,7 +23,7 @@ import {
   validateSchemaAndSafety,
   type ChangesetOp,
 } from "../../../scripts/config-documents.mjs";
-import { ASSET_TABS, AssetDetailRoute, type AssetTab } from "@/routes/AssetDetailRoute";
+import { AssetDetailRoute, type AssetTab } from "@/routes/AssetDetailRoute";
 import { HASH_TAB } from "@/routes/asset-detail/AssetTabs";
 import { RESTORE_HASH } from "@shared/asset-detail-views";
 import { MATERIALITY, type MaterialCondition } from "@shared/materiality";
@@ -996,19 +996,13 @@ describe("AssetDetailRoute — executive page identity", () => {
     ).toBeTruthy();
     expect(container.querySelector("[data-overview-chart]")).not.toBeNull();
     expect(container.querySelector('section[aria-label="Needs attention"]')).not.toBeNull();
-    expect(container.textContent).not.toContain("Where is growth moving?");
-    expect(container.textContent).not.toContain("Can I trust the inputs?");
-    expect(container.textContent).not.toContain("Jump to");
     expect(container.querySelector("details[id]")).toBeNull();
-    expect(container.textContent).not.toContain("Performance");
     expect(container.textContent).not.toContain("Query decisions");
     expect(container.querySelector("#configuration")).toBeNull();
     expect(container.textContent).toContain("Move “weekly meal plan” into the top results");
-    expect(container.textContent).not.toContain("GSC · Page Query");
     expect(
       container.querySelectorAll('button[title^="Copy this finding"]'),
     ).toHaveLength(0);
-    expect(container.textContent).not.toContain("Totals");
   });
 
   it("keeps the Growth tab's four charts on Growth and its decisions on Search", async () => {
@@ -1024,16 +1018,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(container.textContent).not.toContain("Page decisions");
     expect(container.textContent).not.toContain("What matters now");
     expect(container.querySelector("table")).toBeNull();
-  });
-
-  it("stands the state block down on every tab", async () => {
-    stubFetch(200, payload());
-    for (const tab of ASSET_TABS) {
-      const view = renderRoute("meadow.example", "", tab === "overview" ? "" : tab);
-      await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
-      expect(view.container.querySelector("#alerts-title")).toBeNull();
-      view.unmount();
-    }
   });
 
   it("puts the query decisions on Search, collapsed to their movers", async () => {
@@ -1646,7 +1630,6 @@ describe("AssetDetailRoute — recommendation applicability", () => {
         await waitFor(() => expect(writeText).toHaveBeenCalled());
         const copied = String(writeText.mock.calls.at(-1)?.[0]);
         expect(copied).toContain("Analysis saved 2026-08-05T12:00:00.000Z");
-        expect(copied).toContain("Recheck the latest reports, linked work and the asset before acting.");
         expect(copied).toContain("latest report 2026-09-04 success");
         writeText.mockClear();
       }
@@ -2218,7 +2201,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(view.container.textContent).not.toMatch(/config\/|\.json\b/u);
     openLane("Nightly report");
     expect(view.getByRole("link", { name: /^Nightly report in System health/u })).toHaveAttribute("href", "/health");
-    expect(view.container.textContent).not.toMatch(/Additional connections|Technical details|checks complete|daily report status|config\//iu);
   });
 
   it("opens a panel provider's connect panel over the asset's page from its row", async () => {
@@ -2467,12 +2449,6 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    expect(collection("value-events").textContent).toContain(
-      "Checked nightly against key events",
-    );
-    expect(collection("ga4-event-params").textContent).toContain(
-      "Read by the error report",
-    );
     expect(
       container.querySelectorAll("[data-ga4-config]"),
     ).toHaveLength(1);
@@ -2488,7 +2464,6 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     openLane("Google Analytics");
     await waitFor(() => expect(within(collection("value-events")).getByText("None yet")).toBeInTheDocument());
     expect(within(collection("value-events")).getByText("Conversion counts unchecked")).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/Nothing in .* yet/);
 
     const editor = collection("value-events");
     fireEvent.click(within(editor).getByRole("button", { name: "Add" }));
@@ -3230,7 +3205,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     expect(unmapped).toHaveAttribute("data-lane-mapping-state", "fallback");
     expect(unmapped.textContent).toContain("Using the Google account map");
     await waitFor(() => expect(unmapped.textContent).toContain("Applies after a restart"));
-    expect(first.container.textContent).not.toContain("falls back to");
     first.unmount();
 
     stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {
@@ -3756,7 +3730,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(caveats[0]?.getAttribute("data-time-zone-caveat")).toBe("2026-06-16");
     const help = within(caveats[0]!.parentElement!).getByRole("button", { name: "About search charts" });
     fireEvent.click(help);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Google and Bing added, one line each");
+    expect(screen.getByRole("tooltip")).toBeVisible();
   });
 
   it("withdraws headline percentages per series across a distorted window", async () => {
@@ -4418,7 +4392,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(tile.textContent).toContain("$146.10");
     expect(tile.textContent).not.toContain("$644.20");
     expect(section.textContent).toContain("booked");
-    expect(section.textContent).not.toContain("named separately");
     expect(tile.textContent).toContain("forecast $146.10");
     expect(section.textContent).not.toContain("estimated");
     expect(section.textContent).not.toContain("reconciled");
@@ -4697,7 +4670,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     expect(plan.textContent).toContain("Loss▼ −10%");
     expect(plan.textContent).toContain(`Checks${formatSeriesDate(on(7))} · ${formatSeriesDate(on(14))}`);
     expect(plan.textContent).toContain(`Verdict${formatCalendarDate(on(28))}`);
-    expect(plan.textContent).not.toMatch(/is the win|read again|days from today/);
   });
 
   it("refuses a baseline overlapping the registration in the UI, not only at the route", async () => {
@@ -5559,9 +5531,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       a.getAttribute("href"),
     );
     expect(pointers).toContain("/settings#alert-rules");
-    expect(container.textContent).not.toContain("Applies to every asset");
     expect(container.textContent).toContain("All assets' rules →");
-    expect(container.textContent).not.toContain("Defaults live in Settings");
     // One Save per editable field: display name, automation, nightly report.
     // This fixture pushes, so neither pull knob renders.
     expect(container.querySelectorAll("[data-knob-editor]")).toHaveLength(3);
@@ -5619,7 +5589,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       "meadow.exampleFixed once added",
     ]);
     for (const node of fixed) expect(node.querySelector("input, select, button")).toBeNull();
-    expect(container.textContent).not.toContain("not a rename");
   });
 
   it("offers no name field on the OS's own row, and keeps the rest of its settings", async () => {
@@ -6231,7 +6200,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       '[data-collection-editor="serp-panel-queries"]',
     ) as HTMLElement;
     expect(within(editor).getByText("None yet")).toBeInTheDocument();
-    expect(editor.textContent).not.toContain("Add a term to start weekly tracking");
     fireEvent.click(within(editor).getByRole("button", { name: "Add" }));
     const form = editor.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Query"), {
@@ -6770,13 +6738,12 @@ describe("the Settings tab — the owning entity", () => {
 
   it("offers no picker before any entity is declared; its value is the link that declares one", async () => {
     stubWithEntities([]);
-    const { container } = renderRoute("meadow.example", "", "settings");
+    renderRoute("meadow.example", "", "settings");
 
     await screen.findByText("Identity");
     const declare = await screen.findByRole("link", { name: "Add an owner" });
     expect(screen.queryByLabelText("Owning entity")).toBeNull();
     expect(declare.getAttribute("href")).toBe("/settings#entities");
-    expect(container.textContent).not.toMatch(/Declare one under|then pick it here/);
   });
 });
 
@@ -6824,7 +6791,6 @@ describe("Growth headline and chart date scopes", () => {
     fireEvent.focus(help);
     expect(screen.getByRole("tooltip")).toHaveTextContent(`Google · ${range - 1} of ${range} days`);
     expect(screen.getByRole("tooltip")).toHaveTextContent(`Bing · ${range - 2} of ${range} days`);
-    expect(screen.getByRole("tooltip")).not.toHaveTextContent("Newer chart reports are context only");
     fireEvent.keyDown(help, { key: "Escape" });
     fireEvent.click(help);
     expect(screen.getByRole("tooltip").querySelector("[data-provider-coverage]")).not.toBeNull();

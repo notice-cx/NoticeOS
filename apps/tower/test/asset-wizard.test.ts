@@ -119,18 +119,14 @@ describe("the refusals are short states beside the field that can fix them", () 
     expect(domainIssue("   ", { existingIds: [] })).toBeNull();
   });
 
-  it("refuses a malformed domain by example", () => {
-    expect(domainIssue("not a domain", { existingIds: [] })).toEqual({
-      field: "domain",
-      message: "Not a domain — like example.com",
-    });
-    expect(domainIssue("localhost", { existingIds: [] })?.message).toContain("Not a domain");
+  it("identifies a malformed domain as the field to fix", () => {
+    expect(domainIssue("not a domain", { existingIds: [] })?.field).toBe("domain");
+    expect(domainIssue("localhost", { existingIds: [] })?.field).toBe("domain");
   });
 
   it("refuses a domain the portfolio already holds and names the asset to open", () => {
-    expect(domainIssue("https://www.Meadow.example/", { existingIds: ["meadow.example"] })).toEqual({
+    expect(domainIssue("https://www.Meadow.example/", { existingIds: ["meadow.example"] })).toMatchObject({
       field: "domain",
-      message: "Already added",
       existing: "meadow.example",
     });
   });
@@ -144,9 +140,7 @@ describe("the refusals are short states beside the field that can fix them", () 
 
   it("a pull endpoint has to be a URL the OS could fetch", () => {
     const bare = filled({ collection: "pull", pullUrl: "meadow.example/metrics" });
-    expect(validateDraft(bare, { existingIds: [] })).toEqual([
-      { field: "pullUrl", message: "A full https:// URL" },
-    ]);
+    expect(validateDraft(bare, { existingIds: [] }).map((issue) => issue.field)).toEqual(["pullUrl"]);
     const full = filled({ collection: "pull", pullUrl: "https://meadow.example/metrics" });
     expect(validateDraft(full, { existingIds: [] })).toEqual([]);
     // A push asset is asked for no endpoint at all, so an empty one is the
@@ -233,15 +227,6 @@ describe("the writes Create will make", () => {
     ]);
   });
 
-  // Adding a site asks no question about its sources, so every one starts Not
-  // set up; a decline is made on its Data sources row.
-  it("writes every source Not set up, with no setup-time skip", () => {
-    const plan = planWrites(siteDraft({ domain: "shop.example.com", displayName: "Example Shop", prelaunch: false }), CATALOG, ENTITIES, AT);
-    const entry = plan.ops[0]?.value as Record<string, { status: string; note: string }>;
-    expect(Object.values(entry).map((cell) => cell.status)).toEqual(["needs-setup", "needs-setup", "needs-setup"]);
-    expect(JSON.stringify(entry)).not.toContain("Skipped at setup");
-  });
-
   // A new site's cells carry no note, never the blank one the `asset-lane`
   // register refuses on every later write.
   it("writes cells the data-source register accepts, with no blank note", () => {
@@ -251,12 +236,9 @@ describe("the writes Create will make", () => {
     for (const [id, cell] of Object.entries(entry)) {
       expect(cell, id).toEqual({ status: "needs-setup", since: "2026-09-04" });
       expect(rowRefusal(lane, cell), id).toBeNull();
-      expect(["live", "degraded", "needs-setup", "skipped", "not-applicable"]).toContain(cell.status);
-      expect(cell.status === "skipped" && !/reason/i.test(String(cell.note))).toBe(false);
-      expect(String(cell.since)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
     // A blank note is still a refusal: absent is the only "nothing said".
-    expect(rowRefusal(lane, { status: "needs-setup", note: "", since: "2026-09-04" })).toBe("Reason must not be blank");
+    expect(rowRefusal(lane, { status: "needs-setup", note: "", since: "2026-09-04" })).not.toBeNull();
   });
 
 

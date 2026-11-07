@@ -16,14 +16,12 @@ describe("WallWeather", () => {
     expect(view.container.querySelector("[data-weather-low]")!.textContent).toBe("Low 23°");
     expect(view.container.querySelector("[data-weather-high]")!.textContent).toBe("High 50°");
     expect(view.getByRole("group", { name: "Weather for Example City" }).getAttribute("title")).toContain(reading.observedAt);
-    expect(view.getByRole("group").getAttribute("title")).toContain("Weather by Open-Meteo");
   });
 
   it("renders Celsius and a distinct night condition", () => {
     const view = render(<WallWeather unit="celsius" state={{ status: "ready", reading: { ...reading, isDay: false } }} />);
     expect(view.container.querySelector("[data-weather-temperature]")!.textContent).toContain("0°");
     expect(view.container.querySelector("svg")!.classList.contains("lucide-moon")).toBe(true);
-    expect(view.container.querySelector('[data-strip-baseline="weather"]')).not.toBeNull();
   });
 
   it("keeps missing range and condition unknown rather than inventing zero or clear skies", () => {

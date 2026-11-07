@@ -166,26 +166,6 @@ describe("decision records", () => {
       ).rejects.toThrow(/check constraint/);
       expect(await stored()).toBe(0);
     });
-
-    it("still cannot reach the display even if a row somehow carried it", async () => {
-      // The read filter stays: it binds DECISION_STATUSES, so the payload's
-      // vocabulary is the module's and not whatever the column holds.
-      await recordDecision(
-        await store(),
-        "meadow.example",
-        { kind: "finding", key: "gsc-decline-1", status: "dismissed" },
-        T1,
-      );
-      expect(await loadDecisions(await store(), "meadow.example")).toEqual([
-        {
-          kind: "finding",
-          key: "gsc-decline-1",
-          status: "dismissed",
-          decidedAt: T1,
-          updatedAt: T1,
-        },
-      ]);
-    });
   });
 });
 

@@ -119,7 +119,7 @@ describe('GA4 ordered journey collection', () => {
     expect(results.slice(12).every((result) => result.status === 'success')).toBe(true);
     expect(errors).toHaveLength(12);
     expect(errors.every((error) => error instanceof SignalError && error.code === 'ga4_journey_400'
-      && error.message === 'GA4 journey "recipe-save" report failed (400): The event parameter action is not supported in this filter.')).toBe(true);
+      && error.message.includes('recipe-save') && error.message.includes('The event parameter action is not supported in this filter.'))).toBe(true);
   });
   it('bounds the provider reason and removes credentials before retaining a diagnostic', async () => {
     const errors: unknown[] = [];
@@ -129,8 +129,10 @@ describe('GA4 ordered journey collection', () => {
     }, { status: 400 }), { errors });
     const error = errors[0];
     expect(error).toBeInstanceOf(SignalError);
+    expect(error).toMatchObject({ code: 'ga4_journey_400' });
     const diagnostic = (error as SignalError).message;
-    expect(diagnostic).toContain('GA4 journey "signup" report failed (400): Invalid request');
+    expect(diagnostic).toContain('signup');
+    expect(diagnostic).toContain('Invalid request');
     expect(diagnostic.length).toBeLessThanOrEqual(500);
     for (const secret of ['test-token', 'fixture-bearer', 'fixture-refresh', 'fixture-private', 'fixture-raw-header']) {
       expect(diagnostic).not.toContain(secret);

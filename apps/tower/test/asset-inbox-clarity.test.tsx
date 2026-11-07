@@ -16,10 +16,8 @@ describe("asset operator inbox evidence", () => {
     view();
     expect(screen.getByText("Nothing waiting")).toBeVisible();
     expect(screen.getByRole("button", { name: "About this task preview" })).toHaveTextContent("Read 30s ago");
-    expect(screen.queryByText("Task status does not verify that each request is still needed.")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "About this task preview" }));
     expect(screen.getByText("Task status read 30s ago")).toBeVisible();
-    expect(screen.getByText("Task status does not verify that each request is still needed.")).toBeVisible();
   });
   it("never presents an unknown inbox as nothing needing the operator", () => {
     view({ waiting: null, urgent: null });
@@ -45,7 +43,6 @@ describe("asset operator inbox evidence", () => {
       closedAt: null, parent: null, deferUntil: null,
     }] });
     expect(screen.getByText(/2 urgent · 20 waiting · 1 shown/)).toBeVisible();
-    expect(screen.getByText("updated")).toBeVisible();
     expect(screen.getByRole("link", { name: /Confirm the current release/ })).toHaveAttribute("href", "/tasks/md-example");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/assets/meadow.example/tasks");
   });

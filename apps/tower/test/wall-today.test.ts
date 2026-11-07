@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { estimatedTodayUsers, todayUserCounts } from "@/lib/wall-today";
 import { offsetCalendarDate } from "@/lib/intraday-pace";

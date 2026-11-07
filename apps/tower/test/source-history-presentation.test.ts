@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { SourceDays } from "@/routes/asset-detail/overview-measures";
 import { sourceHistoryHeadline } from "@/routes/asset-detail/source-history-presentation";

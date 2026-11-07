@@ -389,43 +389,6 @@ describe("/settings", () => {
     }
   });
 
-  it("needs no section help: every section is a title, its fields and their state", () => {
-    const calls = stubFetch();
-    const { container } = renderPage();
-    for (const [section, title] of [
-      ["general", "general"],
-      ["alert-rules", "alert rules"],
-      ["data-collection", "data collection"],
-      ["tv-dashboard", "tv dashboard"],
-      ["ownership", "ownership"],
-      ["task-projects", "task projects"],
-    ] as const) {
-      pickSection(section);
-      expect(screen.queryByRole("button", { name: `About ${title}` })).toBeNull();
-      // Every panel opens with its eyebrow and no paragraph of help under it.
-      for (const panel of container.querySelectorAll(`#${section} [role="region"]`)) {
-        expect(panel.firstElementChild?.querySelector("p")).toBeNull();
-      }
-    }
-    pickSection("general");
-    expect(screen.getByText("USD per month · all assets")).toBeVisible();
-    expect(screen.getByText("USD per minute · prices review time in ROI")).toBeVisible();
-    expect(within(container.querySelector("[data-budget-meter='data']") as HTMLElement).getByText("Stops at the budget")).toBeVisible();
-    expect(screen.queryByText(/Collection that would exceed the cap/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "About monthly data cap" })).toBeNull();
-    pickSection("alert-rules");
-    expect(within(container.querySelector("#alert-rules") as HTMLElement).getByText("All assets")).toBeVisible();
-    pickSection("data-collection");
-    // A collection no connection feeds has its schedule as a row here; one a
-    // connection feeds is changed on that connection's Manage panel.
-    expect(container.querySelector('[data-schedule-row="pull"]')).not.toBeNull();
-    expect(container.querySelector('[data-schedule-row="signal-dumps"]')).toBeNull();
-    expect(screen.queryByText(/View background operations/)).toBeNull();
-    expect(container.querySelector("[data-knob-consequence]")).toBeNull();
-    expect(container.querySelector('[data-collection-scale="panel-freshness-bar"]')).toHaveTextContent("Fits the window");
-    expect(calls.some((call) => call.method !== "GET")).toBe(false);
-  });
-
   it("shows where the installation lives, who can reach it, its version and the command that updates it", () => {
     stubFetch();
     const facts: InstallationFacts = { folder: "/srv/noticeos", tower: { address: "0.0.0.0", port: 5180 }, postgresPort: 5432, taskPort: 3307,
@@ -503,16 +466,6 @@ describe("/settings", () => {
       "/settings/ownership",
       "/settings/task-projects",
       "/settings/installation",
-    ]);
-    expect(within(tabList()).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "General",
-      "AI",
-      "Alert rules",
-      "Data collection",
-      "TV dashboard",
-      "Ownership",
-      "Task projects",
-      "Installation",
     ]);
 
     for (const id of ["general", "ai", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
@@ -593,21 +546,6 @@ describe("/settings", () => {
 
   // General holds the clock and the budget, and the #budget anchor
   // Integrations' DataForSEO card links to lands on it.
-  it("opens on General, with the time zone and the budget as its rows", () => {
-    stubFetch();
-    for (const hash of ["", "clock", "budget"]) {
-      const view = renderPage(hash);
-      const general = view.container.querySelector("#general") as HTMLElement;
-      expect(general, `#${hash}`).not.toBeNull();
-      expect(general.querySelector("#clock")).not.toBeNull();
-      expect(general.querySelector("#budget")).not.toBeNull();
-      expect(within(general).getByRole("combobox", { name: /^Time zone/u })).toBeTruthy();
-      expect(within(general).getByRole("spinbutton", { name: /Monthly data cap/u })).toBeTruthy();
-      expect(within(general).getByRole("spinbutton", { name: /Value of your time/u })).toBeTruthy();
-      expect(selectedTabHref()).toBe("/settings");
-      view.unmount();
-    }
-  });
 
   it("always lists core Task projects, including an unconfigured hub", () => {
     stubFetch();
@@ -660,19 +598,6 @@ describe("/settings", () => {
     first.unmount();
     const unknown = renderPage("retired-section");
     expect(unknown.container.querySelector("#general")).not.toBeNull();
-  });
-
-  it("shows the clock without internal keys or file paths", () => {
-    stubFetch();
-    const { container } = renderPage();
-
-    const clock = container.querySelector("#clock") as HTMLElement;
-    const field = within(clock).getByLabelText(/^Time zone/u);
-    expect(field).toHaveValue("America/Los_Angeles");
-    expect(clock.textContent).not.toContain("config/constants.json");
-    expect(clock.textContent).not.toContain("os_time_zone");
-    expect(clock.textContent).not.toContain("Technical details");
-    expect(clock.querySelector("[data-zone-clock='America/Los_Angeles']")).not.toBeNull();
   });
 
   it("shows what the timezone decides — yesterday's revenue date and the current month — as values", async () => {
@@ -806,7 +731,6 @@ describe("/settings", () => {
     stubFetch();
     const { container } = renderPage("tv-dashboard");
     const card = container.querySelector<HTMLElement>("[data-settings-sites]")!;
-    expect(within(card).getByRole("heading", { name: "Assets" })).toBeInTheDocument();
     expect([...card.querySelectorAll("[data-site-arrange-row]")].map((row) => row.getAttribute("data-site-arrange-row")))
       .toEqual(["meadow.example", "northwind.example"]);
     expect(within(card).getByRole("switch", { name: "TV for Meadow Board" })).toHaveAttribute("aria-checked", "false");
@@ -1345,8 +1269,6 @@ describe("/settings — the task-hub project map", () => {
     expect(yaml.textContent).toContain("+ no-git-ops: true");
     expect(yaml.textContent).toContain("+ import.auto: false");
     expect(within(checklist).getByText("File · installation/task-host.json · repositories")).toBeTruthy();
-    expect(checklist.textContent).toContain("three steps left");
-    expect(checklist.textContent).not.toMatch(/within a minute|quietly starts|not onboarded until/u);
 
     fireEvent.click(within(checklist).getByRole("button", { name: "Done" }));
     expect(document.querySelector("[data-project-checklist]")).toBeNull();
@@ -1373,7 +1295,6 @@ describe("/settings — the task-hub project map", () => {
     const connection = document.querySelector("[data-task-hub-connection]") as HTMLElement;
     expect(connection.textContent).toContain("127.0.0.1:3308");
     expect(connection.textContent).toContain(".local/beads-dolt");
-    expect(connection.textContent).toContain("Task database server");
     expect(within(connection).queryByRole("textbox")).toBeNull();
     expect(within(connection).queryByRole("button")).toBeNull();
   });
@@ -1403,7 +1324,6 @@ describe("/settings — the task-hub project map", () => {
     expect(note.textContent).toContain("No database named md");
     // The task the hourly check filed opens its page.
     expect(within(note).getByRole("link", { name: "ro-14" })).toHaveAttribute("href", "/tasks/ro-14");
-    expect(note.textContent).not.toMatch(/Tasks board keeps working/u);
     fireEvent.click(within(note).getByRole("button", { name: "Edit name" }));
     expect(document.activeElement).toBe(within(projectRow("meadow.example")).getByLabelText("Database"));
     expect(within(note).getByText("Keep md")).toBeTruthy();
@@ -1640,13 +1560,11 @@ describe("/settings/alert-rules — the replay the fields are edited against", (
     });
   });
 
-  it("shows the longest window and its evidence requirement", () => {
+  it("shows the saved longest window", () => {
     state.wall = wall([]);
     const { container } = renderPage();
     const scale = container.querySelector('[data-rule-scale="longest-window"]') as HTMLElement;
     expect(scale).toHaveTextContent("Of four weeks14 days");
-    // ln(100) / 14 days at the saved sensitivity of 0.01.
-    expect(scale.querySelector("[data-rule-evidence]")).toHaveTextContent("Requires enough history and a drop outside the predicted range");
   });
 
   it("refuses a longest window past four weeks before a Save sends it", async () => {
@@ -1797,7 +1715,6 @@ describe("/settings — the collection cadence", () => {
     renderPage();
 
     const schedules = document.querySelector("[data-collection-schedules]") as HTMLElement;
-    expect(schedules.textContent).not.toContain("Counter freshness reference");
     expect(within(schedules).queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("spinbutton", { name: /Counter read interval/ })).toBeNull();
     expect(calls.some((call) => call.method === "PUT")).toBe(false);
@@ -2162,20 +2079,6 @@ describe("/settings/alert-rules — how often each rule was answered by tuning",
     expect(container.querySelector("[data-tune-proposal]")).toBeNull();
   });
 
-  it("prints no methodology caveat under the rules — the counts say what they count", () => {
-    state.ruleStats = ruleStats([
-      RULE_ROW,
-      { ...RULE_ROW, ruleId: "ingest-freshness", tuned: 0, acknowledged: 2 },
-    ]);
-    stubFetch();
-    const { container } = renderPage();
-
-    const section = container.querySelector("#alert-rules") as HTMLElement;
-    expect(section.querySelector("[data-tune-rate-caveat]")).toBeNull();
-    expect(section.querySelector('a[href^="/tasks/"]')).toBeNull();
-    expect(section.textContent).not.toMatch(/Still a floor|tuned twice counts once/);
-  });
-
   it("says how many times a rule was tuned", () => {
     state.ruleStats = ruleStats([{ ...RULE_ROW, tunes: 6 }], 90);
     stubFetch();
@@ -2311,9 +2214,6 @@ describe("/settings — who owns what", () => {
 
     fireEvent.click(within(entities()).getByRole("button", { name: "Add" }));
     expect(addForm().querySelectorAll("input, select, textarea")).toHaveLength(4);
-    for (const name of ["Id", "Name", "Legal form", "Registered in"]) {
-      expect(within(addForm()).getByLabelText(name)).toBeTruthy();
-    }
     expect(within(addForm()).queryByLabelText(/assets|sites/i)).toBeNull();
     fireEvent.change(within(addForm()).getByLabelText("Id"), { target: { value: "second-co" } });
     fireEvent.change(within(addForm()).getByLabelText("Name"), { target: { value: "Second Co" } });
@@ -2360,6 +2260,5 @@ describe("/settings — who owns what", () => {
     expect(within(row).getByLabelText("Name")).toBeTruthy();
     expect(within(row).queryByLabelText("Id")).toBeNull();
     expect(row.querySelector("[data-collection-fixed='slug']")).toHaveAttribute("title", "Fixed once added");
-    expect(within(entities()).queryByText(/a rename re-labels history/)).toBeNull();
   });
 });

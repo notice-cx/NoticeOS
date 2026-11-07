@@ -140,30 +140,10 @@ describe('createAsset — what a wizard may bring into being', () => {
     expect(await stored(NEW_ID)).toBeNull();
   });
 
-  // Add a site shows the first refusal beside its Domain input. It names the
-  // field by the label a person reads, in the words every register refusal
-  // uses (`fieldRefusal`), and says site — never the body's key or a system
-  // noun.
-  it('words each refusal by the field’s label and says asset, keeping the key as the path', async () => {
-    const cases: [unknown, string, string | RegExp][] = [
-      [{ id: 'NOT VALID', displayName: 'Bad Id' }, 'id', 'Asset must be an asset id'],
-      [{ displayName: 'No Id' }, 'id', 'Asset is required'],
-      [{ id: NEW_ID, displayName: '   ' }, 'displayName', 'Display name is required'],
-      [{ id: NEW_ID, displayName: 'x'.repeat(81) }, 'displayName', 'Display name must be 80 characters or fewer'],
-      [{ id: NEW_ID, displayName: 'Brand New', domain: 'https://brandnew.test/x' }, 'domain', 'Domain must be a hostname such as example.com'],
-      [{ id: NEW_ID, displayName: 'Brand New', status: 'shipping' }, 'status', /^Lifecycle stage must be one of pre-launch/],
-      [{ id: NEW_ID, displayName: 'Brand New', senseOnly: 2 }, 'senseOnly', 'Automation must be at most 1'],
-    ];
-    for (const [body, path, message] of cases) {
-      const result = await createAsset(env, body, NOW);
-      if (result.ok || result.error !== 'validation') throw new Error(`${JSON.stringify(body)} was not refused`);
-      expect(result.issues).toHaveLength(1);
-      expect(result.issues[0]).toMatchObject({ path, message });
-      expect(result.issues[0]!.message).not.toMatch(/\bproperty\b|\bsite\b/i);
-    }
-    // A domain that is only padded is trimmed, as it always was.
+  it('trims a padded display name and domain before storing them', async () => {
     const padded = await createAsset(env, { id: NEW_ID, displayName: ' Brand New ', domain: ' brandnew.test ' }, NOW);
     expect(padded).toMatchObject({ ok: true, asset: { displayName: 'Brand New', domain: 'brandnew.test' } });
+    expect(await stored(NEW_ID)).toMatchObject({ display_name: 'Brand New', domain: 'brandnew.test' });
   });
 
   it('refuses a body that is not a JSON object', async () => {

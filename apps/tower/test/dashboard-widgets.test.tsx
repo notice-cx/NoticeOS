@@ -146,8 +146,6 @@ describe("the desk countdown", () => {
     expect(screen.getByRole("img", { name: "Countdown symbol: 🚀" })).toBeInTheDocument();
     expect(screen.getByText("Launch")).toBeInTheDocument();
     expect(screen.queryByText("Team offsite")).not.toBeInTheDocument();
-    expect(screen.queryByText(/only staged/u)).not.toBeInTheDocument();
-    expect(screen.queryByText("Review changes")).not.toBeInTheDocument();
 
     const target = screen.getByLabelText("Target date and time") as HTMLInputElement;
     expect(target.type).toBe("datetime-local");

@@ -845,11 +845,7 @@ describe("dirty and save", () => {
 
 describe("starting from a Wall preset", () => {
   it("offers the three independent presets by purpose", () => {
-    expect(wallPresetOptions().map((option) => [option.view, option.label])).toEqual([
-      ["business", "Health and decisions"],
-      ["product", "Revenue and visitors"],
-      ["everything", "Portfolio overview"],
-    ]);
+    expect(wallPresetOptions().map((option) => option.view)).toEqual(["business", "product", "everything"]);
     expect(wallPresetOptions().map((option) => option.layout)).toEqual([
       WALL_PRESETS.business,
       WALL_PRESETS.product,

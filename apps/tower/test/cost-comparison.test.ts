@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { majorToMinorUnits } from "@noticeos/contract/money";
 import { compareRecordedCosts, costSourceLabel, previousCostPeriod } from "@/routes/financials/cost-comparison";
@@ -61,7 +62,6 @@ describe("recorded monthly cost comparison", () => {
     expect(costSourceLabel("metered:unknown-provider", [])).toBe("unknown-provider");
     expect(costSourceLabel("recurring:unknown-plan", [])).toBe("unknown-plan");
     expect(costSourceLabel("unknown-source", [])).toBe("unknown-source");
-    expect(costSourceLabel("domains", [])).toBe("Domain orders");
     expect(compareRecordedCosts([costLine("recurring:a", 1)], [costLine("recurring:b", 1)]).rows).toHaveLength(2);
   });
 

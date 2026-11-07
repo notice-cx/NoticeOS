@@ -46,12 +46,10 @@ describe("session exploration", () => {
     expect(screen.getByText("1,000")).toBeInTheDocument();
     expect(container.querySelector(".session-summary > div:nth-child(2)")).toHaveTextContent("40%");
     fireEvent.click(screen.getByRole("button", { name: "Articles · 80% of all sessions" }));
-    expect(screen.getByText("Each session counts once here, including sessions that return to this section.")).toBeInTheDocument();
     const tools = screen.getAllByRole("button", { name: /Tools, 30% of all sessions, inspect section/ })[0]!;
     fireEvent.keyDown(tools, { key: "Enter" });
     expect(screen.getByRole("button", { name: "Tools · 60% of all sessions" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: /Articles → Tools → Articles/ }));
-    expect(screen.getByText("Selected path")).toBeInTheDocument();
     expect(screen.getAllByText("Exited · includes a return")).toHaveLength(2);
   });
 

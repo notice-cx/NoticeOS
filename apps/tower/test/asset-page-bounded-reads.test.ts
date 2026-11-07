@@ -4,7 +4,7 @@
 // exactly what they stated.
 
 import { javascriptInstant, type Transaction, type WorkspaceStore } from "@noticeos/postgres";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type AssetDetailDeps,
   HYGIENE_CHECK_IDS,
@@ -272,15 +272,21 @@ async function seedTimeline(ctx: TestStore): Promise<{ store: WorkspaceStore; an
 }
 
 describe("the timeline reads its own depth, not the whole history", () => {
+  let ctx: TestStore;
+  let timeline: Awaited<ReturnType<typeof seedTimeline>>;
+
+  beforeAll(async () => {
+    ctx = await createTestStore({ scope: "suite" });
+    timeline = await seedTimeline(ctx);
+  });
+  afterAll(async () => { await ctx?.close(); });
+
   it("states the same rows and the same 'N older' as the old two reads", async () => {
-    const ctx = await createTestStore();
-    const { store, anchor, twin } = await seedTimeline(ctx);
+    const { store, anchor, twin } = timeline;
     for (const id of ["short.example", "exact.example", "over.example", "deep.example", "shallow.example", "empty.example"]) {
       const shipped = (await buildAssetDetailView(store, id, DEPS, "settings"))!.annotations;
       const spec = await specTimeline(store, id);
-      expect({ ids: shipped.items.map((item) => item.id), olderCount: shipped.olderCount }, id)
-        .toEqual({ ids: spec.items.map((item) => item.id), olderCount: spec.olderCount });
-      expect(shipped.items, id).toEqual(spec.items);
+      expect(shipped, id).toEqual(spec);
     }
     // The edges are really in the fixture.
     const view = async (id: string) => (await buildAssetDetailView(store, id, DEPS, "settings"))!.annotations;
@@ -298,8 +304,7 @@ describe("the timeline reads its own depth, not the whole history", () => {
   });
 
   it("counts the asset's total only when the timeline is full", async () => {
-    const ctx = await createTestStore();
-    const { store } = await seedTimeline(ctx);
+    const { store } = timeline;
     const totals = async (id: string) => {
       const seen: string[] = [];
       await buildAssetDetailView(recordingStore(store, seen), id, DEPS, "settings");

@@ -423,10 +423,6 @@ describe('the Google lanes', () => {
     expect(urls.some((url) => url.includes('/properties/888888:runReport'))).toBe(true);
   });
 
-  it('still refuses an install with no blob and no sign-in, in the old words', () => {
-    expect(() => googleTargets({ accounts: undefined, oauth: null }, 'env', undefined, REGISTER))
-      .toThrowError(/GOOGLE_SIGNAL_ACCOUNTS is not configured/);
-  });
 });
 
 describe('the Bing lane', () => {

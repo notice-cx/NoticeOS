@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { WeatherReading } from "../shared/weather";
 import { wallWeatherState } from "../src/lib/wall-weather-state";

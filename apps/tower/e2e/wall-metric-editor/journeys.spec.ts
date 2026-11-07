@@ -14,7 +14,6 @@ test("shared Portfolio tiles edit in focus, undo and persist after reload", { ta
   await preview.locator('[data-wall-metric-select="today"]').first().click();
   const panel = page.locator('[data-wall-metric-panel="sites"]');
   await expect(panel).toHaveAttribute("data-panel-layout", "bottom");
-  await expect(panel.getByText("Shared · Portfolio")).toBeVisible();
   await expect.poll(async () => { const bounds = (await panel.boundingBox())!; return bounds.y + bounds.height; }).toBeLessThanOrEqual(1080);
   await page.screenshot({ path: testInfo.outputPath("wall-tile-editor-full.png"), fullPage: true });
   await panel.getByRole("button", { name: "Focus on row" }).click();

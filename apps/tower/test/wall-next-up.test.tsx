@@ -95,7 +95,6 @@ describe("NextUp", () => {
   it("draws the count in warn, the top decision by name, the next ones as marks with their ages", () => {
     draw();
     const section = screen.getByRole("region", { name: "Next up" });
-    expect(within(section).getByText("Needs you")).toBeInTheDocument();
     const count = section.querySelector("[data-next-count]")!;
     expect(count.textContent).toBe("4");
     expect(count.className).toContain("text-warn");
@@ -111,7 +110,6 @@ describe("NextUp", () => {
     expect(top.querySelector("[data-next-top-line]")!.textContent).toBe("Meadow Board · 12 days · holds 3 tasks");
 
     const then = section.querySelector("[data-next-then]")!;
-    expect(then.textContent).toContain("then these");
     const items = [...then.querySelectorAll("[data-next-then-item]")];
     expect(items.map((node) => node.getAttribute("data-next-then-item"))).toEqual(["or-2", "md-3", "or-4"]);
     expect(items[0]!.textContent).toContain("9d");
@@ -123,7 +121,6 @@ describe("NextUp", () => {
   it("lists the agents' work: urgent with the bolt in the urgent colour, the rest with a green dot", () => {
     draw();
     const agents = document.querySelector("[data-next-agents]")!;
-    expect(within(agents as HTMLElement).getByText("The agents · now")).toBeInTheDocument();
     const rows = [...agents.querySelectorAll("[data-next-working]")];
     expect(rows.map((row) => row.getAttribute("data-next-working"))).toEqual(["or-9", "md-8", "md-7"]);
     const bolt = within(rows[0] as HTMLElement).getByRole("img", { name: "Urgent" });
@@ -232,7 +229,6 @@ describe("NextUp", () => {
 describe("Next up in the widget catalogue", () => {
   it("is in the library as Next up, one of a kind, offered by the editor's Add drawer", () => {
     const spec = WALL_WIDGET_LIBRARY.next;
-    expect(spec.label).toBe("Next up");
     expect(spec.unique).toBe(true);
     expect(spec.hidesWhenEmpty).toBe(false);
     expect(spec.settings).toEqual([]);

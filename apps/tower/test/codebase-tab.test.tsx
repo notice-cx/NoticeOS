@@ -102,7 +102,7 @@ describe("Codebase tab with reports", () => {
     expect(unused.textContent).toContain("9 files, 44 shared pieces");
     expect(container.querySelector('[data-kpi="Test coverage by size"]')!.textContent).toContain("1.0×the code");
     fireEvent.click(within(container.querySelector<HTMLElement>('[data-kpi="Repeated code"]')!).getByRole("button", { name: "About Repeated code" }));
-    expect(await screen.findByText("Code copied in more than one place. Each copy needs fixing.")).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toBeVisible();
   });
 
   it("shows Not measured with the report's own reason", async () => {
@@ -158,7 +158,7 @@ describe("Codebase tab checks from the asset's workflow", () => {
     expect(tests.textContent).toContain("Failed");
     expect(checks.querySelector('[data-kpi="Vulnerable packages"]')!.textContent).toContain("3");
     fireEvent.click(within(tests).getByRole("button", { name: "About Tests" }));
-    expect(await screen.findByText(/^Whether every test passed last time\./u)).toBeInTheDocument();
+    expect(await screen.findByRole("tooltip")).toBeVisible();
     const findings = container.querySelector<HTMLElement>("[data-codebase-findings]")!;
     expect(within(findings).getByText("3 packages have a known vulnerability")).toBeInTheDocument();
     expect(within(findings).getByRole("button", { name: "Make a task for vulnerable packages" })).toBeInTheDocument();

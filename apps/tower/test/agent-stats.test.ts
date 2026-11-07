@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { canonicalAgentModel, readAgentStats, type AgentStatsTask } from '@noticeos/contract/agent-stats';
 

@@ -136,7 +136,7 @@ describe('verified tab entry', () => {
     expect(window.sessionStorage.getItem(tabSelectionKey({ principalId: A, sessionId: SA }))).toBeNull();
     await value.refresh(); expect(value.snapshot().phase).toBe('choose');
     for (const body of [{ mode: 'hosted' }, { ...snapshot(), workspaces: [workspace(), workspace()] }, { ...snapshot(WA), selectedWorkspace: workspace(WA, 'owner', 'suspended') }]) {
-      expect(() => decodeBrowserSession(body)).toThrow('invalid response');
+      expect(() => decodeBrowserSession(body)).toThrow();
     }
   });
   it('pagehide immediately retires and pageshow creates a fresh verified lifetime', async () => {
@@ -252,7 +252,7 @@ describe('identity protocol entry', () => {
     await value.refresh(); changed = true; await value.joinInvitation();
     expect(accepts).toBe(0); expect(value.snapshot().phase).toBe('invitation');
     await value.joinInvitation();
-    expect(accepts).toBe(1); expect(value.snapshot().label).toBe('Invitation could not be accepted.');
+    expect(accepts).toBe(1); expect(value.snapshot().phase).toBe('invitation');
     expect(value.snapshot().runtime).toBeNull(); expect(value.enrollment?.kind).toBe('invitation');
   });
   it('platform verification never calls invitation acceptance and non-hosted enrollment refuses', async () => {

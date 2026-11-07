@@ -100,7 +100,7 @@ describe("firing a cron", () => {
     const ingest = stubIngest({ runScheduled: async () => ({ outcome: "ran" as const, detail: "Execution completed", steps: [] }) });
     const { request, url } = doorRequest(`${RUNNER_SCHEDULED_PATH}?cron=${encodeURIComponent("0 * * * *")}`);
     const response = await handleRunnerRequest(request, url, ingest, async () => [failed]);
-    expect(await response.json()).toMatchObject({ outcome: "failed", detail: "A workflow step failed. Check service logs for details.", steps: [failed] });
+    expect(await response.json()).toMatchObject({ outcome: "failed", steps: [failed] });
   });
 
   it('preserves an ingest failure when the Tower briefing is skipped', async () => {

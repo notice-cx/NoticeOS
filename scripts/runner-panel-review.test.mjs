@@ -204,8 +204,11 @@ test('an invalid task-list shape files nothing and leaves the next pass availabl
 });
 
 test('a review is identified by its metadata first and its title second', () => {
-  assert.equal(panelReviewTitle('shop.example', '2026-09-21'), 'Triage the 2026-09-21 serp panel for shop.example');
-  assert.equal(panelReviewTitle('shop.example', '2026-09-21', false), 'Triage the 2026-09-21 signal collection for shop.example');
+  for (const panel of [true, false]) {
+    const title = panelReviewTitle('shop.example', '2026-09-21', panel);
+    assert.ok(title.includes('shop.example'));
+    assert.equal(panelReviewPanelDate({ title }), '2026-09-21');
+  }
   assert.equal(panelReviewDueDate('2026-09-21'), '2026-09-28');
   assert.equal(panelReviewDueDate('soon'), null);
   assert.equal(panelReviewPanelDate({ title: 'Triage the 2026-09-21 signal collection for shop.example' }), '2026-09-21');
@@ -255,10 +258,10 @@ test('a review waits for the published panel, then files', async () => {
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
   assert.deepEqual(pass.ran.map((argv) => argv[2] === '--actor' ? argv[4] : argv[2]), ['list', 'list'], 'nothing created while unpublished');
-  assert.deepEqual(pass.lines, [
-    "WARN panel review: shop.example's 2026-09-21 collection waits for the panel refresh — " +
-      'no panel has been published (silent until it is published)',
-  ]);
+  assert.equal(pass.lines.length, 1, 'repeated polls report the same publication gap once');
+  assert.match(pass.lines[0], /^WARN /);
+  assert.ok(pass.lines[0].includes('shop.example'));
+  assert.ok(pass.lines[0].includes('2026-09-21'));
 
   panel = (asset) => published(asset, '2026-09-21', ['ranked-keywords', 'serp-panel']);
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, [

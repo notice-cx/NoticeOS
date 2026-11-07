@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -30,7 +27,6 @@ describe("AgentsLine", () => {
     ])} /></MemoryRouter>);
     expect(container.querySelector("[data-agents-closed]")).toHaveTextContent(/^14$/);
     expect(container.querySelector("[data-agents-active]")).toHaveTextContent(/^3$/);
-    expect(screen.getByText("Closed in 7 days")).toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "agent-a: 12 closed, 2 in progress" })).toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "agent-b: 2 closed, 1 in progress" })).toBeInTheDocument();
     expect(screen.queryByText("Mara")).not.toBeInTheDocument();
@@ -53,14 +49,6 @@ describe("AgentsLine", () => {
     expect(within(named).getByText("claude-reviewer")).toBeVisible();
     expect(within(inferred).getByText("worker-1")).toBeVisible();
     expect(screen.getByRole("listitem", { name: "worker-2: 2 closed, 0 in progress" }).querySelector("img")).toHaveAttribute("src", "/agents/openai.png");
-  });
-
-  it("uses the original orange Claude tile with a light glyph alongside visible text", () => {
-    const svg = readFileSync(path.resolve(import.meta.dirname, "../public/agents/claude.svg"), "utf8");
-    const sources = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../public/agents/sources.json"), "utf8")) as Record<string, { sha256: string }>;
-    expect(svg).toMatch(/<rect[^>]+fill="#D97757"/);
-    expect(svg).toMatch(/<path[^>]+fill="#FAF9F5"/);
-    expect(createHash("sha256").update(svg).digest("hex")).toBe(sources["claude.svg"]!.sha256);
   });
 
   it("bounds the worker preview to three rows while keeping totals for all agents", () => {

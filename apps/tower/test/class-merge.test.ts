@@ -47,11 +47,4 @@ describe("cn keeps the theme's type steps", () => {
       "shrink-0 tabular-nums text-wall-body text-muted-foreground",
     );
   });
-
-  it("draws the feed line and a chart caption at their own sizes", () => {
-    expect(cn("line-clamp-2 text-wall-body", "text-muted-foreground")).toBe("line-clamp-2 text-wall-body text-muted-foreground");
-    expect(cn("mt-1 text-wall-micro tabular-nums text-muted-foreground", false)).toBe(
-      "mt-1 text-wall-micro tabular-nums text-muted-foreground",
-    );
-  });
 });

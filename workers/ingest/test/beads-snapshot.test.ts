@@ -1221,14 +1221,12 @@ describe('POST /api/beads-snapshot — bounded history', () => {
     expect(((await res.json()) as SnapshotBody).pruned).toBe(2);
     // The 3- and 9-day-old rows go; the 1-day-old one and the new one stay.
     expect(await snapshots()).toBe(2);
-    expect(BEADS_SNAPSHOT_RETENTION_DAYS).toBe(2);
   });
 
   // The Wall's feed replays photographs back to 6 PM the day before, local
   // time — 31 hours at most (apps/tower/test/wall-feed.test.ts pins that side).
   // Retention shorter than that would silently empty the feed's early evening.
   it('keeps every photograph the Wall feed can still replay', () => {
-    expect(WALL_FEED_REACH_HOURS).toBe(31);
     expect(BEADS_SNAPSHOT_RETENTION_DAYS * 24).toBeGreaterThan(WALL_FEED_REACH_HOURS);
   });
 

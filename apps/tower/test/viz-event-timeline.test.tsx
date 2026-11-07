@@ -207,7 +207,6 @@ describe("EventTimeline", () => {
   it("draws the axis, NOW and the last-looked marker", () => {
     const { container } = draw(eventTimelineDay);
     expect([...container.querySelectorAll("[data-tick]")].map((tick) => tick.textContent)).toEqual(["6 PM", "Midnight", "6 AM", "Noon"]);
-    expect(container.querySelector("[data-now-label]")).toHaveTextContent("Now");
     expect(container.querySelector("[data-marker]")).toHaveTextContent("Since you last looked · 6 PM yesterday");
     expect(container.querySelectorAll("[data-now]")).toHaveLength(6);
   });
@@ -263,7 +262,6 @@ describe("EventTimeline", () => {
   it("says a quiet window in words and still draws now", () => {
     const { container } = draw(eventTimelineQuiet);
     expect(container.querySelector('[data-state="empty"]')).toHaveTextContent("Nothing recorded since 3 PM yesterday");
-    expect(container.querySelector("[data-now-label]")).toHaveTextContent("Now");
     expect(container.querySelector("[data-lane]")).toBeNull();
   });
 

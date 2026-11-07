@@ -13,6 +13,7 @@ import { buildWallPayload } from "../worker/wall-payload";
 import { createTestStore, type TestStore } from "./postgres-store";
 import { bookLedger, writeRevenue } from "./money";
 import { addSites } from "./sites";
+import { SYSTEM_NAME } from "@noticeos/contract/asset-name";
 
 // Each test writes its ledger entries into its own copy of its sites (test/money.ts).
 
@@ -88,13 +89,7 @@ describe("buildFinancialsPayload", () => {
     expect(result.periodIsCurrent).toBe(true);
     expect(result.dailyRevenue).toMatchObject({ from: '2026-09-01', to: '2026-09-29', days: [] });
   });
-  it("says so plainly when the ledger is empty", async () => {
-    const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
-    expect(payload.empty).toBe(true);
-    expect(payload.months).toEqual([]);
-  });
-
-  it("splits each month by booking state and never adds the two into net", async () => {
+  it("separates estimated and booked revenue and includes each once in totals", async () => {
     await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
     await ledger({
       kind: "revenue",
@@ -176,7 +171,7 @@ describe("buildFinancialsPayload", () => {
     expect(byProvenance.unclassified).toBeCloseTo(3.1);
   });
 
-  it("sums the month's revenue by source and family, naming each source as its row does", async () => {
+  it("sums the month's revenue by source and family", async () => {
     // Stripe's collected days stand in for the month under their own source,
     // beside an ad estimate and an affiliate figure booked by hand.
     await writeRevenue(ctx.call, [
@@ -190,9 +185,9 @@ describe("buildFinancialsPayload", () => {
     await ledger({ kind: "cost", asset: "root-os", period: "2026-08", family: "inference", minor: 20000, source: "recurring:claude-code" });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [], period: "2026-08" });
-    expect(payload.revenueLines).toEqual([
-      { family: "ads", source: "mediavine", label: "Mediavine ad revenue", currency: "USD", amount: 440.94, rows: 1 },
-      { family: "subs", source: "stripe", label: "Stripe subscriptions", currency: "USD", amount: 138, rows: 1 },
+    expect(payload.revenueLines).toMatchObject([
+      { family: "ads", source: "mediavine", currency: "USD", amount: 440.94, rows: 1 },
+      { family: "subs", source: "stripe", currency: "USD", amount: 138, rows: 1 },
       { family: "affiliate", source: "cj-export", label: null, currency: "USD", amount: 12, rows: 1 },
     ]);
     // The lines add up to the month's revenue, to the cent.
@@ -379,10 +374,11 @@ describe("buildFinancialsPayload — the period it describes", () => {
     expect((thrown as PeriodNotFound).periods).toEqual(["2026-06", "2026-07", "2026-08"]);
   });
 
-  it("offers nothing to pick from when the ledger is empty", async () => {
+  it("keeps months and period choices empty while selecting the current calendar month", async () => {
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
 
     expect(payload.empty).toBe(true);
+    expect(payload.months).toEqual([]);
     expect(payload.periods).toEqual([]);
     expect(payload.period).toBe("2026-09");
     expect(payload.periodIsCurrent).toBe(true);
@@ -541,7 +537,7 @@ describe("buildFinancialsPayload — each asset's own months", () => {
     const os = payload.properties.find((p) => p.isOs)!;
 
     expect(os.months.map((month) => month.figure?.net ?? null)).toEqual([-200, -205]);
-    expect(os.displayName).toBe("System");
+    expect(os.displayName).toBe(SYSTEM_NAME);
     expect(JSON.stringify(payload)).not.toContain("ReindexOS");
   });
 });

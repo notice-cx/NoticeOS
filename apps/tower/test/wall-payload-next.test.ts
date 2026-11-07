@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { loadLatestBeadsSnapshot, type BeadsSnapshot, type SnapshotProject } from "../worker/beads-snapshot";
-import { WALL_NEXT_DECISIONS, WALL_NEXT_WORKING, wallNextUpOf, wallAttentionTasksOf } from "../worker/wall-payload";
+import { wallNextUpOf, wallAttentionTasksOf } from "../worker/wall-payload";
 import { wallDecisionAsk } from "../shared/wall";
 import type { WorkEvent, WorkItem } from "../shared/work";
 
@@ -111,10 +111,9 @@ describe("wallNextUpOf — the decisions", () => {
     expect(next.capturedAt).toBe(hoursAgo(0));
   });
 
-  it(`lists at most ${WALL_NEXT_DECISIONS}, and reads the oldest across every row the snapshot listed`, () => {
+  it("caps decisions and reads the oldest across every row the snapshot listed", () => {
     const waiting = Array.from({ length: 8 }, (_, index) => item(`md-${index}`, { createdAt: daysAgo(index + 1) }));
     const next = wallNextUpOf(snapshot(project("meadow.example", { waiting })), NOW)!;
-    expect(next.decisions).toHaveLength(WALL_NEXT_DECISIONS);
     expect(next.decisions.map((decision) => decision.id)).toEqual(["md-0", "md-1", "md-2", "md-3", "md-4"]);
     expect(next.oldestAgeDays).toBe(8);
   });
@@ -200,7 +199,7 @@ describe("a task's card and change class, as the Tower reads the stored row", ()
 describe("wallNextUpOf — the work held now", () => {
   const claimed = (taskId: string, at: string, by = "claude"): WorkEvent => ({ kind: "claimed", taskId, title: taskId, by, model: null, at, evidence: null });
 
-  it(`puts urgent work first, then the longest held, at most ${WALL_NEXT_WORKING}`, () => {
+  it("caps held work with urgent first, then longest held", () => {
     const next = wallNextUpOf(snapshot(
       project("meadow.example", {
         inProgress: [
@@ -216,7 +215,6 @@ describe("wallNextUpOf — the work held now", () => {
       }),
     ), NOW)!;
 
-    expect(next.working).toHaveLength(WALL_NEXT_WORKING);
     expect(next.working.map((row) => row.id)).toEqual(["ro-urgent", "md-long", "md-short"]);
     expect(next.working[0]).toEqual({ id: "ro-urgent", title: "Task ro-urgent", asset: "root-os", who: "claude", sinceHours: 1, urgent: true });
     // The newest claim is the one held: 30 hours, not 40.

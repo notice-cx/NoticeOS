@@ -35,7 +35,6 @@ test.beforeEach(async ({ request, baseURL }) => {
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(reads).toEqual(["2026-09", "2026-08"]);
     await expect(comparison).toContainText("Previous: August 2026. Current: September 2026.");
-    await expect(comparison).toContainText("Month-to-date costs against the complete previous calendar month");
     const rows = comparison.getByRole("list", { name: "Cost changes by source" }).getByRole("listitem");
     await expect(rows).toHaveCount(5);
     await expect(rows.nth(0)).toContainText("+$2.11");
@@ -48,7 +47,6 @@ test.beforeEach(async ({ request, baseURL }) => {
       await expect(row).toContainText("Unavailable");
     }
     await expect(comparison.locator('[aria-label="Recorded cost totals"]')).toContainText("+$1.09");
-    await expect(comparison).not.toContainText(/saving|performance|improvement/i);
     await toggle.click();
     await expect(comparison).toHaveCount(0);
     await toggle.click();

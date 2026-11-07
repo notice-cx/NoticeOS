@@ -72,7 +72,8 @@ it('reads persistent per-feed failure and recovery without calling a provider or
   await observeIntegration(env, connection, { capability: 'calendar-feed', target: PRIVATE, family: 'Team', observedAt: new Date(NOW + 1000).toISOString(), ok: true });
   const recovered = await readIntegrationHealth(env, NOW + 2000);
   expect(recovered.items.find(i => i.capability === 'calendar-feed')?.state).toBe('healthy');
-  expect(recovered.events.some(i => i.kind === 'recovered' && i.label === 'Upcoming meetings')).toBe(true);
+  const recoveredFeed = recovered.items.find(i => i.capability === 'calendar-feed');
+  expect(recovered.events).toContainEqual(expect.objectContaining({ kind: 'recovered', itemId: recoveredFeed!.id }));
 });
 it('does not stamp an old request as proof of a replaced connection', async () => {
   await calendar();
@@ -274,8 +275,9 @@ it('says a list of unresolved archive failures was cut at 256, and how many ther
     data_state: 'provider-final', status: 'error', error_code: 'http_500', error_message: 'Refused',
   })));
   const result = await readIntegrationHealth(env, Date.now() + 1000);
-  const overflow = result.items.filter(i => i.asset === target.asset && i.detail?.startsWith('256 of '));
-  expect(overflow).toEqual([expect.objectContaining({ detail: '256 of 300 report dates · 300 unresolved failures', state: 'unknown', code: 'monitoring' })]);
+  const overflow = result.items.filter(i => i.asset === target.asset && i.detail?.startsWith('256'));
+  expect(overflow).toEqual([expect.objectContaining({ state: 'unknown', code: 'monitoring' })]);
+  expect(overflow[0]!.detail?.match(/\d+/g)).toEqual(['256', '300', '300']);
 });
 
 it('does not let thousands of resolved historical archive dates exhaust current health coverage', async () => {

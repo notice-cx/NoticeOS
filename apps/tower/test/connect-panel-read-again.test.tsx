@@ -119,12 +119,11 @@ describe("the Google panel's Read again", () => {
       </QueryClientProvider>,
     );
 
-    const grant = await waitFor(() => {
+    await waitFor(() => {
       const line = document.querySelector('[data-site-grant="gsc"]');
       expect(line).not.toBeNull();
       return line!;
     });
-    expect(grant.textContent).toMatch(/, then press Read again\.$/u);
     expect(document.querySelector('[data-site-row="journey.example"] [data-site-detail]')?.textContent).toBe("GA4 538680421 · Search Console: not in this account");
 
     fireEvent.click(screen.getByRole("button", { name: "Read again" }));

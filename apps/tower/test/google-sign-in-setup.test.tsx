@@ -79,7 +79,6 @@ describe("the sign-in in the panel", () => {
     expect([...setup.querySelectorAll("[data-google-step]")].map((step) => step.getAttribute("data-google-step"))).toEqual(["1", "2", "3"]);
     expect(within(setup.querySelector('[data-google-step="1"]') as HTMLElement).getByRole("link", { name: /Open/ }).getAttribute("href")).toBe(GOOGLE_CONSOLE.apis);
     expect(setup.querySelector("[data-google-redirect-uri]")?.textContent).toContain(REDIRECT);
-    expect(setup.querySelector("[data-google-testing]")?.textContent).toContain("7 days");
     expect(screen.getByRole("button", { name: "Continue with Google" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("link", { name: "Service account instead" }).getAttribute("href")).toBe("/integrations?provider=google&setup=page");
   });

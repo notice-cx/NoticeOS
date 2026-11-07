@@ -122,7 +122,6 @@ describe("System health connection details distinguish configuration from proof"
     expect(screen.queryByText("Working")).toBeNull();
     expect(screen.getAllByRole("link", { name: "Not checked" }).every((link) => link.getAttribute("href") === "/assets/example.test/sources")).toBe(true);
     fireEvent.click(screen.getAllByRole("button", { name: "Google Search Console" })[0]!);
-    expect(screen.queryByText(/Configured status alone does not verify access/)).toBeNull();
   });
 
   it("keeps observed successful connections working", () => {

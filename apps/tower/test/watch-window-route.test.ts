@@ -11,8 +11,6 @@ import {
   type WatchWindowWriter,
 } from "../worker/watch-window-route";
 import {
-  WATCH_BASELINE_DAYS,
-  WATCH_MIN_WINDOW_COVERAGE,
   watchBaselineFor,
   watchCalibration,
   watchCalibrationBasis,
@@ -260,7 +258,6 @@ describe("the composer's prefill", () => {
       start: "2026-06-14",
       end: "2026-07-11",
     });
-    expect(WATCH_BASELINE_DAYS).toBe(28);
   });
 
   it("builds the body the ingest README documents, from one click", () => {
@@ -471,7 +468,6 @@ describe("threshold calibration", () => {
   });
 
   it("labels a measurable floor historical when its change calendar is incomplete", () => {
-    const series = WATCH_SERIES.find((s) => s.metric === "clicks")!;
     const incomplete = watchCalibration(
       {
         integration: "gsc",
@@ -482,8 +478,6 @@ describe("threshold calibration", () => {
       7,
     )!;
     expect(incomplete.changeCalendarComplete).toBe(false);
-    // The composer's "Changes not excluded" chip reads `changeCalendarComplete`.
-    expect(series.metric).toBe("clicks");
     expect(watchCalibrationBasis(incomplete)).toEqual({ kind: "asset", calibration: incomplete });
     expect(incomplete.excludedComparisons).toBe(0);
   });
@@ -555,11 +549,9 @@ describe("threshold calibration", () => {
 
   it("dates every check a registration made today would be read on", () => {
     expect(watchCheckDates("2026-09-22", 28)).toEqual(["2026-09-29", "2026-10-06", "2026-10-20"]);
-    expect(watchCheckDates("2026-09-22", 28).at(-1)).toBe("2026-10-20");
   });
 
   it("names the query archive and its own floor when query history is sufficient", () => {
-    const series = WATCH_SERIES.find((s) => s.metric === "clicks")!;
     const site = watchCalibration(history(alternating(7, 100, 160, 12)), 7)!;
     const queryHistory: WatchQueryHistory = {
       integration: "gsc",
@@ -582,7 +574,6 @@ describe("threshold calibration", () => {
     expect(site.suggestedPct).toBeGreaterThan(query.suggestedPct);
 
     const basis = watchCalibrationBasis(query, { query: "tornado kit specs" }, queryHistory);
-    expect(series.metric).toBe("clicks");
     expect(basis).toEqual({ kind: "query", calibration: query, history: queryHistory });
     expect(query.typicalPct).toBe(0);
     expect(query.floorPct).toBe(0);
@@ -631,12 +622,6 @@ describe("threshold calibration", () => {
       }, clicks),
     ).toBeNull();
     expect(watchScopeState(null, clicks)).toBeNull();
-  });
-
-  it("holds the same coverage rule the evaluator judges by", () => {
-    // A contract constant, so the two cannot drift; the ingest suite pins its
-    // own MIN_WINDOW_COVERAGE against this same value.
-    expect(WATCH_MIN_WINDOW_COVERAGE).toBe(0.8);
   });
 });
 

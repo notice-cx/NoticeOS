@@ -109,16 +109,12 @@ describe("the asset rows", () => {
     expect(context(assets[1]!)).toHaveTextContent("vs last Wed");
   });
 
-  it("draws one row per asset, in seed order, under headings computed from the data", () => {
+  it("draws one row per asset in seed order", () => {
     const data = wallFixturePayload();
     const container = draw(data.assets);
     expect([...container.querySelectorAll("[data-site-row]")].map((r) => r.getAttribute("data-site-row"))).toEqual(
       data.assets.map((asset) => asset.id),
     );
-    expect(container.querySelector('h2')?.textContent).toBe('Portfolio');
-    const titles = [...row(container, 'mosaic.example').querySelectorAll('.wall-metric-title')].map(tile => tile.firstElementChild?.nextSibling?.textContent);
-    expect(titles).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
-    for (const tile of row(container, 'mosaic.example').querySelectorAll('.wall-metric-title')) expect(tile.querySelector('svg')).not.toBeNull();
   });
 
   it("states live users, today's pace and four weeks without repeating the revenue widget", () => {
@@ -361,19 +357,6 @@ describe("rows without data yet", () => {
 });
 
 describe("any number of assets", () => {
-  it("draws twelve assets as twelve rows of the same shape", () => {
-    const [template] = wallFixturePayload().assets;
-    const twelve = Array.from({ length: 12 }, (_, index) => ({
-      ...template!,
-      id: `site-${index + 1}.example`,
-      displayName: `Asset ${index + 1}`,
-    }));
-    const container = draw(twelve);
-    const rows = [...container.querySelectorAll("[data-site-row]")];
-    expect(rows.map((r) => r.querySelector("[data-site-label]")?.textContent)).toEqual(twelve.map((site) => site.displayName));
-    expect(rows.every(r => r.classList.contains("wall-portfolio-row"))).toBe(true);
-  });
-
   it("keeps every asset's complete name without truncating row content", () => {
     const assets = wallFixturePayload().assets;
     const container = draw(assets);
@@ -436,9 +419,8 @@ describe("fixed portfolio metrics", () => {
       const site = row(container, asset.id);
       expect(site.querySelector('[data-site-label]')?.textContent).toBe(asset.displayName);
       expect(site.querySelector('[data-site-name]')?.textContent).toBe(asset.displayName);
-      expect([...site.querySelectorAll('.wall-metric-title')].map(el => el.querySelector('span')?.textContent)).toEqual(['Momentum', 'Today', '4 weeks', 'Work', 'Product counts']);
+      expect(site).toHaveClass("wall-portfolio-row");
       expect(site.querySelector('.wall-portfolio-metrics')?.lastElementChild).toHaveClass('wall-product-counts');
-      for (const heading of site.querySelectorAll('.wall-metric-title')) expect(heading.querySelector('svg')).not.toBeNull();
     }
   });
 

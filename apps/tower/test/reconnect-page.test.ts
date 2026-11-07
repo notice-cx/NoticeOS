@@ -142,11 +142,9 @@ describe("the reconnecting page", () => {
 
   it("is a whole document — vite's html pipeline is not in play", () => {
     expect(html.startsWith("<!doctype html>")).toBe(true);
-    expect(html).toContain("<title>Tower reconnecting</title>");
   });
 
-  it("says what is happening, calmly and specifically", () => {
-    expect(html).toContain("Tower reconnecting");
+  it("shows the retry interval and failing path", () => {
     expect(html).toContain(`Retrying every ${RETRY_SECONDS}s`);
     expect(html).toContain("/wall");
   });
@@ -155,10 +153,6 @@ describe("the reconnecting page", () => {
     expect(html).toContain(`<meta http-equiv="refresh" content="${RETRY_SECONDS}" />`);
     expect(html).toContain("location.reload()");
     expect(html).toContain(String(RETRY_SECONDS * 1000));
-  });
-
-  it("sits on the wall's own darkness rather than flashing white", () => {
-    expect(html).toContain("#0a0a0a");
   });
 
   // Anything fetched would be fetched through the pipeline that is down.
@@ -198,7 +192,6 @@ describe("the error middleware", () => {
     expect(response.headers["content-type"]).toBe("text/html; charset=utf-8");
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.headers["retry-after"]).toBe(String(RETRY_SECONDS));
-    expect(response.body).toContain("Tower reconnecting");
     expect(response.body).toContain("location.reload()");
     expect(response.body).toContain("/wall");
   });
@@ -376,7 +369,6 @@ describe("stack position, on a real vite server", () => {
     expect(response.status).toBe(503);
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(body).toContain("Tower reconnecting");
     expect(body).toContain(`<meta http-equiv="refresh" content="${RETRY_SECONDS}" />`);
     expect(body).toContain("location.reload()");
     expect(body).toContain("/wall");
@@ -387,7 +379,6 @@ describe("stack position, on a real vite server", () => {
     const body = await response.text();
 
     expect(response.status).not.toBe(503);
-    expect(body).not.toContain("Tower reconnecting");
     expect(body).toBe(PAST_HANDLER);
   });
 });

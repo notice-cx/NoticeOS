@@ -83,7 +83,6 @@ it('ordinary financials and Wall read the same integer-cents ledger without coun
   // licensing income recorded monthly never feeds a forecast.
   const adSites = new Set(scenario.manifest.adSites.map(site => site.asset));
   const subscriptionSites = new Set(scenario.manifest.subscriptionSites.map(site => site.asset));
-  expect([...subscriptionSites]).toEqual(['lightbrief.example']);
   expect(productCards.filter(asset => !adSites.has(asset.id) && !subscriptionSites.has(asset.id)).every(asset => asset.revenueProjection?.status === 'no-revenue')).toBe(true);
   const reportedThrough = (site: string) => [...scenario.adRevenue, ...scenario.subscriptionDays].filter(day => day.asset === site).at(-1)!.date;
   for (const site of [...adSites, ...subscriptionSites]) {

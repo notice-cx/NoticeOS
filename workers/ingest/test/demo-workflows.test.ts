@@ -41,7 +41,7 @@ it('the released writer mirrors generated runs and the actual final watch readin
     expect(row).toBeDefined();
     expect(row?.outcome).toBe(run.outcome);
     expect(Date.parse(row!.finished_at) - Date.parse(row!.started_at)).toBe(run.ms);
-    expect(row?.detail).toContain('Synthetic scenario');
+    expect(row?.detail).toBe(run.detail);
   }
   expect(await ledger()).toEqual(moneyBefore);
   expect(await writeJobRuns(bound, { runs: history.runs }, Date.parse(history.cutoff))).toMatchObject({ ok: true, created: 0, duplicate: history.runs.length });

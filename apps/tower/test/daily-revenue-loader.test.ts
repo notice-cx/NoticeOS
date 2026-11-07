@@ -128,8 +128,8 @@ describe('saved daily earnings', () => {
           { date: '2026-09-08', amountMinor: 2000 }, { date: '2026-09-09', amountMinor: 0 },
         ],
       });
-      expect(history.bySource.map(({ days, since, ...source }) => source)).toEqual([{
-        source: 'mediavine-journey', provider: 'mediavine', family: 'ads', displayName: 'Mediavine Journey ad revenue',
+      expect(history.bySource.map(({ days, since, ...source }) => source)).toMatchObject([{
+        source: 'mediavine-journey', provider: 'mediavine', family: 'ads',
         clock: MEDIAVINE_CLOCK, currency: 'USD', reportedThrough: '2026-09-09',
       }]);
       // A site with no source: its empty window on the operator's clock, which

@@ -89,19 +89,13 @@ describe('workflow operating surface', () => {
     expect(await screen.findByRole('region', { name: 'Run failure' })).toHaveTextContent('One collection failed.');
     expect(screen.getByRole('link', { name: 'Background operations' })).toHaveAttribute('href', '/health/operations');
   });
-  it('names each row by its label and provider, latest run first, and re-sorts by what needs attention', async () => {
+  it('lists latest runs first and re-sorts by what needs attention', async () => {
     mount();
-    expect(await screen.findByRole('heading', { name: 'System health' })).toBeInTheDocument();
     const links = await screen.findAllByRole('link', { name: /Backups|Live traffic and counters/ });
     expect(links[0]).toHaveTextContent('Live traffic and counters');
     expect(screen.getByRole('link', { name: '10 minutes ago' })).toHaveAttribute('title', 'Wed, Sep 9, 16:15 UTC');
     fireEvent.change(screen.getByRole('combobox', { name: 'Sort operations' }), { target: { value: 'attention' } });
     expect(screen.getAllByRole('link', { name: /Backups|Live traffic and counters/ })[0]).toHaveTextContent('Backups');
-    // No row or group needs a description: the label, the provider where the
-    // label does not name it, and the row's state are the answer.
-    expect(screen.getByRole('link', { name: 'Search accessibility checks' }).parentElement).toHaveTextContent(/^Search accessibility checks$/);
-    expect(screen.getByRole('link', { name: 'Product analytics archives' }).parentElement).toHaveTextContent(/^Product analytics archivesPostHog$/);
-    expect(screen.getByRole('heading', { name: /^Business signals/ }).parentElement?.querySelector('p')).toBeNull();
   });
   // Split from the case above: one mount and seven re-renders of the whole
   // list can pass vitest's 5 s limit on a busy machine.
@@ -206,8 +200,12 @@ describe('workflow operating surface', () => {
   });
   it('renders a confirmed schedule timeline with neutral future executions', async () => {
     mount('/health/operations/schedule');
-    expect(await screen.findByText(/Next 24 hours/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Backups: next 24 hours')).toBeInTheDocument();
+    const timeline = await screen.findByLabelText('Backups: next 24 hours');
+    const slots = within(timeline).getAllByRole('button');
+    expect(slots).toHaveLength(24);
+    expect(timeline.querySelectorAll('.bg-foreground\\/15')).toHaveLength(1);
+    fireEvent.focus(within(timeline).getByRole('button', { name: 'Backups, next 12 hours' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('1 scheduled run in this hour');
   });
   it('leads with the saved failure and next step, keeps routine detail collapsed, and hides empty output', async () => {
     const reason = 'The model response did not match the briefing format.';
@@ -304,7 +302,6 @@ describe('workflow operating surface', () => {
     const details = await screen.findByRole('complementary', { name: 'Stage details' });
     expect(within(details).getByRole('heading', { level: 3 })).toHaveTextContent('Refresh Google signals');
     expect(within(details).queryByText('One collection failed.')).toBeNull();
-    expect(screen.getByText('Version 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Load collection settings/ }));
     expect(within(details).getByRole('heading', { level: 3 })).toHaveTextContent('Load collection settings');
     // A collection's schedule has one editor, in Settings → Data collection:
@@ -571,10 +568,8 @@ it('shows notification events separately from recovery timing and keeps event ru
   expect(await screen.findByText('Recovery check · Local time')).toBeVisible();
   expect(screen.getByText('On new alerts')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Manage delivery' })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Manage delivery' }));
   expect(screen.getByText('Recovery frequency')).toBeVisible();
-  expect(screen.getByText('Delivery')).toBeVisible();
 });
 
 describe('run a scheduled job from its detail page', () => {

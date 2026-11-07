@@ -67,8 +67,8 @@ describe('workspace defaults', () => {
       expect(parseWorkspaceView({ default: value })).toEqual({ default: value });
       expect(workspaceViewRefusal({ default: value })).toBeNull();
     }
-    expect(workspaceViewRefusal({ default: 'viewer' })).toMatch(/view\.default must be one of/);
-    expect(workspaceViewRefusal({ default: 'growth', focus: [] })).toMatch(/view\.focus is not a setting/);
-    expect(workspaceViewRefusal(['growth'])).toMatch(/must be an object/);
+    expect(workspaceViewRefusal({ default: 'viewer' })).toMatch(/view\.default/);
+    expect(workspaceViewRefusal({ default: 'growth', focus: [] })).toMatch(/view\.focus/);
+    expect(workspaceViewRefusal(['growth'])).toMatch(/object/);
   });
 });

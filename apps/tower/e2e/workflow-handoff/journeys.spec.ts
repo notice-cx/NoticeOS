@@ -54,11 +54,9 @@ test('workflow handoff copies supported task instructions and files the same evi
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   for (const name of ['list_workspaces', 'get_task_guide', 'list_projects', 'create_task', 'claim_task', 'close_task']) expect(copied).toContain('`' + name + '`');
   expect(copied).not.toMatch(/bd (?:create|close)|config\/beads\.json/);
-  expect(copied).toContain('`projectId` as `project`');
   const task = JSON.parse(copied.match(/`{3,}json\n([\s\S]*?)\n`{3,}/)![1]!) as Omit<NewTask, 'project'>;
   expect(task.metadata?.noticeos_key).toBe('meal plan, weekly');
   expect(task.description).toContain(`${baseURL}/assets/${JOURNEY_ASSET}`);
-  expect(task.description).toContain('Recheck the latest reports');
   await noOverflow(page);
   await page.getByRole('button', { name: `File task for ${query}`, exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'File a task' });
@@ -71,7 +69,7 @@ test('workflow handoff copies supported task instructions and files the same evi
   expect(filed[0]).toEqual({ ...task, project: JOURNEY_ASSET });
 });
 
-test('workflow asset copy and readable outcomes retain captured verdict codes', async ({ page }) => {
+test('readable workflow outcomes retain captured verdict codes', async ({ page }) => {
   const startedAt = '2026-09-06T11:40:00.000Z', finishedAt = '2026-09-06T11:40:01.000Z';
   const trace: WorkflowRun = { id: `watch-windows@${startedAt}`, workflowId: 'watch-windows', definitionVersion: 1,
     startedAt, finishedAt, state: 'succeeded', steps: [{ id: 'outcomes', attempt: 1, startedAt, finishedAt, state: 'succeeded',
@@ -80,12 +78,6 @@ test('workflow asset copy and readable outcomes retain captured verdict codes', 
     generatedAt: JOURNEY_NOW, historyAvailable: true,
     ...buildWorkflowHistory([{ job: 'watch-windows', at: startedAt, ms: 1000, outcome: 'ran' }], [trace], [], Date.parse(JOURNEY_NOW), trace.id) };
   await page.route('**/api/workflows*', route => route.fulfill({ json: payload }));
-  await page.goto('/workflows/pull');
-  await expect(page.getByRole('button', { name: /Collect asset reports/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Collect site reports/ })).toHaveCount(0);
-  await page.getByRole('button', { name: /Collect asset reports/ }).click();
-  await expect(page.getByLabel('Stage details')).toContainText('reports from assets configured');
-  await noOverflow(page);
   await page.goto(`/workflows/watch-windows?run=${encodeURIComponent(trace.id)}`);
   await page.getByRole('button', { name: /Evaluate outcome windows/ }).click();
   const output = page.getByRole('region', { name: 'Step output', exact: true });

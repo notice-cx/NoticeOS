@@ -17,12 +17,20 @@ import { REPO_ROOT } from './test-config-isolation.mjs';
 const TOWER = path.join(REPO_ROOT, 'apps', 'tower');
 const TITLE = 'exact task and approval';
 
-/** Each listed journey as `[project] title`, from `--list` after pnpm's `--`. */
+// Listing compiles every spec; identical invocations can share the result.
+const listings = new Map();
 function listed(...options) {
+  const key = JSON.stringify(options);
+  if (listings.has(key)) return listings.get(key);
   const result = spawnSync(process.execPath, ['e2e/run-journeys.mjs', '--', '--list', ...options],
     { cwd: TOWER, encoding: 'utf8', timeout: 60_000, killSignal: 'SIGINT' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return [...result.stdout.matchAll(/^\s+\[(\w+)\] › \S+ › (.+)$/gmu)].map(([, project, title]) => `[${project}] ${title}`);
+  const listing = {
+    titles: [...result.stdout.matchAll(/^\s+\[(\w+)\] › \S+ › (.+)$/gmu)].map(([, project, title]) => `[${project}] ${title}`),
+    files: new Set([...result.stdout.matchAll(/\] › (.+?):\d+:\d+ ›/gu)].map(([, file]) => file)),
+  };
+  listings.set(key, listing);
+  return listing;
 }
 
 test("the Tower's test:journeys runs the journeys through run-journeys.mjs", () => {
@@ -31,25 +39,22 @@ test("the Tower's test:journeys runs the journeys through run-journeys.mjs", () 
 });
 
 test('-- -g <title> runs only the journeys whose title matches, on both viewports', () => {
-  const matching = listed('-g', TITLE);
+  const matching = listed('-g', TITLE).titles;
   assert.deepEqual(matching.map((line) => line.split(' ')[0]), ['[desktop]', '[mobile]'], matching.join('\n'));
   for (const line of matching) assert.ok(line.endsWith(TITLE), line);
-  assert.ok(listed().length > matching.length, 'with no filter, more journeys run');
+  assert.ok(listed().titles.length > matching.length, 'with no filter, more journeys run');
 });
 
 test('-- --project desktop runs only the desktop viewport', () => {
-  assert.deepEqual(listed('--project', 'desktop', '-g', TITLE).map((line) => line.split(' ')[0]), ['[desktop]']);
-  const desktop = listed('--project', 'desktop');
-  assert.ok(desktop.length > 0 && desktop.every((line) => line.startsWith('[desktop] ')), desktop.join('\n'));
+  const desktop = listed('--project', 'desktop', '-g', TITLE).titles;
+  assert.deepEqual(desktop.map((line) => line.split(' ')[0]), ['[desktop]']);
+  assert.deepEqual(desktop, listed('-g', TITLE).titles.filter(line => line.startsWith('[desktop] ')));
 });
 
 test('every journey spec is discovered and included in the CI typecheck', () => {
   const e2e = path.join(TOWER, 'e2e');
   const specs = [...globSync('**/*.spec.ts', { cwd: e2e })];
-  const result = spawnSync(process.execPath, ['e2e/run-journeys.mjs', '--list', '--project', 'desktop', '--project', 'mobile'],
-    { cwd: TOWER, encoding: 'utf8', timeout: 60_000, killSignal: 'SIGINT' });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  const discovered = new Set([...result.stdout.matchAll(/\] › (.+?):\d+:\d+ ›/gu)].map(([, file]) => file));
+  const discovered = listed().files;
   const ts = createRequire(path.join(TOWER, 'package.json'))('typescript');
   const config = ts.getParsedCommandLineOfConfigFile(path.join(e2e, 'tsconfig.json'), {}, {
     ...ts.sys, onUnRecoverableConfigFileDiagnostic: diagnostic => assert.fail(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),

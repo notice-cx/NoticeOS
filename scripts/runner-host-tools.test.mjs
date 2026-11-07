@@ -7,9 +7,6 @@ import { bdBin, gitBin, lsofBin, probeTcp, resolveBin } from './runner/host-tool
 // scripts/runner/host-tools.mjs: finding bd, git and lsof
 // under a service's minimal PATH, and the TCP probe.
 
-/** A port in this suite's own range, so a parallel run elsewhere never collides. */
-const PORT = 8851;
-
 test('an override outranks every candidate; a blank one does not count', () => {
   const everywhere = () => true;
   assert.equal(resolveBin('/custom/bd', ['/opt/homebrew/bin/bd'], everywhere, 'bd'), '/custom/bd');
@@ -38,11 +35,15 @@ test('each tool reads its override when asked, not when the module loaded', () =
 
 test('the probe says yes to a listener and no once it is gone', async () => {
   const server = net.createServer((socket) => socket.destroy());
-  await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve));
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const { port } = server.address();
   try {
-    assert.equal(await probeTcp('127.0.0.1', PORT), true);
+    assert.equal(await probeTcp('127.0.0.1', port), true);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
-  assert.equal(await probeTcp('127.0.0.1', PORT, 500), false);
+  assert.equal(await probeTcp('127.0.0.1', port, 500), false);
 });

@@ -81,7 +81,7 @@ describe("GET /api/site-name", () => {
     expect(inward).toHaveBeenCalledTimes(1);
   });
 
-  it("answers null, not an error, when the asset fails, is slow or is not a page", async () => {
+  it("answers null, not an error, when the asset fails or is not a page", async () => {
     const down = vi.fn(async () => { throw new Error("connect ECONNREFUSED"); });
     expect(await ask("shop.example.com", down as unknown as typeof fetch)).toEqual({ status: 200, body: { name: null } });
     const json = vi.fn(async () => new Response("{}", { headers: { "content-type": "application/json" } }));

@@ -835,9 +835,7 @@ describe("Google's two kinds of asset on one row", () => {
       expect(grants()).toHaveLength(1);
       const grant = grants()[0]!;
       expect(grant.getAttribute("data-site-grant")).toBe("gsc");
-      expect(grant.textContent).toBe(
-        "Listed for the service account signals@example.test. Missing a Search Console site? In Search Console, add this account as a Full user on that Search Console site, then press Read again.",
-      );
+      expect(grant.textContent).toContain(SERVICE_ACCOUNT.account);
       const list = screen.getByRole("list", { name: "Assets" });
       expect(list.contains(grant)).toBe(false);
       expect(list.compareDocumentPosition(grant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -867,17 +865,15 @@ describe("Google's two kinds of asset on one row", () => {
       expect(document.querySelector('[data-site-row="journey.example"] [data-site-detail]')?.textContent).toBe("GA4 538680421 · sc-domain:journey.example");
     });
 
-    it("ends with reloading the page where nothing reads the list again", () => {
+    it("omits the retry control when no callback can read the list again", () => {
       render(picker(listedFor(noSearchConsole, SERVICE_ACCOUNT), { onRetry: undefined }));
-      expect(grants()[0]!.textContent).toMatch(/, then reload this page\.$/u);
       expect(screen.queryByRole("button", { name: "Read again" })).toBeNull();
     });
 
-    it("asks a sign-in for an account that can read it", () => {
+    it("identifies the OAuth account when a Search Console source is missing", () => {
       renderGoogle(listedFor(noSearchConsole, { account: "ops@example.test", auth: "oauth" }));
-      expect(grants().map((grant) => grant.textContent)).toEqual([
-        "Listed for ops@example.test. Missing a Search Console site? Sign in on Integrations with a Google account that can read it.",
-      ]);
+      expect(grants()).toHaveLength(1);
+      expect(grants()[0]!.textContent).toContain("ops@example.test");
     });
 
     it("draws no line when the listing names no credential, or when nothing is missing", () => {

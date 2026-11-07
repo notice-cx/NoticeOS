@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { portfolioBriefEvidenceSchema, type PortfolioBriefDomain, type PortfolioBriefEvidence, type PortfolioBriefFact, type PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';
 import type { TowerConfig } from '../worker/config-source';

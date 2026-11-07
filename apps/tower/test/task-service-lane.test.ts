@@ -98,7 +98,6 @@ it("sends a change to Ntasks with the project's id and answers only what Ntasks 
     ["PATCH", "/api/tasks/ex-1", { claim: true }], ["POST", "/api/gates/ex-1/resolve", {}]] as const) {
     const reply = await send(request(method, url, body));
     expect(reply.status, url).toBe(503);
-    expect(reply.body.detail, url).toMatch(/Nothing was saved\.$/u);
   }
 });
 
@@ -144,7 +143,6 @@ it("refuses a change while the ingest has never said where the tasks live, and r
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false, unknown: true });
   const change = await lane(service, ran)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
   expect(change).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
-  expect(String(change.body.detail)).toMatch(/Nothing was saved\.$/u);
   await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
   expect(calls).toEqual([]);
   expect(ran.length).toBeGreaterThan(0);

@@ -166,15 +166,17 @@ test('mcp at a terminal says how to connect it and runs nothing', (t) => {
     assert.equal(result.status, 0, result.error?.message ?? result.stderr);
     return result;
   };
+  const connectionCommands = result => result.stdout.replaceAll('\r', '').split('\n')
+    .map(line => line.trim()).filter(line => line.startsWith('claude mcp add '));
   const result = terminal();
-  assert.match(result.stdout.replaceAll('\r', ''), new RegExp(`at a terminal it does not run\\.\\ninstallation\\.env names no Tower port, so connect this command instead:\\n  claude mcp add --scope user noticeos -- ${dir.replaceAll('.', '\\.')}/noticeos mcp --actor claude\\n`, 'u'),
+  assert.deepEqual(connectionCommands(result), [`claude mcp add --scope user noticeos -- ${dir}/noticeos mcp --actor claude`],
     'an installation.env naming no Tower port has only the command');
   writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_PORT="5180"\n`);
   const loopback = terminal('--actor', 'dev-1');
-  assert.match(loopback.stdout.replaceAll('\r', ''), /The Tower serves the same tools; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n/u);
+  assert.deepEqual(connectionCommands(loopback), ["claude mcp add --scope user --transport http noticeos http://127.0.0.1:5180/api/mcp --header 'X-NoticeOS-Actor: dev-1'"]);
   writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_BIND="0.0.0.0"\nNOTICEOS_TOWER_PORT="5180"\n`);
   const network = terminal();
-  assert.match(network.stdout.replaceAll('\r', ''), /The Tower serves the same tools; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: claude'\n/u,
+  assert.deepEqual(connectionCommands(network), ["claude mcp add --scope user --transport http noticeos http://127.0.0.1:5180/api/mcp --header 'X-NoticeOS-Actor: claude'"],
     'a Tower on every interface answers on loopback too');
   assert.equal(existsSync(path.join(own.base, 'docker.log')), false, 'no backend command runs at a terminal');
 });

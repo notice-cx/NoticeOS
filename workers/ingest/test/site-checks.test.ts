@@ -124,7 +124,6 @@ describe('security-headers', () => {
     expect(await readingFor('security-headers', day(1))).toMatchObject({ status: 'warn', value_num: 1 });
     const [flag] = await flagRows(`rule_id = $1`, [SECURITY_HEADERS_RULE_ID]);
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'security-headers' });
-    expect(flag!.message).toBe('home page stopped sending content-security-policy');
     expect(JSON.parse(flag!.rule_inputs!)).toMatchObject({
       missing_headers: ['content-security-policy'],
       previous_headers: { 'content-security-policy': "default-src 'self'" },

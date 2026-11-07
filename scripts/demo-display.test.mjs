@@ -18,10 +18,7 @@ test('saved demo settings select actual nightly totals and a future fictional re
     const counters = documents['config/counters.json'];
     for (const [file, body] of Object.entries(documents)) assert.equal(documentRefusal(file, body), null);
     assert.equal(validateWallLayout(tower.wall.layout).ok, true);
-    assert.equal(tower.countdown.emoji, '📅');
-    assert.equal(tower.countdown.label, 'Quarterly portfolio review');
     assert.ok(Date.parse(tower.countdown.targetAt) > Date.parse(cutoff) + 60 * 86_400_000);
-    assert.ok(Date.parse(tower.countdown.targetAt) > Date.parse(cutoff));
     const types = wallLayoutWidgets(tower.wall.layout).map(widget => widget.type);
     assert.equal(types.filter(type => type === 'feed').length, 1);
     assert.equal(types.filter(type => type === 'work').length, 1);

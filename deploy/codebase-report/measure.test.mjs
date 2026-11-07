@@ -179,7 +179,7 @@ test("scc's per-file JSON becomes one row per file", () => {
   assert.throws(() => parseScc('{}'), /list of languages/u);
 });
 
-test('line counts exclude tests; the test share is capped at 1 and languages are ranked by size', () => {
+test('line counts exclude tests; their ratio can exceed one and languages rank by size', () => {
   const rows = [
     { path: 'src/a.ts', language: 'TypeScript', code: 100, comment: 5 },
     { path: 'src/b.ts', language: 'TypeScript', code: 50, comment: 0 },

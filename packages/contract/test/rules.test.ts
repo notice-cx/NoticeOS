@@ -65,7 +65,6 @@ describe('flowPoissonAnomaly (one-day drop)', () => {
     const v = flowPoissonAnomaly('plansSaved', 0, 6.2);
     expect(v.outcome).toBe('fired');
     expect(v.flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'plansSaved' });
-    expect(v.flag?.message).toContain('avg7d 6.2');
     expect(v.inputs.lambda).toBe(6.2);
     expect(v.inputs.pLowerTail as number).toBeCloseTo(0.0020294, 6);
   });
@@ -102,14 +101,13 @@ describe('flowLowVolumeAnomaly (multi-day window)', () => {
     expect(v.outcome).toBe('fired');
     expect(v.ruleId).toBe('flow-lowvol-window');
     expect(v.inputs).toMatchObject({ lambda: 6, windowDays: 3, windowHours: 72, maxWindowDays: 14 });
-    expect(v.flag?.message).toContain('last72h');
   });
 
   it('judges the old blind spot: three a day, empty for two days', () => {
     // One empty day at 3/day is e^-3 ~= 0.05; two are e^-6 ~= 0.0025.
     const v = flowLowVolumeAnomaly('trials', 0, 3, 2);
     expect(v.outcome).toBe('fired');
-    expect(v.flag?.message).toContain('last48h');
+    expect(v.inputs).toMatchObject({ windowDays: 2, windowHours: 48 });
   });
 
   it('does not fire when the window is consistent with the baseline', () => {

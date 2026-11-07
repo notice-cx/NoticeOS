@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { emptyWorkHistory, type WorkItem } from "@shared/work";
 import { readTaskBoard, type BoardTask } from "@/lib/task-board-read";

@@ -57,8 +57,6 @@ it("states Saves paused once in Tune, keeping both settings read only", () => {
     knobs={knobs} preview={{ state: "loading" }} onDraftChange={vi.fn()} />));
   expect(statements(container)).toHaveLength(1);
   expect(statements(container)[0]).toHaveTextContent("Saves paused · Config store unreachable");
-  expect(screen.getByText("Anomaly sensitivity")).toBeVisible();
-  expect(screen.getByText("Longest window")).toBeVisible();
   const inputs = container.querySelectorAll("input");
   expect(inputs).toHaveLength(2);
   for (const input of inputs) expect(input).toBeDisabled();

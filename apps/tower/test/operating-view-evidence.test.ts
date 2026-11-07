@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { UNAVAILABLE_MONEY, type MoneyFigure } from "@noticeos/contract/money";
 import type { SiteMoneyRow } from "@/lib/money-page";

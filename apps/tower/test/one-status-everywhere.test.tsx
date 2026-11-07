@@ -161,11 +161,8 @@ const LANES = SOURCES.map((source) => source.id);
 const PROVIDER_OF: Record<string, string> = { gsc: "google", ga4: "google", "bing-webmaster": "bing-webmaster", clarity: "clarity", posthog: "posthog", dataforseo: "dataforseo" };
 
 describe("one source, one status, on every screen", () => {
-  it("is seeded with the disagreement: every 15-minute run succeeded", () => {
-    expect(SOURCES.filter((source) => source.id in PROVIDER_OF).every((source) => source.state === "live")).toBe(true);
-  });
-
   it("shows each source's same status on its Data sources row, the asset header and Integrations, and the Wall marks the failing ones", async () => {
+    expect(SOURCES.filter((source) => source.id in PROVIDER_OF).every((source) => source.state === "live")).toBe(true);
     const asset = renderAt(`/assets/${ASSET}/sources`, <AssetDetailRoute />, "/assets/:id/:tab?");
     await waitFor(() => expect(document.querySelector("#integrations [data-connection]")).not.toBeNull());
     const more = screen.queryByRole("button", { name: /^Show \d+ more$/u });

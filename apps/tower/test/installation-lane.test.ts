@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { installationCommand, updateState } from "@shared/installation";
 import { createInstallationHandler, hostFacts } from "../vite/installation-lane";

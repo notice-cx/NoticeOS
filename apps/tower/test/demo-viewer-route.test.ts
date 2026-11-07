@@ -44,7 +44,7 @@ describe('the actual demo Worker entry points', () => {
     await worker.scheduled({ cron: '0 * * * *' }, env, ctx);
     expect(get).not.toHaveBeenCalled(); expect(ctx.waitUntil).not.toHaveBeenCalled();
   });
-  it('capability and provenance answers never pretend observations became fresh', async () => {
+  it('returns configured demo provenance before opening stores', async () => {
     vi.stubGlobal('__DEMO_VIEWER__', descriptor);
     const { env, get } = forbiddenEnvironment(); const ctx = { waitUntil: vi.fn() };
     for (const path of ['/api/demo-viewer']) {
@@ -91,7 +91,7 @@ describe('the actual demo Worker entry points', () => {
           ...(method === 'initialize' ? { params: { protocolVersion: '2025-06-18', capabilities: {} } } : {}) }) });
       expect((await handleMcpRequest(req, store, deps, descriptor)).status).toBe(method === 'notifications/initialized' ? 202 : 200);
     }
-    // An older client discovers instead of initializing.
+    // A newer-protocol client discovers instead of initializing.
     const discover = new Request('https://demo.example/api/mcp', { method: 'POST',
       headers: { ...json, 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'server/discover' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: {

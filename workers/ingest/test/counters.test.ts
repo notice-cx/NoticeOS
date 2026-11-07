@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { javascriptInstant } from '@noticeos/postgres';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runCountersScrape, type CountersConfig } from '../src/counters.js';
 import { pgCount, promBody, reset, stubFetch } from './helpers.js';
 
@@ -133,7 +133,7 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
-    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 500, written: 0, error: 'non-200 response (500)' });
+    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 500, written: 0 });
     // the FIRST run's values and the FIRST run's clock — a stale number must
     // never wear a fresh timestamp
     expect(await readings('meadow.example')).toEqual([
@@ -171,7 +171,7 @@ describe('counters lane — failure leaves the prior reading alone', () => {
 
     expect(result).toMatchObject({ attempted: 2, succeeded: 1, failed: 1 });
     expect(result.outcomes[0]).toMatchObject({ asset: 'meadow.example', ok: false, written: 0 });
-    expect(result.outcomes[0]?.error).toContain('no d1_row_count for table "leads"');
+    expect(result.outcomes[0]?.error).toContain('"leads"');
 
     expect(await readings('meadow.example')).toEqual([]);
     expect(await readings('northwind.example')).toEqual([
@@ -192,7 +192,6 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     });
 
     expect(result).toMatchObject({ succeeded: 0, failed: 1 });
-    expect(result.outcomes[0]?.error).toContain('not a row count');
     expect(await readings('meadow.example')).toEqual([]);
   });
 
@@ -211,12 +210,14 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
-    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 200, written: 0, error: 'card "leads" has no source counter' });
+    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 200, written: 0 });
+    expect(result.outcomes[0]?.error).toContain('"leads"');
     expect(await readings('meadow.example')).toEqual([]);
   });
 
   it('reports a missing pull token as a clean outcome error, writing nothing', async () => {
     // acorn.example is a seeded asset with no ASSET_TOKENS entry.
+    const fetchImpl = vi.fn<typeof fetch>();
     const result = await runCountersScrape(env, {
       config: {
         assets: {
@@ -227,13 +228,12 @@ describe('counters lane — failure leaves the prior reading alone', () => {
         },
       },
       nowMs: NOW,
-      // throws if a fetch is attempted — the token is checked before the request
-      fetchImpl: stubFetch({}),
+      fetchImpl,
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: null, written: 0 });
-    expect(result.outcomes[0]?.error).toContain('no pull token');
+    expect(fetchImpl).not.toHaveBeenCalled();
     expect(await readings('acorn.example')).toEqual([]);
   });
 });

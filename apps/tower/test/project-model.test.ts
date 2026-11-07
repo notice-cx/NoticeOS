@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { TaskCard } from "@noticeos/contract/task-card";
 import type { WorkProject } from "@shared/work";

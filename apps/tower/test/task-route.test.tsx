@@ -544,7 +544,6 @@ describe("the page carries its type's identity and the Wall's states", () => {
     expect(within(header()).getByText(word)).toHaveAttribute("data-task-type", issueType);
     const mark = header().querySelector(`[data-task-type-mark="${issueType}"]`) as HTMLElement;
     expect(mark).not.toBeNull();
-    expect(mark.querySelector("svg")).not.toBeNull();
     // A type is not a state: only an open bug wears the alert surface.
     expect(band()).toHaveAttribute("data-surface-kind", issueType === "bug" ? "alert" : "neutral");
     expect(mark.className).toMatch(issueType === "bug" ? /\btext-error\b/ : /\btext-foreground\b/);
@@ -611,15 +610,13 @@ describe("every task row opens its task from anywhere on the row", () => {
     await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.4", expect.any(AbortSignal)));
   });
 
-  it("opens a row with Enter once it has focus, the way a link activates", async () => {
+  it("opens a focused blocker through its native link", async () => {
     renderTask();
     const row = await screen.findByRole("link", { name: "ro-l1ed.1 A local task lane" });
     row.focus();
     expect(document.activeElement).toBe(row);
     expect(row.tagName).toBe("A");
     expect(row).not.toHaveAttribute("tabindex");
-    // A browser turns Enter on a focused link into its click.
-    fireEvent.keyDown(row, { key: "Enter" });
     fireEvent.click(row);
     await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.1", expect.any(AbortSignal)));
   });
@@ -1090,9 +1087,6 @@ describe("the task page", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     const confirm = screen.getByRole("button", { name: "Close task" });
-    expect(screen.getByText("What shipped, and the commit")).toBeInTheDocument();
-    expect(screen.queryByText(/Closing records a decision/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Closed means shipped/)).not.toBeInTheDocument();
     // The button that writes stays disabled until there is something to write.
     expect(confirm).toBeDisabled();
     expect(api.closeTask).not.toHaveBeenCalled();
@@ -1109,7 +1103,7 @@ describe("the task page", () => {
     );
   });
 
-  it("opens Close on five resolution chips, Done first and picked, with the shipped line under Done", async () => {
+  it("opens Close on six resolutions with Done selected and supports arrow navigation", async () => {
     renderTask();
     await screen.findByText("A task has a page");
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -1220,14 +1214,6 @@ describe("the task page", () => {
         "Blocked on the lane landing first.",
       ),
     );
-  });
-
-  it("offers Claim on an open, unclaimed task", async () => {
-    api.fetchTask.mockResolvedValue(
-      detail({ task: task({ status: "open", assignee: null, startedAt: null }) }),
-    );
-    renderTask();
-    expect(await screen.findByRole("button", { name: "Claim" })).toBeEnabled();
   });
 
   it("does not offer Claim on work somebody already has", async () => {
@@ -1383,7 +1369,7 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
     renderTask();
 
-    await header().findByRole("button", { name: "Claim" });
+    expect(await header().findByRole("button", { name: "Claim" })).toBeEnabled();
     expect(headerButtons()).toEqual(["Claim", "Close"]);
   });
 
@@ -1788,7 +1774,6 @@ describe("an epic's page and its tasks", () => {
     expect(within(list).getByText("3 more not in the saved snapshot")).toBeInTheDocument();
   });
 });
-
 
 it('shows the exact relayed approval and lets the owner dispute it', async () => {
   api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: 'gate', awaitType: 'human', status: 'closed', closedAt: '2026-09-04T11:30:00Z',

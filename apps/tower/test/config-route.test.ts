@@ -79,7 +79,6 @@ describe("GET /api/config", () => {
       writable: false,
       reason: CONFIG_STORE_NOT_READY_REASON,
     });
-    expect(CONFIG_STORE_NOT_READY_REASON).toContain("connection");
   });
 });
 

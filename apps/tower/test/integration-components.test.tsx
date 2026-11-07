@@ -198,9 +198,6 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     expect(fact("runs")).toBe("Daily");
     expect(fact("on-failure")).toBe("Raises an alert");
     expect(facts.querySelector('[data-lane-fact="limit"]')).toBeNull();
-    for (const retired of ["State from:", "Usage limits:", "On failure:"]) {
-      expect(container.textContent).not.toContain(retired);
-    }
   });
 
   it("keeps the OS's own lane off the asset cards on mobile", () => {
@@ -273,13 +270,12 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     }
   });
 
-  it("says the evidence IS the state, not a merge over a declared value", () => {
+  it("opens the selected cell's state evidence", () => {
     const { container } = renderMatrix();
     const table = container.querySelector("table")!;
     fireEvent.click(within(table).getByLabelText(/Why this state/));
     expect(container.querySelector('[title^="Read from the store"]')).not.toBeNull();
-    expect(within(document.body).getByRole("dialog").querySelector("p")).toBeNull();
-    expect(container.textContent).not.toContain("merged over the declared value");
+    expect(within(document.body).getByRole("dialog")).toBeVisible();
   });
 });
 

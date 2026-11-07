@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import type { PortfolioBriefRead } from '@noticeos/contract/portfolio-brief';

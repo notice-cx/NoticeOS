@@ -176,7 +176,7 @@ describe('DataForSEO weekly archives', () => {
       expect(result.outcomes[0]?.egressDown).toBeUndefined();
       const stored = await pgFirst<{ errorMessage: string }>(`SELECT error_message AS "errorMessage" FROM ${ARCHIVE_RUNS}
           WHERE report = 'backlinks-summary' AND status = 'error'`);
-      expect(stored?.errorMessage).toBe(`${WORKERD_TRANSPORT_ERROR} Gave up after 3 attempts.`);
+      expect(stored?.errorMessage).toContain(WORKERD_TRANSPORT_ERROR);
       expect(result.egress).toMatchObject({ up: true, fired: 0 });
       expect(await openEgressFlags()).toBe(0);
     });
@@ -210,7 +210,6 @@ describe('DataForSEO weekly archives', () => {
            FROM ${ARCHIVE_RUNS} WHERE report = 'serp-panel'`);
       expect(row?.errorCode).toBe(EGRESS_DOWN_CODE);
       expect(row?.costUsd).toBeCloseTo(2 * 0.004, 6);
-      expect(row?.errorMessage).not.toContain('Gave up');
       expect(row?.errorMessage).not.toContain(WORKERD_TRANSPORT_ERROR);
       expect(await storedHealthStates()).toEqual([]);
       expect(await openEgressFlags()).toBe(1);

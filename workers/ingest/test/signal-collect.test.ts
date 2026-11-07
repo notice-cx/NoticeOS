@@ -117,6 +117,7 @@ interface CollectBody {
     errorCode: string | null;
   }[];
   error?: string;
+  reason?: string;
   detail?: string;
   available?: string[];
   issues?: { path: string; code: string; message: string }[];
@@ -190,7 +191,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
       families: ['serp-panel', 'serp-panel'],
     });
     expect(status).toBe(422);
-    expect(body.issues?.[0]?.message).toContain('must not repeat');
+    expect(body.issues?.[0]).toMatchObject({ path: 'families', code: 'custom' });
   });
 
   /** The collector has no roster: membership IS the store query. A property this
@@ -199,15 +200,14 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
     const unknown = await refused({ asset: 'not-a-property' });
     expect(unknown.status).toBe(422);
     expect(unknown.body).toMatchObject({ error: 'unknown_asset' });
-    expect(unknown.body.detail).toBe('not-a-property is not an asset in the store.');
+    expect(unknown.body.detail).toContain('not-a-property');
 
-    // Seeded, but pre-launch: a different mistake, and a different sentence.
-    expect((await refused({ asset: 'ferns.example' })).body.detail).toBe(
-      'ferns.example is pre-launch; the DataForSEO lane collects launched assets only.',
-    );
-    expect((await refused({ asset: 'root-os' })).body.detail).toBe(
-      'root-os is the OS itself and has no public search surface.',
-    );
+    const prelaunch = await refused({ asset: 'ferns.example' });
+    expect(prelaunch).toMatchObject({ status: 422, body: { error: 'unknown_asset' } });
+    expect(prelaunch.body.detail).toContain('pre-launch');
+    const system = await refused({ asset: 'root-os' });
+    expect(system).toMatchObject({ status: 422, body: { error: 'unknown_asset' } });
+    expect(system.body.detail).toContain('OS');
     expect(
       await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo'`),
     ).toBe(0);
@@ -371,7 +371,8 @@ describe('POST /api/signal-collect — one asset, on the day it launched', () =>
     });
     const stored = await pgFirst<{ errorMessage: string }>(`SELECT error_message AS "errorMessage" FROM ${ARCHIVE_RUNS}
         WHERE integration = 'dataforseo' AND report = 'backlinks-summary'`);
-    expect(stored?.errorMessage).toBe('Provider unavailable. Gave up after 3 attempts.');
+    expect(stored?.errorMessage).toContain('Provider unavailable.');
+    expect(stored?.errorMessage).toMatch(/\b3\b/);
   });
 
   /** Re-firing the same day costs the provider call but does not duplicate the
@@ -498,21 +499,21 @@ describe('POST /api/signal-collect — PostHog families', () => {
   });
 
   it('refuses mixed providers, bad windows and repeats before any request', async () => {
-    const cases: [Record<string, unknown>, string][] = [
-      [{ asset: 'meadow.example', families: ['posthog-events', 'serp-panel'] }, 'one provider per request'],
-      [{ asset: 'meadow.example', families: ['posthog-*', 'posthog-events'] }, 'name it alone'],
-      [{ asset: 'meadow.example', families: ['posthog-nope'] }, 'posthog-web-daily'],
-      [{ asset: 'meadow.example', families: ['posthog-events', 'posthog-events'] }, 'must not repeat'],
-      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-08' }, 'together'],
-      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-22', end: '2026-09-08' }, 'not be after'],
-      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-08-01', end: '2026-09-22' }, 'at most 28 days'],
-      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2999-01-01', end: '2999-01-02' }, 'not be in the future'],
-      [{ asset: 'northwind.example', families: ['ranked-keywords'], start: '2026-09-08', end: '2026-09-22' }, 'PostHog families only'],
+    const cases: [Record<string, unknown>, string, string][] = [
+      [{ asset: 'meadow.example', families: ['posthog-events', 'serp-panel'] }, 'families', 'invalid_value'],
+      [{ asset: 'meadow.example', families: ['posthog-*', 'posthog-events'] }, 'families', 'custom'],
+      [{ asset: 'meadow.example', families: ['posthog-nope'] }, 'families', 'invalid_value'],
+      [{ asset: 'meadow.example', families: ['posthog-events', 'posthog-events'] }, 'families', 'custom'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-08' }, 'end', 'custom'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-22', end: '2026-09-08' }, 'start', 'custom'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-08-01', end: '2026-09-22' }, 'end', 'custom'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2999-01-01', end: '2999-01-02' }, 'end', 'custom'],
+      [{ asset: 'northwind.example', families: ['ranked-keywords'], start: '2026-09-08', end: '2026-09-22' }, 'start', 'custom'],
     ];
-    for (const [request, message] of cases) {
+    for (const [request, path, code] of cases) {
       const { status, body } = await refused(request);
       expect(status, JSON.stringify(request)).toBe(422);
-      expect(body.issues?.map((issue) => issue.message).join(' '), JSON.stringify(request)).toContain(message);
+      expect(body.issues, JSON.stringify(request)).toContainEqual(expect.objectContaining({ path, code }));
     }
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
   });
@@ -521,30 +522,38 @@ describe('POST /api/signal-collect — PostHog families', () => {
   it('runs one of two on-demand requests for the same asset and refuses the other with a plain 409', async () => {
     const nowMs = Date.parse('2026-09-23T12:30:00Z');
     const first = gatedPosthogProvider();
+    const coordinatorStartedAfter = Date.now();
     const firstRun = collect(
       { asset: 'meadow.example', families: ['posthog-*'] },
       { posthog: { fetchImpl: first.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs } },
     );
-    await first.started;
+    try {
+      await first.started;
+      const providerStartedAt = Date.now();
 
-    const second = gatedPosthogProvider();
-    second.open();
-    const res = await handleSignalCollect(collectRequest({ asset: 'meadow.example', families: ['posthog-events'] }), env, {
-      posthog: { fetchImpl: second.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs },
-    });
-    const text = await res.text();
-    expect(res.status).toBe(409);
-    const body = JSON.parse(text) as CollectBody & { inFlight?: { startedAt: string; leaseExpiresAt: string } };
-    expect(body).toMatchObject({ error: 'collection_in_flight', asset: 'meadow.example', families: ['posthog-events'] });
-    // One line: what runs, that nothing was asked, when it frees.
-    expect(body.detail).toMatch(/^Already running for meadow\.example · started \d+s ago · nothing asked · /);
-    expect(body.detail).toContain(`free at ${body.inFlight?.leaseExpiresAt}`);
-    // `pnpm signals:collect` prints the first 400 characters of the body: the
-    // whole sentence must be in them.
-    expect(text.slice(0, 400)).toContain(body.detail);
-    expect(second.calls).toHaveLength(0);
-
-    first.open();
+      const second = gatedPosthogProvider();
+      second.open();
+      const res = await handleSignalCollect(collectRequest({ asset: 'meadow.example', families: ['posthog-events'] }), env, {
+        posthog: { fetchImpl: second.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs },
+      });
+      const text = await res.text();
+      expect(res.status).toBe(409);
+      const body = JSON.parse(text) as CollectBody & { inFlight?: { startedAt: string; leaseExpiresAt: string } };
+      expect(body).toMatchObject({ error: 'collection_in_flight', asset: 'meadow.example', families: ['posthog-events'] });
+      const startedAt = Date.parse(body.inFlight!.startedAt);
+      expect(startedAt).toBeGreaterThanOrEqual(coordinatorStartedAfter);
+      expect(startedAt).toBeLessThanOrEqual(providerStartedAt);
+      expect(Date.parse(body.inFlight!.leaseExpiresAt)).toBeGreaterThan(startedAt);
+      expect(body.detail).toContain('meadow.example');
+      expect(body.detail).toContain(body.inFlight!.leaseExpiresAt);
+      // `pnpm signals:collect` prints the first 400 characters of the body: the
+      // whole sentence must be in them.
+      expect(text.slice(0, 400)).toContain(body.detail);
+      expect(second.calls).toHaveLength(0);
+    } finally {
+      first.open();
+      await firstRun;
+    }
     const done = await firstRun;
     expect(done.status).toBe(200);
     expect(done.body).toMatchObject({ attempted: 7, succeeded: 7 });
@@ -620,8 +629,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
       { posthog: { fetchImpl, rawKeys: '', laneRegister: PH_REGISTER } },
     );
     expect(status).toBe(422);
-    expect(body).toMatchObject({ error: 'posthog_not_collected' });
-    expect(body.detail).toContain('no PostHog key');
+    expect(body).toMatchObject({ error: 'posthog_not_collected', reason: 'no-key' });
     expect(queries).toHaveLength(0);
   });
 });

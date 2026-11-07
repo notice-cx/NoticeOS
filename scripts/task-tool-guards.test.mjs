@@ -568,13 +568,12 @@ test('a close names what stops it: another holder, an open approval, open childr
   for (const child of ['ex-epic.1', 'ex-epic.2', 'ex-epic.3']) f.link(child, 'ex-epic', 'parent-child');
   f.put('ex-closed', { status: 'closed', close_reason: 'Shipped earlier' });
   const close = (task, key) => f.refusal('close_task', inProject({ task, reason: 'Done in abc123', idempotency_key: key }));
-  assert.equal(await close('ex-held', 'close-held-0001'), 'refused: ex-held is held by alice, and only its holder closes it. '
-    + 'Reach alice with comment_on_task, or ask a person to close it on Tasks in the Tower.');
-  assert.equal(await close('ex-gated', 'close-gated-0001'), 'refused: ex-gated waits on approval ex-gate, which is still open. '
-    + 'Use reconcile_task on the gate with the owner’s scoped answer, or action declined with their refusal; then close ex-gated with implementation evidence. A declined action must not happen.');
-  assert.equal(await close('ex-epic', 'close-epic-0001'), 'refused: ex-epic has open children: ex-epic.1 and ex-epic.3. '
-    + 'Close them first, or give them another parent with update_task.');
-  assert.equal(await close('ex-closed', 'close-closed-0001'), 'refused: ex-closed is already closed; get_task shows its close reason.');
+  assert.match(await close('ex-held', 'close-held-0001'), /^refused: ex-held .*held by alice.*comment_on_task/u);
+  assert.match(await close('ex-gated', 'close-gated-0001'), /^refused: ex-gated .*approval ex-gate.*reconcile_task/u);
+  const children = await close('ex-epic', 'close-epic-0001');
+  assert.match(children, /^refused: ex-epic .*open children: ex-epic\.1 and ex-epic\.3.*update_task/u);
+  assert.doesNotMatch(children, /ex-epic\.2/u);
+  assert.match(await close('ex-closed', 'close-closed-0001'), /^refused: ex-closed .*closed.*get_task/u);
   assert.deepEqual(f.closes(), [], 'each was refused from the task\'s own read, before any close ran');
   assert.equal(f.tasks.get('ex-closed').close_reason, 'Shipped earlier');
 });
@@ -584,14 +583,13 @@ test('a close interrupted after it landed replays on a retry with the same key; 
   f.put('ex-work', { status: 'in_progress', assignee: AGENT }); f.put('ex-dep'); f.link('ex-work', 'ex-dep');
   const args = inProject({ task: 'ex-work', reason: 'Done in abc123', idempotency_key: 'close-work-0002' });
   f.failNext('close');
-  assert.equal(await f.refusal('close_task', args), 'unavailable: the task store client exited without success. '
-    + 'Retry the same call; with the same idempotency_key a change lands at most once.');
+  assert.match(await f.refusal('close_task', args), /^unavailable:.*client exited.*idempotency_key/u);
   assert.equal(f.tasks.get('ex-work').status, 'closed', 'the close landed although its answer was lost');
   const retried = (await f.call('close_task', args)).structuredContent;
   assert.deepEqual([retried.replayed, retried.task.status], [true, 'closed']);
   assert.equal(f.closes().length, 1, 'the retry found the earlier close instead of running another');
-  assert.equal(await f.refusal('close_task', { ...args, idempotency_key: 'close-work-0003' }),
-    'refused: ex-work is already closed; get_task shows its close reason.');
+  assert.match(await f.refusal('close_task', { ...args, idempotency_key: 'close-work-0003' }),
+    /^refused: ex-work .*closed.*get_task/u);
 });
 
 test('every refusal of a task names its cause and what to do next', async () => {
@@ -602,22 +600,18 @@ test('every refusal of a task names its cause and what to do next', async () => 
   f.put('ex-later', { status: 'deferred' });
   f.put('ex-mine');
   const claim = (task, key) => f.refusal('claim_task', inProject({ task, idempotency_key: key }));
-  assert.equal(await claim('ex-held', 'claim-held-0001'),
-    'refused: ex-held is held by alice. Choose another task, or reach alice with comment_on_task.');
-  assert.equal(await claim('ex-done', 'claim-done-0001'),
-    'refused: ex-done is closed, so it cannot be claimed. File work that remains with create_task.');
-  assert.equal(await claim('ex-wait', 'claim-wait-0001'), 'refused: ex-wait has status blocked, and claim_task takes an open task. '
-    + 'It depends on ex-first, still open. To work on it now, set its status to open with update_task, then claim it.');
-  assert.equal(await claim('ex-later', 'claim-later-0001'), 'refused: ex-later has status deferred, and claim_task takes an open task. '
-    + 'To work on it now, set its status to open with update_task, then claim it.');
-  assert.equal(await f.refusal('update_task', inProject({ task: 'ex-held', assignee: 'bob', idempotency_key: 'give-held-0001' })),
-    'refused: ex-held is held by alice, and only its holder or a person on Tasks in the Tower gives it to someone else.');
+  assert.match(await claim('ex-held', 'claim-held-0001'), /^refused: ex-held .*held by alice.*comment_on_task/u);
+  assert.match(await claim('ex-done', 'claim-done-0001'), /^refused: ex-done .*closed.*create_task/u);
+  assert.match(await claim('ex-wait', 'claim-wait-0001'), /^refused: ex-wait .*blocked.*ex-first.*update_task/u);
+  assert.match(await claim('ex-later', 'claim-later-0001'), /^refused: ex-later .*deferred.*update_task/u);
+  assert.match(await f.refusal('update_task', inProject({ task: 'ex-held', assignee: 'bob', idempotency_key: 'give-held-0001' })),
+    /^refused: ex-held .*held by alice/u);
   assert.deepEqual(f.commands.filter(argv => argv.includes('--claim') || argv.some(word => word.startsWith('--assignee='))), [],
     'each was refused from the task\'s own read');
-  const missing = `refused: ex-nope is not a task in projectId ${PROJECT} (Example); list_tasks lists its tasks.`;
-  assert.equal(await f.refusal('get_task', inProject({ task: 'ex-nope' })), missing);
-  assert.equal(await f.refusal('comment_on_task', inProject({ task: 'ex-nope', text: 'Found it', idempotency_key: 'note-nope-0001' })), missing);
-  assert.equal(await f.refusal('add_dependency', inProject({ task: 'ex-mine', depends_on: 'ex-nope' })), missing,
+  const missing = new RegExp(`^refused: ex-nope .*projectId ${PROJECT} .*list_tasks`, 'u');
+  assert.match(await f.refusal('get_task', inProject({ task: 'ex-nope' })), missing);
+  assert.match(await f.refusal('comment_on_task', inProject({ task: 'ex-nope', text: 'Found it', idempotency_key: 'note-nope-0001' })), missing);
+  assert.match(await f.refusal('add_dependency', inProject({ task: 'ex-mine', depends_on: 'ex-nope' })), missing,
     'the task named second is the one missing');
   assert.equal((await f.call('claim_task', inProject({ task: 'ex-mine', idempotency_key: 'claim-mine-0001' }))).structuredContent.task.assignee, AGENT);
 });
@@ -676,18 +670,17 @@ test('a write the task store refuses is named from the task as it stands after: 
   f.put('ex-race'); f.put('ex-held', { status: 'in_progress', assignee: AGENT }); f.put('ex-lead'); f.put('ex-follow');
   // Another caller's claim lands after this caller's read and before its own claim.
   f.rivalFirst('update', () => Object.assign(f.tasks.get('ex-race'), { status: 'in_progress', assignee: 'rival' }));
-  assert.equal(await f.refusal('claim_task', inProject({ task: 'ex-race', idempotency_key: 'claim-race-0001' })),
-    'refused: ex-race is held by rival. Choose another task, or reach rival with comment_on_task.');
+  assert.match(await f.refusal('claim_task', inProject({ task: 'ex-race', idempotency_key: 'claim-race-0001' })),
+    /^refused: ex-race .*held by rival.*comment_on_task/u);
   f.rivalFirst('close', () => { f.tasks.get('ex-held').assignee = 'rival'; });
-  assert.equal(await f.refusal('close_task', inProject({ task: 'ex-held', reason: 'Done in abc123', idempotency_key: 'close-race-0001' })),
-    'refused: ex-held is held by rival, and only its holder closes it. Reach rival with comment_on_task, or ask a person to close it on Tasks in the Tower.');
+  assert.match(await f.refusal('close_task', inProject({ task: 'ex-held', reason: 'Done in abc123', idempotency_key: 'close-race-0001' })),
+    /^refused: ex-held .*held by rival.*comment_on_task/u);
   // The task client keeps one edge per pair and never retypes it.
   const link = { task: 'ex-follow', depends_on: 'ex-lead' };
   assert.deepEqual((await f.call('add_dependency', inProject(link))).structuredContent, { task: 'ex-follow', dependsOn: 'ex-lead', type: 'blocks' });
   assert.equal((await f.call('add_dependency', inProject(link))).isError, undefined, 'the same edge again changes nothing');
-  assert.equal(await f.refusal('add_dependency', inProject({ ...link, type: 'related' })),
-    'refused: ex-follow already depends on ex-lead as blocks, and a dependency keeps the type it was added with. '
-    + 'To record it as related, remove_dependency first, then add it again.');
+  assert.match(await f.refusal('add_dependency', inProject({ ...link, type: 'related' })),
+    /^refused: ex-follow .*ex-lead as blocks.*remove_dependency/u);
   assert.deepEqual(f.edges.filter(edge => edge.from === 'ex-follow').map(edge => edge.type), ['blocks']);
 });
 

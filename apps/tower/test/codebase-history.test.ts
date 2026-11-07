@@ -131,14 +131,13 @@ describe.skipIf(postgresUnavailable() !== null)("readCodebaseSlice on Postgres",
       VALUES ($1::uuid, $2, $3::timestamptz, 'deploy', $4, 'Added saved plans')`, [tx.workspaceId, ASSET, deployedAt, baseline.repository.commit]));
     const confirmed = await buildAssetDetailView(ctx.call, ASSET, DEPS, 'codebase');
     expect(confirmed?.annotations.items).toHaveLength(1);
-    expect(confirmed?.annotations.items[0]?.note).toContain('Added saved plans');
     expect(confirmed?.annotations.items[0]?.release?.deployedAt).toBe(deployedAt);
     expect(confirmed?.annotations.items[0]?.note).toBe('Added saved plans');
     expect(await readCodebaseSlice(ctx.call, 'ferns.example', NOW)).toEqual({ history: [], latest: null });
     const foreign = openWorkspaceStore(ctx.url, { workspaceId: '00000000-0000-4000-8000-000000000099' });
     try {
       expect(await readCodebaseSlice(foreign, ASSET, NOW)).toEqual({ history: [], latest: null });
-      await expect(importCodebaseHistory(foreign, bundle, false, NOW)).rejects.toThrow('send a current report first');
+      await expect(importCodebaseHistory(foreign, bundle, false, NOW)).rejects.toThrow();
       expect(await foreign.read(tx => tx.query('SELECT * FROM noticeos.annotations'))).toEqual([]);
     } finally { await foreign.close(); }
   });

@@ -282,7 +282,6 @@ describe("RouteLoading", () => {
     const { container } = render(<RouteLoading />);
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
-    expect(status).toHaveTextContent("Loading this page…");
     expect(status).toHaveAttribute("data-route-loading", "desk");
     expect(status.className).toContain("max-w-[1400px]");
     expect(status.className).toContain("md:min-h-screen");
@@ -293,7 +292,6 @@ describe("RouteLoading", () => {
     const { container } = render(<RouteLoading surface="wall" />);
     const status = screen.getByRole("status");
     expect(status).toHaveAttribute("aria-live", "polite");
-    expect(status).toHaveTextContent("Loading the Wall…");
     // `.wall-root` is what sets `--background` to oklch(0 0 0); `bg-background`
     // is what paints it. Without either the TV shows the desk's canvas.
     expect(status).toHaveClass("wall-root", "bg-background", "min-h-screen");

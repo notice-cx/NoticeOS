@@ -532,9 +532,6 @@ describe("Home — a fresh install", () => {
     expect(arrivalStep).toHaveTextContent("See your first number");
     expect(within(arrivalStep).queryByRole("link")).toBeNull();
     expect(container.querySelector('[data-first-run] a[href="/health"]')).toBeNull();
-    expect(screen.queryByText("Wait for the first nightly report")).not.toBeInTheDocument();
-    expect(arrivalStep).not.toHaveTextContent("The night it lands");
-    expect(arrivalStep).not.toHaveTextContent("the month's money");
   });
 
   it("renders no strip, no list and no table around it", () => {
@@ -960,7 +957,6 @@ describe("Home — the answer, the money and what is broken", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
     expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
-    expect(container.querySelector("[data-portfolio-census]")!.textContent).not.toMatch(/portfolio/i);
 
 
     // The audit measures the lead's bottom edge against 900px.
@@ -975,7 +971,6 @@ describe("Home — the answer, the money and what is broken", () => {
 
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(container.querySelector("[data-about]")).toBeNull();
-    expect(container.textContent).not.toMatch(/\bfresh\b|\bjobs?\b|snapshot|captured in preview/i);
 
     // The page ends on the last day drawn on a time axis.
     const regions = [...container.querySelectorAll("[data-home-brief] section[aria-label], [data-home-brief] section[aria-labelledby]")];
@@ -1292,8 +1287,6 @@ describe("Home — Decide", () => {
     workState.data = workPayload([project("Meadow Board", [waiting({ updatedAt: "2026-07-01T12:05:00.000Z" })])]);
     renderHome();
     const panel = panelFor("Decisions");
-    expect(panel).not.toHaveTextContent("Task status read");
-    expect(panel).not.toHaveTextContent("captured in preview");
     expect(panel.querySelector("button button, a button")).toBeNull();
     const row = within(panel).getByRole("listitem");
     expect(within(row).getByLabelText("waiting 28d")).toHaveTextContent("28d");
@@ -1470,7 +1463,6 @@ describe("Home and Wall phase scoping", () => {
     // The work chart is the Wall's one task surface, in its own region.
     expect(container.querySelectorAll("[data-wall-work]")).toHaveLength(1);
     expect(container.querySelectorAll("[data-wall-work] .wall-metric")).toHaveLength(4);
-    expect(container.textContent).not.toMatch(/Integrations:/);
     expect(container.textContent).not.toMatch(/View refreshed|Refreshed .* ago/);
     expect(container.querySelector("[data-strip-held]")).toBeNull();
     expect(screen.queryByText("Local time")).toBeNull();

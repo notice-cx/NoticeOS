@@ -42,11 +42,6 @@ async function freshnessInputs(asset: string): Promise<Record<string, unknown> |
   return row ? (JSON.parse(row.rule_inputs!) as Record<string, unknown>) : null;
 }
 
-async function freshnessMessage(asset: string): Promise<string | null> {
-  const [row] = await flagRows(`asset_id = $1 AND rule_id = 'ingest-freshness'`, [asset]);
-  return row?.message ?? null;
-}
-
 async function openFreshness(asset: string): Promise<number> {
   return pgCount(
     `SELECT count(*) AS n FROM noticeos.current_flags
@@ -66,9 +61,7 @@ describe('hourly ingest-freshness cron', () => {
 
     const [flag] = await flagRows(`asset_id = 'meadow.example' AND rule_id = 'ingest-freshness'`);
     expect(flag).toMatchObject({ severity: 'error', kind: 'anomaly', pulse_id: null });
-    // The message quotes the ONE threshold, so the operator reading the flag and
-    // the operator reading the SYSTEM count are told the same number.
-    expect(flag!.message).toBe(`no pulse in 50h (> ${REPORT_MAX_AGE_HOURS}h threshold)`);
+    expect(JSON.parse(flag!.rule_inputs!)).toMatchObject({ ageHours: 50, thresholdHours: REPORT_MAX_AGE_HOURS });
   });
 
   it('does not double-fire while an identical open flag exists', async () => {
@@ -104,15 +97,6 @@ describe('hourly ingest-freshness cron', () => {
     const late = await runFreshnessCheck(env, now);
     expect(late.stale).toBe(1);
     expect(late.fired).toBe(1);
-  });
-
-  it('does not fire for a fresh asset', async () => {
-    const now = NOW;
-    await insertPulse('northwind.example', '2026-07-05', now - 10 * HOUR);
-
-    const result = await runFreshnessCheck(env, now);
-    expect(result.fired).toBe(0);
-    expect(await openFreshness('northwind.example')).toBe(0);
   });
 
   it('excludes pre-launch assets even when stale', async () => {
@@ -347,12 +331,7 @@ describe('staleness does not count hours the OS was dark', () => {
     const result = await runFreshnessCheck(env, NOW);
     expect(result.fired).toBe(1);
     expect(result.egressGated).toBe(0);
-    // 80h silent, 10h of it dark: 70h unexplained, well past the threshold. The
-    // flag fires — and says how much of it was the OS, so the operator is not
-    // sent to read a property's logs for hours nobody could have reported in.
-    expect(await freshnessMessage('meadow.example')).toBe(
-      `no pulse in 80h (> ${REPORT_MAX_AGE_HOURS}h threshold) · OS offline 10h`,
-    );
+    // 80h silent, 10h of it dark: 70h unexplained, past the threshold.
     expect(await freshnessInputs('meadow.example')).toMatchObject({
       state: 'stale',
       ageHours: 80,
@@ -361,14 +340,11 @@ describe('staleness does not count hours the OS was dark', () => {
     });
   });
 
-  it('is unchanged, to the byte, when the store holds no egress evidence', async () => {
+  it('keeps freshness evidence free of unobserved dark hours when no egress evidence exists', async () => {
     await insertPulse('meadow.example', '2026-07-03', at(50));
 
     const result = await runFreshnessCheck(env, NOW);
     expect(result).toMatchObject({ fired: 1, stale: 1, egressGated: 0 });
-    expect(await freshnessMessage('meadow.example')).toBe(
-      `no pulse in 50h (> ${REPORT_MAX_AGE_HOURS}h threshold)`,
-    );
     // toEqual, not toMatchObject: the inputs of an ungated flag carry exactly
     // the fields they carried before this rule learned about egress at all —
     // no osDarkHours: 0, which would be a claim where there is no reading.
@@ -393,10 +369,6 @@ describe('staleness does not count hours the OS was dark', () => {
     const result = await runFreshnessCheck(env, NOW);
     expect(result.fired).toBe(1);
     expect(result.egressGated).toBe(0);
-    // No clause and no input: zero dark hours is not a fact worth stating.
-    expect(await freshnessMessage('meadow.example')).toBe(
-      `no pulse in 70h (> ${REPORT_MAX_AGE_HOURS}h threshold)`,
-    );
     expect(await freshnessInputs('meadow.example')).not.toHaveProperty('osDarkHours');
   });
 

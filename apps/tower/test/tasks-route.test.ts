@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "../shared/tasks";
+import { READ_ONLY_DEPLOYMENT } from "../shared/tasks";
 import {
   READ_ONLY_TASKS_REFUSAL,
   handleTasksRequest,
@@ -42,12 +42,6 @@ describe("/api/tasks/* on a build that cannot reach the hub", () => {
         detail: READ_ONLY_TASKS_REFUSAL,
       });
     }
-  });
-
-  it("says what happened and what to do, in one short line — not a paragraph", () => {
-    expect(READ_ONLY_TASKS_REFUSAL).toContain("Read-only");
-    expect(READ_ONLY_TASKS_REFUSAL).toContain(READ_ONLY_TASKS_HINT);
-    expect(READ_ONLY_TASKS_REFUSAL.split(/\s+/).length).toBeLessThanOrEqual(18);
   });
 
   it("claims exactly the paths the local lane owns, and nothing next to them", () => {

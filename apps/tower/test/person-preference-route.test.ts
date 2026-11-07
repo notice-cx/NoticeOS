@@ -1,3 +1,4 @@
+// @vitest-environment node
 // A hosted person's own view: read back the newest save for this person in
 // this workspace, save one row per PUT, refuse a body that is not a view
 // choice, and answer nobody but a signed-in person. Standalone and the demo

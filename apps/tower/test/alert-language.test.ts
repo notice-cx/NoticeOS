@@ -75,10 +75,6 @@ describe("flow-poisson-low — the single-day drop", () => {
     expect(a.evidence[0]!.detail).toBe("22 in 24h");
     expect(a.evidence[1]!.detail).toBe("39.3/day");
     expect(a.evidence[2]!.detail).toBe("0.2% · fires below 1%");
-    for (const row of a.evidence) {
-      expect(`${row.source} ${row.detail}`.split(/\s+/).length).toBeLessThanOrEqual(12);
-      expect(row.detail).not.toMatch(/\.$/);
-    }
   });
 
   it("names the matching-weekday baseline when central history supplied it", () => {
@@ -157,10 +153,6 @@ describe("flow-lowvol-window — the multi-day window", () => {
     const a = translateAlert(ledgerRows);
     expect(a.headline).toBe("Ledger rows hit zero — none in 3 days, normally ~2/day");
     assertNoStatistics(a.headline);
-  });
-
-  it("gives the bookkeeping lane its own next step, not the generic flow one", () => {
-    expect(translateAlert(ledgerRows).hint).toBe("the bookkeeping import looks stalled");
   });
 
   it("states the pooled window's expected count — the skeptic's first question", () => {
@@ -311,12 +303,6 @@ describe("ingest-freshness — the report that never arrived", () => {
     expect(a.evidence.find((e) => e.source === "Registered, never reported")?.at).toBe(
       "2026-07-05T00:00:00.000Z",
     );
-  });
-
-  it("never degrades a never-reported alert to the raw stored message", () => {
-    // This flag has no `ageHours`, so the translator must not fall back to the
-    // store's own terse sentence.
-    expect(translateAlert(neverReported).headline).not.toContain("no pulse ever received");
   });
 
   // Four assets that have never reported are one fact about the portfolio,

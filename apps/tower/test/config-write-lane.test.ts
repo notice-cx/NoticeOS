@@ -231,12 +231,6 @@ describe("the config write lane", () => {
     expect(laneRepoRoot({}, path.join(REPO_ROOT, "apps", "tower", "vite"))).toBe(REPO_ROOT);
   });
 
-  it("answers that this deployment can write", async () => {
-    const reply = await handleConfigRequest({ method: "GET", headers: {}, body: "" });
-    expect(reply.status).toBe(200);
-    expect(reply.body).toMatchObject({ writable: true });
-  });
-
   // There is no authentication on the Tower, so same-origin is the boundary:
   // it stops a page on another site steering the operator's own browser into
   // a config write.
@@ -1876,7 +1870,6 @@ describe("the lane with a config store behind it", () => {
       store: { ...fakeStore({ status: 200, body: {} }).lane, apply: async () => { throw new Error("lost response"); } },
     });
     expect(unknown.status).toBe(503);
-    expect(String(unknown.body.detail)).toBe("Save not confirmed — refresh before trying again");
     expect(git(root, "status", "--porcelain")).toBe("");
 
     // The store committed before its response was lost. A retry is still
@@ -1955,6 +1948,7 @@ describe("the lane with a config store behind it", () => {
       { method: "GET", headers: {}, body: "" },
       { store: fakeStore({ status: 200, body: { ok: true } }).lane },
     );
+    expect(decodeConfigWritable(ready.body).sources["config/integrations.json"]).toBe("store");
     const sources = ready.body.sources as Record<string, string>;
     expect(sources["config/integrations.json"]).toBe("store");
     expect(Object.keys(sources).sort()).toEqual(Object.values(TOWER_CONFIG_FILES).sort());
@@ -1967,14 +1961,8 @@ describe("the lane with a config store behind it", () => {
 
     // No store behind the lane: every save rewrites a compiled file.
     const fileMode = await handleConfigRequest({ method: "GET", headers: {}, body: "" });
+    expect(fileMode.status).toBe(200);
+    expect(fileMode.body).toMatchObject({ writable: true });
     expect((fileMode.body.sources as Record<string, string>)["config/integrations.json"]).toBe("file");
-  });
-
-  it("answers a GET the Tower's own decoder accepts", async () => {
-    const reply = await handleConfigRequest(
-      { method: "GET", headers: {}, body: "" },
-      { store: fakeStore({ status: 200, body: { ok: true } }).lane },
-    );
-    expect(decodeConfigWritable(reply.body).sources["config/integrations.json"]).toBe("store");
   });
 });

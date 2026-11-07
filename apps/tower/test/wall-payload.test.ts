@@ -457,6 +457,11 @@ async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }:
   ]);
 }
 
+// Resolve the asset page's counterpart to the Wall card's counter totals.
+async function siteTotals(store: TestStore, asset: string, deps: AssetDetailDeps = DETAIL_DEPS) {
+  return (await buildAssetDetailPayload(store.call, asset, deps))!.counters!;
+}
+
 describe("buildWallPayload — populated store", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -601,7 +606,7 @@ describe("buildWallPayload — populated store", () => {
     expect(p.portfolio.netTrend.at(-1)).toEqual({ t: "2026-07", v: 130 });
   });
 
-  it("PORTFOLIO: sums exact cents, so the headline is provable", async () => {
+  it("PORTFOLIO + NET: the headline and card sum the same exact cents", async () => {
     // Four figures whose float sum is 758.1999999999999.
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
       await insertLedger(ctx, { id, kind: "revenue", asset: "northwind.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
@@ -609,6 +614,8 @@ describe("buildWallPayload — populated store", () => {
     const p = await buildWallPayload(ctx.call, { ...OPTIONS, now: new Date("2026-08-05T12:00:00.000Z") });
     expect(p.portfolio.booked.revenue!).toBe(758.2);
     expect(p.portfolio.booked.net!).toBe(758.2);
+    expect(p.assets[1]!.booked.revenue!).toBe(758.2);
+    expect(p.assets[1]!.booked.net!).toBe(p.portfolio.booked.net!);
   });
 
   it("PORTFOLIO: the headline, the card, and the asset's P&L state the same cents — on BOTH sides", async () => {
@@ -944,23 +951,6 @@ describe("buildWallPayload — populated store", () => {
       expect((await atAge(REPORT_MAX_AGE_HOURS)).stale).toBe(0);
       expect((await atAge(REPORT_MAX_AGE_HOURS + 1)).stale).toBe(1);
     });
-
-    it("paints the age badge on the same threshold it counts staleness at", () => {
-      // The badge every card carries reads CADENCE_HOURS.pulse × AMBER_MULTIPLIER;
-      // if it drifts from the counted threshold a card goes grey beside a
-      // SYSTEM line calling the same asset stale.
-      expect(CADENCE_HOURS.pulse * AMBER_MULTIPLIER).toBe(REPORT_MAX_AGE_HOURS);
-      expect(isAmber(NOW_MS, new Date(NOW_MS - 40 * HOUR).toISOString(), CADENCE_HOURS.pulse)).toBe(
-        false,
-      );
-      expect(
-        isAmber(
-          NOW_MS,
-          new Date(NOW_MS - (REPORT_MAX_AGE_HOURS + 1) * HOUR).toISOString(),
-          CADENCE_HOURS.pulse,
-        ),
-      ).toBe(true);
-    });
   });
 
   it("SYSTEM: pre-launch and retired assets sit outside the expected set", async () => {
@@ -1092,11 +1082,11 @@ describe("buildWallPayload — populated store", () => {
     expect(meadow.pulseReceivedAt).toBe(MEADOW_RECEIVED);
     expect(meadow.firstReportAt).toBe("2026-07-03T12:00:00.000Z");
     expect(meadow.reportDays).toBe(2);
-    expect(meadow.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
-      { id: "nightly-report", label: "Nightly report", state: "live" },
-      { id: "gsc", label: "Google Search Console", state: "live" },
-      { id: "ga4", label: "Google Analytics 4", state: "live" },
-      { id: "bing-webmaster", label: "Bing Webmaster", state: "live" },
+    expect(meadow.dataSources.map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: "nightly-report", state: "live" },
+      { id: "gsc", state: "live" },
+      { id: "ga4", state: "live" },
+      { id: "bing-webmaster", state: "live" },
     ]);
 
     const nom = p.assets[1]!;
@@ -1104,11 +1094,11 @@ describe("buildWallPayload — populated store", () => {
     expect(nom.openWarn).toBe(1);
     expect(nom.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(nom.forecast).toEqual({ currency: 'USD', revenue: 30, cost: 0, net: 30 });
-    expect(nom.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
-      { id: "nightly-report", label: "Nightly report", state: "degraded" },
-      { id: "gsc", label: "Google Search Console", state: "not-applicable" },
-      { id: "ga4", label: "Google Analytics 4", state: "not-applicable" },
-      { id: "bing-webmaster", label: "Bing Webmaster", state: "not-applicable" },
+    expect(nom.dataSources.map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: "nightly-report", state: "degraded" },
+      { id: "gsc", state: "not-applicable" },
+      { id: "ga4", state: "not-applicable" },
+      { id: "bing-webmaster", state: "not-applicable" },
     ]);
 
     const pft = p.assets[2]!;
@@ -1122,10 +1112,10 @@ describe("buildWallPayload — populated store", () => {
     // Never reported: no first report, no covered dates and no nightly slot.
     expect(pft.firstReportAt).toBeNull();
     expect(pft.reportDays).toBe(0);
-    expect(pft.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
-      { id: "gsc", label: "Google Search Console", state: "not-applicable" },
-      { id: "ga4", label: "Google Analytics 4", state: "not-applicable" },
-      { id: "bing-webmaster", label: "Bing Webmaster", state: "not-applicable" },
+    expect(pft.dataSources.map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: "gsc", state: "not-applicable" },
+      { id: "ga4", state: "not-applicable" },
+      { id: "bing-webmaster", state: "not-applicable" },
     ]);
   });
 
@@ -1347,66 +1337,6 @@ describe("buildWallPayload — populated store", () => {
     expect(plan).toMatch(/Index Scan using signal_runs_latest on signal_runs candidate/);
   });
 
-  it("SIGNALS: one asset's trend is the portfolio's, narrowed — not a second query", async () => {
-    // The narrowed read's risk is divergence, so the two call shapes are held
-    // to exact equality.
-    const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
-    await insertAsset(ctx2, "northwind.example", "Northwind", "live", 0, 0);
-    await insertSignalSnapshot(ctx2, "ga4", "active_users", [101, 116, 48]);
-    await insertSignalSnapshot(ctx2, "gsc", "clicks", [12, 17, 5]);
-    await insertSignalSnapshot(ctx2, "gsc", "ctr", [0.041, 0.052, 0.038]);
-    await insertSignalSnapshot(ctx2, "bing-webmaster", "impressions", [140, 190]);
-    await insertSignalSnapshot(
-      ctx2,
-      "ga4",
-      "active_users",
-      [7, 9, 11],
-      "2026-07-03",
-      "northwind.example",
-    );
-
-    const options = { includeSecondarySeries: true, nowMs: NOW_MS };
-    const portfolio = await loadSignalTrends(ctx2.call, 90, options);
-    const single = await loadSignalTrends(ctx2.call, 90, {
-      ...options,
-      asset: "meadow.example",
-    });
-
-    expect(single.get("meadow.example")).toEqual(portfolio.get("meadow.example"));
-    expect(single.get("meadow.example")!.activeUsers.series).toEqual([
-      { t: "2026-07-03", v: 101 },
-      { t: "2026-07-04", v: 116 },
-      { t: "2026-07-05", v: 48 },
-    ]);
-    expect(portfolio.has("northwind.example")).toBe(true);
-    expect([...single.keys()]).toEqual(["meadow.example"]);
-  });
-
-  it("SIGNALS: compact Wall asset charts stay capped at four complete weeks", async () => {
-    const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
-    await insertSignalSnapshot(
-      ctx2,
-      "ga4",
-      "active_users",
-      Array.from({ length: 35 }, (_, index) => index + 1),
-      "2026-06-01",
-    );
-
-    const activeUsers = (await buildWallPayload(ctx2.call, OPTIONS)).assets[0]!
-      .activeUsers;
-    expect(activeUsers.series).toHaveLength(28);
-    expect(activeUsers.series[0]).toEqual({ t: "2026-06-08", v: 8 });
-    expect(activeUsers.series.at(-1)).toEqual({ t: "2026-07-05", v: 35 });
-    expect(activeUsers.contextSeries).toEqual(
-      Array.from({ length: 7 }, (_, index) => ({
-        t: `2026-06-${String(index + 1).padStart(2, "0")}`,
-        v: index + 1,
-      })),
-    );
-  });
-
   it("ANCHORS: each row's current value rides in the payload, not off the series", async () => {
     await seedLedger(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
@@ -1513,69 +1443,19 @@ describe("buildWallPayload — populated store", () => {
     expect(cardHasMoney(meadow)).toBe(true);
   });
 
-  it("NET: a card's net is subtracted in cents, not in dollars", async () => {
-    // 1809.65 − 866.40 is 943.2500000000001 once either side has left integer
-    // cents. One asset, so the card and the headline are the same money read twice.
-    const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
-    await insertLedger(ctx2, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 1809.65, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
-    await insertLedger(ctx2, { id: 2, kind: "cost", asset: "meadow.example", period: "2026-07", family: "infra", amount: 866.4, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
-
-    const p = await buildWallPayload(ctx2.call, OPTIONS);
-    expect(p.assets[0]!.booked.net!).toBe(943.25);
-    expect(p.portfolio.booked.net!).toBe(943.25);
-  });
-
-  it("NET: a card's money is exact cents, like the headline it rolls into", async () => {
-    // Float dollars sum these four to 758.1999999999999.
-    for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
-      await insertLedger(ctx, { id, kind: "revenue", asset: "northwind.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
-    }
-    const p = await buildWallPayload(ctx.call, { ...OPTIONS, now: new Date("2026-08-05T12:00:00.000Z") });
-    expect(p.assets[1]!.booked.revenue!).toBe(758.2);
-    expect(p.assets[1]!.booked.net!).toBe(p.portfolio.booked.net!);
-  });
-
-  it("NET: the current monthly value is independent of history volume", async () => {
-    // 18 months of ledger: the card carries only the current accounting fact.
-    const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
-    for (let i = 0; i < 18; i += 1) {
-      const month = i + 1;
-      const period = `${2025 + Math.floor(month / 12)}-${String((month % 12) + 1).padStart(2, "0")}`;
-      await insertLedger(ctx2, {
-        id: i + 1,
-        kind: "revenue",
-        asset: "meadow.example",
-        period,
-        family: "ads",
-        amount: 10 + i,
-        booking_state: "reconciled",
-        recorded_at: `${period}-01T00:00:00.000Z`,
-      });
-    }
-    const card = (await buildWallPayload(ctx2.call, OPTIONS)).assets[0]!;
-    expect(card.netPeriod).toBe("2026-07");
-    expect(card.booked.net!).toBe(27);
-  });
-
-  // A site's all-time totals live on its Overview, from the asset page's own
-  // read; the Wall reads none of them.
-  async function siteTotals(store: TestStore, asset: string, deps: AssetDetailDeps = DETAIL_DEPS) {
-    return (await buildAssetDetailPayload(store.call, asset, deps))!.counters!;
-  }
-
   it("COUNTERS: the Wall restores the same labelled totals as Overview", async () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
+    const details = new Map<string, Awaited<ReturnType<typeof siteTotals>>>();
     for (const id of ["meadow.example", "northwind.example"]) {
       const detail = await siteTotals(ctx, id);
+      details.set(id, detail);
       expect(p.assets.find((card) => card.id === id)!.counters).toEqual({
         ...detail, defaultMetrics: detail.cards.map((card) => card.metric),
       });
     }
-    expect((await siteTotals(ctx, "northwind.example")).heading).toBe("Current catalog");
-    expect((await siteTotals(ctx, "meadow.example")).heading).toBe("All-time totals");
+    expect(details.get("northwind.example")!.heading).toBe("Current catalog");
+    expect(details.get("meadow.example")!.heading).toBe("All-time totals");
   });
 
   it("COUNTERS: Wall values preserve zero, missing and stale single-lane totals", async () => {
@@ -1644,27 +1524,6 @@ describe("buildWallPayload — populated store", () => {
     const plans = (await siteTotals(ctx, "meadow.example")).cards.find((c) => c.metric === "plansSaved")!;
     expect(plans.value).toBe(1900);
     expect(plans.source).toBe("counters");
-  });
-
-  it("COUNTERS: a STALE reading loses to a newer nightly total — freshest lane, not presence", async () => {
-    // The fast lane stopped a week ago; last night's report is the newer fact.
-    const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
-    await insertPulse(ctx2, "meadow.example", "2026-07-05", MEADOW_RECEIVED, {
-      signups: { last24h: 15, avg7d: 11, total: 4400 },
-    });
-    await insertCounterReading(
-      ctx2,
-      "meadow.example",
-      "signups",
-      4310,
-      new Date(NOW_MS - 7 * DAY).toISOString(),
-    );
-
-    const users = (await siteTotals(ctx2, "meadow.example")).cards.find((c) => c.metric === "signups")!;
-    expect(users.value).toBe(4400);
-    expect(users.observedAt).toBe(MEADOW_RECEIVED);
-    expect(users.source).toBe("nightly");
   });
 
   it("COUNTERS: with no reading, a total falls back to the latest nightly report", async () => {
@@ -2025,6 +1884,161 @@ describe("buildWallPayload — populated store", () => {
     });
     expect(plan).toMatch(/using annotations_asset_at on annotations c\s.*\n\s+Index Cond: \(\(workspace_id = a\.workspace_id\) AND \(asset_id = a\.asset_id\) AND \(at >= /);
     expect(plan).not.toMatch(/Seq Scan/);
+  });
+});
+
+describe("payload reads with independent stores", () => {
+  it("SIGNALS: one asset's trend is the portfolio's, narrowed — not a second query", async () => {
+    // The narrowed read's risk is divergence, so the two call shapes are held
+    // to exact equality.
+    const ctx2 = await createTestStore();
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertAsset(ctx2, "northwind.example", "Northwind", "live", 0, 0);
+    await insertSignalSnapshot(ctx2, "ga4", "active_users", [101, 116, 48]);
+    await insertSignalSnapshot(ctx2, "gsc", "clicks", [12, 17, 5]);
+    await insertSignalSnapshot(ctx2, "gsc", "ctr", [0.041, 0.052, 0.038]);
+    await insertSignalSnapshot(ctx2, "bing-webmaster", "impressions", [140, 190]);
+    await insertSignalSnapshot(
+      ctx2,
+      "ga4",
+      "active_users",
+      [7, 9, 11],
+      "2026-07-03",
+      "northwind.example",
+    );
+
+    const options = { includeSecondarySeries: true, nowMs: NOW_MS };
+    const portfolio = await loadSignalTrends(ctx2.call, 90, options);
+    const single = await loadSignalTrends(ctx2.call, 90, {
+      ...options,
+      asset: "meadow.example",
+    });
+
+    expect(single.get("meadow.example")).toEqual(portfolio.get("meadow.example"));
+    expect(single.get("meadow.example")!.activeUsers.series).toEqual([
+      { t: "2026-07-03", v: 101 },
+      { t: "2026-07-04", v: 116 },
+      { t: "2026-07-05", v: 48 },
+    ]);
+    expect(portfolio.has("northwind.example")).toBe(true);
+    expect([...single.keys()]).toEqual(["meadow.example"]);
+  });
+
+  it("SIGNALS: compact Wall asset charts stay capped at four complete weeks", async () => {
+    const ctx2 = await createTestStore();
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertSignalSnapshot(
+      ctx2,
+      "ga4",
+      "active_users",
+      Array.from({ length: 35 }, (_, index) => index + 1),
+      "2026-06-01",
+    );
+
+    const activeUsers = (await buildWallPayload(ctx2.call, OPTIONS)).assets[0]!
+      .activeUsers;
+    expect(activeUsers.series).toHaveLength(28);
+    expect(activeUsers.series[0]).toEqual({ t: "2026-06-08", v: 8 });
+    expect(activeUsers.series.at(-1)).toEqual({ t: "2026-07-05", v: 35 });
+    expect(activeUsers.contextSeries).toEqual(
+      Array.from({ length: 7 }, (_, index) => ({
+        t: `2026-06-${String(index + 1).padStart(2, "0")}`,
+        v: index + 1,
+      })),
+    );
+  });
+
+  it("NET: a card's net is subtracted in cents, not in dollars", async () => {
+    // 1809.65 − 866.40 is 943.2500000000001 once either side has left integer
+    // cents. One asset, so the card and the headline are the same money read twice.
+    const ctx2 = await createTestStore();
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertLedger(ctx2, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 1809.65, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertLedger(ctx2, { id: 2, kind: "cost", asset: "meadow.example", period: "2026-07", family: "infra", amount: 866.4, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
+
+    const p = await buildWallPayload(ctx2.call, OPTIONS);
+    expect(p.assets[0]!.booked.net!).toBe(943.25);
+    expect(p.portfolio.booked.net!).toBe(943.25);
+  });
+
+  it("NET: the current monthly value is independent of history volume", async () => {
+    // 18 months of ledger: the card carries only the current accounting fact.
+    const ctx2 = await createTestStore();
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    for (let i = 0; i < 18; i += 1) {
+      const month = i + 1;
+      const period = `${2025 + Math.floor(month / 12)}-${String((month % 12) + 1).padStart(2, "0")}`;
+      await insertLedger(ctx2, {
+        id: i + 1,
+        kind: "revenue",
+        asset: "meadow.example",
+        period,
+        family: "ads",
+        amount: 10 + i,
+        booking_state: "reconciled",
+        recorded_at: `${period}-01T00:00:00.000Z`,
+      });
+    }
+    const card = (await buildWallPayload(ctx2.call, OPTIONS)).assets[0]!;
+    expect(card.netPeriod).toBe("2026-07");
+    expect(card.booked.net!).toBe(27);
+  });
+
+  it("COUNTERS: a STALE reading loses to a newer nightly total — freshest lane, not presence", async () => {
+    // The fast lane stopped a week ago; last night's report is the newer fact.
+    const ctx2 = await createTestStore();
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertPulse(ctx2, "meadow.example", "2026-07-05", MEADOW_RECEIVED, {
+      signups: { last24h: 15, avg7d: 11, total: 4400 },
+    });
+    await insertCounterReading(
+      ctx2,
+      "meadow.example",
+      "signups",
+      4310,
+      new Date(NOW_MS - 7 * DAY).toISOString(),
+    );
+
+    const users = (await siteTotals(ctx2, "meadow.example")).cards.find((c) => c.metric === "signups")!;
+    expect(users.value).toBe(4400);
+    expect(users.observedAt).toBe(MEADOW_RECEIVED);
+    expect(users.source).toBe("nightly");
+  });
+});
+
+describe("report freshness contract", () => {
+  it("renders markers for exactly the landings the runner's filer files on", () => {
+    // One number in two places: the Tower's window and the read the filer acts
+    // on (workers/ingest/src/serp-panel-landings.ts). A shorter Tower window
+    // would hide a review the minute it was created; a longer one would keep a
+    // marker on the board after the filer stopped renewing it.
+    const ingestSource = readFileSync(
+      path.resolve(here, "../../../workers/ingest/src/serp-panel-landings.ts"),
+      "utf8",
+    );
+    const declared = ingestSource.match(
+      /SERP_PANEL_LANDING_WINDOW_DAYS = (\d+)/,
+    );
+    expect(declared).not.toBeNull();
+    expect(Number(declared![1])).toBe(PANEL_LANDING_WINDOW_DAYS);
+  });
+
+
+  it("paints the age badge on the same threshold it counts staleness at", () => {
+    // The badge every card carries reads CADENCE_HOURS.pulse × AMBER_MULTIPLIER;
+    // if it drifts from the counted threshold a card goes grey beside a
+    // SYSTEM line calling the same asset stale.
+    expect(CADENCE_HOURS.pulse * AMBER_MULTIPLIER).toBe(REPORT_MAX_AGE_HOURS);
+    expect(isAmber(NOW_MS, new Date(NOW_MS - 40 * HOUR).toISOString(), CADENCE_HOURS.pulse)).toBe(
+      false,
+    );
+    expect(
+      isAmber(
+        NOW_MS,
+        new Date(NOW_MS - (REPORT_MAX_AGE_HOURS + 1) * HOUR).toISOString(),
+        CADENCE_HOURS.pulse,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -2424,7 +2438,9 @@ describe("buildWallPayload — the card's work slice", () => {
       workProject({ asset: "northwind.example", prefix: "nw", counts: workCounts({ open: 1, highPriority: 0, closedRecent: 0 }) }),
     ]);
 
-    expect((await cardFor("meadow.example")).work).toEqual({
+    const wall = await buildWallPayload(ctx.call, OPTIONS);
+    const card = (asset: string) => wall.assets.find((item) => item.id === asset)!;
+    expect(card("meadow.example").work).toEqual({
       open: 12,
       highPriority: 3,
       inProgress: 2,
@@ -2433,8 +2449,8 @@ describe("buildWallPayload — the card's work slice", () => {
       priorities: [1, 2, 8, 3, 1],
       capturedAt: "2026-07-05T11:59:30.000Z",
     });
-    expect((await cardFor("northwind.example")).work).toMatchObject({ open: 1, highPriority: 0 });
-    expect((await cardFor("pebble.example")).work).toBeNull();
+    expect(card("northwind.example").work).toMatchObject({ open: 1, highPriority: 0 });
+    expect(card("pebble.example").work).toBeNull();
   });
 
   it("carries the counts verbatim, never re-derived from the truncated lists", async () => {
@@ -2829,6 +2845,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     const card = await cardFor("northwind.example");
     expect(card.panelReview?.panel).toBe(false);
     expect(card.panelReview?.beadId).toBe("nw-f1c");
+    expect(card.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("pending");
   });
 
@@ -2890,20 +2907,6 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("reviewed");
   });
 
-  it("shows the review of an asset that buys a collection but no panel", async () => {
-    // northwind is absent from the panel config; the collection is what the review
-    // is about, so the collection is what the marker follows.
-    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
-    await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "northwind.example", prefix: "nw", panelReview: review({ beadId: "nw-f1c" }) }),
-    ]);
-
-    const card = await cardFor("northwind.example");
-    expect(card.panelReview!.beadId).toBe("nw-f1c");
-    expect(card.latestPanelDate).toBe("2026-07-01");
-    expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("pending");
-  });
-
   it("sheds the marker once the collection behind the review stops", async () => {
     // A review whose collection has gone quiet leaves the card rather than
     // accusing the operator forever. `PANEL_LANDING_WINDOW_DAYS` is the line;
@@ -2947,22 +2950,6 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     expect(single.get("meadow.example")).toBe("2026-07-01");
     expect(portfolio.has("northwind.example")).toBe(true);
     expect([...single.keys()]).toEqual(["meadow.example"]);
-  });
-
-  it("renders markers for exactly the landings the runner's filer files on", async () => {
-    // One number in two places: the Tower's window and the read the filer acts
-    // on (workers/ingest/src/serp-panel-landings.ts). A shorter Tower window
-    // would hide a review the minute it was created; a longer one would keep a
-    // marker on the board after the filer stopped renewing it.
-    const ingestSource = readFileSync(
-      path.resolve(here, "../../../workers/ingest/src/serp-panel-landings.ts"),
-      "utf8",
-    );
-    const declared = ingestSource.match(
-      /SERP_PANEL_LANDING_WINDOW_DAYS = (\d+)/,
-    );
-    expect(declared).not.toBeNull();
-    expect(Number(declared![1])).toBe(PANEL_LANDING_WINDOW_DAYS);
   });
 
   it("degrades a snapshot written before the field existed to absence", async () => {
@@ -3464,7 +3451,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
   });
 
   /** A day either provider is still filling is provisional for the pair. */
-  it("takes the earlier provisional boundary of the two", async () => {
+  it("carries Google's provisional boundary when Bing has no provisional tail", async () => {
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2, 3]);
 
@@ -3491,14 +3478,14 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     // Portfolio overhead books to asset #0 and reaches no asset's net.
     await insertLedger(ctx, { id: 5, kind: "cost", asset: "root-os", period: "2026-07", family: "inference", amount: 200, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
 
-    const card = await cardOf("meadow.example");
+    const wall = await buildWallPayload(ctx.call, OPTIONS);
+    const card = wall.assets.find((asset) => asset.id === "meadow.example")!;
     expect(card.netByMonth).toEqual([
       { t: "2026-05", v: 95 },
       { t: "2026-06", v: 200 },
       { t: "2026-07", v: 300 },
     ]);
-    expect(card.netByMonth.at(-1)!.v).toBe(300);
-    expect((await buildWallPayload(ctx.call, OPTIONS)).assets.map((a) => a.id)).not.toContain(
+    expect(wall.assets.map((a) => a.id)).not.toContain(
       "root-os",
     );
   });

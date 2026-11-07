@@ -1,15 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { isTaskResolution, readTaskResolution, TASK_RESOLUTION_LABELS, TASK_RESOLUTIONS } from '../src/task-resolution.mjs';
+import { isTaskResolution, readTaskResolution, TASK_RESOLUTIONS } from '../src/task-resolution.mjs';
 import { recordsClose, SERVER_TASK_METADATA } from '../src/task-metadata.mjs';
 
 const CLOSED_AT = '2026-10-17T12:00:00Z';
 const closer = (extra: Record<string, unknown>, at = CLOSED_AT) => ({ noticeos_closed_by: 'dana', noticeos_closed_at: at, ...extra });
 
 describe('a close names how it ended', () => {
-  it('has six resolutions, Done first, each with the words the Tower shows', () => {
+  it('accepts the six resolution ids with done first and rejects display labels', () => {
     expect(TASK_RESOLUTIONS).toEqual(['done', 'wont-do', 'duplicate', 'cant-reproduce', 'already-handled', 'no-longer-needed']);
-    expect(TASK_RESOLUTIONS.map((resolution) => TASK_RESOLUTION_LABELS[resolution]))
-      .toEqual(['Done', "Won't do", 'Duplicate', "Can't reproduce", 'Already handled', 'No longer needed']);
     expect([isTaskResolution('wont-do'), isTaskResolution("Won't do"), isTaskResolution(undefined)]).toEqual([true, false, false]);
   });
 

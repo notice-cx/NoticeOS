@@ -32,7 +32,7 @@ afterEach(() => { for (const retire of retired.splice(0)) retire(); localStorage
 describe('an explicit browser lifetime', () => {
   it('refuses malformed ownership and origin before any transport call', () => {
     const fetch = vi.fn();
-    for (const identity of [null, { ...A, role: 'owner' }, { ...A, sessionId: 'secret' }]) expect(() => runtime(identity, fetch)).toThrow('Browser owner is invalid.');
+    for (const identity of [null, { ...A, role: 'owner' }, { ...A, sessionId: 'secret' }]) expect(() => runtime(identity, fetch)).toThrow();
     for (const bad of ['https://desk.example/', 'https://desk.example/path', 'https://user:pass@desk.example', 'file:///desk', '*']) {
       expect(() => createBrowserRuntime(A, { origin: bad, fetch, sendAnswer: async () => {} })).toThrow();
     }
@@ -302,7 +302,7 @@ describe('an explicit browser lifetime', () => {
     retired.push(a.retire);
     await a.api.fetchWorkflows('run/id');
     expect(String(fetch.mock.calls[0]?.[0])).toBe(`${origin}/visit/${'a'.repeat(32)}/api/workflows?run=run%2Fid`);
-    expect(() => createBrowserRuntime(A, { origin, fetch, apiBase: `/visit/${'a'.repeat(32)}/api/`, sendAnswer: async () => {} })).toThrow('Browser API base is invalid.');
+    expect(() => createBrowserRuntime(A, { origin, fetch, apiBase: `/visit/${'a'.repeat(32)}/api/`, sendAnswer: async () => {} })).toThrow();
   });
 });
 

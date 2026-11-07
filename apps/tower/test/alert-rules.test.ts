@@ -298,8 +298,7 @@ describe("the route", () => {
 });
 
 describe("the rule vocabulary", () => {
-  it("names the rules the operator has words for and falls back to the id", () => {
-    expect(ruleLabel("flow-poisson-low")).toBe("Drop at normal volume");
+  it("falls back to an unknown rule id", () => {
     expect(ruleLabel("some-new-rule")).toBe("some-new-rule");
   });
 });

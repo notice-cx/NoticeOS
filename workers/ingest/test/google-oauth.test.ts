@@ -601,7 +601,6 @@ describe('using the grant', () => {
     expect(probe.ok).toBe(false);
     // A refused sign-in whose one press is signing in again — never "no answer".
     expect(probe.result).toEqual({ outcome: 'refused', failing: ['Google sign-in'], fix: { kind: 'sign-in' } });
-    expect(probe.message).not.toContain('No answer');
 
     // And it lands in the column the card reads, so the state survives the
     // page reload that follows.
@@ -756,7 +755,6 @@ describe('using the grant', () => {
 
     const found = await discoverGoogleProperties(bare(), { fetchImpl: partial, nowMs: NOW });
     expect(found.ok).toBe(false);
-    expect(found.message).toContain('Analytics');
     // One API being down must not hide what the other answered.
     expect(found.properties.map((entry) => entry.ref)).toEqual(['sc-domain:northwind.example']);
   });

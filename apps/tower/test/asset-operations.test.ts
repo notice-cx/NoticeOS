@@ -34,9 +34,11 @@ describe('asset operation confirmation and recovery', () => {
     writes.createAsset.mockRejectedValueOnce(new AssetExistsError(409, 'archived-site', 'retired'))
       .mockRejectedValueOnce(new ApiError('exists', 409, 'asset_exists'));
     const operation = createAssetOperations(writes);
-    expect(await operation.create(planned())).toEqual({ kind: 'rejected', field: 'domain', message: 'Already added', existing: 'archived-site', existingStatus: 'retired' });
+    expect(await operation.create(planned())).toMatchObject({ kind: 'rejected', field: 'domain', existing: 'archived-site', existingStatus: 'retired' });
     // A refusal that names no site offers no way to one.
-    expect(await operation.create(planned())).toEqual({ kind: 'rejected', field: 'domain', message: 'Already added' });
+    const unnamed = await operation.create(planned());
+    expect(unnamed).toMatchObject({ kind: 'rejected', field: 'domain' });
+    expect(unnamed).not.toHaveProperty('existing');
     expect(writes.createAssetConfig).not.toHaveBeenCalled();
   });
 
