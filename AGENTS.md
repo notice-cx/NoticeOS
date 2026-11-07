@@ -144,6 +144,55 @@ present.
   (doc 03). The task hub is where these are recorded; there is no separate
   file.
 
+## Test design and pruning
+
+- Read a candidate file and the code it exercises before changing it. State
+  each test's behavior contract, then compare its scenario and evidence with
+  retained coverage. Merge only cases with equivalent business preconditions,
+  setup meaning and outcomes. Expected use, edge cases and failures remain
+  separate; starting in a state and transitioning into it can fail independently.
+  Similar setup alone is not evidence of redundancy. Keep uncertain candidates.
+- Assert computed values, selected data, state changes, side effects,
+  navigation, accessibility and layout. Prefer structured error codes, field
+  paths and persisted evidence over authored diagnostic sentences. Preserve
+  checks of injected input/provider text, confidentiality and conditional
+  information. Do not replace a removed copy assertion with unconditional
+  component presence, a constant self-check, a handwritten fixture inventory,
+  historical source-name bans or a check of library behavior. Type constraints
+  belong in the typecheck, not runtime tests that count a fixture's keys.
+- Preserve unique authorization, tenancy, credential, money, measurement,
+  migration/restore and compatibility contracts. A concurrency test needs an
+  explicit competing operation and a real ordering boundary; a sequence of
+  completed calls does not prove a race. Preserve distinct failure causes and
+  checks that rejected operations leave data unchanged.
+- Use real internal collaborators when cheap. Stub external transport and
+  expensive side effects, or inject a specific failure that a real collaborator
+  cannot practically reproduce. A client test should exercise its real request
+  serialization rather than mock that client's internal methods.
+- Keep pure tests outside database-seeding hooks and use the Node environment
+  when no DOM or browser storage is needed. Share only unchanged, read-only
+  fixtures or discovery results. Use the fixture helper's suite lifetime
+  (`createTestStore({ scope: "suite" })` in the Tower) and close it in `afterAll`;
+  mutating scenarios keep fresh stores. Hoist repeated read-only setup out of
+  loops without removing the independent expected result or per-case assertions.
+- Control the clock the code actually reads: passing a collector `nowMs` does
+  not set a coordinator's `Date.now()`. Avoid wall-time speed budgets in ordinary
+  tests; retain deadlines that prove timeout, cancellation or cleanup behavior.
+  Release barriers and await owned work in `finally`, including when an
+  assertion fails. A failed race test must not strand a request or lock.
+- After pruning an object field, either select only the fields whose exact
+  shape matters or use an intentional partial match; do not leave an exact
+  equality expecting a property to disappear from the real result. Check
+  diagnostic fields or targeted numeric evidence rather than extracting every
+  number from a message whose filename or date may contain other numbers.
+- Validate changed cases and their affected callers, including typechecks for
+  compile-time fixtures. Report pruning findings as **Low Value Likely Prune**,
+  **Consolidate Or Rewrite**, **Mocking Improvements (Less Internal Mocking)**,
+  **Out Of Sync Tests**, and **Keep Even If Pruning Conservatively**, in that
+  order, with named tests, reasons, confidence and actions. Test count reductions
+  are not a goal or proof of faster CI; distinguish eliminated work from measured
+  runtime and retain useful coverage even when it costs more.
+
 ## Hard invariants
 
 Never changed automatically. Operator-only, forever, never promotable on the
