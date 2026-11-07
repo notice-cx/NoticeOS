@@ -188,7 +188,7 @@ test("desk pages share the same content edges", async ({ page }, testInfo) => {
 
 {
   const theme = "dark" as const;
-  test(`workflow output metrics stay inside the page in ${theme} mode`, async ({ page }, testInfo) => {
+  test(`workflow output metrics stay inside the page in ${theme} mode @pull-request`, async ({ page }, testInfo) => {
     await page.addInitScript(color => localStorage.setItem("noticeos:theme", color), theme);
     const startedAt = "2026-09-06T11:40:00.000Z";
     const finishedAt = "2026-09-06T11:40:01.000Z";
@@ -209,6 +209,7 @@ test("desk pages share the same content edges", async ({ page }, testInfo) => {
     await page.route("**/api/workflows*", route => route.fulfill({ json: payload }));
     await page.goto(`/workflows/panel-review?run=${encodeURIComponent(trace.id)}`);
     await expect(page.locator("html")).not.toHaveClass(/light/);
+    await page.getByText("Execution details", { exact: true }).click();
     const output = page.getByRole("region", { name: "Step output", exact: true });
     const strip = output.locator("[data-kpi-strip]");
     await expect(strip.locator("[data-kpi]")).toHaveCount(4);
