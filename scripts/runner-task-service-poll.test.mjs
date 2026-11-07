@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { boardResults, FEED_PAGE, FEED_PAGES, LABEL_PAGE, LABEL_PAGES, readFeed, readLabelled, syncTaskService } from './runner/task-service-poll.mjs';
+import { backupTaskHub, boardResults, FEED_PAGE, FEED_PAGES, HUB_IN_NTASKS, LABEL_PAGE, LABEL_PAGES, readFeed, readLabelled, syncTaskService, taskHubCheck, taskHubOutcome } from './runner/task-service-poll.mjs';
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
@@ -253,4 +253,18 @@ test('a label read past the page bound fails, and replaces the list kept before 
   assert.equal(Object.hasOwn(entry, 'panelReview'), false, 'a cut read is not shown as the earlier list');
   assert.equal(Object.hasOwn(entry, 'handoffs'), false);
   assert.equal((await readCached(dir, labelKey('example.com', 'panelReview'))).body, null);
+});
+
+test('the Dolt hub check and the backup leave Dolt alone only while tasks live in Ntasks', async () => {
+  for (const [backend, checked, setting] of [['ntasks', 0, 'ntasks'], ['local', 1, undefined], ['unknown', 1, undefined]]) {
+    const service = { backend: async () => backend };
+    let checks = 0;
+    const reachable = await taskHubCheck(service, async () => { checks += 1; return false; });
+    assert.equal(checks, checked, backend);
+    assert.deepEqual(taskHubOutcome(reachable), backend === 'ntasks'
+      ? { outcome: 'skipped', detail: HUB_IN_NTASKS } : { outcome: 'ran', detail: 'hub down' });
+    assert.equal(await backupTaskHub(service), setting, backend);
+  }
+  assert.equal(await taskHubCheck(null, async () => true), true, 'no task service is the bd hub');
+  assert.equal(await backupTaskHub(null), undefined);
 });

@@ -920,6 +920,22 @@ test('a declared Compose task hub with no inventory fails even in linked-install
   assert.equal(result.stages.publication.status, 'blocked');
 });
 
+for (const hub of ['declared Compose hub', 'checkout hub']) {
+  test(`while tasks live in Ntasks a ${hub} is left out and no Dolt or bd command runs`, async (t) => {
+    const f = await fixture(t);
+    if (hub === 'declared Compose hub') await composeHubFixture(f);
+    const result = await runBackup({ ...f.settings, taskHub: 'ntasks' }, {
+      ...f.adapters, runDolt: () => assert.fail('no Dolt command while tasks live in Ntasks'),
+    });
+    assert.equal(result.ok, true, result.detail);
+    assert.equal(result.stages.taskHub.status, 'not_configured');
+    assert.equal(result.backupSet.complete, true);
+    assert.equal(f.calls.some((call) => call.binary === '/controlled/bd'), false);
+    await absent(path.join(f.destination, 'beads'));
+    assert.match(await fs.readFile(path.join(f.destination, 'RESTORE.md'), 'utf8'), /No `beads\/`: the installation's tasks live in Ntasks/u);
+  });
+}
+
 for (const store of ['postgres', 'r2', 'taskHub']) {
   test(`${store} inventory unavailable records failure and still copies other stores`, async (t) => {
     const f = await fixture(t);

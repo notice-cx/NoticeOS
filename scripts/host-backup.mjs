@@ -168,7 +168,9 @@ export async function assertOffsiteBackupDestination({ repoRoot, directory, tran
  * copied through the checkout at `repoRoot`. `linked` — an installation
  * whose host runs no hub of its own backs up only the task databases its
  * host links, each through its own linked checkout; linking none is
- * `not_configured`, like an offsite folder nobody named.
+ * `not_configured`, like an offsite folder nobody named. `ntasks` — the
+ * installation's tasks live in Ntasks and nothing writes to Dolt, so the
+ * stage is `not_configured` and no Dolt or `bd` command runs.
  */
 export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdBinary = 'bd', taskHub = 'required', doltHome, transport }, adapters = {}) {
   const io = adapters.fs ?? fs;
@@ -475,6 +477,10 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
       });
 
       await attempt('taskHub', async (result) => {
+        if (taskHub === 'ntasks') {
+          stages.taskHub = stage('not_configured');
+          return;
+        }
         // A declared container profile owns its storage boundary. A malformed
         // profile fails this stage; it must never fall back to another hub.
         if (doltHome !== undefined && (typeof doltHome !== 'string' || !path.isAbsolute(doltHome))) {
@@ -582,7 +588,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
       }
 
       await attempt('instructions', async () => {
-        await io.writeFile(path.join(working, 'RESTORE.md'), restoreInstructions(startedAt, stages, retentionDays, retention, composeTaskHub, containerMode));
+        await io.writeFile(path.join(working, 'RESTORE.md'), restoreInstructions(startedAt, stages, retentionDays, retention, composeTaskHub, containerMode, taskHub === 'ntasks'));
         await io.writeFile(path.join(working, 'backup.json'), JSON.stringify({
           format: 'noticeos-backup-v1', startedAt, complete: storesComplete(),
           ...(historyCustody ? { analyticalHistory: historyCustody } : {}),
@@ -686,7 +692,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
   };
 }
 
-function restoreInstructions(startedAt, stages, retentionDays, retention, composeTaskHub = false, containerMode = false) {
+function restoreInstructions(startedAt, stages, retentionDays, retention, composeTaskHub = false, containerMode = false, tasksInNtasks = false) {
   const stores = ['postgres', 'r2', 'taskHub', 'assets', 'history', ...(containerMode ? ['recovery'] : [])].map((key) => {
     const result = stages[key];
     return `- ${LABELS[key]}: ${result.status}; ${result.copied}/${result.expected ?? 'unknown'} copied`
@@ -717,7 +723,9 @@ the synchronization folder does not establish completed remote synchronization.
   the declared Compose service's local socket. Schema ownership and ACLs are kept;
   ${containerMode ? 'protected role credentials and bootstrap secrets are kept separately in `recovery/`.' : 'role passwords and host bootstrap secrets are excluded.'}
 - \`r2/\`: immutable blobs and online SQLite metadata snapshots from \`.wrangler/state/v3/r2/\`.
-${composeTaskHub
+${tasksInNtasks
+    ? '- No `beads/`: the installation\'s tasks live in Ntasks, so this set holds no Dolt task hub.'
+    : composeTaskHub
     ? '- `beads/`: online Dolt database snapshots, server metadata and a complete-backup manifest for the declared Compose task hub.'
     : '- `beads/<db>/`: consistent Dolt backups of the physical databases in the installation\'s `task-host.json`.'}
 - \`assets/<asset>/*.sql.gz\`: gzip-compressed exports from explicitly configured asset \`backup:prod\` tasks.
