@@ -146,6 +146,10 @@ present.
 
 ## Test design and pruning
 
+- For every feature or fix, identify the observable behavior and regression
+  risks before adding tests. Check existing coverage, then add only cases that
+  provide distinct, lasting protection. Design out duplicate, copy-only and
+  implementation-shaped tests rather than relying on a later pruning sweep.
 - Read the candidate file and exercised code, identify each behavior contract,
   and compare its evidence with retained coverage. Merge only equivalent
   business preconditions and outcomes; similar setup does not make distinct
