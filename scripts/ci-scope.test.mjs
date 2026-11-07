@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -74,6 +74,51 @@ test('dependencies, CI, the store schema and unknown paths run every PR-lane job
   assert.deepEqual(jobsFor(['tsconfig.base.json']), ['tower-unit', 'ingest-unit', 'smoke']);
   assert.deepEqual(jobsFor(['tsconfig.config-contract.json']), ['ingest-unit']);
   assert.deepEqual(jobsFor([]), every, 'a change that lists no file runs everything');
+});
+
+test('unit-test-only changes skip smoke unless the browser code imports them', () => {
+  const files = ['apps/tower/test/format.test.ts', 'apps/tower/test/fixture-config/tower.json',
+    'packages/contract/test/schema.test.ts', 'packages/mediavine/test/client.test.ts'];
+  const reaches = scopeGraph(REPO_ROOT);
+  for (const file of files) {
+    const needed = neededJobs('pull_request', [file], reaches);
+    assert.equal(needed.smoke, false, file);
+    assert.equal(needed['tower-unit'], true, file);
+    assert.equal(needed['ingest-unit'], file.startsWith('packages/'), file);
+    assert.equal(needed.scripts, true, file);
+  }
+  assert.deepEqual(jobsFor(['apps/tower/test/shared-fixture.ts'], { smoke: ['apps/tower/test/shared-fixture.ts'] }),
+    ['tower-unit', 'smoke'], 'an imported unit fixture still reaches the browser');
+  assert.deepEqual(jobsFor(['apps/tower/test/format.test.ts', 'apps/tower/src/routes/WallRoute.tsx']),
+    ['tower-unit', 'smoke'], 'a mixed product and test change still runs smoke');
+});
+
+test('the browser dependency graph follows imported unit fixtures without seeding unrelated unit suites', (t) => {
+  const repo = mkdtempSync(path.join(os.tmpdir(), 'ci-browser-inputs-'));
+  t.after(() => rmSync(repo, { recursive: true, force: true }));
+  const sources = {
+    'apps/tower/e2e/server.mjs': "import '../test/shared-fixture.ts';\n",
+    'apps/tower/test/shared-fixture.ts': "import '../../../scripts/fixture-helper.mjs';\n",
+    'apps/tower/test/unrelated.test.ts': "import '../../../scripts/unit-only.mjs';\n",
+    'packages/contract/test/unrelated.test.ts': 'export {};\n',
+    'scripts/fixture-helper.mjs': 'export {};\n',
+    'scripts/unit-only.mjs': 'export {};\n',
+  };
+  for (const [file, source] of Object.entries(sources)) {
+    mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+    writeFileSync(path.join(repo, file), source);
+  }
+  for (const args of [['init', '-q'], ['add', '.']]) {
+    const run = spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+  }
+  const reaches = scopeGraph(repo);
+  for (const file of ['apps/tower/test/shared-fixture.ts', 'scripts/fixture-helper.mjs']) {
+    assert.equal(neededJobs('pull_request', [file], reaches).smoke, true, file);
+  }
+  for (const file of ['apps/tower/test/unrelated.test.ts', 'packages/contract/test/unrelated.test.ts', 'scripts/unit-only.mjs']) {
+    assert.equal(neededJobs('pull_request', [file], reaches).smoke, false, file);
+  }
 });
 
 test('a root package.json change reaches every job unless it changes scripts alone', () => {

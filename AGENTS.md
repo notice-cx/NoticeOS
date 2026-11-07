@@ -206,7 +206,9 @@ browser jobs, the pinned task and Dolt tools in the task-store job).
   the other workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey
   harness and the browser journeys tagged `@pull-request`, on desktop and
   phone. A job runs only when a changed file reaches its code: a folder it
-  tests, or a `scripts/` module it imports or names. Dependency, CI, `db/` and
+  tests, or a `scripts/` module it imports or names. Tower and package unit
+  test files do not start the browser smoke job unless browser code imports
+  them. Dependency, CI, `db/` and
   unknown paths run every PR-lane job; a PR that changes only documentation
   no runtime suite reads (`docs/` and root Markdown) runs the root suite
   alone. A newer push to a PR cancels that PR's running CI.
