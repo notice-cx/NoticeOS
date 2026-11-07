@@ -64,6 +64,8 @@ present.
   or matches a frozen sentence. Review copy in source and in the rendered page.
   Tests cover state, data selection, actions, navigation, accessibility and
   layout. Accessible text may locate a control; assert the effect of using it.
+  Test presence or absence only when it verifies conditional visibility. Do
+  not assert that an unconditional component or one of its parts exists.
 - **Comments say what the code cannot.** A non-obvious why, an invariant, a
   trap, or the one place a fact lives, in a line or two. No decision numbers,
   task ids, dates of past changes, attributions, histories of what the code

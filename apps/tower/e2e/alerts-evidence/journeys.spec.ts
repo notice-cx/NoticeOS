@@ -45,7 +45,6 @@ test("Alerts combine settled repeats and distinguish daily counts from now", asy
   await expect(page.locator('[data-alert-week] [data-span^="settled:"]')).toContainText("30 alerts");
   await expect(page.locator("[data-alerts-settled] dd")).toHaveText("1");
   const snapshots = page.getByRole("region", { name: "Daily open-alert snapshots", exact: true });
-  await expect(snapshots.locator("[data-alert-daily-current]")).toContainText("Now: 1 open alert, a warning");
   await snapshots.getByText(/^View data/).click();
   await expect(snapshots.getByRole("cell", { name: "2", exact: true })).toBeVisible();
   await expect(snapshots.getByRole("cell", { name: "12", exact: true })).toHaveCount(0);

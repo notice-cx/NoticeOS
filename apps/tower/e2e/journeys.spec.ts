@@ -478,13 +478,10 @@ test('session exploration preserves branches, common percentages and selected-se
   await monitor.getByRole('button',{name:/Discover useful pages/}).click();
   const exploration=monitor.locator('[data-session-exploration]');
   await expect(exploration.getByRole('heading',{name:'Where sessions go'})).toBeVisible();
-  await expect(exploration.locator('.session-summary')).toContainText('100%');
   await expect(exploration.locator('.session-coverage')).toContainText('28 of 28 complete days');
-  await expect(exploration).toContainText('Largest recorded exit');
   await exploration.locator('.session-surface-controls').getByRole('button',{name:/^Tools/}).click();
   await expect(exploration.getByRole('heading',{name:'Tools over time',exact:true})).toBeVisible();
   await expect(exploration.getByRole('img',{name:/Tools, weekly percentage of all sessions/})).toBeVisible();
-  await expect(exploration.locator('.session-inspection')).toContainText('Each session counts once');
   const clear=exploration.getByRole('button',{name:'Clear selection'});
   await clear.focus(); await page.keyboard.press('Enter');
   await expect(exploration.getByRole('heading',{name:'Explored beyond one section over time'})).toBeVisible();

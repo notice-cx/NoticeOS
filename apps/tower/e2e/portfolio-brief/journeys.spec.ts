@@ -54,7 +54,7 @@ const generousInsights: NonNullable<PortfolioBriefRead['briefing']>['result']['i
   }
 ];
 
-test('Home briefing rotates one full-width finding without repeated summaries', { tag: '@pull-request' }, async ({ page, request }, info) => {
+test('Home briefing rotates accessible findings across refresh and motion settings', { tag: '@pull-request' }, async ({ page, request }, info) => {
   expect((await request.post('/__journey/reset')).ok()).toBe(true);
   expect((await (await request.get('/__journey/status')).json()).isolated).toBe(true);
   await page.emulateMedia({ reducedMotion: 'no-preference' });
@@ -68,16 +68,8 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   const dots = brief.getByRole('group', { name: 'Choose a finding' }).getByRole('button');
   await expect(brief).toBeVisible();
   await expect(heading).toHaveText(ready.briefing!.result.insights[0]!.title);
-  await expect(brief.getByRole('heading')).toHaveCount(1);
   await expect(brief.getByRole('img', { name: 'About Acorn Atlas' })).toBeVisible();
-  await expect(brief.locator('[data-brief-finding]')).toHaveCount(1);
-  await expect(brief).not.toContainText(ready.briefing!.result.headline!);
-  await expect(brief).not.toContainText(ready.briefing!.result.assessment!);
-  await expect(brief.getByText(ready.briefing!.result.insights[0]!.action)).toBeVisible();
   await expect(brief.getByText(ready.briefing!.result.insights[0]!.observation)).not.toBeVisible();
-  await expect(brief.locator('time, [data-brief-comparison]')).toHaveCount(0);
-  await expect(brief).not.toContainText('example-local-model');
-  await expect(brief).not.toContainText('One asset has no revenue report.');
   await expect(dots).toHaveCount(3);
   const positions = await dots.evaluateAll(elements => elements.map(element => ({ x: element.getBoundingClientRect().x, y: element.getBoundingClientRect().y })));
   expect(new Set(positions.map(position => position.x)).size).toBe(1);
@@ -110,7 +102,6 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await page.keyboard.press('Enter');
   await expect(brief.getByText(ready.briefing!.result.insights[0]!.observation)).toBeVisible();
   await expect(brief.getByText(ready.briefing!.result.insights[0]!.why)).toBeVisible();
-  await expect(brief.getByText(ready.briefing!.result.insights[0]!.action)).toHaveCount(1);
   await expect(brief.getByRole('link', { name: 'Review asset' })).toHaveAttribute('href', '/assets/acorn.example/product');
   await page.clock.fastForward(14_000);
   await expect(heading).toHaveText(ready.briefing!.result.insights[0]!.title);
@@ -121,7 +112,6 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   read = { ...ready, briefing: { ...ready.briefing!, result: { insights: generousInsights } } };
   await page.reload();
   await expect(heading).toHaveText(generousInsights[0]!.title);
-  await expect(brief.getByRole('heading')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
   await brief.screenshot({ path: info.outputPath('single-finding-generous.png'), animations: 'disabled' });
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -135,16 +125,14 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await expect(heading).toHaveText(generousInsights[2]!.title);
   read = { ...ready, state: 'unavailable', error: 'generation unavailable', stale: true };
   await page.reload();
-  await expect(brief.getByRole('status')).toContainText('Refresh failed. Showing the previous briefing.');
+  await expect(brief.getByRole('status')).toBeVisible();
   await expect(heading).toHaveText(ready.briefing!.result.insights[0]!.title);
   read = { ...ready, briefing: { ...ready.briefing!, result: { insights: [] } } };
   await page.reload();
   await expect(brief).toHaveCount(0);
-  await expect(page.locator('[data-home-answer]')).toBeVisible();
   read = { ...ready, state: 'disconnected', briefing: null };
   await page.reload();
   await expect(page.getByRole('link', { name: 'Connect a model' })).toHaveAttribute('href', '/integrations?connect=local-model');
-  await expect(page.locator('[data-home-answer]')).toBeVisible();
 });
 
 

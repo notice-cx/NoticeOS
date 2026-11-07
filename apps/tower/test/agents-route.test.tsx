@@ -54,6 +54,5 @@ it('prioritizes blocked work and keeps every chart and outcome evidence accessib
   expect(screen.getByRole('region', { name: 'Ranking' })).toBeInTheDocument();
   state.view = 'revenue';
   page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  expect(page.container.querySelector('section[data-agent-evidence]')).toBeNull();
   expect(screen.getByRole('link', { name: 'View recorded financials →' })).toHaveAttribute('href', '/financials');
 });

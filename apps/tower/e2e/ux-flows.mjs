@@ -645,9 +645,8 @@ async function chooseViewInSettings(w, view, label) {
   await w.waitFor(`${label} → saved`, () => settle(w.page));
 }
 
-/** Reliability Home leads with every site's health as dots; a site's
- * row opens the site, and its Health tab shows the five words with every
- * fact's readings below them, without a press. */
+/** Reliability Home's asset rows open the asset. Each Health card expands
+ * its readings in place. */
 FLOWS["read-site-health"] = {
   title: "Read an asset's health, in Reliability",
   kind: "flow",
@@ -660,7 +659,8 @@ FLOWS["read-site-health"] = {
     await w.click(row.getByRole("link").first(), "Asset health · Journey Example", { role: "nav" });
     await settle(w.page);
     await assetTab(w, "Health");
-    await w.waitFor("Health → every fact's readings", () => w.page.locator('[data-health-evidence="code"]').waitFor({ timeout: 10_000 }));
+    await w.click(w.page.locator('[data-health-fact="code"]'), "Code readings", { role: "choose" });
+    await w.waitFor("Code → readings", () => w.page.locator('[data-health-evidence="code"]').waitFor({ timeout: 10_000 }));
     await w.end("evidence read");
   },
 };

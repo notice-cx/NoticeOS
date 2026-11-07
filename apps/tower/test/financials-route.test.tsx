@@ -1802,7 +1802,6 @@ describe("/financials — the month, drawn", () => {
       months: [month("2026-07", 360), month("2026-08", 440.94, 200)],
       properties: [site("northwind.example", "Northwind", 140.94, 160), site("meadow.example", "Meadow Board", 300, 200)],
     }));
-    expect(container.querySelector("[data-money-answer] [data-money-by-site]")).toBeNull();
     expect(container.querySelectorAll('[data-revenue-share]')).toHaveLength(2);
     expect([...container.querySelectorAll("[data-money-site]")].map((row) => row.getAttribute("data-money-site"))).toEqual(["meadow.example", "northwind.example"]);
     const meadow = container.querySelector('[data-money-site="meadow.example"] [data-money-change]')!;

@@ -856,7 +856,7 @@ from its starting point to its result:
 - **Switch the view** — the global View bar or phone picker changes the
   current page in place, with navigation and asset tabs preserved.
 - **Read an asset's health in Reliability** — choose Reliability; Home's Asset
-  health row opens the asset; its Health tab shows every fact's readings.
+  health row opens the asset; expanding a Health card displays its readings.
 - **See visitor opportunities in Growth** — choose Growth; Home shows visitors
   by channel and Worth a look; Make a task on a row, File task.
 - **Change the time zone** — Settings → General: saved on change, then Undo.

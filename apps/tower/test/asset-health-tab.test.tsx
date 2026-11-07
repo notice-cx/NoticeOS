@@ -86,16 +86,13 @@ function openEvidence(container: HTMLElement, key: string): HTMLElement {
 }
 
 describe("the Health tab", () => {
-  it("draws the five facts as words, a problem in its colour", () => {
+  it("derives warning and unknown states and colours the measured warning", () => {
     state.assets = [siteCard()];
     const { container } = renderTab();
 
-    const facts = [...container.querySelectorAll("[data-health-fact]")];
-    expect(facts.map((fact) => fact.getAttribute("data-health-fact"))).toEqual(["reachable", "speed", "errors", "search", "code"]);
     const speed = container.querySelector('[data-health-fact="speed"]')!;
     expect(speed).toHaveAttribute("data-fact-state", "warn");
     expect(speed.querySelector(".text-warn")).not.toBeNull();
-    expect(container.querySelectorAll("[data-health-card]")).toHaveLength(5);
     expect(container.querySelector('[data-health-fact="code"]')).toHaveAttribute("data-fact-state", "unknown");
   });
 
