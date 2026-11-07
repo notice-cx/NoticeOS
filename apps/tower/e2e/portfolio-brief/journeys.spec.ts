@@ -86,7 +86,7 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   expect(Math.abs(size.width - size.available)).toBeLessThan(2);
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
-  await brief.screenshot({ path: info.outputPath('single-finding-collapsed.png') });
+  await brief.screenshot({ path: info.outputPath('single-finding-collapsed.png'), animations: 'disabled' });
   await expect(brief).toHaveAttribute('data-brief-cycle', 'running');
   await page.clock.fastForward(7_000);
   await expect(heading).toHaveText(ready.briefing!.result.insights[1]!.title);
@@ -112,7 +112,7 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await expect(brief.getByRole('link', { name: 'Review alerts' })).toHaveAttribute('href', '/alerts');
   await page.clock.fastForward(14_000);
   await expect(heading).toHaveText(ready.briefing!.result.insights[0]!.title);
-  await brief.screenshot({ path: info.outputPath('single-finding-expanded.png') });
+  await brief.screenshot({ path: info.outputPath('single-finding-expanded.png'), animations: 'disabled' });
   await dots.nth(1).click();
   await expect(heading).toHaveText(ready.briefing!.result.insights[1]!.title);
   await expect(brief.locator('details[open]')).toHaveCount(0);
@@ -121,7 +121,7 @@ test('Home briefing rotates one full-width finding without repeated summaries', 
   await expect(heading).toHaveText(generousInsights[0]!.title);
   await expect(brief.getByRole('heading')).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
-  await brief.screenshot({ path: info.outputPath('single-finding-generous.png') });
+  await brief.screenshot({ path: info.outputPath('single-finding-generous.png'), animations: 'disabled' });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.reload();
   await expect(brief.getByRole('button', { name: /finding rotation/ })).toHaveCount(0);
