@@ -100,7 +100,7 @@ test('a files pattern crosses directories only with **', () => {
   assert.equal(mayReadOwnerConfig(registers, 'config/changesets/0001_verify-alpha-up.json'), false, '* stays inside config/');
   assert.equal(mayReadOwnerConfig(registers, 'config/dolt-server.yaml'), false);
   assert.equal(mayReadOwnerConfig(registers, 'config/xjson'), false, 'a dot is a dot');
-  const prose = path.join(REPO_ROOT, 'scripts/grep-visible.test.mjs');
+  const prose = path.join(REPO_ROOT, 'scripts/product-name.test.mjs');
   assert.equal(mayReadOwnerConfig(prose, 'config/beads.README.md'), true);
   assert.equal(mayReadOwnerConfig(prose, 'config/changesets/README.md'), true, '** crosses directories');
   assert.equal(mayReadOwnerConfig(prose, 'config/constants.json'), false);

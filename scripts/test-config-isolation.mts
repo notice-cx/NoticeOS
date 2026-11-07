@@ -109,10 +109,6 @@ export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>>
     files: Object.freeze(["config/constants.json"]),
     why: "The contract build compiles the checkout's constants.json in; the test compares the emitted copy with its source, which holds for any saved value.",
   }),
-  "scripts/grep-visible.test.mjs": Object.freeze({
-    files: Object.freeze(["config/**/*.md"]),
-    why: "It scans every tracked source and prose file for bytes that hide it from grep; config/'s READMEs and decision log are prose it must see. It reads no setting.",
-  }),
   "scripts/handoff-kinds.test.mjs": Object.freeze({
     files: Object.freeze(["config/beads.README.md"]),
     why: "The task-hub contract's handoff-metadata table is one of the statements of the legal handoff kinds this keeps in step.",

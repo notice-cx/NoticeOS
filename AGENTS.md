@@ -152,6 +152,10 @@ present.
   setup meaning and outcomes. Expected use, edge cases and failures remain
   separate; starting in a state and transitioning into it can fail independently.
   Similar setup alone is not evidence of redundancy. Keep uncertain candidates.
+- Before deleting or renaming a suite, search runner manifests, fixture/seed
+  allowlists and other references. Remove obsolete entries, regenerate authored
+  TypeScript outputs, and run the registry/isolation checks that retain those
+  references; running only the remaining changed test files misses this contract.
 - Assert computed values, selected data, state changes, side effects,
   navigation, accessibility and layout. Prefer structured error codes, field
   paths and persisted evidence over authored diagnostic sentences. Preserve
@@ -179,7 +183,9 @@ present.
   not set a coordinator's `Date.now()`. Avoid wall-time speed budgets in ordinary
   tests; retain deadlines that prove timeout, cancellation or cleanup behavior.
   Release barriers and await owned work in `finally`, including when an
-  assertion fails. A failed race test must not strand a request or lock.
+  assertion fails. A failed race test must not strand a request or lock. Prove
+  an owned server has exited before removing its data; removal of its PID file
+  alone does not prove process exit.
 - After pruning an object field, either select only the fields whose exact
   shape matters or use an intentional partial match; do not leave an exact
   equality expecting a property to disappear from the real result. Check
