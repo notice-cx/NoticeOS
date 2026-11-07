@@ -162,6 +162,20 @@ test('unavailable settings, a down runtime and shutdown refuse new work', async 
   }
 });
 
+for (const outcome of ['failed', 'skipped']) test(`manual ${outcome} replies retain bounded safe detail`, async () => {
+  const result = await invokeLocalJob('portfolio-brief', {
+    ready: () => true, stopped: () => false,
+    scheduler: { current: () => ({ enabled: true }), refresh: async () => {},
+      runOnce: async () => ({ status: 'ran', result: { outcome, detail: `Synthetic reason Bearer private-fixture-token ${'x'.repeat(600)}`, diagnostics: 'private context' } }) },
+  });
+  assert.equal(result.status, outcome === 'failed' ? 500 : 200);
+  assert.equal(result.body.outcome, outcome);
+  assert.match(result.body.detail, /^Synthetic reason Bearer \[REDACTED\]/);
+  assert.equal(result.body.detail.length, 500);
+  assert.equal(JSON.stringify(result.body).includes('private-fixture-token'), false);
+  assert.equal('diagnostics' in result.body, false);
+});
+
 test('throws and returned failures retain records and release exclusion; a skipped job stays skipped', async (t) => {
   let attempt = 0;
   const own = await fixture(t, async () => {

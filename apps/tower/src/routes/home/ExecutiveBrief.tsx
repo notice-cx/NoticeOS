@@ -9,7 +9,7 @@ import { CONFIG_ASSET_KEY_RE } from '@noticeos/contract/configuration';
 import type { AssetCard } from '@shared/wall';
 
 type BriefAsset = Pick<AssetCard, 'id' | 'displayName' | 'icons'>;
-type BriefRefresh = { run: () => void; pending: boolean; error: string | null };
+type BriefRefresh = { run: () => void; pending: boolean; error: string | null; notice?: string | null };
 
 function RefreshBrief({ refresh }: { refresh: BriefRefresh }) {
   return <Button type="button" variant="ghost" size="icon" aria-label="Refresh AI insights"
@@ -47,8 +47,8 @@ function actionDestination(href: string): string | null {
 export function ExecutiveBrief({ read, readFailed = false, assets = [], refresh }: { read?: PortfolioBriefRead; readFailed?: boolean; assets?: readonly BriefAsset[]; refresh?: BriefRefresh }) {
   const brief = read?.briefing;
   const refreshAvailable = refresh && read && read.state !== 'disconnected' && read.state !== 'unsupported';
-  const failed = Boolean(refresh?.error || read?.state === 'unavailable');
-  const warning = refresh?.error ?? (readFailed ? "Couldn't read the latest briefing." : read?.state === 'unavailable'
+  const failed = Boolean(refresh?.error || (!refresh?.notice && read?.state === 'unavailable'));
+  const warning = refresh?.error ?? refresh?.notice ?? (readFailed ? "Couldn't read the latest briefing." : read?.state === 'unavailable'
     ? read.error ?? 'The last refresh failed.' : brief && read?.stale ? 'This briefing is out of date.' : null);
   if (!brief || brief.result.insights.length === 0) return <>
     {!brief && read?.state === 'disconnected' ? <p className="text-sm text-muted-foreground"><Link to="/integrations?connect=local-model" className="underline underline-offset-4">Connect a model</Link> for an executive briefing.</p>

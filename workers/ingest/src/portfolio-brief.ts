@@ -7,7 +7,8 @@ import { workspaceProfile } from '../../../scripts/product-env.mjs';
 import { resolveCredential, type ResolvedCredential } from './credentials.js';
 import { claimLease, releaseLease } from './integration-leases.js';
 import { providerCacheScope } from './provider-read-cache.js';
-import { generateLocalModel, LocalModelError, localModelFailure, LOCAL_MODEL_ID } from './local-model.js';
+import { generateLocalModel, LocalModelError, localModelFailure, LOCAL_MODEL_ID, LOCAL_MODEL_BASE_URL, LOCAL_MODEL_API_TOKEN } from './local-model.js';
+import { LOCAL_MODEL_OUTPUT_TOKENS } from '@noticeos/contract/local-model-settings';
 import { MODEL_GENERATION_TIMEOUT_MS, portfolioBriefFailure } from '../../../scripts/portfolio-brief-failure.mjs';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { portfolioBriefPrompt } from './portfolio-brief-prompt.js';
@@ -33,8 +34,10 @@ async function reviewSelection(env: IngestEnv) {
 }
 
 async function identity(env: IngestEnv, credential: ResolvedCredential, selection: string[] | null) {
+  // Stored token replacements advance revision; legacy bindings have only public model settings.
+  const settings = [LOCAL_MODEL_BASE_URL, LOCAL_MODEL_ID, LOCAL_MODEL_OUTPUT_TOKENS].map(key => credential.fields[key] ?? null);
   const scope = await providerCacheScope([env.STORE.where, await env.STORE.workspaceId(), STORAGE_VERSION,
-    credential.connectionId, credential.revision, credential.fields, selection]);
+    credential.source, credential.connectionId, credential.revision, settings, selection]);
   return { scope, lease: `portfolio-brief:${scope}` };
 }
 
@@ -126,7 +129,8 @@ export async function refreshPortfolioBrief(env: IngestEnv, input: PortfolioBrie
     }
     // A changed or disconnected connection cannot publish its in-flight answer.
     const current = await resolveCredential(env, 'local-model');
-    if (current.source === 'none' || (await identity(env, current, await reviewSelection(env))).scope !== scope) return { ...emptyPortfolioBrief('awaiting'),
+    if (current.source === 'none' || current.fields[LOCAL_MODEL_API_TOKEN] !== credential.fields[LOCAL_MODEL_API_TOKEN]
+      || (await identity(env, current, await reviewSelection(env))).scope !== scope) return { ...emptyPortfolioBrief('awaiting'),
       ...(Object.keys(diagnostics).length ? { diagnostics } : {}) };
     const published = await env.STORE.write(tx => tx.execute(
       `INSERT INTO noticeos.portfolio_briefings (workspace_id, scope_sha256, payload)

@@ -24,5 +24,6 @@ export function usePortfolioBrief() {
     retry: 1,
   });
   return { ...read, refresh: () => { if (client.isMutating({ mutationKey: ['portfolio-brief-refresh'] }) === 0) refresh.mutate(); }, isRefreshing: refreshing > 0,
-    refreshError: refresh.isError ? refresh.error.message : refresh.data?.outcome === 'failed' ? read.data?.error ?? 'The refresh failed.' : null };
+    refreshError: refresh.isError ? refresh.error.message : refresh.data?.outcome === 'failed' ? refresh.data.detail ?? 'The refresh failed.' : null,
+    refreshNotice: refresh.data?.outcome === 'skipped' ? refresh.data.detail ?? 'The refresh was skipped.' : null };
 }

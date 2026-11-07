@@ -85,7 +85,7 @@ export const manualLocalJob = manualScheduledJob;
 
 export interface LocalJobReply {
   status: number;
-  body: { job?: string; outcome?: string; error?: string };
+  body: { job?: string; outcome?: string; error?: string; detail?: string };
 }
 
 export const WORKFLOW_GROUPS: { label: string }[] = [

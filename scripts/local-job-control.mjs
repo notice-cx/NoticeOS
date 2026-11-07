@@ -5,6 +5,7 @@ import { createConnection } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { LOCAL_JOB_SOCKET, manualScheduledJob } from './scheduled-jobs.mjs';
+import { redactLogText } from './os-log.mjs';
 export async function invokeLocalJob(id, { scheduler, ready, stopped, }) {
     const job = manualScheduledJob(id);
     if (!job)
@@ -22,8 +23,10 @@ export async function invokeLocalJob(id, { scheduler, ready, stopped, }) {
         const status = invocation.status === 'busy' || invocation.status === 'paused' ? 409 : 503;
         return { status, body: { error: `job_${invocation.status}` } };
     }
-    const outcome = invocation.result?.outcome ?? 'failed';
-    return { status: outcome === 'failed' ? 500 : 200, body: { job: job.id, outcome } };
+    const result = invocation.result;
+    const outcome = result?.outcome ?? 'failed';
+    const detail = typeof result?.detail === 'string' ? redactLogText(result.detail).replace(/\s+/gu, ' ').trim().slice(0, 500) : null;
+    return { status: outcome === 'failed' ? 500 : 200, body: { job: job.id, outcome, ...(detail ? { detail } : {}) } };
 }
 /** Remove only a dead Unix socket, never another live runner's admission. */
 async function clearStaleSocket(socketPath) {

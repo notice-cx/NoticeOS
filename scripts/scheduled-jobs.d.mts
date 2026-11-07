@@ -97,6 +97,7 @@ export interface LocalJobReply {
         job?: string;
         outcome?: string;
         error?: string;
+        detail?: string;
     };
 }
 export declare const WORKFLOW_GROUPS: {

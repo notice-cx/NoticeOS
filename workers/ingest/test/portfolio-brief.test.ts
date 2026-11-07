@@ -350,19 +350,39 @@ it('rejects product observations from different source windows under one timefra
     .toMatchObject({ state: 'unavailable', briefing: null, failure: { kind: 'briefing-periods' } });
 });
 
-it.each(['reconnect', 'disconnect'])('hides an in-flight result after %s', async action => {
+it.each(['reconnect', 'disconnect', 'token-rotation'])('hides an in-flight result after %s', async action => {
   const target = selected(); await connect(target);
   const started = gate<void>(), finished = gate<Response>();
   const fetchImpl = vi.fn<typeof fetch>(async () => { started.release(); return finished.promise; });
   const pending = refreshPortfolioBrief(target, evidence(), HOUR, { fetchImpl, clock: () => NOW });
   await started.promise;
   if (action === 'reconnect') await connect(target, 'replacement-model');
+  else if (action === 'token-rotation') await putCredential(target, { provider: 'local-model', fields: { ...fields, LOCAL_MODEL_API_TOKEN: 'replacement-token' } });
   else await deleteCredential(target, 'local-model');
   finished.release(response());
   const completed = await pending;
   expect(completed.briefing).toBeNull();
   expect(completed.diagnostics?.output?.text).toContain('Headline:');
-  expect(await readPortfolioBrief(target, { clock: () => NOW })).toMatchObject({ state: action === 'reconnect' ? 'awaiting' : 'disconnected', briefing: null });
+  expect(await readPortfolioBrief(target, { clock: () => NOW })).toMatchObject({ state: action === 'disconnect' ? 'disconnected' : 'awaiting', briefing: null });
+});
+
+it('hides saved guidance when a stored token changes without changing the model', async () => {
+  const target = selected(); await connect(target);
+  await refreshPortfolioBrief(target, evidence(), HOUR, { fetchImpl: async () => response(), clock: () => NOW });
+  await putCredential(target, { provider: 'local-model', fields: { ...fields, LOCAL_MODEL_API_TOKEN: 'replacement-token' } });
+  expect(await readPortfolioBrief(target, { clock: () => NOW })).toMatchObject({ state: 'awaiting', briefing: null });
+});
+
+it('rejects an in-flight legacy token replacement with unchanged model settings', async () => {
+  const target = { ...selected(), ...fields };
+  const started = gate<void>(), finished = gate<Response>();
+  const pending = refreshPortfolioBrief(target, evidence(), HOUR, { clock: () => NOW,
+    fetchImpl: async () => { started.release(); return finished.promise; } });
+  await started.promise;
+  target.LOCAL_MODEL_API_TOKEN = 'replacement-token';
+  finished.release(response());
+  expect(await pending).toMatchObject({ state: 'awaiting', briefing: null });
+  expect(await readPortfolioBrief(target, { clock: () => NOW })).toMatchObject({ state: 'awaiting', briefing: null });
 });
 
 it('isolates saved briefings and leases between workspaces with identical model configuration', async () => {

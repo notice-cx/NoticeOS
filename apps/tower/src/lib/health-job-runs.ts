@@ -78,14 +78,14 @@ export function jobRunWeek(data: WorkflowsPayload, nowMs: number, span = 7): Job
       const cron = job?.cron ?? definition.cron;
       const paused = job ? !job.enabled : false;
       const interval = cronIntervalMinutes(cron);
-      const owesDaily = !paused && interval !== null && interval <= 24 * 60;
+      const owesDaily = !paused && !definition.manualOnly && interval !== null && interval <= 24 * 60;
       const daily = summary?.dailyHistory;
       const truncated = !daily && runs.length >= KEPT_RUNS;
       const oldest = daily ? (daily.firstRunAt ? Date.parse(daily.firstRunAt) : null) : runs.length > 0 ? Math.min(...runs.map((run) => Date.parse(run.startedAt))) : null;
       return {
         id: definition.id,
         label: definition.label,
-        schedule: scheduleLabel(cron, job ? scheduleTimezone(job) : "UTC", nowMs),
+        schedule: definition.manualOnly ? 'Manual' : scheduleLabel(cron, job ? scheduleTimezone(job) : "UTC", nowMs),
         href: `${workflowBasePath(definition.surface)}/${definition.id}`,
         paused,
         truncated,

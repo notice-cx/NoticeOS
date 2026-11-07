@@ -218,7 +218,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     // the twelve columns need room to be twelve.
     <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
       <ExecutiveBrief read={brief.data} readFailed={brief.isError} assets={data.assets}
-        refresh={{ run: () => brief.refresh(), pending: brief.isRefreshing, error: brief.refreshError }} />
+        refresh={{ run: () => brief.refresh(), pending: brief.isRefreshing, error: brief.refreshError, notice: brief.refreshNotice }} />
       <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
       {taskDraft ? <TaskComposer open prefill={taskDraft} onClose={() => setTaskDraft(null)} /> : null}
     </div>
