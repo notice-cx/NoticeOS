@@ -16,7 +16,7 @@ import { PageAnswer } from '@/components/surface/PageAnswer';
 import { WorkflowActivity, WorkflowRunTrigger, WorkflowScheduleTimeline, WorkflowStages, WorkflowStateLabel, workflowDuration } from '@/components/WorkflowVisuals';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { fieldClass } from '@/components/ui/field';
+import { fieldClass, fieldIconClass } from '@/components/ui/field';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { useConfigWritable } from '@/hooks/useConfigWritable';
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
@@ -152,7 +152,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
       <TabPanel idBase="workflow-view" id="workflow-view-panel" activeKey={tab}>
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative min-w-48 flex-1"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" aria-hidden /><span className="sr-only">Search {noun}</span><input className={cn(fieldClass, 'w-full pl-9')} value={term} placeholder={`Search ${noun}…`} onChange={(e) => setFilter('q', e.target.value)} /></label>
+            <label className="relative flex min-w-48 flex-1 items-center"><Search className={fieldIconClass} aria-hidden /><span className="sr-only">Search {noun}</span><input className={cn(fieldClass, 'w-full ps-9')} value={term} placeholder={`Search ${noun}…`} onChange={(e) => setFilter('q', e.target.value)} /></label>
             <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} state</span><select className={fieldClass} value={filter} onChange={(e) => setFilter('state', e.target.value)}><option value="all">All states</option><option value="attention">Needs attention</option><option value="failed">Failed</option><option value="running">Running</option><option value="succeeded">{WORKFLOW_STATE_LABEL.succeeded}</option><option value="inactive">Inactive</option></select></label>
             <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} category</span><select className={fieldClass} value={group} onChange={(e) => setFilter('group', e.target.value)}><option value="all">All categories</option>{categories.map((g) => <option key={g.label}>{g.label}</option>)}</select></label>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">Sort<select aria-label={`Sort ${noun}`} className={fieldClass} value={sort} onChange={(e) => setFilter('sort', e.target.value)}><option value="latest">Latest run</option><option value="attention">Needs attention</option><option value="next">Next run</option><option value="name">Name</option></select></label>

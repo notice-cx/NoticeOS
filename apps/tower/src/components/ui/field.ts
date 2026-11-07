@@ -9,3 +9,6 @@
  */
 export const fieldClass =
   "rounded-md border border-input bg-background px-2 py-1 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-60 [&:is(select)]:pe-9";
+
+export const fieldIconClass =
+  "pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground";
