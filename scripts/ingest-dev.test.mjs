@@ -39,21 +39,6 @@ test('a held door refuses, and wrangler is never spawned', async (t) => {
   assert.deepEqual(calls, []);
 });
 
-test('the refusal names what is holding the store and what to do instead', () => {
-  const message = doorHeldMessage(DEFAULT_DOOR);
-  assert.match(message, /refusing to start/);
-  assert.match(message, /127\.0\.0\.1:8791/);
-  assert.match(message, /pnpm os:status/);
-  // The operator usually wants the ingest, not a second copy of it — under the runner
-  // it is already running inside the Tower's runtime, on this very port. Without
-  // that sentence the refusal reads as "you are stuck".
-  assert.match(message, /inside the Tower's runtime/);
-  // …and the escape hatch is still an escape hatch: it says how to take it.
-  assert.match(message, /stop the OS first/);
-  assert.match(message, /pnpm --filter @noticeos\/ingest dev/);
-  assert.match(message, /Nothing was started here/);
-});
-
 test('the refusal is about the port, whatever door it is aimed at', () => {
   assert.match(doorHeldMessage('http://127.0.0.1:9999'), /127\.0\.0\.1:9999/);
 });

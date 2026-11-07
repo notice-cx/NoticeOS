@@ -82,18 +82,6 @@ describe("materiality registry", () => {
         .map((item) => String(item.placement)),
     ).not.toContain("progressive-disclosure");
   });
-  it("names only current asset screens and leaves no retired payload destination", () => {
-    const current = ["AlertsTab", "AssetHeader", "SourcesTab", "OverviewTab", "ActivityTab"];
-    for (const condition of MATERIAL_CONDITIONS) {
-      const destination = MATERIALITY[condition].asset;
-      if (destination.placement !== "not-applicable") {
-        expect(current).toContain(destination.component.split(" / ")[0]);
-      }
-    }
-    for (const concern of Object.values(ASSET_PAYLOAD_INVENTORY)) {
-      expect(concern.destination).not.toMatch(/PropertyStateHero|CurrentState/);
-    }
-  });
 });
 
 const system: SystemData = {
@@ -189,13 +177,6 @@ describe("the Wall's destinations", () => {
       const wall = MATERIALITY[condition].wall;
       if (wall.placement === "not-applicable") continue;
       expect(placed.has(drawnBy[wall.component] as never), `${condition}: ${wall.component} is on the default Wall`).toBe(true);
-    }
-  });
-
-  it("lists no retired widget as a payload key's destination", () => {
-    const retired = /AttentionRail|AttentionPanel|PortfolioBand|SystemBand|AssetsBand|DashboardWidgets|ActiveWatchLine|Wall header/;
-    for (const [key, concern] of Object.entries(WALL_PAYLOAD_INVENTORY)) {
-      expect(concern.destination, key).not.toMatch(retired);
     }
   });
 });

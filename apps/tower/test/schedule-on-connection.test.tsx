@@ -142,8 +142,6 @@ describe("a connection's Manage panel", () => {
         expect(within(schedule).getByRole("combobox", { name: "Realtime traffic · every" })).toHaveValue("1");
       }
       // Labelled by the job, so the pick reads as the job's, not the provider's.
-      expect(within(schedule).getByText("Traffic and search archives")).toBeVisible();
-      expect(within(schedule).getByText("Google Analytics · Search Console · Bing")).toBeVisible();
       expect(within(schedule).getByRole("combobox", { name: "Traffic and search archives · how often" })).toHaveValue("daily");
       // Under the connection's own actions, above its sites.
       const disconnect = within(dialog).getByRole("button", { name: "Disconnect" });

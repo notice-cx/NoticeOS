@@ -52,9 +52,9 @@ describe("businessGaps", () => {
       // Not launched yet: expected to earn nothing.
       card("d.example.com", { status: "pre-launch", revenueProjection: undefined }),
     ]);
-    expect(gaps).toEqual([
-      { key: "earns-nothing:a.example.com", siteId: "a.example.com", title: "Acorn earns nothing", detail: "Connect an income source, or mark it as free" },
-      { key: "earns-nothing:b.example.com", siteId: "b.example.com", title: "Birch earns nothing", detail: "Connect an income source, or mark it as free" },
+    expect(gaps).toMatchObject([
+      { key: "earns-nothing:a.example.com", siteId: "a.example.com", title: "Acorn earns nothing" },
+      { key: "earns-nothing:b.example.com", siteId: "b.example.com", title: "Birch earns nothing" },
     ]);
   });
 

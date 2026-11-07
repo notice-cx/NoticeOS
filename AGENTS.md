@@ -144,6 +144,40 @@ present.
   (doc 03). The task hub is where these are recorded; there is no separate
   file.
 
+## Test design and pruning
+
+- For every feature or fix, identify the observable behavior and regression
+  risks before adding tests. Check existing coverage, then add only cases that
+  provide distinct, lasting protection. Design out duplicate, copy-only and
+  implementation-shaped tests rather than relying on a later pruning sweep.
+- Read the candidate file and exercised code, identify each behavior contract,
+  and compare its evidence with retained coverage. Merge only equivalent
+  business preconditions and outcomes; similar setup does not make distinct
+  states, transitions, edge cases or failures redundant. Keep uncertain cases.
+- Apply the behavior-focused assertion rule above. Prefer structured results
+  and persisted evidence over presentation wording or implementation shape.
+  Preserve input/provider pass-through, confidentiality and conditional data
+  contracts. Verify type-only constraints through the typecheck.
+- Preserve unique authorization, tenancy, money, measurement, recovery and
+  compatibility coverage. Concurrency tests must establish a competing
+  operation and ordering boundary; rejected operations must leave data unchanged.
+- Prefer real internal collaborators when practical. Mock external boundaries,
+  expensive effects or otherwise impractical fault injection, while exercising
+  the actual application path and serialization.
+- Use the lightest environment that supports the contract. Keep pure tests out
+  of stateful fixture hooks; share only read-only fixtures with explicit
+  lifetimes, and keep fresh state for mutating scenarios. Remove repeated setup
+  without removing independent expected results or per-case assertions.
+- Make time-dependent tests deterministic. Keep deadlines proving cancellation
+  or bounded cleanup, rather than host-dependent speed budgets. Always release
+  and await owned work on failure, and prove resources are inactive before
+  removing their storage.
+- Follow references and registrations after removals or renames, regenerate
+  derived files, and verify the dependent contracts as well as changed tests.
+- In pruning reviews, name the tests, behavior, reason, confidence and action,
+  including a conservative must-keep group. Distinguish eliminated work from
+  measured runtime; fewer tests alone do not demonstrate faster or better CI.
+
 ## Hard invariants
 
 Never changed automatically. Operator-only, forever, never promotable on the
@@ -206,7 +240,9 @@ browser jobs, the pinned task and Dolt tools in the task-store job).
   the other workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey
   harness and the browser journeys tagged `@pull-request`, on desktop and
   phone. A job runs only when a changed file reaches its code: a folder it
-  tests, or a `scripts/` module it imports or names. Dependency, CI, `db/` and
+  tests, or a `scripts/` module it imports or names. Tower and package unit
+  test files do not start the browser smoke job unless browser code imports
+  them. Dependency, CI, `db/` and
   unknown paths run every PR-lane job; a PR that changes only documentation
   no runtime suite reads (`docs/` and root Markdown) runs the root suite
   alone. A newer push to a PR cancels that PR's running CI.

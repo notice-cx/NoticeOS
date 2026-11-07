@@ -185,7 +185,6 @@ test('the doctor section never throws: a door that is down or refuses is one lin
       throw new Error('connect ECONNREFUSED');
     },
   });
-  assert.equal(down[0], '## Capacity (metadata only, asked through the ingest door)');
   assert.match(down[1], /unavailable — the ingest door did not answer/u);
 
   const refused = await capacitySection({

@@ -340,22 +340,19 @@ describe("RuleTunePanel", () => {
     return { saved, onDraftChange };
   }
 
-  it("leads with the scope, because these settings judge every asset", () => {
+  it("places one scope notice before the replay", () => {
     renderPanel({ state: "ready", backtest: backtest(() => ({ state: "quiet" })) });
     const container = document.body;
     const scope = container.querySelector("[data-rule-tune-scope]")!;
-    expect(scope).toHaveTextContent("Applies to every asset");
-    expect(scope.querySelector("svg")).not.toBeNull();
-    expect(screen.getAllByText("Applies to every asset")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-rule-tune-scope]")).toHaveLength(1);
     const panel = container.querySelector("[data-rule-tune]")!;
     expect(panel.children[1]).toBe(scope);
-    expect(container.querySelector("[data-rule-tune-replay]")).toHaveTextContent(/Replay · /);
   });
 
-  it("renders the three portfolio settings and links to where they live", () => {
+  it("renders configured portfolio values and links to the shared settings editor", () => {
     renderPanel({ state: "loading" });
     for (const knob of KNOBS) {
-      expect(screen.getByLabelText(new RegExp(knob.label))).toBeInTheDocument();
+      expect(screen.getByLabelText(new RegExp(knob.label))).toHaveValue(knob.raw);
     }
     expect(screen.getByRole("link", { name: /Every alert rule/ })).toHaveAttribute(
       "href",

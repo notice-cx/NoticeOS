@@ -77,7 +77,9 @@ describe('provider session and request budget', () => {
   });
   it('stops after a second access rejection and never echoes a provider error', async () => {
     const run = client([new Response('', { status: 401 }), json({ unidashRefreshToken: { accessToken: 'new', expiresIn: 3600 } }), Response.json({ errors: [{ message: 'unauthorized private-access private-password' }] })]);
-    await expect(run.client.revenue(SITE.id, period)).rejects.toMatchObject({ kind: 'auth', message: 'Mediavine declined the saved connection. Reconnect your account.' });
+    const error = await run.client.revenue(SITE.id, period).catch((error: unknown) => error);
+    expect(error).toMatchObject({ kind: 'auth' });
+    expect(String(error)).not.toMatch(/private-access|private-password/);
     expect(run.fetchImpl).toHaveBeenCalledTimes(3);
   });
 });

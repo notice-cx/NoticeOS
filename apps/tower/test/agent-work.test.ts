@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { agentMaker, evidenceParts } from "@/lib/agent-work";
 

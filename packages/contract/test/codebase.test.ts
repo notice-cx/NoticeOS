@@ -220,23 +220,10 @@ describe('CodebaseReport', () => {
 });
 
 describe('CODEBASE_MEASURES', () => {
-  it('names every measure once, with the words the Tower shows', () => {
+  it('covers each measure key and uses pass or count validation for verification measures', () => {
     expect(CODEBASE_MEASURES.map((m) => m.key)).toEqual([...CODEBASE_MEASURE_KEYS]);
-    const label = (key: string) => CODEBASE_MEASURES.find((m) => m.key === key)?.label;
-    expect(label('code_lines')).toBe('Lines of code');
-    expect(label('duplication_percent')).toBe('Repeated code');
-    expect(label('unused_files')).toMatch(/^Unused /u);
-    expect(label('unused_exports')).toMatch(/^Unused /u);
-    expect(label('unused_dependencies')).toMatch(/^Unused /u);
-    expect(label('complex_functions')).toBe('Hard-to-change functions');
-    expect(label('test_ratio')).toBe('Test coverage by size');
-    expect(label('commits_30d')).toBe('Changes in 30 days');
-    expect(label('build_passed')).toBe('Build');
-    expect(label('tests_passed')).toBe('Tests');
-    expect(label('vulnerable_dependencies')).toBe('Vulnerable packages');
     const unit = (key: string) => CODEBASE_MEASURES.find((m) => m.key === key)?.unit;
     expect([unit('build_passed'), unit('tests_passed'), unit('vulnerable_dependencies')]).toEqual(['pass', 'pass', 'count']);
-    for (const m of CODEBASE_MEASURES) expect(m.meaning.length).toBeGreaterThan(0);
   });
 });
 
@@ -272,10 +259,9 @@ describe('evaluateCodebaseRules', () => {
   const verdict = (verdicts: ReturnType<typeof evaluateCodebaseRules>, id: string) => verdicts.find((v) => v.ruleId === id)!;
   const T = DEFAULT_CODEBASE_RULE_THRESHOLDS;
 
-  it('fires growth with the sentence and the numbers it used', () => {
+  it('fires growth with the source counts and comparison threshold', () => {
     const v = verdict(evaluateCodebaseRules(report({ code_lines: 49900 }), report({ code_lines: 38100 }, '2026-10-01'), T), 'codebase-growth');
     expect(v).toMatchObject({ fired: true, severity: 'warn', kind: 'anomaly', metric: 'code_lines' });
-    expect(v.message).toBe('The code grew 31% in 30 days (38,100 → 49,900 lines).');
     expect(v.inputs).toMatchObject({ code_lines: 49900, comparison_code_lines: 38100, added_lines: 11800, growth_percent_30d: 25, growth_min_lines: 500 });
   });
 
@@ -286,30 +272,28 @@ describe('evaluateCodebaseRules', () => {
     expect(none).toMatchObject({ evaluable: false, fired: false });
   });
 
-  it('fires duplication, unused and complexity with their sentences', () => {
+  it('fires duplication, unused and complexity with their evidence', () => {
     const verdicts = evaluateCodebaseRules(
       report({ duplication_percent: 8.4, unused_files: 14, unused_dependencies: 3, complex_functions: 30 }),
       report({ complex_functions: 23 }, '2026-10-01'),
       T,
     );
-    expect(verdict(verdicts, 'codebase-duplication')).toMatchObject({ fired: true, severity: 'warn', kind: 'opportunity', message: '8.4% of the code is repeated.' });
-    expect(verdict(verdicts, 'codebase-unused')).toMatchObject({ fired: true, severity: 'info', kind: 'opportunity', message: '14 files and 3 packages are not used.' });
-    expect(verdict(verdicts, 'codebase-complexity')).toMatchObject({ fired: true, severity: 'info', kind: 'opportunity', message: '7 more functions became hard to change in 30 days.' });
+    expect(verdict(verdicts, 'codebase-duplication')).toMatchObject({ fired: true, severity: 'warn', kind: 'opportunity', inputs: { duplication_percent: 8.4 } });
+    expect(verdict(verdicts, 'codebase-unused')).toMatchObject({ fired: true, severity: 'info', kind: 'opportunity', inputs: { unused_files: 14, unused_dependencies: 3, unused_items: 17 } });
+    expect(verdict(verdicts, 'codebase-complexity')).toMatchObject({ fired: true, severity: 'info', kind: 'opportunity', inputs: { complex_functions: 30, comparison_complex_functions: 23, added_complex_functions: 7 } });
   });
 
   it('unused sums only the keys present: an absent package count is missing, never 0', () => {
     const files = verdict(evaluateCodebaseRules(report({ unused_files: 12 }), null, T), 'codebase-unused');
-    expect(files).toMatchObject({ evaluable: true, fired: true, message: '12 files are not used.' });
+    expect(files).toMatchObject({ evaluable: true, fired: true });
     expect(files.inputs).toMatchObject({ unused_files: 12, unused_dependencies: null, unused_items: 12 });
     expect(verdict(evaluateCodebaseRules(report({ unused_files: 9 }), null, T), 'codebase-unused').fired).toBe(false);
   });
 
   it('fires vulnerabilities from one vulnerable package, with the count it used', () => {
     const one = verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 1 }), null, T), 'codebase-vulnerabilities');
-    expect(one).toMatchObject({ evaluable: true, fired: true, severity: 'info', kind: 'opportunity', metric: 'vulnerable_dependencies', message: '1 package has a known vulnerability.' });
+    expect(one).toMatchObject({ evaluable: true, fired: true, severity: 'info', kind: 'opportunity', metric: 'vulnerable_dependencies' });
     expect(one.inputs).toMatchObject({ vulnerable_dependencies: 1, threshold_packages: 1 });
-    expect(verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 3 }), null, T), 'codebase-vulnerabilities').message)
-      .toBe('3 packages have a known vulnerability.');
   });
 
   it('vulnerabilities stays quiet at zero, under its threshold, with a threshold of 0, and when unmeasured', () => {

@@ -13,13 +13,11 @@ const demoHead = readFileSync(path.join(root, "vite/demo-head.html"), "utf8");
 const tag = (html: string, pattern: RegExp) => html.match(pattern)?.[1] ?? null;
 
 describe("the head a build ships", () => {
-  it("keeps an installation out of search, with a title and description of the product", () => {
+  it("keeps installations out of search without rewriting their head", () => {
     for (const profile of ["standalone", "hosted"] as const) {
       const html = documentHead(index, profile, demoHead);
       expect(html).toBe(index);
       expect(tag(html, /<meta name="robots" content="([^"]+)"/u)).toBe("noindex, nofollow");
-      expect(tag(html, /<title>([^<]+)<\/title>/u)).toMatch(/^NoticeOS · /u);
-      expect(tag(html, /<meta name="description" content="([^"]+)"/u)!.length).toBeLessThanOrEqual(160);
       expect(html).not.toContain("__NOTICEOS_PUBLIC_ORIGIN__");
     }
   });
@@ -28,13 +26,8 @@ describe("the head a build ships", () => {
     expect(html.match(/<title>/gu)).toHaveLength(1);
     expect(html.match(/<meta name="robots"/gu)).toHaveLength(1);
     expect(tag(html, /<meta name="robots" content="([^"]+)"/u)).toMatch(/^index, follow/u);
-    expect(tag(html, /<title>([^<]+)<\/title>/u)!.length).toBeLessThanOrEqual(60);
-    expect(tag(html, /<meta name="description" content="([^"]+)"/u)!.length).toBeLessThanOrEqual(160);
     expect(tag(html, /<meta property="og:image" content="([^"]+)"/u)).toBe("__NOTICEOS_PUBLIC_ORIGIN__/brand/notice-demo-wall.png");
     expect(tag(html, /<meta name="twitter:card" content="([^"]+)"/u)).toBe("summary_large_image");
-    // The icons, fonts and app entry stay the installation's.
-    expect(html).toContain('<link rel="apple-touch-icon" href="/brand/notice-icon-180.png" />');
-    expect(html).toContain('<script type="module" src="/src/main.tsx"></script>');
   });
   it("refuses a page whose head block moved", () => {
     expect(() => documentHead(index.replace("<!-- document-head:end -->", ""), "demo", demoHead)).toThrow("document-head block");

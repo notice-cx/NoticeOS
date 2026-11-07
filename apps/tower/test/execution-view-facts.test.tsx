@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { taskViewFacts } from '@/routes/tasks/task-view-context';
 import { workflowEvidenceValues } from '@/routes/workflows/workflow-view';

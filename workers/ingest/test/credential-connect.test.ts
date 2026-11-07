@@ -165,7 +165,9 @@ describe('Discord and calendar feeds in the panel', () => {
       { fetchImpl: discord(posts), nowMs: NOW });
     expect(result).toEqual({ ok: true, verdict: 'accepted', checkedAt: AT, facts: {} });
     expect(posts).toHaveLength(1);
-    expect(JSON.parse(posts[0]!.body)).toEqual({ content: 'NoticeOS connection test — nothing is wrong, you can ignore this.' });
+    expect(posts[0]!.url).toBe(WEBHOOK);
+    expect(JSON.parse(posts[0]!.body)).toMatchObject({ content: expect.any(String) });
+    expect(posts[0]!.body).not.toContain(WEBHOOK);
     expect(await stored('discord')).toEqual({ provider: 'discord', last_ok_at: AT, last_error: null });
     expect(JSON.stringify(result)).not.toContain('SEKRIT');
   });

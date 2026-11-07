@@ -61,7 +61,7 @@ describe("validateWindowDays (the longest alert window)", () => {
   it("rejects fractions, zero and anything past four weeks", () => {
     expect(validateWindowDays("2.5").ok).toBe(false);
     expect(validateWindowDays("0").ok).toBe(false);
-    expect(validateWindowDays("29")).toEqual({ ok: false, error: "Must be at most 28." });
+    expect(validateWindowDays("29").ok).toBe(false);
   });
 });
 

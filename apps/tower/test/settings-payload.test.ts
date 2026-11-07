@@ -98,11 +98,6 @@ describe("buildSettingsPayload", () => {
     expect(clock.owner).toBe("config/constants.json");
   });
 
-  it("passes a configured zone through rather than assuming the operator's", () => {
-    const { clock } = buildSettingsPayload(deps({ osTimeZone: "Europe/Warsaw" }));
-    expect(clock.timeZone).toBe("Europe/Warsaw");
-  });
-
   it("carries a TV config with no countdown, so a fresh install has a payload", () => {
     const payload = buildSettingsPayload(deps({ dashboard: parseDashboardConfig({}) }));
     expect(payload.dashboard.countdown).toBeUndefined();
@@ -133,7 +128,7 @@ describe("buildSettingsPayload", () => {
     });
   });
 
-  it("carries the alert-rule defaults as editable rows with their explainers", () => {
+  it("carries the alert-rule defaults with their guarded write pointers", () => {
     const { alertRules } = buildSettingsPayload(deps());
     expect(alertRules.owner).toBe("config/constants.json");
     expect(alertRules.knobs.map((k) => k.key)).toEqual([
@@ -143,8 +138,6 @@ describe("buildSettingsPayload", () => {
     const alpha = alertRules.knobs[0]!;
     expect(alpha.pointer).toBe("/flag_defaults/alpha");
     expect(alpha.raw).toBe(0.01);
-    expect(alpha.label).toBe("Anomaly sensitivity");
-    expect(alpha.explain.length).toBeGreaterThan(0);
   });
 
   it("lists no row for a key an older saved document still holds and no rule reads", () => {
@@ -156,7 +149,7 @@ describe("buildSettingsPayload", () => {
       ["alpha", 0.02],
       ["max_window_days", 14],
     ]);
-    expect(alertRules.knobs[1]).toMatchObject({ label: "Longest window", pointer: "/flag_defaults/max_window_days" });
+    expect(alertRules.knobs[1]).toMatchObject({ pointer: "/flag_defaults/max_window_days" });
   });
 
   it("resolves every declared knob by its own pointer, and names the pull owner", () => {

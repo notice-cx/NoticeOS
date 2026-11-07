@@ -40,7 +40,6 @@ interface StoredFlag extends Record<string, unknown> {
   severity: string;
   kind: string;
   metric: string | null;
-  message: string | null;
   rule_inputs: string;
   resolved_at: string | null;
   disposition: string | null;
@@ -49,7 +48,7 @@ interface StoredFlag extends Record<string, unknown> {
 
 async function flags(ruleId: string): Promise<StoredFlag[]> {
   return pgRows<StoredFlag>(
-    `SELECT flag_id::text, severity, kind, metric, message, rule_inputs::text AS rule_inputs,
+    `SELECT flag_id::text, severity, kind, metric, rule_inputs::text AS rule_inputs,
             resolved_at::text, disposition, pulse_id::text
        FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = $2 ORDER BY flag_id`,
     [MEADOW, ruleId],
@@ -141,7 +140,8 @@ describe('codebase rules', () => {
     expect(await flags('codebase-duplication')).toEqual([]);
     await send(report('2026-10-02', { duplication_percent: 8.4 }));
     const [flag] = await open('codebase-duplication');
-    expect(flag).toMatchObject({ severity: 'warn', kind: 'opportunity', metric: 'duplication_percent', message: '8.4% of the code is repeated.' });
+    expect(flag).toMatchObject({ severity: 'warn', kind: 'opportunity', metric: 'duplication_percent' });
+    expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ duplication_percent: 8.4 });
   });
 
   it('unused fires on files plus packages, and not below the threshold', async () => {
@@ -149,7 +149,8 @@ describe('codebase rules', () => {
     expect(await flags('codebase-unused')).toEqual([]);
     await send(report('2026-10-02', { unused_files: 14, unused_dependencies: 3 }));
     const [flag] = await open('codebase-unused');
-    expect(flag).toMatchObject({ severity: 'info', kind: 'opportunity', metric: null, message: '14 files and 3 packages are not used.' });
+    expect(flag).toMatchObject({ severity: 'info', kind: 'opportunity', metric: null });
+    expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ unused_files: 14, unused_dependencies: 3, unused_items: 17 });
   });
 
   it('complexity fires when enough functions became hard to change in 30 days', async () => {
@@ -159,7 +160,7 @@ describe('codebase rules', () => {
     await send(report('2026-10-02', { complex_functions: 30 }));
     const [flag] = await open('codebase-complexity');
     expect(flag).toMatchObject({ severity: 'info', kind: 'opportunity', metric: 'complex_functions' });
-    expect(flag!.message).toBe('7 more functions became hard to change in 31 days.');
+    expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ complex_functions: 30, comparison_complex_functions: 23, added_complex_functions: 7, comparison: { days: 31 } });
   });
 
   it('vulnerabilities fires on one vulnerable package and resolves when none is left', async () => {
@@ -167,7 +168,7 @@ describe('codebase rules', () => {
     expect(await flags('codebase-vulnerabilities')).toEqual([]);
     await send(report('2026-10-02', { vulnerable_dependencies: 3, build_passed: 0, tests_passed: 1 }));
     const [flag] = await open('codebase-vulnerabilities');
-    expect(flag).toMatchObject({ severity: 'info', kind: 'opportunity', metric: 'vulnerable_dependencies', message: '3 packages have a known vulnerability.' });
+    expect(flag).toMatchObject({ severity: 'info', kind: 'opportunity', metric: 'vulnerable_dependencies' });
     expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ vulnerable_dependencies: 3, threshold_packages: 1 });
     // A report the workflow sent no audit with leaves the alert open.
     await send(report('2026-10-03', { code_lines: 100 }));
@@ -184,7 +185,7 @@ describe('codebase rules', () => {
     expect(afterSecond).toHaveLength(2);
     expect(afterSecond.find((f) => f.flag_id === first!.flag_id)!.resolved_at).not.toBeNull();
     const [second] = await open('codebase-duplication');
-    expect(second!.message).toBe('9.5% of the code is repeated.');
+    expect(JSON.parse(second!.rule_inputs)).toMatchObject({ duplication_percent: 9.5 });
 
     await pgExecute(`UPDATE noticeos.flags SET disposition = 'ack', disposition_at = now() WHERE flag_id = $1::bigint`, [second!.flag_id]);
     await send(report('2026-10-03', { duplication_percent: 3 }));

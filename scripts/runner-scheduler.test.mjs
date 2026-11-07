@@ -74,11 +74,12 @@ test('waiting for the runtime answers at once when it is up, and gives up when i
   assert.ok(Date.now() - started < 5_000);
 });
 
-test('a tracked interval never fires after the scheduler stops', async () => {
+test('a tracked interval never fires after the scheduler stops', (t) => {
+  t.mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
   let fired = 0;
   trackTimer(setInterval(() => (fired += 1), 20));
   stopScheduler();
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  t.mock.timers.tick(80);
   assert.equal(fired, 0);
 });
 

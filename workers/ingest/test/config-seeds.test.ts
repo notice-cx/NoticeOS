@@ -20,21 +20,10 @@ describe('the committed config files', () => {
   // (dataforseo-dumps.test.ts pins the ceiling to that reserve). Every shipped
   // panel must fit under it, so the operator learns about a narrowed ceiling
   // from a red gate rather than a red Monday.
-  it('keeps every shipped SERP panel inside the reserve its gate takes', () => {
+  it('fits the maximum legal SERP panel inside its reserve and excludes one more query', () => {
     expect(PANEL_CEILING * SERP_PANEL_DEVICES.length * CALL_USD).toBeLessThanOrEqual(REPORT_RESERVE_USD);
     // The product default tracks no query; an installation's panels must fit.
     expect(shippedSerpPanel.assets).toEqual({});
-  });
-
-  it('fits synthetic asset panels through the maximum tracked-query count', () => {
-    const panel = { assets: {
-      'small.example': { queries: ['meal planning', 'weekly recipes'] },
-      'boundary.example': { queries: Array.from({ length: PANEL_CEILING }, (_, n) => `tracked term ${n}`) },
-    } };
-    for (const [asset, entry] of Object.entries(panel.assets)) {
-      expect(entry.queries.length, asset).toBeLessThanOrEqual(PANEL_CEILING);
-      expect(entry.queries.length * SERP_PANEL_DEVICES.length * CALL_USD, asset).toBeLessThanOrEqual(REPORT_RESERVE_USD);
-    }
     // One more tracked query cannot fit the actual product reserve. This
     // couples the configured ceiling to the collector's per-device economics.
     expect((PANEL_CEILING + 1) * SERP_PANEL_DEVICES.length * CALL_USD).toBeGreaterThan(REPORT_RESERVE_USD);

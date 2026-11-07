@@ -19,7 +19,7 @@ describe('provider deadlines belong to their test', () => {
     expect(signal.aborted).toBe(false);
     await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }));
     expect(signal.reason).toBeInstanceOf(DOMException);
-    expect(signal.reason).toMatchObject({ name: 'TimeoutError', message: 'The operation was aborted due to timeout' });
+    expect(signal.reason.name).toBe('TimeoutError');
     expect(() => signal.throwIfAborted()).toThrow(signal.reason);
   });
 

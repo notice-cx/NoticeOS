@@ -168,9 +168,6 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     });
     expect(body.detail).toContain('2026-08-04T09:12:00.000Z');
     expect(body.detail).toContain('northwind.example (serp-panel)');
-    // A refused run is not a failed one, and the sentence has to say so inside
-    // the 400 characters `signals:collect` prints of a non-2xx body.
-    expect(body.detail).toContain('Nothing was billed for this call');
     expect(body.detail?.length ?? 0).toBeLessThanOrEqual(360);
 
     // Nothing was asked of the provider and nothing was written. The holder
@@ -262,7 +259,6 @@ describe('the DataForSEO collector runs one collection at a time', () => {
 
     expect(status).toBe(409);
     expect(body.inFlight?.scope).toBeNull();
-    expect(body.detail).toContain('the weekly portfolio sweep');
     expect(challenger.calls).toEqual([]);
     expect(await pgCount(DUMP_ROWS)).toBe(0);
 

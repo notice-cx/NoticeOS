@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { parseProductSnapshot } from "@shared/product-snapshot";
 import posthogProductJson from "@/routes/kitchen-sink/posthog-product.json";
 import { siteLead } from "@/routes/asset-detail/SiteLead";
@@ -195,14 +196,12 @@ describe("the hero row's measures", () => {
       body.executive!.product = product;
     });
     const measure = overviewMeasures(data, 28, NOW).find((one) => one.key === "people")!;
-    expect(measure.name).toBe("Observed people a day");
     expect(measure.comparison).toBeNull();
     expect(measure.usual).toBeNull();
     const lead = siteLead(data, 28, NOW);
     expect(lead.kind).toBe("traffic");
     if (lead.kind !== "traffic") throw new Error("expected product traffic");
     expect(lead.metrics.find((metric) => metric.key === "people")?.delta).toBeNull();
-    expect(lead.metrics.find((metric) => metric.key === "pageviews")?.label).toBe("Estimated page views");
   });
 
   it("leads with money, then people, search and the product figure, leaving out what the asset lacks", () => {
@@ -220,7 +219,7 @@ describe("the hero row's measures", () => {
       body.dailyRevenue = { from: revenueDays[0]!.date, to: "2026-07-04", reportedThrough: "2026-07-04", days: revenueDays };
     });
     const money = overviewMeasures(data, 28, NOW)[0]!;
-    expect(money).toMatchObject({ key: "money", name: "Ad revenue", value: 140, estimated: true });
+    expect(money).toMatchObject({ key: "money", value: 140, estimated: true });
     expect(money.comparison).toMatchObject({ change: 28, against: "vs prior 28 days", comparable: true });
     expect(money.comparison?.percent).toBeCloseTo(25);
     expect(money.usual).toEqual({ value: 4, label: "prior 28 days · $4.00 a day" });
@@ -232,7 +231,7 @@ describe("the hero row's measures", () => {
       body.performance.webSearchClicks = { google: trend(days(56, () => 10)), bing: trend(days(56, () => 2)) };
     });
     const [, people, search] = overviewMeasures(data, 28, NOW);
-    expect(people).toMatchObject({ key: "people", name: "Visitors a day", window: "28 days", value: 120, sources: ["GA4"] });
+    expect(people).toMatchObject({ key: "people", window: "28 days", value: 120, sources: ["GA4"] });
     expect(people!.comparison).toMatchObject({ percent: 20, against: "vs prior 28 days", comparable: true });
     expect(search).toMatchObject({ key: "search", value: 336, sources: ["Google", "Bing"] });
     expect(search!.usual?.label).toBe("prior 28 days · 12 a day");

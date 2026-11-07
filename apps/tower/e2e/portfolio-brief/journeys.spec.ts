@@ -220,8 +220,6 @@ test('Settings AI saves a portfolio asset subset and Undo restores all assets', 
   expect(initial.portfolioReview.assetIds).toBeNull();
   await page.goto('/settings/ai');
   const panel = page.locator('#portfolio-review');
-  await expect(panel.getByRole('heading', { name: 'AI portfolio review' })).toBeVisible();
-  await expect(panel).not.toContainText('Stored name, never shown');
   await expect(panel.getByRole('radio', { name: 'All assets', exact: true })).toBeChecked();
   await panel.getByRole('radio', { name: 'Choose assets', exact: true }).check();
   const choices = panel.getByRole('checkbox');

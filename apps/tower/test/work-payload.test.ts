@@ -182,6 +182,7 @@ describe("buildWorkPayload", () => {
 
     expect(payload.capturedAt).toBeNull();
     expect(payload.projects).toEqual([]);
+    expect(payload.historyDays).toBe(0);
     expect(payload.owner).toBe(WORK_OWNER);
   });
 
@@ -450,11 +451,6 @@ describe("the work vocabulary", () => {
     expect(hasWork({ ...idle, counts: { ...idle.counts, blocked: 1 } })).toBe(true);
     expect(hasWork({ ...idle, counts: { ...idle.counts, closedRecent: 3 } })).toBe(true);
   });
-
-  it("ages the board against the runner's own poll cadence", () => {
-    // One minute, so a dead poller turns the header chip amber in two.
-    expect(WORK_POLL_CADENCE_HOURS * 60).toBeCloseTo(1, 10);
-  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -572,12 +568,6 @@ describe("the daily history the strip's six numbers ride", () => {
 
     expect(payload.projects.map((one) => one.asset)).toEqual(["meadow.example", "northwind.example"]);
     expect(payload.projects[1]!.history.open).toEqual([]);
-  });
-
-  it("answers a first-run board with no snapshot at all", async () => {
-    const payload = await buildWorkPayload(store.call, { now: NOW });
-    expect(payload.projects).toEqual([]);
-    expect(payload.historyDays).toBe(0);
   });
 
   /** Two weeks of one project's days: last week one close a day, this week

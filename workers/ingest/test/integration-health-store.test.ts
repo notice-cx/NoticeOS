@@ -163,11 +163,12 @@ describe('a failed collection in the asset row\'s words', () => {
     expect(healthFailure('clarity_http_500')).toEqual({ failure: 'provider', code: 'provider' });
   });
 
-  it('words each kind once, in the order met, and counts with the right noun', () => {
+  it('deduplicates failure kinds in the order met and counts with the right noun', () => {
     expect(failureWords(['ga4_http_403', 'gsc_http_403', 'ga4_http_500'])).toEqual([
-      'Access was refused',
-      'The provider could not complete the request',
+      ...failureWords(['ga4_http_403']),
+      ...failureWords(['ga4_http_500']),
     ]);
+    expect(failureWords(['ga4_http_403', 'gsc_http_403', 'ga4_http_500'])).toHaveLength(2);
     expect(countOf(4, 4, 'property', 'properties')).toBe('4 of 4 properties');
     expect(countOf(1, 1, 'property', 'properties')).toBe('1 of 1 property');
   });

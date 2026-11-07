@@ -31,11 +31,11 @@ describe('a task carries its choices as data', () => {
     expect(problem({ ...THREE, question: 'x'.repeat(TASK_CHOICE_LIMITS.question + 1) })).toBe('choices.question');
     expect(problem({ question: 'One?', options: [{ key: 'a', label: 'Only', recommended: true }] })).toBe('choices.options');
     expect(problem({ question: 'Seven?', options: 'abcdefg'.split('').map(key => ({ key, label: key, recommended: key === 'a' })) })).toBe('choices.options');
-    expect(taskChoicesProblem({ ...THREE, options: THREE.options.map(option => ({ ...option, recommended: true })) }))
-      .toEqual({ field: 'choices.options', rule: 'exactly one option with recommended: true; these have 3' });
+    expect(problem({ ...THREE, options: THREE.options.map(option => ({ ...option, recommended: true })) }))
+      .toBe('choices.options');
     expect(problem({ ...THREE, options: THREE.options.map(({ recommended: _r, ...option }) => option) })).toBe('choices.options');
-    expect(taskChoicesProblem({ ...THREE, options: [THREE.options[0], { ...THREE.options[1], key: 'z' }, THREE.options[2]] }))
-      .toEqual({ field: 'choices.options[1].key', rule: 'b: keys run a, b, c… in the order the options are shown' });
+    expect(problem({ ...THREE, options: [THREE.options[0], { ...THREE.options[1], key: 'z' }, THREE.options[2]] }))
+      .toBe('choices.options[1].key');
     expect(problem({ ...THREE, options: [THREE.options[1], THREE.options[0], THREE.options[2]] })).toBe('choices.options[0].key');
     expect(problem({ ...THREE, options: [{ ...THREE.options[0], label: 'Two\nlines' }, THREE.options[1], THREE.options[2]] })).toBe('choices.options[0].label');
     expect(problem({ ...THREE, options: [{ ...THREE.options[0], label: 'x'.repeat(TASK_CHOICE_LIMITS.label + 1) }, THREE.options[1], THREE.options[2]] }))

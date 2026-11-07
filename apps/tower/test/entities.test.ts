@@ -157,12 +157,5 @@ describe("moving one asset between entities", () => {
       expect(entityReleaseOp([], "meadow.example")).toBeNull();
     });
 
-    it("leaves the ownership map naming only what is left", () => {
-      const after = ROWS.map((row) =>
-        row.slug === "example-ventures" ? { ...row, assets: ["northwind.example"] } : row,
-      );
-      expect(entityOfAsset(after, "meadow.example")).toBeNull();
-      expect(entityAssets(after[0])).toEqual(["northwind.example"]);
-    });
   });
 });

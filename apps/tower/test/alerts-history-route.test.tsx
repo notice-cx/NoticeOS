@@ -532,11 +532,6 @@ describe("/alerts/history — what already closed", () => {
     renderAlerts("/alerts/history");
 
     expect(screen.getByText("No settled alerts yet")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "An alert appears here once it has been resolved or acknowledged.",
-      ),
-    ).toBeInTheDocument();
   });
 
   it("says the read failed rather than showing an empty archive", () => {

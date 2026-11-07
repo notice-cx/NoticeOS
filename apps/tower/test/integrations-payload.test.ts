@@ -220,7 +220,6 @@ async function insertNomDown(ctx: TestStore) {
   });
 }
 
-
 /** Revenue in the ledger, booked only by the tests that read revenue evidence
  * (test/money.ts). */
 async function insertRevenue(
@@ -329,6 +328,28 @@ const DATAFORSEO_SUCCESS: LatestSignalRun = {
   observationCount: 5,
 };
 
+it("takes the matrix's inputs from the resolved settings, and nothing else", () => {
+  const settings = { ...deps(INTEGRATIONS), noNightlyReport: ["acorn.example"], osTimeZone: "UTC", entities: [] };
+  expect(integrationsDeps(settings, NOW)).toEqual({ ...deps(INTEGRATIONS), noNightlyReport: ["acorn.example"], now: NOW });
+});
+
+it("degrades to a lane that says less when the stored evidence is unreadable", () => {
+  // rule_inputs is written by another Worker. A truncated or re-shaped
+  // payload must cost the operator a sentence, never a page.
+  expect(
+    egressState({ firedAt: "2026-07-04T02:30:00.000Z", ruleInputs: "{not json" }, null),
+  ).toMatchObject({
+    effective: "degraded",
+    evidence: [
+      {
+        polarity: "against",
+        detail: "",
+        at: "2026-07-04T02:30:00.000Z",
+      },
+    ],
+  });
+});
+
 describe("mergeLane — observed health with file-backed setup/applicability", () => {
   it("derives a live Google lane from a fresh success and exposes the run evidence", () => {
     const r = mergeLane("live", "gsc", {
@@ -338,7 +359,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("live");
     expect(r.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "Search Console collector succeeded",
       at: GSC_SUCCESS.finishedAt,
     });
     expect(r.evidence[0]!.detail).toBe("28 daily rows · 2026-06-08 → 2026-07-05 · provisional from 2026-07-04");
@@ -350,7 +370,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       signalRuns: [GSC_SUCCESS],
       nowMs: NOW_MS });
     expect(r.effective).toBe("live");
-    expect(r.evidence[0]!.source).toBe("Search Console collector succeeded");
   });
 
   it("derives DataForSEO health from all five stored report families", () => {
@@ -361,7 +380,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     });
     expect(r.effective).toBe("live");
     expect(r.evidence[0]).toMatchObject({
-      source: "DataForSEO collector succeeded",
       detail: "5 report families · 240 rows · 2026-07-28 snapshot",
     });
   });
@@ -383,7 +401,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("degraded");
     expect(r.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "DataForSEO collector stopped at the monthly data cap",
     });
     expect(r.evidence[0]!.detail).toBe("Resumes 2026-08-01");
     expect(r.evidence[0]!.detail).not.toContain("config/");
@@ -407,7 +424,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("degraded");
     expect(r.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "DataForSEO collector failed",
       detail: "DataForSEO returned dataforseo_http_500.",
     });
   });
@@ -474,7 +490,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(archived.evidence).toHaveLength(2);
     expect(archived.evidence[1]).toMatchObject({
       polarity: "supporting",
-      source: "Nightly archive succeeded",
       detail: "10 report families · 2026-07-04",
     });
 
@@ -502,7 +517,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(failing.effective).toBe("live");
     expect(failing.evidence[1]).toMatchObject({
       polarity: "against",
-      source: "Nightly archive failed",
     });
     expect(failing.evidence[1]!.detail).toContain("2 of 10");
   });
@@ -534,7 +548,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     });
     expect(gap.evidence[1]).toMatchObject({
       polarity: "against",
-      source: "Nightly archive has no recent run",
       at: null,
     });
   });
@@ -585,7 +598,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("degraded");
     expect(r.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Search Console collector failed",
       detail: "Search Console site access denied",
     });
   });
@@ -604,8 +616,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("degraded");
     expect(r.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Search Console collector is stale",
-      detail: "Due every 15 min",
     });
   });
 
@@ -616,7 +626,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       nowMs: NOW_MS,
     });
     expect(r.effective).toBe("needs-setup");
-    expect(r.evidence[0]!.source).toBe("Search Console collector has no recent run");
   });
 
   it("reads No run yet for a cell recorded inside the evidence floor, and the floor for one older", () => {
@@ -625,12 +634,11 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     const fresh = mergeLane("needs-setup", "ga4", ev, today);
     expect(fresh.effective).toBe("needs-setup");
     // Owed no run yet, so an info line rather than a warning.
-    expect(fresh.evidence[0]).toEqual({ polarity: "supporting", source: "GA4 collector", detail: "No run yet", at: null });
+    expect(fresh.evidence[0]).toMatchObject({ polarity: "supporting", at: null });
 
     const old = new Date(NOW_MS - (SIGNAL_EVIDENCE_FLOOR_DAYS + 1) * 24 * HOUR).toISOString().slice(0, 10);
     expect(mergeLane("needs-setup", "ga4", ev, old).evidence[0]).toMatchObject({
       polarity: "against",
-      source: "GA4 collector has no recent run",
       detail: `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`,
     });
     // A cell with no recorded date cannot bound the span.
@@ -644,7 +652,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       archiveRuns: [],
       nowMs: NOW_MS,
     }, NOW.toISOString().slice(0, 10));
-    expect(r.evidence[1]).toEqual({ polarity: "supporting", source: "Nightly archive", detail: "No run yet", at: null });
+    expect(r.evidence[1]).toMatchObject({ polarity: "supporting", at: null });
   });
 
   it("keeps a needs-setup revenue lane needs-setup but surfaces the manual lane", () => {
@@ -655,7 +663,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("needs-setup");
     expect(r.evidence).toHaveLength(1);
     expect(r.evidence[0]!.polarity).toBe("supporting");
-    expect(r.evidence[0]!.source).toBe("Ads revenue added by hand");
+
     expect(r.evidence[0]!.detail).toBe("$498.10 · latest 2026-06");
   });
 
@@ -686,7 +694,7 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     const r = nightlyReportState(NOW_MS, at, pull);
     expect(r.effective).toBe("live");
     expect(r.evidence).toHaveLength(1);
-    expect(r.evidence[0]).toMatchObject({ polarity: "supporting", source: "Last nightly report accepted", at });
+    expect(r.evidence[0]).toMatchObject({ polarity: "supporting", at });
     expect(r.evidence[0]!.detail).toBe("");
   });
 
@@ -694,7 +702,7 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     const at = new Date(NOW_MS - 49 * HOUR).toISOString();
     const r = nightlyReportState(NOW_MS, at, pull);
     expect(r.effective).toBe("degraded");
-    expect(r.evidence[0]).toMatchObject({ polarity: "against", at, detail: "Due daily" });
+    expect(r.evidence[0]).toMatchObject({ polarity: "against", at });
     // 48h is the boundary (2 x 24h); one hour inside it is still live.
     expect(nightlyReportState(NOW_MS, new Date(NOW_MS - 47 * HOUR).toISOString(), pull).effective).toBe("live");
   });
@@ -704,15 +712,14 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     const never = nightlyReportState(NOW_MS, null, null);
     expect(never.effective).toBe("not-applicable");
     expect(never.evidence[0]!.at).toBeNull();
-    expect(never.evidence[0]!.detail).toBe("No nightly fetch set up");
 
     const disabled = nightlyReportState(NOW_MS, null, PULL_CONFIG[2]!);
     expect(disabled.effective).toBe("not-applicable");
-    expect(disabled.evidence[0]!.detail).toBe(`Nightly fetch off · ${PULL_CONFIG[2]!.url}`);
+    expect(disabled.evidence[0]!.detail).toContain(PULL_CONFIG[2]!.url);
 
     const configured = nightlyReportState(NOW_MS, null, pull);
     expect(configured.effective).toBe("not-applicable");
-    expect(configured.evidence[0]!.detail).toBe(`Fetched nightly · ${pull.url}`);
+    expect(configured.evidence[0]!.detail).toContain(pull.url);
     for (const r of [never, disabled, configured]) expect(r.evidence[0]!.detail).not.toContain("config/");
   });
 
@@ -736,9 +743,9 @@ describe("buildCardDataSources — compact working/degraded/unconfigured inputs"
       pull: PULL_CONFIG[0]!,
       now: NOW,
     });
-    expect(sources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
-      { id: NIGHTLY_REPORT_LANE_ID, label: "Nightly report", state: "live" },
-      { id: "gsc", label: "Google Search Console", state: "needs-setup" },
+    expect(sources.map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: NIGHTLY_REPORT_LANE_ID, state: "live" },
+      { id: "gsc", state: "needs-setup" },
       // Uptime is Not set up and nothing on Integrations connects it: no slot.
     ]);
   });
@@ -801,10 +808,10 @@ describe("buildCardDataSources — compact working/degraded/unconfigured inputs"
       now: NOW,
       homeCheck: { observedAt: new Date(NOW_MS - 20 * 60_000).toISOString(), status: "error", httpStatus: 503, egressDown: false },
     });
-    expect(sources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
-      { id: NIGHTLY_REPORT_LANE_ID, label: "Nightly report", state: "degraded" },
-      { id: "gsc", label: "Google Search Console", state: "needs-setup" },
-      { id: "uptime", label: "Uptime / monitoring", state: "degraded" },
+    expect(sources.map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: NIGHTLY_REPORT_LANE_ID, state: "degraded" },
+      { id: "gsc", state: "needs-setup" },
+      { id: "uptime", state: "degraded" },
     ]);
   });
 });
@@ -833,7 +840,6 @@ describe("buildIntegrationsMatrix", () => {
       "ferns.example",
     ]);
     expect(m.assets[0]!.isOs).toBe(true);
-    expect(m.assets[0]!.displayName).toBe("System");
     expect(m.assets[1]!.displayName).toBe("Meadow Board");
     expect(JSON.stringify(m)).not.toContain("ReindexOS");
   });
@@ -856,8 +862,8 @@ describe("buildIntegrationsMatrix", () => {
     expect(nomUptime.declared).toBe("live");
     expect(nomUptime.effective).toBe("degraded");
     // Its own check, not the overdue report.
-    expect(nomUptime.evidence).toEqual([{
-      polarity: "against", source: "Home page could not be reached", detail: "HTTP 503",
+    expect(nomUptime.evidence).toMatchObject([{
+      polarity: "against", detail: "HTTP 503",
       at: new Date(NOW_MS - 20 * 60_000).toISOString(),
     }]);
 
@@ -866,8 +872,6 @@ describe("buildIntegrationsMatrix", () => {
     expect(nomGsc.effective).toBe("needs-setup");
     expect(nomGsc.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "Search Console collector",
-      detail: "No run yet",
       at: null,
     });
 
@@ -901,7 +905,6 @@ describe("buildIntegrationsMatrix", () => {
     expect(gsc.effective).toBe("degraded");
     expect(gsc.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Search Console collector failed",
       detail: "The service account lost access to the asset.",
       at: daysBeforeNow(399),
     });
@@ -919,7 +922,6 @@ describe("buildIntegrationsMatrix", () => {
     expect(gsc.laneId).toBe("gsc");
     expect(gsc.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Search Console collector has no recent run",
       detail: `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`,
       at: null,
     });
@@ -934,7 +936,7 @@ describe("buildIntegrationsMatrix", () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(addedToday));
 
     const gsc = m.cells["meadow.example"]![0]!;
-    expect(gsc.evidence[0]).toEqual({ polarity: "supporting", source: "Search Console collector", detail: "No run yet", at: null });
+    expect(gsc.evidence[0]).toMatchObject({ polarity: "supporting", at: null });
     expect(JSON.stringify(gsc.evidence)).not.toContain("0 runs in");
   });
 
@@ -1009,8 +1011,7 @@ describe("buildIntegrationsMatrix", () => {
     // The evidence is the last accepted report: northwind's newest, not its oldest.
     expect(lane.cells["northwind.example"]!.evidence[0]!.at).toBe(new Date(NOW_MS - 71 * HOUR).toISOString());
     // areas is in config/pull.json but switched off; ferns.example is not in it at all.
-    expect(lane.cells["acorn.example"]!.evidence[0]!.detail).toMatch(/^Nightly fetch off · /);
-    expect(lane.cells["ferns.example"]!.evidence[0]!.detail).toBe("No nightly fetch set up");
+    expect(lane.cells["acorn.example"]!.evidence[0]!.detail).toContain(PULL_CONFIG[2]!.url);
   });
 
   it("counts a live derived cell as live, never as a lane wanting attention", async () => {
@@ -1108,15 +1109,10 @@ describe("the Source history, recorded by the hourly tick", () => {
     expect(rest).toEqual(pageRest);
   });
 
-  it("takes the matrix's inputs from the resolved settings, and nothing else", () => {
-    const settings = { ...deps(INTEGRATIONS), noNightlyReport: ["acorn.example"], osTimeZone: "UTC", entities: [] };
-    expect(integrationsDeps(settings, NOW)).toEqual({ ...deps(INTEGRATIONS), noNightlyReport: ["acorn.example"], now: NOW });
-  });
 });
 
 // L0, the OS's own egress: every one of these is a read over what
-// workers/ingest/src/egress.ts actually stores. The copy is asserted where the
-// sentence is the deliverable.
+// workers/ingest/src/egress.ts actually stores.
 describe("the L0 egress lane", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -1149,7 +1145,6 @@ describe("the L0 egress lane", () => {
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Reference websites that could not be reached",
       // Dated from the first down verdict, so the row ages from when the
       // connection went rather than from the last time the gate re-asked.
       at: "2026-07-04T02:30:00.000Z",
@@ -1159,7 +1154,6 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence[0]!.detail).toContain("www.google.com/generate_204: internal error; reference = 3b71");
     expect(cell.evidence[1]).toMatchObject({
       polarity: "against",
-      source: "Assets not measured",
       detail: "meadow.example · northwind.example",
     });
   });
@@ -1178,7 +1172,6 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence).toHaveLength(1);
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "Connection answered again",
       at: "2026-07-05T12:15:00.000Z",
     });
     expect(cell.evidence[0]!.detail).toBe("Waiting on northwind.example");
@@ -1186,15 +1179,14 @@ describe("the L0 egress lane", () => {
     expect(matrixUnblockers(m).some((u) => u.key === EGRESS_LANE_ID)).toBe(false);
   });
 
-  it("names this machine's internet connection as the thing to go and check, not a credential", async () => {
+  it("prioritizes the OS connectivity outage in the unblockers", async () => {
     await insertEgressFlag(ctx, "root-os", "2026-07-04T02:30:00.000Z", OUTAGE_INPUTS);
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     const top = matrixUnblockers(m)[0]!;
 
     expect(top.kind).toBe("degraded");
     expect(top.key).toBe(EGRESS_LANE_ID);
-    expect(top.action).toBe("Check this machine's internet connection");
-    expect(top.action).not.toContain("credential");
+
     expect(top).not.toHaveProperty("detail");
   });
 
@@ -1204,7 +1196,6 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence).toHaveLength(1);
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "No internet check recorded",
       // No probe means no timestamp to age: there is no reading.
       detail: "",
       at: null,
@@ -1224,7 +1215,6 @@ describe("the L0 egress lane", () => {
     expect(cell.effective).toBe("live");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "Internet check passed",
       at: new Date(NOW_MS - 10 * 24 * HOUR).toISOString(),
     });
     expect(cell.evidence[0]!.detail).toContain("www.cloudflare.com/cdn-cgi/trace: HTTP 200");
@@ -1244,7 +1234,7 @@ describe("the L0 egress lane", () => {
     const cell = (await lane()).cells["root-os"]!;
 
     expect(cell.effective).toBe("live");
-    expect(cell.evidence[0]!.source).toBe("Internet check failed");
+
     expect(cell.evidence[0]!.at).toBe("2026-07-04T02:30:00.000Z");
     expect(cell.evidence[0]!.detail).toContain("www.google.com/generate_204: internal error");
   });
@@ -1273,7 +1263,6 @@ describe("the L0 egress lane", () => {
     const cell = (await lane()).cells["root-os"]!;
 
     expect(cell.effective).toBe("live");
-    expect(cell.evidence[0]!.source).toBe("Internet check passed");
   });
 
   it("is the SYSTEM's lane: a content asset carries the scope rule, not a state", async () => {
@@ -1299,23 +1288,6 @@ describe("the L0 egress lane", () => {
     expect(l.catalog.onFailure).toBe("pauses-asset-checks");
   });
 
-  it("degrades to a lane that says less when the stored evidence is unreadable", async () => {
-    // rule_inputs is written by another Worker. A truncated or re-shaped
-    // payload must cost the operator a sentence, never a page.
-    expect(
-      egressState({ firedAt: "2026-07-04T02:30:00.000Z", ruleInputs: "{not json" }, null),
-    ).toEqual({
-      effective: "degraded",
-      evidence: [
-        {
-          polarity: "against",
-          source: "Reference websites that could not be reached",
-          detail: "",
-          at: "2026-07-04T02:30:00.000Z",
-        },
-      ],
-    });
-  });
 });
 
 describe("what to unblock next", () => {
@@ -1348,7 +1320,6 @@ describe("what to unblock next", () => {
     expect(list[0]).toMatchObject({
       kind: "shared-credential",
       key: "gsc",
-      action: "Connect Google Search Console once",
       cells: 2,
     });
     expect(list[0]!.unlocks).toEqual(["Meadow Board", "Northwind"]);
@@ -1377,7 +1348,7 @@ describe("what to unblock next", () => {
       "property-setup",
       "property-setup",
     ]);
-    expect(list[0]).toMatchObject({ key: "uptime", action: "Asset down", cells: 1 });
+    expect(list[0]).toMatchObject({ key: "uptime", cells: 1 });
     // A per-property install is grouped by the asset, the unit of the visit,
     // and names the lanes.
     expect(list[2]).toMatchObject({ kind: "property-setup", key: "meadow.example", cells: 1 });
@@ -1665,7 +1636,6 @@ describe("a full register renders completely", () => {
     // No collector run in the fixture, but the archive itself is evidence.
     expect(laneEvidence("ga4")[1]).toMatchObject({
       polarity: "supporting",
-      source: "Nightly archive succeeded",
       detail: "2 report families · 2026-07-04",
     });
     expect(laneEvidence("bing-webmaster")[1]!.detail).toBe("1 report families · 2026-07-04");
@@ -1691,7 +1661,6 @@ describe("a full register renders completely", () => {
     expect(cell.effective).toBe("live");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "PostHog collector succeeded",
       detail: "6 report families · 60 rows · to 2026-07-04",
     });
     expect(m.cells["northwind.example"]![index(m)]!.effective).toBe("needs-setup");
@@ -1706,7 +1675,7 @@ describe("a full register renders completely", () => {
     m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.effective).toBe("degraded");
-    expect(cell.evidence[0]).toMatchObject({ polarity: "against", source: "PostHog collector failed",
+    expect(cell.evidence[0]).toMatchObject({ polarity: "against",
     });
     expect(cell.evidence[0]!.detail).toContain("exceptions: PostHog rejected the query");
   });
@@ -1726,7 +1695,6 @@ describe("a full register renders completely", () => {
     expect(cell.evidence).toHaveLength(1);
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "Clarity collector succeeded",
       detail: "10 behavior rows · 3 days to 2026-07-04",
       verification: { kind: "collection-success", laneId: "clarity" },
     });
@@ -1742,10 +1710,9 @@ describe("a full register renders completely", () => {
     m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.effective).toBe("degraded");
-    expect(cell.evidence).toEqual([
+    expect(cell.evidence).toMatchObject([
       {
         polarity: "against",
-        source: "Clarity collector failed",
         detail: "Clarity rejected the project token (HTTP 401).",
         at: "2026-07-05T04:30:01.000Z",
       },
@@ -1798,7 +1765,6 @@ describe("a full register renders completely", () => {
     // is still supporting.
     expect(archive).toMatchObject({
       polarity: "supporting",
-      source: "Nightly archive succeeded",
     });
     expect(archive.detail).toBe("4 of 6 report families · 2026-07-05 · pages and queries 2026-06-29");
     expect(archive.detail).not.toMatch(/^6 report families/);
@@ -1862,7 +1828,7 @@ describe("a full register renders completely", () => {
   const whole = (reports: string[], reportDate: string, finishedAt: string) =>
     reports.map((report) => ({ report, reportDate, finishedAt }));
 
-  it("counts six report families for an asset with a tracked SERP panel", async () => {
+  it("degrades when an asset with a tracked panel has only five families", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     // Five families, one snapshot date, nothing stale. The panel is absent,
@@ -1879,7 +1845,6 @@ describe("a full register renders completely", () => {
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "DataForSEO collector failed",
     });
     expect(cell.evidence[0]!.detail).toBe(
       "5 of 6 report families ever collected",
@@ -1910,7 +1875,6 @@ describe("a full register renders completely", () => {
     expect(cell.effective).toBe("live");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "DataForSEO collector succeeded",
       detail: "5 report families · 50 rows · 2026-07-05 snapshot",
     });
   });
@@ -1937,7 +1901,6 @@ describe("a full register renders completely", () => {
     // have landed, never the sixth still on 2026-06-28.
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "DataForSEO collector succeeded",
       detail: "5 report families · 50 rows · 2026-07-05 snapshot",
     });
   });
@@ -1961,7 +1924,6 @@ describe("a full register renders completely", () => {
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "DataForSEO collector failed",
       detail: "serp-panel missing from 2026-07-05",
     });
   });
@@ -1987,7 +1949,6 @@ describe("a full register renders completely", () => {
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "DataForSEO collector failed",
       detail: "serp-panel: POST Data Is Empty.",
       at: "2026-07-05T10:03:00.000Z",
     });
@@ -2139,7 +2100,7 @@ describe("buildAssetIntegrations", () => {
     const ev: LaneEvidence = { revenueRows: [], signalRuns: [], nowMs: NOW_MS };
     const gsc = buildAssetIntegrations("meadow.example", mapped, ev, slots(mapped)).lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(gsc.cell.mapped).toBe(true);
-    expect(slots(mapped).find((source) => source.id === "gsc")).toMatchObject({ mapped: true, detail: "No run yet" });
+    expect(slots(mapped).find((source) => source.id === "gsc")).toMatchObject({ mapped: true });
 
     const unmapped = buildAssetIntegrations("meadow.example", INTEGRATIONS, ev).lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(unmapped.cell).not.toHaveProperty("mapped");
@@ -2212,6 +2173,7 @@ describe("loadMeteredCallsToday", () => {
   it("does not count another provider's rows", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
+    await insertReport(ctx, "other-provider", "meadow.example", NOW.toISOString(), 1);
     expect((await loadMeteredCallsToday(ctx.call, "clarity", NOW)).assets).toEqual([]);
   });
 
@@ -2464,9 +2426,9 @@ describe("uptime — the asset's own home-page check", () => {
   const up: HomeCheck = { observedAt: AT, status: "ok", httpStatus: 200, egressDown: false };
 
   it("reads Up with dated proof when the home page answered", () => {
-    expect(uptimeState("needs-setup", up)).toEqual({
+    expect(uptimeState("needs-setup", up)).toMatchObject({
       effective: "live",
-      evidence: [{ polarity: "supporting", source: "Home page answered", detail: "", at: AT,
+      evidence: [{ polarity: "supporting", detail: "", at: AT,
         verification: { kind: "collection-success", laneId: "uptime" } }],
     });
     expect(uptimeState("needs-setup", { ...up, status: "error" }).effective).toBe("live");

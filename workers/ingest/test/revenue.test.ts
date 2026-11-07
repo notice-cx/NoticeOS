@@ -696,11 +696,10 @@ describe('POST /api/revenue — coverage is data, not note wording', () => {
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ inserted: 1, failed: 0, reviewRequired: 1 });
     expect(result.body.results[0]).toMatchObject({ index: 0, ok: true, imported: true, review: { code: 'coverage_note_unreadable' } });
-    expect(result.body.results[0]?.review?.message).toContain('Row booked with unknown coverage');
     expect(await coverage()).toEqual([{ start: null, end: null, complete: null }]);
     const again = await upload([{ ...row, note: legacyNote }]);
     expect(again.body).toMatchObject({ inserted: 0, alreadyImported: 1, failed: 0, reviewRequired: 1 });
-    expect(again.body.results[0]?.review?.message).toContain('stored coverage was retained');
+    expect(again.body.results[0]?.review?.code).toBe('coverage_note_unreadable');
   });
 
   it.each([{ coverage_start: '2026-06-02' }, { coverage_end: '2026-06-08' }, { coverage_complete: true }])(

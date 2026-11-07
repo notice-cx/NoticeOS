@@ -232,7 +232,6 @@ test('each asset runs its own weekly cycle, reviews and ships alternating, witho
     const day = shipWeek.find(entry => entry.changes.includes(change));
     const close = day.tasks.find(task => task.asset === change.asset && task.phase === 'complete');
     assert.equal(change.ref, close.key);
-    assert.match(close.title, /^Ship /u);
     // The builder ships, under one of the models it names.
     assert.equal(close.agent, 'claude'); assert.ok(['Opus 5.5', 'Sonnet 5.5'].includes(close.model));
     assert.ok(shipWeek.flatMap(entry => entry.tasks).filter(task => task.key === close.key).every(task => task.model === close.model));
@@ -243,15 +242,11 @@ test('each asset runs its own weekly cycle, reviews and ships alternating, witho
     assert.equal(change.watch.baselineStart, shiftDemoDay(day.date, -28));
     assert.equal(change.watch.baselineEnd, shiftDemoDay(day.date, -1));
     assert.deepEqual(change.watch.checkOffsets, [28]);
-    // The comparison is named for the change it reads.
-    assert.equal(change.watch.note.toLowerCase(), close.title.replace(/^Ship the /u, '').toLowerCase());
   }
-  // Each site's work is about its own site, and keys never repeat across cycles.
-  const titles = { 'lightbrief.example': /brief/u, 'pinwell.example': /source|collection/u, 'weeknightpantry.example': /recipe/u, 'trailnotes.example': /trail/u, 'freshrows.example': /row|CSV/u };
+  // Keys never repeat across cycles.
   const keys = new Set();
   for (let w = 0; w < 8; w++) {
     for (const task of activity.day(shiftDemoDay('2026-10-19', w * 7)).tasks) {
-      assert.match(task.title, titles[task.asset]);
       assert.ok(!keys.has(task.key)); keys.add(task.key);
     }
   }
@@ -288,7 +283,6 @@ test('every Monday each asset reports its search queries against the week before
     assert.ok(report.items.length >= 1 && report.items.length <= 2);
     const [finding] = report.items;
     assert.ok(['insight', 'warning'].includes(finding.kind));
-    assert.match(finding.title, /^“.+” (climbed|slipped) \d+\.\d places to #\d+(\.\d)?$/u);
     assert.match(google.caveat, /Synthetic/u);
     for (const item of report.items) {
       assert.match(item.caveat, /Synthetic/u);
@@ -380,11 +374,7 @@ test('each mature asset\'s week names one opportunity the Home list ranks', () =
     assert.ok(['recommendation', 'discovery', 'insight', 'warning'].includes(extra[0].kind));
     assert.ok(extra[0].title.length > 0 && extra[0].title.length <= 80, extra[0].title);
   }
-  const titles = Object.fromEntries(activity.day('2026-10-26').reports.map(report => [report.asset, report.items[1]?.title]));
-  assert.match(titles['pinwell.example'], /^Move “.+” into the top results$/u);
-  assert.match(titles['weeknightpantry.example'], /^Recipe to sign-up: \d+% go from Opened a recipe to Saved it$/u);
-  assert.equal(titles['lightbrief.example'], 'AI assistants are already sending visitors');
-  assert.match(titles['trailnotes.example'], /^Search brings (8[5-9]|9\d)% of all visits$/u);
+
 });
 
 test('visits surge and settle on their own, so a day can read well above or below the same weekday a week before', () => {
@@ -546,9 +536,10 @@ test('each reporting asset keeps its weekly codebase report after the seed, with
   const sites = scenario.assets.filter(asset => asset.prefix !== 'fr');
   const seededLast = new Map(sites.map(asset => [asset.id, scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)]));
   const sent = new Map(sites.map(asset => [asset.id, []]));
+  const reproduced = createDemoActivity(generateDemoScenario(input));
   for (let i = 0; i < 120; i++) {
     const day = activity.day(shiftDemoDay(scenario.manifest.referenceDate, i));
-    assert.deepEqual(createDemoActivity(generateDemoScenario(input)).day(day.date).codebase, day.codebase);
+    assert.deepEqual(reproduced.day(day.date).codebase, day.codebase);
     for (const envelope of day.codebase) {
       assert.ok(sent.has(envelope.asset), envelope.asset);
       assert.ok(day.date > seededLast.get(envelope.asset).date);

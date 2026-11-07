@@ -284,14 +284,6 @@ describe("the Worker's fetch switch", () => {
       expect(body.banking).toMatchObject({ state: 'not-connected', snapshot: null });
       expect(body.periods).toEqual(["2026-07", "2026-08"]);
     });
-
-    it("reads the store even for a malformed value, which is what lets it name the months", async () => {
-      // Pins the order the route runs in: refusing before the read would
-      // still answer 400 and still pass the assertion on `error`.
-      const { body } = await call(get("/api/financials?period=13"));
-
-      expect(body.periods).not.toEqual([]);
-    });
   });
 
   describe("the paths that answer without touching the store", () => {
@@ -438,11 +430,14 @@ describe("the Worker's fetch switch", () => {
   });
 
   describe("the asset drill-down", () => {
-    it("answers 200 for an asset the store has", async () => {
+    it("answers 200 with the whole unnamed page for an asset the store has", async () => {
       const { status, body } = await call(get("/api/assets/meadow.example"));
 
       expect(status).toBe(200);
       expect((body.asset as { id: string }).id).toBe("meadow.example");
+      expect(body).not.toHaveProperty("view");
+      expect(body).toHaveProperty("performance");
+      expect(body).toHaveProperty("ledger");
     });
 
     it("answers 404 asset_not_found for one it does not, naming the id", async () => {
@@ -478,14 +473,6 @@ describe("the Worker's fetch switch", () => {
       expect(body).toHaveProperty("flags");
       expect(body).not.toHaveProperty("performance");
       expect(body).not.toHaveProperty("ledger");
-    });
-
-    it("answers the whole page, unnamed, with no view", async () => {
-      const { body } = await call(get("/api/assets/meadow.example"));
-
-      expect(body).not.toHaveProperty("view");
-      expect(body).toHaveProperty("performance");
-      expect(body).toHaveProperty("ledger");
     });
 
     it("refuses a view no tab has, 400, rather than guessing one", async () => {

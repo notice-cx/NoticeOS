@@ -75,6 +75,13 @@ export const SCOPES = Object.freeze({
 });
 const SCOPED = Object.keys(SCOPES);
 
+// Unit fixtures are roots of their unit suites, but not of the browser build.
+// A browser import can still reach one through the dependency graph.
+function scopeRoot(job, file) {
+  return SCOPES[job].some((folder) => file.startsWith(folder))
+    && !(job === 'smoke' && /^(?:apps\/tower\/test\/|packages\/[^/]+\/test\/)/u.test(file));
+}
+
 /** Files outside those folders that reach jobs: dependencies, CI and the
  * store schema (db/ but its Markdown) reach every job; the shared TypeScript
  * base every typecheck and build; the config contract's settings the contract
@@ -105,7 +112,7 @@ export function neededJobs(event, files = [], reaches = scopeGraph(), manifest =
     const jobs = rule ? rule[1]
       : file === 'package.json' ? manifestJobs(manifest)
       : !KNOWN.some((folder) => file.startsWith(folder)) ? SCOPED
-      : SCOPED.filter((job) => SCOPES[job].some((folder) => file.startsWith(folder)) || reaches(job).has(file));
+      : SCOPED.filter((job) => scopeRoot(job, file) || reaches(job).has(file));
     for (const job of jobs) pr[job] = true;
   }
   return Object.fromEntries(JOBS.map((job) => [job, pr[job]]));
@@ -158,8 +165,8 @@ function repositoryGraph(root) {
     }
     return null;
   };
-  const roots = Object.fromEntries(Object.entries(SCOPES).map(([job, folders]) => [job,
-    tracked.filter((file) => CODE.test(file) && folders.some((folder) => file.startsWith(folder)))]));
+  const roots = Object.fromEntries(SCOPED.map((job) => [job,
+    tracked.filter((file) => CODE.test(file) && scopeRoot(job, file))]));
   return (job) => {
     const seen = new Set(roots[job]);
     const queue = [...seen];

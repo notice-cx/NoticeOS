@@ -70,7 +70,6 @@ describe("the Wall's metric work tile", () => {
     expect(band.children).toHaveLength(4);
     expect(band.querySelector("h2")).toBeNull();
     const header = container.querySelector(".wall-work-heading")!;
-    expect(header.querySelector("h2")).toHaveTextContent("Work this week");
     expect(header.querySelector("[data-work-days-in]")).not.toBeNull();
     expect(header.nextElementSibling).toBe(band);
     expect(band.lastElementChild).toHaveAttribute("aria-label", "Done this week");
@@ -108,7 +107,6 @@ describe("the Wall's metric work tile", () => {
     expect(done.querySelector("[data-chart-line='solid']")).not.toBeNull();
     expect(done.querySelector("[data-chart-line='projection']")).toBeNull();
     expect(done.querySelector("[data-metric-previous-total]")).not.toBeNull();
-    expect(done.querySelector("svg")).not.toBeNull();
     expect(container.querySelector("[data-pace-bar], [data-work-row]")).toBeNull();
   });
 

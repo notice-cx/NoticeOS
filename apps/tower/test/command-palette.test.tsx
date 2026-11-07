@@ -212,15 +212,6 @@ describe("what it lists", () => {
     expect(within(dialog).queryByTitle(/favicon/i)).toBeNull();
   });
 
-  it("says asset, never the older noun", () => {
-    renderShell();
-    const dialog = openWithShortcut();
-
-    expect(within(dialog).getByText("Portfolio")).toBeInTheDocument();
-    expect(within(dialog).getByText("Assets")).toBeInTheDocument();
-    expect(paletteInput()).toHaveAttribute("placeholder", "Search pages and assets…");
-  });
-
   it("filters as the operator types", () => {
     renderShell();
     openWithShortcut();

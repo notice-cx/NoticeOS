@@ -16,9 +16,9 @@ test('a field rule reads its bounds, values and fixedness off the declaration', 
   assert.equal(fieldRule({ type: 'string' }), '—');
 });
 
-test('an opaque register says its rows move whole; a field register carries a table', () => {
+test('field tables are omitted for opaque registers and include declared fields', () => {
   const opaque = renderRegister('x', { label: 'X', describe: 'one x', container: '/xs', file: 'config/x.json', shape: 'object', keyRule: 'asset-id', fields: null, surface: 'Settings' });
-  assert.match(opaque, /Rows are added and removed whole/u);
+  assert.doesNotMatch(opaque, /^\|/mu);
   const fielded = renderRegister('y', { label: 'Y', describe: 'one y', container: '/ys', file: 'config/y.json', shape: 'array', keyField: 'id',
     fields: [{ name: 'id', label: 'Id', type: 'string', required: true, describe: 'lowercase' }] });
   assert.match(fielded, /\| `id` \| Id \| `string` \| yes \| lowercase \| — \|/u);

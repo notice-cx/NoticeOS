@@ -71,14 +71,13 @@ describe("a page whose first read failed draws the shared failure", () => {
     ["the Wall", "/wall", <WallRoute />, "Couldn't load the Wall", "/api/wall"],
     ["Integrations", "/integrations", <IntegrationsRoute />, "Couldn't load integrations", "/api/integrations/providers"],
     ["Tasks", "/tasks", <TasksRoute />, "Couldn't load tasks", "/api/work"],
-  ])("%s", async (_page, path, element, title, read) => {
+  ])("%s", async (_page, path, element, _title, read) => {
     const fetchMock = storeDown();
     const { container } = renderAt(path, element);
 
     const retry = await screen.findByRole("button", { name: /try again/i }, { timeout: 5_000 });
     const failed = container.querySelector("[data-read-failed]");
     expect(failed).not.toBeNull();
-    expect(failed).toHaveTextContent(title);
     expect(failed).toHaveTextContent("HTTP 503");
     expect(container.textContent).not.toContain("Waiting for the store");
 
@@ -98,7 +97,7 @@ describe("Settings, the TV layout editor and Workflows draw it too, never a sent
     ["Workflows", "/workflows", "/workflows/:id?", <WorkflowsRoute />, "Couldn't load workflows", "read:workflows", "/api/workflows"],
     ["System health's operations", "/health/operations", "/health/operations/:id?", <WorkflowsRoute surface="system" />, "Couldn't load operations", "read:operations", "/api/workflows"],
     ["one workflow's page", `/workflows/${workflow.id}`, "/workflows/:id?", <WorkflowsRoute />, "Couldn't load this workflow", "read:workflow", "/api/workflows"],
-  ])("%s", async (_page, at, pattern, element, title, subject, read) => {
+  ])("%s", async (_page, at, pattern, element, _title, subject, read) => {
     const fetchMock = storeDown();
     const { container } = renderRouted(at, pattern, element);
 
@@ -106,7 +105,6 @@ describe("Settings, the TV layout editor and Workflows draw it too, never a sent
     const failed = container.querySelector("[data-read-failed]");
     expect(failed).not.toBeNull();
     expect(failed).toHaveAttribute("data-status-for", subject);
-    expect(failed).toHaveTextContent(title);
     expect(failed).toHaveTextContent("HTTP 503");
     // No page says it in a sentence of its own, or in the read's own error message.
     expect(container.textContent).not.toMatch(/could not be read|next poll retries|GET \/api/);

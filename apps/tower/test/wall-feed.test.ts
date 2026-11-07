@@ -660,21 +660,6 @@ needsPostgres("buildWallFeed", () => {
     expect(byText("Plans saved well below normal").tone).toBe("warn");
   });
 
-  // Every site count goes through siteCount (shared/site-noun.ts).
-  it("counts assets with the shared helper: one asset, one of two, two of three", async () => {
-    const collected = async (runs: [string, string, boolean][]) => {
-      const store = await createTestStore();
-      for (const [id] of runs) await asset(store, id, id);
-      const pgStore = store.call;
-      for (const [index, [id, time, ok]] of runs.entries()) await signalRun(pgStore, `g-${index}`, id, "ga4", at(time), ok);
-      return (await buildWallFeed(pgStore, DEPS)).items.filter((item) => item.kind === "collected").map((item) => item.text);
-    };
-    expect(await collected([["a.example.com", "18:59", true]])).toEqual(["Google · 1 asset, none failed"]);
-    expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:55", false]])).toEqual(["Google · 1 of 2 assets"]);
-    expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:58", true], ["c.example.com", "18:55", false]]))
-      .toEqual(["Google · 2 of 3 assets"]);
-  });
-
   it("retains up to 32 words of an individual task title while non-task summaries stay at twelve", async () => {
     const title = Array.from({ length: 40 }, (_, index) => `detail${index}`).join(" ");
     await snapshot(pg.call, at("19:28"), {}, {}, {
@@ -702,17 +687,6 @@ needsPostgres("buildWallFeed", () => {
     for (const item of items.filter((i) => i.asset)) expect(item.site).toBe(names.get(item.asset!));
   });
 
-  it("an empty store is an empty feed, not an invented one", async () => {
-    const emptyPg = await createTestStore();
-    try {
-      const feed = await buildWallFeed(emptyPg.call, DEPS);
-      expect(feed.items).toEqual([]);
-      expect(feed.since).toBe(SINCE);
-    } finally {
-      await emptyPg.close();
-    }
-  });
-
   it("honours a later since and a smaller limit, and never reaches before the window", async () => {
     const later = await buildWallFeed(pg.call, { ...DEPS, since: at("18:00") });
     expect(later.since).toBe(at("18:00"));
@@ -723,6 +697,37 @@ needsPostgres("buildWallFeed", () => {
     expect(three.items).toHaveLength(3);
     const capped = await buildWallFeed(pg.call, { ...DEPS, limit: 500 });
     expect(capped.limit).toBe(50);
+  });
+});
+
+needsPostgres("buildWallFeed with independent stores", () => {
+  it("counts assets with the shared helper: one asset, one of two, two of three", async () => {
+    const collected = async (runs: [string, string, boolean][]) => {
+      const store = await createTestStore();
+      try {
+        for (const [id] of runs) await asset(store, id, id);
+        const pgStore = store.call;
+        for (const [index, [id, time, ok]] of runs.entries()) await signalRun(pgStore, `g-${index}`, id, "ga4", at(time), ok);
+        return (await buildWallFeed(pgStore, DEPS)).items.filter((item) => item.kind === "collected").map((item) => item.text);
+      } finally {
+        await store.close();
+      }
+    };
+    expect(await collected([["a.example.com", "18:59", true]])).toEqual(["Google · 1 asset, none failed"]);
+    expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:55", false]])).toEqual(["Google · 1 of 2 assets"]);
+    expect(await collected([["a.example.com", "18:59", true], ["b.example.com", "18:58", true], ["c.example.com", "18:55", false]]))
+      .toEqual(["Google · 2 of 3 assets"]);
+  });
+
+  it("an empty store is an empty feed, not an invented one", async () => {
+    const emptyPg = await createTestStore();
+    try {
+      const feed = await buildWallFeed(emptyPg.call, DEPS);
+      expect(feed.items).toEqual([]);
+      expect(feed.since).toBe(SINCE);
+    } finally {
+      await emptyPg.close();
+    }
   });
 });
 
@@ -820,12 +825,14 @@ describe("the feed's reads are bounded", () => {
         await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
         return (await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${sql}`, params)).map((row) => row["QUERY PLAN"]).join("\n");
       }, { readOnly: true });
-      expect(await explain(FEED_MEDIAVINE_RUNS_SQL, [SINCE, 500])).toMatch(/Index (Only )?Scan using mediavine_runs_asset on mediavine_runs m/);
+      const mediavine = await explain(FEED_MEDIAVINE_RUNS_SQL, [SINCE, 500]);
+      expect(mediavine).toMatch(/Index (Only )?Scan using mediavine_runs_asset on mediavine_runs m/);
       const revenue = await explain(FEED_REVENUE_SQL, [SINCE, 500]);
       expect(revenue).toMatch(/Index (Only )?Scan (Backward )?using revenue_observations_recorded on revenue_observations o/);
-      expect(await explain(FEED_LEDGER_SQL, [500, SINCE, 500])).toMatch(/Index Scan Backward using ledger_entries_workspace_id_entry_number_key on ledger_entries/);
-      for (const sql of [FEED_MEDIAVINE_RUNS_SQL, FEED_REVENUE_SQL, FEED_LEDGER_SQL]) {
-        expect(await explain(sql, sql === FEED_LEDGER_SQL ? [500, SINCE, 500] : [SINCE, 500])).not.toMatch(/Seq Scan on (mediavine|ledger|revenue)/);
+      const ledger = await explain(FEED_LEDGER_SQL, [500, SINCE, 500]);
+      expect(ledger).toMatch(/Index Scan Backward using ledger_entries_workspace_id_entry_number_key on ledger_entries/);
+      for (const plan of [mediavine, revenue, ledger]) {
+        expect(plan).not.toMatch(/Seq Scan on (mediavine|ledger|revenue)/);
       }
     } finally {
       await pg.close();

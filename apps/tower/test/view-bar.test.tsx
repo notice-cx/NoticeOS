@@ -7,11 +7,10 @@ vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: { dashboard: {} } })
 beforeEach(() => window.localStorage.clear());
 
 describe("the shared purpose view bar", () => {
-  it("shows five short choices and preserves focus preferences", () => {
+  it("changes the view while preserving focus preferences", () => {
     window.localStorage.setItem(storageKey("view"), JSON.stringify({ view: "overview", focus: ["visitors", "costs"] }));
     render(<ViewBar />);
     const group = screen.getByRole("group", { name: "View" });
-    expect(within(group).getAllByRole("button").map(button => button.textContent)).toEqual(["Overview", "Growth", "Revenue", "Delivery", "Reliability"]);
     expect(within(group).getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(within(group).getByRole("button", { name: "Growth" }));
     expect(JSON.parse(window.localStorage.getItem(storageKey("view")) ?? "null")).toEqual({ view: "growth", focus: ["visitors", "costs"] });

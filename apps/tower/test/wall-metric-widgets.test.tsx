@@ -15,7 +15,6 @@ describe("Wall metric widgets", () => {
     expect(Number(bars[2]!.getAttribute("y"))).toBe(24); // Five daily closes, same scale.
     expect(container.querySelector("[data-metric-previous-total] line")).toHaveAttribute("y1", "4");
     expect(container.querySelector("[role='img']")).toHaveAccessibleName(/Bars: daily closes.*Solid line: cumulative.*one count scale/);
-    expect(container.querySelector("[data-metric-daily-key]")).toHaveTextContent("Bars: dailyLine: cumulative");
     expect(container.querySelector("[data-chart-line='projection']")).toBeNull();
   });
 

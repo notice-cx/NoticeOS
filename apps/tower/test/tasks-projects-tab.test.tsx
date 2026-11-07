@@ -209,7 +209,6 @@ describe("the Projects tab", () => {
     expect(container.querySelector("[data-project-journeys]")).toHaveAttribute("data-project-journeys", "3");
     // The rows are in the cards' default order.
     expect([...container.querySelectorAll("[data-journey-row]")].map((node) => node.getAttribute("data-journey-row"))).toEqual(["md-e", "md-f", "nw-e"]);
-    expect(screen.getByText("That's every project.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "1 open task sits in no project →" })).toHaveAttribute("href", "/tasks/all");
     fireEvent.click(screen.getByRole("button", { name: "Cards" }));
     expect(screen.getByTestId("search").textContent).toBe("");

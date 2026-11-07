@@ -23,9 +23,7 @@ describe("product report clarity", () => {
   it("separates the latest 24-hour count, previous reports and raw history", () => {
     renderProduct();
     const section = screen.getByRole("region", { name: "Product use" });
-    expect(section).toHaveTextContent("Latest reported 24 hours");
     expect(section).toHaveTextContent("Report 21h ago");
-    expect(section).toHaveTextContent("21h ago");
     expect(section).toHaveTextContent("59in 24h");
     expect(section).toHaveTextContent("Prior 7 reports: 122 / day");
     // The line names what it plots and the days it covers, under it and in its name.
@@ -33,7 +31,6 @@ describe("product report clarity", () => {
     expect(screen.queryByText(/comparison: 7 reports/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "About product reports" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("comparison: 7 reports · Aug 29–Sep 4, 2026");
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Report received");
     fireEvent.keyDown(window, { key: "Escape" });
     const chart = within(section).getByRole("img", { name: /^Signups daily counts, Aug 29 to Sep 5/ });
     fireEvent.focus(chart);

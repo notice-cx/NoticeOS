@@ -61,7 +61,7 @@ describe('DataForSEO weekly archives', () => {
       expect(await backlinksFailures()).toEqual([
         {
           errorCode: 'dataforseo_http_500',
-          errorMessage: 'Internal Error. Gave up after 3 attempts.',
+          errorMessage: expect.stringContaining('Internal Error.'),
         },
       ]);
     });
@@ -79,14 +79,14 @@ describe('DataForSEO weekly archives', () => {
         fetchImpl,
         login: 'operator-login',
         password: 'operator-password',
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
         retryBackoffMs: FAST_RETRY,
       });
 
       expect(await backlinksFailures()).toEqual([
         {
           errorCode: 'dataforseo_http_500',
-          errorMessage:
-            'DataForSEO backlinks-summary returned HTTP 500. Gave up after 3 attempts.',
+          errorMessage: expect.stringMatching(/backlinks-summary.*HTTP 500.*3/),
         },
       ]);
     });
@@ -118,12 +118,13 @@ describe('DataForSEO weekly archives', () => {
         fetchImpl,
         login: 'operator-login',
         password: 'operator-password',
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
       });
 
       expect(await backlinksFailures()).toEqual([
         {
           errorCode: 'dataforseo_task_20100',
-          errorMessage: 'DataForSEO backlinks-summary returned no successful task.',
+          errorMessage: expect.stringContaining('backlinks-summary'),
         },
       ]);
     });
@@ -163,6 +164,7 @@ describe('DataForSEO weekly archives', () => {
         login: 'operator-login',
         password: 'operator-password',
         retryBackoffMs: FAST_RETRY,
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
       });
       return result.outcomes.filter(
         (outcome) => outcome.report === 'backlinks-summary',
@@ -174,7 +176,7 @@ describe('DataForSEO weekly archives', () => {
         backlinksBody({ result_count: 0, result: [] }),
       );
 
-      expect(outcomes).toHaveLength(LAUNCHED_ASSETS);
+      expect(outcomes).toHaveLength(1);
       for (const outcome of outcomes) {
         expect(outcome).toMatchObject({
           status: 'success',
@@ -212,10 +214,8 @@ describe('DataForSEO weekly archives', () => {
             AND status = 'error' LIMIT 1`);
       // The row says what the response carried, because no object was written
       // and this row is the whole of the evidence.
-      expect(stored?.errorMessage).toBe(
-        'DataForSEO backlinks-summary returned a task with no readable result ' +
-          '(result_count 1, result items 0).',
-      );
+      expect(stored?.errorMessage).toContain('result_count 1');
+      expect(stored?.errorMessage).toContain('result items 0');
     });
 
     it('will not read a null result item as nothing either', async () => {
@@ -230,10 +230,8 @@ describe('DataForSEO weekly archives', () => {
       const stored = await pgFirst<{ errorMessage: string }>(`SELECT error_message AS "errorMessage" FROM ${ARCHIVE_RUNS}
           WHERE integration = 'dataforseo' AND report = 'backlinks-summary'
             AND status = 'error' LIMIT 1`);
-      expect(stored?.errorMessage).toBe(
-        'DataForSEO backlinks-summary returned a task with no readable result ' +
-          '(result_count 1, result items 1).',
-      );
+      expect(stored?.errorMessage).toContain('result_count 1');
+      expect(stored?.errorMessage).toContain('result items 1');
     });
   });
 });

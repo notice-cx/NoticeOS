@@ -154,7 +154,7 @@ describe('Microsoft Clarity export lane', () => {
     expect(stamped?.lastError).toBeNull();
   });
 
-  it('tells the card what failed and for which asset, in the asset row’s words', async () => {
+  it('records the rejected token and affected asset without exposing the token', async () => {
     await putCredential(env, {
       provider: 'clarity',
       fields: { CLARITY_TOKENS: JSON.stringify({ 'meadow.example': TOKEN }) },
@@ -164,31 +164,28 @@ describe('Microsoft Clarity export lane', () => {
     );
     const result = await runClarityDumps(env, { nowMs: NOW, fetchImpl });
     expect(result).toMatchObject({ attempted: 1, failed: 1 });
+    expect(result.outcomes[0]).toMatchObject({ asset: 'meadow.example', errorCode: 'clarity_token_rejected' });
 
     const stamped = await credentialVerdict('clarity');
     expect(stamped?.lastOkAt).toBeNull();
-    // The card says what the site's own row says, then the site: no code, and
-    // never the token.
-    expect(stamped?.lastError).toBe('Access was refused · meadow.example');
+    expect(stamped?.lastError).toContain('meadow.example');
     expect(stamped?.lastError).not.toContain(TOKEN);
   });
 
-  it('words each failure kind once, and counts the assets past three', () => {
-    expect(clarityVerdict([{ asset: 'a.example', errorCode: 'clarity_daily_cap_reached' }])).toBe(
-      'The daily request allowance is exhausted · a.example',
-    );
-    expect(
-      clarityVerdict([
+  it('deduplicates failure kinds and replaces asset names with a count past three', () => {
+    const single = (errorCode: string) => clarityVerdict([{ asset: 'a.example', errorCode }])!.split(' · ')[0];
+    const combined = clarityVerdict([
         { asset: 'a.example', errorCode: 'clarity_token_rejected' },
         { asset: 'b.example', errorCode: 'clarity_http_500' },
         { asset: 'c.example', errorCode: 'clarity_token_rejected' },
-      ]),
-    ).toBe('Access was refused · The provider could not complete the request · a.example, b.example, c.example');
-    expect(
-      clarityVerdict(
-        ['a', 'b', 'c', 'd'].map((name) => ({ asset: `${name}.example`, errorCode: 'clarity_token_rejected' })),
-      ),
-    ).toBe('Access was refused · 4 assets');
+      ])!.split(' · ');
+    expect(combined).toEqual([single('clarity_token_rejected'), single('clarity_http_500'), 'a.example, b.example, c.example']);
+    expect(new Set(combined.slice(0, 2)).size).toBe(2);
+    const crowded = clarityVerdict(
+      ['a', 'b', 'c', 'd'].map((name) => ({ asset: `${name}.example`, errorCode: 'clarity_token_rejected' })),
+    );
+    expect(crowded).toContain('4');
+    expect(crowded).not.toContain('.example');
   });
 
   it('skips a property with no token silently — no call, no manifest row', async () => {

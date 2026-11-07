@@ -230,17 +230,6 @@ describe("the composer's prefill is the copied MCP task", () => {
       expect(prefill.priority).toBe(parsed.priority);
       expect(prefill.description).toBe(parsed.description);
       expect(command).toContain(JSON.stringify(prefill.project));
-      expect(command).toContain("`projectId` as `project`");
-      // The section leads with the button rather than teaching the command.
-      expect(command).toContain("**File task** button");
-      expect(command.indexOf("**File task** button")).toBeLessThan(
-        command.indexOf("`create_task`"),
-      );
-      // No tutorial, and none of the internal vocabulary.
-      for (const gone of ["bd create", "bd close", "config/beads.json", "Run it in", "issue_prefix"]) {
-        expect(command).not.toContain(gone);
-      }
-      for (const tool of ['list_workspaces', 'get_task_guide', 'list_projects', 'claim_task', 'close_task']) expect(command).toContain('`' + tool + '`');
       renderComposer(prefill);
       fireEvent.click(fileTask());
       await waitFor(() => expect(lane.calls).toHaveLength(1));
@@ -334,7 +323,6 @@ describe("TaskComposer", () => {
     expect(field("Project").value).toBe("meadow.example");
     // The board's own words, never a P-number.
     expect(field("Priority").value).toBe("2");
-    expect(screen.getByRole("option", { name: "normal" })).toBeInTheDocument();
     expect(screen.queryByText("P2")).toBeNull();
 
     for (const label of prefill.labels) {
@@ -346,7 +334,6 @@ describe("TaskComposer", () => {
     }
 
     expect(document.querySelector('[data-composer-linked="finding"]')).not.toBeNull();
-    expect(screen.getByText(/Linked to a finding/)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("noticeos_source");
   });
 
@@ -355,7 +342,6 @@ describe("TaskComposer", () => {
   it("reads the kind of a handoff written under the old grammar", () => {
     renderComposer({ project: "meadow.example", title: "Old handoff", metadata: { reindex_kind: "query", reindex_key: "meal plan" } });
     expect(document.querySelector('[data-composer-linked="query"]')).not.toBeNull();
-    expect(screen.getByText(/Linked to a query decision/)).toBeInTheDocument();
   });
 
   it("files exactly what the prefill describes, metadata included", async () => {
@@ -463,9 +449,6 @@ describe("TaskComposer", () => {
     renderComposer(prefill);
     expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-expanded", "true");
     expect(field("Type")).toBeInTheDocument();
-    const chip = document.querySelector(`[data-composer-locked-label="${prefill.labels[0]}"]`)!;
-    expect(chip.textContent).toContain("Locked label");
-    expect(document.body.textContent).not.toContain("cannot be edited");
   });
 
   it("refuses to file without a project, and says so on the field", async () => {
@@ -539,8 +522,6 @@ describe("FileTaskButton", () => {
     const button = screen.getByRole("button", { name: "File task" });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
-    // Visible, not hidden: an operator who cannot find the button learns nothing.
-    expect(button).toBeInTheDocument();
   });
 
   // Snapshot health never hides filing; the actual task lane governs writes.

@@ -104,7 +104,6 @@ describe("ProductJourney", () => {
     expect(section.textContent).toContain("Estimated page views33");
     expect(section.textContent).toContain("Estimated sessions18");
     expect(section.textContent).toContain("Observed people a day2");
-    expect(section.textContent).toContain("funnel steps show only observed activity");
     expect(within(section as HTMLElement).getByRole("img", { name: "Estimated page views trend" })).toBeInTheDocument();
     expect(section.querySelector("[data-funnel-conversion]")!.textContent).toBe("6.5% finish · 8.2% the week before");
   });
@@ -126,10 +125,8 @@ describe("ProductJourney", () => {
   it("answers the question in one strip, one funnel and three rows", () => {
     const { container } = renderJourney(PRODUCT);
     const section = container.querySelector("[data-product-journey]")!;
-    expect(within(section as HTMLElement).getByRole("heading", { name: "Product" })).toBeInTheDocument();
     expect(section.textContent).toContain("PostHog · daily Aug 26–Sep 22, 2026");
 
-    expect(section.textContent).toContain("People a day");
     expect(section.textContent).toContain("daily average, 28 days");
     expect(section.textContent.match(/Aug 26–Sep 22, 2026/g)).toHaveLength(1);
     for (const name of ["People a day trend", "Page views trend", "Sessions trend"]) {
@@ -209,7 +206,7 @@ describe("ProductJourney", () => {
     expect(list.textContent!.match(/22,298 measurements/g)).toHaveLength(1);
   });
 
-  it("opens a row onto labelled facts and a state, never a paragraph", () => {
+  it("opens each issue's measured facts and origin on demand", () => {
     renderJourney(PRODUCT);
     const list = screen.getByRole("region", { name: "Where it breaks" });
     fireEvent.click(within(list).getByRole("button", { name: "Show 8 more" }));
@@ -227,15 +224,10 @@ describe("ProductJourney", () => {
     fireEvent.click(within(list).getByRole("button", { name: /first_meal_logged/ }));
     const once = list.querySelector('[data-product-issue="once"]')!;
     expect(once.textContent).toContain("3.0× too high");
-    expect(once.querySelector("[data-product-next-step]")!.textContent).toBe("Check where the asset sends it");
 
     fireEvent.click(within(list).getByRole("button", { name: /Load failed/ }));
     const noise = list.querySelector('[data-product-issue="noise"]')!;
     expect(noise.querySelector("[data-error-origin]")!.getAttribute("data-error-origin")).toBe("none");
-    for (const node of list.querySelectorAll("[data-list-row-body] *")) {
-      const own = [...node.childNodes].filter((child) => child.nodeType === 3).map((child) => child.textContent).join("");
-      expect(own.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(12);
-    }
   });
 
   it("names every rule that found nothing, and why, instead of reading as healthy", () => {
@@ -280,12 +272,9 @@ describe("ProductJourney", () => {
     expect(say("off")).toContain("Product data is not collected for this asset.");
   });
 
-  it("needs no explainer: no About and no header tooltip", () => {
+  it("qualifies a collection observed after its reporting window", () => {
     const { container } = renderJourney(PRODUCT);
     const section = container.querySelector("[data-product-journey]")!;
-    expect(section.querySelector("[data-about]")).toBeNull();
-    const header = within(section as HTMLElement).getByRole("heading", { name: "Product" }).parentElement!;
-    expect(header.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(section.textContent).not.toContain("read Sep 22");
     const { container: later } = renderJourney({ ...PRODUCT, observedAt: "2026-09-23" });
     expect(later.textContent).toContain("PostHog · daily Aug 26–Sep 22, 2026 · read Sep 23, 2026");

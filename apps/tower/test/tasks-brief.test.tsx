@@ -75,7 +75,6 @@ describe("Read it as a brief", () => {
     expect(within(lines[2]!).getByRole("link", { name: "Open" })).toHaveAttribute("href", "/tasks/md-w1");
     expect(lines[3]).toHaveTextContent("Meadow Board: Write the welcome email is next for the agents.");
     const end = container.querySelector<HTMLElement>("[data-tasks-brief]")!;
-    expect(end).toHaveTextContent("Everything else can wait.");
     expect(within(end).getByRole("button", { name: "4 tasks are held back, each for one reason →" })).toBeInTheDocument();
   });
 

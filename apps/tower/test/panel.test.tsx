@@ -1,14 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Panel } from "@/components/surface/Panel";
-import { Panel as AssetPanel } from "@/routes/asset-detail/shared";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
 
 describe("shared panel shell", () => {
-  it("keeps the asset-detail import on the shared implementation", () => {
-    expect(AssetPanel).toBe(Panel);
-  });
-
   it("labels each region with its own heading, excluding its caption and action", () => {
     render(<>
       <Panel id="site-collection" title="Collection" count="last 7 days" action={<button>Collect now</button>} data-collection="site">
@@ -28,12 +23,8 @@ describe("shared panel shell", () => {
     expect(new Set(headingIds).size).toBe(2);
     expect(regions[0]).toHaveAttribute("id", "site-collection");
     expect(regions[0]).toHaveAttribute("data-collection", "site");
-    expect(within(regions[0]!).getByText("last 7 days")).toBeVisible();
-    expect(within(regions[0]!).getByRole("button", { name: "Collect now" })).toBeVisible();
     expect(regions[1]).toHaveAttribute("id", "portfolio-collection");
     expect(regions[1]).toHaveAttribute("data-collection", "portfolio");
-    expect(within(regions[1]!).getByText("last 28 days")).toBeVisible();
-    expect(within(regions[1]!).getByRole("button", { name: "Schedule" })).toBeVisible();
   });
 
   it("omits an empty body and preserves the header-only action", () => {

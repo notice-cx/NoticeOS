@@ -13,7 +13,6 @@ function show(data: BankingPayload) { render(<MemoryRouter><Banking data={data} 
 it('shows cents, observation age and pending activity, with archived accounts excluded from available cash', () => {
   show({ state: 'recorded', observedAt: '2026-11-05T12:00:00Z', snapshot });
   expect(screen.getAllByText('$80.29')).toHaveLength(2);
-  expect(screen.getByText('Last collected', { exact: false })).toBeInTheDocument();
   expect(screen.getByText('pending')).toBeInTheDocument();
   expect(screen.getByText('Internal transfer')).toBeInTheDocument();
   expect(screen.getByText('-$10.29')).toBeInTheDocument();

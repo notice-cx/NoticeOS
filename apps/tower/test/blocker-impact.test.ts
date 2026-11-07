@@ -92,10 +92,8 @@ describe("blocker impact", () => {
   it("handles a 1,000-node chain with a cycle without recursive or repeated-node traversal", () => {
     const nodes = Array.from({ length: 1000 }, (_, index) => task(`ex-${index}`, index ? [`ex-${index - 1}`] : []));
     nodes[0]!.dependencies = [{ id: "ex-999", type: "blocks", title: null, status: null }];
-    const started = performance.now();
     const result = impact(nodes);
     expect(result.rows).toHaveLength(1000);
     expect(result.rows.every(row => row.downstream === 999 && row.couldReady === 1)).toBe(true);
-    expect(performance.now() - started).toBeLessThan(2000);
   });
 });

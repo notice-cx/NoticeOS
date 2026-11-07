@@ -971,7 +971,6 @@ describe("the connect form is generated from the field schema", () => {
     expect(note).not.toBeRequired();
     expect(screen.getByText("Login").textContent).toBe("Login*");
     expect(screen.getByText("Account note").textContent).toBe("Account note");
-    expect(screen.queryByText(/\(optional\)/)).toBeNull();
     fireEvent.change(login, { target: { value: "ops@example.com" } });
     fireEvent.change(password, { target: { value: "synthetic-key" } });
     fireEvent.click(screen.getByRole("button", { name: "Save credential" }));
@@ -1016,7 +1015,6 @@ describe("the connect form is generated from the field schema", () => {
     expect(group).not.toHaveAccessibleDescription();
     expect(screen.getByText("Project tokens").textContent).toBe("Project tokens");
     expect(screen.getByLabelText("Project tokens — meadow.example")).not.toBeRequired();
-    expect(screen.queryByText(/\(optional\)/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save credential" }));
     await waitFor(() => expect(api.save).toHaveBeenCalledWith("clarity", {}));
   });
@@ -1155,10 +1153,6 @@ describe("the connect form is generated from the field schema", () => {
     ) as HTMLInputElement;
     expect(mine).toHaveValue("");
     expect(document.querySelector('[data-asset-key-input="northwind.example"]')).toBeInTheDocument();
-    // A save replaces the map rather than merging.
-    expect(document.querySelector('[data-asset-map-replaces]')).toHaveTextContent(
-      "Blank keys are removed on save",
-    );
 
     fireEvent.change(mine, { target: { value: " md-token " } });
     fireEvent.change(document.querySelector('[data-asset-key-input="northwind.example"]') as HTMLElement, {
@@ -1590,8 +1584,6 @@ describe("the page", () => {
     expect(accepted.textContent).toBe("dataforseoKey acceptedManage");
     const fresh = document.querySelector<HTMLElement>('[data-integration-tile="bing-webmaster"]')!;
     expect(fresh.textContent).toBe("bing-webmasterNot connectedConnect");
-    expect(screen.queryByRole("button", { name: /About integration states/ })).toBeNull();
-    expect(document.body.textContent).not.toMatch(/Connection saved|No recorded use|Ready to connect/);
   });
 
   it("asks once whether this deployment can import, and offers the button on every legacy card", async () => {
@@ -1685,9 +1677,6 @@ describe("the page", () => {
   it("carries no read-only deployment sentence anywhere — this surface always writes", () => {
     renderPage(page([stored()]));
     openRow("dataforseo");
-    // Credentials are store writes, so there is no 501 path and no deployment
-    // that renders this read-only.
-    expect(document.body.textContent).not.toMatch(/deployment cannot save/i);
     expect(document.querySelector("[data-knob-read-only]")).toBeNull();
     expect(document.querySelector("[data-connection-replace]")).not.toBeDisabled();
     expect(document.querySelector("[data-connect-blocked]")).toBeNull();
@@ -2350,9 +2339,6 @@ describe("a revoked Google sign-in reads as broken, and the fix leads", () => {
     );
     // The identity survives, because it says which account to sign back in as.
     expect(screen.getByText(/ops@example\.test/)).toBeTruthy();
-    const verdict = container.querySelector('[data-verdict="stored-verdict"]');
-    expect(verdict?.textContent).toContain("Testing-mode grants last 7 days");
-    expect(REVOKED.split(/\s+/).length).toBeLessThanOrEqual(12);
   });
 
   it("promotes the sign-in from a muted link to the loudest control on the card", () => {

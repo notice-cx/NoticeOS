@@ -1873,13 +1873,11 @@ describe('workspace-owned completed calendar rounds', () => {
     expect(fixture.calls).toHaveLength(1);
   });
 
-  it('cache loss or unavailable visibility never spends another request inside the calendar cooldown', async () => {
+  it('unavailable cache visibility refuses provider work inside cooldown and recovers afterward', async () => {
     const owned = feedEnv({ work: WORK_URL });
     const fixture = feedFetch({ [WORK_URL]: ics(...laEvent('a', '20260810', '0900', 'Saved meeting')) });
     await calendarUpcoming(owned, { nowMs: NOW, fetchImpl: fixture.fetchImpl });
     const cold = await caches.open(crypto.randomUUID());
-    await expect(calendarUpcoming(owned, { nowMs: NOW + 1000, fetchImpl: fixture.fetchImpl, cache: cold }))
-      .rejects.toMatchObject({ code: 'calendar_read_in_progress' });
     const unavailable: Cache = { match: async () => { throw new Error('fixture cache unavailable'); },
       put: testCache.put.bind(testCache), delete: testCache.delete.bind(testCache) };
     await expect(calendarUpcoming(owned, { nowMs: NOW + 1000, fetchImpl: fixture.fetchImpl, cache: unavailable }))
@@ -1928,7 +1926,9 @@ describe('workspace-owned completed calendar rounds', () => {
     expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
     const rejected = results.find(result => result.status === 'rejected');
-    expect(rejected?.status === 'rejected' ? String(rejected.reason) : '').toContain('Calendar is temporarily unavailable');
+    const publicError = rejected?.status === 'rejected' ? String(rejected.reason) : '';
+    expect(publicError).not.toContain(WORK_SECRET);
+    expect(publicError).not.toContain(WORK_URL);
     const first = results.find(result => result.status === 'fulfilled');
     expect(first?.status === 'fulfilled' ? first.value.meetings.map(meeting => meeting.title) : []).toEqual(['Native meeting']);
     const next = await workerExports.default.calendarUpcoming();

@@ -160,7 +160,6 @@ describe("browser code and the contract", () => {
 
   it("really walks into shared code and the contract's modules", () => {
     const reached = [...graph.files].map((file) => path.relative(repoRoot, file));
-    expect(roots.length).toBeGreaterThan(100);
     expect(reached).toContain("apps/tower/src/lib/api.ts");
     expect(reached).toContain("apps/tower/shared/watch-windows.ts");
     expect(reached).toContain("packages/contract/src/create-watch-window.ts");

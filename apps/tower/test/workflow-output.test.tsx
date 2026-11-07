@@ -13,7 +13,6 @@ describe('visual step output', () => {
     render(<WorkflowStepOutputView output={captureWorkflowOutput({ attempted: 2, succeeded: 1, failed: 1, outcomes: [
       { asset: 'meadow.example', ok: true, status: 200, written: 12 }, { asset: 'northwind.example', ok: false, status: 503 },
     ] })} />);
-    expect(screen.getByText('Attempted')).toBeInTheDocument();
     const table = screen.getByRole('table', { name: 'Output results' });
     expect(within(table).getByText('meadow.example')).toBeInTheDocument();
     expect(within(table).getByText('12')).toBeInTheDocument();

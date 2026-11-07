@@ -27,7 +27,6 @@ describe("blocker impact section", () => {
     expect(screen.getByText("Known work · lower bounds")).toBeVisible();
     expect(screen.getByRole("link")).toHaveTextContent("≥1 downstream");
     expect(screen.getByRole("link")).toHaveTextContent("— could become ready");
-    expect(screen.getByText(/A dash means readiness is unknown/)).toBeVisible();
   });
 
   it("distinguishes a complete empty graph from an unmeasured one", () => {

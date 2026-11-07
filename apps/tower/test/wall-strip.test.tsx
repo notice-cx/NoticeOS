@@ -85,22 +85,21 @@ describe("the one system state", () => {
   const state = (system: SystemBand, failing = 0) => wallSystemState(system, failing, NOW);
 
   it("is healthy on a fresh OS report", () => {
-    expect(state(HEALTHY)).toMatchObject({ kind: "healthy", severity: null, label: "System" });
+    expect(state(HEALTHY)).toMatchObject({ kind: "healthy", severity: null });
   });
 
-  it("names each failure in at most four words, with its tone", () => {
-    const cases: [SystemBand, number, WallSystemStateKind, "error" | "warn", string][] = [
-      [{ ...HEALTHY, hasPulse: false }, 0, "os-report-missing", "error", "OS report missing"],
-      [{ ...HEALTHY, scheduledLanes: [FAILED_JOB] }, 0, "job-failed", "error", "A scheduled job failed"],
-      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY), lastRanAt: iso(-3 * DAY), failedRuns: 0, failingSince: null }] }, 0, "jobs-silent", "error", "Scheduled jobs silent"],
-      [HEALTHY, 2, "sources-failing", "error", "2 sources failing"],
-      [HEALTHY, 1, "sources-failing", "error", "1 source failing"],
-      [{ ...HEALTHY, ingest: { ...HEALTHY.ingest, fresh: 4, stale: 1 } }, 0, "reports-stale", "warn", "1 report stale"],
-      [{ ...HEALTHY, spendTodayUsd: 1.2 }, 0, "over-pace", "warn", "Over daily data pace"],
+  it("classifies each observed failure with its tone", () => {
+    const cases: [SystemBand, number, WallSystemStateKind, "error" | "warn"][] = [
+      [{ ...HEALTHY, hasPulse: false }, 0, "os-report-missing", "error"],
+      [{ ...HEALTHY, scheduledLanes: [FAILED_JOB] }, 0, "job-failed", "error"],
+      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY), lastRanAt: iso(-3 * DAY), failedRuns: 0, failingSince: null }] }, 0, "jobs-silent", "error"],
+      [HEALTHY, 2, "sources-failing", "error"],
+      [HEALTHY, 1, "sources-failing", "error"],
+      [{ ...HEALTHY, ingest: { ...HEALTHY.ingest, fresh: 4, stale: 1 } }, 0, "reports-stale", "warn"],
+      [{ ...HEALTHY, spendTodayUsd: 1.2 }, 0, "over-pace", "warn"],
     ];
-    for (const [system, failing, kind, severity, label] of cases) {
-      expect(state(system, failing)).toMatchObject({ kind, severity, label });
-      expect(label.split(" ").length).toBeLessThanOrEqual(4);
+    for (const [system, failing, kind, severity] of cases) {
+      expect(state(system, failing)).toMatchObject({ kind, severity });
     }
   });
 
@@ -338,8 +337,7 @@ describe("the strip", () => {
       expect(line).toHaveAttribute("title", `Commit ${version.commit} · ${version.committedAt}`);
       expect(line.querySelector("time")).toHaveAttribute("datetime", version.committedAt);
       expect(line).toHaveClass("text-wall-strip-label", "text-muted-foreground", "tabular-nums");
-      expect(line.previousElementSibling?.querySelector(".brand-lockup")).not.toBeNull();
-      view.unmount();
+        view.unmount();
       vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__", { ...version, modified: true });
       expect(strip().container.querySelector("[data-strip-version]")?.textContent).toContain("local edits");
     } finally { vi.unstubAllGlobals(); }

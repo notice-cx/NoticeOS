@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
+import { SYSTEM_NAME } from "@noticeos/contract/asset-name";
 import {
   ALERT_HISTORY_MAX_LIMIT,
   ALERT_HISTORY_PAGE,
@@ -77,13 +78,13 @@ async function insertFlag(db: TestStore, spec: FlagSpec): Promise<number> {
 
 let test: TestStore;
 
-beforeEach(async () => {
+async function prepareStore() {
   test = await createTestStore();
   await insertAsset(test, "meadow.example", "meadow.example", "Meadow Board");
   await insertAsset(test, "northwind.example", "northwind.example", "Northwind");
   // The OS row with a stored name no payload shows.
   await insertAsset(test, "root-os", null, "ReindexOS", 1);
-});
+}
 
 const query = (over: Partial<Parameters<typeof buildAlertHistoryPayload>[1]> = {}) => ({
   asset: null,
@@ -95,6 +96,8 @@ const query = (over: Partial<Parameters<typeof buildAlertHistoryPayload>[1]> = {
 });
 
 describe("the settled-alert read", () => {
+  beforeEach(prepareStore);
+
   it("excludes archived rows before counting and paging, then restores their history", async () => {
     await insertFlag(test, { asset: "meadow.example", firedAt: at(2), resolvedAt: at(1) });
     const kept = await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
@@ -116,7 +119,7 @@ describe("the settled-alert read", () => {
       disposition: "ack",
       dispositionAt: at(6),
     });
-    // Still open, and still open with a snooze: neither belongs in history.
+    // An unsettled firing does not belong in history.
     await insertFlag(test, { asset: "meadow.example", firedAt: at(2) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
@@ -177,7 +180,7 @@ describe("the settled-alert read", () => {
 
     expect(payload.rows.map((row) => row.asset)).toEqual([
       { id: "northwind.example", domain: "northwind.example", displayName: "Northwind" },
-      { id: "root-os", domain: null, displayName: "System" },
+      { id: "root-os", domain: null, displayName: SYSTEM_NAME },
     ]);
     expect(JSON.stringify(payload)).not.toContain("ReindexOS");
   });
@@ -418,6 +421,8 @@ describe("how long an alert was open", () => {
 });
 
 describe("the route", () => {
+  beforeEach(prepareStore);
+
   const request = async (search = "", method = "GET") =>
     handleAlertHistoryRequest(
       new Request(`https://tower.local/api/alerts/history${search}`, { method }),
@@ -482,6 +487,8 @@ describe("the route", () => {
  * snooze is put off, not decided. The three states live together in
  * `@noticeos/contract`'s `flag-open.ts`. */
 describe("a snoozed alert is in exactly one list", () => {
+  beforeEach(prepareStore);
+
   const settledIds = async (now: Date): Promise<number[]> =>
     (
       await buildAlertHistoryPayload(test.call, query(), { now })
@@ -610,6 +617,8 @@ describe("a snoozed alert is in exactly one list", () => {
 });
 
 describe("a settled outage reads back night by night", () => {
+  beforeEach(prepareStore);
+
   async function insertReading(db: TestStore, flagId: number, observedAt: string, error: string): Promise<void> {
     await storeReading(db.call, flagId, {
       observedAt,

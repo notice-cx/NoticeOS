@@ -211,11 +211,7 @@ describe("the Wall's issue list", () => {
     expect(siteMark(issues, "meadow.example")).toBeNull();
   });
 
-  it("names every alert rule in three words or fewer", () => {
-    for (const ruleId of ["flow-poisson-low", "flow-lowvol-window", "flow-pct-drop", "asset-declared", "ingest-freshness", "asset-pull-failed", "hygiene-home-unreachable", "hygiene-sitemap", "hygiene-security-headers", "os-egress-down", "watch-window-closed", "a-rule-nobody-knows"]) {
-      const mark = alertMark(alert({ ruleId, metric: "averageSessionDurationSeconds" }));
-      expect(mark.split(" ").length, `${ruleId} → ${mark}`).toBeLessThanOrEqual(3);
-    }
+  it("derives the mark from a flow metric or a security rule", () => {
     expect(alertMark(alert({}))).toBe("Plans saved low");
     expect(alertMark(alert({ ruleId: "hygiene-security-headers" }))).toBe("Headers changed");
   });

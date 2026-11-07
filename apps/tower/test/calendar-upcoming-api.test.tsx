@@ -71,14 +71,14 @@ describe("GET /api/calendar/upcoming", () => {
   });
 
   it("reports a cold cache cooldown safely and tells the browser when to retry", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-08-10T16:00:00.000Z"));
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const ingest = { calendarUpcoming: vi.fn().mockRejectedValue(Object.assign(new Error("private diagnostic"), {
       code: "calendar_read_in_progress", nextAttemptAt: new Date(Date.now() + 120_000).toISOString(),
     })) };
     const response = await handleCalendarUpcomingRequest(new Request("http://tower.local/api/calendar/upcoming"), ingest);
     expect(response.status).toBe(503);
-    expect(Number(response.headers.get("retry-after"))).toBeGreaterThanOrEqual(119);
-    expect(Number(response.headers.get("retry-after"))).toBeLessThanOrEqual(120);
+    expect(response.headers.get("retry-after")).toBe("120");
     await expect(response.json()).resolves.toEqual({ error: "calendar_upcoming_unavailable", reason: "calendar_read_in_progress" });
   });
 

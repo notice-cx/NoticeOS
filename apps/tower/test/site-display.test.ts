@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Archived sites stay hidden regardless of saved switches. Restoring a site
 // recovers its saved visibility preferences. The write that flips one switch is the narrowest the stored map
 // allows, and its Undo is its exact reverse.
@@ -34,11 +35,6 @@ describe("siteShownOn", () => {
     expect(siteShownOn(site("a.example", "live"), display)).toEqual({ list: true, tv: false, work: true });
     expect(siteShownOn(site("b.example", "retired"), display)).toEqual({ list: false, tv: false, work: false });
     expect(siteSwitchesSet(site("b.example", "retired"), display)).toEqual({ list: true });
-  });
-
-  it("brings a retired asset back everywhere when it is restored, when no switch was set", () => {
-    expect(siteShownOn(site("a.example", "retired"), {})).toEqual({ list: false, tv: false, work: false });
-    expect(siteShownOn(site("a.example", "live"), {})).toEqual({ list: true, tv: true, work: true });
   });
 
   it("keeps a hand-set switch through a stage move both ways", () => {

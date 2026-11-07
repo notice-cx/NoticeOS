@@ -262,7 +262,6 @@ interface FlagRow {
   severity: string;
   kind: string;
   metric: string | null;
-  message: string;
   rule_inputs: string;
   fired_at: string;
   resolved_at: string | null;
@@ -275,7 +274,6 @@ async function flagFor(ruleId: string, asset = 'meadow.example'): Promise<FlagRo
         severity: row.severity,
         kind: row.kind,
         metric: row.metric,
-        message: row.message!,
         rule_inputs: row.rule_inputs!,
         fired_at: row.fired_at,
         resolved_at: row.resolved_at,
@@ -480,7 +478,6 @@ describe('hygiene: html-depth', () => {
 
     const flag = await flagFor(HTML_DEPTH_RULE_ID);
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'html-depth' });
-    expect(flag!.message).toContain('300 words');
     expect(inputsOf(flag)).toMatchObject({ rule: HTML_DEPTH_RULE_ID, words: 300, occurrences: 1 });
   });
 
@@ -567,7 +564,6 @@ describe('hygiene: home-unreachable', () => {
     const flag = await flagFor(HOME_UNREACHABLE_RULE_ID);
     // A site that is down is the revenue-off-switch band.
     expect(flag).toMatchObject({ severity: 'error', kind: 'anomaly', metric: 'html-depth' });
-    expect(flag!.message).toContain('HTTP 503');
     expect(inputsOf(flag)).toMatchObject({
       rule: HOME_UNREACHABLE_RULE_ID,
       http_status: 503,
@@ -591,7 +587,6 @@ describe('hygiene: home-unreachable', () => {
 
     expect(await readingFor('html-depth')).toMatchObject({ status: 'unreachable', value_num: null });
     const flag = await flagFor(HOME_UNREACHABLE_RULE_ID);
-    expect(flag!.message).toContain('unreachable');
     expect(inputsOf(flag)).toMatchObject({ http_status: null, reading_status: 'unreachable' });
   });
 
@@ -712,8 +707,6 @@ describe('hygiene: an asset whose bare host does not answer is read at www.', ()
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(1);
     const flag = await flagFor(HOME_UNREACHABLE_RULE_ID);
     expect(flag).toMatchObject({ severity: 'error', kind: 'anomaly', metric: 'html-depth' });
-    expect(flag!.message).toContain(`unreachable at ${APEX_HOME}`);
-    expect(flag!.message).toContain(`and at ${WWW_HOME}`);
     expect(inputsOf(flag)).toMatchObject({
       url: APEX_HOME,
       http_status: null,
@@ -737,7 +730,6 @@ describe('hygiene: an asset whose bare host does not answer is read at www.', ()
     await runUptimeChecks(env, { assets: APEX_ONLY_DEAD, confirmWaitMs: AT_ONCE, fetchImpl: erring.fetchImpl, nowMs: NOW + HOUR_MS });
     expect(erring.calls.map((call) => call.url)).toEqual([APEX_HOME, APEX_HOME]);
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(1);
-    expect((await flagFor(HOME_UNREACHABLE_RULE_ID))!.message).toBe(`home page did not serve: ${APEX_HOME} answered HTTP 503`);
   });
 });
 
@@ -785,7 +777,6 @@ describe('uptime: the hourly home-page check', () => {
     expect(detailOf(await readingFor('html-depth'))).toMatchObject({ http_status: 503, failed_tries: 2 });
     const flag = await flagFor(HOME_UNREACHABLE_RULE_ID);
     expect(flag).toMatchObject({ severity: 'error', kind: 'anomaly', metric: 'html-depth' });
-    expect(flag!.message).toContain('HTTP 503');
   });
 
   afterEach(() => {
@@ -987,7 +978,6 @@ describe('hygiene: OS egress outage', () => {
     });
     const flag = await flagFor(EGRESS_DOWN_RULE_ID, 'root-os');
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: null });
-    expect(flag!.message).toBe('OS egress down — 1 asset unmeasured');
 
     // One question for the whole sweep, asked as ourselves and never as the
     // hygiene lane.
@@ -1033,7 +1023,7 @@ describe('hygiene: OS egress outage', () => {
     // withdrew anything, because it measured nothing.
     expect(dark).toMatchObject({ fired: 0, refreshed: 0, resolved: 0 });
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, true)).toBe(1);
-    expect((await flagFor(HOME_UNREACHABLE_RULE_ID))!.message).toContain('HTTP 503');
+    expect(inputsOf(await flagFor(HOME_UNREACHABLE_RULE_ID))).toMatchObject({ http_status: 503 });
   });
 
   it('retracts the OS flag on the next run that can reach the world', async () => {
@@ -1155,7 +1145,6 @@ describe('hygiene: robots-ai-access', () => {
 
     const flag = await flagFor(ROBOTS_AI_RULE_ID);
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'robots-ai-access' });
-    expect(flag!.message).toContain('GPTBot');
     expect(inputsOf(flag)).toMatchObject({ lost_bots: ['GPTBot'], robots_vanished: false });
     expect(await readingFor('robots-ai-access')).toMatchObject({ status: 'warn' });
   });
@@ -1306,9 +1295,6 @@ describe('hygiene: page directives', () => {
     expect(await readingFor('robots-ai-access')).toMatchObject({ status: 'warn' });
     const flag = await flagFor(PAGE_DIRECTIVES_RULE_ID);
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'robots-ai-access' });
-    // The headline is the count; the page and its directive are the inputs the
-    // Tower draws as a row.
-    expect(flag!.message).toMatch(/^crawler directives closed 1 of \d+ sampled pages$/);
     expect(inputsOf(flag)).toMatchObject({ rule: PAGE_DIRECTIVES_RULE_ID, blocked_urls: [PAGE_A] });
     const flaggedPages = inputsOf(flag).pages as { url: string; blocking: string[] }[];
     expect(flaggedPages.find((p) => p.url === PAGE_A)?.blocking).toContain('noindex');
@@ -1762,17 +1748,6 @@ describe('page structure parsing', () => {
     }
   });
 
-  it('covers every fault the parser can produce with a fixture', () => {
-    const covered = new Set(STRUCTURAL_FIXTURES.map((fixture) => fixture.fault));
-    expect([...covered].sort()).toEqual([
-      'canonical-elsewhere',
-      'multiple-h1',
-      'no-h1',
-      'no-meta-description',
-      'no-title',
-    ]);
-  });
-
   it('does not read an absent canonical as a canonical elsewhere', () => {
     // No canonical at all is not a fault this check names: plenty of perfectly
     // good pages ship without one, and Google self-canonicalises. Only a
@@ -1940,9 +1915,6 @@ describe('hygiene: page-structure', () => {
       DOMAIN,
       PAGE_STRUCTURE_RULE_ID,
     ]);
-    // The headline is the count; the page and its faults are the inputs the
-    // Tower draws as a row.
-    expect(flag?.message).toMatch(/^page structure regressed on 1 of \d+ sampled pages$/);
     const inputs = JSON.parse(flag!.rule_inputs!) as { faulty_urls: string[]; pages: { url: string; faults?: string[] }[] };
     expect(inputs.faulty_urls).toEqual([P(0)]);
     expect(inputs.pages.find((p) => p.url === P(0))?.faults).toContain('canonical-elsewhere');

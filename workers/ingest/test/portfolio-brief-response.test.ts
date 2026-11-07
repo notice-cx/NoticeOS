@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { PORTFOLIO_BRIEF_ABSTENTION, type PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
+import { PORTFOLIO_BRIEF_ABSTENTION, portfolioBriefFactOpening, type PortfolioBriefEvidence } from '@noticeos/contract/portfolio-brief';
 import { parsePortfolioBrief, portfolioBriefModelEvidence } from '../src/portfolio-brief-response.js';
 
 const evidence: PortfolioBriefEvidence = {
@@ -21,7 +21,7 @@ Next: Compare traffic mix and revenue per daily user across segments`;
 it('turns readable prose into cards with verified source IDs and an application-written timeframe', () => {
   const result = parsePortfolioBrief(prose, evidence);
   expect(result.insights[0]).toEqual({ title: 'Review traffic quality',
-    observation: 'Over the latest 7 days versus the previous 7, Traffic rose 50%. Revenue fell 20%.',
+    observation: `${portfolioBriefFactOpening(evidence.facts[0]!)}Traffic rose 50%. Revenue fell 20%.`,
     why: 'More visits are not producing proportional revenue.', action: 'Compare traffic mix and revenue per daily user across segments.',
     evidenceIds: [evidence.facts[0]!.id] });
   expect(result.assessment).toBe('Review the mismatch before increasing acquisition spending.');
@@ -100,7 +100,7 @@ it.each([
 });
 
 it('keeps a correct source opening and ordinary non-temporal prose', () => {
-  const observation = 'Over the latest 7 days versus the previous 7, traffic rose. Revenue fell.';
+  const observation = `${portfolioBriefFactOpening(evidence.facts[0]!)}traffic rose. Revenue fell.`;
   expect(parsePortfolioBrief(prose.replace('Traffic rose 50%. Revenue fell 20%.', observation), evidence).insights[0]?.observation).toBe(observation);
   expect(parsePortfolioBrief(prose.replace('Traffic rose 50%. Revenue fell 20%.', 'During checkout, errors increased.'), evidence).insights[0]?.observation)
     .toContain('During checkout, errors increased.');
@@ -115,5 +115,5 @@ it('allows a current decision as context without making it a numeric comparison'
     'The pending partner decision blocks publishing affiliate links');
   const result = parsePortfolioBrief(answer, packet);
   expect(result.insights[0]?.evidenceIds).toEqual([evidence.facts[0]!.id, 'current-decision']);
-  expect(result.insights[0]?.observation).toMatch(/^Over the latest 7 days versus the previous 7, /);
+  expect(result.insights[0]?.observation.startsWith(portfolioBriefFactOpening(evidence.facts[0]!))).toBe(true);
 });

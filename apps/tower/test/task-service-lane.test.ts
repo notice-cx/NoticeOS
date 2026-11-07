@@ -98,13 +98,12 @@ it("sends a change to Ntasks with the project's id and answers only what Ntasks 
     ["PATCH", "/api/tasks/ex-1", { claim: true }], ["POST", "/api/gates/ex-1/resolve", {}]] as const) {
     const reply = await send(request(method, url, body));
     expect(reply.status, url).toBe(503);
-    expect(reply.body.detail, url).toMatch(/Nothing was saved\.$/u);
   }
 });
 
 it("shows Ntasks's own sentence when a decision is refused for not coming from a person, and blames the credential otherwise", async () => {
   const PERSON_ONLY = "Only a person signed in to Ntasks answers a decision, approves an approval or disputes one. Answer it in the Ntasks web app.";
-  const CREDENTIAL = "Ntasks refused this installation's service credential; replace it in Settings → Task projects.";
+  const credentialError = { status: 502, body: { error: "task_service_refused", detail: expect.stringContaining("credential") } };
   let refusal: { status: number; body: unknown } = { status: 403, body: { error: "insufficient_scope", detail: PERSON_ONLY } };
   const { service } = ntasks(() => refusal);
   const send = lane(service);
@@ -115,12 +114,14 @@ it("shows Ntasks's own sentence when a decision is refused for not coming from a
 
   // A route the credential should reach: the credential is what to fix.
   refusal = { status: 403, body: { error: "insufficient_scope", detail: "this route needs tasks:write" } };
-  expect(await send(request("POST", "/api/tasks/ex-1/close", { reason: "Done" })))
-    .toEqual({ status: 502, body: { error: "task_service_refused", detail: CREDENTIAL } });
+  const closed = await send(request("POST", "/api/tasks/ex-1/close", { reason: "Done" }));
+  expect(closed).toEqual(credentialError);
+  expect(JSON.stringify(closed)).not.toContain("this route needs tasks:write");
   for (const answer of [{ status: 401, body: { error: "unauthorized" } }, { status: 403, body: { error: "forbidden", detail: "origin refused" } }]) {
     refusal = answer;
-    expect(await send(request("POST", "/api/tasks/ex-1/choose", { option: "a" })), String(answer.status))
-      .toEqual({ status: 502, body: { error: "task_service_refused", detail: CREDENTIAL } });
+    const rejected = await send(request("POST", "/api/tasks/ex-1/choose", { option: "a" }));
+    expect(rejected, String(answer.status)).toEqual(credentialError);
+    if ("detail" in answer.body) expect(JSON.stringify(rejected)).not.toContain(answer.body.detail);
   }
 });
 
@@ -144,7 +145,6 @@ it("refuses a change while the ingest has never said where the tasks live, and r
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false, unknown: true });
   const change = await lane(service, ran)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
   expect(change).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
-  expect(String(change.body.detail)).toMatch(/Nothing was saved\.$/u);
   await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
   expect(calls).toEqual([]);
   expect(ran.length).toBeGreaterThan(0);

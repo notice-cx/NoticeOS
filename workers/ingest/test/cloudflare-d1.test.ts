@@ -101,7 +101,7 @@ it('bounds a request that never answers and reports a timeout without the abort 
   await expect(d1Api(ACCOUNT, value, '', {
     signal: controller.signal,
     fetchImpl: (() => { controller.abort(value); return new Promise<Response>(() => {}); }) as typeof fetch,
-  })).rejects.toMatchObject({ code: 'timeout', failure: { kind: 'timeout' }, message: 'timeout' });
+  })).rejects.toMatchObject({ code: 'timeout', failure: { kind: 'timeout' }, message: expect.not.stringContaining(value) });
 });
 
 it('reports throttling on an existing connection as a wait action with safe diagnostics', async () => {
@@ -112,7 +112,6 @@ it('reports throttling on an existing connection as a wait action with safe diag
   });
   expect(result).toMatchObject({
     ok: false, result: { outcome: 'rate-limited', fix: { kind: 'wait' }, failure: { kind: 'rate-limited', status: 429, providerCode: 10000 } },
-    message: 'Rate limited · Request limit reached · Try again later · HTTP 429 · Code 10000',
   });
   expect(JSON.stringify(result)).not.toContain(value);
 });
@@ -120,7 +119,7 @@ it('reports throttling on an existing connection as a wait action with safe diag
 it('checks account access without starting an export', async () => {
   const value = token();
   await connectCredential(env, { provider: 'cloudflare', fields: fields(value) }, { fetchImpl: listing(value) });
-  expect(await probeCredential(env, 'cloudflare', { fetchImpl: listing(value) })).toMatchObject({ ok: true, result: { outcome: 'answered', facts: { databases: 1 } }, message: 'Answered · 1 database' });
+  expect(await probeCredential(env, 'cloudflare', { fetchImpl: listing(value) })).toMatchObject({ ok: true, result: { outcome: 'answered', facts: { databases: 1 } } });
 });
 
 it('reads every declared page and refuses inconsistent pagination instead of accepting partial coverage', async () => {

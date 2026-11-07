@@ -36,9 +36,8 @@ describe("Wall tile controls", () => {
   });
   it("offers compatible displays and edits the selected tile without dropping other settings", () => {
     render(<Editor />);
-    expect(screen.getByText("Shared · Portfolio")).toBeVisible();
     const display = screen.getByLabelText("Display");
-    expect([...display.querySelectorAll("option")].map(option => option.textContent)).toEqual(["Comparison", "Number"]);
+    expect([...display.querySelectorAll("option")].map(option => option.value)).toEqual(["compare", "number"]);
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Visitors today" } });
     fireEvent.click(screen.getByRole("button", { name: "wide" }));
     expect(screen.getByTestId("settings")).toHaveTextContent('"title":"Visitors today"');

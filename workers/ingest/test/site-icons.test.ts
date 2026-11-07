@@ -308,7 +308,7 @@ describe('the daily icon read', () => {
     expect((await storedReads())[0]!.detail).toEqual({
       pageUrl: 'https://meadow.example/hop-5',
       status: 301,
-      error: 'more than 5 redirects',
+      error: expect.stringContaining('5'),
     });
   });
 

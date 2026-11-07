@@ -4,7 +4,7 @@ import { createTestStore } from './postgres-store';
 import { loadBanking } from '../worker/banking';
 import { buildFinancialsPayload } from '../worker/financials-payload';
 
-it('reads only its workspace and current connection edit, without modifying ledger totals', async () => {
+it('reads the current connection edit without modifying ledger totals', async () => {
   const ctx = await createTestStore();
   expect((await loadBanking(ctx.call)).state).toBe('not-connected');
   await ctx.call.write(tx => tx.query(`INSERT INTO noticeos.integration_connections

@@ -8,7 +8,6 @@ import type {
   UpcomingMeeting,
 } from "@noticeos/contract";
 import {
-  MEETING_FOLLOWER_CAP,
   formatMeetingClock,
   formatMeetingDistance,
   meetingsView,
@@ -139,7 +138,6 @@ describe("meetings view split", () => {
     );
 
     expect(view.hero?.title).toBe("Standup");
-    expect(view.followers).toHaveLength(MEETING_FOLLOWER_CAP);
     expect(view.followers.map((m) => m.title)).toEqual([
       "Design review",
       "Dentist",

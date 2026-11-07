@@ -180,7 +180,6 @@ it('shows daily portfolio coverage before asset contributions and keeps monthly 
   expect(nom.querySelector('.text-warn')).toHaveTextContent('0/1 days');
   expect(daily.querySelector('[data-source-coverage-asset="meadow.example"] .text-warn')).toBeNull();
   expect(within(daily).getByRole('link', { name: /Northwind/ })).toHaveAttribute('href', '/assets/northwind.example/financials');
-  expect(daily).not.toHaveTextContent('Only saved Mediavine estimates');
   expect(container.querySelector('[data-panel="months"] [data-hero-chart]')).toBeNull();
 });
 
@@ -352,7 +351,6 @@ describe("/financials — picking a period", () => {
 describe("/financials — saying which month it is showing", () => {
   it("answers the page's question instead of asking it, on every month", () => {
     const { container } = renderPage(payload());
-    expect(container.querySelector("[data-page-header]")?.textContent).not.toContain("Am I making money");
     expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent(/^August 2026$/u);
     expect(container.querySelector("[data-money-net] dd")?.textContent).toMatch(/^[+−-]?\$/u);
     expect(container.querySelector("[data-period-fallback]")).toBeNull();
@@ -667,7 +665,6 @@ describe("/financials — what the selector does not touch", () => {
     expect(costs).toHaveAttribute("data-panel-open");
     expect(costs.querySelector('[data-collection-editor="recurring-costs"]')).not.toBeNull();
     expect(container.querySelector("[data-money-answer]")).toBeNull();
-    expect(container).not.toHaveTextContent("configure operating costs");
   });
 });
 
@@ -746,18 +743,6 @@ describe("/financials — the first screen answers the whole question", () => {
     expect(container.querySelector("[data-cost-composition]")).toBeNull();
   });
 
-  /** The chart takes a signed domain, so the net is a line of its own and no
-   * footnote is needed. */
-  it("draws revenue, cost and net as three toggles and no explanatory footnote", () => {
-    const { container } = renderPage(threeMonths());
-
-    const chart = container.querySelector("[data-money-months] [data-hero-chart]")!;
-    expect(chart.textContent).toContain("Revenue");
-    expect(chart.textContent).toContain("Cost");
-    expect(chart.textContent).toContain("Net");
-    expect(chart.textContent).not.toContain("the month's net");
-  });
-
   it("gives each financial series one key with a distinct color and line pattern", () => {
     const { container } = renderPage(threeMonths());
     const chart = container.querySelector("[data-money-months] [data-hero-chart]")! as HTMLElement;
@@ -829,7 +814,7 @@ describe("/financials — the first screen answers the whole question", () => {
 
     expect(container.querySelector("[data-money-months] [data-hero-chart]")!).toHaveTextContent("Still counting");
     fireEvent.click(screen.getByRole("button", { name: "About Month by month" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are still being counted");
+    expect(screen.getByRole("tooltip")).toBeVisible();
     expect(container.querySelector("[data-month-to-date]")).toHaveTextContent("Month to date");
     expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent(/so far$/u);
     expect(container.querySelector("[data-money-answer]")!.textContent).not.toMatch(/%/);
@@ -838,7 +823,6 @@ describe("/financials — the first screen answers the whole question", () => {
     expect(container.querySelector('[data-money-change="month"]')).toBeNull();
     // Measured against August's whole total, with no change figure.
     expect(container.querySelector("[data-money-answer] [data-pace-bar]")).toHaveTextContent("Aug total $441");
-    expect(container).not.toHaveTextContent("still open");
     openPanel("months");
     expect(container.querySelector('[data-panel="months"] [data-month-open]')).toHaveTextContent("to date");
   });
@@ -902,16 +886,6 @@ describe("/financials — the first screen answers the whole question", () => {
     const { container } = renderPage(payload({ revenueLines: [] }));
     expect(container.querySelector("[data-revenue-composition]")).toBeNull();
     expect(screen.queryByRole("region", { name: "By source" })).toBeNull();
-  });
-
-  /** No paragraph anywhere: each fact is drawn on the figure it qualifies. */
-  it("carries no About, no known-gaps panel and no explanation tooltips", () => {
-    const { container } = renderPage(threeMonths());
-
-    expect(container.querySelector("[data-about]")).toBeNull();
-    expect(container.querySelector('[data-panel="gaps"]')).toBeNull();
-    expect(screen.queryByRole("button", { name: "How asset costs are allocated" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "About Reconciled" })).toBeNull();
   });
 
   it("says so plainly when the ledger holds no month at all", () => {

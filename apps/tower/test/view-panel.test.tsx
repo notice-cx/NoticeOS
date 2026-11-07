@@ -54,7 +54,6 @@ describe("Settings → General → Your view", () => {
     expect(panel.getByRole("radio", { name: /Revenue/ })).not.toBeChecked();
     expect(panel.getByRole("radio", { name: /Growth/ })).not.toBeChecked();
     expect(panel.getByRole("radio", { name: /Overview/ })).toBeChecked();
-    expect(container.querySelectorAll("[data-view-option]")).toHaveLength(5);
   });
 
   it("stores the choice in this browser on change, and Undo forgets it", () => {
@@ -117,8 +116,6 @@ describe("Settings → General → Your view", () => {
     const dashboard = { ...NOTHING_SAVED, view: { default: "product" } } as DashboardConfig;
     const { container } = wrap(<ViewPanel dashboard={dashboard} />);
     expect(container.querySelector("[data-workspace-view-value]")).toHaveTextContent("Overview");
-    expect(container).toHaveTextContent("Workspace default · for new people");
-    expect(container).not.toHaveTextContent("the TV");
     fireEvent.click(container.querySelector("[data-workspace-view-change]") as HTMLElement);
     expect(container.querySelector('[data-workspace-view-option="overview"]')).toBeDisabled();
     fireEvent.click(container.querySelector('[data-workspace-view-option="growth"]') as HTMLElement);

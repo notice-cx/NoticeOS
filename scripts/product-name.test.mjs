@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -207,13 +207,6 @@ test('every shared block is still where its exception says', () => {
     const end = text.indexOf(block.end, start);
     assert.ok(start !== -1 && end !== -1, `${block.file} no longer carries ${block.begin}…${block.end}`);
   }
-});
-
-test('the browser tab and the lockup say NoticeOS', () => {
-  const html = readFileSync(path.join(REPO_ROOT, 'apps/tower/index.html'), 'utf8');
-  assert.match(html, /<title>NoticeOS · [^<]+<\/title>/);
-  const lockup = readFileSync(path.join(REPO_ROOT, 'apps/tower/src/components/BrandLockup.tsx'), 'utf8');
-  assert.match(lockup, /Notice<span className="brand-os">OS<\/span>/);
 });
 
 test('the code-name rule reads the product code and leaves tests alone', () => {

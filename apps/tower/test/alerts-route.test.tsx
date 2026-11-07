@@ -287,8 +287,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
         message: "Clicks fell off a cliff",
       }),
     ]);
-
-    expect(screen.getByRole("heading", { level: 1, name: "Alerts" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
     expect(screen.getAllByRole("button", { name: "Resolve alert" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Snooze alert" })).toHaveLength(2);
@@ -493,7 +491,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(within(body).queryByRole("button", { name: "Alert verification details" })).toBeNull();
     fireEvent.click(within(body).getByRole("button", { name: /^Why this fired/ }));
     const panel = screen.getByRole("dialog");
-    expect(panel).toHaveTextContent("Arrived");
     expect(panel).toHaveTextContent(/First detected\s*·/);
     expect(panel).toHaveTextContent(/Last confirmed\s*·/);
     expect(panel).toHaveTextContent("Central metric rule");
@@ -840,7 +837,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
       expect(
         within(row).getByRole("button", { name: "Unsnooze alert" }),
       ).toBeInTheDocument();
-      expect(within(row).getByRole("button", { name: /^Why this fired/ })).toHaveTextContent("Evidence");
       expect(within(row).queryByRole("button", { name: "Alert verification details" })).toBeNull();
     });
 

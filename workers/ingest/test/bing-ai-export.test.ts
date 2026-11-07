@@ -136,7 +136,9 @@ describe('POST /api/bing-ai-export — the door', () => {
     huge.fill(0x41);
     const { status, body } = await importExport({ contentBase64: base64(huge) });
     expect(status).toBe(400);
-    expect(body.detail).toMatch(/bytes; this lane accepts at most/);
+    expect(body.error).toBe('bad_request');
+    expect(body.detail).toContain(String(huge.byteLength));
+    expect(body.detail).toContain(String(BING_AI_EXPORT_MAX_BYTES));
   });
 });
 
@@ -168,7 +170,7 @@ describe('POST /api/bing-ai-export — what it refuses to guess', () => {
     });
     expect(status).toBe(422);
     expect(body.error).toBe('bing_ai_export_ragged_row');
-    expect(body.detail).toContain('Row 3 has 3 field(s); the header declares 5.');
+    expect(body.detail?.match(/\d+/g)?.slice(-3)).toEqual(['3', '3', '5']);
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
   });
 

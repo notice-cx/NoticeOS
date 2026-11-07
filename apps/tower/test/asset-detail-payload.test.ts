@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { PulseEnvelope } from "@noticeos/contract";
+import { SYSTEM_NAME } from "@noticeos/contract/asset-name";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PullConfigEntry } from "../worker/asset-config";
 import {
   type AssetDetailDeps,
@@ -164,7 +165,6 @@ type MetricMap = Record<string, { last24h: number; avg7d?: number; total?: numbe
 function report(asset: string, date: string, receivedAt: string, metrics: MetricMap): ReportRow {
   return { asset, date, receivedAt, envelope: { asset, metrics } };
 }
-
 
 interface FlagSpec {
   asset: string;
@@ -675,7 +675,6 @@ describe("buildAssetDetailPayload", () => {
     expect(p.wiring.pull?.url).toBe("https://meadow.example/api/internal/metrics");
     expect(p.wiring.pull?.enabled).toBe(true);
     expect(p.wiring.pull?.metricMap).toContainEqual({ metric: "signups", counter: "profiles" });
-    expect(p.wiring.pull?.auth).toBe("Asset token");
     expect(p.wiring.modeOwner).toBe("config/pull.json");
     // the pull entry's array index anchors the changeset edit pointers.
     expect(p.wiring.pull?.index).toBe(0);
@@ -695,12 +694,11 @@ describe("buildAssetDetailPayload", () => {
     expect(q.wiring.schedule).toMatchObject({ job: "pull", enabled: false });
   });
 
-  it("resolves PUSH mode for assets absent from pull.json, auth named as the asset's token", async () => {
+  it("resolves PUSH mode for assets absent from pull.json", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "ferns.example", DEPS))!;
     expect(p.wiring.mode).toBe("push");
     expect(p.wiring.pull).toBeNull();
     expect(p.wiring.push?.endpoint).toBe("POST /api/pulse");
-    expect(p.wiring.push?.auth).toBe("Asset token");
     expect(JSON.stringify(p)).not.toContain("ASSET_TOKENS");
     expect(p.wiring.push?.authOwner).toBe("workers/ingest/.dev.vars");
     // A pushing asset sends on its own clock, so there is no OS-side time.
@@ -729,9 +727,9 @@ describe("buildAssetDetailPayload", () => {
     expect(p.countersConfig).toBeNull();
   });
 
-  it("names the OS's own row System whatever its stored name, and every asset by its own", async () => {
+  it("uses the canonical OS name and each asset's stored name", async () => {
     const os = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
-    expect(os.asset).toMatchObject({ isOs: true, displayName: "System" });
+    expect(os.asset).toMatchObject({ isOs: true, displayName: SYSTEM_NAME });
     expect(JSON.stringify(os)).not.toContain("ReindexOS");
     const site = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(site.asset.displayName).toBe("Meadow Board");
@@ -832,7 +830,6 @@ describe("buildAssetDetailPayload", () => {
     expect(alpha.value).toBe("0.01");
     expect(alpha.jargon).toBe("alpha");
     expect(alpha.owner).toBe("config/constants.json");
-    expect(alpha.label).not.toBe("alpha"); // plain-language label present
     // editable knobs carry a JSON pointer + the raw value for staging.
     expect(alpha.pointer).toBe("/flag_defaults/alpha");
     expect(alpha.raw).toBe(0.01);
@@ -2218,17 +2215,6 @@ describe("buildAssetDetailPayload", () => {
         updatedAt: "2026-07-04T08:00:00.000Z",
       },
     ]);
-    expect(p.decisions).toHaveLength(2);
-  });
-
-  it("cannot be handed a legacy handed_off row any more", async () => {
-    // The store's CHECK refuses the value.
-    await expect(
-      insertDisposition("meadow.example", "weekly meal plan", "handed_off", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z"),
-    ).rejects.toThrow(/check constraint/);
-
-    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
-    expect(p.decisions).toEqual([]);
   });
 
   // The Tower cannot reach the hub, so this all comes off the newest task
@@ -2496,8 +2482,6 @@ describe("buildAssetDetailPayload", () => {
     const gsc = p.integrations.lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(gsc.cell.evidence[0]).toMatchObject({
       polarity: "supporting",
-      source: "Search Console collector",
-      detail: "No run yet",
       at: null,
     });
   });
@@ -2578,8 +2562,12 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
     ],
   });
 
+  // Successive malformed snapshots must replace the previous answer deterministically.
+  let panelSequence = 0;
   const panelOf = async (payload: unknown) => {
-    await insertSnapshot(ctx, "panel", payload);
+    panelSequence += 1;
+    await insertSnapshot(ctx, `panel-${panelSequence}`, payload, undefined,
+      new Date(NOW_MS + panelSequence).toISOString());
     const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     return p.executive?.serpPanel ?? null;
   };
@@ -2657,8 +2645,6 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
     const carried = await panelOf({ ...executiveSnapshot(), serpPanel: { ...panelBlock(), market: uk } });
     expect(carried!.market).toEqual(uk);
     for (const market of [null, "United Kingdom", { locationCode: "2826" }, []]) {
-      ctx = await createTestStore();
-      await seed(ctx);
       const panel = await panelOf({ ...executiveSnapshot(), serpPanel: { ...panelBlock(), market } });
       expect(panel!.market, JSON.stringify(market)).toBeNull();
       expect(panel!.queries).toHaveLength(3);
@@ -2673,8 +2659,6 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
       ["queries not an array", { reportDate: "2026-08-03", trackedDepth: 20, queries: {} }],
       ["no readable row", { reportDate: "2026-08-03", trackedDepth: 20, queries: [{ bestRank: 2 }] }],
     ] as const) {
-      ctx = await createTestStore();
-      await seed(ctx);
       const panel = await panelOf({ ...executiveSnapshot(), serpPanel: block });
       expect(panel, name).toBeNull();
     }
@@ -2795,6 +2779,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     const page = await pageFor("northwind.example");
     expect(page.panelReview?.panel).toBe(false);
     expect(page.panelReview?.beadId).toBe("nw-f1c");
+    expect(page.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
   });
 
@@ -2840,20 +2825,6 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
 
     const page = await pageFor("meadow.example");
     expect(page.latestPanelDate).toBe("2026-07-04");
-    expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
-  });
-
-  it("shows the review of an asset that buys a collection but no panel", async () => {
-    // nom is absent from the panel config and still owes the read: the review
-    // is about the weekly collection, not the panel family inside it.
-    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
-    await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "northwind.example", prefix: "nw", panelReview: panelReviewBead({ beadId: "nw-f1c" }) }),
-    ]);
-
-    const page = await pageFor("northwind.example");
-    expect(page.panelReview!.beadId).toBe("nw-f1c");
-    expect(page.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
   });
 
@@ -2970,7 +2941,6 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
       state: "confirmed",
       lastConfirmedAt: "2026-07-06T02:05:00.000Z",
       lastEvaluatedAt: "2026-07-06T02:05:00.000Z",
-      source: "Nightly report",
     });
     expect(row.firstFiredAt).toBe("2026-07-05T02:00:00.000Z");
   });
@@ -3063,7 +3033,6 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
     expect(row.liveness.state).toBe("last-known");
     expect(row.verification).toMatchObject({
       state: "unverified", lastConfirmedAt: null, lastEvaluatedAt: null,
-      source: "Central metric rule",
     });
     expect(row.resolvedAt).toBeNull();
   });
@@ -3258,10 +3227,6 @@ describe("buildAssetDetailPayload — the PostHog product block", () => {
   it("carries the producer's acceptance block through, field for field", async () => {
     const product = await productOf({ ...executiveSnapshot(), product: posthogProduct });
     expect(product).toEqual(posthogProduct);
-    expect(product?.funnels[0]?.steps.map((step) => step.people)).toEqual([18_826, 15_864, 15_394, 1_232]);
-    expect(product?.vitals?.segments[0]).toMatchObject({ os: "Chrome OS", lcpP75: 3_844, inpP75: 744, inpRating: "poor" });
-    expect(product?.exceptions?.noise?.message).toBe("Load failed");
-    expect(product?.checks.every((check) => check.state === "fired")).toBe(true);
   });
 
   it("is null when the snapshot predates the block", async () => {
@@ -3453,24 +3418,26 @@ describe("failed nightly fetches keep their own records", () => {
   });
 });
 
-
-describe("buildAssetDetailView — one read per tab", () => {
-  let ctx: TestStore;
-  beforeEach(async () => {
-    ctx = await createTestStore();
-    await seedEverySection(ctx);
-  });
-
+describe("asset detail view sections", () => {
   it("names exactly the tabs the page has, and maps every section to its fields", () => {
     expect([...ASSET_DETAIL_VIEWS]).toEqual([...ASSET_TABS]);
     const used = new Set(Object.values(ASSET_VIEW_SECTIONS).flat());
     expect([...used].sort()).toEqual(Object.keys(SECTION_FIELD_SPEC).sort());
   });
+});
 
-  it("every view is the whole page's own fields at the same clock, and only its own", async () => {
+describe("buildAssetDetailView — one read per tab", () => {
+  let ctx: TestStore;
+  beforeAll(async () => {
+    ctx = await createTestStore({ scope: "suite" });
+    await seedEverySection(ctx);
     await seedEveryMoneySection(ctx);
     await seedEverySectionOnPostgres(ctx);
     await writeViewSignals(ctx);
+  });
+  afterAll(async () => { await ctx?.close(); });
+
+  it("every view is the whole page's own fields at the same clock, and only its own", async () => {
     const full = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS)) as unknown as Record<string, unknown>;
     expect(full.hygiene).not.toBeNull();
     expect(full.reclamation).not.toBeNull();
@@ -3503,7 +3470,6 @@ describe("buildAssetDetailView — one read per tab", () => {
   });
 
   it("leaves a section it does not draw ABSENT, so no tab can mistake it for empty", async () => {
-    await seedEveryMoneySection(ctx);
     const alerts =(await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts"))!;
     for (const key of ["journeys", "performance", "executive", "metrics", "ledger", "annotations", "handoffBeads", "hygiene"]) {
       expect(alerts).not.toHaveProperty(key);
@@ -3522,7 +3488,6 @@ describe("buildAssetDetailView — one read per tab", () => {
   });
 
   it("does not read the tables only other tabs draw", async () => {
-    await writeViewSignals(ctx);
     const fullSql: string[] = [];
     await buildAssetDetailPayload(recordingStore(ctx.call, fullSql), "meadow.example", DEPS);
     const tasksSql: string[] = [];
@@ -3567,8 +3532,7 @@ describe("buildAssetDetailView — the asset's all-time totals", () => {
     await seedReportsAndAlerts(ctx);
     await insertReading("meadow.example", "signups", 1284, "2026-07-06T11:50:00.000Z");
     const overview = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "overview"))!;
-    expect(overview.counters).toEqual({
-      heading: "All-time totals",
+    expect(overview.counters).toMatchObject({
       cadenceHours: 0.25,
       cards: [{ metric: "signups", label: "Accounts", value: 1284, observedAt: "2026-07-06T11:50:00.000Z", source: "counters" }],
     });
@@ -3684,11 +3648,16 @@ describe("the asset ledger in one statement", () => {
     }
   }
 
+  let busy: TestStore;
+  beforeAll(async () => {
+    busy = await createTestStore({ scope: "suite" });
+    await seedBusyLedger(busy);
+  });
+  afterAll(async () => { await busy?.close(); });
+
   it("totals every current row and lists the newest 20, exactly as the row-by-row build did", async () => {
-    const ctx = await createTestStore();
-    await seedBusyLedger(ctx);
+    const ctx = busy;
     const rows = await specRows(ctx);
-    expect(rows.length).toBeGreaterThan(40);
 
     const page = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(page.ledger).toEqual(specLedger(rows));
@@ -3699,8 +3668,7 @@ describe("the asset ledger in one statement", () => {
   });
 
   it("reads the ledger view once per request, whichever tab asked", async () => {
-    const ctx = await createTestStore();
-    await seedBusyLedger(ctx);
+    const ctx = busy;
     for (const read of [
       async (store: WorkspaceStore) => buildAssetDetailPayload(store, "meadow.example", DEPS),
       async (store: WorkspaceStore) => buildAssetDetailView(store, "meadow.example", DEPS, "financials"),

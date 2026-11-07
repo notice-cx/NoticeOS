@@ -76,6 +76,11 @@ adapter keeps host permissions and runtime credentials separate.
 
 ## Local verification
 
+For each feature or fix, identify the observable behavior or regression risk,
+check existing coverage, and add only tests that provide distinct protection.
+Apply the [test design and pruning rules](AGENTS.md#test-design-and-pruning)
+when creating or reviewing cases, and keep fixture cost proportional to value.
+
 Choose checks from the diff and the critical paths it affects. Full repository
 gates run in GitHub CI on pushes to `main` and pull requests; do not duplicate
 them locally by default. Target at least 80% less local execution time and CPU

@@ -88,12 +88,6 @@ describe("AppToaster theme", () => {
 
   const drawnTheme = () => document.querySelector("[data-sonner-toaster]")?.getAttribute("data-sonner-theme");
 
-  it("draws toasts dark on the dark desk", async () => {
-    render(<AppToaster />);
-    await showToast("Saved — dark");
-    expect(drawnTheme()).toBe("dark");
-  });
-
   it("draws toasts light on the light desk", async () => {
     document.documentElement.classList.add("light");
     render(<AppToaster />);

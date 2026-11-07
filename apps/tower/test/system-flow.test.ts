@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { CredentialSummary } from "@noticeos/contract/integrations";
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";

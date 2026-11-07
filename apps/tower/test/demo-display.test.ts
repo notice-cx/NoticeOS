@@ -94,7 +94,6 @@ describe('saved demo display readers', () => {
     const bills = money.costLines.filter(line => line.source?.startsWith('recurring:'));
     expect(bills.map(line => [recurringCosts.find(cost => `recurring:${cost.id}` === line.source)?.label, line.amount, line.rows]).sort())
       .toEqual(recurringCosts.map(cost => [cost.label, cost.amountUsdPerMonth, 1]).sort());
-    expect(recurringCosts.map(cost => cost.label)).toEqual(['Light Brief hosting', 'Pinwell hosting', 'Weeknight Pantry hosting', 'Trail Notes hosting', 'Fresh Rows hosting', 'App servers']);
   });
 
   it('records OS observations without scheduler evidence', () => {

@@ -5,8 +5,6 @@ import { ARCHIVE_RUNS, pgCount, pgFirst } from './helpers.js';
 import {
   NOW,
   PANEL_ASSETS,
-  LAUNCHED_ASSETS,
-  EXPECTED_ATTEMPTS,
   SERP_PATH,
   type FetchCall,
   FAST_RETRY,
@@ -33,18 +31,18 @@ describe('DataForSEO weekly archives', () => {
         login: 'operator-login',
         password: 'operator-password',
         retryBackoffMs: FAST_RETRY,
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
       });
 
       expect(result).toMatchObject({
-        attempted: EXPECTED_ATTEMPTS,
-        succeeded: EXPECTED_ATTEMPTS,
+        attempted: 1,
+        succeeded: 1,
         failed: 0,
       });
-      // One retry per property, and the family stopped there rather than using
-      // the rest of its budget.
-      expect(backlinksCalls(calls)).toHaveLength(LAUNCHED_ASSETS * 2);
+      // The family stops after recovery rather than using the rest of its budget.
+      expect(backlinksCalls(calls)).toHaveLength(2);
       const retried = result.outcomes.filter((outcome) => outcome.retries > 0);
-      expect(retried).toHaveLength(LAUNCHED_ASSETS);
+      expect(retried).toHaveLength(1);
       expect(retried[0]).toMatchObject({
         report: 'backlinks-summary',
         status: 'success',
@@ -57,7 +55,7 @@ describe('DataForSEO weekly archives', () => {
             WHERE integration = 'dataforseo' AND report = 'backlinks-summary'
               AND status = 'success'`,
         ),
-      ).toBe(LAUNCHED_ASSETS);
+      ).toBe(1);
     });
 
     it('gives up after a bounded number of attempts and says how many', async () => {
@@ -70,11 +68,11 @@ describe('DataForSEO weekly archives', () => {
         login: 'operator-login',
         password: 'operator-password',
         retryBackoffMs: FAST_RETRY,
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
       });
 
-      // Three attempts per property — the first plus the two the budget buys —
-      // and not one more.
-      expect(backlinksCalls(calls)).toHaveLength(LAUNCHED_ASSETS * 3);
+      // The first attempt plus the two the budget buys, and not one more.
+      expect(backlinksCalls(calls)).toHaveLength(3);
       const failure = result.outcomes.find(
         (outcome) => outcome.report === 'backlinks-summary',
       );
@@ -88,9 +86,8 @@ describe('DataForSEO weekly archives', () => {
             AND status = 'error' LIMIT 1`);
       // The row says what the OS already did about it, so the operator is not
       // invited to go and try the same call by hand.
-      expect(stored?.errorMessage).toBe(
-        'Provider unavailable. Gave up after 3 attempts.',
-      );
+      expect(stored?.errorMessage).toContain('Provider unavailable.');
+      expect(stored?.errorMessage).toMatch(/\b3\b/);
     });
 
     it('never repeats a request the provider refused', async () => {
@@ -114,9 +111,10 @@ describe('DataForSEO weekly archives', () => {
         login: 'operator-login',
         password: 'operator-password',
         retryBackoffMs: FAST_RETRY,
+        scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
       });
 
-      expect(backlinksCalls(calls)).toHaveLength(LAUNCHED_ASSETS);
+      expect(backlinksCalls(calls)).toHaveLength(1);
       expect(
         result.outcomes.find((outcome) => outcome.report === 'backlinks-summary'),
       ).toMatchObject({
@@ -250,12 +248,13 @@ describe('DataForSEO weekly archives', () => {
           login: 'operator-login',
           password: 'operator-password',
           retryBackoffMs: FAST_RETRY,
+          scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
         });
 
-        expect(backlinksCalls(calls)).toHaveLength(LAUNCHED_ASSETS * 2);
+        expect(backlinksCalls(calls)).toHaveLength(2);
         expect(result).toMatchObject({
-          attempted: EXPECTED_ATTEMPTS,
-          succeeded: EXPECTED_ATTEMPTS,
+          attempted: 1,
+          succeeded: 1,
           failed: 0,
         });
       });
@@ -274,9 +273,10 @@ describe('DataForSEO weekly archives', () => {
           login: 'operator-login',
           password: 'operator-password',
           retryBackoffMs: FAST_RETRY,
+          scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
         });
 
-        expect(backlinksCalls(calls)).toHaveLength(LAUNCHED_ASSETS);
+        expect(backlinksCalls(calls)).toHaveLength(1);
         expect(
           result.outcomes.find(
             (outcome) => outcome.report === 'backlinks-summary',

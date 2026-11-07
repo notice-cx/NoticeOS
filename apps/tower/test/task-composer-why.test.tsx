@@ -1,34 +1,29 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskHubSpoke } from "@shared/settings";
-import type { TasksCapabilities } from "@shared/tasks";
 import type { NewTask } from "@/lib/api";
 
 /**
  * The composer's newer fields: the kind of change, why the task is worth
  * doing (optional as a whole, checked by the contract when started), Done
  * when as a checklist, and the description's Markdown preview. What the lane
- * receives is read off the fake lane, never off the form.
+ * receives is read off the HTTP request, never off the form.
  */
 
-const lane = vi.hoisted(() => ({
-  calls: [] as NewTask[],
-  capability: { live: true, reason: null } as TasksCapabilities,
-}));
-
-vi.mock("@/lib/api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api")>();
-  return {
-    ...actual,
-    fetchTasksCapabilities: async () => lane.capability,
-    fetchTaskProjects: async () => [],
-    createTask: async (input: NewTask) => {
-      lane.calls.push(input);
-      return { id: "ro-9zz", project: input.project };
-    },
-  };
+const lane = { calls: [] as NewTask[] };
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === "/api/tasks/capabilities") return Response.json({ live: true, reason: null });
+    if (url === "/api/tasks" && init?.method === "POST") {
+      const task = JSON.parse(String(init.body)) as NewTask;
+      lane.calls.push(task);
+      return Response.json({ id: "ro-9zz", project: task.project });
+    }
+    return Response.json({ error: "Unexpected test request" }, { status: 404 });
+  }));
 });
 
 // No `/api/settings` here: the rate falls back to 2 USD a minute.
@@ -48,6 +43,7 @@ const SPOKES: TaskHubSpoke[] = [
 
 afterEach(() => {
   lane.calls.length = 0;
+  vi.unstubAllGlobals();
 });
 
 function renderComposer(prefill: TaskComposerPrefill | null = { project: "root-os", title: "Backups keep a year" }) {
@@ -82,37 +78,19 @@ function fillWhy() {
 }
 
 describe("the composer's new fields", () => {
-  it("draws each field with its label, the why section's caption and the empty score line", () => {
+  it("starts with no change classification or ranking inputs selected", () => {
     renderComposer();
     const kind = screen.getByRole("group", { name: "Kind of change" });
-    expect(within(kind).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Not recorded", "Content data", "Copy", "Template", "Feature", "Infrastructure",
-    ]);
     expect(within(kind).getByRole("button", { name: "Not recorded" })).toHaveAttribute("aria-pressed", "true");
 
     const why = screen.getByRole("region", { name: "Why it is worth doing" });
-    expect(within(why).getByText("ranks the task · an agent can fill it in later")).toBeInTheDocument();
-    for (const label of ["Predicted change, a month", "Likely to pay off", "Your minutes to review", "Signal in", "Measured as", "Revenue family", "Kill criterion", "Kill date", "Note"]) {
-      expect(within(why).getByLabelText(label)).toBeInTheDocument();
-    }
     for (const pill of ["30%", "55%", "75%", "90%", "2 wk", "4 wk", "8 wk"]) {
       expect(within(why).getByRole("button", { name: pill })).toHaveAttribute("aria-pressed", "false");
     }
-    expect(within(why).getByText("$")).toBeInTheDocument();
-    expect(within(why).getByText("est.")).toBeInTheDocument();
-    expect(within(why).getByText("days")).toBeInTheDocument();
     expect((within(why).getByLabelText("Measured as") as HTMLSelectElement).value).toBe("");
-    expect(field("Kill criterion").placeholder).toBe("a state");
-    expect(field("Note").placeholder).toBe("why the money moves");
-    expect(within(why).getByText("Fill the five figures to rank it.")).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "Write" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByText("Markdown: tables, images and checklists work; task ids and paths become links")).toBeInTheDocument();
-    expect(field("Done when").placeholder).toBe("The proof that it is done");
-    expect(screen.getByRole("button", { name: "Another line" })).toBeInTheDocument();
-    expect(field("Title").placeholder).toBe("What should be true when this is done");
-    expect((screen.getByLabelText("Description") as HTMLTextAreaElement).placeholder).toBe("What, why with the numbers, where");
   });
 
   it("sends no card and no kind of change when neither was touched", async () => {

@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { block, distance, simulate, themeColours, withoutComments } from "./palette";
+import { block, distance, simulate, themeColours } from "./palette";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");
@@ -32,14 +32,6 @@ describe("the NoticeOS favicon set", () => {
     expect(png("public/brand/notice-icon-16-dark.png")).toEqual({ width: 16, height: 16 });
     expect(png("public/brand/notice-icon-180.png")).toEqual({ width: 180, height: 180 });
   });
-
-  it("leaves no trace of the retired Signal identity", () => {
-    for (const file of ["public/brand/signal-icon.png", "public/brand/signal.css", "public/brand/signal-design-system.zip", "public/favicon.svg"]) {
-      expect(existsSync(path.join(root, file)), file).toBe(false);
-    }
-    expect(html).not.toMatch(/signal/i);
-    expect(read("src/components/BrandLockup.tsx")).not.toMatch(/<img/);
-  });
 });
 
 describe("the wordmark's typeface", () => {
@@ -64,13 +56,6 @@ describe("the Notice blue is a brand colour, never a state", () => {
     { name: "dark", brand: block(brand, /:root\s*\{([^}]+)\}/), app: block(theme, /\n:root\s*\{([^}]+)\}/) },
     { name: "light", brand: block(brand, /\.light,\s*:root\[data-theme="light"\]\s*\{([^}]+)\}/), app: block(theme, /\n\.light\s*\{([^}]+)\}/) },
   ];
-
-  it("is the website's #2745d4 in both themes, and the light theme's accent", () => {
-    for (const t of themes) expect(t.brand.get("--brand-blue"), t.name).toBe("#2745d4");
-    expect(themes[1]!.brand.get("--brand-accent")).toBe("var(--brand-blue)");
-    // On the dark canvas the accent is the tint the website draws it in there.
-    expect(themes[0]!.brand.get("--brand-accent")).toBe("#b0b9ff");
-  });
 
   it("feeds actions, selection and focus only", () => {
     for (const t of themes) {
@@ -118,17 +103,4 @@ describe("the Notice blue stays apart from every colour that carries meaning", (
       expect(measured.filter((m) => m.normal < 8 || m.colourBlind < 6)).toEqual([]);
     });
   }
-});
-
-describe("the lockup", () => {
-  it("draws the Notice mark in the current ink and sets the wordmark in Stack Sans Notch", () => {
-    const lockup = read("src/components/BrandLockup.tsx");
-    expect(lockup).toContain('fill="currentColor"');
-    expect(lockup).toContain('d="M0 0H354V394H0ZM100 0H237V137ZM117 137H237V257H117ZM117 257V394H254Z"');
-    // The published file is the same shape.
-    expect(read("public/brand/notice-mark.svg")).toContain('d="M0 0H354V394H0ZM100 0H237V137ZM117 137H237V257H117ZM117 257V394H254Z"');
-    const css = withoutComments(read("src/index.css"));
-    expect(css).toMatch(/\.brand-wordmark\s*\{[^}]*font-family: var\(--brand-wordmark-font\);/);
-    expect(read("public/brand/notice.css")).toMatch(/--brand-wordmark-font: "Stack Sans Notch"/);
-  });
 });

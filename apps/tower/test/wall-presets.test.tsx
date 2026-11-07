@@ -23,10 +23,6 @@ describe("the TV with nothing saved", () => {
     expect(drawnLayout({ wall: undefined })).toBe(DEFAULT_WALL_LAYOUT);
   });
 
-  it("draws the default when no layout is set", () => {
-    expect(drawnLayout({})).toBe(DEFAULT_WALL_LAYOUT);
-  });
-
   it("draws a saved layout whatever the view", () => {
     expect(drawnLayout({ wall: SAVED_CONFIG })).toEqual(SAVED);
   });
@@ -60,7 +56,6 @@ describe("Start from in the Add drawer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start from" }));
     const menu = screen.getByRole("menu", { name: "Start from" });
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map((item) => item.textContent)).toEqual(["Health and decisions", "Revenue and visitors", "Portfolio overview"]);
     expect(items[2]).toHaveProperty("disabled", true);
     fireEvent.click(items[0]!);
     expect(onStart).toHaveBeenCalledWith(WALL_PRESETS.business, "Health and decisions");

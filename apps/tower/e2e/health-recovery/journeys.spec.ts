@@ -5,6 +5,7 @@ import { buildWorkflowHistory } from '../../../../scripts/workflow-history-view.
 import { jobRunName } from '../../../../scripts/scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS } from '../../../../scripts/workflow-definitions.mjs';
 import { APP_RELEASE_HEADER } from '../../shared/app-release';
+import { DESKTOP_ONLY } from '../fixtures';
 
 const A = 'a'.repeat(64), B = 'b'.repeat(64);
 const NOW = Date.parse(WALL_FIXTURE_NOW);
@@ -41,7 +42,7 @@ async function scene(page: Page) {
 
 test.beforeEach(async ({ request }) => { expect((await request.post('/__journey/reset')).ok()).toBe(true); });
 
-test('System health shows an hourly job failure five days ago at 1440px', async ({ page }, info) => {
+test('System health shows an hourly job failure five days ago at 1440px', { tag: DESKTOP_ONLY }, async ({ page }, info) => {
   await scene(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto('/health');
@@ -50,7 +51,6 @@ test('System health shows an hourly job failure five days ago at 1440px', async 
   await expect(cell).toHaveAttribute('data-state', 'failed');
   await expect(cell.getByRole('link')).toHaveAttribute('href', /run=counters/);
   await expect(page.locator('[data-job-runs]')).toContainText('UTC');
-  await expect(page.locator('[data-job-runs]')).not.toContainText('older runs not kept');
   await page.clock.runFor(3_000);
   await expect(page.locator('#boot-splash')).toHaveCount(0);
   const screenshot = info.outputPath('system-health-1440.png');

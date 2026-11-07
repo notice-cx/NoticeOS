@@ -618,14 +618,12 @@ describe("adding and removing", () => {
 });
 
 describe("arranging", () => {
-  it("keeps section dragging on the grip while tiles remain selection targets", () => {
+  it("enables native dragging for every section", () => {
     renderEditor();
     for (const id of DEFAULT_DRAWN) {
       fireEvent.mouseEnter(widget(id));
       expect(widget(id).getAttribute("draggable"), id).toBe("true");
     }
-    expect(document.querySelector("[data-wall-preview-hint]")?.textContent).toContain("Select a tile to edit");
-    expect(document.querySelector("[data-wall-preview-hint]")?.textContent).toContain("grip");
   });
 
   it("moves a widget with its Move menu, says where it went and gives focus back to it", () => {
@@ -726,13 +724,10 @@ describe("undo and redo", () => {
 });
 
 describe("the selected widget's settings", () => {
-  it("offers the widgets on the Wall to pick when nothing is selected, and says nothing else", () => {
+  it("offers the placed widgets in layout order and selects the chosen widget", () => {
     renderEditor(SAVED_COLUMNS);
     const panel = document.querySelector('[data-wall-widget-panel="none"]') as HTMLElement;
-    expect(within(panel).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Top strip", "The loop", "Last 24 hours", "Portfolio", "Revenue", "Work",
-    ]);
-    expect(panel.querySelector("p")).toBeNull();
+    expect([...panel.querySelectorAll("[data-wall-widget-pick]")].map(button => button.getAttribute("data-wall-widget-pick"))).toEqual(SAVED_DRAWN);
     fireEvent.click(within(panel).getByRole("button", { name: "Last 24 hours" }));
     expect(document.querySelector('[data-wall-widget-panel="timeline"]')).not.toBeNull();
   });
@@ -798,7 +793,6 @@ describe("the selected widget's settings", () => {
     expect(northwind).toBeDisabled();
     expect(filter).toHaveTextContent("Off on the TV by its own setting");
     expect(within(filter).getByRole("checkbox", { name: /Meadow Board/u })).toBeChecked();
-    expect(filter).toHaveTextContent("Every asset");
   });
 
   it("keeps an archived asset disabled in widget lists even with its TV switch on", () => {
@@ -865,13 +859,6 @@ describe("the selected widget's settings", () => {
     expect(screen.getByLabelText("Countdown label")).toHaveProperty("value", "SF MOVE");
   });
 
-  it("names that form once, not once per component that frames it", () => {
-    renderEditor();
-    fireEvent.click(widget("strip"));
-    const panel = document.querySelector("[data-wall-widget-panel]") as HTMLElement;
-    expect(within(panel).getAllByText("Top strip settings")).toHaveLength(1);
-    expect(within(panel).getAllByRole("button", { name: "config/tower.json" })).toHaveLength(1);
-  });
 });
 
 describe("what the operator is told", () => {
@@ -1243,7 +1230,6 @@ describe("configuration saves paused", () => {
     renderEditor(SITES_ONLY);
     const paused = document.querySelector("[data-saves-paused]") as HTMLElement;
     expect(within(paused).getByRole("status")).toHaveTextContent("Saves paused · Settings cannot be saved right now.");
-    expect(paused.textContent).not.toMatch(/file|deployment/i);
     expect(state.saves).toHaveLength(0);
   });
 
@@ -1264,7 +1250,6 @@ describe("the three ways in", () => {
   it("is in the command palette, and not in the sidebar", async () => {
     const { NAV_ITEMS, PAGE_ITEMS, TV_EDIT_ITEM } = await import("@/components/nav-items");
     expect(PAGE_ITEMS).toContain(TV_EDIT_ITEM);
-    expect(TV_EDIT_ITEM.label).toBe("Edit the TV layout");
     expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/wall/edit");
   });
 

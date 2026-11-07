@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { SettingsPayload } from "@shared/settings";
 import { FALLBACK_OPERATOR_RATE_USD_PER_MIN, operatorRateOf } from "@/hooks/useOperatorRate";

@@ -90,16 +90,14 @@ describe('recordTimeZoneChange', () => {
 
   it('files the change on the timeline, dated to the day the units diverged', async () => {
     expect(await recordTimeZoneChange(env, CHANGE)).toEqual({ filed: true });
-    const [row] = await pgRows<{ at: string; kind: string; ref: string; note: string }>(
-      `SELECT at, kind, ref, note FROM noticeos.annotations WHERE asset_id = 'meadow.example'`,
+    const [row] = await pgRows<{ at: string; kind: string; ref: string }>(
+      `SELECT at, kind, ref FROM noticeos.annotations WHERE asset_id = 'meadow.example'`,
     );
     // Dated to the provider day, not to the moment the OS noticed — a window
     // asking "do I span this" needs the day the data changed shape.
     expect(row?.at.slice(0, 10)).toBe('2026-09-01');
     expect(row?.kind).toBe('config');
-    // A headline with its values; what it means for a comparison is drawn where
-    // the comparison is made.
-    expect(row?.note).toBe('GA4 day moved from America/Los_Angeles to America/New_York on 2026-09-01');
+    expect(row?.ref).toBe(`reporting-time-zone-changed:ga4:${PT}->${ET}`);
   });
 
   /**

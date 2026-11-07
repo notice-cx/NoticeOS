@@ -146,7 +146,6 @@ describe('GET /api/watch-readbacks — what has not reached its bead', () => {
     expect(queue[0]?.comment).toContain('F14 — water-intake depth + snippet');
     expect(queue[0]?.comment).toContain('gsc/clicks, property-wide');
     expect(queue[0]?.comment).toContain('+30%');
-    expect(queue[0]?.comment).toContain('A flag carrying the same numbers is on the meadow.example card');
   });
 
   it('names the scope a scoped bet was answered on', async () => {

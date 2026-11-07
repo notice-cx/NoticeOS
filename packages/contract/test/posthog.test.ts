@@ -108,19 +108,21 @@ describe('PostHog family fields — one definition', () => {
     });
   });
 
-  // The deliberate mismatch. Each shape below drifts from the web-daily list the
-  // way a hand edit would; `tsc` (the contract's typecheck gate) must refuse
-  // it. If the check ever stopped refusing, the unused @ts-expect-error would
-  // fail the typecheck instead.
-  it('refuses at compile time a row shape that drifts from the list', () => {
-    // @ts-expect-error `bounces` is not a web-daily field, so the shape may not carry it.
-    const extra = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number(), bounces: z.number() } satisfies PosthogRowShape<'web-daily'>;
-    // @ts-expect-error `sessions` is a web-daily field, so the shape may not omit it.
-    const missing = { date: z.string(), pageviews: z.number(), people: z.number() } satisfies PosthogRowShape<'web-daily'>;
-    const exact = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number(), estimatedPageviews: z.number().optional(), estimatedSessions: z.number().optional(), sampledEvents: z.number().optional() } satisfies PosthogRowShape<'web-daily'>;
-    expect([Object.keys(extra).length, Object.keys(missing).length, Object.keys(exact).length]).toEqual([5, 3, 7]);
-  });
+
 });
+
+// The deliberate mismatch. Each shape below drifts from the web-daily list the
+// way a hand edit would; `tsc` (the contract's typecheck gate) must refuse
+// it. If the check ever stopped refusing, the unused @ts-expect-error would
+// fail the typecheck instead.
+{
+  // @ts-expect-error `bounces` is not a web-daily field, so the shape may not carry it.
+  const extra = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number(), bounces: z.number() } satisfies PosthogRowShape<'web-daily'>;
+  // @ts-expect-error `sessions` is a web-daily field, so the shape may not omit it.
+  const missing = { date: z.string(), pageviews: z.number(), people: z.number() } satisfies PosthogRowShape<'web-daily'>;
+  const exact = { date: z.string(), pageviews: z.number(), people: z.number(), sessions: z.number(), estimatedPageviews: z.number().optional(), estimatedSessions: z.number().optional(), sampledEvents: z.number().optional() } satisfies PosthogRowShape<'web-daily'>;
+  void [extra, missing, exact];
+}
 
 describe('PostHog per-asset settings', () => {
   const calculator = {

@@ -57,7 +57,6 @@ test('finished traces, coarse runs and the original missing report stay consiste
     const recovered = history.traces.find(trace => trace.id === history.links.collectionRecovery);
     assert.equal(failed.state, 'failed'); assert.equal(recovered.state, 'succeeded');
     assert.ok(failed.finishedAt < recovered.startedAt);
-    assert.match(recovered.steps.find(step => step.id === 'google').summary, /earlier report remains missing/);
     assert.equal(history.traces.find(trace => trace.id === history.links.outcomeCheck).finishedAt, inputs.watch.evaluatedAt);
     assert.equal(history.traces.find(trace => trace.id === history.links.redesignCheck).finishedAt, inputs.watch.slide.evaluatedAt);
     assert.equal(JSON.stringify(inputs.scenario), before);

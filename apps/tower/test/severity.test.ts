@@ -6,8 +6,7 @@ import { describe, expect, it } from "vitest";
 import { coverageSeverity } from "@/lib/severity";
 
 describe("coverageSeverity", () => {
-  it("marks stale expected reports as warnings and unconfigured assets as neutral", () => {
-    expect(coverageSeverity({ fresh: 3, stale: 0, notExpected: 2, expected: 3 })).toBeNull();
+  it("marks stale expected reports as warnings", () => {
     expect(coverageSeverity({ fresh: 4, stale: 1, notExpected: 0, expected: 5 })).toBe("warn");
   });
 

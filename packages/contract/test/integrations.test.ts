@@ -96,9 +96,8 @@ describe('INTEGRATION_PROVIDERS', () => {
     expect(integrationProvider('google-oauth-app')?.companionOf).toBe('google');
   });
 
-  it('gives every provider a label, a doc pointer and at least one field', () => {
+  it('gives every provider a documentation destination, fields and a supported scope', () => {
     for (const provider of INTEGRATION_PROVIDERS) {
-      expect(provider.label.length).toBeGreaterThan(0);
       expect(provider.docRef).toMatch(/\.md(#|$)/);
       expect(provider.fields.length).toBeGreaterThan(0);
       expect(['shared', 'per-asset']).toContain(provider.scope);
@@ -112,15 +111,9 @@ describe('INTEGRATION_PROVIDERS', () => {
     for (const provider of INTEGRATION_PROVIDERS) {
       for (const field of provider.fields) {
         expect(field.name).toMatch(/^[A-Z][A-Z0-9_]*$/);
-        expect(field.label.length).toBeGreaterThan(0);
-        // Where the value comes from is a link, never a sentence under the
-        // input: https, and two or three words on it.
         if (field.link) {
           expect(field.link.url.startsWith('https://')).toBe(true);
-          expect(field.link.label.split(' ').length).toBeLessThanOrEqual(3);
         }
-        for (const grant of field.grants ?? []) expect(grant.split(' ').length).toBeLessThanOrEqual(4);
-        expect(field).not.toHaveProperty('help');
         expect(['text', 'password', 'json', 'url-list', 'url', 'asset-map']).toContain(
           field.kind,
         );
@@ -155,7 +148,7 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
-    expect(integrationProvider('bing-webmaster')?.label).toBe('Bing Webmaster Tools');
+    expect(integrationProvider('bing-webmaster')?.id).toBe('bing-webmaster');
     expect(integrationProvider('clarity')?.scope).toBe('per-asset');
     expect(integrationProvider('nope')).toBeNull();
     expect(integrationProvider('')).toBeNull();
@@ -343,7 +336,6 @@ describe('INTEGRATION_PROVIDERS', () => {
     // Page speed is public data by origin: the key names the Google Cloud
     // project the free quota counts against, so no site list follows it.
     const crux = integrationProvider('crux')!;
-    expect(crux.label).toBe('Chrome UX Report (page speed)');
     expect(crux.scope).toBe('shared');
     expect(crux.lanes).toEqual(['crux']);
     expect(crux.connect).toEqual({ kind: 'key', credential: 'api-key', sites: false });
@@ -352,7 +344,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     expect(crux.docRef).toBe('docs/11-integrations.md#chrome-ux-report');
     expect(crux.fields).toHaveLength(1);
     const [key] = crux.fields;
-    expect(key).toMatchObject({ name: 'CRUX_API_KEY', label: 'API key', secret: true, kind: 'password', required: true });
+    expect(key).toMatchObject({ name: 'CRUX_API_KEY', secret: true, kind: 'password', required: true });
     expect(key!.link?.url).toBe('https://console.cloud.google.com/apis/credentials');
     expect(credentialAuthState(crux, ['CRUX_API_KEY'])).toEqual({ complete: true, auth: null, missing: [] });
     expect(credentialAuthState(crux, []).complete).toBe(false);
@@ -362,7 +354,6 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The key reads one account; which site earns it is that site's
     // Subscriptions entry, so no site list follows the answer.
     const stripe = integrationProvider('stripe')!;
-    expect(stripe.label).toBe('Stripe (subscription revenue)');
     expect(stripe.scope).toBe('shared');
     expect(stripe.lanes).toEqual(['subscriptions']);
     expect(stripe.connect).toEqual({ kind: 'key', credential: 'api-key', sites: false });
@@ -371,7 +362,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     expect(stripe.docRef).toBe('docs/11-integrations.md#stripe');
     expect(stripe.fields).toHaveLength(1);
     const [key] = stripe.fields;
-    expect(key).toMatchObject({ name: 'STRIPE_API_KEY', label: 'Restricted API key', secret: true, kind: 'password', required: true });
+    expect(key).toMatchObject({ name: 'STRIPE_API_KEY', secret: true, kind: 'password', required: true });
     expect(key!.link?.url).toBe('https://dashboard.stripe.com/apikeys');
     expect(key!.grants).toEqual(['Balance: read', 'Charges: read', 'Subscriptions: read']);
     expect(credentialAuthState(stripe, ['STRIPE_API_KEY'])).toEqual({ complete: true, auth: null, missing: [] });
@@ -554,9 +545,6 @@ describe('the account credit a card reports', () => {
     for (const other of [42.5, '', ' 42.5', '42.', '.5', '$42.50', 'NaN', 'Infinity', '0x10', null]) {
       expect(exactUsd(other)).toBeNull();
     }
-    // Cents from the decimal itself. The float the card used before rounds
-    // a half-cent the wrong way: (1.005).toFixed(2) is '1.00'.
-    expect((1.005).toFixed(2)).toBe('1.00');
     expect(usdCents('1.005')).toBe('1.01');
     expect(usdCents('-0.125')).toBe('-0.13');
     expect(usdCents('12345678.123456')).toBe('12345678.12');
@@ -763,14 +751,6 @@ describe('the meter a card can honestly show', () => {
     // stale the day it changed. It rides on the reading instead.
     expect(integrationProvider('dataforseo')!.meter).not.toHaveProperty('perAssetPerDay');
     expect(JSON.stringify(integrationProvider('dataforseo')!.meter)).not.toContain('25');
-  });
-
-  it('declares the meter as numbers only — the card draws the lines', () => {
-    // The prepaid credit is the vendor's own figure and draws as its own dated
-    // line beside the cap's bar; neither needs a sentence.
-    for (const provider of INTEGRATION_PROVIDERS) {
-      if (provider.meter) expect(provider.meter).not.toHaveProperty('note');
-    }
   });
 
   it('says the budget is gone rather than reporting a negative one', () => {

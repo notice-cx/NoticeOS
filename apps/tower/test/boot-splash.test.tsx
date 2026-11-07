@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserEntry } from "@/BrowserEntry";
-import { NoticeMark } from "@/components/BrandLockup";
 import { THEME_STORAGE_KEY } from "@/hooks/useTheme";
 import { RouteLoadFailure } from "@/components/RouteLoading";
 import {
@@ -81,16 +80,6 @@ describe("the splash index.html draws", () => {
     expect(page.getElementById("root")!.nextElementSibling).toBe(element);
   });
 
-  it("draws the Notice mark from the same path as NoticeMark", () => {
-    const { container } = render(<NoticeMark />);
-    const drawn = container.querySelector("path")!;
-    const copy = element.querySelector("svg path")!;
-    expect(copy.getAttribute("d")).toBe(drawn.getAttribute("d"));
-    expect(copy.getAttribute("fill-rule")).toBe("evenodd");
-    expect(copy.getAttribute("fill")).toBe("currentColor");
-    expect(element.textContent?.replace(/\s+/g, "")).toBe("NoticeOS");
-  });
-
   it("never takes a click, fades out when dismissed and holds still under reduced motion", () => {
     const style = [...page.querySelectorAll("head style")].map((node) => node.textContent ?? "").join("\n");
     const rule = (selector: string) => style.match(new RegExp(`${selector.replace(/[[\]]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
@@ -123,10 +112,6 @@ describe("the splash index.html draws", () => {
     afterEach(() => {
       localStorage.removeItem(THEME_STORAGE_KEY);
       window.history.replaceState(null, "", "/");
-    });
-
-    it("reads the key the theme is stored under", () => {
-      expect(script).toContain(`"${THEME_STORAGE_KEY}"`);
     });
 
     it("is light for a light desk, dark on the Wall and by default", () => {

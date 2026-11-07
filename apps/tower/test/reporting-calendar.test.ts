@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { calendarDayStart, reportingCalendarTrend } from '@shared/reporting-calendar';
 import type { SignalTrend } from '@shared/wall';

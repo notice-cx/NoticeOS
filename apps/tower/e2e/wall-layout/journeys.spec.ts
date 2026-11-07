@@ -38,7 +38,6 @@ for (const variant of WALL_FIXTURE_VARIANTS) {
       const tiles = rows.nth(index).locator('.wall-metric');
       for (const tile of await tiles.all()) {
         expect((await tile.boundingBox())!.height).toBeCloseTo(132, 0);
-        await expect(tile.locator('h3 svg')).toBeAttached();
       }
     }
     const scroll = await list.evaluate(element => ({ height: element.clientHeight, content: element.scrollHeight }));

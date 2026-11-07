@@ -101,7 +101,6 @@ describe('analysis-grade signal dumps', () => {
       expect(flagged.map((row) => row.asset)).toEqual([...GOOGLE_PROPERTIES]);
       const flag = await quotaFlag();
       // Headroom is an absolute count; request cost is not daily usage.
-      expect(flag!.message).toBe('GA4 daily quota low: 10000 tokens remaining for 123456');
       const inputs = JSON.parse(flag!.ruleInputs) as Record<string, unknown>;
       expect(inputs).toMatchObject({
         lane: 'signal-dumps',

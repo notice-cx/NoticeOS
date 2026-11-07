@@ -24,7 +24,6 @@ describe('AI portfolio review asset selection', () => {
   it('defaults to every current and future asset and saves a guarded subset with Undo', async () => {
     const { writes } = show();
     expect(screen.getByRole('radio', { name: 'All assets' })).toBeChecked();
-    expect(screen.getByText('Includes new assets automatically.')).toBeVisible();
     expect(screen.queryByRole('checkbox')).toBeNull();
     fireEvent.click(screen.getByRole('radio', { name: 'Choose assets' }));
     expect(screen.getByRole('checkbox', { name: /Alpha/ })).toBeChecked();

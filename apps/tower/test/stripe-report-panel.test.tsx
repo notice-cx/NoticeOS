@@ -18,9 +18,10 @@ describe('Stripe reporting panel', () => {
   });
 
   it('renders unsupported MRR as unavailable while retaining trial and past-due counts', () => {
-    render(<StripeReport report={{ ...report, latest: { ...latest, mrrMinor: null, paidCustomers: null, unmeasuredSubscriptions: 1 } }} days={28} nowMs={Date.parse(latest.observedAt)} />);
+    const { container } = render(<StripeReport report={{ ...report, latest: { ...latest, mrrMinor: null, paidCustomers: null, unmeasuredSubscriptions: 1 } }} days={28} nowMs={Date.parse(latest.observedAt)} />);
     expect(screen.getAllByText('Pricing not measured')).toHaveLength(2);
-    expect(screen.getByText('Past-due subscriptions')).toBeInTheDocument();
+    expect(container.querySelector('[data-stat="Trials"] [data-stat-figure]')).toHaveTextContent('1');
+    expect(container.querySelector('[data-stat="Past-due subscriptions"] [data-stat-figure]')).toHaveTextContent('1');
     expect(screen.getByText(/unsupported pricing/)).toBeInTheDocument();
   });
 

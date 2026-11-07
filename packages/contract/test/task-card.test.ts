@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readTaskCard, readTaskCardShipped, scoreTaskCard, TASK_CARD_LIMITS, TASK_CARD_POLICY, taskCardOf, taskCardProblem,
   taskCardShippedOf } from '../src/task-card.mjs';
-import { isTaskChangeClass, readTaskChangeClass, TASK_CHANGE_CLASS_LABELS, TASK_CHANGE_CLASSES } from '../src/task-change-class.mjs';
+import { isTaskChangeClass, readTaskChangeClass, TASK_CHANGE_CLASSES } from '../src/task-change-class.mjs';
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../src/task-metadata.mjs';
 
 const CARD = {
@@ -122,9 +122,8 @@ describe('policy v1.0 scores a card', () => {
 });
 
 describe('a task carries the kind of change it makes', () => {
-  it('knows the five classes of the autonomy ladder and their words on screen', () => {
+  it('accepts the five change classes and rejects an unknown class', () => {
     expect(TASK_CHANGE_CLASSES).toEqual(['content-data', 'copy', 'template', 'feature', 'infra']);
-    expect(TASK_CHANGE_CLASS_LABELS.infra).toBe('Infrastructure');
     expect(isTaskChangeClass('template')).toBe(true);
     expect(isTaskChangeClass('design')).toBe(false);
   });

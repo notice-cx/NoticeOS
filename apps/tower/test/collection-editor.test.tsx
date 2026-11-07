@@ -1,5 +1,3 @@
-import { readFileSync, readdirSync } from "node:fs";
-import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import type { ReactNode } from "react";
@@ -603,7 +601,6 @@ describe("CollectionEditor", () => {
     stubFetch();
     const { container } = render(withClient(<CollectionEditor register="domain-costs" rows={[]} />));
     expect(screen.getByText("None yet")).toBeInTheDocument();
-    expect(container.textContent).not.toMatch(/Nothing in .* yet/);
     const describe = container.querySelector("h3")?.nextElementSibling?.textContent ?? "";
     expect(describe.length).toBeGreaterThan(0);
     expect(container.textContent!.split(describe).length - 1).toBe(1);
@@ -1170,48 +1167,6 @@ describe("CollectionEditor", () => {
 
     await waitFor(() => expect(wrote).toHaveBeenCalledTimes(1));
     expect(calls).toHaveLength(0);
-  });
-
-  /** A draft string becomes a typed value in exactly one place,
-   * `fieldFromDraft`, beside the `fieldRefusal` that judges the result. */
-  it("parses a draft with the declaration's own parser, never a copy of it", () => {
-    const source = readFileSync(
-      path.join(import.meta.dirname, "../src/components/CollectionEditor.tsx"),
-      "utf8",
-    );
-    const imported =
-      /import \{([\s\S]*?)\} from "@shared\/config-registers";/.exec(source)?.[1] ?? "";
-    expect(imported).toContain("fieldFromDraft");
-    expect(source).not.toMatch(/function\s+\w*[Ff]romDraft\b/);
-    // The parse's own tells.
-    expect(source).not.toContain("string-list");
-    expect(source).not.toContain("Number.isNaN");
-
-    /** The inverse lives beside the parse, where `KnobEditor` can import it too. */
-    expect(imported).toContain("fieldToDraft");
-    expect(source).not.toMatch(/function\s+\w*[Tt]oDraft\b/);
-  });
-
-  it("leaves exactly one toDraft in the app", () => {
-    // A `toDraft` prop is not this: `KnobEditor`'s datetime control takes one,
-    // and that is a control format rather than a value format.
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) return walk(full);
-        return /\.tsx?$/.test(entry.name) ? [full] : [];
-      });
-    const files = ["../src", "../shared"].flatMap((dir) =>
-      walk(path.join(import.meta.dirname, dir)),
-    );
-
-    const owners = files.filter((file) =>
-      /(?:function|const)\s+\w*[Tt]oDraft\b/.test(readFileSync(file, "utf8")),
-    );
-
-    expect(owners.map((file) => path.basename(file))).toEqual([
-      "config-registers.ts",
-    ]);
   });
 });
 

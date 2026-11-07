@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { JobSchedule } from "@shared/scheduled-jobs";
 import type { ScheduledLane, SystemBand } from "@shared/wall";

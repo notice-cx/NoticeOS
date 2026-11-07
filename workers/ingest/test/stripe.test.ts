@@ -146,7 +146,7 @@ describe('runStripeRevenue', () => {
     const again = stripe();
     const result = await runStripeRevenue(env, { fetchImpl: again.fetchImpl, nowMs: NOW + 3_600_000, laneRegister: register() });
 
-    expect(result).toMatchObject({ outcome: 'skipped', detail: 'No Stripe day is due.' });
+    expect(result).toMatchObject({ outcome: 'skipped' });
     expect(again.calls).toHaveLength(0);
     expect(await pgCount('SELECT count(*) AS n FROM noticeos.revenue_observations')).toBe(before);
 
@@ -163,7 +163,7 @@ describe('runStripeRevenue', () => {
 
     const result = await runStripeRevenue(env, { fetchImpl, nowMs: NOW, laneRegister: register() });
 
-    expect(result).toEqual({ outcome: 'skipped', detail: 'Stripe is not connected.', connected: false, outcomes: [] });
+    expect(result).toMatchObject({ outcome: 'skipped', connected: false, outcomes: [] });
     expect(calls).toHaveLength(0);
     expect(await stored()).toEqual([]);
     expect(log.mock.calls.map(([line]) => String(line))).toContain(JSON.stringify({ event: 'stripe_not_connected' }));
@@ -180,7 +180,7 @@ describe('runStripeRevenue', () => {
     expect(result.outcome).toBe('failed');
     expect(result.outcomes.map((outcome) => outcome.errorCode)).toEqual(['stripe_http_401']);
     expect(await stored()).toEqual([]);
-    expect((await credentialVerdict('stripe'))?.lastError).toBe('Stripe refused the key (HTTP 401).');
+    expect((await credentialVerdict('stripe'))?.lastError).not.toBeNull();
     expect((await storedHealthStates()).find((row) => row.capability === 'stripe-revenue')).toMatchObject({ outcome: 'failure', failure_kind: 'access' });
     expect(JSON.stringify(log.mock.calls)).not.toContain(KEY);
     expect(JSON.stringify(result)).not.toContain(KEY);

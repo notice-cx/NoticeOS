@@ -3,13 +3,9 @@
 
 import { render } from "./render";
 import { describe, expect, it } from "vitest";
-import { DeltaChip, PACE_FAR_RATIO, paceDirectionLabel, paceTone, performanceToneClass } from "@/components/DeltaChip";
+import { DeltaChip, paceDirectionLabel, paceTone, performanceToneClass } from "@/components/DeltaChip";
 
 describe("paceTone", () => {
-  it("preserves the existing far-behind presentation boundary", () => {
-    expect(PACE_FAR_RATIO).toBe(0.6);
-  });
-
   it("is green only when ahead", () => {
     for (const percent of [0.0001, 6.9, 150]) expect(paceTone(percent)).toBe("pace-on");
     expect(paceTone(0)).toBe("neutral");

@@ -805,13 +805,9 @@ describe("Asset Overview — explanations are disclosed, essential context stays
     expect(measure(container, "product")).toHaveTextContent("Signups");
   });
 
-  it("explains nothing the surface already draws", async () => {
+  it("qualifies estimated financial readings", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    expect(container.querySelector("[data-about]")).toBeNull();
-    for (const name of ["About traffic figures", "About this financial snapshot", "About open alert counts"]) {
-      expect(screen.queryByRole("button", { name })).toBeNull();
-    }
     expect(measure(container, "money")).toHaveTextContent("est.");
   });
 });
@@ -1014,7 +1010,6 @@ describe("Asset Overview — the two lists", () => {
     // finding's own paragraphs are behind All findings.
     expect(rows[0]!.textContent).toContain("Unassigned share");
     expect(rows[0]!.textContent).toContain("11.3%");
-    expect(rows[0]!.textContent).not.toContain("Why it matters");
     expect(
       within(rows[0] as HTMLElement).getByRole("button", { name: "Dismiss" }),
     ).toBeTruthy();
@@ -1046,7 +1041,6 @@ describe("Asset Overview — the two lists", () => {
     expect(matters.querySelector("ul")).toBeNull();
     const empty = matters.lastElementChild as HTMLElement;
     expect(empty.textContent).toBe(state);
-    expect(matters.textContent).not.toMatch(/archive analysis|has not run|in this saved analysis/u);
   });
 });
 

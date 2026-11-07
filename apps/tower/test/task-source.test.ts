@@ -9,7 +9,6 @@ import {
 } from "../shared/task-source";
 import { TASK_PROJECTS_PATH } from "../shared/tasks";
 import {
-  TASK_SOURCE_ADAPTERS,
   beadsConnected,
   beadsTaskSource,
   buildTaskBoard,
@@ -145,8 +144,7 @@ describe("the beads adapter wraps today's snapshot unchanged", () => {
     expect(await buildTaskBoard({ store: ctx.call }, NOW)).toEqual(await buildWorkPayload(ctx.call, { now: NOW }));
   });
 
-  it("is the registry's one adapter, and the connected source is the first one connected", async () => {
-    expect(Object.keys(TASK_SOURCE_ADAPTERS)).toEqual(["beads"]);
+  it("reads the registered source and identifies it when connected", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
     const { readings, connected } = await readTaskSources({ store: ctx.call });
     expect(readings.map((reading) => reading.status.id)).toEqual(["beads"]);
@@ -171,7 +169,7 @@ describe("the core task hub reading", () => {
   });
 
   it("keeps core project management on the existing Settings surface", () => {
-    expect(TASK_SOURCES.beads).toEqual({ name: "Beads", setupPath: TASK_PROJECTS_PATH });
+    expect(TASK_SOURCES.beads.setupPath).toBe(TASK_PROJECTS_PATH);
     expect(TASK_SOURCES_PATH).toBe(TASK_PROJECTS_PATH);
   });
 });

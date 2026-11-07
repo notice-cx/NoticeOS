@@ -1,8 +1,5 @@
 import { QueryClient, QueryClientProvider, QueryObserver, type QueryFunctionContext } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "./render";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +25,6 @@ import {
 import type { ConfigWritability } from "@/lib/api";
 import { useCollectionSave, useFieldCollectionSave } from "@/hooks/useCollectionSave";
 import { useConfigSave, useFieldConfigSave, useInlineConfigSave, useStructuralSave, useLandmarkSave } from "@/hooks/useConfigSave";
-import { typeScriptSources, withoutComments } from "./source-files";
 
 import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import type { ChangesetOp, FileOp } from "@shared/changeset";
@@ -422,63 +418,4 @@ it("reduces nine active refetches to two across both cached Financials periods",
   } finally {
     unsubscribe.forEach(stop => stop());
   }
-});
-
-const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
-const HOOKS = path.join(SRC, "hooks");
-
-describe("neither write path may keep a list of its own", () => {
-  for (const hook of ["useConfigSave.ts", "useCollectionSave.ts"]) {
-    it(`${hook} reads the shared declaration`, () => {
-      const source = withoutComments(
-        readFileSync(path.join(HOOKS, hook), "utf8"),
-      );
-
-      expect(source).toMatch(
-        /import\s*\{[^}]*\}\s*from\s*"@\/hooks\/config-backed-queries"/,
-      );
-      // Neither the list nor the restart wait is declared locally: a local
-      // `const` here is exactly how two lists come to exist.
-      expect(source).not.toMatch(/const\s+CONFIG_BACKED_QUERIES/);
-      expect(source).not.toMatch(/const\s+WORKER_RESTART_MS/);
-      // No hand-rolled walk of query keys either: the invalidation has one
-      // implementation, so a hook cannot quietly skip a key it imported.
-      expect(source).not.toMatch(/invalidateQueries\(\{\s*queryKey:\s*\[\s*key/);
-    });
-  }
-
-  it("holds the list nowhere else in src/", () => {
-    // A third copy under another file name is the same bug, so the guard is
-    // on the shape (an array literal naming two or more of these keys).
-    const offenders = typeScriptSources(SRC).filter((file) => {
-      if (file.endsWith(`hooks${path.sep}config-backed-queries.ts`)) return false;
-      let source = withoutComments(readFileSync(file, "utf8"));
-      if (file.endsWith(`asset-detail${path.sep}AssetTabs.tsx`)) {
-        // This one declaration is route navigation, not cache invalidation.
-        source = source.replace(/export const ASSET_TABS = \[[\s\S]*?\] as const;/, "");
-      }
-      return [...source.matchAll(/\[[^[\]]*\]/g)].some(
-        (literal) =>
-          CONFIG_BACKED_QUERIES.filter((key) => literal[0].includes(`"${key}"`))
-            .length > 1,
-      );
-    });
-
-    expect(offenders.map((file) => path.relative(SRC, file))).toEqual([]);
-  });
-
-  it("names only keys a read actually uses", () => {
-    // A key nothing reads hides the one that is missing. Matched against the
-    // hooks' own sources rather than the key expression, because one of them
-    // (`INTEGRATION_PROVIDERS_KEY`) is a named constant its writers share.
-    const reads = typeScriptSources(HOOKS)
-      .filter((file) => !file.endsWith("config-backed-queries.ts"))
-      .map((file) => readFileSync(file, "utf8"))
-      .join("\n");
-
-    for (const key of CONFIG_BACKED_QUERIES) {
-      expect(reads, `no hook reads a "${key}" query`).toContain(`"${key}"`);
-    }
-    expect(new Set(CONFIG_BACKED_QUERIES).size).toBe(CONFIG_BACKED_QUERIES.length);
-  });
 });

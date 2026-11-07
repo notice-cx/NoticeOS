@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Read again's route: the Tower asks the ingest's own icon read for the one
 // site its path names, and fetches no page itself. A refusal from the ingest
 // is an answer; a request from another origin, or one that names anything in

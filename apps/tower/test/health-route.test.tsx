@@ -271,7 +271,6 @@ describe("the Health page is layered", () => {
       (th) => th.textContent ?? "",
     );
     expect(headings).toHaveLength(3);
-    expect(headings[0]).toContain("The OS itself");
     expect(headings[1]).toContain("Provider accounts");
     expect(headings[2]).toContain("The asset's own wiring");
     // The order is the argument: the OS first, then accounts, then wiring.
@@ -363,12 +362,10 @@ describe("/health — the page leads with what to unblock next", () => {
     const row = rows[0]!;
     // The grid's own status word leads the row; for uptime, what is down: the site.
     expect(row.textContent).toContain("Asset down");
-    expect(row.textContent).not.toContain("degradation");
     expect(row.textContent).toContain("Meadow Board");
     expect(row.textContent).not.toContain("Northwind");
     fireEvent.click(row.querySelector("button")!);
     expect(row.querySelector('a[href="/integrations"]')).not.toBeNull();
-    expect(row.textContent).not.toContain("One portfolio account covers every asset.");
     openPanel("audit");
     expect(container.querySelector("table")?.textContent).toContain("Uptime");
   });
@@ -424,7 +421,6 @@ describe("/health — the page leads with what to unblock next", () => {
     expect(evidence?.textContent).toBe("Nightly report");
     openPanel("audit");
     expect(container.querySelector("table")?.textContent).toContain("Nightly report");
-    expect(container.textContent).not.toMatch(/degradation|Daily asset report|Daily asset report/);
   });
 
   /** The audit measures the first screen against a block the page names. Not
@@ -499,20 +495,6 @@ describe("/health — the page leads with what to unblock next", () => {
     expect(label.textContent).toBe("GA4");
   });
 
-  /** A view surface names the register that declares the lanes in words,
-   * never as a path the reader cannot act on from here. */
-  it("carries no owner chip and no config path", () => {
-    const { container } = renderRoute(blocked);
-
-    expect(container.querySelector("[data-owner-chip]")).toBeNull();
-    expect(container.textContent).not.toContain("config/integrations.json");
-  });
-
-  it("carries no About", () => {
-    const { container } = renderRoute(blocked);
-    expect(container.querySelector("[data-about]")).toBeNull();
-  });
-
   it("keeps the matrix reachable, and closed", () => {
     const { container, getByText } = renderRoute(blocked);
     const closed = container.querySelector('[data-panel="audit"]')!;
@@ -568,7 +550,6 @@ describe("which credentials are still on the environment file", () => {
     expect(note).toHaveTextContent("2 connections use legacy credentials");
     expect(note).toHaveTextContent("google, dataforseo");
     expect(note).toHaveTextContent("manage this connection in Integrations");
-    expect(note).not.toHaveTextContent("they work");
     expect(note.querySelector('a[href="/integrations"]')).not.toBeNull();
   });
 

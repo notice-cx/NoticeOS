@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { createMcpMiddleware, mcpLane } from "../vite/mcp-lane";

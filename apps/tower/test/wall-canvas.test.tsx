@@ -384,7 +384,6 @@ describe("the Wall nobody rearranged is the default", () => {
   it("draws nothing retired from the Wall", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     expect(view.container.querySelector(RETIRED_MARKS)).toBeNull();
-    expect(view.container.textContent).not.toMatch(/Monthly net|Local time|All-time totals|Automation enabled|Monitor only|7d avg/);
   });
 });
 

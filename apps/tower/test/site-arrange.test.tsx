@@ -120,7 +120,6 @@ describe("Arrange on the Assets page", () => {
   it("lists every asset in your order, hidden ones included, each with its three switches", () => {
     stubFetch();
     const { container } = renderSites();
-    expect(screen.getByRole("heading", { name: "Arrange" })).toBeInTheDocument();
     expect(rows(container)).toEqual(["meadow.example", "northwind.example", "ferns.example"]);
     const checked = (name: string) => screen.getByRole("switch", { name }).getAttribute("aria-checked");
     expect(checked("Home and Portfolio for Meadow Board")).toBe("true");

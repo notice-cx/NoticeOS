@@ -65,11 +65,6 @@ describe("ProjectJourneys", () => {
     expect(screen.getByText(/Recipe schema overhaul, Meadow: Needs you · 9d\. 4 done in these weeks\. Approve the new schema waiting on you 9 days\. 2 blocked/)).toHaveClass("sr-only");
   });
 
-  it("lists every mark in the legend", () => {
-    const { container } = draw();
-    expect([...container.querySelectorAll("[data-journeys-legend] li")].map((node) => node.textContent))
-      .toEqual(["Done", "In progress", "Waiting on you, from the day it was asked", "Blocked", "Planned", "Parked"]);
-  });
 });
 
 describe("placeJourneyLabels", () => {

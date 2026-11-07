@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildFinancialsPayload } from '../worker/financials-payload';
 import { buildWallPayload } from '../worker/wall-payload';
