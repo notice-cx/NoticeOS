@@ -331,6 +331,22 @@ describe('workflow operating surface', () => {
     expect(option).toHaveTextContent(formatNextRun(run.startedAt));
     expect(option).toHaveAttribute('title', utcRunReference(run.startedAt));
   });
+  it('distinguishes and selects runs with the same minute or exact start time', async () => {
+    const runs: WorkflowRun[] = ['100', '900', '900'].map((milliseconds, index) => ({ ...trace,
+      id: `counters-same-minute-${index}`, state: 'succeeded', steps: [], trigger: { kind: 'manual' },
+      startedAt: `2026-09-09T16:24:10.${milliseconds}Z`, finishedAt: '2026-09-09T16:24:12.000Z',
+    }));
+    data = { ...data, ...buildWorkflowHistory([], runs, [], now) };
+    mount(`/health/operations/counters?run=${encodeURIComponent(runs[0]!.id)}`);
+    const picker = await screen.findByRole('combobox', { name: 'Run' });
+    const options = within(picker).getAllByRole('option');
+    expect(new Set(options.map(option => option.textContent)).size).toBe(runs.length);
+    for (const run of runs) {
+      fireEvent.change(picker, { target: { value: run.id } });
+      await waitFor(() => expect(picker).toHaveValue(run.id));
+      expect(within(picker).getByRole('option', { selected: true })).toHaveValue(run.id);
+    }
+  });
   // A collection a connection feeds is changed on that connection's Manage
   // panel, so its page links there, or nowhere while none of its sources is connected.
   it("links a connection-fed collection to its source's Manage panel, and nowhere with nothing connected", async () => {

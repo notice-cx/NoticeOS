@@ -32,9 +32,25 @@ const ATTENTION = new Set<WorkflowState>(['failed', 'unknown']);
 const INACTIVE = new Set<WorkflowState>(['skipped', 'paused', 'never']);
 const rank: Record<WorkflowState, number> = { failed: 0, unknown: 1, waiting: 2, running: 3, never: 4, skipped: 5, succeeded: 6, paused: 7 };
 
-function runOptionLabel(run: WorkflowRun): string {
+function runOptionLabel(run: WorkflowRun, startedAt = formatNextRun(run.startedAt)): string {
   const trigger = run.trigger?.kind;
-  return `${formatNextRun(run.startedAt)} · ${WORKFLOW_STATE_LABEL[run.state]}${trigger === 'manual' ? ' · Manual' : trigger === 'event' ? ' · Event' : trigger === 'recovery' ? ' · Recovery' : ''}`;
+  return `${startedAt} · ${WORKFLOW_STATE_LABEL[run.state]}${trigger === 'manual' ? ' · Manual' : trigger === 'event' ? ' · Event' : trigger === 'recovery' ? ' · Recovery' : ''}`;
+}
+
+function runOptionLabels(runs: readonly WorkflowRun[]): Map<string, string> {
+  const choices = [...new Map(runs.map(run => [run.id, run])).values()];
+  const labels = choices.map(run => runOptionLabel(run));
+  if (new Set(labels).size === labels.length) return new Map(choices.map((run, index) => [run.id, labels[index]!]));
+  const preciseTime = new Intl.DateTimeFormat('en', {
+    timeZone: localTimezone(), weekday: 'short', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hourCycle: 'h23',
+  });
+  const preciseLabels = choices.map((run, index) => labels.indexOf(labels[index]!) === labels.lastIndexOf(labels[index]!)
+    ? labels[index]! : runOptionLabel(run, preciseTime.format(new Date(run.startedAt))));
+  return new Map(choices.map((run, index) => {
+    const label = preciseLabels[index]!;
+    return [run.id, preciseLabels.indexOf(label) === preciseLabels.lastIndexOf(label) ? label : `${label} · ${run.id}`];
+  }));
 }
 
 function RuntimeNotice({ data }: { data: WorkflowsPayload }) {
@@ -206,6 +222,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     if (!runId && defaultRun) { const next = new URLSearchParams(search); next.set('run', defaultRun.id); setSearch(next, { replace: true }); }
   }, [runId, defaultRun?.id, search, setSearch]);
   const selected = runId ? data?.selectedRun?.workflowId === id && data.selectedRun.id === runId ? data.selectedRun : null : defaultRun ?? null;
+  const runLabels = runOptionLabels([...(summary?.runs ?? []), ...(summary?.active ? [summary.active] : []), ...(selected ? [selected] : [])]);
   const failed = (selected ?? (runId === defaultRun?.id ? defaultRun : null))?.state === 'failed';
   const failedStep = failed ? selected?.steps?.findLast(step => step.state === 'failed') : undefined;
   const retainedFailure = failedStep ? undefined : selected?.failure;
@@ -277,11 +294,11 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
       </RunSettings>
       <ExecutionContainer><section className="space-y-4" aria-label="Workflow execution">
         {failed && <RuntimeNotice data={data} />}
-        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex min-w-0 max-w-full items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'min-w-0 max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>
           {!runId && <option value="">No recorded run</option>}
-          {summary.active && <option value={summary.active.id} title={utcRunReference(summary.active.startedAt)}>{runOptionLabel(summary.active)}</option>}
-          {runId && !summary.runs.some((r) => r.id === runId) && summary.active?.id !== runId && <option value={runId} title={selected ? utcRunReference(selected.startedAt) : undefined}>{selected ? runOptionLabel(selected) : 'Requested run unavailable'}</option>}
-          {summary.runs.map((run) => <option key={run.id} value={run.id} title={utcRunReference(run.startedAt)}>{runOptionLabel(run)}</option>)}
+          {summary.active && <option value={summary.active.id} title={utcRunReference(summary.active.startedAt)}>{runLabels.get(summary.active.id)}</option>}
+          {runId && !summary.runs.some((r) => r.id === runId) && summary.active?.id !== runId && <option value={runId} title={selected ? utcRunReference(selected.startedAt) : undefined}>{selected ? runLabels.get(selected.id) : 'Requested run unavailable'}</option>}
+          {summary.runs.map((run) => <option key={run.id} value={run.id} title={utcRunReference(run.startedAt)}>{runLabels.get(run.id)}</option>)}
         </select></label></div>
         {selected ? <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground tabular-nums">{selected.state === 'running' && (!data.runtimeFresh || !data.observationsFresh) ? <WorkflowStateLabel state="unknown" label="Progress unconfirmed" /> : null}<span>Duration {workflowDuration(selected.startedAt, selected.finishedAt)}</span><span>{selected.definitionVersion ? `Version ${selected.definitionVersion}` : 'Version unavailable'}</span></div> : runId ? query.isPlaceholderData ? <p role="status" data-status-for={`workflow-run:${runId}`} className="text-sm text-muted-foreground">Loading execution…</p> : <p className="text-sm text-warn">This run is not in the retained execution history.</p> : null}
         <WorkflowStages key={selected?.id ?? 'definition'} definition={definition} run={selected ?? null} fresh={data.runtimeFresh && data.observationsFresh} summarizedFailure={failedStep ? { id: failedStep.id, attempt: failedStep.attempt } : undefined} />
