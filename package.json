@@ -78,6 +78,6 @@
   "devDependencies": {
     "@duckdb/node-api": "1.5.5-r.5",
     "@types/node": "^26.6.5",
-    "croner": "^10.0.1"
+    "croner": "^11.0.0"
   }
 }

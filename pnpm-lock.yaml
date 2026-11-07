@@ -173,8 +173,8 @@ importers:
         specifier: ^26.6.5
         version: 26.6.5
       croner:
-        specifier: ^10.0.1
-        version: 10.0.1
+        specifier: ^11.0.0
+        version: 11.0.0
 
   apps/tower:
     dependencies:
@@ -2837,8 +2837,8 @@ packages:
     resolution: {integrity: sha512-vePst2VLTSqPglW7Q98VwFpGiGpOHTyXIo81MO5VyLecA5zMbZw/P/V1vmwD1jksa2iJpn/YkDrJ3XhTfzUyhQ==}
     engines: {node: '>=18'}
 
-  croner@10.0.1:
-    resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
+  croner@11.0.0:
+    resolution: {integrity: sha512-T17ADjdttrVToyzLpLq9Xb9xzcMwpQ/M3Qs9szhh0MVNTbv6NWQ9OFYa2qlzPYXFMn+uoDlnW1IpIv6cAvFtyA==}
     engines: {node: '>=18.0'}
 
   css-tree@3.2.1:
@@ -6144,7 +6144,7 @@ snapshots:
 
   copy-anything@4.1.5: {}
 
-  croner@10.0.1: {}
+  croner@11.0.0: {}
 
   css-tree@3.2.1:
     dependencies:
