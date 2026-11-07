@@ -3981,6 +3981,7 @@ for (const [jobId, label] of [['panel-refresh', 'Local research summaries'], ['p
       await page.screenshot({ path: testInfo.outputPath(`local-job-pending-${theme}.png`), fullPage: true });
       await assertNoPageOverflow(page);
       finish();
+      if (jobId === 'backup') await page.getByText('Execution details', { exact: true }).click();
       const picker = page.getByRole('combobox', { name: 'Run', exact: true });
       await expect(picker).toHaveValue(`${jobId}@manual/${JOURNEY_NOW}`);
       await expect(picker.locator('option:checked')).toContainText('Manual');
