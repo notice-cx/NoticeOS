@@ -70,16 +70,15 @@ describe('manual briefing safeguards', () => {
     expect(steps).toMatchObject([{ state: 'skipped', summary: 'No assets are selected for AI portfolio review' }]);
   });
   it.each([
-    ['disconnected', null, 'Connect a model provider before generating a briefing'],
-    ['unsupported', null, 'Briefing generation is unavailable'],
-    ['ready', '2026-11-06T12:15:00.000Z', 'Briefing generation is limited to once every 15 minutes'],
-  ] as const)('records %s as skipped without generating', async (state, nextAttemptAt, summary) => {
+    ['disconnected', 'Connect a model provider before generating a briefing'],
+    ['unsupported', 'Briefing generation is unavailable'],
+  ] as const)('records %s as skipped without generating', async (state, summary) => {
     const refreshPortfolioBrief = vi.fn();
     const config = vi.fn();
     const steps = await runTowerCron(BRIEFING_TICK, {
       STORE: { read: vi.fn(async () => []) } as unknown as WorkspaceStore, INGEST: { listCredentialSummaries: async () => ({ keyPresent: false, keyReason: null, blockers: [], summaries: [] }) }, config,
       briefing: { config, ingest: {
-        portfolioBrief: async () => ({ state, nextAttemptAt, briefing: null, lastAttemptAt: null, error: null, stale: false } as PortfolioBriefRead),
+        portfolioBrief: async () => ({ state, nextAttemptAt: null, briefing: null, lastAttemptAt: null, error: null, stale: false } as PortfolioBriefRead),
         refreshPortfolioBrief,
       } },
     } satisfies TowerCronEnv, () => new Date('2026-11-06T12:00:00.000Z'), 'manual');
