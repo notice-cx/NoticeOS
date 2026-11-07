@@ -15,6 +15,8 @@ export interface ScheduledJob {
    * job an installation runs only once it is set up. */
   footer?: string;
   manualNotice?: string;
+  /** Explicit operator requests only; saved cron overrides never arm a timer. */
+  manualOnly?: boolean;
   /** Steps of this job an operator can run now for chosen sites. */
   collectNow?: CollectNowStep[];
   /**
@@ -83,7 +85,7 @@ export const manualLocalJob = manualScheduledJob;
 
 export interface LocalJobReply {
   status: number;
-  body: { job?: string; outcome?: string; error?: string };
+  body: { job?: string; outcome?: string; error?: string; detail?: string };
 }
 
 export const WORKFLOW_GROUPS: { label: string }[] = [
@@ -96,7 +98,7 @@ export const WORKFLOW_GROUPS: { label: string }[] = [
 ];
 
 export const SCHEDULED_JOBS: ScheduledJob[] = [
-  { id: 'portfolio-brief', manualNotice: 'Uses the connected model. Remote providers may charge for generation.', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'OpenAI-compatible model', connections: ['local-model'] },
+  { id: 'portfolio-brief', manualOnly: true, manualNotice: 'Uses the connected model. Remote providers may charge for generation.', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'OpenAI-compatible model', connections: ['local-model'] },
   { id: 'mercury', surface: 'system', label: 'Bank balances and activity', group: 'Business signals', cron: '40 * * * *', source: 'Mercury',
     keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
   { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',
@@ -155,6 +157,7 @@ export function collectNowStep(provider: string): { job: ScheduledJob; step: Col
 }
 
 export function scheduleFor(job: ScheduledJob, overrides: ScheduleOverrides = {}): JobSchedule {
+  if (job.manualOnly) return { enabled: true, cron: job.cron };
   return overrides[job.id] ?? { enabled: true, cron: job.cron };
 }
 

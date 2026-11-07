@@ -62,7 +62,7 @@ test('retired unpublished-commit settings do not block or register any scheduled
     assert.equal(runner.snapshot().error, null);
     assert.equal(runner.current('push-state'), null);
     assert.equal(runner.current('backup').enabled, false);
-    assert.equal(timers.length, SCHEDULED_JOBS.length - 1);
+    assert.equal(timers.length, SCHEDULED_JOBS.filter(job => !job.manualOnly).length - 1);
     assert.equal(WORKFLOW_DEFINITIONS.some(item => item.id === 'push-state'), false);
     assert.equal(STARTUP_CATCHUP_POLICIES.some(item => item.job === 'push-state'), false);
   } finally {
@@ -286,4 +286,24 @@ test('validates IANA zones and uses them for bounded startup recovery', () => {
   const timer = new Cron('0 9 * * *', { timezone: saved.timezone, paused: true });
   assert.equal(timer.nextRun(new Date('2026-10-31T17:00:00Z')).toISOString(), '2026-11-01T17:00:00.000Z');
   timer.stop();
+});
+
+
+test('manual-only jobs never arm timers or catch up, but explicit runs coalesce', async () => {
+  const job = SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief');
+  let finish;
+  let calls = 0;
+  const runner = createScheduledJobRunner({ jobs: [job], run: async () => {
+    calls++; await new Promise(resolve => { finish = resolve; });
+  }, createTimer: () => assert.fail('manual-only operation armed a timer') });
+  try {
+    runner.apply({ [job.id]: { enabled: false, cron: '* * * * *' } });
+    assert.equal(runner.snapshot().jobs[0].nextRun, null);
+    assert.equal(STARTUP_CATCHUP_POLICIES.some(policy => policy.expression === job.cron), false);
+    assert.deepEqual(await runner.runOnce(job.id), { status: 'unavailable' });
+    const first = runner.runOnce(job.id, { manual: true });
+    assert.deepEqual(await runner.runOnce(job.id, { manual: true }), { status: 'busy' });
+    finish(); await first;
+    assert.equal(calls, 1);
+  } finally { runner.stop(); }
 });

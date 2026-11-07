@@ -15,7 +15,7 @@ NoticeOS enforces **one hard cap**: the monthly metered data spend.
 - Before every paid DataForSEO read, the amount is reserved against the cap. If the reservation would cross the cap, the read does not happen and the job records that it paused. The cap fails closed: an unreadable cap means no spend.
 - The Budget section shows a meter of this month's metered spend against the cap, and what happens when it is reached.
 
-Home briefings use the **OpenAI-compatible model** connected on Integrations. Local servers and remote HTTPS providers are supported. Remote requests may incur provider charges; configure a limit with the provider. NoticeOS does not measure these charges or local computing costs. Pause **Portfolio briefing** on Workflows or disconnect the model to stop future generation. There is no model gateway or inference spending cap. An agent session's provider bill is outside NoticeOS.
+Home briefings use the **OpenAI-compatible model** connected on Integrations. Local servers and remote HTTPS providers are supported. Remote requests may incur provider charges; configure a limit with the provider. NoticeOS does not measure these charges or local computing costs. Portfolio briefing runs only on request. Disconnecting the model prevents generation. There is no model gateway or inference spending cap. An agent session's provider bill is outside NoticeOS.
 
 ## Other budget settings
 

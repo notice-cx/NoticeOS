@@ -88,6 +88,15 @@ describe("a week of scheduled runs", () => {
     expect(states(week, "hygiene")).toEqual(["none", "none", "none", "none", "ran", "ran", "none"]);
   });
 
+  it.each([false, true])('owes no runs for a manual operation with aggregated history: %s', aggregated => {
+    const runs = [run('portfolio-brief', at(20, 4), 'failed')];
+    const data = payload({ 'portfolio-brief': runs });
+    if (aggregated) Object.assign(data, summarizeWorkflowHistory(runs, [], NOW));
+    const week = jobRunWeek(data, NOW);
+    expect(states(week, 'portfolio-brief')).toEqual(['none', 'none', 'none', 'none', 'failed', 'none', 'none']);
+    expect(runWeekTally(week)).toMatchObject({ missed: 0, failed: 1 });
+  });
+
   it("counts the week's runs, failures and missed days, and names the newest failure", () => {
     const tally = runWeekTally(jobRunWeek(payload({ backup: backups(), counters: counters() }, [{ id: "backup", cron: "0 4 * * *" }]), NOW));
     expect(tally).toMatchObject({ runs: 6 + 30, failed: 1, failedDays: 1, missed: 1 });

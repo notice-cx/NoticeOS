@@ -544,6 +544,7 @@ by column; retention and maintenance privileges are checked separately.
 | `notification_outbox` | insert; update only state, attempts, next_attempt_at, lease_id, lease_until, finished_at | Delivery intent commits with its source condition; immutable events retain delivery, cancellation, lease and retry state. |
 | `notifications` | append-only | Append-only; the unique key is the dedupe. |
 | `person_preferences` | append-only | Append-only; each save of a person's own preference is a new row, the newest per person and name is the current value, and a reset saves the default. |
+| `portfolio_briefings` | append-only | Append-only. The newest row per review scope contains the saved briefing and its latest attempt state. |
 | `pulses` | append-only | A retry is a new revision. |
 | `realtime_traffic_readings` | append-only | Append-only realtime readings; overlapping minutes use the newest provider observation. |
 | `reclamation_targets` | insert; update only status, status_at, outcome_note, last_verified_at, updated_at | What the research found is fixed; the funnel status moves. |

@@ -17,7 +17,7 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 
 | Job | Default | What it does |
 | --- | --- | --- |
-| Portfolio briefing | 35 past each hour | Reviews saved portfolio evidence and generates guidance with the connected model when the evidence supports an insight |
+| Portfolio briefing | Manual | Reviews saved portfolio evidence and generates guidance with the connected model when the evidence supports an insight |
 | Live traffic and counters | every 15 minutes | Refreshes the live Google Analytics and Search Console readings |
 | Ad revenue | 10, 30 and 50 minutes past each hour | Checks for a new Mediavine revenue report when one is due |
 | Bank balances and activity | 40 past each hour | Records Mercury deposit balances and transactions created in the last 35 days; complete reads remain separate from revenue and costs |
@@ -77,7 +77,7 @@ A paused job does not run on its schedule, is not caught up after downtime, and 
 2. Select the job, then **Run now**. The action is available when the installation's runner supports that job and its schedule is enabled.
 3. Review the result and the selected execution. The history marks the run **Manual** and shows its stages, including why work was skipped or failed.
 
-Manual runs use the same job as scheduled runs and do not change the next scheduled time. A job already running cannot start a second time. Provider limits, budgets and freshness checks still apply, so a job may have nothing new to collect. Portfolio briefing attempts remain at least 15 minutes apart. Remote model providers may charge for generation; search-data collection uses the configured budget.
+Manual runs use the same job as scheduled runs and do not change the next scheduled time. A job already running cannot start a second time. Provider limits, budgets and freshness checks still apply, so a job may have nothing new to collect. Portfolio briefing runs only on request, including from **Refresh AI insights** on Home. Remote model providers may charge for generation; search-data collection uses the configured budget.
 
 Backups use the installation's existing backup worker and retention settings. A deployment without manual execution support shows a disabled action with its reason.
 

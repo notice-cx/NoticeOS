@@ -771,6 +771,19 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, preference_id)
 - **Links:** (workspace_id) → `workspaces`
 
+## `portfolio_briefings`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `briefing_id` | bigint, identity | yes |  |
+| `scope_sha256` | text | yes | `(scope_sha256 ~ '^[0-9a-f]{64}$')` |
+| `recorded_at` | timestamp with time zone | yes |  |
+| `payload` | jsonb | yes | `(jsonb_typeof(payload) = 'object')` |
+
+- **Keys:** primary (workspace_id, briefing_id)
+- **Links:** (workspace_id) → `workspaces`
+
 ## `pulses`
 
 | Column | Type | Required | Checks |

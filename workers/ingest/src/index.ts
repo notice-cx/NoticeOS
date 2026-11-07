@@ -327,9 +327,9 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     return withCallStore(this.env, this.ctx, env => readPortfolioBrief(env));
   }
 
-  async refreshPortfolioBrief(evidence: PortfolioBriefEvidence, cadenceMs: number) {
+  async refreshPortfolioBrief(evidence: PortfolioBriefEvidence, freshnessMs: number) {
     if (workspaceProfile(this.env) !== 'standalone') throw new WorkspaceEntryRefused();
-    return withCallStore(this.env, this.ctx, env => refreshPortfolioBrief(env, evidence, cadenceMs));
+    return withCallStore(this.env, this.ctx, env => refreshPortfolioBrief(env, evidence, freshnessMs));
   }
 
   /** Private Service Binding RPC: bounded provider-final history for one query. */

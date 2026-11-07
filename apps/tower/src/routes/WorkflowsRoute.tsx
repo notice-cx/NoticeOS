@@ -16,7 +16,7 @@ import { PageAnswer } from '@/components/surface/PageAnswer';
 import { WorkflowActivity, WorkflowRunTrigger, WorkflowScheduleTimeline, WorkflowStages, WorkflowStateLabel, workflowDuration } from '@/components/WorkflowVisuals';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { fieldClass } from '@/components/ui/field';
+import { fieldClass, fieldIconClass } from '@/components/ui/field';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { useConfigWritable } from '@/hooks/useConfigWritable';
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
@@ -82,6 +82,7 @@ function WorkflowsAnswer({ states, noun, view }: { states: readonly WorkflowStat
 }
 
 function NextRun({ workflow, data, showCadence = true }: { workflow: WorkflowDefinition; data: WorkflowsPayload; showCadence?: boolean }) {
+  if (workflow.manualOnly) return <span className="text-xs text-muted-foreground">Manual</span>;
   const saved = scheduleFor(workflow, data.overrides ?? {});
   const active = data.runtimeFresh ? data.runtime?.jobs.find((j) => j.id === workflow.id) : undefined;
   const pending = active && (saved.enabled !== active.enabled || saved.cron !== active.cron || scheduleTimezone(saved) !== scheduleTimezone(active));
@@ -115,7 +116,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
   const grouped = search.get('view') !== 'flat';
   const setFilter = (key: string, value: string) => { const next = new URLSearchParams(search); if (!value || value === 'all') next.delete(key); else next.set(key, value); setSearch(next, { replace: key === 'q' }); };
   const data = query.data ? { ...query.data, runtimeFresh: query.data.runtimeFresh && !query.isError && now - Date.parse(query.data.generatedAt) < 45_000 } : undefined;
-  const definitions = installedWorkflows(data).filter((workflow) => workflow.surface === surface);
+  const definitions = installedWorkflows(data).filter((workflow) => workflow.surface === surface && (!schedule || !workflow.manualOnly));
   const categories = WORKFLOW_GROUPS.filter((group) => definitions.some((workflow) => workflow.group === group.label));
   const all = data?.workflows.filter((summary) => definitions.some((workflow) => workflow.id === summary.id)).map((summary) => ({ summary, workflow: WORKFLOW_DEFINITIONS.find((w) => w.id === summary.id)!, state: workflowState(summary, data) })) ?? [];
   const rows = all.filter(({ workflow, state }) => (!term || [workflow.label, workflow.source ?? '', workflow.group, ...(workflow.keywords ?? [])].join(' ').toLowerCase().includes(term.toLowerCase())) && (group === 'all' || workflow.group === group) &&
@@ -152,7 +153,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
       <TabPanel idBase="workflow-view" id="workflow-view-panel" activeKey={tab}>
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <label className="relative min-w-48 flex-1"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" aria-hidden /><span className="sr-only">Search {noun}</span><input className={cn(fieldClass, 'w-full pl-9')} value={term} placeholder={`Search ${noun}…`} onChange={(e) => setFilter('q', e.target.value)} /></label>
+            <label className="relative flex min-w-48 flex-1 items-center"><Search className={fieldIconClass} aria-hidden /><span className="sr-only">Search {noun}</span><input className={cn(fieldClass, 'w-full ps-9')} value={term} placeholder={`Search ${noun}…`} onChange={(e) => setFilter('q', e.target.value)} /></label>
             <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} state</span><select className={fieldClass} value={filter} onChange={(e) => setFilter('state', e.target.value)}><option value="all">All states</option><option value="attention">Needs attention</option><option value="failed">Failed</option><option value="running">Running</option><option value="succeeded">{WORKFLOW_STATE_LABEL.succeeded}</option><option value="inactive">Inactive</option></select></label>
             <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} category</span><select className={fieldClass} value={group} onChange={(e) => setFilter('group', e.target.value)}><option value="all">All categories</option>{categories.map((g) => <option key={g.label}>{g.label}</option>)}</select></label>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">Sort<select aria-label={`Sort ${noun}`} className={fieldClass} value={sort} onChange={(e) => setFilter('sort', e.target.value)}><option value="latest">Latest run</option><option value="attention">Needs attention</option><option value="next">Next run</option><option value="name">Name</option></select></label>
@@ -265,7 +266,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
       </section> : <WorkflowViewEvidence view={view.id} run={selected ?? null} />}
       {runAction}
       {id === 'backup' && <BackupRunDetails run={selected} captured={data.backup} pending={query.isPlaceholderData || Boolean(defaultRun && !runId)} />}
-      <RunSettings collapsed={failed} expanded={Boolean(editing)}>
+      {!definition.manualOnly ? <RunSettings collapsed={failed} expanded={Boolean(editing)}>
       <div className="flex flex-wrap items-start justify-between gap-4 border-y border-border py-4">
         <div className="flex flex-wrap gap-x-10 gap-y-3"><div><p className="mb-1 text-xs text-muted-foreground">{definition.triggerKind === 'event' ? 'Recovery check · Local time' : 'Schedule · Local time'}</p><p className="text-sm font-medium tabular-nums">{saved?.enabled ? scheduleLabel(saved.cron, scheduleTimezone(saved)) : 'Paused'}</p></div><div><p className="mb-1 text-xs text-muted-foreground">{definition.triggerKind === 'event' ? 'Trigger' : 'Next execution'}</p><NextRun workflow={definition} data={data} showCadence={false} /></div><div><p className="mb-1 text-xs text-muted-foreground">Category</p><p className="text-sm">{definition.group}</p></div></div>
         {/* A collection's schedule is edited with the collection: on the
@@ -291,7 +292,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         onReload={async () => { const fresh = await query.refetch(); setEditing({ overrides: fresh.data?.overrides ?? null }); }}
         onClose={() => { setEditing(null); requestAnimationFrame(() => editButton.current?.focus()); }} />}
       {!collection && !writable.writable && !(demoReadonly && writable.reason === DEMO_READ_ONLY) && <p className="text-sm text-muted-foreground">{writable.reason}</p>}
-      </RunSettings>
+      </RunSettings> : null}
       <ExecutionContainer><section className="space-y-4" aria-label="Workflow execution">
         {failed && <RuntimeNotice data={data} />}
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex min-w-0 max-w-full items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'min-w-0 max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>

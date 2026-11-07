@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Layers3, Pause, Play } from 'lucide-react';
+import { Layers3, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PropertyFavicon } from '@/components/PropertyFavicon';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,21 @@ import { CONFIG_ASSET_KEY_RE } from '@noticeos/contract/configuration';
 import type { AssetCard } from '@shared/wall';
 
 type BriefAsset = Pick<AssetCard, 'id' | 'displayName' | 'icons'>;
+type BriefRefresh = { run: () => void; pending: boolean; error: string | null; notice?: string | null };
+
+function RefreshBrief({ refresh }: { refresh: BriefRefresh }) {
+  return <Button type="button" variant="ghost" size="icon" aria-label="Refresh AI insights"
+    title={refresh.pending ? 'Refreshing insights' : 'Refresh insights'} aria-busy={refresh.pending}
+    disabled={refresh.pending} onClick={refresh.run}>
+    <RefreshCw aria-hidden className={cn(refresh.pending && 'motion-safe:animate-spin')} />
+  </Button>;
+}
+
+function BriefNotice({ message, failed }: { message: string | null; failed: boolean }) {
+  return message ? <p className="text-sm text-warn" role={failed ? 'alert' : 'status'} data-status-for="read:portfolio-brief">
+    {message}{failed ? <> <Link to="/health/operations/portfolio-brief" className="underline underline-offset-4">View execution</Link></> : null}
+  </p> : null;
+}
 
 /** Source routes and identifiers are application-owned; model prose never assigns identity. */
 function sourceAsset(source: PortfolioBrief['sources'][number]): string | null {
@@ -29,22 +44,28 @@ function actionDestination(href: string): string | null {
   return null;
 }
 
-export function ExecutiveBrief({ read, readFailed = false, assets = [] }: { read?: PortfolioBriefRead; readFailed?: boolean; assets?: readonly BriefAsset[] }) {
+export function ExecutiveBrief({ read, readFailed = false, assets = [], refresh }: { read?: PortfolioBriefRead; readFailed?: boolean; assets?: readonly BriefAsset[]; refresh?: BriefRefresh }) {
   const brief = read?.briefing;
-  const [paused, setPaused] = useState(false);
+  const refreshAvailable = refresh && read && read.state !== 'disconnected' && read.state !== 'unsupported';
+  const failed = Boolean(refresh?.error || (!refresh?.notice && read?.state === 'unavailable'));
+  const warning = refresh?.error ?? refresh?.notice ?? (readFailed ? "Couldn't read the latest briefing." : read?.state === 'unavailable'
+    ? read.error ?? 'The last refresh failed.' : brief && read?.stale ? 'This briefing is out of date.' : null);
   if (!brief || brief.result.insights.length === 0) return <>
     {!brief && read?.state === 'disconnected' ? <p className="text-sm text-muted-foreground"><Link to="/integrations?connect=local-model" className="underline underline-offset-4">Connect a model</Link> for an executive briefing.</p>
-      : !brief && (readFailed || read?.state === 'unavailable') ? <p className="text-sm text-muted-foreground">Briefing unavailable.</p> : null}
+      : null}
+    <BriefNotice message={warning} failed={failed} />
+    {refreshAvailable ? <div className="flex flex-wrap items-center justify-end gap-3">
+      <RefreshBrief refresh={refresh} />
+    </div> : null}
   </>;
-  const outdated = readFailed || read?.stale || read?.state === 'unavailable';
-  const warning = !outdated ? null : readFailed || read?.state === 'unavailable' ? 'Refresh failed. Showing the previous briefing.' : 'This briefing is out of date.';
-  return <BriefingFindings key={`${brief.generatedAt}:${brief.result.insights.length}`} brief={brief} assets={assets} warning={warning} paused={paused} onPausedChange={setPaused} />;
+  return <BriefingFindings key={`${brief.generatedAt}:${brief.result.insights.length}`} brief={brief} assets={assets} warning={warning} failed={failed} refresh={refreshAvailable ? refresh : undefined} />;
 }
 
-function BriefingFindings({ brief, assets, warning, paused, onPausedChange }: { brief: PortfolioBrief; assets: readonly BriefAsset[]; warning: string | null; paused: boolean; onPausedChange: (paused: boolean) => void }) {
+function BriefingFindings({ brief, assets, warning, failed, refresh }: { brief: PortfolioBrief; assets: readonly BriefAsset[]; warning: string | null; failed: boolean; refresh?: BriefRefresh }) {
   const findings = brief.result.insights.slice(0, 3);
   const count = findings.length;
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -74,7 +95,7 @@ function BriefingFindings({ brief, assets, warning, paused, onPausedChange }: { 
     data-executive-brief="" data-brief-cycle={cycling ? 'running' : 'paused'}
     onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }}>
-    {warning ? <p className="mb-4 text-sm text-warn" role="status" data-status-for="read:portfolio-brief">{warning}</p> : null}
+    {warning ? <div className="mb-4"><BriefNotice message={warning} failed={failed} /></div> : null}
     <div className="flex items-start gap-3 sm:gap-5">
       <div className="min-w-0 flex-1" aria-live={cycling ? 'off' : 'polite'} aria-atomic="true">
         <div key={index} role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${count}`} data-brief-finding={index}
@@ -97,18 +118,15 @@ function BriefingFindings({ brief, assets, warning, paused, onPausedChange }: { 
           </details>
         </div>
       </div>
-      {count > 1 ? <div className="flex shrink-0 flex-col items-center gap-2">
-        {!reduced ? <Button type="button" variant="ghost" size="icon" aria-label={paused ? 'Resume finding rotation' : 'Pause finding rotation'}
-          title={paused ? 'Resume rotation' : 'Pause rotation'} onClick={() => onPausedChange(!paused)}>
-          {paused ? <Play aria-hidden /> : <Pause aria-hidden />}
-        </Button> : null}
-        <div className="flex flex-col" role="group" aria-label="Choose a finding">
+      {refresh || count > 1 ? <div className="flex shrink-0 flex-col items-center gap-2">
+        {refresh ? <RefreshBrief refresh={refresh} /> : null}
+        {count > 1 ? <div className="flex flex-col" role="group" aria-label="Choose a finding">
           {findings.map((finding, position) => <Button key={position} type="button" variant="ghost" size="icon"
             aria-label={`Show finding ${position + 1}: ${finding.title}`} aria-current={position === index ? 'true' : undefined}
-            onClick={() => { if (position !== index) { setIndex(position); setDetailsOpen(false); } onPausedChange(true); }}>
+            onClick={() => { if (position !== index) { setIndex(position); setDetailsOpen(false); } setPaused(true); }}>
             <span aria-hidden className={cn('size-2 rounded-full motion-safe:transition-colors', position === index ? 'bg-primary ring-2 ring-primary/30 ring-offset-2 ring-offset-card' : 'bg-muted-foreground/40')} />
           </Button>)}
-        </div>
+        </div> : null}
       </div> : null}
     </div>
   </section>;

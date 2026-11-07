@@ -40,6 +40,6 @@ export const WORKFLOW_DEFINITIONS = SCHEDULED_JOBS.map((job) => {
     const stages = job.local
         ? [action('execute', job.label, localSteps[job.id] ?? 'Runs in the local service on this machine.', job.group === 'Monitoring' ? 'check' : 'task', [])]
         : [action('config', 'Load collection settings', 'Reads the saved configuration for this execution.', 'task', []), ...workerSteps[job.id]];
-    return { ...job, version: job.id === 'notifications' ? 2 : 1, triggerKind: job.id === 'notifications' ? 'event' : 'schedule', stages: [...stages,
+    return { ...job, version: job.id === 'notifications' ? 2 : 1, triggerKind: job.manualOnly ? 'manual' : job.id === 'notifications' ? 'event' : 'schedule', stages: [...stages,
             action('record', 'Record execution', 'Persists this run’s result for operational history.', 'storage', job.local ? ['execute'] : workerSteps[job.id].map((s) => s.id))] };
 });

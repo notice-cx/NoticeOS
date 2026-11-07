@@ -5,7 +5,7 @@ import {
   type IntegrationMonitorDefinition, type IntegrationProviderId, type IntegrationObservation,
 } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
-import { SCHEDULED_JOBS, cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
+import { cronIntervalMinutes, type ScheduleOverrides } from '../../../scripts/scheduled-jobs.mjs';
 import { getConfigDocument } from './config-store.js';
 import { resolveCredential } from './credentials.js';
 import { resolveGoogleCredential } from './google-oauth.js';
@@ -156,7 +156,6 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   let custom: Ga4CustomDimensionConfig;
   let panel: SerpPanelConfig;
   let realtimeSchedule: { enabled: boolean; cron: string } = { enabled: true, cron: "* * * * *" };
-  let briefingSchedule = { enabled: true, cron: SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief')!.cron };
   let mercurySchedule = { enabled: true, cron: '40 * * * *' };
   try {
     const reads = await Promise.all(['config/integrations.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json', 'config/constants.json'].map(file => getConfigDocument(env, file)));
@@ -167,7 +166,6 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const schedules = (reads[3]?.body as { schedules?: ScheduleOverrides } | undefined)?.schedules;
     realtimeSchedule = schedules?.['ga4-realtime'] ?? realtimeSchedule;
     mercurySchedule = schedules?.mercury ?? mercurySchedule;
-    briefingSchedule = schedules?.['portfolio-brief'] ?? briefingSchedule;
     if (!register.assets || typeof register.assets !== 'object') throw new Error('Inventory unavailable');
   } catch { return { ...payload, available: false }; }
 
@@ -412,7 +410,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
             paused: cellDeclined(register.assets[site.asset]?.crux), requiredSince: since(nowMs, INTEGRATION_CADENCE_HOURS.cruxSignals) });
         }
       } else if (provider === 'local-model') {
-        await add({ connection, capability: 'portfolio-brief', paused: !briefingSchedule.enabled, requiredSince: null });
+        await add({ connection, capability: 'portfolio-brief', requiredSince: null });
       } else if (provider === 'mercury') {
         await add({ connection, capability: 'mercury-banking', paused: !mercurySchedule.enabled,
           requiredSince: since(nowMs, (cronIntervalMinutes(mercurySchedule.cron) ?? 60) / 60) });

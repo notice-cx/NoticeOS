@@ -3,7 +3,7 @@ import { JSON_HEADERS } from './http';
 
 export interface PortfolioBriefIngest {
   portfolioBrief?(): Promise<PortfolioBriefRead>;
-  refreshPortfolioBrief?(evidence: PortfolioBriefEvidence, cadenceMs: number): Promise<PortfolioBriefRefreshRead>;
+  refreshPortfolioBrief?(evidence: PortfolioBriefEvidence, freshnessMs: number): Promise<PortfolioBriefRefreshRead>;
 }
 
 export async function handlePortfolioBriefRequest(request: Request, ingest: PortfolioBriefIngest): Promise<Response> {

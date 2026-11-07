@@ -16,8 +16,8 @@ export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday',
  * keeps its editor where it runs (System health or Workflows).
  */
 export const COLLECTION_GROUP = 'Business signals';
-export function isCollectionJob(job: { group: string }): boolean {
-  return job.group === COLLECTION_GROUP;
+export function isCollectionJob(job: { group: string; manualOnly?: boolean }): boolean {
+  return !job.manualOnly && job.group === COLLECTION_GROUP;
 }
 
 /**

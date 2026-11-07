@@ -38,7 +38,7 @@ import {
 import { EmptyState } from "@/components/EmptyState";
 import { InlineSaveState, type InlineSave } from "@/components/InlineSaveState";
 import { Button } from "@/components/ui/button";
-import { fieldClass } from "@/components/ui/field";
+import { fieldClass, fieldIconClass } from "@/components/ui/field";
 import {
   Table,
   TableBody,
@@ -657,10 +657,10 @@ function NarrowBox({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2" data-collection-narrow>
-      <div className="relative min-w-0 flex-1 sm:max-w-64">
+      <div className="relative flex min-w-0 flex-1 items-center sm:max-w-64">
         <Search
           aria-hidden
-          className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          className={cn(fieldIconClass, "start-2 size-3.5")}
         />
         <input
           type="search"
@@ -668,7 +668,7 @@ function NarrowBox({
           aria-label={`Filter ${label.toLowerCase()}`}
           placeholder={`Filter ${label.toLowerCase()}`}
           onChange={(e) => onChange(e.target.value)}
-          className={cn(fieldClass, "w-full pl-7")}
+          className={cn(fieldClass, "w-full ps-7")}
         />
       </div>
       <span className="text-xs tabular-nums text-muted-foreground">
