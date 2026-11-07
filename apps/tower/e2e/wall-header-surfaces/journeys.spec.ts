@@ -24,6 +24,8 @@ test("Wall header text shares two baselines across calendar states and TV sizes"
     for (const [width, height] of [[1920, 1080], [1280, 720], [3840, 2160]] as const) {
       await openWall(page, [width, height]);
       await expect(page.locator("#boot-splash")).toHaveCount(0);
+      const brand = page.getByRole("link", { name: "NoticeOS" }).getByRole("img", { name: "NoticeOS" });
+      const markBottom = await brand.locator("svg").evaluate(mark => mark.getBoundingClientRect().bottom);
       const baselines = await page.locator("[data-wall-strip]").evaluate(root => [...root.querySelectorAll<HTMLElement>("[data-strip-baseline]")].map(marker => {
         const node = marker.dataset.stripBaseline === "brand" ? marker.querySelector(".brand-wordmark")! : marker;
         const probe = document.createElement("span");
@@ -33,6 +35,7 @@ test("Wall header text shares two baselines across calendar states and TV sizes"
         probe.remove();
         return { name: marker.dataset.stripBaseline, baseline };
       }));
+      expect(Math.abs(markBottom - baselines.find(item => item.name === "brand")!.baseline)).toBeLessThanOrEqual(1);
       expect(baselines.length).toBeGreaterThanOrEqual(6);
       expect(Math.max(...baselines.map(item => item.baseline)) - Math.min(...baselines.map(item => item.baseline)), `${mode} ${width}×${height}: ${JSON.stringify(baselines)}`).toBeLessThanOrEqual(1.5);
       if (mode !== "empty") {

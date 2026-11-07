@@ -19,7 +19,7 @@ export function NoticeMark({ className }: { className?: string }) {
   );
 }
 
-/** The mark and the wordmark: one identity for the desk, the phone and the TV. */
+/** The Notice mark takes the place of the first letter. */
 export function BrandLockup({
   size = "default",
   className,
@@ -29,10 +29,14 @@ export function BrandLockup({
   className?: string;
 }) {
   return (
-    <span className={cn("brand-lockup", `brand-lockup--${size}`, className)}>
-      <NoticeMark />
+    <span
+      className={cn("notice-wordmark", "brand-lockup", `brand-lockup--${size}`, className)}
+      role="img"
+      aria-label="NoticeOS"
+    >
+      <NoticeMark className="notice-wordmark-mark" />
       <span className="brand-wordmark">
-        Notice<span className="brand-os">OS</span>
+        otice<span className="notice-wordmark-os">OS</span>
       </span>
     </span>
   );

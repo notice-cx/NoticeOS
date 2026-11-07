@@ -19,6 +19,15 @@
   --vp-home-hero-name-color: #b0b9ff;
 }
 
+.VPNavBarTitle .notice-wordmark {
+  --notice-wordmark-muted: var(--vp-c-text-2);
+}
+
+.VPNavBarTitle .notice-wordmark-mark {
+  background: currentColor;
+  mask: url(../../../apps/tower/public/brand/notice-mark.svg) center / contain no-repeat;
+}
+
 /* Tables with many columns (the generated configuration page) scroll instead
  * of breaking the layout on a phone. */
 .vp-doc table {
