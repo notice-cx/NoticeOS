@@ -49,6 +49,15 @@ test('every page of the store is put together in one private file Ntasks\'s rest
   await assert.rejects(pullNtasksBackup(service, file), { code: 'EEXIST' }, 'an export never writes over a file');
 });
 
+test('the size bound counts a table\'s rows once across its pages, and the file holds at least that', async (t) => {
+  const dir = await scratch(t);
+  const rowBytes = Object.values(PAGES).reduce((sum, { rows }) => sum + Buffer.byteLength(JSON.stringify(rows)) - 2, 0);
+  const fits = path.join(dir, 'fits.json');
+  await pullNtasksBackup(ntasks().service, fits, { maxBytes: rowBytes });
+  assert.ok((await fs.stat(fits)).size >= rowBytes);
+  await assert.rejects(pullNtasksBackup(ntasks().service, path.join(dir, 'over.json'), { maxBytes: rowBytes - 1 }), new RegExp(`larger than ${rowBytes - 1} bytes`, 'u'));
+});
+
 test('a store written to while it is read is read again, and refused after the last attempt', async (t) => {
   const dir = await scratch(t);
   let changes = 1;

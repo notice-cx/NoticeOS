@@ -47,8 +47,10 @@ async function collect(service, maxBytes) {
     if (body.takenAt !== first.takenAt || body.migrations.join() !== first.migrations.join()) {
       throw new Error(`page ${pages} of Ntasks's backup is from another export than the first`);
     }
-    // The file holds at least these bytes, so an export past the bound stops here, not after it is written.
-    bytes += Buffer.byteLength(JSON.stringify(body.rows));
+    // The file holds at least these bytes (a page's rows without its brackets,
+    // since a table's pages share one list), so an export past the bound stops
+    // here, not after it is written.
+    bytes += Buffer.byteLength(JSON.stringify(body.rows)) - 2;
     if (bytes > maxBytes) throw new Error(`Ntasks's backup is larger than ${maxBytes} bytes`);
     const rows = tables[body.table] ??= [];
     for (const row of body.rows) rows.push(row);
