@@ -65,12 +65,11 @@ prove that a model can generate a useful briefing. Connection
 errors distinguish timeouts, access denial, missing endpoints and invalid responses.
 Other network errors show **Connection failed** because the runtime cannot reliably
 identify their cause. Check the API address and whether the server is reachable
-from the NoticeOS application container. The **Portfolio briefing** workflow runs
-hourly by default. Its schedule is editable in the connection panel and on
-Workflows. Generation attempts are at least fifteen minutes apart. Opening
-Home reads the saved briefing and makes no model request. To refresh it on demand,
-open **System health** > **Background operations** > **Portfolio briefing** and
-select **Run now**. The same 15-minute minimum between attempts applies.
+from the NoticeOS application container. The **Portfolio briefing** operation runs
+only on request. Select **Refresh AI insights** on Home, or open **System health** >
+**Background operations** > **Portfolio briefing** and select **Run now**.
+Opening Home reads the saved briefing and makes no model request. Overlapping
+refresh requests cannot start a second generation.
 
 The model receives a context packet capped at 24 KB, with space reserved for
 each area below. Queries use stored observations with one refresh cutoff; they
@@ -95,7 +94,7 @@ Results contain at most three findings and 360 words. Home shows one full-width
 finding and its next action at a time. **Details** expands its observation and
 reasoning. Sentences stay short, with timeframes in the narrative. Findings
 rotate every 7 seconds; vertical dots select a finding and pause rotation.
-Interaction and open Details pause it; **Pause rotation** stops it.
+Interaction and open Details pause it; a new result resets rotation.
 Reduced-motion preferences disable automatic rotation, with manual navigation
 still available. An overall headline and summary are not requested or shown.
 Missing evidence, static totals and unchanged revenue
@@ -106,8 +105,7 @@ and temporal coincidence does not establish a cause.
 Home shows useful findings with contextual action links and no evidence
 inventory or routine timestamps. An empty result uses its ordinary summary.
 A failed refresh retains prior guidance with a concise warning. Disconnecting
-or replacing the connection hides its previous briefing. The replaceable cache
-is not a permanent archive.
+or replacing the connection hides its previous briefing. Saved briefings persist in Postgres through application restarts.
 
 The server must support OpenAI-compatible `/chat/completions`, such as
 LM Studio's [chat endpoint](https://lmstudio.ai/docs/developer/openai-compat/chat-completions).
@@ -144,10 +142,9 @@ health and operational spending still cover the installation. Changing the
 selection hides guidance generated for the old scope.
 
 The selected server receives the portfolio and task summaries described above.
-A remote provider may charge for scheduled generation. NoticeOS does not meter
+A remote provider may charge for each requested generation. NoticeOS does not meter
 these charges or enforce an inference spending cap. Configure a limit with the
-provider; pause **Portfolio briefing** or disconnect the model to stop future
-generation.
+provider. Disconnecting the model prevents generation.
 
 ## Ntasks {#ntasks}
 

@@ -70,6 +70,7 @@ export function createScheduledJobRunner({
   async function runOnce(id: string, { manual = false, wait = false, execute }: { manual?: boolean; wait?: boolean; execute?: () => Promise<unknown> } = {}): Promise<JobInvocation> {
     const job = jobs.find((candidate) => candidate.id === id);
     if (!job) return { status: 'unknown' };
+    if (job.manualOnly && !manual) return { status: 'unavailable' };
     if (stopped || !active.has(id) || (manual && error)) return { status: 'unavailable' };
     if (!active.get(id)!.schedule.enabled) return { status: 'paused' };
     if (inFlight.has(id)) {
@@ -104,7 +105,7 @@ export function createScheduledJobRunner({
       if (previous?.schedule.enabled === schedule.enabled && previous.schedule.cron === schedule.cron && scheduleTimezone(previous.schedule) === scheduleTimezone(schedule)) continue;
       const entry: { schedule: JobSchedule; timer: ScheduledTimer | null } = { schedule: { ...schedule }, timer: null };
       // The identity check also rejects a callback already queued by the old timer.
-      if (schedule.enabled) {
+      if (schedule.enabled && !job.manualOnly) {
         entry.timer = createTimer(schedule.cron, async () => {
           if (active.get(job.id) !== entry) return;
           await runOnce(job.id);

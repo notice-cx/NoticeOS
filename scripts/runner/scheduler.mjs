@@ -149,7 +149,7 @@ let scheduledJobRunner = null;
 export async function startScheduler(runtime, records, { lanes, onPublished }) {
   const crons = await readCrons();
   const configured = new Set(crons);
-  const jobs = SCHEDULED_JOBS.filter((job) => job.local || configured.has(job.cron));
+  const jobs = SCHEDULED_JOBS.filter((job) => job.local || job.manualOnly || configured.has(job.cron));
   scheduledJobRunner = createScheduledJobRunner({
     jobs,
     run: async (job, manual = false) => {

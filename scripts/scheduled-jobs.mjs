@@ -24,7 +24,7 @@ export const WORKFLOW_GROUPS = [
     { label: 'System maintenance' },
 ];
 export const SCHEDULED_JOBS = [
-    { id: 'portfolio-brief', manualNotice: 'Uses the connected model. Remote providers may charge for generation.', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'OpenAI-compatible model', connections: ['local-model'] },
+    { id: 'portfolio-brief', manualOnly: true, manualNotice: 'Uses the connected model. Remote providers may charge for generation.', surface: 'system', label: 'Portfolio briefing', group: 'Business signals', cron: '35 * * * *', source: 'OpenAI-compatible model', connections: ['local-model'] },
     { id: 'mercury', surface: 'system', label: 'Bank balances and activity', group: 'Business signals', cron: '40 * * * *', source: 'Mercury',
         keywords: ['banking', 'cash', 'transactions'], connections: ['mercury'] },
     { id: 'mediavine', surface: 'system', label: 'Ad revenue', group: 'Business signals', cron: '10,30,50 * * * *', source: 'Mediavine',
@@ -81,6 +81,8 @@ export function collectNowStep(provider) {
     return null;
 }
 export function scheduleFor(job, overrides = {}) {
+    if (job.manualOnly)
+        return { enabled: true, cron: job.cron };
     return overrides[job.id] ?? { enabled: true, cron: job.cron };
 }
 export function scheduleTimezone(schedule) { return schedule.timezone ?? 'UTC'; }

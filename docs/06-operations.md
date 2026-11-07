@@ -126,15 +126,14 @@ definitions; it cannot edit the measurement channel.
 **What is in force today.** One cap, and it is enforced:
 `config/constants.json` `monthly_caps.data_usd` — $25/mo of metered data spend,
 reserved before every paid DataForSEO read and failing closed. The Home
-briefing calls an operator-connected OpenAI-compatible model, with a two-minute request
-limit, bounded input and output, and at least fifteen minutes between
-generation attempts. It provides advice and executes no work. It does not
-measure model-provider charges or local computing costs. Connecting a remote
-provider enables scheduled briefing requests that may incur charges; configure
+briefing calls an operator-connected OpenAI-compatible model, with a ten-minute request
+limit and bounded input and output. Generation runs only on request. It provides advice and executes no work. It does not
+measure model-provider charges or local computing costs. Requested generation with a remote
+provider may incur charges; configure
 the provider's own limit. Agent sessions are billed outside the OS. There is
 **no model gateway or inference spending cap** in the running product. The
 requirements below apply before adding automated model execution; the
-operator-connected advisory briefing has only request and frequency limits.
+operator-connected advisory briefing has bounded requests without automatic generation.
 
 Automated model execution must route metered model/API traffic through a gateway with **dollar-denominated,
 fail-closed limits** (Cloudflare AI Gateway-class, fitting the existing stack;

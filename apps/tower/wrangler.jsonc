@@ -44,6 +44,6 @@
   // scripts/scheduled-jobs.mts `freshness`). Locally the runner fires it
   // through the ingest door instead.
   "triggers": {
-    "crons": ["0 * * * *", "35 * * * *"]
+    "crons": ["0 * * * *"]
   }
 }

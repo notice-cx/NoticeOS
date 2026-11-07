@@ -36,6 +36,8 @@ export function createScheduledJobRunner({ jobs = SCHEDULED_JOBS, run, read = re
         const job = jobs.find((candidate) => candidate.id === id);
         if (!job)
             return { status: 'unknown' };
+        if (job.manualOnly && !manual)
+            return { status: 'unavailable' };
         if (stopped || !active.has(id) || (manual && error))
             return { status: 'unavailable' };
         if (!active.get(id).schedule.enabled)
@@ -78,7 +80,7 @@ export function createScheduledJobRunner({ jobs = SCHEDULED_JOBS, run, read = re
                 continue;
             const entry = { schedule: { ...schedule }, timer: null };
             // The identity check also rejects a callback already queued by the old timer.
-            if (schedule.enabled) {
+            if (schedule.enabled && !job.manualOnly) {
                 entry.timer = createTimer(schedule.cron, async () => {
                     if (active.get(job.id) !== entry)
                         return;

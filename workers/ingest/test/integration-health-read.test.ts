@@ -423,7 +423,7 @@ it('uses the saved realtime schedule pause and removes the retired hourly obliga
   expect(result.items.some(item => item.capability === 'ga4-hourly')).toBe(false);
 });
 
-it('keeps optional briefing inference idle without inventing provider proof and honors its saved pause', async () => {
+it('keeps manual briefing inference idle and ignores retired schedule pauses', async () => {
   const target = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'standalone' };
   expect(await putCredential(target, { provider: 'local-model', fields: {
     LOCAL_MODEL_BASE_URL: 'http://127.0.0.1:1234/v1', LOCAL_MODEL_ID: 'synthetic-model',
@@ -445,7 +445,7 @@ it('keeps optional briefing inference idle without inventing provider proof and 
     ON CONFLICT(workspace_id,document_key) DO UPDATE SET body=excluded.body, version=noticeos.config_documents.version+1`,
   [tx.workspaceId, JSON.stringify({ schedules: { 'portfolio-brief': { enabled: false, cron: '35 * * * *' } } })]));
   forgetConfigCache();
-  const paused = await readIntegrationHealth(target, NOW + 184 * 60_000);
-  expect(paused.items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'paused' });
-  expect(paused.items.find(item => item.capability === 'local-model-discovery')).toMatchObject({ state: 'idle' });
+  const after = await readIntegrationHealth(target, NOW + 184 * 60_000);
+  expect(after.items.find(item => item.capability === 'portfolio-brief')).toMatchObject({ state: 'failing' });
+  expect(after.items.find(item => item.capability === 'local-model-discovery')).toMatchObject({ state: 'idle' });
 });

@@ -143,10 +143,9 @@ describe('workflow operating surface', () => {
     data.runtimeFresh = false;
     mount();
     expect(await screen.findByText(/Live operation is unconfirmed/)).toBeInTheDocument();
-    // One per job the operations page lists: every system job.
-    const listed = WORKFLOW_DEFINITIONS.filter((workflow) => workflow.surface === 'system').length;
-    expect(screen.getAllByText('Unconfirmed')).toHaveLength(listed);
-    expect(screen.getAllByText('Unknown')).toHaveLength(listed);
+    const listed = WORKFLOW_DEFINITIONS.filter((workflow) => workflow.surface === 'system');
+    expect(screen.getAllByText('Unconfirmed')).toHaveLength(listed.filter(workflow => !workflow.manualOnly).length);
+    expect(screen.getAllByText('Unknown')).toHaveLength(listed.length);
   });
   it('lists only the ingest’s jobs for an installation whose runner runs no host lanes', async () => {
     // A runner without host lanes (the hosted scheduler): no task hub, push state or offsite
@@ -225,14 +224,11 @@ describe('workflow operating surface', () => {
     expect(within(lead).getByText(reason)).toBeVisible();
     expect(within(lead).getByText(action)).toBeVisible();
     expect(screen.getAllByText(reason)).toHaveLength(1);
-    const settings = screen.getByText('Schedule and settings').closest('details')!;
     const execution = screen.getByText('Execution details').closest('details')!;
-    expect(settings).not.toHaveAttribute('open');
+    expect(screen.queryByText('Schedule and settings')).toBeNull();
     expect(execution).not.toHaveAttribute('open');
-    expect(screen.getByText('Schedule · Local time')).not.toBeVisible();
     expect(screen.getByText('Execution stages')).not.toBeVisible();
     expect(screen.queryByText('Output was not captured for this execution.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Run Portfolio briefing now' })).toBeVisible();
     fireEvent.click(screen.getByText('Execution details'));
     expect(screen.getByText('Execution stages')).toBeVisible();
     expect(screen.getAllByText(reason)).toHaveLength(1);

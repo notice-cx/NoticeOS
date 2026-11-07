@@ -45,6 +45,9 @@ VALUES (:'ws','unknown','annotation.create',:'site','{"annotationNumber":"1","ki
 INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value, recorded_at)
 VALUES (:'ws', gen_random_uuid(), 'view', '{"view":"business","focus":["money"]}', '2026-09-01T12:30:00Z');
 
+INSERT INTO noticeos.portfolio_briefings (workspace_id, scope_sha256, recorded_at, payload)
+VALUES (:'ws', repeat('a', 64), '2026-09-01T12:30:00Z', '{"state":"awaiting","briefing":null}');
+
 INSERT INTO noticeos.counter_readings (workspace_id, asset_id, metric, value, observed_at)
 VALUES (:'ws', :'site', 'signups', 42, '2026-09-05T00:00:00Z');
 

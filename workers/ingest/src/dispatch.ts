@@ -243,6 +243,7 @@ export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowReco
   const job = ingestJobForCron(cron);
   const lanes = job ? JOB_LANES[job.id] : undefined;
   if (!lanes) throw new UnknownCronError(cron);
+  if (job?.manualOnly && trigger !== 'manual') return { outcome: 'skipped', detail: 'This operation runs on request' };
   const step = <T>(id: string, fn: () => Promise<T>): Promise<T> => trace ? trace.run(id, fn, undefined, { cron, trigger, operation: id }) : fn();
   const loaded = trace ? await trace.run('config', async capture => {
     const configs = await readCollectorConfigs(env);
@@ -250,7 +251,7 @@ export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowReco
     return configs;
   }, undefined, { cron, trigger, operation: 'config' }) : await readCollectorConfigs(env);
   const cfg = { ...runConfig(loaded), notificationRecovery: trigger !== 'event' };
-  if (trigger === 'manual' && job && schedulePaused(cfg.constants, job.id)) return { outcome: 'skipped', detail: 'Workflow is paused' };
+  if (trigger === 'manual' && job && !job.manualOnly && schedulePaused(cfg.constants, job.id)) return { outcome: 'skipped', detail: 'Workflow is paused' };
   const answers: Record<string, unknown> = {};
   await settleWorkflowSteps(Object.entries(lanes.steps).map(([id, lane]) =>
     trace ? trace.run(id, async () => (answers[id] = await lane(env, cfg)), undefined, { cron, trigger, operation: id, configSources: cfg.configSources })

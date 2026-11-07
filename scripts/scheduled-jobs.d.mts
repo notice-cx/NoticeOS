@@ -12,6 +12,8 @@ export interface ScheduledJob {
      * job an installation runs only once it is set up. */
     footer?: string;
     manualNotice?: string;
+    /** Explicit operator requests only; saved cron overrides never arm a timer. */
+    manualOnly?: boolean;
     /** Steps of this job an operator can run now for chosen sites. */
     collectNow?: CollectNowStep[];
     /**

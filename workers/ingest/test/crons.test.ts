@@ -26,7 +26,7 @@ const TOWER_STEPS = new Set(['connection-counts', 'source-history', 'portfolio-b
 
 describe('cron parity', () => {
   it('registers in wrangler.jsonc exactly the dispatch keys of the jobs the ingest runs', () => {
-    expect([...env.TEST_CRONS].sort()).toEqual(INGEST_JOBS.map((job) => job.cron).sort());
+    expect([...env.TEST_CRONS].sort()).toEqual(INGEST_JOBS.filter(job => !job.manualOnly).map((job) => job.cron).sort());
   });
 
   it('gives each of those jobs its own key, so one expression never means two jobs', () => {
@@ -141,7 +141,7 @@ describe('each scheduled job’s own expression', () => {
   });
 
   it.each(INGEST_JOBS.map((job) => [job.label, job] as const))('%s runs its own steps, each one in the run record', async (_label, job) => {
-    const answer = await runScheduledCron(job.cron, env);
+    const answer = await runScheduledCron(job.cron, env, job.manualOnly ? 'manual' : 'recovery');
 
     expect(answer.refused).toBeUndefined();
     expect(answer.steps?.map((step) => step.id)).toEqual(['config', ...Object.keys(JOB_LANES[job.id]!.steps)]);

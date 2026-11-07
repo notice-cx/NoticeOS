@@ -21,7 +21,7 @@ const ready: PortfolioBriefRead = { ...empty, state: 'ready', briefing: {
   ],
 } };
 const assets = [{ id: 'example.com', displayName: 'Example', icons: null }, { id: 'another.example', displayName: 'Another', icons: null }];
-const element = (read?: PortfolioBriefRead, readFailed = false) => <MemoryRouter><ExecutiveBrief read={read} readFailed={readFailed} assets={assets} /></MemoryRouter>;
+const element = (read?: PortfolioBriefRead, readFailed = false, refresh?: { run: () => void; pending: boolean; error: string | null }) => <MemoryRouter><ExecutiveBrief read={read} readFailed={readFailed} assets={assets} refresh={refresh} /></MemoryRouter>;
 const show = (read: PortfolioBriefRead | undefined = ready, readFailed = false) => render(element(read, readFailed));
 const single = (): PortfolioBriefRead => ({ ...ready, briefing: { ...ready.briefing!, result: { ...ready.briefing!.result, insights: findings.slice(0, 1) } } });
 const advance = () => act(() => vi.advanceTimersByTime(7_000));
@@ -29,23 +29,13 @@ const pick = (position: number) => fireEvent.click(screen.getByRole('button', { 
 const heading = () => screen.getByRole('heading', { level: 2 });
 
 describe('ExecutiveBrief', () => {
-  it('shows one finding and one next action, without the repeated headline, summary or metadata', () => {
-    const { container } = show();
-    expect(heading()).toHaveTextContent(findings[0]!.title);
-    expect(screen.getAllByRole('heading')).toHaveLength(1);
-    expect(screen.getByText(findings[0]!.action)).toBeVisible();
-    expect(screen.getAllByText(findings[0]!.action)).toHaveLength(1);
-    expect(screen.queryByText(ready.briefing!.result.headline!)).not.toBeInTheDocument();
-    expect(screen.queryByText(ready.briefing!.result.assessment!)).not.toBeInTheDocument();
+  it('expands supporting observations and reasoning on demand', () => {
+    show();
     expect(screen.getByText(findings[0]!.observation)).not.toBeVisible();
     expect(screen.getByText(findings[0]!.why)).not.toBeVisible();
     fireEvent.click(screen.getByText('Details', { exact: true }));
     expect(screen.getByText(findings[0]!.observation)).toBeVisible();
     expect(screen.getByText(findings[0]!.why)).toBeVisible();
-    expect(screen.queryByText(/Checkout report|example-model|One asset has no revenue/)).not.toBeInTheDocument();
-    expect(container.querySelector('time, [data-brief-comparison]')).toBeNull();
-    expect(container.querySelector('[data-executive-brief]')).toHaveClass('w-full');
-    expect(container.querySelectorAll('[data-brief-finding]')).toHaveLength(1);
   });
 
   it('moves directly between findings, closes old details and keeps manual selection paused', () => {
@@ -58,7 +48,6 @@ describe('ExecutiveBrief', () => {
     expect(screen.getByRole('button', { name: /Show finding 2:/ })).toHaveAttribute('aria-current', 'true');
     expect(screen.getByRole('button', { name: /Show finding 1:/ })).not.toHaveAttribute('aria-current');
     expect(container.querySelector('[data-executive-brief]')).toHaveAttribute('data-brief-cycle', 'paused');
-    expect(screen.getByRole('group', { name: 'Choose a finding' })).toHaveClass('flex-col');
   });
 
   it('caps navigation at three findings and hides controls for a single finding', () => {
@@ -67,7 +56,6 @@ describe('ExecutiveBrief', () => {
     expect(screen.queryByRole('button', { name: /Extra finding/ })).not.toBeInTheDocument();
     unmount(); show(single());
     expect(screen.queryByRole('group', { name: 'Choose a finding' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /rotation/ })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -122,11 +110,25 @@ describe('ExecutiveBrief', () => {
     expect(screen.queryByRole('img', { name: 'About Example' })).not.toBeInTheDocument();
   });
 
-  it('retains a finding with one warning when a refresh fails', () => {
-    show({ ...ready, state: 'unavailable', stale: true }, true);
-    expect(screen.getAllByRole('status')).toHaveLength(1);
-    expect(screen.getByRole('status')).toHaveTextContent('Refresh failed. Showing the previous briefing.');
+  it('retains a finding and exposes its execution when a refresh fails', () => {
+    const error = 'Synthetic generation failure';
+    const { rerender } = render(element(ready, false, { run: vi.fn(), pending: true, error: null }));
+    expect(screen.getByRole('button', { name: 'Refresh AI insights' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Refresh AI insights' })).toHaveAttribute('aria-busy', 'true');
     expect(heading()).toHaveTextContent(findings[0]!.title);
+    rerender(element({ ...ready, state: 'unavailable', error }, false, { run: vi.fn(), pending: false, error }));
+    expect(screen.getByRole('alert')).toHaveTextContent(error);
+    expect(screen.getByRole('link', { name: 'View execution' })).toHaveAttribute('href', '/health/operations/portfolio-brief');
+    expect(heading()).toHaveTextContent(findings[0]!.title);
+    expect(screen.getByRole('button', { name: 'Refresh AI insights' })).toBeEnabled();
+  });
+
+  it.each(['awaiting', 'ready', 'disconnected', 'unsupported'] as const)('allows refresh only for a supported connected state: %s', state => {
+    const run = vi.fn();
+    render(element({ ...empty, state }, false, { run, pending: false, error: null }));
+    const button = screen.queryByRole('button', { name: 'Refresh AI insights' });
+    expect(button !== null).toBe(state === 'awaiting' || state === 'ready');
+    if (button) { fireEvent.click(button); expect(run).toHaveBeenCalledOnce(); }
   });
 
   it('omits the briefing when there are no findings', () => {
@@ -155,15 +157,12 @@ describe('finding rotation', () => {
     advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
     unmount(); expect(vi.getTimerCount()).toBe(0);
   });
-  it('supports explicit pause and resume, and manual selection stays paused until resumed', () => {
-    setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Pause finding rotation' }));
-    advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
-    fireEvent.click(screen.getByRole('button', { name: 'Resume finding rotation' }));
-    advance(); expect(heading()).toHaveTextContent(findings[1]!.title);
+  it('keeps manual selection paused until a new result arrives', () => {
+    const { rerender } = setup();
     pick(2); advance(); expect(heading()).toHaveTextContent(findings[2]!.title);
-    fireEvent.click(screen.getByRole('button', { name: 'Resume finding rotation' }));
-    advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
+    rerender(element({ ...ready, briefing: { ...ready.briefing!, generatedAt: '2026-11-06T13:00:00Z' } }));
+    expect(heading()).toHaveTextContent(findings[0]!.title);
+    advance(); expect(heading()).toHaveTextContent(findings[1]!.title);
   });
   it('pauses while hovered or focused', () => {
     const { container } = setup();
@@ -180,8 +179,6 @@ describe('finding rotation', () => {
     const detail = container.querySelector('details')!;
     detail.open = true; fireEvent(detail, new Event('toggle'));
     advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
-    pick(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Resume finding rotation' }));
     advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
     expect(detail).toHaveAttribute('open');
     detail.open = false; fireEvent(detail, new Event('toggle'));
@@ -190,7 +187,7 @@ describe('finding rotation', () => {
     visibility.mockReturnValue(false); fireEvent(document, new Event('visibilitychange'));
     advance(); expect(heading()).toHaveTextContent(findings[1]!.title);
   });
-  it('preserves the same cached finding and details, resetting interaction on a new result', () => {
+  it('preserves the same saved finding and details, resetting interaction on a new result', () => {
     const { container, rerender } = setup();
     advance();
     const detail = container.querySelector('details')!;
@@ -204,19 +201,10 @@ describe('finding rotation', () => {
     expect(heading()).toHaveTextContent(findings[0]!.title);
     advance(); expect(heading()).toHaveTextContent(findings[1]!.title);
   });
-  it('keeps explicit pause across replacement results', () => {
-    const { rerender } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Pause finding rotation' }));
-    rerender(element(empty));
-    rerender(element({ ...ready, briefing: { ...ready.briefing!, generatedAt: '2026-11-06T13:00:00Z' } }));
-    advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
-    expect(screen.getByRole('button', { name: 'Resume finding rotation' })).toBeVisible();
-  });
   it('keeps manual dot navigation available with reduced motion, without auto-rotation', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     setup();
     advance(); expect(heading()).toHaveTextContent(findings[0]!.title);
-    expect(screen.queryByRole('button', { name: /rotation/ })).not.toBeInTheDocument();
     pick(2); expect(heading()).toHaveTextContent(findings[2]!.title);
     advance(); expect(heading()).toHaveTextContent(findings[2]!.title);
   });

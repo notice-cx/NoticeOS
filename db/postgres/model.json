@@ -138,6 +138,14 @@
       },
       "rule": "Append-only."
     },
+    "portfolio_briefings": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only. The newest row per review scope contains the saved briefing and its latest attempt state."
+    },
     "asset_insight_snapshots": {
       "revision": {
         "insert": true,

@@ -7,7 +7,7 @@ import type { WorkflowStepRun } from "@noticeos/contract";
 import { assetDisplayName } from '@noticeos/contract/asset-name';
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { redactLogText } from "../../../scripts/os-log.mjs";
-import { SCHEDULED_JOBS, scheduleFor, cronIntervalMinutes } from "../../../scripts/scheduled-jobs.mjs";
+import { SCHEDULED_JOBS } from "../../../scripts/scheduled-jobs.mjs";
 import { createWorkflowRecorder, stepResult, type WorkflowDiagnosticCapture } from "../../../scripts/workflow-trace.mjs";
 import { type IntegrationHealthIngest, recordTodaysConnectionCounts } from "./connection-status-daily";
 import { type IntegrationsSettings, integrationsDeps, recordTodaysSourceHistory } from "./integrations-payload";
@@ -43,6 +43,7 @@ export interface TowerCronEnv {
  */
 export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => Date = () => new Date(), trigger?: 'event' | 'recovery' | 'manual'): Promise<WorkflowStepRun[]> {
   if (cron !== HOURLY_TICK && cron !== BRIEFING_TICK) return [];
+  if (cron === BRIEFING_TICK && trigger !== 'manual') return [];
   const trace = createWorkflowRecorder({
     failed: (step, error) => console.error(JSON.stringify({
       event: "scheduled_step_failed", cron, step,
@@ -68,13 +69,10 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       if (state.state === 'disconnected') return 'Connect a model provider before generating a briefing';
       if (state.state === 'unsupported') return 'Briefing generation is unavailable';
       const at = now();
-      if (state.nextAttemptAt && Date.parse(state.nextAttemptAt) > at.getTime()) return 'Briefing generation is limited to once every 15 minutes';
       const cfg = await env.briefing.config();
       const reviewAssetIds = cfg.portfolioReviewAssetIds ?? null;
       if (reviewAssetIds?.length === 0) return 'No assets are selected for AI portfolio review';
       const selected = reviewAssetIds === null ? null : new Set(reviewAssetIds);
-      const schedule = scheduleFor(SCHEDULED_JOBS.find(job => job.id === 'portfolio-brief')!, cfg.schedules ?? {});
-      if (!schedule.enabled) return 'Workflow is paused';
       const [wall, work, inventory] = await Promise.all([
         buildWallPayload(env.STORE, { now: at, constants: cfg.monthlyCaps, integrations: cfg.integrations, pullConfig: cfg.pullConfig,
           dashboard: cfg.dashboard, serpPanel: cfg.serpPanel, osTimeZone: cfg.osTimeZone, noNightlyReport: cfg.noNightlyReport, counters: cfg.counters, schedules: cfg.schedules }),
@@ -93,13 +91,13 @@ export async function runTowerCron(cron: string, env: TowerCronEnv, now: () => D
       const base = buildPortfolioBriefEvidence(wall, work, { now: at, revenueByAsset, reviewAssetIds });
       const evidence = packPortfolioBriefContext({ ...base, facts: [...base.facts, ...readings.facts, ...acquisition.facts],
         insightEvidenceIds: [...base.insightEvidenceIds, ...readings.insightEvidenceIds, ...acquisition.insightEvidenceIds] });
-      const cadenceMs = Math.max(15, cronIntervalMinutes(schedule.cron) ?? 60) * 60_000;
-      capture.input({ evidence, cadenceMs });
-      const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, cadenceMs);
+      const freshnessMs = 24 * 60 * 60_000;
+      capture.input({ evidence, freshnessMs });
+      const result = await env.briefing.ingest.refreshPortfolioBrief(evidence, freshnessMs);
       if (result.diagnostics) capture.adopt(result.diagnostics);
       if (result.error) return { operation: 'portfolio-brief', ok: false, failure: result.failure };
       if (result.state === 'disconnected' || result.state === 'unsupported') return 'Briefing generation is unavailable';
-      if (result.lastAttemptAt === state.lastAttemptAt) return 'Another briefing run or its cooldown prevented generation';
+      if (result.lastAttemptAt === state.lastAttemptAt) return 'Another briefing run prevented generation';
       if (trigger === 'manual' && evidence.insightEvidenceIds.length === 0) return 'No recent observations are available for briefing insights';
     });
   } else {
