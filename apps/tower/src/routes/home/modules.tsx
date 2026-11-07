@@ -120,7 +120,7 @@ export function HomeModules({
     );
   }
   return (
-    <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
+    <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0" data-home-layout="grid">
       {homeSlots(modules).map((slot) =>
         slot.stacked ? (
           <div

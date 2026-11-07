@@ -57,7 +57,7 @@ import {
   formatTimestamp,
   formatUsd,
 } from "@/lib/format";
-import { lastMonthRevenue, monthDays, monthEquation, monthsThrough, revenueBySite, siteMoneyRows } from "@/lib/money-page";
+import { lastMonthRevenue, monthDays, monthEquation, monthsThrough, siteMoneyRows } from "@/lib/money-page";
 import { cn } from "@/lib/utils";
 import { monthRevenue } from "@/lib/wall-revenue";
 import { CostComposition } from "@/routes/financials/CostComposition";
@@ -518,7 +518,6 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           days={data.dailyRevenue ? monthDays(data.dailyRevenue) : null}
           lastMonth={lastMonthRevenue(data.months, shown.period, equation.currency)}
           pace={pace}
-          bySite={revenueBySite(data.properties, equation.currency)}
           className={cn("@3xl:col-span-2", data.costLines.length > 0 ? "@6xl:col-span-8" : "@6xl:col-span-12")}
         />
         {/* A cost side with nothing behind it is a box for nothing: the

@@ -21,7 +21,7 @@ const ready: PortfolioBriefRead = { ...empty, state: 'ready', briefing: {
   ],
 } };
 const assets = [{ id: 'example.com', displayName: 'Example', icons: null }, { id: 'another.example', displayName: 'Another', icons: null }];
-const element = (read?: PortfolioBriefRead, readFailed = false) => <MemoryRouter><ExecutiveBrief read={read} readFailed={readFailed} assets={assets} fallback={<p>Observed summary</p>} /></MemoryRouter>;
+const element = (read?: PortfolioBriefRead, readFailed = false) => <MemoryRouter><ExecutiveBrief read={read} readFailed={readFailed} assets={assets} /></MemoryRouter>;
 const show = (read: PortfolioBriefRead | undefined = ready, readFailed = false) => render(element(read, readFailed));
 const single = (): PortfolioBriefRead => ({ ...ready, briefing: { ...ready.briefing!, result: { ...ready.briefing!.result, insights: findings.slice(0, 1) } } });
 const advance = () => act(() => vi.advanceTimersByTime(7_000));
@@ -37,7 +37,6 @@ describe('ExecutiveBrief', () => {
     expect(screen.getAllByText(findings[0]!.action)).toHaveLength(1);
     expect(screen.queryByText(ready.briefing!.result.headline!)).not.toBeInTheDocument();
     expect(screen.queryByText(ready.briefing!.result.assessment!)).not.toBeInTheDocument();
-    expect(screen.queryByText('Observed summary')).not.toBeInTheDocument();
     expect(screen.getByText(findings[0]!.observation)).not.toBeVisible();
     expect(screen.getByText(findings[0]!.why)).not.toBeVisible();
     fireEvent.click(screen.getByText('Details', { exact: true }));
@@ -130,20 +129,17 @@ describe('ExecutiveBrief', () => {
     expect(heading()).toHaveTextContent(findings[0]!.title);
   });
 
-  it('uses the observed summary when there are no findings', () => {
+  it('omits the briefing when there are no findings', () => {
     const { container } = show({ ...ready, briefing: { ...ready.briefing!, result: { ...ready.briefing!.result, insights: [] } } });
-    expect(screen.getByText('Observed summary')).toBeVisible();
     expect(container.querySelector('[data-executive-brief]')).toBeNull();
   });
-  it.each(['disconnected', 'awaiting', 'unavailable', 'unsupported'] as const)('keeps the observed summary for %s', state => {
+  it.each(['disconnected', 'awaiting', 'unavailable', 'unsupported'] as const)('offers connection only for %s when no briefing exists', state => {
     show({ ...empty, state });
-    expect(screen.getByText('Observed summary')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Connect a model' }) !== null).toBe(state === 'disconnected');
   });
-  it('keeps the observed summary when its independent read fails', () => {
+  it('omits findings when its independent read fails', () => {
     render(element(undefined, true));
-    expect(screen.getByText('Observed summary')).toBeInTheDocument();
-    expect(screen.getByText('Briefing unavailable.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading')).toBeNull();
   });
 });
 

@@ -736,7 +736,7 @@ describe("Home drawn from the person's view", () => {
   /** The board's modules in the order drawn, read off each region's own
    * markers; a stacked column contributes its members in order. */
   function modulesDrawn(container: HTMLElement): string[] {
-    const grid = container.querySelector("[data-home-brief]")!.children[1]!;
+    const grid = container.querySelector("[data-home-layout]")!;
     // Every view but Everything marks each module it stacks.
     if (grid.getAttribute("data-home-layout") === "stacks") {
       return [...grid.querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
@@ -780,7 +780,6 @@ describe("Home drawn from the person's view", () => {
     storeView(view as string);
     const { container } = renderHome();
     expect(modulesDrawn(container)).toEqual(modules);
-    expect(container.querySelector("[data-home-answer]")).not.toBeNull();
     expect(container.querySelector("[data-material-condition]")?.getAttribute("data-material-condition")).toContain("open-flags");
     expect(container.querySelector("[data-decision-queue]")).not.toBeNull();
     expect(container.querySelector("[data-incident-list]")).not.toBeNull();
@@ -952,7 +951,6 @@ describe("Home — one asset leads with its own numbers", () => {
 });
 
 describe("Home — the answer, the money and what is broken", () => {
-  const answerLine = (container: HTMLElement) => container.querySelector("[data-home-answer] h2");
   const incidentKeys = (container: HTMLElement) =>
     [...container.querySelectorAll("[data-incident-list] [data-incident]")].map((row) => row.getAttribute("data-incident"));
 
@@ -964,14 +962,9 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
     expect(container.querySelector("[data-portfolio-census]")!.textContent).not.toMatch(/portfolio/i);
 
-    const answer = container.querySelector<HTMLElement>("[data-home-answer]")!;
-    expect(answer.querySelector("[data-brief-since]")).toHaveTextContent(/^Good (morning|afternoon|evening) · since .+ · nothing changed$/);
-    expect(answerLine(container)).toHaveTextContent("July so far $45 est. Nothing is broken.");
-    expect(within(answer).queryByRole("link")).toBeNull();
 
     // The audit measures the lead's bottom edge against 900px.
     const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    expect(answer.compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     const money = hero.querySelector<HTMLElement>("[data-money-hero]")!;
     expect(money).toHaveAccessibleName("Revenue, July so far");
     // The month's ledger rows are an estimate, and the figure says so.
@@ -995,48 +988,30 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(screen.getByRole("link", { name: "All assets →" })).toHaveAttribute("href", "/assets");
   });
 
-  it("opens every counted problem from the summary, preserving the Home query", () => {
+  it("opens all retained problems at a bookmarked destination", () => {
     payload.attention = Array.from({ length: 5 }, (_, index) => alert({ id: index + 1, severity: "error" }));
-    const { container } = renderHome("/?period=2026-07");
-    expect(incidentKeys(container)).toHaveLength(3);
-    const link = screen.getByRole("link", { name: "5 things are broken." });
-    expect(link).toHaveAttribute("href", "/?period=2026-07#home-problems");
-    fireEvent.click(link);
+    const { container } = renderHome("/?period=2026-07#home-problems");
     expect(incidentKeys(container)).toHaveLength(5);
     expect(document.activeElement).toBe(container.querySelector("#home-problems"));
   });
 
-  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("opens summary destinations in the %s view without changing its preferences", (view) => {
+  it.each(["overview", "growth", "revenue", "delivery", "reliability"])("opens a bookmarked activity destination in %s without changing preferences", view => {
     storeView(view);
     payload.attention = [alert({ severity: "error" })];
-    const { container } = renderHome();
-    const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
-    fireEvent.click(screen.getByRole("link", { name: "1 thing is broken." }));
-    const problems = container.querySelector("#home-problems");
-    expect(problems).not.toBeNull();
-    expect(document.activeElement).toBe(problems);
-    const changed = screen.getByRole("link", { name: "1 thing changed" });
-    expect(changed).toHaveAttribute("href", "/#home-timeline");
-    fireEvent.click(changed);
-    const timeline = screen.getByRole("region", { name: "Problems and activity" });
+    const { container } = renderHome("/#home-timeline");
+    const timeline = container.querySelector('[data-home-timeline]')!;
     expect(document.activeElement).toBe(timeline);
     expect(timeline.querySelector('[data-span^="alert-1:"]')).not.toBeNull();
-    expect(scroll).toHaveBeenCalledTimes(2);
-    scroll.mockRestore();
     expect(JSON.parse(window.localStorage.getItem(storageKey("view"))!)).toEqual({ view, focus: [] });
   });
 
-  it("includes a hidden asset's counted change at the linked activity destination", () => {
+  it("includes a hidden asset's recent change at a bookmarked activity destination", () => {
     withSecondSite();
     payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "meadow.example": { list: false } } };
     payload.attention = [alert({ severity: "error" })];
-    const { container } = renderHome("/?period=2026-07");
-    const changed = screen.getByRole("link", { name: "1 thing changed" });
-    expect(changed).toHaveAttribute("href", "/?period=2026-07#home-timeline");
-    fireEvent.click(changed);
+    const { container } = renderHome("/?period=2026-07#home-timeline");
     expect(container.querySelector('[data-home-timeline] [data-span="alert-1:meadow.example"]')).not.toBeNull();
     expect(container.querySelectorAll("[data-portfolio-row]")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "1 thing changed" })).toBeInTheDocument();
   });
 
   // On the first days of a month the payload falls back to the latest month
@@ -1045,7 +1020,6 @@ describe("Home — the answer, the money and what is broken", () => {
     payload.portfolio = { ...POPULATED_PORTFOLIO, period: "2026-08", periodIsCurrent: false };
     const { container } = renderHome();
     expect(container.querySelector("[data-money-hero]")).toHaveAccessibleName("Revenue, August so far");
-    expect(answerLine(container)).toHaveTextContent(/^August so far \$45 est\./);
     expect(screen.queryByText("August 2026 · latest month on the ledger")).toBeNull();
   });
 
@@ -1066,14 +1040,12 @@ describe("Home — the answer, the money and what is broken", () => {
     const now = Date.parse("2026-07-29T12:05:00.000Z");
     payload.system = { ...SEEDED_SYSTEM, scheduledLanes: [backupLane(now, 1, backupNight(now, 1))] };
     const oneNight = renderHome();
-    expect(answerLine(oneNight.container)).toHaveTextContent(/Nothing is broken\.$/);
     expect(oneNight.container.querySelector("[data-home-health]")).toBeNull();
     expect(incidentKeys(oneNight.container)).not.toContain("system-backups-failing");
     oneNight.unmount();
 
     payload.system = { ...SEEDED_SYSTEM, scheduledLanes: [backupLane(now, 12, backupNight(now, 12))] };
     const { container } = renderHome();
-    expect(answerLine(container)).toHaveTextContent(/1 thing is broken\.$/);
     expect(incidentKeys(container)).toContain("system-backups-failing");
     const link = container.querySelector('[data-incident="system-backups-failing"] a')!;
     expect(link).toHaveAttribute("href", "/health");
@@ -1091,7 +1063,6 @@ describe("Home — the answer, the money and what is broken", () => {
       }),
     );
     const { container } = renderHome();
-    expect(answerLine(container)).toHaveTextContent("4 things are broken, 3 at risk.");
     const list = container.querySelector<HTMLElement>("[data-incident-list]")!;
     expect(list).toHaveTextContent("4 broken3 at risk");
     expect(incidentKeys(container)).toEqual(["alert-7", "alert-5", "alert-3"]);
@@ -1114,7 +1085,6 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(container.querySelector("[data-home-health]")).toBeNull();
     expect(incidentKeys(container)).toEqual(["source-ga4", "alert-5"]);
     expect(container.querySelector('[data-incident="source-ga4"] a')).toHaveAttribute("href", "/assets/meadow.example/sources");
-    expect(answerLine(container)).toHaveTextContent("1 thing is broken, 1 at risk.");
   });
 
   it("opens an overdue review's task from its problem row", () => {
@@ -1211,13 +1181,11 @@ describe("Home — the answer, the money and what is broken", () => {
     const hidden = renderHome();
     expect(rows(hidden.container).map((row) => row.getAttribute("data-portfolio-row"))).toEqual(["meadow.example", "second.example"]);
     expect(incidentKeys(hidden.container)).toEqual(["alert-9"]);
-    expect(answerLine(hidden.container)).toHaveTextContent("1 thing is broken.");
     hidden.unmount();
 
     payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "old.example": { list: true } } };
     const shown = renderHome();
     expect(rows(shown.container).some(row => row.getAttribute("data-portfolio-row") === "old.example")).toBe(false);
-    expect(answerLine(shown.container)).toHaveTextContent("1 thing is broken.");
   });
 
   // Hiding a site from Home takes its rows away, never its problems: a source
@@ -1235,7 +1203,6 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(container.querySelector("[data-home-health]")).toBeNull();
     expect(container.querySelector('[data-lane="meadow.example"]')).toBeNull();
     expect(incidentKeys(container)).toEqual(expect.arrayContaining(["alert-9", expect.stringMatching(/^source-/u)]));
-    expect(answerLine(container)).toHaveTextContent("2 things are broken.");
     expect(container.querySelector("[data-portfolio-census]")).toHaveTextContent(/^updated 5m ago$/);
   });
 });
@@ -1633,7 +1600,6 @@ describe("Portfolio card with no ledger row at all", () => {
     // No money hero, no revenue tile, no $0, and no estimate word over nothing.
     expect(container.querySelector("[data-money-hero]")).toBeNull();
     expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
-    expect(container.querySelector("[data-home-answer]")!.textContent).not.toContain("$");
     expect(container.textContent).not.toContain("$0");
     expect(screen.queryByText(/· estimated|est\./)).toBeNull();
     // The overview retains one visitor card without a duplicate money lead.

@@ -2675,9 +2675,8 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   // Home over six synthetic sites with collected numbers, so it draws the
   // dashboard rather than the first-run guide.
   await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
-  // Home's answer and Problems summary, which include integration health.
-  await recordDraws(page, `() => document.querySelector("[data-home-answer]") && document.querySelector("[data-incident-list]")
-    ? document.querySelector("[data-home-answer]").innerText + " | " + document.querySelector("[data-incident-list]").innerText : null`);
+  // Problems include integration health in their first completed draw.
+  await recordDraws(page, `() => document.querySelector("[data-incident-list]")?.innerText ?? null`);
   requests.length = 0;
   await page.goto("/");
   await expect(page.locator("[data-home-brief]")).toHaveCount(1);
@@ -3981,8 +3980,9 @@ for (const [jobId, label] of [['panel-refresh', 'Local research summaries'], ['p
       await page.screenshot({ path: testInfo.outputPath(`local-job-pending-${theme}.png`), fullPage: true });
       await assertNoPageOverflow(page);
       finish();
-      await expect(page.getByText('Run completed.', { exact: true })).toBeVisible();
-      await expect(page.getByRole('region', { name: 'Recent runs' }).getByText('Manual', { exact: true })).toBeVisible();
+      const picker = page.getByRole('combobox', { name: 'Run', exact: true });
+      await expect(picker).toHaveValue(`${jobId}@manual/${JOURNEY_NOW}`);
+      await expect(picker.locator('option:checked')).toContainText('Manual');
       await expect(run).toBeEnabled();
       await assertNoPageOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`local-job-complete-${theme}.png`), fullPage: true });

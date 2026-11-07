@@ -20,7 +20,7 @@ export const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "b
  * usual day dashed, and which sites earned it. Raised, because it is the one
  * region the screen leads with.
  */
-export function MoneyHero({ money, yesterday, className, wordLevel = "operational" }: { money: HomeMoney; yesterday: YesterdayTotal | null; className?: string; wordLevel?: WordLevel }) {
+export function MoneyHero({ money, yesterday, className, wordLevel = "operational", assetSharesInTable = false }: { money: HomeMoney; yesterday: YesterdayTotal | null; className?: string; wordLevel?: WordLevel; assetSharesInTable?: boolean }) {
   const month = formatPeriodMonthLong(money.period);
   const total = money.bySite.reduce((sum, site) => sum + site.amount, 0);
   const shareFill = (id: string, index: number) => money.contributors?.find((source) => source.id === id)?.tone ?? SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)]!;
@@ -75,7 +75,7 @@ export function MoneyHero({ money, yesterday, className, wordLevel = "operationa
           showValue={false}
         />
       ) : null}
-      {money.bySite.length >= 2 && total > 0 ? (
+      {!assetSharesInTable && money.bySite.length >= 2 && total > 0 ? (
         <div className="flex flex-col gap-2 border-t border-border/60 pt-4" data-money-by-site="">
           <span className="text-xs font-medium text-muted-foreground">Where {month} came from</span>
           <SegmentBar

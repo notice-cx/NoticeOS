@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "./render";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AlertHistoryRow } from "@shared/alert-history";
 import type { AttentionItem, SnoozedItem, WallPayload } from "@shared/wall";
@@ -652,10 +652,11 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(row.textContent).toMatch(/^Error: /);
   });
 
-  it.each(["/alerts", "/alerts?view=history"])("excludes archived assets from the selector at %s", url => {
+  it.each(["/alerts", "/alerts/history"])("excludes archived assets from the selector at %s", url => {
     const data = payload([alert()]);
     state.data = { ...data, assets: data.assets.map((row, index) => index === 0 ? { ...row, status: "retired" } : row) };
-    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[url]}><AlertsRoute /></MemoryRouter></QueryClientProvider>);
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[url]}><Routes><Route path="/alerts/:tab?" element={<AlertsRoute />} /></Routes></MemoryRouter></QueryClientProvider>);
+    expect(screen.getByLabelText("Asset")).toHaveAttribute("id", url === "/alerts/history" ? "alert-history-asset" : "alerts-asset");
     expect(within(screen.getByLabelText("Asset")).queryByRole("option", { name: "Meadow Board" })).toBeNull();
     expect(within(screen.getByLabelText("Asset")).getByRole("option", { name: "Areas" })).toBeInTheDocument();
   });

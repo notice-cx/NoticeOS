@@ -480,46 +480,19 @@
   background: repeating-linear-gradient(135deg,transparent,transparent 2px,var(--border) 2px,var(--border) 3px);
 }
 
-.journey-inspector {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) auto;
-  gap: 16px;
-  align-items: center;
-  padding: 19px 7px;
-  border-bottom: 1px solid var(--border);
-}
-
-.journey-inspector h3 {
-  margin-top: 4px;
-}
-
-.journey-inspector p {
+.journey-mapping p {
   font-size: .6875rem;
   margin-top: 5px;
 }
 
-.journey-inspector details {
+.journey-mapping {
   font-size: .6875rem;
   color: var(--muted-foreground);
   margin-top: 8px;
 }
 
-.journey-inspector code {
+.journey-mapping code {
   overflow-wrap: anywhere;
-}
-
-.journey-inspector-count {
-  font-size: 1.7rem;
-  letter-spacing: -.025em;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.journey-inspector-count small {
-  display: block;
-  font-size: .6875rem;
-  letter-spacing: 0;
-  color: var(--muted-foreground);
 }
 
 .journey-scope {
@@ -1127,19 +1100,6 @@
 
   .journey-summary-count>span {
     max-width: 135px;
-  }
-
-  .journey-inspector {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .journey-inspector-count {
-    text-align: left;
-    display: flex;
-    align-items: baseline;
-    gap: 9px;
-    font-size: 1.45rem;
   }
 
   .journey-scope {

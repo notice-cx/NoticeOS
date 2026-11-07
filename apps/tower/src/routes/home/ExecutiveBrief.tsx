@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Layers3, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PropertyFavicon } from '@/components/PropertyFavicon';
@@ -29,11 +29,10 @@ function actionDestination(href: string): string | null {
   return null;
 }
 
-export function ExecutiveBrief({ read, readFailed = false, fallback, assets = [] }: { read?: PortfolioBriefRead; readFailed?: boolean; fallback: ReactNode; assets?: readonly BriefAsset[] }) {
+export function ExecutiveBrief({ read, readFailed = false, assets = [] }: { read?: PortfolioBriefRead; readFailed?: boolean; assets?: readonly BriefAsset[] }) {
   const brief = read?.briefing;
   const [paused, setPaused] = useState(false);
   if (!brief || brief.result.insights.length === 0) return <>
-    {fallback}
     {!brief && read?.state === 'disconnected' ? <p className="text-sm text-muted-foreground"><Link to="/integrations?connect=local-model" className="underline underline-offset-4">Connect a model</Link> for an executive briefing.</p>
       : !brief && (readFailed || read?.state === 'unavailable') ? <p className="text-sm text-muted-foreground">Briefing unavailable.</p> : null}
   </>;

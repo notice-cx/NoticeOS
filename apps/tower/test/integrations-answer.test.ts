@@ -14,7 +14,6 @@ describe("the Integrations page's one answer", () => {
   it("counts a working connection that fails on an asset as needing you", () => {
     expect(integrationsAnswer([
       { name: "Google", shown: shown("working", 1) },
-      { name: "Bing", shown: shown("overdue") },
       { name: "PostHog", shown: shown("working") },
     ]).mark).toBe("problem");
   });

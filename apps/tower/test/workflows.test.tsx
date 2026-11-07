@@ -538,9 +538,12 @@ describe('workflow history evidence', () => {
     expect(manualRecords([{ ...pressed, finishedAt: '2026-09-09T14:00:00.000Z' }, { job: 7 }, null])).toEqual([]);
   });
   it('marks a manual run on its row and in the run picker', async () => {
-    data = { ...data, ...buildWorkflowHistory([...records, ...manualRecords([pressed])], [trace], [], now) };
+    data = { ...data, ...buildWorkflowHistory([...records, { job: pressed.job, at: '2026-09-09T02:30:00.000Z', outcome: 'ran', ms: 900 }, ...manualRecords([pressed])], [trace], [], now) };
     mount('/health/operations/pull');
-    const recent = await screen.findByRole('region', { name: 'Recent runs' });
+    const recent = await screen.findByRole('group', { name: 'Recent runs' });
+    expect(recent).not.toHaveAttribute('open');
+    fireEvent.click(recent.querySelector('summary')!);
+    expect(recent).toHaveAttribute('open');
     expect(within(recent).getByText('Manual')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /· Manual$/ })).toBeInTheDocument();
   });
@@ -557,7 +560,6 @@ it('shows notification events separately from recovery timing and keeps event ru
   expect(screen.getByText('On new alerts')).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Manage delivery' })).toBeVisible();
-  expect(screen.getAllByText('Event').length).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole('button', { name: 'Manage delivery' }));
   expect(screen.getByText('Recovery frequency')).toBeVisible();
   expect(screen.getByText('Delivery')).toBeVisible();

@@ -243,6 +243,14 @@ Apply this to generated copy as well as interface copy, and review the whole
 screen at desktop and phone widths. Repeated labels needed to identify a
 separate control or accessible name do not justify repeating a business claim.
 
+**Give each set of data one primary component.** Compare neighboring cards,
+charts, tables and summaries by subject, measure and reporting period. Combine
+or remove components that repeat the same data without adding a comparison,
+relationship or action. A different chart shape alone does not add information.
+Place supporting readbacks and methods under Details; keep material failures,
+missing-data states and action controls visible. Review the complete screen,
+including purpose views and empty states, rather than each component alone.
+
 **Annotate in place.** Put labels on the marks instead of in a legend: the
 newest value at the line's end, a named reference point ("Busiest day · Jul 11
 · $42"), shaded bands for an outage, a measurement window or a usual range, a
@@ -356,12 +364,10 @@ data.
 
 ## Surfaces, as built
 
-**`PageAnswer`** is at the top of every index page and asset tab: one summary
-sentence at the display size, a muted detail line and at most three figures (a
-small label over a number) beside it, in place of a strip of equal boxes. "2
-open alerts, both warnings" over the alert list; "1 of 7 assets at risk",
-naming them, over the comparison table; "September net +$135 so far" over the
-money chart.
+**`PageAnswer`** groups a useful page-level conclusion with at most three
+supporting figures beside it, in place of a strip of equal boxes. Include a
+detail line only when it adds information. Omit the summary when the page's
+primary component already presents the same conclusion or data.
 
 **`FinishLine`** is the last line of a list short enough to read to the end:
 "That's every open alert" and how old the data is. On an empty queue it is the
@@ -389,14 +395,12 @@ independent of purpose. Search (⌘K) lists every page and the other four views.
 The Wall and its editor use an independent layout and have no View bar.
 
 **Home shows how the business is doing, what is broken and what needs the
-operator's attention**, in that order, each as a chart or graphic. A small muted label
-holds the greeting, the time since the operator last looked and how many
-things changed in that time; under it one sentence summarises where the month
-is heading and what is broken. The month's money is the main figure
+operator's attention**, in that order, each as a chart or graphic. The month's money is the main figure
 (`MoneyHero`: the month so far as the largest figure on the screen, its
 projected total against last month's total on a `PaceBar`, the month's days as
-a `BarStrip`, yesterday's reported revenue and which assets the revenue came
-from). Visitors in the last 28 days is a `StatTile` in the overview group. Its figure
+a `BarStrip` and yesterday's reported revenue). Asset revenue shares appear in
+Portfolio rows; the hero includes a separate breakdown only when those rows
+are absent or omit revenue-producing assets. Visitors in the last 28 days is a `StatTile` in the overview group. Its figure
 sums reported daily counts over 28 calendar days ending at the newest settled
 reading; provisional days are excluded and missing days remain gaps. Home's
 visitor and revenue bars are stacked by asset with matching colour legends. With no revenue source anywhere,
@@ -417,7 +421,7 @@ column, two from about 768 px of content, twelve from about 1150 px, so a
 narrow window or a portrait monitor gets a layout made for it instead of a
 squeezed desktop one.
 
-**Home's executive briefing** precedes the modules when a saved result contains useful findings. One full-width component shows one finding and its next action, with supporting observations and reasoning under **Details**. There is no separate overall headline or summary. Cited sources identify the assets whose icons appear beside a finding; findings without an asset-specific source use a portfolio icon. Up to three findings rotate every 7 seconds; vertical dots select a finding and pause rotation. **Pause rotation** and **Resume rotation** control automatic changes. Rotation pauses during interaction, while Details is open and while the page is hidden; reduced-motion preferences disable automatic changes. The full briefing can contain 360 words. Time context appears in the narrative. One contextual action link can open the relevant page; source inventories, model metadata and routine timestamps do not appear. The model receives a bounded packet covering finance, acquisition, product performance, delivery, measured outcomes and operational health. Recent observations can support judgment across these areas without a prescribed finding pattern. Missing evidence and unchanged revenue concentration do not establish insights. An empty result uses Home's observed summary. Failed refreshes retain useful prior guidance with a concise warning; outdated results are labelled. Reading Home never starts generation or delays the first screen. When no model is connected, Home also shows a **Connect a model** link. First-run setup remains separate.
+**Home's executive briefing** precedes the modules when a saved result contains useful findings. One full-width component shows one finding and its next action, with supporting observations and reasoning under **Details**. There is no separate overall headline or summary. Cited sources identify the assets whose icons appear beside a finding; findings without an asset-specific source use a portfolio icon. Up to three findings rotate every 7 seconds; vertical dots select a finding and pause rotation. **Pause rotation** and **Resume rotation** control automatic changes. Rotation pauses during interaction, while Details is open and while the page is hidden; reduced-motion preferences disable automatic changes. The full briefing can contain 360 words. Time context appears in the narrative. One contextual action link can open the relevant page; source inventories, model metadata and routine timestamps do not appear. The model receives a bounded packet covering finance, acquisition, product performance, delivery, measured outcomes and operational health. Recent observations can support judgment across these areas without a prescribed finding pattern. Missing evidence and unchanged revenue concentration do not establish insights. An empty result leaves the observed metrics and problem list as the primary components. Failed refreshes retain useful prior guidance with a concise warning; outdated results are labelled. Reading Home never starts generation or delays the first screen. When no model is connected, Home also shows a **Connect a model** link. First-run setup remains separate.
 
 **Home is drawn from modules, in the order the person's view lists them**
 (`HOME_MODULES`, `routes/home/modules.tsx`). Overview shows the combined
@@ -447,11 +451,6 @@ own column span and the grid fills available space.
   the assets lack as a business, ranked: no income source, no data feeds, no
   task project, no code report, then the newest readings' opportunities. Each
   row's "Make a task" opens the task composer with the row as its title.
-- **In Reliability the summary sentence starts with the assets'
-  health**: "All 3 assets are fine.", or "2 of 3 assets are fine." and the asset
-  most in need of a look with its first problem, red when that asset is down
-  and amber otherwise. The count of broken things is drawn only when there
-  is one.
 
 **An asset's Overview starts with the asset's health**: the header shows one
 health word (`siteHealth` in `lib/site-health.ts`, the same calculation Home,
@@ -488,9 +487,8 @@ from the files as a `KpiStrip`, the three checks the asset's own workflow sends
 ("Build", "Tests", "Vulnerable packages") as a second strip under it, where a
 failed check is red and a pass shows how many of 30 days' reports passed,
 then lines of code over time and the findings as `ListPanel`s, each row with
-"Make a task". Health: the five facts of Home's Asset health as five large
-words in a row of buttons, each opening the readings behind it in a panel
-under the row, and "Not measured yet" with the link that connects the missing
+"Make a task". Health: one card per technical fact, with its status, reason and
+observation date visible. Expanding a card displays its readings in place, and "Not measured yet" with the link that connects the missing
 reading, so a missing reading shows the step that adds it. Settings is a form: one
 column of panels at the width `/settings` uses.
 

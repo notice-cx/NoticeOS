@@ -7,7 +7,7 @@ import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
-import type { HomeModuleId, ViewId, WordLevel } from "@shared/views";
+import type { HomeModuleId } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
@@ -41,14 +41,12 @@ import { useWallFeed } from "@/hooks/useWallFeed";
 import { useTasksLive } from "@/hooks/useTasks";
 import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
-import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
+import { formatInt, formatSeriesDate, formatUsd } from "@/lib/format";
 import { AGENTS_ROUTE } from "@/components/nav-items";
-import { agentsWeek } from "@/lib/agents-week";
-import { greeting, peopleInLast28Days } from "@/lib/home-brief";
+import { peopleInLast28Days } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
 import { siteHealth } from "@/lib/site-health";
-import { rowFacts, techHealth, techHealthSummary } from "@/lib/tech-health";
 import { cn } from "@/lib/utils";
 import { incidentsFromIssues, timelineFromWall } from "@/lib/viz-adapters";
 import { weekOnWeek } from "@/lib/sites-index";
@@ -58,7 +56,7 @@ import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
 import { portfolioIssues, issueDestination } from "@/lib/portfolio-issues";
 import { SiteLead } from "@/routes/asset-detail/SiteLead";
 import { ClockProposal } from "@/routes/home/ClockProposal";
-import { ChannelsModule, channelShares } from "@/routes/home/ChannelsModule";
+import { ChannelsModule } from "@/routes/home/ChannelsModule";
 import { FactoryModule } from "@/routes/home/FactoryModule";
 import { GapsModule } from "@/routes/home/GapsModule";
 import { HealthModule } from "@/routes/home/HealthModule";
@@ -115,7 +113,6 @@ export function HomeRoute() {
 
 // --- the board ----------------------------------------------------------------
 
-const usd = (value: number) => formatUsd(value);
 const cents = (value: number) => formatUsd(value, { cents: true });
 const DAY_MS = 86_400_000;
 
@@ -125,7 +122,6 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   // A task draft belongs to Home, so changing its purpose keeps the form open.
   const [taskDraft, setTaskDraft] = useState<TaskComposerPrefill | null>(null);
   const location = useLocation();
-  const work = useWork();
   const linkedModule = location.hash === "#home-problems" ? "problems" : location.hash === "#home-timeline" ? "timeline" : null;
   // A summary link can reveal a section omitted by the saved view without
   // changing the person's preferences.
@@ -159,7 +155,6 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     (feed?.items ?? []).filter((item) => item.asset === null || !aboutHidden([item.asset])),
     sitePath,
   );
-  const changed = recentIssues.length + timeline.events.length;
   // What the materiality suite reads: every open condition Home stands for, so
   // a problem the Wall lists is drawn here too.
   const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
@@ -169,7 +164,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const draw: Record<HomeModuleId, () => ReactNode> = {
     money: () => money || !visitorsInOverview ? (
       <div className={cn("@3xl:col-span-2", stacks ? "@6xl:col-span-8" : "@6xl:col-span-12")} data-surface-hero="">
-        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs, data.osTimeZone)} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
+        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs, data.osTimeZone)} wordLevel={view.wordLevel} assetSharesInTable={shownModules.includes("sites") && money.bySite.every(site => listed.some(asset => asset.id === site.id))} /> : <PeopleLead assets={data.assets} />}
       </div>
     ) : null,
     yesterday: () => (
@@ -222,96 +217,10 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     // monitor or a narrow window all leave Home less than the viewport, and
     // the twelve columns need room to be twelve.
     <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
-      <ExecutiveBrief read={brief.data} readFailed={brief.isError} assets={data.assets} fallback={<Answer
-        money={money}
-        issues={issues}
-        since={since}
-        changed={changed}
-        nowMs={nowMs}
-        purpose={view.id}
-        lead={purposeWords(view.id, listed, issues, work.data ?? null, nowMs)}
-        wordLevel={view.wordLevel}
-      />} />
+      <ExecutiveBrief read={brief.data} readFailed={brief.isError} assets={data.assets} />
       <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
       {taskDraft ? <TaskComposer open prefill={taskDraft} onClose={() => setTaskDraft(null)} /> : null}
     </div>
-  );
-}
-
-/** The sites' technical health in a sentence or two: how many are fine, then
- * the one most in need of a look and why. Null while no site is measured. */
-export function healthWords(cards: readonly AssetCard[], issues: readonly WallIssue[], nowMs: number | null = null): { words: string; tone: "error" | "warn" | null } | null {
-  const { fine, measured, lead } = techHealthSummary(cards, issues, nowMs);
-  if (measured === 0) return null;
-  const only = measured === 1 ? cards.find((card) => techHealth(card, issues, nowMs).key !== "unknown") : undefined;
-  const count = lead === null
-    ? only
-      ? `${only.displayName} is fine.`
-      : `All ${formatInt(measured)} assets are fine.`
-    : `${formatInt(fine)} of ${formatInt(measured)} ${measured === 1 ? "asset is" : "assets are"} fine.`;
-  if (lead === null) return { words: count, tone: null };
-  const facts = rowFacts(lead.health);
-  const worst = facts.find((fact) => fact.state === "bad" && fact.note) ?? facts.find((fact) => fact.note);
-  const note = worst?.note ? `: ${worst.note.charAt(0).toLowerCase()}${worst.note.slice(1)}` : ` is ${lead.health.word.toLowerCase()}`;
-  return { words: `${count} ${lead.card.displayName}${note}.`, tone: lead.health.key === "trouble" ? "error" : "warn" };
-}
-
-/** Summaries use the same observed selectors as the modules below them. */
-function purposeWords(purpose: ViewId, cards: readonly AssetCard[], issues: readonly WallIssue[], work: WorkPayload | null, nowMs: number): { words: string; tone: "error" | "warn" | null } | null {
-  if (purpose === "reliability") return healthWords(cards, issues, nowMs) ?? { words: "Asset health has not been measured yet.", tone: null };
-  if (purpose === "growth") {
-    const people = peopleInLast28Days(cards);
-    const channel = channelShares(cards)?.[0];
-    const visitors = people ? `${formatInt(people.total)} visitors in the last 28 days${people.partial.length > 0 ? " · partial reporting" : ""}.` : "Visitors have not been reported yet.";
-    return { words: `${visitors}${channel ? ` ${channel.channel} accounts for ${formatPercent(channel.share * 100)}% of reported sessions.` : ""}`, tone: null };
-  }
-  if (purpose === "delivery") {
-    const week = agentsWeek(cards, work, nowMs);
-    const building = week.building === null ? "Work in progress has not been counted yet." : `${formatInt(week.building)} ${week.building === 1 ? "task" : "tasks"} in progress.`;
-    const finished = week.shipped === null ? "Finished work this week has not been counted yet." : `${formatInt(week.shipped)} finished this week.`;
-    return { words: `${building} ${finished}`, tone: null };
-  }
-  return null;
-}
-
-/** The selected purpose's summary, followed by every open problem. */
-function Answer({ money, issues, since, changed, nowMs, purpose, lead, wordLevel = "technical" }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; purpose: ViewId; lead: { words: string; tone: "error" | "warn" | null } | null; wordLevel?: WordLevel }) {
-  const { search } = useLocation();
-  const errors = issues.filter((issue) => issue.severity === "error").length;
-  const warnings = issues.length - errors;
-  const month = money ? formatPeriodMonthLong(money.period) : null;
-  const previous = money?.previousPeriod ? formatPeriodMonthLong(money.previousPeriod) : null;
-  const moneyWords = !money || month === null
-    ? null
-    : money.projected !== null
-      ? `${month} is projected at ${usd(money.projected)}${money.changePercent !== null && previous ? `, ${formatPercent(Math.abs(money.changePercent))}% ${money.changePercent < 0 ? "under" : "over"} ${previous}` : ""}.`
-      : money.soFar !== null
-        ? `${month} so far ${usd(money.soFar)}${money.estimated && wordLevel !== "business" ? " est." : "."}`
-        : null;
-  const problemWords = errors === 0 && warnings === 0
-    ? "Nothing is broken."
-    : `${errors > 0 ? `${formatInt(errors)} ${errors === 1 ? "thing is" : "things are"} broken` : ""}${errors > 0 && warnings > 0 ? ", " : ""}${warnings > 0 ? `${formatInt(warnings)} at risk` : ""}.`;
-  const summaryLinkClass = "underline decoration-current/30 underline-offset-4 outline-none hover:decoration-current focus-visible:ring-2 focus-visible:ring-ring";
-  const problems = issues.length > 0 ? <Link to={{ search, hash: "#home-problems" }} className={summaryLinkClass}>{problemWords}</Link> : problemWords;
-  return (
-    <header className="flex flex-col gap-1" data-home-answer="">
-      <span className="text-sm text-muted-foreground" data-brief-since="">
-        {greeting(nowMs)}
-        {since ? (
-          <>
-            {" · since "}
-            <time dateTime={since} title={formatTimestamp(since)}>{sinceClock(since, nowMs)}</time>
-          </>
-        ) : null}
-        {" · "}
-        {changed === 0 ? "nothing changed" : <Link to={{ search, hash: "#home-timeline" }} className={summaryLinkClass}>{`${formatInt(changed)} ${changed === 1 ? "thing" : "things"} changed`}</Link>}
-      </span>
-      <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]" data-home-answer-health={purpose === "reliability" ? "" : undefined} data-home-purpose={purpose}>
-        {lead ? <span className={lead.tone === "error" ? "text-error" : lead.tone === "warn" ? "text-warn" : undefined}>{lead.words} </span> : null}
-        {purpose === "overview" || purpose === "revenue" ? <span>{moneyWords ?? (purpose === "revenue" ? "Revenue has not been reported yet." : "")} </span> : null}
-        {purpose !== "reliability" || issues.length > 0 ? <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problems}</span> : null}
-      </h2>
-    </header>
   );
 }
 

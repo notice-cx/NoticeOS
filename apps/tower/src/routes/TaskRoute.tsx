@@ -326,7 +326,6 @@ export function TaskRoute() {
             {/* The page's one content card, its sections divided inside it;
                 the facts beside it are a rail, not a second box. */}
             <Card className="viz-arrive min-w-0 divide-y divide-border/70 shadow-raised lg:col-start-1 lg:row-start-1" style={{ "--viz-i": 1 } as CSSProperties} data-task-content="">
-              {view.id !== "overview" ? <div className={CONTENT_SECTION}><TaskViewContext tasks={[{ ...task, card: task.cardShipped?.card ?? readTaskCardShipped(task.metadata)?.card ?? task.card ?? readTaskCard(task.metadata), project: project ?? "", ready: false }]} decision /></div> : null}
               {taskSectionOrder(view.id).map(section => <Fragment key={section}>{({
                 body: <Body task={task} nowMs={now} />,
                 dependencies: blockers.length > 0 || blocked.length > 0 ? <Dependencies task={task} blockers={blockers} blocked={blocked} /> : null,

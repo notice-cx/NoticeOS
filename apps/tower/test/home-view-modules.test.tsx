@@ -182,8 +182,7 @@ describe("Home's combined revenue card", () => {
   });
 });
 
-/** The board's grid: the second child of the brief, under the answer. */
-const grid = (container: HTMLElement) => container.querySelector("[data-home-brief]")!.children[1]!;
+const grid = (container: HTMLElement) => container.querySelector("[data-home-layout]")!;
 
 /** The modules in the order drawn, read off each region's own marker; a
  * stacked column contributes its members in order. */
@@ -260,8 +259,6 @@ describe("the views draw their modules", () => {
     const visitors = overview.querySelector("[data-home-visitors]")!;
     expect(visitors).not.toHaveClass("h-full", "self-stretch");
     expect(container.querySelector("[data-home-module]")).toBeNull();
-    expect(container.querySelector("[data-home-answer-health]")).toBeNull();
-    expect(container.querySelector("[data-home-answer] h2")!.textContent).toBe("October so far $45 est. Nothing is broken.");
   });
 
   it.each([
@@ -290,20 +287,6 @@ describe("the views draw their modules", () => {
     ]);
   });
 
-  it("leads Reliability with measured asset health without adding financial figures", () => {
-    storeView("reliability");
-    state.payload = wall([
-      healthy("first.example.com", { displayName: "First Asset" }),
-      healthy("second.example.com", { displayName: "Second Asset", product: product({ speed: "fired" }) }),
-      card("third.example.com", { status: "pre-launch" }),
-    ]);
-    const { container } = renderHome();
-    const answer = container.querySelector("[data-home-answer-health]")!;
-    expect(answer.textContent?.trim()).toBe("1 of 2 assets are fine. Second Asset: slow for 1 in 4 visitors.");
-    expect(answer.firstElementChild).toHaveClass("text-warn");
-    expect(answer).not.toHaveTextContent("October");
-  });
-
   it("names an asset whose nightly report is late, and never calls it fine", () => {
     storeView("reliability");
     state.payload = wall([
@@ -311,7 +294,6 @@ describe("the views draw their modules", () => {
       healthy("second.example.com", { displayName: "Second Asset" }),
     ]);
     const { container } = renderHome();
-    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^1 of 2 assets are fine\. Brief Asset: no report for 2 days\./);
     const row = container.querySelector<HTMLElement>('[data-site-health-row="brief.example.com"]')!;
     expect(row).toHaveAttribute("data-tech-health", "watch");
     expect(row.querySelector("[data-site-health-note]")!.textContent).toBe("No report for 2 days");
@@ -323,34 +305,6 @@ describe("the views draw their modules", () => {
     const { container } = renderHome();
     expect(container.querySelector("[data-money-figure]")!.textContent).toBe("$45est.");
     expect(container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
-    expect(container.querySelector("[data-home-answer] h2")!.textContent).toMatch(/^October so far \$45 est\. /);
-  });
-
-  it("leads Growth with observed visitor and channel counts", () => {
-    storeView("growth");
-    state.payload = wall([healthy("first.example.com", {
-      activeUsers: clicks(10),
-      channels: { windowStart: "2026-09-21", windowEnd: "2026-10-18", rows: [{ channel: "Organic Search", sessions: 60, share: 0.6 }, { channel: "Direct", sessions: 40, share: 0.4 }] },
-    })]);
-    const { container } = renderHome();
-    const answer = container.querySelector('[data-home-purpose="growth"]')!;
-    expect(answer).toHaveTextContent("280 visitors in the last 28 days.");
-    expect(answer).toHaveTextContent("Organic Search accounts for 60% of reported sessions.");
-    expect(answer).not.toHaveTextContent("October");
-  });
-
-  it("keeps unreported Growth, Delivery and Reliability readings unknown", () => {
-    state.payload = wall([card("first.example.com")]);
-    for (const [view, words] of [
-      ["growth", "Visitors have not been reported yet."],
-      ["delivery", "Work in progress has not been counted yet. Finished work this week has not been counted yet."],
-      ["reliability", "Asset health has not been measured yet."],
-    ]) {
-      storeView(view!);
-      const result = renderHome();
-      expect(result.container.querySelector("[data-home-answer] h2")).toHaveTextContent(words!);
-      result.unmount();
-    }
   });
 
   it("preserves an open gap task draft when the purpose changes", async () => {
@@ -367,17 +321,10 @@ describe("the views draw their modules", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Title" }), { target: { value: "Keep this draft" } });
     fireEvent.click(screen.getByRole("button", { name: "Switch to Revenue" }));
-    expect(container.querySelector('[data-home-purpose="revenue"]')).not.toBeNull();
+    expect(container.querySelector('[data-money-hero]')).not.toBeNull();
     expect(container.querySelector("[data-home-gaps]")).toBeNull();
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(within(dialog).getByRole("textbox", { name: "Title" })).toHaveValue("Keep this draft");
-  });
-
-  it("reports measured healthy assets in Reliability", () => {
-    storeView("reliability");
-    state.payload = wall([healthy("first.example.com"), healthy("second.example.com")]);
-    const { container } = renderHome();
-    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^All 2 assets are fine\./);
   });
 });
 

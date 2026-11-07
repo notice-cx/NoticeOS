@@ -17,7 +17,7 @@ it('shows empty activity once and keeps the task action without empty model pane
   render(<MemoryRouter><AgentsRoute /></MemoryRouter>);
   expect(screen.queryByRole('region', { name: 'Ranking' })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Velocity' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('rowheader')).not.toBeInTheDocument();
+  expect(document.querySelector('[data-agent-rows]')).toBeNull();
   expect(screen.getByRole('link', { name: 'Review tasks →' })).toHaveAttribute('href', '/tasks');
 });
 
@@ -54,6 +54,6 @@ it('prioritizes blocked work and keeps every chart and outcome evidence accessib
   expect(screen.getByRole('region', { name: 'Ranking' })).toBeInTheDocument();
   state.view = 'revenue';
   page.rerender(<MemoryRouter><AgentsRoute /></MemoryRouter>);
-  expect(panels.querySelector('[data-agent-evidence]')).toBeNull();
+  expect(page.container.querySelector('section[data-agent-evidence]')).toBeNull();
   expect(screen.getByRole('link', { name: 'View recorded financials →' })).toHaveAttribute('href', '/financials');
 });

@@ -36,7 +36,7 @@ function netClass(value: number | null): string {
  * Where the money is, site by site, ranked by what each earned: its revenue
  * with its change, its slice of the month, its direct cost and net, and its
  * net month by month. Overhead is its own row, allocated to no site, and the
- * last row is the month's net. One site with nothing shared draws nothing:
+ * net total reconciles the rows when overhead is present. One site with nothing shared draws nothing:
  * every row would equal its total.
  */
 export function SiteMoneyRows({
@@ -98,7 +98,7 @@ export function SiteMoneyRows({
             ruled={!subtotal}
           />
         ) : null}
-        <SummaryRow label="Total net" figure={portfolio} mark="total" strong large ruled />
+        {overheadExists ? <SummaryRow label="Total net" figure={portfolio} mark="total" strong large ruled /> : null}
       </div>
     </section>
   );
@@ -145,6 +145,7 @@ function SiteRow({ row, index, period, openPeriod, view }: { row: SiteMoneyRow; 
           </span>
         )}
         {change ? <Change change={change} /> : null}
+        {share !== null ? <span className="text-micro text-muted-foreground @5xl:hidden">{formatPercent(share * 100)}% of month’s revenue</span> : null}
         <span className={cn("text-micro whitespace-nowrap @lg:hidden", netClass(figure.net))}>
           net {formatSignedMoney(figure.net, figure.currency, CENTS)}
         </span>

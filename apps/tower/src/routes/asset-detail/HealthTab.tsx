@@ -1,4 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
+import { ChevronRight } from 'lucide-react';
 import { Link } from "react-router-dom";
 import type { HygieneReading, HygieneStatus } from "@shared/asset-detail";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
@@ -18,22 +19,13 @@ import { fourWeeks } from "@/lib/wall-sites";
 import { FACT_LABEL } from "@/routes/home/HealthModule";
 import { tabPath } from "./AssetTabs";
 import { alignedSeries, seriesOf } from "./codebase-measures";
-import { Hero, Panel } from "./shared";
+import { Hero } from "./shared";
 
-/**
- * A site's Health tab: the five facts Home's site-health grid draws as dots,
- * here as one row of large words, then every fact's evidence as a panel in the
- * same order, drawn without a press. A word's press scrolls to its panel and
- * marks it. The facts come from the site's card in the Wall's read
- * (`techHealth`), the same calculation Home and the TV use, so the three can
- * never disagree; the evidence comes from this tab's own read.
- */
+/** Each health fact owns its status and expandable readings in one card. */
 export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; nowMs: number }) {
   const wall = useWall();
   const { view } = useView();
   const issues = useSiteIssues();
-  const [selected, setSelected] = useState<TechFactKey | null>(null);
-  const baseId = useId();
   const card = wall.data?.assets.find((candidate) => candidate.id === data.asset.id) ?? null;
 
   if (!card) {
@@ -54,98 +46,36 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
     reliability: ["reachable", "errors", "speed", "code", "search"],
   };
   const facts = prioritize(health.facts, priority[view.id] ?? []);
-  const panelId = (key: TechFactKey) => `${baseId}-${key}`;
-  const select = (key: TechFactKey) => {
-    const next = selected === key ? null : key;
-    setSelected(next);
-    if (next === null) return;
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    document.getElementById(panelId(next))?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "start" });
-  };
-
   return (
-    <div className="flex flex-col gap-5" data-health-tab={health.key}>
-      <Hero>
-        <section aria-label="Asset health" className="flex flex-col gap-3">
-          {health.report ? (
-            <p className="m-0 text-sm text-warn" data-health-report="">
-              {health.report.note} · the readings below may be older
-            </p>
-          ) : null}
-          <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-5">
-            {facts.map((fact) => (
-              <li key={fact.key} className="min-w-0">
-                <FactButton
-                  fact={fact}
-                  asOf={asOf(fact.key, card)}
-                  pressed={selected === fact.key}
-                  controls={panelId(fact.key)}
-                  onPress={() => select(fact.key)}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      </Hero>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {facts.map((fact) => (
-          <div
-            key={fact.key}
-            id={panelId(fact.key)}
-            className={cn("min-w-0 scroll-mt-4 rounded-[10px]", selected === fact.key && "ring-2 ring-ring")}
-            data-health-evidence={fact.key}
-            data-selected={selected === fact.key ? "" : undefined}
-          >
-            <Panel title={FACT_LABEL[fact.key]} count={fact.word} className="h-full">
-              <Evidence fact={fact} card={card} data={data} nowMs={nowMs} />
-            </Panel>
-          </div>
-        ))}
+    <div className="flex flex-col gap-5" data-health-tab={health.key} data-surface-hero="">
+      {health.report ? <p className="m-0 text-sm text-warn" data-health-report="">
+        {health.report.note} · the readings below may be older
+      </p> : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {facts.map(fact => <FactCard key={fact.key} fact={fact} card={card} data={data} nowMs={nowMs} />)}
       </div>
     </div>
   );
 }
 
-function FactButton({
-  fact,
-  asOf,
-  pressed,
-  controls,
-  onPress,
-}: {
-  fact: TechFact;
-  asOf: string | null;
-  pressed: boolean;
-  controls: string;
-  onPress: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      aria-controls={controls}
-      onClick={onPress}
-      data-health-fact={fact.key}
-      data-fact-state={fact.state}
-      className={cn(
-        "flex h-full w-full flex-col items-start gap-1 rounded-[10px] border bg-card p-4 text-start outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-colors",
-        pressed ? "border-foreground/40" : "border-border",
-        fact.state === "unknown" && "border-dashed",
-      )}
-    >
-      <span className="text-xs text-muted-foreground">{FACT_LABEL[fact.key]}</span>
-      <span
-        className={cn(
-          "text-figure-sm",
-          fact.state === "bad" ? "text-error" : fact.state === "warn" ? "text-warn" : fact.state === "unknown" ? "text-muted-foreground" : "text-foreground",
-        )}
-      >
-        {fact.word}
-      </span>
+function FactCard({ fact, card, data, nowMs }: { fact: TechFact; card: AssetCard; data: AssetDetailFor<"health">; nowMs: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const evidenceId = useId();
+  const observed = asOf(fact.key, card);
+  const label = fact.key === 'reachable' ? 'Availability' : FACT_LABEL[fact.key];
+  return <section aria-label={label} className={cn('min-w-0 self-start overflow-hidden rounded-[10px] border border-border bg-card', fact.state === 'unknown' && 'border-dashed')} data-health-card={fact.key}>
+    <button type="button" aria-expanded={expanded} aria-controls={evidenceId} onClick={() => setExpanded(open => !open)}
+      data-health-fact={fact.key} data-fact-state={fact.state}
+      className="flex w-full flex-col items-start gap-1 p-4 text-start outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+      <span className="flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">{label}<ChevronRight aria-hidden className={cn('size-3.5 motion-safe:transition-transform', expanded && 'rotate-90')} /></span>
+      <span className={cn('text-figure-sm', fact.state === 'bad' ? 'text-error' : fact.state === 'warn' ? 'text-warn' : fact.state === 'unknown' ? 'text-muted-foreground' : 'text-foreground')}>{fact.word}</span>
       {fact.note ? <span className="text-xs text-foreground">{fact.note}</span> : null}
-      {asOf ? <span className="text-xs text-muted-foreground">as of {asOf}</span> : null}
+      {observed ? <span className="text-xs text-muted-foreground">as of {observed}</span> : null}
     </button>
-  );
+    <div id={evidenceId} hidden={!expanded} data-health-evidence={expanded ? fact.key : undefined} className="border-t border-border px-4 py-3">
+      {expanded ? <Evidence fact={fact} card={card} data={data} nowMs={nowMs} /> : null}
+    </div>
+  </section>;
 }
 
 /** The day the reading behind a fact was taken, when one was. */

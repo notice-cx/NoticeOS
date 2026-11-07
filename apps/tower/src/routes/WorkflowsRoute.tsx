@@ -61,7 +61,8 @@ export function workflowsAnswer(states: readonly WorkflowState[], noun: string):
 
 function WorkflowsAnswer({ states, noun, view }: { states: readonly WorkflowState[]; noun: string; view: ViewId }) {
   const answer = workflowsAnswer(states, noun);
-  return <PageAnswer answer={answer.answer} detail={answer.detail || undefined} figures={workflowViewFigures(view, states)} marks={{ 'data-workflows-answer': answer.mark }} />;
+  const figures = workflowViewFigures(view, states);
+  return <PageAnswer answer={answer.answer} detail={figures.length === 0 ? answer.detail || undefined : undefined} figures={figures} marks={{ 'data-workflows-answer': answer.mark }} />;
 }
 
 function NextRun({ workflow, data, showCadence = true }: { workflow: WorkflowDefinition; data: WorkflowsPayload; showCadence?: boolean }) {
@@ -285,9 +286,9 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         {selected ? <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground tabular-nums">{selected.state === 'running' && (!data.runtimeFresh || !data.observationsFresh) ? <WorkflowStateLabel state="unknown" label="Progress unconfirmed" /> : null}<span>Duration {workflowDuration(selected.startedAt, selected.finishedAt)}</span><span>{selected.definitionVersion ? `Version ${selected.definitionVersion}` : 'Version unavailable'}</span></div> : runId ? query.isPlaceholderData ? <p role="status" data-status-for={`workflow-run:${runId}`} className="text-sm text-muted-foreground">Loading execution…</p> : <p className="text-sm text-warn">This run is not in the retained execution history.</p> : null}
         <WorkflowStages key={selected?.id ?? 'definition'} definition={definition} run={selected ?? null} fresh={data.runtimeFresh && data.observationsFresh} summarizedFailure={failedStep ? { id: failedStep.id, attempt: failedStep.attempt } : undefined} />
       </section></ExecutionContainer>
-      <section className="space-y-3" aria-label="Recent runs"><div className="flex items-center justify-between"><h2 className="text-base font-semibold">Recent runs</h2><span className="text-xs text-muted-foreground">Latest 10 · Local time</span></div>
-        <div className="divide-y divide-border rounded-lg border border-border">{summary.runs.slice(0, 10).map((run) => <Link key={run.id} to={`${base}/${id}?run=${encodeURIComponent(run.id)}`} className={cn('grid min-h-14 grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 py-3 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring', selected?.id === run.id && 'bg-muted/40')} data-workflow-run={run.id}><span className="flex flex-wrap items-center gap-x-3 gap-y-1"><time dateTime={run.startedAt} title={utcRunReference(run.startedAt)} className="text-sm tabular-nums">{formatNextRun(run.startedAt)}</time><WorkflowRunTrigger run={run} /></span><WorkflowStateLabel state={run.state} /><span className="text-right text-xs text-muted-foreground tabular-nums">{workflowDuration(run.startedAt, run.finishedAt)}</span></Link>)}{!summary.runs.length && <p className="p-5 text-sm text-muted-foreground">No recorded runs for this workflow.</p>}</div>
-      </section>
+      {summary.runs.length > 1 ? <details className="space-y-3" aria-label="Recent runs"><summary className="cursor-pointer text-sm text-muted-foreground underline underline-offset-4">Recent runs · {Math.min(10, summary.runs.length)}</summary>
+        <div className="divide-y divide-border rounded-lg border border-border">{summary.runs.slice(0, 10).map((run) => <Link key={run.id} to={`${base}/${id}?run=${encodeURIComponent(run.id)}`} className={cn('grid min-h-14 grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 py-3 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring', selected?.id === run.id && 'bg-muted/40')} data-workflow-run={run.id}><span className="flex flex-wrap items-center gap-x-3 gap-y-1"><time dateTime={run.startedAt} title={utcRunReference(run.startedAt)} className="text-sm tabular-nums">{formatNextRun(run.startedAt)}</time><WorkflowRunTrigger run={run} /></span><WorkflowStateLabel state={run.state} /><span className="text-right text-xs text-muted-foreground tabular-nums">{workflowDuration(run.startedAt, run.finishedAt)}</span></Link>)}</div>
+      </details> : null}
     </>}
   </div>;
 }

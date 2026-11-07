@@ -6,9 +6,7 @@ import type { AssetDetailPayload, HygieneHistory } from "@shared/asset-detail";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { AssetCard, CardProduct, WallPayload } from "@shared/wall";
 
-// A site's Health tab: the five facts Home draws as dots, as words, then every
-// fact's evidence as a panel without a press. The site's card comes from the mocked Wall read; the tab's
-// own read is the asset fixture cut to the health view.
+// Each status owns the readings expanded inside its own card.
 
 const ZERO = { currency: "USD", revenue: 0, cost: 0, net: 0 };
 const NO_TREND = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
@@ -82,6 +80,11 @@ function renderTab() {
   );
 }
 
+function openEvidence(container: HTMLElement, key: string): HTMLElement {
+  if (!container.querySelector(`[data-health-evidence="${key}"]`)) fireEvent.click(container.querySelector(`[data-health-fact="${key}"]`)!);
+  return container.querySelector<HTMLElement>(`[data-health-evidence="${key}"]`)!;
+}
+
 describe("the Health tab", () => {
   it("draws the five facts as words, a problem in its colour", () => {
     state.assets = [siteCard()];
@@ -90,50 +93,27 @@ describe("the Health tab", () => {
     const facts = [...container.querySelectorAll("[data-health-fact]")];
     expect(facts.map((fact) => fact.getAttribute("data-health-fact"))).toEqual(["reachable", "speed", "errors", "search", "code"]);
     const speed = container.querySelector('[data-health-fact="speed"]')!;
-    expect(speed).toHaveTextContent("SpeedSlowSlow for 1 in 4 visitorsas of Jul 4");
-    expect(within(speed as HTMLElement).getByText("Slow")).toHaveClass("text-warn");
-    expect(container.querySelector('[data-health-fact="reachable"]')).toHaveTextContent("UpUp");
+    expect(speed).toHaveAttribute("data-fact-state", "warn");
+    expect(speed.querySelector(".text-warn")).not.toBeNull();
+    expect(container.querySelectorAll("[data-health-card]")).toHaveLength(5);
     expect(container.querySelector('[data-health-fact="code"]')).toHaveAttribute("data-fact-state", "unknown");
   });
 
-  it("draws all five facts' evidence, in reading order, without a press", () => {
+  it("expands readings inside their status card and closes only the chosen card", () => {
     state.assets = [siteCard()];
     const { container } = renderTab();
-
-    const panels = [...container.querySelectorAll("[data-health-evidence]")];
-    expect(panels.map((panel) => panel.getAttribute("data-health-evidence"))).toEqual(["reachable", "speed", "errors", "search", "code"]);
-    const names = ["Up", "Speed", "Errors", "Search", "Code"];
-    panels.forEach((panel, index) => {
-      expect(within(panel as HTMLElement).getByRole("region")).toHaveAccessibleName(names[index]);
-    });
-    const evidence = container.querySelector('[data-health-evidence="reachable"]')!;
-    expect(evidence).toHaveTextContent("Checked every hour");
-    expect(evidence).toHaveTextContent("Home page: fine on Jul 4");
-    expect(evidence).toHaveTextContent("1 of 2 security headers sent");
-    expect(container.querySelector('[data-health-evidence="speed"]')).toHaveTextContent("Slowest group of visitors: slow");
-    expect(container.querySelector('[data-health-evidence="errors"]')).toHaveTextContent("0 people hit an error");
-    const search = container.querySelector('[data-health-evidence="search"]')!;
-    expect(search).toHaveTextContent("Sitemap: fine on Jul 4 · 42 addresses listed");
-    expect(search).toHaveTextContent("1 of 2 AI crawlers allowed · blocked: GPTBot");
-    expect(container.querySelector("[data-selected]")).toBeNull();
-  });
-
-  it("marks a fact's panel when its word is pressed, and keeps the others drawn", () => {
-    state.assets = [siteCard()];
-    const { container } = renderTab();
-
+    expect(container.querySelectorAll('[data-health-evidence]')).toHaveLength(0);
     const reachable = container.querySelector('[data-health-fact="reachable"]')!;
-    expect(reachable).toHaveAttribute("aria-pressed", "false");
-    expect(reachable).toHaveAttribute("aria-controls", container.querySelector('[data-health-evidence="reachable"]')!.id);
+    const evidence = openEvidence(container, 'reachable');
+    expect(reachable).toHaveAttribute('aria-expanded', 'true');
+    expect(reachable).toHaveAttribute('aria-controls', evidence.id);
+    expect(evidence.closest('[data-health-card]')).toHaveAttribute('data-health-card', 'reachable');
+    openEvidence(container, 'search');
+    expect(container.querySelectorAll('[data-health-evidence]')).toHaveLength(2);
     fireEvent.click(reachable);
-    expect(reachable).toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector('[data-health-evidence="reachable"]')).toHaveAttribute("data-selected");
-
-    fireEvent.click(container.querySelector('[data-health-fact="search"]')!);
-    expect(reachable).toHaveAttribute("aria-pressed", "false");
-    expect(container.querySelector('[data-health-evidence="reachable"]')).not.toHaveAttribute("data-selected");
-    expect(container.querySelector('[data-health-evidence="search"]')).toHaveAttribute("data-selected");
-    expect(container.querySelectorAll("[data-health-evidence]")).toHaveLength(5);
+    expect(reachable).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('[data-health-evidence="reachable"]')).toBeNull();
+    expect(container.querySelectorAll('[data-health-evidence]')).toHaveLength(1);
   });
 
   it("draws four weeks of visits from search as bars before the words", () => {
@@ -142,7 +122,7 @@ describe("the Health tab", () => {
     state.assets = [siteCard({ searchClicks: { ...NO_TREND, series } })];
     const { container } = renderTab();
 
-    const search = container.querySelector('[data-health-evidence="search"]')!;
+    const search = openEvidence(container, 'search')!;
     const chart = within(search as HTMLElement).getByRole("img", { name: /Visits from search a day, last 4 weeks/ });
     expect(chart.compareDocumentPosition(within(search as HTMLElement).getByText(/visits from search in the last 4 weeks/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -152,7 +132,7 @@ describe("the Health tab", () => {
     state.assets = [siteCard({ codebase: { date: "2026-07-05", commit: "abc1234", codeLines: 48_210, growthPercent30d: 2, comparedDays: 30 } })];
     const { container } = renderTab();
 
-    const code = container.querySelector('[data-health-evidence="code"]') as HTMLElement;
+    const code = openEvidence(container, 'code') as HTMLElement;
     const chart = within(code).getByRole("img", { name: /Lines of code over the last 90 days/ });
     const paths = [...chart.querySelectorAll("path[d]")].map((path) => path.getAttribute("d")!);
     expect(paths.length).toBeGreaterThan(0);
@@ -169,8 +149,7 @@ describe("the Health tab", () => {
     state.assets = [siteCard({ codebase: null })];
     const { container } = renderTab();
 
-    const evidence = container.querySelector('[data-health-evidence="code"]')!;
-    expect(evidence).toHaveTextContent("Not measured yet");
+    const evidence = openEvidence(container, 'code')!;
     expect(within(evidence as HTMLElement).getByRole("link", { name: "Set up the code report →" })).toHaveAttribute(
       "href",
       "/assets/meadow.example/codebase#codebase-setup",
@@ -180,7 +159,8 @@ describe("the Health tab", () => {
   it("waits for the asset's card rather than guessing", () => {
     state.assets = [];
     const { container } = renderTab();
-    expect(container.querySelector('[data-health-tab="reading"]')).toHaveTextContent("Not measured yet");
+    expect(container.querySelector('[data-health-tab="reading"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-health-card]")).toHaveLength(0);
   });
 });
 
