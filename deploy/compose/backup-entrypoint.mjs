@@ -37,7 +37,8 @@ export async function main() {
   try {
     await publish(true);
     while (!stopping) {
-      await serviceBackupRequest(client, () => runBackup({ repoRoot: '/state', retentionDays: worker.retentionDays, transport: 'container' }));
+      await serviceBackupRequest(client, request => runBackup({ repoRoot: '/state', retentionDays: worker.retentionDays, transport: 'container',
+        ...(request.tasks === 'ntasks' ? { taskHub: 'ntasks' } : {}) }));
       if (!stopping) await new Promise(resolve => setTimeout(resolve, 250));
     }
     return 0;

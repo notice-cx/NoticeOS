@@ -60,10 +60,14 @@ export async function containerBackupStatus(file, { fs: io = fs, now = Date.now 
   } catch { return { configured: true, available: false, detail: 'The backup worker is unavailable.' }; }
 }
 
+/** A request names its id and, while the installation's tasks live in Ntasks,
+ * `tasks: 'ntasks'`, which leaves the Dolt task hub out of the set. Nothing
+ * else: the worker chooses every executable and resource itself. */
 export function validateBackupRequest(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-    Object.keys(value).sort().join() !== 'format,id' || value.format !== FORMAT || !UUID.test(value.id ?? '')) refusal();
-  return { format: FORMAT, id: value.id };
+    !['format,id', 'format,id,tasks'].includes(Object.keys(value).sort().join()) || value.format !== FORMAT || !UUID.test(value.id ?? '') ||
+    ('tasks' in value && value.tasks !== 'ntasks')) refusal();
+  return { format: FORMAT, id: value.id, ...(value.tasks === 'ntasks' ? { tasks: 'ntasks' } : {}) };
 }
 
 export async function readBackupRequest(profile, { fs: io = fs } = {}) {
@@ -132,13 +136,14 @@ async function retireCompleted(profile, id, io) {
   await io.rm(retired, { recursive: true });
 }
 
-export async function requestContainerBackup(file, { fs: io = fs, timeoutMs = 600_000, intervalMs = 250 } = {}) {
+export async function requestContainerBackup(file, { tasks, fs: io = fs, timeoutMs = 600_000, intervalMs = 250 } = {}) {
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 900_000 || intervalMs < 1 || intervalMs > 1000) return failure('The backup request wait is invalid.');
+  if (tasks !== undefined && tasks !== 'ntasks') return failure('The backup request names an unknown task store.');
   let profile;
   try { profile = await readBackupClient(file, { fs: io }); }
   catch { return failure('The declared container backup service is not configured or unavailable.'); }
   const claim = path.join(profile.transportDir, 'request.lock');
-  const request = { format: FORMAT, id: randomUUID() };
+  const request = { format: FORMAT, id: randomUUID(), ...(tasks ? { tasks } : {}) };
   try {
     try { await io.mkdir(claim, { mode: 0o700 }); }
     catch (error) {
