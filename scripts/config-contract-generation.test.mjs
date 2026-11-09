@@ -28,7 +28,8 @@ function authoredScripts() {
 async function withGenerationRoot(work) {
   const root = mkdtempSync(path.join(tmpdir(), 'config-generation-test-'));
   try {
-    const scripts = readdirSync(path.join(repo, 'scripts')).filter((name) => /\.m[tj]s$/u.test(name)).map((name) => `scripts/${name}`);
+    const scripts = ['scripts', 'scripts/runner'].flatMap((dir) => readdirSync(path.join(repo, dir))
+      .filter((name) => /\.m[tj]s$/u.test(name)).map((name) => `${dir}/${name}`));
     for (const file of ['tsconfig.base.json', ...PROJECTS, 'scripts/generate-config-contract.mjs', ...scripts]) {
       mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
       cpSync(path.join(repo, file), path.join(root, file));

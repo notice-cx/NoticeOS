@@ -57,6 +57,8 @@
     "scripts/demo-viewer-installation.mts",
     "scripts/demo-task-facts.mts",
     "scripts/demo-ntasks-seed.mts",
+    "scripts/demo-ntasks.mts",
+    "scripts/demo-task-history.mts",
     "scripts/demo-workflows.mts",
     "scripts/demo-store.mts",
     "scripts/dolt-profile.mts",

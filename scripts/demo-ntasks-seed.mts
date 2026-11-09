@@ -1,16 +1,11 @@
 // The demo scenario's tasks as an Ntasks seed: the projects and dated work
 // that Ntasks's seed command turns into a store (tools/migrate in Ntasks,
-// "Seed a store"). The seed holds exactly the scenario's facts, so every
-// generation of a demo with the same seed and cutoff seeds the same tasks.
-//
-//   node scripts/demo-ntasks-seed.mjs --config <demo.json> --out <seed.json>
+// "Seed a store"). The seed holds exactly the scenario's facts and the alerts
+// setup joins to them, so every generation of a demo with the same seed and
+// cutoff seeds the same tasks. Setup writes it (scripts/hosted-demo-setup.mts).
 import { createHash } from 'node:crypto';
-import * as fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
-import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
-import { generateDemoScenario } from './demo-scenario.mjs';
+import { HANDOFF_LABEL, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+import type { generateDemoScenario } from './demo-scenario.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER, type DemoTaskFact } from './demo-task-facts.mjs';
 
 export const NTASKS_SEED_FORMAT = 'ntasks-seed-v1';
@@ -34,6 +29,9 @@ export interface NtasksSeedTask {
 export interface NtasksSeed { format: typeof NTASKS_SEED_FORMAT; projects: NtasksSeedProject[]; tasks: NtasksSeedTask[] }
 
 type Scenario = ReturnType<typeof generateDemoScenario>;
+/** A task that answers one of the scenario's alerts: the alert's asset, rule
+ * and key, which setup reads from the alerts the release raised. */
+export interface DemoAlertJoin { readonly task: string; readonly asset: string; readonly rule: string; readonly key: string }
 
 /** A project's id in Ntasks: a UUID fixed by the demo's workspace and the project's prefix. */
 export function demoNtasksProjectId(workspaceId: string, prefix: string): string {
@@ -42,11 +40,15 @@ export function demoNtasksProjectId(workspaceId: string, prefix: string): string
 }
 
 /** One fact as a seed task: filed by the operator, then each dated move, with
- * the holder's model on the holder's own changes and the card once recorded. */
-function seedTask(task: DemoTaskFact, facts: readonly DemoTaskFact[]): NtasksSeedTask {
+ * the holder's model on the holder's own changes and the card once recorded.
+ * A task that answers an alert carries the hand-off label and the alert's
+ * identity, so its finding card shows it. */
+function seedTask(task: DemoTaskFact, facts: readonly DemoTaskFact[], join: DemoAlertJoin | undefined): NtasksSeedTask {
   const [filed, ...moves] = task.events;
   if (!filed) throw new Error(`Demo task ${task.id} has no filing.`);
-  const base = { synthetic: true, [TASK_METADATA.changeClass.name]: task.changeClass };
+  const base = { synthetic: true, [TASK_METADATA.changeClass.name]: task.changeClass,
+    ...(join ? { [TASK_METADATA.source.name]: HANDOFF_LABEL, [TASK_METADATA.asset.name]: join.asset, [TASK_METADATA.kind.name]: 'alert',
+      [TASK_METADATA.rule.name]: join.rule, [TASK_METADATA.key.name]: join.key } : {}) };
   const timed: { at: string; order: number; change: NtasksSeedChange }[] = [];
   let status = 'open';
   let assignee: string | null = null;
@@ -73,7 +75,7 @@ function seedTask(task: DemoTaskFact, facts: readonly DemoTaskFact[]): NtasksSee
   return {
     id: task.id, type: task.issueType, title: task.title, description: task.description, acceptance: task.acceptance,
     priority: task.priority, ...(task.parent ? { parent: task.parent } : {}),
-    labels: ['synthetic-demo', ...(task.human ? ['human'] : [])],
+    labels: ['synthetic-demo', ...(task.human ? ['human'] : []), ...(join ? [HANDOFF_LABEL] : [])],
     ...(waitsOn.length ? { links: waitsOn.map(to => ({ type: 'blocks' as const, to })) } : {}),
     metadata: base, ...(task.issueType === 'gate' ? { awaitsPerson: true as const } : {}),
     ...(task.choices ? { choices: task.choices } : {}),
@@ -82,24 +84,14 @@ function seedTask(task: DemoTaskFact, facts: readonly DemoTaskFact[]): NtasksSee
   };
 }
 
-/** The scenario's task projects and tasks as an Ntasks seed. */
-export function demoNtasksSeed(scenario: Scenario): NtasksSeed {
+/** The scenario's task projects and tasks as an Ntasks seed, with the tasks that answer `joins`' alerts marked so. */
+export function demoNtasksSeed(scenario: Scenario, joins: readonly DemoAlertJoin[] = []): NtasksSeed {
   const { manifest, assets, tasks } = scenario;
   const projects = manifest.taskProjects.map(({ asset, prefix }) => {
     const site = assets.find(entry => entry.id === asset);
     if (!site) throw new Error(`Demo task project ${prefix} names no asset.`);
     return { id: demoNtasksProjectId(manifest.workspaceId, prefix), key: prefix, name: site.name, prefix, createdAt: site.createdAt };
   });
-  return { format: NTASKS_SEED_FORMAT, projects, tasks: tasks.map(task => seedTask(task, tasks)) };
+  if (joins.some(join => !tasks.some(task => task.id === join.task && task.asset === join.asset))) throw new Error('A demo alert names no task of its site.');
+  return { format: NTASKS_SEED_FORMAT, projects, tasks: tasks.map(task => seedTask(task, tasks, joins.find(join => join.task === task.id))) };
 }
-
-function main(argv: readonly string[]): void {
-  const { values } = parseArgs({ args: [...argv], options: { config: { type: 'string' }, out: { type: 'string' } }, strict: true });
-  if (!values.config || !values.out) throw new Error('Usage: demo-ntasks-seed.mjs --config <demo.json> --out <seed.json>');
-  const config = JSON.parse(fs.readFileSync(values.config, 'utf8')) as { seed: string; cutoff: string; release: string };
-  const seed = demoNtasksSeed(generateDemoScenario({ seed: config.seed, cutoff: config.cutoff, release: config.release }));
-  fs.writeFileSync(values.out, `${JSON.stringify(seed)}\n`, { flag: 'wx', mode: 0o600 });
-  process.stdout.write(`Wrote ${values.out}: ${seed.projects.length} projects, ${seed.tasks.length} tasks.\n`);
-}
-
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));

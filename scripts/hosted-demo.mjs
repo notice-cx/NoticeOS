@@ -7,8 +7,6 @@ import { demoBankingReading } from './demo-banking.mjs';
 import { randomUUID } from 'node:crypto';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { recordCloser } from './hosted-task-operations.mjs';
-import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-definition.mjs';
@@ -26,6 +24,8 @@ const demoDiagnostics = {
 /** Version of the demo's implementations of the release's scheduled jobs. */
 const SCHEDULE_VERSION = 'demo-v1';
 const READBACKS_PER_PASS = 4;
+/** Who posts each closed outcome's verdict on its task, as the runner's lane names itself (scripts/runner/watch-readbacks.mjs). */
+const OUTCOME_UPDATES_ACTOR = 'outcome-task-updates';
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export class HostedDemoRefused extends Error {
@@ -33,11 +33,6 @@ export class HostedDemoRefused extends Error {
     constructor() { super('Hosted demo activity refused.'); }
 }
 function refuse() { throw new HostedDemoRefused(); }
-function rows(value) {
-    if (!Array.isArray(value) || value.length > 4096 || value.some(row => !row || typeof row !== 'object' || Array.isArray(row)))
-        refuse();
-    return value;
-}
 /** Borrow a journal transaction, never open a second transaction for ordinary
  * writers. The capability expires before the journal commits or rolls back;
  * callback promises are awaited. The helper's read callbacks remain reads,
@@ -63,14 +58,13 @@ async function inTransaction(tx, signal, work) {
         active = false;
     }
 }
-/** Owns store and grant. Deployment owns and closes the task executor's
- * directory after this handle closes. No filesystem or physical task selector
- * crosses tick(). All task commands still pass through the real hosted service.
+/** Owns store and grant. No filesystem or physical task selector crosses
+ * tick(). Every task change goes through the demo's own Ntasks.
  */
 export function createHostedDemo(options) {
     const { workspaceId, serviceId, store, grant, tasks, writer } = options;
     if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
-        || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
+        || typeof tasks?.snapshot !== 'function' || typeof tasks.labelled !== 'function' || typeof writer?.write !== 'function'
         || typeof writer?.banking !== 'function' || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
         || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function' || typeof writer?.freshness !== 'function'
         || typeof writer?.uptime !== 'function' || typeof writer?.notify !== 'function'
@@ -93,7 +87,7 @@ export function createHostedDemo(options) {
     // Sharing a task database between assets would lose the model's asset join.
     if (new Set(projects.values()).size !== projects.size)
         refuse();
-    const snapshots = createHostedTaskSnapshot({ workspaceId, executor: tasks, projects: options.projects });
+    const boardProjects = Object.freeze(options.projects.map(({ asset, prefix, projectId }) => Object.freeze({ asset, prefix, projectId })));
     const now = options.now ?? Date.now;
     const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('demo simulator'), authority: async () => {
             const facts = await grant.facts();
@@ -133,56 +127,41 @@ export function createHostedDemo(options) {
                             // This is a bounded read of the actual task service, followed by the
                             // ordinary cache writer. A failed read can retry without repeating a
                             // completed task mutation; later dates wait for this checkpoint too.
-                            const snapshot = await snapshots.snapshot(new Request('https://noticeos.internal/demo-snapshot', { method: 'POST', signal }), { signal, deadline: Date.now() + 29000 });
+                            const snapshot = await tasks.snapshot(boardProjects, AbortSignal.any([signal, AbortSignal.timeout(29000)]));
                             return inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
                         } }],
             }] });
-    /** One site's task intention against the real task service: a repeated
-     * date finds its earlier write (a created task, a claim, a close) and
-     * refuses to repeat it. */
+    /** One site's task intention against the demo's Ntasks: a repeated date
+     * finds its earlier write (a filed task, a claim, a close) and refuses to
+     * repeat it. The simulator works as the demo's named agents, so the board,
+     * the Agents page and the Wall credit them rather than its credential alone. */
     async function applyTask(task, signal) {
-        {
-            const projectId = projects.get(task.asset);
-            const proof = new Request('https://noticeos.internal/demo-task', { method: 'POST', signal });
-            const deadline = Date.now() + 29000;
-            const execute = (operation) => tasks.execute(proof, workspaceId, { projectId, operation }, { signal, deadline });
-            const active = rows(await execute({ kind: 'active-board', statuses: ['open', 'in_progress', 'blocked', 'deferred'] }));
-            const label = `synthetic:${task.key}`;
-            const matching = active.filter(row => Array.isArray(row.labels) && row.labels.includes(label));
-            if (task.phase === 'create') {
-                if (matching.length)
-                    refuse();
-                const created = await execute({ kind: 'create', title: task.title, description: task.description,
-                    acceptance: task.acceptance, type: 'task', priority: 2, labels: ['synthetic-demo', label] });
-                const row = Array.isArray(created) ? created[0] : created;
-                if (!row || typeof row !== 'object' || !('id' in row) || typeof row.id !== 'string')
-                    refuse();
-                return 'filed';
-            }
-            if (matching.length !== 1)
+        const projectId = projects.get(task.asset);
+        const bounded = AbortSignal.any([signal, AbortSignal.timeout(29000)]);
+        const label = `synthetic:${task.key}`;
+        const matching = await tasks.labelled(projectId, label, bounded);
+        if (task.phase === 'create') {
+            if (matching.length)
                 refuse();
-            const found = matching[0];
-            if (typeof found.id !== 'string' || found.issue_type !== 'task'
-                || found.created_by !== serviceId || !Array.isArray(found.labels) || !found.labels.includes('synthetic-demo')
-                || found.labels.includes('human'))
-                refuse();
-            // The simulator works as the demo's named agents, so the board, the
-            // Agents page and the Wall credit them rather than its service account.
-            if (task.phase === 'start') {
-                if (found.status !== 'open')
-                    refuse();
-                await execute({ kind: 'update', taskId: found.id, status: 'in_progress', assignee: task.agent });
-                return 'written';
-            }
-            if (found.status !== 'in_progress' || found.assignee !== task.agent)
-                refuse();
-            // The agent holds the task, not this service, and the task client lets
-            // only the holder close it: the check above makes the hold this
-            // simulator's own, so the close overrides it.
-            const closed = await execute({ kind: 'close', taskId: found.id, reason: task.closeReason, force: true });
-            await recordCloser(execute, found.id, closed, task.agent, task.model);
-            return 'closed';
+            await tasks.create(projectId, { title: task.title, description: task.description, acceptance: task.acceptance,
+                labels: ['synthetic-demo', label] }, task.key, bounded);
+            return 'filed';
         }
+        if (matching.length !== 1)
+            refuse();
+        const found = matching[0];
+        if (found.type !== 'task' || !found.labels.includes('synthetic-demo') || found.labels.includes('human'))
+            refuse();
+        if (task.phase === 'start') {
+            if (found.status !== 'open')
+                refuse();
+            await tasks.claim(found.id, task.agent, task.model, bounded);
+            return 'written';
+        }
+        if (found.status !== 'in_progress' || found.assignee !== tasks.actor(task.agent))
+            refuse();
+        await tasks.close(found.id, task.closeReason, task.agent, task.model, bounded);
+        return 'closed';
     }
     // The release's own job identities, so the hosted scheduler records each
     // execution in the journal Workflows and System health read: the
@@ -201,7 +180,7 @@ export function createHostedDemo(options) {
         return at;
     };
     const refreshBoard = async (signal, tx) => {
-        const snapshot = await snapshots.snapshot(new Request('https://noticeos.internal/demo-snapshot', { method: 'POST', signal }), { signal, deadline: Date.now() + 29000 });
+        const snapshot = await tasks.snapshot(boardProjects, AbortSignal.any([signal, AbortSignal.timeout(29000)]));
         const written = await inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
         return { ...written, projects: snapshot.projects.map(({ asset, ok, counts }) => ({ asset, ok, counts })) };
     };
@@ -222,12 +201,11 @@ export function createHostedDemo(options) {
                 failed.push({ asset: entry.asset, id: entry.windowId });
                 continue;
             }
-            const proof = new Request('https://noticeos.internal/demo-readback', { method: 'POST', signal });
-            const execute = (operation) => tasks.execute(proof, workspaceId, { projectId, operation }, { signal, deadline: Date.now() + 29000 });
-            const landed = rows(await execute({ kind: 'comments', taskId: entry.bead })).some(row => row.author === serviceId
-                && typeof row.text === 'string' && row.text.endsWith(`Window ${entry.windowId}.`));
+            const bounded = AbortSignal.any([signal, AbortSignal.timeout(29000)]);
+            const landed = (await tasks.comments(projectId, entry.bead, bounded)).some(row => row.author === tasks.actor(OUTCOME_UPDATES_ACTOR)
+                && row.text.endsWith(`Window ${entry.windowId}.`));
             if (!landed)
-                await execute({ kind: 'comment', taskId: entry.bead, text: entry.comment });
+                await tasks.comment(entry.bead, entry.comment, OUTCOME_UPDATES_ACTOR, bounded);
             outcomes.push({ asset: entry.asset, id: entry.windowId, outcome: entry.outcome, status: 'success' });
         }
         const stamped = await writer.stampReadbacks(scoped, outcomes.map(outcome => outcome.id), at);

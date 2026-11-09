@@ -57,6 +57,7 @@ const INSTALL = 'pnpm install --frozen-lockfile';
 const BROWSER_INSTALL = './.github/actions/journey-browser';
 const BROWSER_ACTION = path.join(REPO_ROOT, '.github', 'actions', 'journey-browser', 'action.yml');
 const TASK_TOOLS = 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"';
+const DEMO_NTASKS = 'node scripts/demo-ntasks-build.mjs --out "$RUNNER_TEMP/ntasks" >> "$GITHUB_ENV"';
 const HARNESS = 'pnpm --filter @noticeos/tower run test:journey-harness';
 // The journeys run as one matrix job of shards; each runs its share.
 const JOURNEYS = 'pnpm --filter @noticeos/tower run test:journeys -- --shard=${{ matrix.shard }}/3';
@@ -72,7 +73,7 @@ const JOBS = {
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, JOURNEYS],
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, HARNESS, DEV_JOURNEYS, WALKER],
   // The opt-in real task store suites get their pinned inputs first.
-  'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, 'pnpm test:task-store'],
+  'task-store': [INSTALL, POSTGRES_STEP, TASK_TOOLS, DEMO_NTASKS, 'pnpm test:task-store'],
 };
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = [TOWER_TESTS, "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
@@ -123,7 +124,7 @@ test('a Postgres suite never runs before its job puts the server binaries on PAT
 // one supported major: no job installs, or points a suite at, another.
 test('each job installs only its own prerequisites, on PostgreSQL 18 alone', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  for (const [step, owners] of [[BROWSER_INSTALL, ['smoke', 'browser', 'flow-gate']], [TASK_TOOLS, ['task-store']]]) {
+  for (const [step, owners] of [[BROWSER_INSTALL, ['smoke', 'browser', 'flow-gate']], [TASK_TOOLS, ['task-store']], [DEMO_NTASKS, ['task-store']]]) {
     const jobs = Object.keys(JOBS).filter((name) => runCommands(jobBlock(workflow, name)).includes(step));
     assert.deepEqual(jobs, owners, `${step} runs only in the jobs whose suites use it`);
   }

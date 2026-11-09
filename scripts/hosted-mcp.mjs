@@ -77,8 +77,9 @@ function access(scopes, workspace) {
 }
 export function createHostedMcp(options) {
     const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-    const { profile, operations, agents, readModels, panels, journeys, taskHome } = options;
-    if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
+    const { profile, operations, agents, readModels, panels, journeys, taskHome, taskTools } = options;
+    if (!['hosted', 'demo', 'standalone'].includes(profile)
+        || (taskTools === undefined ? typeof operations?.write !== 'function' : profile !== 'demo' || typeof taskTools !== 'function' || operations !== undefined)
         || taskHome !== undefined && (profile !== 'standalone' || typeof taskHome !== 'function')
         || readModels !== undefined && typeof readModels !== 'function'
         || panels !== undefined && typeof panels?.read !== 'function'
@@ -215,8 +216,10 @@ export function createHostedMcp(options) {
                     throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
                 }
                 try {
+                    if (task && taskTools)
+                        return await taskTools(name, { workspace, ...rest });
                     if (task)
-                        return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
+                        return await task.run({ proof, workspaceId: workspace, operations: operations, guideVersion: guide.version }, rest);
                     if (panel)
                         return await panel.run({ proof, workspaceId: workspace, operations: panels }, rest);
                     if (journey)

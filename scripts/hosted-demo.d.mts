@@ -7,7 +7,7 @@ import { type DemoBankingReading } from './demo-banking.mjs';
 import type { WorkspaceStore } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
 import { type HostedJobDefinition, type HostedJobReceipt } from './hosted-job-runner.mjs';
-import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
+import type { DemoTaskService } from './demo-ntasks.mjs';
 import type { BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
 import { type DemoActivityCollection, type DemoActivityDay, type DemoHomeFetch } from './demo-activity.mjs';
 import { type DemoScenario } from './demo-scenario.mjs';
@@ -59,7 +59,8 @@ export interface HostedDemoOptions {
     readonly store: WorkspaceStore;
     readonly grant: WorkspaceServiceGrant;
     readonly writer: DemoActivityWriter;
-    readonly tasks: Pick<HostedTaskExecutor, 'execute'>;
+    /** The demo's own Ntasks, through its credential (scripts/demo-ntasks.mts). */
+    readonly tasks: DemoTaskService;
     readonly projects: readonly {
         readonly asset: string;
         readonly projectId: string;
@@ -80,9 +81,8 @@ export declare class HostedDemoRefused extends Error {
     name: string;
     constructor();
 }
-/** Owns store and grant. Deployment owns and closes the task executor's
- * directory after this handle closes. No filesystem or physical task selector
- * crosses tick(). All task commands still pass through the real hosted service.
+/** Owns store and grant. No filesystem or physical task selector crosses
+ * tick(). Every task change goes through the demo's own Ntasks.
  */
 export declare function createHostedDemo(options: HostedDemoOptions): {
     tick(): Promise<HostedDemoTick>;
