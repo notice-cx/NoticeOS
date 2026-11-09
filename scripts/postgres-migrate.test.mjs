@@ -289,7 +289,8 @@ function operatorOnlyReach(root) {
         if (isTest(relative)) continue;
         const text = readFileSync(full, 'utf8');
         if (!FRESH_USERS.has(relative) && /start-postgres/u.test(codeOnly(text))) found.freshLoaders.push(relative);
-        if (!HOSTED_DEMO_SETUP.has(relative) && /hosted-demo-setup/u.test(codeOnly(text))) found.freshLoaders.push(relative);
+        // Naming its test file (the config guard lists it) loads nothing.
+        if (!HOSTED_DEMO_SETUP.has(relative) && /hosted-demo-setup(?!\.test\.mjs)/u.test(codeOnly(text))) found.freshLoaders.push(relative);
         if (relative !== OPERATOR_COMMAND && !COMMAND_USERS.has(relative) && reachesCommand(relative, text)) found.commandLoaders.push(relative);
         if (/postgres-import/u.test(text)) found.importerLoaders.push(relative);
         if (allowed.has(relative)) continue;
