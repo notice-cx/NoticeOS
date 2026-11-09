@@ -4,7 +4,7 @@
 # the npm registry, PyPI). The image runs no package manager on the measured
 # project and starts none of its code.
 # Official Node image index, including Linux amd64 and arm64.
-FROM node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9
+FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
 ARG TARGETARCH
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl git python3 \
     && rm -rf /var/lib/apt/lists/*
