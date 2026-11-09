@@ -26,6 +26,7 @@ function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unkno
     connected: async () => state.connected,
     backend: async () => state.unknown ? "unknown" : state.connected ? "ntasks" : "local",
     origin: async () => "https://ntasks.example.com",
+    home: async () => ({ backend: await service.backend(), origin: state.connected ? "https://ntasks.example.com" : null }),
     async call(call) {
       calls.push(call);
       if (state.down) throw new TaskServiceUnavailable("network");
