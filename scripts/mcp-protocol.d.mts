@@ -23,7 +23,9 @@ export interface McpServer {
     }>;
     readonly instructions?: string;
     readonly tools: readonly McpTool[];
-    /** Runs a listed tool. Throw McpToolError for an answer the model should
+    /** What tools/list names, where that is fewer than `tools`; a call may still name any of `tools`. */
+    readonly listed?: readonly McpTool[];
+    /** Runs a tool of `tools`. Throw McpToolError for an answer the model should
      * read; anything else is a fault and is never echoed. */
     call(name: string, args: Record<string, unknown>): Promise<unknown>;
 }

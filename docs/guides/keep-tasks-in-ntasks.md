@@ -1,38 +1,44 @@
 ---
 title: "Keep tasks in Ntasks"
-description: "Connect an Ntasks task hub so the task tools, the Tasks pages and the runner read and change tasks there."
+description: "Connect an Ntasks task hub so the Tasks pages and the runner read and change tasks there, and connect agents to Ntasks directly."
 ---
 
 # Keep tasks in Ntasks
 
 [Ntasks](https://github.com/notice-cx/Ntasks) is a task hub that runs as a Cloudflare Worker. When an installation is connected to one, Ntasks holds its tasks. The installation reads and changes them there:
 
-- the task tools agents call through `pnpm os:mcp` or the Tower's `/api/mcp`;
 - the **Tasks** pages;
-- the runner's task snapshot, which the Home and the TV dashboard show.
+- the runner's task snapshot, which the Home and the TV dashboard show, and the reviews and comments the runner files.
 
-Nothing reads or changes the local task database while Ntasks is connected. Ntasks is connected on standalone installations only.
+Agents read and change the tasks through Ntasks's own MCP endpoint ([below](#agents)). Nothing reads or changes the local task database while Ntasks is connected. Ntasks is connected on standalone installations only.
 
 ## Before you begin
 
 - The installation's tasks are in Ntasks: imported from the task database, or filed there.
-- From Ntasks, a **service credential** with access to each project this installation uses, made with the backup choice (`"backup": true`) so the nightly backup can read the whole store. A project the credential does not reach does not exist for this installation.
+- From Ntasks, a **service credential** made after the tasks are loaded, with access to each project this installation uses and the backup choice (`"backup": true`), which the nightly backup needs to read the whole store. Ntasks fixes a credential's projects and choices when it is made. A project the credential does not reach does not exist for this installation, and a site added later needs a new credential that also reaches its project.
 - The address Ntasks answers at. HTTPS is required, except for a local address such as `http://host.docker.internal:8787`.
 
 ## Connect
 
 1. In **Settings** > **Task projects**, choose **Connect** beside **Ntasks**.
-2. Enter the **Ntasks address** and the **Service credential**, then choose **Connect**. Ntasks must accept the credential before it is kept. The panel then shows how many projects the credential reaches.
-3. In **Projects**, each row's **Ntasks project** column shows the Ntasks project that holds that site's tasks. A site maps to the Ntasks project with the same task prefix. **No project with this prefix** means the credential reaches no project with that prefix: give the credential that project in Ntasks, or correct the row's **Task prefix**.
+2. Enter the **Ntasks address** and the **Service credential**, then choose **Connect**. The credential is kept only when Ntasks accepts it and it was made with the backup choice; without that choice the panel shows **Credential cannot read backups · Make one with "backup": true**. The panel then shows how many projects the credential reaches.
+3. In **Projects**, each row's **Ntasks project** column shows the Ntasks project that holds that site's tasks. A site maps to the Ntasks project with the same task prefix. **No project with this prefix** means the credential reaches no project with that prefix: make a new credential in Ntasks that also reaches that project and replace the old one with **Manage**, or correct the row's **Task prefix**.
 
 The credential is kept encrypted in the installation's store, like every other connection on **Integrations**, and only the ingest Worker opens it. **Manage** replaces or disconnects it. Disconnecting returns the installation to its local task database.
 
+## Agents
+
+While Ntasks holds the tasks, NoticeOS's MCP server (`pnpm os:mcp` and the Tower's `/api/mcp`) lists no task tools. Agents connect to Ntasks's MCP endpoint, the Ntasks address followed by `/api/mcp`, and use its task tools and its `get_task_guide`. For Claude Code:
+
+```sh
+claude mcp add --scope user --transport http ntasks https://ntasks.example.com/api/mcp
+```
+
+On first use, Ntasks asks a person to allow the agent. NoticeOS's server keeps its asset report, panel and journey tools; its instructions and its `get_task_guide` name the Ntasks endpoint, and a task tool an agent listed before the switch is refused with the same address. When Ntasks is disconnected, the task tools are listed again.
+
 ## Who Ntasks records
 
-Every change goes through the installation's one credential. Each request names who it is for, and Ntasks records the change as `service:<credential name>/<name>`:
-
-- an agent's change is recorded under the name the agent was started with, such as `service:noticeos/claude` for `pnpm os:mcp -- --actor claude`;
-- a change made on the Tower's pages is recorded as `service:noticeos/tower`.
+The Tower and the runner make their changes through the installation's one credential. Each request names who it is for, and Ntasks records the change as `service:<credential name>/<name>`: a change made on the Tower's pages is recorded as `service:noticeos/tower`. An agent connected to Ntasks is recorded under its own Ntasks sign-in.
 
 ## Decisions and approvals
 
@@ -44,7 +50,6 @@ Ntasks takes an answer, a choice, a dismissal, an approval or a dispute only fro
 - A comment or a close that could not be sent keeps its text in its box. When Ntasks did not answer, the refusal ends with **Nothing was saved.** When Ntasks did not answer in time, it ends with **The change may have landed; reload before sending it again.** instead, because the change may have been saved.
 - A change Ntasks answers but does not offer yet is refused with **Ntasks does not accept this change yet, so nothing was saved.**
 - While the installation's ingest has not said where its tasks live, a change is refused and the runner files no task snapshot.
-- A task tool answers `unavailable:` with the address that did not answer. A change's answer says to read the task, or to retry it with the same `idempotency_key`, which applies it at most once; `add_dependency`, `remove_dependency` and `request_human_approval` take no key, so their answer says to read the task before retrying.
 - The runner files no new task snapshot, so Home keeps the last one with the time it was taken.
 
 The copies are kept under `.local/task-cache` in the installation's home folder.

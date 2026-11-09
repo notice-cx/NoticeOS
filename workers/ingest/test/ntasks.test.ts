@@ -12,6 +12,12 @@ const fields = { NTASKS_URL: 'https://ntasks.example.com', NTASKS_TOKEN: 'synthe
 /** Read per test: the store binding is the test's own. */
 const inProfile = (profile: string) => ({ ...env, NOTICEOS_WORKSPACE_PROFILE: profile });
 const projects = () => Response.json({ projects: [{ projectId: 'p1', logicalKey: 'example.com', displayName: 'Example', prefix: 'ex' }] });
+/** An Ntasks where the credential reaches one project and holds `access` in its workspace, as list_workspaces answers. */
+const ntasksWith = (access = ['tasks:read', 'tasks:write', 'tasks:backup']): typeof fetch => async input =>
+  new URL(String(input)).pathname === '/api/mcp'
+    ? Response.json({ jsonrpc: '2.0', id: 1, result: { content: [], structuredContent: { guideVersion: 'v1',
+      workspaces: [{ workspaceId: 'w1', name: 'Example', role: 'operator', status: 'active', access }] } } })
+    : projects();
 
 function door(body: unknown, { token = OPERATOR_TOKEN, method = 'POST', origin }: { token?: string; method?: string; origin?: string } = {}) {
   return new Request('http://ingest.local/api/task-service', { method,
@@ -50,21 +56,29 @@ it('sends the credential, the retry key and the MCP version, and never follows a
 });
 
 it('proves a credential by the projects it reaches', async () => {
-  expect(await checkNtasks(fields, async () => projects())).toEqual({ outcome: 'answered', facts: { projects: 1 } });
+  expect(await checkNtasks(fields, ntasksWith())).toEqual({ outcome: 'answered', facts: { projects: 1 } });
   expect(await checkNtasks(fields, async () => Response.json({ error: 'invalid_token' }, { status: 401 })))
     .toMatchObject({ outcome: 'refused', fix: { kind: 'replace' } });
   expect(await checkNtasks(fields, async () => { throw new TypeError('down'); })).toMatchObject({ outcome: 'unreachable' });
-  expect(await checkNtasks({ ...fields, NTASKS_URL: 'http://ntasks.example.com' }, async () => projects())).toMatchObject({ outcome: 'invalid' });
+  expect(await checkNtasks({ ...fields, NTASKS_URL: 'http://ntasks.example.com' }, ntasksWith())).toMatchObject({ outcome: 'invalid' });
+});
+
+it('refuses a credential made without the backup choice, which the nightly backup needs', async () => {
+  expect(await checkNtasks(fields, ntasksWith(['tasks:read', 'tasks:write'])))
+    .toEqual({ outcome: 'refused', facts: { projects: 1 }, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } });
+  expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields }, { fetchImpl: ntasksWith(['tasks:read']) }))
+    .toMatchObject({ ok: true, verdict: 'refused', failure: { kind: 'backup-missing' } });
+  expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).source).toBe('none');
 });
 
 it('stores an Ntasks connection only after Ntasks accepts it, and only on a standalone installation', async () => {
   expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields }, { fetchImpl: async () => Response.json({}, { status: 401 }) }))
     .toMatchObject({ ok: true, verdict: 'refused' });
   expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).source).toBe('none');
-  expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields }, { fetchImpl: async () => projects() }))
+  expect(await connectCredential(inProfile('standalone'), { provider: 'ntasks', fields }, { fetchImpl: ntasksWith() }))
     .toMatchObject({ ok: true, verdict: 'accepted', facts: { projects: 1 } });
   expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).fields).toEqual(fields);
-  expect(await connectCredential(inProfile('hosted'), { provider: 'ntasks', fields }, { fetchImpl: async () => projects() }))
+  expect(await connectCredential(inProfile('hosted'), { provider: 'ntasks', fields }, { fetchImpl: ntasksWith() }))
     .toMatchObject({ ok: false, error: 'not_supported' });
 });
 

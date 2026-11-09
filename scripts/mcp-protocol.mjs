@@ -227,7 +227,7 @@ async function toolCall(server, message, complete) {
             ...(isRow(value) ? { structuredContent: value } : {}) }) });
 }
 function toolList(server) {
-    return server.tools.map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, ...(annotations ? { annotations } : {}) }));
+    return (server.listed ?? server.tools).map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, ...(annotations ? { annotations } : {}) }));
 }
 /** 2026-07-28: every request names its version and capabilities, and its
  * routing headers must agree with its body. */

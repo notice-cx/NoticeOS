@@ -29,6 +29,18 @@ export declare function taskGuide(panels: boolean): {
 /** Every session's instructions: the guide's start, its panel rule where the
  * panel tools are offered, and its rules for writing a task. */
 export declare function taskInstructions(panels: boolean): string;
+/** Where Ntasks serves its MCP endpoint, under its address. */
+export declare const NTASKS_MCP_PATH = "/api/mcp";
+/** Where the tasks are while they live in Ntasks at `origin` (null while the
+ * ingest cannot say), said in place of the task rules, which Ntasks's own guide holds. */
+export declare function ntasksTaskHome(origin: string | null): string;
+/** The guide while the tasks live in Ntasks: where they are and how to connect. */
+export declare function ntasksGuide(origin: string | null, panels: boolean): {
+    readonly version: string;
+    readonly guide: string;
+};
+/** Every session's instructions while the tasks live in Ntasks. */
+export declare function ntasksInstructions(origin: string | null, panels: boolean): string;
 /** A task tool's failure as the caller may read it. A failed admission or
  * verification keeps one answer: which check refused is not the caller's to
  * learn. A cause found after them is named: the project or task the call

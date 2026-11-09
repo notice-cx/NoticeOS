@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileNtasksPanelReview, PANEL_REVIEW_ACTOR, panelReviewDueDate, runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
+import { ntasksRegister } from './runner/task-service-register.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
 
@@ -18,18 +19,28 @@ const VERSION = '00000004-2026-09-22T13-10-04-637Z-4f83dc';
 const UP = { running: true, ready: true };
 const never = () => { throw new Error('bd and the hub must not be reached'); };
 
-/** An Ntasks that keeps tasks, comments, retry keys and links, as the HTTP routes and add_dependency answer. */
+/** An Ntasks that keeps tasks, comments, retry keys and links, as the HTTP routes and link_tasks answer. */
 function ntasks(tasks = []) {
   const state = { tasks: [...tasks], comments: [], links: [], creates: [], keys: new Map() };
+  /** link_tasks: one link between two tasks, whichever way it points; `type` sets it and `remove` drops it. */
+  const linkTasks = ({ task, to, type, remove, ...rest }) => {
+    assert.deepEqual(Object.keys(rest).sort(), ['project', 'workspace']);
+    assert.equal(rest.project, PROJECT.projectId);
+    if (remove === (type !== undefined)) throw new Error('invalid arguments: type, or remove: true; one of the two');
+    const between = link => [link.task, link.to].sort().join() === [task, to].sort().join();
+    state.links = state.links.filter(link => !between(link));
+    if (!remove) state.links.push({ task, to, type });
+    return remove ? { task, to, removed: true } : { task, to, type };
+  };
   const service = {
     connected: async () => true,
     backend: async () => 'ntasks',
     origin: async () => 'https://ntasks.example.com',
     projects: async () => [PROJECT],
     async tool(name, args, actor) {
-      assert.equal(name, 'add_dependency');
-      state.links.push({ ...args, actor });
-      return {};
+      assert.equal(name, 'link_tasks');
+      state.actors = [...state.actors ?? [], actor];
+      return linkTasks(args);
     },
     async call({ method, path, body, idempotencyKey, onBehalfOf }) {
       const url = new URL(path, 'https://ntasks.example.com');
@@ -150,9 +161,19 @@ test('a verdict for a closed task files an outcome review in Ntasks, linked to i
   assert.match(idempotencyKey, /^outcome-review:[0-9a-f]{64}$/u);
   assert.deepEqual(body.labels, ['outcome-review']);
   assert.deepEqual(body.metadata, { noticeos_source: 'outcome-review', noticeos_asset: 'shop.example', noticeos_rule: 'watch-window-closed', noticeos_key: 'w2' });
-  assert.deepEqual(state.links.map(link => [link.task, link.depends_on, link.type, link.actor]), [['shop-2', 'shop-1', 'related', 'outcome-review-filer']]);
+  assert.deepEqual(state.links, [{ task: 'shop-2', to: 'shop-1', type: 'related' }]);
+  assert.deepEqual(state.actors, ['outcome-review-filer']);
   assert.deepEqual(state.comments.map(row => row.taskId), ['shop-2']);
   assert.ok(lane.requests.some(request => request.body?.linked?.[0]?.bead === 'shop-2'));
+});
+
+test('the register relates two tasks through link_tasks, and removes the link with remove', async () => {
+  const { service, state } = ntasks([OPEN, { ...OPEN, id: 'shop-2' }]);
+  const register = ntasksRegister(service, 'outcome-review-filer');
+  await register.relate({ prefix: 'shop' }, 'shop-2', 'shop-1');
+  assert.deepEqual(state.links, [{ task: 'shop-2', to: 'shop-1', type: 'related' }]);
+  await register.relate({ prefix: 'shop' }, 'shop-2', 'shop-1', { remove: true });
+  assert.deepEqual(state.links, []);
 });
 
 test('a review task Ntasks closed as done marks its outcome read, from the close Ntasks records', async () => {

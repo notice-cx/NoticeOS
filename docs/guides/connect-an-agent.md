@@ -9,6 +9,8 @@ This page shows how to connect an AI coding agent, such as Claude Code, to your 
 
 MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can list, file, claim and close tasks and read how your assets are doing, the way you would in the Tower. Only you can approve work.
 
+While the installation's tasks live in Ntasks, this server lists no task tools: connect the agent to Ntasks's own MCP endpoint for tasks, as [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#agents) shows, and to this server for asset reports and panels.
+
 ## Before you begin
 
 You need:

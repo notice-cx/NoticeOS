@@ -188,7 +188,7 @@ export interface ProviderFacts {
 /** Safe categories and numeric codes only; provider text and transport errors
  * can contain credentials and must not enter a connection response. */
 export interface ConnectionFailure {
-  kind: 'not-supported' | 'redirect' | 'configuration' | 'access' | 'not-found' | 'model-missing' | 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large';
+  kind: 'not-supported' | 'redirect' | 'configuration' | 'access' | 'not-found' | 'model-missing' | 'network' | 'dns' | 'tls' | 'timeout' | 'http' | 'rate-limited' | 'invalid-response' | 'invalid-inventory' | 'too-large' | 'backup-missing';
   status?: number;
   providerCode?: number;
 }
@@ -207,6 +207,7 @@ export function connectionFailureLabel(failure: ConnectionFailure): string {
     timeout: 'Request timed out', http: 'Request failed', 'rate-limited': 'Request limit reached · Try again later',
     'invalid-response': 'Invalid response', 'invalid-inventory': 'Incomplete or invalid database list',
     'too-large': 'Response exceeds the connection check limit',
+    'backup-missing': 'Credential cannot read backups · Make one with "backup": true',
   };
   return [
     labels[failure.kind],

@@ -90,16 +90,20 @@ export const TASK_WORKFLOW = Object.freeze([
 ]);
 /** What get_task_guide names in its description and the instructions point at. */
 export const TASK_GUIDE_TOOL = 'get_task_guide';
+/** A guide's Markdown under `title`, with a version that changes whenever its body does. */
+function versionedGuide(title, lines) {
+    const body = lines.join('\n');
+    const version = createHash('sha256').update(body).digest('hex').slice(0, 12);
+    return Object.freeze({ version, guide: `# ${title}\n\nGuide version ${version}; `
+            + `list_workspaces returns the current one as guideVersion.\n\n${body}\n` });
+}
 /** The whole guide as Markdown, with a version that changes whenever its
  * text does (list_workspaces returns it too). The server's instructions are a
  * part of it (taskInstructions). */
 export function taskGuide(panels) {
-    const body = ['## What changed', '', ...WHATS_CHANGED.map(entry => `- ${entry}`), '', '## Start', '', TASK_START, '',
+    return versionedGuide('Working with NoticeOS tasks', ['## What changed', '', ...WHATS_CHANGED.map(entry => `- ${entry}`), '', '## Start', '', TASK_START, '',
         '## Workflow', '', ...TASK_WORKFLOW, '', '## Writing a task', '', ...TASK_QUALITY,
-        ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])].join('\n');
-    const version = createHash('sha256').update(body).digest('hex').slice(0, 12);
-    return Object.freeze({ version, guide: `# Working with NoticeOS tasks\n\nGuide version ${version}; `
-            + `list_workspaces returns the current one as guideVersion.\n\n${body}\n` });
+        ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])]);
 }
 /** Every session's instructions: the guide's start, its panel rule where the
  * panel tools are offered, and its rules for writing a task. */
@@ -107,6 +111,30 @@ export function taskInstructions(panels) {
     return [panels ? `${TASK_START} ${PANEL_RULE}` : TASK_START,
         `${TASK_GUIDE_TOOL} returns these rules with the full workflow and what changed lately, at any time; list_workspaces returns `
             + 'its version as guideVersion, so read it again when that changes.', '', ...TASK_QUALITY].join('\n');
+}
+/** Where Ntasks serves its MCP endpoint, under its address. */
+export const NTASKS_MCP_PATH = '/api/mcp';
+const ASSET_START = 'NoticeOS asset reports for this installation. Start with list_workspaces; every other tool here takes a workspace from it.';
+/** Where the tasks are while they live in Ntasks at `origin` (null while the
+ * ingest cannot say), said in place of the task rules, which Ntasks's own guide holds. */
+export function ntasksTaskHome(origin) {
+    const endpoint = origin === null ? `the Ntasks address shown on the Tower's Settings → Task projects, followed by ${NTASKS_MCP_PATH}`
+        : `${origin}${NTASKS_MCP_PATH}`;
+    return `This installation's tasks live in Ntasks${origin === null ? '' : ` at ${origin}`}, and this server has no task tools. `
+        + `Connect to Ntasks's MCP endpoint, ${endpoint}, for every task tool, and read the get_task_guide it serves before task work.`;
+}
+/** The guide while the tasks live in Ntasks: where they are and how to connect. */
+export function ntasksGuide(origin, panels) {
+    return versionedGuide('Working with NoticeOS', ['## Start', '', ASSET_START, '', '## Tasks', '', ntasksTaskHome(origin),
+        ...(origin === null ? [] : ['', `With Claude Code: \`claude mcp add --scope user --transport http ntasks ${origin}${NTASKS_MCP_PATH}\`. `
+                + 'On first use, Ntasks asks a person to allow the agent.']),
+        ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])]);
+}
+/** Every session's instructions while the tasks live in Ntasks. */
+export function ntasksInstructions(origin, panels) {
+    return [[ASSET_START, ntasksTaskHome(origin), ...(panels ? [PANEL_RULE] : [])].join(' '),
+        `${TASK_GUIDE_TOOL} here returns where the tasks live and how to connect, at any time; list_workspaces returns its version as guideVersion, `
+            + 'so read it again when that changes.'].join('\n');
 }
 function refuse(message) { throw new McpToolError(message); }
 const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';
