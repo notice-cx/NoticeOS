@@ -377,8 +377,8 @@ Reach it through the `ntasks` MCP server
 the canonical workflow and task-quality policy. Never run `bd`, `bv` or `br`.
 If the tools are missing, ask the owner to connect the server and reconnect it
 with `/mcp`. While an installation's tasks live in Ntasks, NoticeOS's MCP server
-lists no task tools; its instructions and its `get_task_guide` add this
-installation's own task rules, such as the money card and `change_class`
+lists no task tools, but its `get_task_guide` adds this installation's own task
+rules, such as the money card and `change_class`: read it too before task work
 ([Keep tasks in Ntasks](docs/guides/keep-tasks-in-ntasks.md)).
 
 Use `reconcile_task` for an existing owner answer, evidence-backed retirement,
