@@ -6,6 +6,7 @@ import { ConnectNtasks } from "@/components/TaskSourceSection";
 import { workQueue } from "@/components/viz/WorkFlow";
 import { useTaskBoard } from "@/hooks/useTaskBoard";
 import { useNeedsNtasks } from "@/hooks/useTaskService";
+import { NtasksSignedInAs } from "@/routes/tasks/ntasks-sign-in";
 import { boardWorkRows } from "@/lib/task-board-viz";
 import { COMPOSE_STATE, NewTaskButton, TasksBoard, composeRequested } from "@/routes/tasks/TasksBoard";
 import { NextTab } from "@/routes/tasks/next/NextTab";
@@ -84,7 +85,7 @@ export function TasksRoute() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
-      <PageHeader title="Tasks" actions={<NewTaskButton project={selectedProject === "all" ? null : selectedProject} />} />
+      <PageHeader title="Tasks" actions={<><NtasksSignedInAs /><NewTaskButton project={selectedProject === "all" ? null : selectedProject} /></>} />
       <Tabs label="Task views" tabs={tabs} idBase={TAB_IDS} panelId={TAB_PANEL_ID} />
       <TabPanel id={TAB_PANEL_ID} idBase={TAB_IDS} activeKey={tab}>
         {composing ? <TaskComposer open onClose={closeComposer} prefill={selectedProject === "all" ? null : { project: selectedProject }} projects={availableSpokes} /> : null}

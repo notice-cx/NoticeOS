@@ -63,6 +63,9 @@ export interface TaskService {
   backend(): Promise<TaskBackend>;
   /** Where the task service is, when one is connected. */
   origin(): Promise<string | null>;
+  /** The Tower's client id as a connected app of the task service, when one is saved:
+   * the id a person's browser signs in to Ntasks with. */
+  appClientId(): Promise<string | null>;
   /** Where the tasks live and the task service's address, waiting for the
    * ingest at most `within` milliseconds, or until it answers or fails when
    * `within` is absent; then its last answer, or `unknown` when it never gave one. */
@@ -72,6 +75,8 @@ export interface TaskService {
   tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
   /** Ntasks's projects this credential reaches. */
   projects(): Promise<readonly NtasksProject[]>;
+  /** The id of the Ntasks workspace this credential belongs to. */
+  workspaceId(): Promise<string>;
 }
 
 function row(value: unknown): Record<string, unknown> | null {
@@ -83,13 +88,13 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   const token = options.token;
   const fetchImpl = options.fetch ?? globalThis.fetch;
   const now = options.now ?? Date.now;
-  let status: { at: number; connected: boolean; origin: string | null } | null = null;
+  let status: { at: number; connected: boolean; origin: string | null; appClientId: string | null } | null = null;
   /** The last read that failed: reused for as long as a good answer would be, so a
    * stalled ingest costs one wait per few seconds rather than one per call. */
   let failed: { at: number; error: unknown } | null = null;
   let known: boolean | null = null;
   /** The read in flight, which every caller shares while the ingest is slow. */
-  let pending: Promise<{ connected: boolean; origin: string | null }> | null = null;
+  let pending: Promise<{ connected: boolean; origin: string | null; appClientId: string | null }> | null = null;
   let catalog: { at: number; projects: readonly NtasksProject[] } | null = null;
   let workspace: { at: number; id: string } | null = null;
 
@@ -105,7 +110,7 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     if (reply.status !== 200 || answer === null) throw new TaskServiceUnavailable('ingest', reply.status);
     return answer;
   }
-  async function read(fresh = false): Promise<{ connected: boolean; origin: string | null }> {
+  async function read(fresh = false): Promise<{ connected: boolean; origin: string | null; appClientId: string | null }> {
     if (!fresh && status && now() - status.at < STATUS_TTL_MS) return status;
     if (!fresh && failed && now() - failed.at < STATUS_TTL_MS) throw failed.error;
     pending ??= (async () => {
@@ -113,7 +118,8 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
         let answer: Record<string, unknown>;
         try { answer = await door_('GET'); } catch (error) { failed = { at: now(), error }; throw error; }
         failed = null;
-        status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
+        status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null,
+          appClientId: typeof answer.appClientId === 'string' ? answer.appClientId : null };
         known = status.connected;
         return status;
       } finally { pending = null; }
@@ -168,6 +174,7 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
       catch { return known === null ? 'unknown' : known ? 'ntasks' : 'none'; }
     },
     async origin() { return (await read()).origin; },
+    async appClientId() { return (await read()).appClientId; },
     async home(within) {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const late = within === undefined ? [] : [new Promise<null>(resolve => { timer = setTimeout(resolve, within, null); })];
@@ -181,6 +188,7 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     async tool(name, args, onBehalfOf) {
       return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);
     },
+    workspaceId,
     async projects() {
       if (catalog && now() - catalog.at < CATALOG_TTL_MS) return catalog.projects;
       const reply = await call({ method: 'GET', path: '/api/tasks/projects' });

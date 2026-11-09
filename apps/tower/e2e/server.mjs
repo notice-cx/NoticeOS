@@ -10,6 +10,7 @@ import { installIsolationGuard } from "./isolation-guard.mjs";
 import { journeyPostgres } from "./fixture-server.mjs";
 import { HANDLER_FAILURE_MARK, handlerFailureText } from "./handler-failure.mjs";
 import { checkedPort } from "./journey-port.mjs";
+import { JOURNEY_NTASKS_ORIGIN } from "./ntasks-origin.mjs";
 
 // Before Vite or any fixture module loads: this process never reads the
 // operator's secrets files or the checkout's config/, and never opens a
@@ -67,7 +68,7 @@ const vite = await createTestViteServer(createServer, {
     return [{ tag: "script", injectTo: "head-prepend", children: clockPin() }];
   }, configureServer(server) {
     server.middlewares.use((_req, res, next) => {
-      res.setHeader("Content-Security-Policy", "connect-src 'self'; form-action 'self'");
+      res.setHeader("Content-Security-Policy", `connect-src 'self' ${JOURNEY_NTASKS_ORIGIN}; form-action 'self'`);
       next();
     });
     server.middlewares.use((req, res, next) => changes ? changes(req, res, next) : next());

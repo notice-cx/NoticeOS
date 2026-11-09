@@ -7,6 +7,16 @@ import { isLocalAddress } from './local-model.js';
 
 export const NTASKS_URL = 'NTASKS_URL';
 export const NTASKS_TOKEN = 'NTASKS_TOKEN';
+/** The Tower's client id as a connected app of this Ntasks: public, and what
+ * a person's browser signs in with (docs/guides/keep-tasks-in-ntasks.md). */
+export const NTASKS_APP_CLIENT_ID = 'NTASKS_APP_CLIENT_ID';
+const CLIENT_ID = /^[A-Za-z0-9._~-]{1,128}$/u;
+
+/** The saved client id, or null when none is saved or it is not one. */
+export function ntasksAppClientId(fields: Readonly<Record<string, string>>): string | null {
+  const value = fields[NTASKS_APP_CLIENT_ID]?.trim() ?? '';
+  return CLIENT_ID.test(value) ? value : null;
+}
 /** One Ntasks answer, at most: a board of a large project fits well inside it. */
 const RESPONSE_BYTES = 16 * 1024 * 1024;
 const TIMEOUT_MS = 15_000;

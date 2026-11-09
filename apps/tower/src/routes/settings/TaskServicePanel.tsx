@@ -8,6 +8,8 @@ import type { DerivedColumn } from "@/components/CollectionEditor";
 import { SeverityDot } from "@/components/SeverityDot";
 import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
+import { CopyCommand } from "@/components/CopyCommand";
+import { returnAddress } from "@/lib/ntasks-sign-in";
 import { useConnections } from "@/hooks/useConnections";
 import { INTEGRATION_HEALTH_KEY } from "@/hooks/useIntegrationHealth";
 import { INTEGRATION_PROVIDERS_KEY, useIntegrationProviders } from "@/hooks/useIntegrationProviders";
@@ -34,7 +36,7 @@ export function NtasksConnection() {
       .map((queryKey) => queryClient.invalidateQueries({ queryKey })));
   };
   return (
-    <div className="flex flex-wrap items-center gap-3"
+    <div id="ntasks" className="flex flex-wrap items-center gap-3"
       data-ntasks-connection={checking ? "checking" : state === true ? "connected" : state === false ? "not-connected" : "unknown"}>
       <span className="font-medium">Ntasks</span>
       <StateChip tone={checking ? "na" : state === true ? "affirmative" : state === false ? "na" : "caution"}
@@ -49,6 +51,21 @@ export function NtasksConnection() {
         <ProviderConnectPanel status={status} opened={opened} asset={null} canConnect={blockers.length === 0} blockers={blockers}
           items={items ?? []} names={new Map()} onClose={() => setOpened(null)} onChanged={changed} />
       ) : null}
+      {state === true ? <NtasksSignInSetup signIn={service.data?.app ? "set" : "not-set"} /> : null}
+    </div>
+  );
+}
+
+/** How people sign in to Ntasks on the Tasks page: the Tower is registered
+ * in Ntasks as a connected app with this address, and its client ID is saved
+ * with the connection (Manage). */
+function NtasksSignInSetup({ signIn }: { signIn: "set" | "not-set" }) {
+  const address = returnAddress(window.location.origin);
+  return (
+    <div className="flex basis-full flex-wrap items-center gap-2 text-sm" data-ntasks-sign-in-setup={signIn}>
+      <span className="text-muted-foreground">Sign-in address</span>
+      <CopyCommand command={address} mark={{ "data-ntasks-return-address": "" }} label="the sign-in address" />
+      <StateChip tone={signIn === "set" ? "affirmative" : "na"} label={signIn === "set" ? "Tower client ID saved" : "No Tower client ID"} subject="tasks:ntasks-sign-in" />
     </div>
   );
 }

@@ -158,9 +158,12 @@ and checks that the credential was made with the backup choice, which the
 nightly backup needs. A credential that gets HTTP status 401 or 403 from
 Ntasks, or one made without that choice, is not kept. HTTPS is required, except for a local address. Redirects are
 refused. This connection is available in standalone installations.
+The **Tower client ID** is the Tower's client ID as a connected app of that
+Ntasks; with it, people sign in to Ntasks on the **Tasks** pages and their
+decisions are recorded under their own names.
 [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks) covers the credential,
-mapping sites to projects, connecting agents and what the Tower shows while
-Ntasks does not answer.
+mapping sites to projects, registering the Tower for sign-in, connecting agents
+and what the Tower shows while Ntasks does not answer.
 
 ## Mediavine revenue
 

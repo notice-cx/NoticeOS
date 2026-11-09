@@ -4,7 +4,10 @@
 // Ntasks's answer, addressed by site as the standalone pages address it, and
 // is kept (scripts/task-service-cache.mts); when Ntasks cannot be reached a
 // read answers the kept copy, marked `cached`, with the time Ntasks read it.
-// A write answers only what Ntasks answered: nothing is saved here.
+// A write answers only what Ntasks answered: nothing is saved here. These
+// calls carry the installation's service credential, which Ntasks never lets
+// decide; a person's decisions go from their browser to Ntasks with their own
+// sign-in (src/lib/ntasks-sign-in.ts).
 
 import { randomUUID } from "node:crypto";
 import type { LaneReply, LaneRequest } from "./lane";
@@ -178,12 +181,16 @@ export async function taskServiceStatus(service: TaskService | null,
   const connected = await service.connected().catch(() => null);
   if (connected !== true) return { connected, origin: null, projects: null, required: true };
   const origin = await service.origin().catch(() => null);
+  const clientId = await service.appClientId().catch(() => null);
+  // The workspace the Tower reads, which a person's sign-in must reach before
+  // their decision is sent (src/lib/ntasks-sign-in.ts personDecisions).
+  const app = clientId === null ? null : { clientId, workspaceId: await service.workspaceId().catch(() => null) };
   try {
     const projects = mapTaskProjects(await readProjects(), await service.projects()).map(entry => ({ asset: entry.asset, prefix: entry.prefix,
-      project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey } }));
-    return { connected, origin, projects, required: true };
+      project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey, projectId: entry.project.projectId } }));
+    return { connected, origin, projects, required: true, app };
   } catch (error) {
-    return { connected, origin, projects: null, required: true, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
+    return { connected, origin, projects: null, required: true, app, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
       : "The saved task projects could not be read." };
   }
 }
