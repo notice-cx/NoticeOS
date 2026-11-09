@@ -140,14 +140,12 @@ stanza here first, then re-stamp the spokes.
   the hub down.
 - **Prefix ≠ asset id, and both are load-bearing.** This file is the only
   place the two are tied together.
-- **`interactions.jsonl` is never committed.** It is `bd`'s per-machine
-  append-only interaction audit; every spoke's `.beads/.gitignore` covers it.
-  If a tree shows it modified or untracked, re-apply
-  `git rm --cached .beads/interactions.jsonl` plus the gitignore line.
-- **`br` (beads_rust) must never be run in a spoke.** It is a separate
-  SQLite + JSONL implementation with no Dolt backend: `br create` would
-  scaffold a private, divergent store inside `.beads/`. `bv` is retired.
-  **`bd` is the only task CLI.**
+- **No task CLI runs in a spoke.** Agents in a spoke use the `ntasks` MCP
+  tools, as the stanza above says. The `bd` commands in this file run only in
+  the installation-owned client directory, for the
+  [Tower's task lane](#the-towers-task-lane--the-operators-hands-not-an-agents).
+  `br` (beads_rust) and `bv` are retired: `br create` would scaffold a private,
+  divergent store inside a `.beads/` folder.
 
 ## The Tower's task lane — the operator's hands, not an agent's
 

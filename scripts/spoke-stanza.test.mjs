@@ -14,14 +14,15 @@ import { readablePath } from './installation.mjs';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONTRACT = path.join(REPO_ROOT, 'config', 'beads.README.md');
 const RETIRED_TASK_FILES = ['.beads', '.beads.gate.lock'];
-// A file carries task instructions when it holds the stanza's markers, names
-// the task guide, or names a bd task command (the retired instructions; the
-// canonical stanza names bd only to forbid it).
+// An AGENTS.md carries task instructions when it holds the stanza's markers,
+// names the task guide, or names a task CLI (bd, bv or br) or a .beads file.
+// CLAUDE.md always owes the stanza.
 function carriesTaskInstructions(text) {
   return (
     text.includes('<!-- spoke-stanza:begin -->') ||
     text.includes('get_task_guide') ||
-    /\bbd (?:ready|list|show|create|update|close)\b/.test(text)
+    text.includes('.beads') ||
+    /`(?:bd|bv|br)`|\b(?:bd|bv|br) (?:ready|list|show|create|update|close)\b/.test(text)
   );
 }
 
@@ -55,7 +56,7 @@ test('every checked-out spoke carries the stanza byte-identical', (t) => {
       if (!existsSync(file)) continue;
       const text = readFileSync(file, 'utf8');
       // An AGENTS.md that only points at CLAUDE.md owes nothing.
-      if (!carriesTaskInstructions(text)) continue;
+      if (name === 'AGENTS.md' && !carriesTaskInstructions(text)) continue;
       checked += 1;
       assert.ok(
         text.includes(stanza),
