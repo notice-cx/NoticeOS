@@ -51,7 +51,7 @@ pnpm os:setup -- --build                   # build the app image here instead of
 pnpm os:setup -- --without-backup          # set up without the backup worker
 ```
 
-The Tower uses port 5173 and Postgres 5432, both on `127.0.0.1`; setup uses the next free port when one is taken and prints the Tower's.
+The Tower uses port 5173 and Postgres 5432, both on `127.0.0.1`. Setup checks this machine and Docker for whether each is free, uses the next free port when one is taken and prints the Tower's.
 
 ### What setup creates
 

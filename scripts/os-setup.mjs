@@ -189,15 +189,6 @@ export async function setup(options, { run = runCommand, env = process.env, out 
     const found = await run('docker', [...host, kind, 'inspect', name], { env: tools, timeoutMs: 20_000 });
     if (found.code === 0) refuse(`the ${kind} ${name} already exists; setup never takes over existing data. Choose another --project.`);
   }
-  // From the image, this machine's ports are not the container's own: Docker tests them.
-  const probe = fromImage ? (port) => dockerPortFree(port, { run, dockerHost, image: fromImage.image, env: tools }) : free;
-  const taken = new Set();
-  const pick = async (start, chosen) => { const port = await freePort(start, { chosen, free: probe, taken }); taken.add(port); return port; };
-  const ports = {
-    towerPort: await pick(options.towerPort ?? DEFAULTS.towerPort, options.towerPort !== null),
-    postgresPort: await pick(DEFAULTS.postgresPort, false),
-  };
-
   let image = options.image;
   if (fromImage) {
     if (image || options.build) refuse('an installation without a checkout runs the image its launcher fetched; --image and --build need a checkout.');
@@ -207,6 +198,18 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   } else {
     image = (await chooseImage({ build: options.build, root, dockerHost, platform: `linux/${arch}`, run, env, out })).image;
   }
+
+  // Docker can refuse a port nothing here listens on (another container publishes
+  // it on 0.0.0.0, under Docker Desktop on macOS), and from the image this
+  // machine's ports are not the container's own: a throwaway container tests each.
+  const published = (port) => dockerPortFree(port, { run, dockerHost, image, env: tools });
+  const probe = fromImage ? published : async (port) => await free(port) && published(port);
+  const taken = new Set();
+  const pick = async (start, chosen) => { const port = await freePort(start, { chosen, free: probe, taken }); taken.add(port); return port; };
+  const ports = {
+    towerPort: await pick(options.towerPort ?? DEFAULTS.towerPort, options.towerPort !== null),
+    postgresPort: await pick(DEFAULTS.postgresPort, false),
+  };
   const choices = installationChoices({ ...draft, image, uid, gid, ...ports, ...names, backupOffsite: options.offsite });
   const selector = installationSelector({ dir: choices.dir, project: choices.project, dockerHost, backup: options.backup,
     root: fromImage ? path.join(choices.dir, STACK_DIR) : root });

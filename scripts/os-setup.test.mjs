@@ -88,6 +88,27 @@ test('a new installation is written in the layout, private, with the app reachin
   assert.match(shown, /NoticeOS is running: http:\/\/127\.0\.0\.1:5173\//u);
 });
 
+test('on a checkout, a port another container publishes is passed over though nothing here listens on it', async (t) => {
+  const box = sandbox(t);
+  const docker = fakeDocker();
+  const probes = [];
+  // As Docker Desktop on macOS answers while another container publishes 0.0.0.0:5432 and 0.0.0.0:5433.
+  const run = async (command, args, options) => {
+    if (!args.includes('--publish')) return docker.run(command, args, options);
+    const published = args[args.indexOf('--publish') + 1];
+    probes.push({ published, image: args.at(-1) });
+    return ['127.0.0.1:5432:9', '127.0.0.1:5433:9'].includes(published)
+      ? { code: 125, stderr: `ports are not available: exposing port TCP ${published.slice(0, -2)} -> 127.0.0.1:0: listen tcp ${published.slice(0, -2)}: bind: address already in use` }
+      : { code: 0, stdout: '' };
+  };
+  assert.equal(await setup(options(box), { ...deps(docker, box.root), run }), 0);
+
+  const values = readInstallationEnv(path.join(box.dir, 'installation.env'));
+  assert.equal(values.NOTICEOS_POSTGRES_PORT, '5434');
+  assert.equal(values.NOTICEOS_TOWER_PORT, '5173');
+  assert.ok(probes.every(({ image }) => image === IMAGE), 'the probe runs the image setup chose, which is already here');
+});
+
 test('from its image, with no checkout, setup runs that image and leaves the folder its stack, selector and launcher', async (t) => {
   const box = sandbox(t);
   // The image carries the stack definition and the launcher where a checkout has them.
