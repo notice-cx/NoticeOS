@@ -274,7 +274,8 @@ test('the task service check runs while Ntasks is connected, and the backup adds
   const silent = await taskServiceCheck({ connected: async () => { throw new TaskServiceUnavailable('ingest'); } });
   assert.equal(silent.outcome, 'ran');
   assert.notEqual(silent.detail, (await taskServiceCheck(answering(true))).detail);
-  for (const [backend, setting] of [['ntasks', 'ntasks'], ['none', undefined], ['unknown', undefined]]) {
+  // An ingest that cannot say holds the backup back rather than take a set without the tasks.
+  for (const [backend, setting] of [['ntasks', 'ntasks'], ['none', undefined], ['unknown', 'unknown']]) {
     assert.equal(await backupTaskHub({ backend: async () => backend }), setting, backend);
   }
   assert.equal(await backupTaskHub(null), undefined);

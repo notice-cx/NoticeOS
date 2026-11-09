@@ -62,7 +62,7 @@ import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime
 import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-report.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runBeadsPoll, runnerTaskService } from './runner/task-snapshot.mjs';
-import { backupTaskHub, taskServiceCheck } from './runner/task-service-poll.mjs';
+import { BACKUP_TASKS_UNKNOWN, backupTaskHub, taskServiceCheck } from './runner/task-service-poll.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 async function ensureDirs() {
@@ -297,6 +297,10 @@ async function runBackup() {
   // The offsite folder is read by the backup itself (scripts/host-backup.mjs),
   // so an edit applies at the next run.
   const taskHub = await backupTaskHub(runnerTaskService());
+  if (taskHub === 'unknown') {
+    log('ERROR', `backup: ${BACKUP_TASKS_UNKNOWN}`);
+    return { ok: false, detail: BACKUP_TASKS_UNKNOWN };
+  }
   // While tasks live in Ntasks the set keeps Ntasks's own export, taken now.
   const exported = taskHub ? await takeNtasksExport(runnerTaskService(), path.join(HOME_ROOT, '.local', 'task-export')) : null;
   if (exported?.error) log('ERROR', `backup: no Ntasks export — ${exported.error}`);

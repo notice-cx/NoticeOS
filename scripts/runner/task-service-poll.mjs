@@ -43,10 +43,15 @@ export async function taskServiceCheck(service) {
 }
 
 /** The nightly backup's task setting: `ntasks` while tasks live there, which
- * adds Ntasks's export to the set; otherwise none, the backup's default. */
+ * adds Ntasks's export to the set; none while no task service is connected;
+ * `unknown` while the ingest cannot say, when no backup runs (BACKUP_TASKS_UNKNOWN). */
 export async function backupTaskHub(service) {
-  return await taskBackend(service) === 'ntasks' ? 'ntasks' : undefined;
+  const backend = await taskBackend(service);
+  return backend === 'none' ? undefined : backend;
 }
+
+/** Why no backup ran: a set taken now could leave the tasks out and replace one that has them. */
+export const BACKUP_TASKS_UNKNOWN = 'The ingest has not said whether tasks live in Ntasks, so no backup ran; earlier sets are kept.';
 
 /** Ntasks's label read: at most this many pages of LABEL_PAGE per label. */
 export const LABEL_PAGES = 10;
