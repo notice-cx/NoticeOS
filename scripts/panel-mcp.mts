@@ -159,6 +159,7 @@ export const PANEL_MCP_TOOLS: readonly PanelTool[] = Object.freeze([
     inputSchema: schema({ asset: ASSET, version: VERSION, report_date: { type: 'string', format: 'date',
       description: 'Only consider evidence through this date (YYYY-MM-DD). Defaults to the panel build date.' } }, ['asset']),
     annotations: READ,
+    /** Resolve the asset and version once, within the caller's authorized workspace. */
     async run({ proof, workspaceId, operations }, args) {
       only(args, ['asset', 'version', 'report_date']);
       const asset = textArg(args, 'asset', true), version = textArg(args, 'version', false);

@@ -10,7 +10,9 @@ const SERP_ROWS = 200;
 const TABLES_PER_QUERY = 2;
 const BING_REPORTS = ['bing_webmaster_pages', 'bing_webmaster_queries', 'bing_webmaster_ai_overview',
     'bing_webmaster_ai_pages', 'bing_webmaster_ai_queries'];
+/** Read optional archived metadata as an object. Arrays and older missing values are absent. */
 const record = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null;
+/** Require a real calendar date before using it in a SQL date literal. */
 function validDay(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value))
         return false;
@@ -18,11 +20,14 @@ function validDay(value) {
     return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
 }
 const shiftDay = (day, offset) => new Date(Date.parse(day) + offset * DAY).toISOString().slice(0, 10);
+/** Report lag in whole days only when both dates are known. */
 const lag = (newer, older) => newer && older ? (Date.parse(newer) - Date.parse(older)) / DAY : null;
 const date = (column) => `TRY_CAST(${column} AS DATE)`;
 const count = (column) => `TRY_CAST(${column} AS BIGINT)`;
+/** A flag missing from an older snapshot stays unknown. */
 const flag = (table, column) => table.columns.includes(column) ? `TRY_CAST(${column} AS BOOLEAN)` : 'NULL';
 const payload = (name, sql) => `SELECT '${name}' AS section, CAST(result AS VARCHAR) AS payload FROM (${sql})`;
+/** Use property totals only for dates with one click row and one impression row. */
 function gscProperty(anchor) {
     return `WITH metrics AS (
     SELECT ${date('date')} AS day, metric, ${count('value')} AS value, TRY_CAST(provisional AS BOOLEAN) AS provisional
@@ -37,6 +42,7 @@ function gscProperty(anchor) {
   )
   SELECT json_object('measuredThrough', measured_through, 'days', (SELECT list(daily ORDER BY day) FROM daily)) AS result FROM latest`;
 }
+/** Use one row per organic search day and exclude overlapping multi-day exports. */
 function ga4Organic(anchor, table) {
     return `WITH channel AS (
     SELECT ${date('report_date')} AS day, ${count('sessions')} AS sessions, ${count('engagedSessions')} AS engagedSessions,
@@ -51,6 +57,7 @@ function ga4Organic(anchor, table) {
   )
   SELECT json_object('measuredThrough', measured_through, 'days', (SELECT list(daily ORDER BY day) FROM daily)) AS result FROM latest`;
 }
+/** Read measured days from the latest eligible export without mixing revisions. */
 function bingTraffic(anchor, table) {
     return `WITH latest AS (
     SELECT MAX(${date('report_date')}) AS report_day FROM bing_webmaster_rank_traffic WHERE ${date('report_date')} <= DATE '${anchor}'
@@ -67,6 +74,7 @@ function bingTraffic(anchor, table) {
   SELECT json_object('reportDate', report_day, 'measuredThrough', measured_through,
     'days', (SELECT list(daily ORDER BY day) FROM daily)) AS result FROM latest, measured`;
 }
+/** Report when the latest eligible export was filed and the last day it measured, if recorded. */
 function bingReport(anchor, table) {
     const measured = table.columns.includes('provider_date') ? `MAX(${date('provider_date')})` : 'NULL';
     return `WITH latest AS (SELECT MAX(${date('report_date')}) AS report_day FROM ${table.table} WHERE ${date('report_date')} <= DATE '${anchor}')
@@ -100,6 +108,7 @@ function gscDetail(anchor, table, key) {
   SELECT json_object('measuredThrough', measured_through, 'days', (SELECT list(daily ORDER BY day) FROM daily),
     'movements', (SELECT list(movers ORDER BY ABS("clickChange") DESC, subject) FROM movers)) AS result FROM latest`;
 }
+/** Bound the returned evidence and count all snapshot rows so a cutoff stays visible. */
 function trackedRows(anchor, table) {
     const answered = table.columns.includes('organic_results') ? 'organic_results IS NOT NULL' : 'NULL';
     const depth = table.columns.includes('tracked_depth') ? count('tracked_depth') : 'NULL';
@@ -112,6 +121,7 @@ function trackedRows(anchor, table) {
   SELECT json_object('reportDate', report_day, 'rows', (SELECT list(pairs ORDER BY query, device) FROM pairs),
     'totalRows', (SELECT COUNT(*) FROM dataforseo_serp_panel WHERE ${date('report_date')} = report_day)) AS result FROM latest`;
 }
+/** Compare two consecutive weeks ending on the latest complete day and expose gaps. */
 function matchedWeeks(data, metrics, latestObserved = data?.measuredThrough ?? null) {
     const rows = data?.days ?? [];
     const complete = rows.filter(row => row.provisional === false && metrics.every(metric => typeof row[metric] === 'number'));
@@ -121,6 +131,7 @@ function matchedWeeks(data, metrics, latestObserved = data?.measuredThrough ?? n
     const info = { latestObserved, reportDate: data?.reportDate ?? null, provisionalDates, unknownFinalityDates };
     if (!end)
         return { ...info, status: data ? 'insufficient-coverage' : 'unavailable', prior: null, current: null };
+    /** Sum a metric only when every day in the week has a finalized value. */
     function period(start, end) {
         const selected = complete.filter(row => row.day >= start && row.day <= end);
         const totals = selected.length === DAYS ? Object.fromEntries(metrics.map(metric => [metric, selected.reduce((sum, row) => sum + row[metric], 0)])) : null;
@@ -136,6 +147,7 @@ function matchedWeeks(data, metrics, latestObserved = data?.measuredThrough ?? n
     const status = current.completeDays === DAYS && prior.completeDays === DAYS ? 'comparable' : 'insufficient-coverage';
     return { ...info, status, prior, current };
 }
+/** Read the request roster saved with this version, when it exists. */
 async function readRosters(store, ref) {
     try {
         return record(await store.document(ref, 'freshness'))?.trackedSearchRosters;
@@ -146,9 +158,11 @@ async function readRosters(store, ref) {
         throw error;
     }
 }
+/** Isolate a failed query to its source so other sections can still be reviewed. */
 async function readSources(folder, reads) {
     const data = new Map();
     const unavailable = [];
+    /** Collect one result per section and reject a response cut short by the query limit. */
     async function run(batch) {
         const result = await queryPanel({
             folder, tables: batch.map(({ table }) => ({ table: table.table, file: table.stored })),
@@ -185,6 +199,7 @@ async function readSources(folder, reads) {
     });
     return { data, unavailable };
 }
+/** Compare same-date requests and results, withholding pair counts when the scan is incomplete. */
 function coverage(tracked, publishedRosters, quality, anchor) {
     const rosters = Array.isArray(publishedRosters) ? publishedRosters.map(record) : [];
     const latestRosterDate = rosters.map(entry => entry?.reportDate)
@@ -215,6 +230,7 @@ function coverage(tracked, publishedRosters, quality, anchor) {
         organicQuality: record(quality)?.reportDate === reportDate ? quality : null,
     };
 }
+/** Assemble reproducible evidence from one retained version through the chosen calendar date. */
 export async function readSearchReview(store, ref, asOf, requestedDate) {
     const panel = await store.describe(ref, asOf);
     const builtDay = panel.builtAt?.slice(0, 10);
@@ -225,6 +241,7 @@ export async function readSearchReview(store, ref, asOf, requestedDate) {
     const tables = new Map(panel.tables.map(table => [table.table, table]));
     const reads = [];
     const incompatible = [];
+    /** Queue a query only when its table has the columns required for this section. */
     function add(name, columns, sql) {
         const table = tables.get(name);
         if (table === undefined)
@@ -250,6 +267,7 @@ export async function readSearchReview(store, ref, asOf, requestedDate) {
     const gsc = matchedWeeks(data.get('signal_trend_daily'), ['clicks', 'impressions']);
     const ga4 = matchedWeeks(data.get('ga4_traffic_acquisition'), ['sessions', 'engagedSessions', 'keyEvents']);
     const bing = matchedWeeks(data.get('bing_webmaster_rank_traffic'), ['clicks', 'impressions']);
+    /** Show top-row movements for comparable weeks without treating them as property totals. */
     function detail(name) {
         const source = data.get(name);
         const comparison = matchedWeeks(source, []);

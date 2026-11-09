@@ -58,7 +58,8 @@ measurement date stays empty.
 
 Use `report_date` to restrict the summary to evidence through an earlier day
 in the pinned version. Keep the relevant summary fields and SQL in the task's
-evidence. The saved figures remain readable when the full version ages out.
+evidence. The task keeps the saved figures after the panel version’s retention
+period ends. See [Versions](#versions) for the retention period.
 
 ### Versions
 

@@ -12,6 +12,7 @@ type Pair = {
     query: string;
     device: string;
 };
+/** Assemble reproducible evidence from one retained version through the chosen calendar date. */
 export declare function readSearchReview(store: Store, ref: PanelRef, asOf: string, requestedDate: string | null): Promise<{
     evidenceVersion: number;
     asset: string;
