@@ -29,3 +29,5 @@ overrides:
   "@cloudflare/vitest-pool-workers@0.23.0>zod": "^4.6.6"
   # minimatch 11 drops only makeRe, which vitepress-plugin-llms does not import.
   "vitepress-plugin-llms>minimatch": "^11.0.1"
+  # VitePress 1.6.4 requires Vite ^5.4.14; Vite 5 has no release past its advisories.
+  "vitepress@1.6.4>vite": "^6.4.4"
