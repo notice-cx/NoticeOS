@@ -54,6 +54,9 @@ export interface TaskService {
     backend(): Promise<TaskBackend>;
     /** Where the task service is, when one is connected. */
     origin(): Promise<string | null>;
+    /** The Tower's client id as a connected app of the task service, when one is saved:
+     * the id a person's browser signs in to Ntasks with. */
+    appClientId(): Promise<string | null>;
     /** Where the tasks live and the task service's address, waiting for the
      * ingest at most `within` milliseconds, or until it answers or fails when
      * `within` is absent; then its last answer, or `unknown` when it never gave one. */

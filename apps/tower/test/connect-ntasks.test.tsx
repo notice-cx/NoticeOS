@@ -23,8 +23,7 @@ vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-08-01T12:00:00
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 vi.mock("@/hooks/useTaskService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useTaskService")>();
-  return { ...actual, useTaskService: () => ({ data: state.service }), useNeedsNtasks: () => actual.needsNtasks(state.service),
-    useNtasksTaskPage: () => actual.ntasksTaskPage(state.service) };
+  return { ...actual, useTaskService: () => ({ data: state.service }), useNeedsNtasks: () => actual.needsNtasks(state.service) };
 });
 vi.mock("@/hooks/useTasks", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useTasks")>()),

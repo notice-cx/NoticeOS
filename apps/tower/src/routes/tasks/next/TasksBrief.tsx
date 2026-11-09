@@ -7,13 +7,13 @@ import type { WeekMove } from "@shared/work";
 import { AGENTS_ROUTE } from "@/components/nav-items";
 import { Button } from "@/components/ui/button";
 import { pillControlClass } from "@/components/ui/pill";
-import { useNtasksTaskPage } from "@/hooks/useTaskService";
+import { useNeedsNtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { useInboxAnswer, useTasksLive } from "@/hooks/useTasks";
 import { useOwnerPreferences } from "@/lib/browser-context";
 import type { BoardProject } from "@/lib/task-board-read";
 import type { RankedBoard, RankedTask } from "@/lib/task-ranking";
 import { cn } from "@/lib/utils";
-import { DecideInNtasks } from "../decide-in-ntasks";
+import { SignInToNtasks } from "../ntasks-sign-in";
 import { ASK_VERB, briefClause, doneSentence, endSentence, heldSince, plural } from "./next-read";
 import { NOT_NOW_ID } from "./NotNow";
 import { TaskTitleLink, useTaskHref } from "./parts";
@@ -88,7 +88,7 @@ export function TasksBrief({ ranked, projects, done, focusTo, nowMs }: {
   const listId = useId();
   const answer = useInboxAnswer();
   const capabilities = useTasksLive();
-  const ntasksPage = useNtasksTaskPage();
+  const signInFirst = useNeedsNtasksSignIn();
   const taskHref = useTaskHref();
   const { pathname, search } = useLocation();
   const siteOf = (row: { task: { project: string } }) => projects.get(row.task.project)?.name ?? row.task.project;
@@ -107,8 +107,8 @@ export function TasksBrief({ ranked, projects, done, focusTo, nowMs }: {
       key: `decision-${row.task.id}`,
       tone: "decision",
       text: <DecisionLine row={row} site={siteOf(row)} />,
-      action: ntasksPage !== null ? (
-        <DecideInNtasks href={ntasksPage(row.task.id)} />
+      action: signInFirst ? (
+        <SignInToNtasks />
       ) : row.ask === "approve" ? (
         <Button type="button" size="sm" variant="outline" disabled={!approvable}
           onClick={() => answer({ kind: "approve", id: row.task.id, title: row.task.title, project: row.task.project })}

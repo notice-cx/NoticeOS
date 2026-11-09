@@ -6,7 +6,7 @@
 import { workspaceProfile } from '../../../../scripts/product-env.mjs';
 import { authenticateOperator } from '../auth.js';
 import { resolveCredential } from '../credentials.js';
-import { callNtasks, NTASKS_URL, ntasksOrigin, ON_BEHALF_OF, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
+import { callNtasks, NTASKS_URL, ntasksAppClientId, ntasksOrigin, ON_BEHALF_OF, TaskServiceError, type TaskServiceAnswer, type TaskServiceCall } from '../ntasks.js';
 import { json } from '../responses.js';
 
 export const TASK_SERVICE_PATH = '/api/task-service';
@@ -31,7 +31,8 @@ function readCall(value: unknown): TaskServiceCall | null {
 }
 
 /**
- * GET /api/task-service: whether a task service is connected, and where.
+ * GET /api/task-service: whether a task service is connected, where, and the
+ * Tower's connected-app client id there.
  * POST /api/task-service: one call to it ({ method, path, body?, idempotencyKey?, onBehalfOf? }).
  * Operator-authenticated and standalone only. The answer is always 200 with
  * a TaskServiceAnswer, so a caller tells Ntasks's own 404 from this route's.
@@ -45,7 +46,7 @@ export async function handleTaskService(request: Request, env: IngestEnv, fetchI
   if (request.method === 'GET') {
     let origin: string | null = null;
     try { origin = fields ? ntasksOrigin(fields[NTASKS_URL] ?? '') : null; } catch { origin = null; }
-    return json({ connected: origin !== null, origin });
+    return json({ connected: origin !== null, origin, appClientId: origin !== null && fields ? ntasksAppClientId(fields) : null });
   }
   let call: TaskServiceCall | null = null;
   try { call = readCall(await request.json()); } catch { call = null; }

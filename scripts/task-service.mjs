@@ -83,7 +83,8 @@ export function createTaskService(options = {}) {
                     throw error;
                 }
                 failed = null;
-                status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
+                status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null,
+                    appClientId: typeof answer.appClientId === 'string' ? answer.appClientId : null };
                 known = status.connected;
                 return status;
             }
@@ -148,6 +149,7 @@ export function createTaskService(options = {}) {
             }
         },
         async origin() { return (await read()).origin; },
+        async appClientId() { return (await read()).appClientId; },
         async home(within) {
             let timer;
             const late = within === undefined ? [] : [new Promise(resolve => { timer = setTimeout(resolve, within, null); })];

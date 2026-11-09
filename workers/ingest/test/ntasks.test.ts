@@ -82,16 +82,26 @@ it('stores an Ntasks connection only after Ntasks accepts it, and only on a stan
     .toMatchObject({ ok: false, error: 'not_supported' });
 });
 
+it('answers the Tower client id saved beside the service credential, and none that is not one', async () => {
+  expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields: { ...fields, NTASKS_APP_CLIENT_ID: 'tower-client_1' } })).toMatchObject({ ok: true });
+  expect(await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json())
+    .toEqual({ connected: true, origin: 'https://ntasks.example.com', appClientId: 'tower-client_1' });
+  expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields: { ...fields, NTASKS_APP_CLIENT_ID: 'not a client id' } })).toMatchObject({ ok: true });
+  expect(await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json())
+    .toEqual({ connected: true, origin: 'https://ntasks.example.com', appClientId: null });
+});
+
 it('forwards one call for the operator, and says why when Ntasks gave no answer', async () => {
   expect((await handleTaskService(door({ method: 'GET', path: '/api/changes?after=0' }, { token: 'wrong' }), inProfile('standalone'))).status).toBe(401);
   expect((await handleTaskService(door({ method: 'GET', path: '/api/changes' }, { origin: 'https://evil.example.com' }), inProfile('standalone'))).status).toBe(403);
   expect((await handleTaskService(door({ method: 'GET', path: '/api/changes' }), inProfile('hosted'))).status).toBe(403);
-  expect(await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json()).toEqual({ connected: false, origin: null });
+  expect(await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json()).toEqual({ connected: false, origin: null, appClientId: null });
   expect(await (await handleTaskService(door({ method: 'GET', path: '/api/changes?after=0' }), inProfile('standalone'))).json())
     .toEqual({ answered: false, reason: 'not-connected' });
 
   expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields })).toMatchObject({ ok: true });
-  expect(await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json()).toEqual({ connected: true, origin: 'https://ntasks.example.com' });
+  expect(await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json())
+    .toEqual({ connected: true, origin: 'https://ntasks.example.com', appClientId: null });
   const seen: string[] = [];
   const answer = await handleTaskService(door({ method: 'GET', path: '/api/changes?after=4&limit=200' }), inProfile('standalone'), async input => {
     seen.push(String(input)); return Response.json({ events: [], lastSeq: 4 });

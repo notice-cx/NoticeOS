@@ -44,6 +44,8 @@ export const deskRoutes: RouteObject[] = [
   { path: "/tasks/all", ...lazyPage(() => import("@/routes/TasksRoute")) },
   // One decision at a time, full width.
   { path: "/tasks/focus", ...lazyPage(() => import("@/routes/tasks/FocusRoute")) },
+  // Where Ntasks returns a person's browser after they sign in to it.
+  { path: "/tasks/signed-in", ...lazyPage(() => import("@/routes/tasks/NtasksSignedInRoute")) },
   // One task, whole: the page every task id in the Tower points at. Registered
   // independently of the index so a deep link to a task never depends on the
   // board. The static segments above outrank it; any other word after

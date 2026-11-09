@@ -20,6 +20,7 @@ type NotDone = Exclude<TaskResolution, "done">;
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { closeAsReason } from "@/lib/close-as";
 import { useTaskService } from "@/hooks/useTaskService";
+import { useDecisionApi } from "@/hooks/useNtasksSignIn";
 import { taskPath } from "@/lib/task-path";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
@@ -223,7 +224,7 @@ export function useCloseTask() {
 }
 
 export function useDisputeTask() {
-  const { disputeTask } = useTowerApi();
+  const { disputeTask } = useDecisionApi();
   const refresh = useTaskRefresh();
   const selected = useTaskSelection();
   return useMutation({
@@ -251,7 +252,9 @@ export function useCommentOnTask() {
  * The inbox's answers, approve a gate, answer an ask, pick one of its
  * choices, decline it, and a close where nothing shipped, each one call on the
  * lane: `bd gate resolve`, an answer, a pick, `bd human dismiss`, a close with
- * its resolution. Each is one press on its row, the row leaves at once, and
+ * its resolution. While this browser is signed in to Ntasks, all but the close
+ * are instead the person's own call to Ntasks (`useDecisionApi`). Each is one
+ * press on its row, the row leaves at once, and
  * the call is made when the Undo window closes (`lib/answer-queue.ts`),
  * because none has an inverse the lane can run. An answer or a pick closes a
  * decision and hands any other task back to ready work with the human label
@@ -367,7 +370,7 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: {
   const confirmsFirst = confirmsBeforeDone(useTaskService().data);
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
-  const api = useTowerApi();
+  const api = useDecisionApi();
   const selected = useTaskSelection();
   const open = useOpenTaskAction();
   return useCallback(
@@ -431,7 +434,7 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
   const confirmsFirst = confirmsBeforeDone(useTaskService().data);
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
-  const api = useTowerApi();
+  const api = useDecisionApi();
   const selected = useTaskSelection();
   const open = useOpenTaskAction();
   return useCallback(

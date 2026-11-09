@@ -54,7 +54,7 @@ import {
 } from "@/hooks/useTasks";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useTaskBoard } from "@/hooks/useTaskBoard";
-import { useNtasksTaskPage } from "@/hooks/useTaskService";
+import { useNeedsNtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { PARKED, TASK_STATUSES, isGate, type BoardTask, type BoardProject } from "@/lib/task-board-read";
 import { boardInOut, boardWorkRows, epicGraphs, inOutDrawn } from "@/lib/task-board-viz";
 import { formatInt } from "@/lib/format";
@@ -727,13 +727,13 @@ function Board({
   searchUnavailable: boolean;
 }) {
   const capabilities = useTasksLive();
-  const inNtasks = useNtasksTaskPage() !== null;
+  const signInFirst = useNeedsNtasksSignIn();
   const selection = useSelection();
   const { selecting, picked } = selection;
   // Only a picked row the board still shows, and this workspace can close,
   // counts: a row a filter hides, or one under its Undo, is never sent.
   const selectable = rows.filter((task) => projects.get(task.project)?.actionable === true
-    && closableHere(task, capabilities, inNtasks));
+    && closableHere(task, capabilities, signInFirst));
   const selectableIds = new Set(selectable.map((task) => task.id));
   const chosen = selectable.filter((task) => picked.has(task.id));
   const offered = selectable.filter((task) => task.status !== "closed").length >= 2;
@@ -866,9 +866,9 @@ function BoardRow({
   // project that cannot close here draws none. While selecting, the
   // selection's Close as stands in for the row's.
   const capabilities = useTasksLive();
-  const inNtasks = useNtasksTaskPage() !== null;
+  const signInFirst = useNeedsNtasksSignIn();
   const closable = selection === null && task.status !== "closed"
-    && (!capabilities.live || (actionable && closableHere(task, capabilities, inNtasks)));
+    && (!capabilities.live || (actionable && closableHere(task, capabilities, signInFirst)));
   const closeAs = useCloseAs({
     id: task.id,
     title: task.title,

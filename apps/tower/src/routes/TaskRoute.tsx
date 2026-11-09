@@ -85,8 +85,9 @@ import { EpicProgress, EpicTaskList, epicSegments, type EpicSegment } from "@/ro
 import { ChoiceSummary, ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
 import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
-import { DecideInNtasks } from "@/routes/tasks/decide-in-ntasks";
-import { useNeedsNtasks, useNtasksTaskPage } from "@/hooks/useTaskService";
+import { SignInToNtasks } from "@/routes/tasks/ntasks-sign-in";
+import { useNeedsNtasks } from "@/hooks/useTaskService";
+import { useNeedsNtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { ConnectNtasks } from "@/components/TaskSourceSection";
 import { PageHeader } from "@/components/PageHeader";
 import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
@@ -1591,7 +1592,7 @@ function ReadOnly({
  * for this close, and the reason. */
 function LiveClosedSummary({ task, nowMs, project, canDispute }: { task: LiveTask; nowMs: number; project?: string; canDispute: boolean }) {
   const dispute = useDisputeTask();
-  const ntasksPage = useNtasksTaskPage();
+  const signInFirst = useNeedsNtasksSignIn();
   const record = task.metadata?.noticeos_maintenance as Record<string, unknown> | undefined;
   const relayed = task.issueType === "gate" && record?.verification === "agent-recorded" && record.approved === true && !record.disputed;
   const actors = useContext(TaskActors);
@@ -1607,7 +1608,7 @@ function LiveClosedSummary({ task, nowMs, project, canDispute }: { task: LiveTas
         <p className="whitespace-pre-wrap text-sm">{record?.outcome === "owner-performed" ? "Result" : "Reply"}: {String(record?.response)}</p>
         <p className="whitespace-pre-wrap text-sm">Scope: {String(record?.scope)}</p>
         <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">Source: {String(record?.source)}</p>
-        {!canDispute ? null : ntasksPage !== null ? <DecideInNtasks href={ntasksPage(task.id)} label="Dispute in Ntasks" />
+        {!canDispute ? null : signInFirst ? <SignInToNtasks />
           : <Button variant="outline" disabled={dispute.isPending} onClick={() => dispute.mutate({ id: task.id, project })}>Dispute</Button>}
         {dispute.error ? <p role="alert" className="text-sm text-destructive">{refusalMessage(dispute.error)}</p> : null}
       </div> : null}

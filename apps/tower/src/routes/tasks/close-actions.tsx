@@ -15,10 +15,10 @@ export function closeOperation(task: { readonly labels: readonly string[] }): "d
 }
 
 /** Whether a row may close this task: the workspace offers its close, and a
- * task waiting on a person is not declined here while tasks live in Ntasks,
- * which takes that only from a person signed in to it. */
-export function closableHere(task: { readonly labels: readonly string[] }, capabilities: TasksCapabilities, inNtasks: boolean): boolean {
-  return taskOperationAvailable(capabilities, closeOperation(task)) && !(inNtasks && declinedOnClose(task));
+ * task waiting on a person is declined here only by a person Ntasks takes it
+ * from: never while this browser must sign in to Ntasks first. */
+export function closableHere(task: { readonly labels: readonly string[] }, capabilities: TasksCapabilities, signInFirst: boolean): boolean {
+  return taskOperationAvailable(capabilities, closeOperation(task)) && !(signInFirst && declinedOnClose(task));
 }
 
 /**

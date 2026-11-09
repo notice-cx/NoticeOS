@@ -20,12 +20,13 @@ afterEach(async () => { await fs.rm(cacheDir, { recursive: true, force: true });
 
 /** A task service that answers `answer(call)`; `down` makes every call unanswered. */
 function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unknown },
-  state: { down: boolean; connected: boolean; unknown?: boolean } = { down: false, connected: true }) {
+  state: { down: boolean; connected: boolean; unknown?: boolean; appClientId?: string } = { down: false, connected: true }) {
   const calls: TaskServiceCall[] = [];
   const service: TaskService = {
     connected: async () => state.connected,
     backend: async () => state.unknown ? "unknown" : state.connected ? "ntasks" : "none",
     origin: async () => "https://ntasks.example.com",
+    appClientId: async () => state.appClientId ?? null,
     home: async () => ({ backend: await service.backend(), origin: state.connected ? "https://ntasks.example.com" : null }),
     async call(call) {
       calls.push(call);
@@ -124,6 +125,13 @@ it("shows Ntasks's own sentence when a decision is refused for not coming from a
     expect(rejected, String(answer.status)).toEqual(credentialError);
     if ("detail" in answer.body) expect(JSON.stringify(rejected)).not.toContain(answer.body.detail);
   }
+});
+
+it("names the Tower's client id in Ntasks, for a person's sign-in, only once one is saved", async () => {
+  const saved = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true, appClientId: "tower-client" });
+  expect((await lane(saved.service)(request("GET", "/api/tasks/service"))).body).toMatchObject({ connected: true, app: { clientId: "tower-client" } });
+  const none = ntasks(() => ({ status: 200, body: {} }));
+  expect((await lane(none.service)(request("GET", "/api/tasks/service"))).body).toMatchObject({ connected: true, app: null });
 });
 
 it("names a site with no Ntasks project instead of reading another", async () => {
