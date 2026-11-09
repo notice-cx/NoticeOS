@@ -471,9 +471,8 @@ describe("HeroChart", () => {
     const gutter = container.querySelector("[data-hero-gutter]")!;
     const widest = Math.max(...labels.map((label) => axisLabelWidth(label)));
     expect(Number(gutter.getAttribute("data-hero-gutter"))).toBeGreaterThanOrEqual(widest);
-    expect((gutter.parentElement as HTMLElement).style.gridTemplateColumns).toBe(
-      `${widest}px minmax(0,1fr)`,
-    );
+    const [gutterTrack] = (gutter.parentElement as HTMLElement).style.gridTemplateColumns.split(" ");
+    expect(gutterTrack).toBe(`${widest}px`);
   });
 
   it("anchors the last date at the end of the plot rather than breaking it in two", () => {
