@@ -44,7 +44,7 @@ export function serpDomainSource(reportedDomain: string, value: string): DomainS
   try { url = new URL(value); } catch { return { reportedDomain, urlDomain: '', googleUrlKind: null }; }
   const urlDomain = url.hostname.replace(/^www\./iu, '');
   const bare = GOOGLE_SEARCH_DOMAIN.test(urlDomain);
-  const internal = bare && /^\/(?:url|search|imgres|aclk)\/?$/u.test(url.pathname);
+  const internal = bare && /^\/(?:goto|url|search|imgres|aclk)\/?$/u.test(url.pathname);
   const hosted = GOOGLE_HOST.test(urlDomain) && (!bare || url.pathname !== '/');
   return { reportedDomain, urlDomain, googleUrlKind: internal ? 'internal' : hosted ? 'hosted' : null };
 }

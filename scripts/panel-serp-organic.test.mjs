@@ -56,3 +56,13 @@ test('ordinary Google-hosted destinations and below-depth ranks leave the organi
   assert.equal(assessSerpOrganicQuality(elsewhere).status, 'clear');
   assert.equal(assessSerpOrganicQuality(elsewhere.slice(0, 1)).status, 'unassessed');
 });
+
+test('GoTo links from Live search results trigger the organic warning', () => {
+  const rows = observations([
+    organic(1, 'google.com', 'https://www.google.com/goto?url=opaque-first'),
+    organic(2, 'google.com', 'https://google.com/goto?url=opaque-second'),
+    organic(3, 'google.co.uk', 'https://www.google.co.uk/goto?url=opaque-third'),
+  ]);
+  assert.equal(rows[0].top3_google_url_kinds, 'internal|internal|internal');
+  assert.equal(assessSerpOrganicQuality(rows).status, 'suspect');
+});
