@@ -55,6 +55,9 @@ test('every checked-out spoke carries the stanza byte-identical', (t) => {
       const file = path.join(dir, name);
       if (!existsSync(file)) continue;
       const text = readFileSync(file, 'utf8');
+      // bv injected its own block outside the stanza; project preparation
+      // leaves it in place.
+      assert.doesNotMatch(text, /bv-agent-instructions/, `${asset}/${name} still carries bv's injected instruction block`);
       // An AGENTS.md that only points at CLAUDE.md owes nothing.
       if (name === 'AGENTS.md' && !carriesTaskInstructions(text)) continue;
       checked += 1;
