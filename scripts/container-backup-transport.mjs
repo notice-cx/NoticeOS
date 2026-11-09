@@ -14,13 +14,14 @@ const recoverySources = [
   ['worker-profile.json', BACKUP_PATHS.profile, true],
   ...POSTGRES_SECRET_FILES.map(name => [`postgres/${name}`, path.join(BACKUP_PATHS.postgresSecrets, name), !VERIFIERS.includes(name)]),
 ];
-/** The recovery set: every fixed source, and the declarations an installation keeps only when it has them. */
+/** The recovery set: every fixed source, and the declarations an installation keeps only when it has them.
+ * The saved task projects are a settings export the Tower writes with any mode; their copy is private. */
 function recoveryInputs(io) {
   const inputs = [...recoverySources];
-  for (const [name, source] of [['host-backup.json', '/run/backup-worker/host-backup.json'], ['beads.json', '/state/installation/beads.json']]) {
+  for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true], ['beads.json', '/state/installation/beads.json', false]]) {
     try {
       io.lstatSync(source);
-      inputs.push([name, source, true]);
+      inputs.push([name, source, privateMode]);
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   return inputs.sort(([a], [b]) => a.localeCompare(b));

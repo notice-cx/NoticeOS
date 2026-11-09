@@ -41,7 +41,7 @@ const SERVICES = ['postgres', 'backup', 'noticeos'];
 /** Services an earlier stack ran and this one does not: an installation set up
  * while its tasks were in Dolt keeps that stopped container and its volume,
  * which no command here lists, starts or removes. */
-const RETIRED = ['dolt'];
+export const RETIRED = ['dolt'];
 /** How long a job run inside the app container may take. */
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
 const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000,

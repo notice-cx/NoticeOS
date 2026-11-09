@@ -4,7 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { changedServices, main, moveVersion, parseOptions, withImage } from './image-update.mjs';
+import { changedServices, main, moveVersion, parseOptions, retiredMoves, withImage } from './image-update.mjs';
+import { STACK_SOURCES } from './installation-layout.mjs';
 
 const OLD = `sha256:${'a'.repeat(64)}`;
 const NEW = `sha256:${'b'.repeat(64)}`;
@@ -26,6 +27,18 @@ test('a staged definition is compared where it will be, so only real declaration
   assert.throws(() => changedServices(now, { services: { ...same.services, extra: {} } }, { from: '/i/stack.next', to: '/i/stack' }), /not something update does/u);
 });
 
+test('a version that stops running the retired task server, or runs it again, can be moved to; any other difference is refused', () => {
+  const at = { from: '/i/stack.next', to: '/i/stack' };
+  const withTasks = { services: { noticeos: { image: OLD }, postgres: {}, dolt: { image: 'dolt:1' } } };
+  const without = { services: { noticeos: { image: NEW }, postgres: {} } };
+  assert.deepEqual(changedServices(withTasks, without, at), ['noticeos']);
+  assert.deepEqual(retiredMoves(withTasks, without), { leaving: ['dolt'], returning: [] });
+  assert.deepEqual(changedServices(without, withTasks, at), ['noticeos']);
+  assert.deepEqual(retiredMoves(without, withTasks), { leaving: [], returning: ['dolt'] });
+  assert.deepEqual(retiredMoves(withTasks, withTasks), { leaving: [], returning: [] });
+  assert.throws(() => changedServices(withTasks, { services: { ...without.services, extra: {} } }, at), /not something update does/u);
+});
+
 test('options need the installation\'s own stack.json', () => {
   assert.deepEqual(parseOptions(['--rollback', '--config', '/i/stack.json', '--confirm', 'rollback']), { help: false, rollback: true, confirm: 'rollback', selectorFile: '/i/stack.json' });
   assert.throws(() => parseOptions([]), /--config/u);
@@ -33,7 +46,7 @@ test('options need the installation\'s own stack.json', () => {
 });
 
 /** An image installation's folder and a Docker whose stack runs `app` and knows the images in `images`. */
-function installation(t, { app = OLD, images = {}, drift = false, roles = 'roles v1' } = {}) {
+function installation(t, { app = OLD, images = {}, drift = false, roles = 'roles v1', stagedWithoutDolt = false } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nos-image-update-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const stack = path.join(dir, 'stack');
@@ -58,7 +71,11 @@ function installation(t, { app = OLD, images = {}, drift = false, roles = 'roles
     if (args.includes('compose') && words.includes('config --hash')) {
       return { code: 0, stdout: services.map((name) => `${name} ${drift && name === 'noticeos' ? '2'.repeat(64) : '1'.repeat(64)}`).join('\n') };
     }
-    if (args.includes('compose') && words.includes('config --format json')) return { code: 0, stdout: JSON.stringify({ name: 'noticeos', services: Object.fromEntries(services.map((name) => [name, {}])) }) };
+    if (args.includes('compose') && words.includes('config --format json')) {
+      const staged = stagedWithoutDolt && words.includes('/stack.next/');
+      return { code: 0, stdout: JSON.stringify({ name: 'noticeos', services: Object.fromEntries(services.filter((name) => !staged || name !== 'dolt').map((name) => [name, {}])) }) };
+    }
+    if (args.includes('ps') && args.includes('--quiet') && words.includes('com.docker.compose.service=dolt')) return { code: 0, stdout: `${id('dolt')}\n` };
     if (args[2] === 'inspect' && args.length === 4) {
       const service = services.find((name) => id(name) === args[3]);
       return { code: 0, stdout: JSON.stringify([{ Id: args[3], Image: service === 'noticeos' ? app : `sha256:${'d'.repeat(64)}`, State: { Status: 'running', Health: { Status: 'healthy' } },
@@ -73,7 +90,11 @@ function installation(t, { app = OLD, images = {}, drift = false, roles = 'roles
     return { code: 0, stdout: '' };
   };
   const root = path.join(dir, 'image');
-  mkdirSync(path.join(root, 'db/postgres'), { recursive: true });
+  // The image's own stack definition and launcher, which an update copies into the folder.
+  for (const file of [...STACK_SOURCES, 'deploy/compose/noticeos']) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    writeFileSync(path.join(root, file), file.endsWith('.yaml') ? 'services: {}\n' : '');
+  }
   writeFileSync(path.join(root, 'db/postgres/roles.sql'), 'roles v1');
   const env = { PATH: process.env.PATH, NOTICEOS_CLI_IMAGE: 'ghcr.io/example/noticeos:main', NOTICEOS_DIR: dir };
   return { dir, root, selectorFile, run, calls, env };
@@ -113,4 +134,14 @@ test('an image that is not a published release, a rollback with nothing before i
   let said = '';
   assert.equal(await main(['--config', checkout.selectorFile], { env: { PATH: process.env.PATH }, out: quiet, err: { write: (text) => { said += text; } } }), 1);
   assert.match(said, /^noticeos update: /u);
+});
+
+test('an update to a version without the task server stops it and keeps its container and data volume for a rollback', async (t) => {
+  const own = installation(t, { stagedWithoutDolt: true, images: { 'ghcr.io/example/noticeos:main': { id: NEW, revision: 'f'.repeat(40), schema: SCHEMA } } });
+  let said = '';
+  assert.equal(await move(own, { confirm: 'update' }, { out: { write: (text) => { said += text; } } }), 0, said);
+  assert.match(said, /dolt: the new version does not run it; it stops, and its container and data volume stay for a rollback\./u);
+  const id = createHash('sha256').update('dolt').digest('hex');
+  assert.ok(own.calls.some((args) => args[2] === 'stop' && args.includes(id)), 'the task server is stopped');
+  assert.ok(own.calls.every((args) => !args.includes('rm') && !args.includes('down') && !(args.includes('volume') && args.includes('rm'))), 'nothing is removed');
 });

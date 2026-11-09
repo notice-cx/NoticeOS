@@ -41,6 +41,14 @@ test('recovery custody keeps the bootstrap, credentials and declarations and rej
   await assert.rejects(verifyContainerRecovery(f.output, options), /no complete backup/u);
 });
 
+test('task projects the Tower exported readable by others are kept, and only as a private copy', async t => {
+  const f = fixture(t); const options = { fs: f.io, fsSync: f.sync };
+  fs.chmodSync(f.map('/state/installation/beads.json'), 0o644);
+  await copyContainerRecovery(f.output, options);
+  assert.equal(fs.statSync(f.map(path.join(f.output, 'beads.json'))).mode & 0o777, 0o600);
+  await verifyContainerRecovery(f.output, options);
+});
+
 test('an installation that has exported no task projects still keeps a complete recovery set', async t => {
   const f = fixture(t); const options = { fs: f.io, fsSync: f.sync };
   fs.rmSync(f.map('/state/installation/beads.json'));

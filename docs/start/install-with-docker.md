@@ -7,7 +7,7 @@ description: "Set up NoticeOS with one Docker command, with no checkout, Node or
 
 Follow this page to go from a machine with Docker to the Tower open in your browser, with no checkout of the repository.
 
-Setup makes an **installation**: a folder on your machine, `~/noticeos`, and a set of Docker containers, the **stack**, that keeps running in the background. One container serves the **Tower**, the NoticeOS web app you open in your browser; the others hold your data and your tasks, and one takes backups. A small **launcher** script in the folder checks, restarts and updates them. You never need a copy of NoticeOS's source code, a checkout, on this path.
+Setup makes an **installation**: a folder on your machine, `~/noticeos`, and a set of Docker containers, the **stack**, that keeps running in the background. One container serves the **Tower**, the NoticeOS web app you open in your browser; Postgres keeps your data, and another container takes backups. A small **launcher** script in the folder checks, restarts and updates them. You never need a copy of NoticeOS's source code, a checkout, on this path.
 
 ## Before you begin
 
@@ -58,7 +58,7 @@ docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup --dir 
 
 `--build` and `--image` need a checkout; see [Install from source](/start/install-from-source).
 
-The Tower uses port 5173, Postgres 5432 and the task database 3306, all on `127.0.0.1`. Setup checks with Docker whether each is free, uses the next free port when one is taken and prints the Tower's.
+The Tower uses port 5173 and Postgres 5432, both on `127.0.0.1`. Setup checks with Docker whether each is free, uses the next free port when one is taken and prints the Tower's.
 
 ### What setup creates
 

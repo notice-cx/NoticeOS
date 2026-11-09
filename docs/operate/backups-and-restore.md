@@ -10,7 +10,6 @@ This page covers the nightly backup and how to rehearse a restore before you nee
 ## Before you begin
 
 - An absolute offsite folder that a sync client (Google Drive, Dropbox, iCloud Drive, a mounted share) copies off the machine, with its parent already existing.
-- The task database service running; task databases are backed up online.
 - The stack's backup worker (`deploy/compose/backup.compose.yaml`), which `pnpm os:setup` includes unless given `--without-backup`. Its contract is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/backup.README.md.
 
 ### What is backed up
@@ -21,10 +20,9 @@ One backup run captures every store of the installation into a dated folder, `.l
 | --- | --- |
 | `postgres/noticeos.dump` | A `pg_dump` of the operational database, in custom format, mode 0600 |
 | `r2/` | The raw provider archive: report files plus their index |
-| `beads/` | Every task database, taken online from the running task service, with its permissions and recovery credentials under `beads/metadata/` |
-| `ntasks/backup.json` | In place of `beads/` while the installation's tasks live in Ntasks: every row of the Ntasks task store, read through its backup route ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#the-nightly-backup)) |
+| `ntasks/backup.json` | While Ntasks is connected: every row of the Ntasks task store, read through its backup route ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#the-nightly-backup)). With none connected the set holds no tasks |
 | `assets/` and `cloudflare-d1/` | Production exports for assets you have explicitly approved |
-| `recovery/` | The key that decrypts stored provider credentials, the database passwords and the task service settings. Only the local set has it: the offsite copy leaves it out, so keep a copy of this folder in a password manager |
+| `recovery/` | The key that decrypts stored provider credentials, the database passwords and the saved task projects. Only the local set has it: the offsite copy leaves it out, so keep a copy of this folder in a password manager |
 | `RESTORE.md` | Generated instructions: what the set is, how each part went, how to restore it |
 | `backup.json` | The completeness record, written last |
 
@@ -83,7 +81,7 @@ Restore into **isolated stores first**, never over the live ones.
 1. In the dated folder, open `RESTORE.md`. It lists each part and its result.
 2. **Postgres:** prepare the roles and an empty owner-owned database, then restore the dump into it **without** applying migrations first. The exact steps are on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/host/README.md#backup-and-restore.
 3. **Raw archive:** restore `r2/` as one complete tree.
-4. **Task databases:** restore into a new, empty task service. The helper stops instead of overwriting an existing service or volume. Steps: https://github.com/notice-cx/NoticeOS/blob/main/db/dolt/host/README.md#backup-and-recovery.
+4. **Tasks:** restore `ntasks/backup.json` into a new Ntasks store copy, as `RESTORE.md` shows ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#the-nightly-backup)).
 5. Check row counts, ledger totals and archive references before you point an app at the restored stores.
 
 Replacing the live stores is a separate operator decision: stop the stack first (`pnpm os:stop`), restore, then start it again (`pnpm os:start`). A restore does not run migrations and a migration does not restore; keep the two steps apart.
@@ -104,7 +102,7 @@ A complete set does not prove the offsite copy is synchronized or restorable; a 
 
 - Start with the backup report, `state/.local/backup-report.json` in the installation folder. It lists each part's result and the reason a part failed. Every run replaces it; it is readable only by the installation's owner and is never copied into a backup set.
 - The backup failed on **Offsite handoff**: the folder in `host-backup.json` has no existing parent; usually the sync mount is missing. Fix the mount. The local set is kept.
-- The backup failed on **Task hub**: the task database service was not running. Start it and run `pnpm os:backup`. While tasks live in Ntasks, the backup's record names why Ntasks gave no export.
+- The backup failed on **Task hub**: Ntasks gave no export. The backup's record names why ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#the-nightly-backup)).
 - A concurrent attempt fails before copying: a backup does not run while another is in progress. Wait for it to finish.
 
 More symptoms are in [Troubleshooting](/operate/troubleshooting). The operation's full contract is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#backups--restore and https://github.com/notice-cx/NoticeOS/blob/main/config/host-backup.README.md.

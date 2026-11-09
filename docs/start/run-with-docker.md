@@ -13,9 +13,8 @@ An installation is a handful of Docker containers that work together. Docker Com
 
 | Container | What it does |
 |---|---|
-| `noticeos`, the app | Serves the Tower, receives the reports assets send (the data receiver), runs the scheduled jobs (the scheduler) and reads and writes tasks (the task client) |
+| `noticeos`, the app | Serves the Tower, receives the reports assets send (the data receiver), runs the scheduled jobs (the scheduler) and reads and writes tasks in Ntasks ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)) |
 | `postgres` | The store: every report, reading, ledger row and setting |
-| `dolt` | The task database: every project's tasks |
 | `backup` | Optional: takes the nightly backup. See [Backups and restore](/operate/backups-and-restore) |
 
 The app runs from one read-only image and **never** creates or migrates a database.
@@ -29,17 +28,17 @@ An installation set up with Docker alone has no checkout. Its folder keeps a cop
 | In the folder | What it holds |
 | --- | --- |
 | `installation.env` | This installation's choices, then the layout derived from the folder |
-| `state/` | The app's state, mounted at `/state`: saved settings, bootstrap secrets, logs, the task client |
+| `state/` | The app's state, mounted at `/state`: saved settings, bootstrap secrets, logs and the app's home folder |
 | `spokes/` | Task repositories, mounted at `/spokes` |
-| `postgres-secrets/`, `dolt-secrets/` | The database logins |
+| `postgres-secrets/` | The database logins |
 | `backup/` | The backup worker's settings, its working folders, exporter checkouts and the offsite handoff |
 | `noticeos` | Without a checkout: the launcher every command runs through |
 | `stack.json` | Without a checkout: the selector that points the commands at this folder |
 | `stack/` | Without a checkout: the stack definition, copied from the image the app runs |
 
-The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the three ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path is derived from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it. Without a checkout, the folder's `stack.json` does. `pnpm os:status` prints the folder on its first line.
+The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the two ports, the hostnames the Tower may be opened on, the data volume, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path is derived from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it. Without a checkout, the folder's `stack.json` does. `pnpm os:status` prints the folder on its first line.
 
-Three ports are published outside the stack's network: the Tower's, and Postgres and the task database for the operator's tools. All three listen on `127.0.0.1`; only the Tower's can be [opened to your network](#open-the-tower-to-your-network). Provider credentials are connected in the Tower, not in files.
+Two ports are published outside the stack's network: the Tower's, and Postgres's for the operator's tools. Both listen on `127.0.0.1`; only the Tower's can be [opened to your network](#open-the-tower-to-your-network). Provider credentials are connected in the Tower, not in files.
 
 ### Change a setting
 
@@ -108,7 +107,7 @@ Without a checkout, run the same commands through the folder's launcher:
 ~/noticeos/noticeos logs --lines 200
 ```
 
-Add `-- --config /absolute/stack.json` to act on another installation's selector. The commands require existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes. An edit to `installation.env` takes effect with [`pnpm os:apply`](#change-a-setting).
+Add `-- --config /absolute/stack.json` to act on another installation's selector. The commands require existing `noticeos` and `postgres` containers, plus `backup` when present; a stopped `dolt` container from before tasks moved to Ntasks is skipped. They never create containers, pull images, apply migrations or remove volumes. An edit to `installation.env` takes effect with [`pnpm os:apply`](#change-a-setting).
 
 Start brings up the databases, then the backup worker, then the app. Stop reverses that order. Restart waits for health at each step and stops at the first failure. [Daily operations](/operate/daily-operations) covers the rest.
 
@@ -167,7 +166,7 @@ The app mounts the checkout read-only and refreshes the Tower live. The Wall cap
 
 ## If it didn't work
 
-- An `os:*` command reports that the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+- An `os:*` command reports that the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; the stack must contain `noticeos` and `postgres`, and at most `backup` besides.
 - `pnpm os:convert-legacy` stops: the error message names what the layout cannot hold (another service, a stack that is not healthy, a network of the same name it did not create). Nothing was changed.
 - `pnpm os:apply` stops: the error message gives the reason, and nothing was changed. See [When `pnpm os:apply` stops](/operate/troubleshooting#when-pnpm-os-apply-stops).
 - `pnpm os:apply` reports that starting a service failed: the message shows whether the stack returned to its earlier settings. Fix `installation.env` with Docker's output and `pnpm os:logs -- <service>`, then apply again.

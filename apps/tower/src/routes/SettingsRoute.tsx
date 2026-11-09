@@ -1328,6 +1328,8 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   // installation has no task database server at all, only Ntasks.
   const { data: service } = useTaskService();
   const inNtasks = service?.connected === true;
+  // Hidden on an installation (`required`) whatever `connected` says, unknown
+  // included; shown while the status is unread, as on a Tower whose tasks come from elsewhere.
   const localHub = service?.required !== true && !inNtasks;
 
   return (

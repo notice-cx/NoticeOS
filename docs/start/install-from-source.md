@@ -51,7 +51,7 @@ pnpm os:setup -- --build                   # build the app image here instead of
 pnpm os:setup -- --without-backup          # set up without the backup worker
 ```
 
-The Tower uses port 5173, Postgres 5432 and the task database 3306, all on `127.0.0.1`; setup uses the next free port when one is taken and prints the Tower's.
+The Tower uses port 5173 and Postgres 5432, both on `127.0.0.1`; setup uses the next free port when one is taken and prints the Tower's.
 
 ### What setup creates
 
@@ -60,14 +60,14 @@ One installation folder, `~/noticeos` unless you name another, holds everything 
 | In the folder | What it holds |
 | --- | --- |
 | `installation.env` | This installation's choices (ports, image, folders) and the layout derived from them |
-| `state/` | The app's state: saved settings, bootstrap secrets, logs, the task client |
-| `spokes/` | Task repositories, starting with NoticeOS's own |
-| `postgres-secrets/`, `dolt-secrets/` | The database logins, made new for this installation |
+| `state/` | The app's state: saved settings, bootstrap secrets, logs and the app's home folder |
+| `spokes/` | Task repositories |
+| `postgres-secrets/` | The database logins, made new for this installation |
 | `backup/` | The backup worker's settings and working folders |
 
-The databases' data is stored in two Docker volumes named after the project (`noticeos_postgres-data`, `noticeos_dolt-data`). The stack itself is `deploy/compose/stack.yaml` in the checkout; you never write a Compose file. The checkout's `.local/stack.json` points the `os:*` commands at the folder.
+The database's data is stored in a Docker volume named after the project (`noticeos_postgres-data`). The stack itself is `deploy/compose/stack.yaml` in the checkout; you never write a Compose file. The checkout's `.local/stack.json` points the `os:*` commands at the folder.
 
-Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the committed database schema, creates one workspace and one internal NoticeOS task project so the Tasks page works before you add an asset, and loads the default settings. The installation starts with no assets and no provider accounts.
+Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the committed database schema, creates one workspace, and loads the default settings. The installation starts with no assets, no provider accounts and no task service: its tasks live in Ntasks, connected later under **Settings** > **Task projects** ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)).
 
 ## Get your first useful view
 
@@ -79,7 +79,7 @@ Use **Tasks** for work and **Wall** for the TV view. Provider credentials go in 
 
 ## Verify
 
-- `pnpm os:status` shows `postgres`, `dolt`, `backup` and `noticeos` running and healthy, and the database with every migration.
+- `pnpm os:status` shows `postgres`, `backup` and `noticeos` running and healthy, and the database with every migration.
 - **Home** shows three steps: **Add your first asset**, **Connect a source** and **See your first number**.
 - **Tasks** opens before any asset exists.
 
