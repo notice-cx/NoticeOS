@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -546,6 +547,21 @@ function serializeMismatch(m: Mismatch): ConfigWriteMismatch {
  * The ingest functions (asset creation, the credential store, integration
  * health) are the real ones, injected by server.mjs after Vite loads them.
  */
+/** A declared Dolt home with its profile and private credentials, made once per installation root. */
+function journeyDoltHome(home: string): string {
+  const dolt = path.join(home, "dolt");
+  if (fs.existsSync(path.join(dolt, "profile.json"))) return home;
+  fs.mkdirSync(path.join(dolt, "secrets"), { recursive: true, mode: 0o700 });
+  fs.mkdirSync(path.join(dolt, "client-home"), { recursive: true, mode: 0o700 });
+  const port = 5453;
+  const profile = { project: "noticeos-start-0123456789abcdef", composeFile: path.join(dolt, "compose.yaml"),
+    secretsDir: path.join(dolt, "secrets"), credentialsFile: path.join(dolt, "credentials"), port };
+  for (const name of ["root", "noticeos"]) fs.writeFileSync(path.join(profile.secretsDir, name), `${"a".repeat(64)}\n`, { mode: 0o600 });
+  fs.writeFileSync(profile.credentialsFile, `[127.0.0.1:${port}]\npassword=${"a".repeat(64)}\n`, { mode: 0o600 });
+  fs.writeFileSync(path.join(dolt, "profile.json"), JSON.stringify(profile), { mode: 0o600 });
+  return home;
+}
+
 export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: TestClusterHandle, installationRoot: string) {
   let bucket = journeyBucket();
   const postgres = journeyPostgres(postgresHandle);
@@ -828,9 +844,12 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   // resolver still parses and matches every saved asset/prefix/database.
   const taskHost = JSON.stringify({ repositories: [JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT] });
   const taskDirectories = new Set<string>();
+  // The bd lane serves only a Tower with no task service, as the synthetic
+  // viewer is, and runs with the task client its NOTICEOS_DOLT_HOME declares.
+  const doltHome = journeyDoltHome(path.join(installationRoot, "viewer-dolt-home"));
   const readProjects = async () => {
     const projects = await readSpokes(fixtureRoot, { door: JOURNEY_CONFIG_DOOR, token: JOURNEY_OPERATOR_TOKEN,
-      fetchImpl: configDoor, readHost: async () => taskHost, env: { [INSTALLATION_DIR_ENV]: installationRoot } });
+      fetchImpl: configDoor, readHost: async () => taskHost, env: { [INSTALLATION_DIR_ENV]: installationRoot, NOTICEOS_DOLT_HOME: doltHome } });
     for (const project of projects) if (!project.unavailableReason && project.cwd) taskDirectories.add(path.resolve(project.cwd));
     return projects;
   };
