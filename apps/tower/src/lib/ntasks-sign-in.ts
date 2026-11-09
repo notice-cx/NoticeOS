@@ -211,7 +211,8 @@ export interface PersonSession {
   /** Read the kept tokens again, as after another tab changed them. */
   reload(): void;
   exchange(grant: { code: string; verifier: string; redirectUri: string }): Promise<void>;
-  /** A current access token: refreshed once when the kept one has expired, null once signed out. */
+  /** A current access token: refreshed once when the kept one has expired, null once signed out.
+   * Throws, keeping the sign-in, when Ntasks did not answer the refresh. */
   token(): Promise<string | null>;
   /** One API call as the person. A 401 signs them out and throws `NtasksSignedOut`. */
   request(path: string, init?: RequestInit): Promise<Response>;
@@ -245,17 +246,28 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
     for (const listener of [...listeners]) listener();
   }
 
-  async function grant(fields: Record<string, string>): Promise<Record<string, unknown> | null> {
-    const response = await fetchImpl(`${app.origin}/api/auth/oauth2/token`, { method: "POST",
-      headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: app.clientId, resource: resourceOf(app), ...fields }).toString() });
-    return response.ok ? bodyOf(response) : null;
+  /** The token endpoint's answer: its body when it granted, null when it
+   * refused, or "unanswered" when it did not answer or answered 429 or 5xx,
+   * which says nothing about the grant. */
+  async function grant(fields: Record<string, string>): Promise<Record<string, unknown> | null | "unanswered"> {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${app.origin}/api/auth/oauth2/token`, { method: "POST",
+        headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ client_id: app.clientId, resource: resourceOf(app), ...fields }).toString() });
+    } catch {
+      return "unanswered";
+    }
+    if (response.ok) return bodyOf(response);
+    return response.status === 429 || response.status >= 500 ? "unanswered" : null;
   }
 
+  /** Fresh tokens, or null when Ntasks refused the refresh. A refresh Ntasks
+   * did not answer keeps the sign-in and throws, so the call can be sent again. */
   async function refreshed(current: PersonTokens): Promise<PersonTokens | null> {
     if (current.refresh === null) return null;
-    let answer: Record<string, unknown> | null;
-    try { answer = await grant({ grant_type: "refresh_token", refresh_token: current.refresh }); } catch { return current; }
+    const answer = await grant({ grant_type: "refresh_token", refresh_token: current.refresh });
+    if (answer === "unanswered") throw new ApiError(`${app.origin} did not renew the sign-in; nothing was sent. Try again.`, 0, "task_service_unreachable");
     return answer === null ? null : grantedTokens(answer, now(), current);
   }
 
@@ -274,9 +286,8 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
       for (const listener of [...listeners]) listener();
     },
     async exchange({ code, verifier, redirectUri }) {
-      let answer: Record<string, unknown> | null;
-      try { answer = await grant({ grant_type: "authorization_code", code, code_verifier: verifier, redirect_uri: redirectUri }); }
-      catch { throw new Error(`${app.origin} did not answer the sign-in. Sign in to Ntasks again.`); }
+      const answer = await grant({ grant_type: "authorization_code", code, code_verifier: verifier, redirect_uri: redirectUri });
+      if (answer === "unanswered") throw new Error(`${app.origin} did not answer the sign-in. Sign in to Ntasks again.`);
       const granted = answer === null ? null : grantedTokens(answer, now(), null);
       if (granted === null) throw new Error("Ntasks did not accept the sign-in code. Sign in to Ntasks again.");
       let name: string | null = null;

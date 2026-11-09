@@ -120,6 +120,16 @@ describe("the person's tokens", () => {
     expect(expired.values.has(NAME)).toBe(false);
   });
 
+  it("keeps the sign-in when Ntasks does not answer a refresh, so the call can be sent again", async () => {
+    const storage = memoryStorage({ [NAME]: tokens(1_000) });
+    const answers = [new Response(null, { status: 503 }), Response.json({ access_token: "access-2", expires_in: 3600 })];
+    const session = createPersonSession(APP, { storage, fetch: async () => answers.shift()!, now: () => 10_000 });
+    await expect(session.token()).rejects.toMatchObject({ code: "task_service_unreachable" });
+    expect(session.snapshot().signedIn).toBe(true);
+    expect(JSON.parse(storage.values.get(NAME)!)).toMatchObject({ access: "access-1", refresh: "refresh-1" });
+    expect(await session.token()).toBe("access-2");
+  });
+
   it("starts a sign-in only with an Ntasks new enough for connected apps, with an S256 challenge of the verifier it keeps", async () => {
     const session = window.sessionStorage;
     const older = vi.fn<typeof globalThis.fetch>(async () => Response.json({ version: 1, oldest: 1 }));

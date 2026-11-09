@@ -64,10 +64,10 @@ Until a client ID is saved, each decision shows **Set up Ntasks sign-in**, which
 ### Sign in and decide
 
 - A browser not signed in shows **Sign in to Ntasks** in place of each decision's buttons, and of **Dispute** on an approval an agent recorded. The decisions queue offers no **Select**, and on **All tasks** a task waiting on a person has no **Close as**.
-- **Sign in to Ntasks** opens Ntasks's sign-in and its page that names the Tower and what it may do; after **Allow**, the browser returns to the page it started from with the buttons in place. Sign-in needs an Ntasks that answers HTTP API version 2 or later.
+- **Sign in to Ntasks** opens Ntasks's sign-in and its page that names the Tower and what it may do; after **Allow**, the browser returns to the page it started from with the buttons in place. Sign-in needs Ntasks with HTTP API version 2 or later.
 - The sign-in lasts in that browser across reloads. The **Tasks** page header shows the person's Ntasks name and **Sign out of Ntasks**, which forgets the sign-in in that browser. Revoking the Tower's access for everyone stays on Ntasks's **Connected apps** page.
-- When Ntasks no longer takes the sign-in, such as after **Revoke**, the next decision is not sent: its message says to sign in again, and **Sign in to Ntasks** returns.
-- A decision sent through the Tower's own task routes, as from a page opened before this release, is refused with Ntasks's own sentence.
+- When Ntasks no longer accepts the sign-in, such as after **Revoke**, the next decision is not sent: the Tower shows **Sign in to Ntasks again; nothing was sent.** and **Sign in to Ntasks** in place of the decision's buttons.
+- Ntasks stops a decision sent through the Tower's own task routes, as from a page opened before this release, and the Tower shows Ntasks's refusal.
 
 ## While Ntasks does not answer
 
