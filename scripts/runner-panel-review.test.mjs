@@ -35,7 +35,7 @@ const VERSION = '00000004-2026-09-22T13-10-04-637Z-4f83dc';
 const PROJECTS = JSON.stringify({ spokes: [{ asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' }] });
 
 test('a no-checkout review waits for publication and reconciles a lost create across concurrent polls', async t => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-review-no-checkout-'));
+  const root = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'noticeos-review-no-checkout-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const project = { asset: 'shop.example', prefix: 'shop', database: 'shop' };
   const options = { repoRoot: root, env: {}, token: 'fixture',
@@ -80,7 +80,7 @@ test('a no-checkout review waits for publication and reconciles a lost create ac
   assert.equal(creates, 0); assert.equal(closes, 0);
   publishedNow = true;
   await Promise.all([runPanelReviewFiler(UP, pass.deps), runPanelReviewFiler(UP, pass.deps)]);
-  assert.equal(creates, 1); assert.equal(rows.length, 1);
+  assert.equal(creates, 1, pass.lines.join('\n')); assert.equal(rows.length, 1);
   for (let poll = 0; poll < 3; poll++) await runPanelReviewFiler(UP, pass.deps);
   assert.equal(creates, 1); assert.equal(rows.length, 1);
   assert.equal(rows[0].metadata.noticeos_panel_version, VERSION);

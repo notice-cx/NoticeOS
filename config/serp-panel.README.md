@@ -44,10 +44,11 @@ re-derived from the manifest rows, so a runner that was down catches up and
 one that already filed creates nothing. Adding an asset here adds a weekly
 obligation, not just a weekly cost.
 
-**The trigger is the collection, not this file.** An asset with no entry here
-still buys the other report families every Monday and gets the same review
-bead, scoped to the inventory pass alone. A panel adds the panel *walk* to a
-review that would exist anyway, and the review is what proposes new entries.
+The weekly collection triggers the review. An asset without tracked terms
+gets an inventory review of its other report families. A tracked panel adds
+query and device coverage to the same
+[weekly search review workflow](../docs/20-signal-panels.md#weekly-search-review-workflow).
+Reviewers can propose term changes when they affect a recurring decision.
 
 ## Semantics worth knowing
 

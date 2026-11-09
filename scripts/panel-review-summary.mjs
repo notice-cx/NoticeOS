@@ -3,11 +3,9 @@ import { TASK_METADATA, taskMetadataValue } from "../packages/contract/src/task-
 import { beadsLabelListArgs, beadsText, beadsInstant } from "./task-snapshot-values.mjs";
 // The panel-review convention: one task per property per collection day,
 // filed in that property's own tracker when its weekly collection lands, due
-// a week later. Closing it means every row went through the decision rules
-// and every gap was routed to a task or a named no-action rule
-// (config/serp-panel.README.md). The trigger is the weekly collection, of
-// which the panel is one family, so a property without a panel owes the same
-// review with the panel walk left out.
+// a week later. The review records evidence coverage, due readbacks and any
+// decisions worth acting on (docs/20-signal-panels.md). The weekly collection
+// triggers it even for properties without a tracked-query panel.
 //
 // A review is identified by its metadata (`noticeos_panel_asset` +
 // `noticeos_panel_date`, or the `reindex_*` pair an older review carries;

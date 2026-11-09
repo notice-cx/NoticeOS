@@ -500,9 +500,10 @@ Hourly (`panelFilerCron`), the runner asks the ingest what landed
 the asset's repo, due seven days later, with `noticeos_panel_asset` /
 `noticeos_panel_date` metadata. Identity is (asset, collection day),
 re-derived every pass from the spoke itself, so there is no state file and no
-duplicate; every failure path writes nothing. Closing the bead means the panel
-review and an inventory pass over that week's collection
-(`config/serp-panel.README.md`).
+duplicate; every failure path writes nothing. Close the task after recording
+the evidence version, coverage, and up to three recommended actions. A review
+can conclude that no action is warranted. See
+[`config/serp-panel.README.md`](../config/serp-panel.README.md).
 
 # Hosted runtime
 
