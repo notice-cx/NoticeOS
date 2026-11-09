@@ -62,9 +62,8 @@ RUN pnpm install --frozen-lockfile \
     && ln -s /state/.local .local && ln -s /state/.wrangler .wrangler \
     && ln -s /state/workers/ingest/.dev.secrets.json workers/ingest/.dev.secrets.json \
     && ln -s /state/workers/ingest/.dev.vars workers/ingest/.dev.vars
-RUN mkdir -p /etc/noticeos && cp db/dolt/host/backup-metadata.sh /etc/noticeos/backup-metadata.sh
 ENV NOTICEOS_HOME=/state NOTICEOS_INSTALLATION_DIR=/state/installation
-ENV NOTICEOS_TASK_CLIENT_PROFILE=/state/task-client.json BEADS_BD_BIN=/usr/local/bin/bd
+ENV BEADS_BD_BIN=/usr/local/bin/bd
 ENV NOTICEOS_VITE_CACHE_DIR=/state/.local/vite-cache WRANGLER_SEND_METRICS=false
 USER node
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 CMD ["node", "deploy/compose/health.mjs"]
