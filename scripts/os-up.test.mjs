@@ -57,7 +57,6 @@ import { PANEL_REVIEW_VERSION_KEY } from './panel-review-summary.mjs';
 import {
   COLLECTION_REVIEW_ACCEPTANCE,
   INVALID_PANEL_REVIEW_LABEL,
-  PANEL_REVIEW_ACCEPTANCE,
   PANEL_REVIEW_ACTOR,
   PANEL_REVIEW_ASSET_KEY,
   PANEL_REVIEW_DATE_KEY,
@@ -3018,158 +3017,48 @@ test('the title fallback recognizes a review in either wording', () => {
   );
 });
 
-test('the acceptance bar drops the half a panel-less property cannot produce', () => {
-  assert.equal(panelReviewAcceptance(true), PANEL_REVIEW_ACCEPTANCE);
-  assert.equal(panelReviewAcceptance(false), COLLECTION_REVIEW_ACCEPTANCE);
-  assert.doesNotMatch(COLLECTION_REVIEW_ACCEPTANCE, /panel row/);
-  assert.match(COLLECTION_REVIEW_ACCEPTANCE, /ranked keywords, backlinks, LLM mentions/);
-  assert.match(COLLECTION_REVIEW_ACCEPTANCE, /evidence-to-readback/);
-  assert.match(COLLECTION_REVIEW_ACCEPTANCE, /measurement state and last content ship date\/commit/);
+test('a tracked review carries the pinned evidence, request count and coverage scope', () => {
+  const landing = {
+    asset: 'meadow.example',
+    panelDate: '2026-08-03',
+    panel: true,
+    queries: 7,
+    version: '00000004-2026-08-03T13-10-04-637Z-4f83dc',
+  };
+  const description = panelReviewDescription(landing, { osCheckout: 'home-os' });
+  assert.ok(description.includes(`get_panel asset=${landing.asset} version=${landing.version}`));
+  assert.ok(description.includes('home-os (.local/signal-dumps/reports/meadow.example/)'));
+  assert.match(description, /7 result-page requests/);
+  assert.doesNotMatch(description, /7 tracked terms|3\.5/);
+  assert.ok(description.includes('dataforseo_serp_panel'));
+
+  const missingCount = panelReviewDescription({ ...landing, queries: null });
+  assert.doesNotMatch(missingCount, /\d+ result-page requests/);
 });
 
-test('a panel-less review asks for the inventory, never for a panel walk', () => {
-  const text = panelReviewDescription({ asset: 'acorn.example', panelDate: '2026-08-03', panel: false, queries: null, families: 5 });
-  assert.match(text, /5 DataForSEO report families/);
-  assert.match(text, /Inventory pass/);
-  assert.match(text, /dataforseo_ranked_keywords/);
-  assert.match(text, /gsc_\*, ga4_\* and bing_webmaster_\* tables/);
-  assert.match(text, /get_panel asset=acorn\.example is the panel this review covers — read its attention list first/);
-  assert.match(text, /open readback beads for an active measurement window/);
-  assert.match(text, /git log/);
-  assert.match(text, /measurement state and last ship date\/commit/);
-  assert.match(text, /too-recently-changed-to-verdict/);
-  assert.match(text, /readback bead/);
-  // The panel walk is not in it — there is no panel to walk.
-  assert.doesNotMatch(text, /dataforseo_serp_panel/);
-  assert.doesNotMatch(text, /tracked queries/);
-  // But earning one is a named outcome: this is the only route a property has to
-  // a panel, and a review that never mentions it leaves the roster frozen.
-  assert.match(text, /Settings section is a legitimate outcome/);
-  // Off the refresh roster is a root-os defect, not a reason to close this.
-  assert.match(text, /Panel refresh in the same Settings section/);
-  assert.match(text, /refresh roster in .*signal-panels\.json/);
-  assert.doesNotMatch(text, /config\/(serp-panel|signal-panels)\.json/);
+test('an inventory review keeps the same evidence version and omits tracked coverage', () => {
+  const landing = {
+    asset: 'shop.example',
+    panelDate: '2026-08-03',
+    queries: 4,
+    version: '00000004-2026-08-03T13-10-04-637Z-4f83dc',
+  };
+  const tracked = panelReviewDescription({ ...landing, panel: true });
+  const inventory = panelReviewDescription({ ...landing, panel: false });
+  const evidence = `get_panel asset=${landing.asset} version=${landing.version}`;
+  assert.ok(tracked.includes(evidence));
+  assert.ok(inventory.includes(evidence));
+  assert.doesNotMatch(inventory, /dataforseo_serp_panel|result-page requests|term\/device pairs/);
+  assert.notEqual(panelReviewAcceptance(true), panelReviewAcceptance(false));
+  assert.doesNotMatch(panelReviewAcceptance(false), /term\/device coverage/);
 });
 
-test('a collection of unknown size still asks for the whole collection', () => {
-  const text = panelReviewDescription({ asset: 'acorn.example', panelDate: '2026-08-03', panel: false, queries: null, families: null });
-  assert.match(text, /this week's DataForSEO report families/);
-});
-
-test('the bead tells its reader where the panel is, from inside the property repo', () => {
-  const landing = { asset: 'northwind.example', panelDate: '2026-08-02', queries: 6, version: '00000004-2026-08-03T13-10-04-637Z-4f83dc' };
-  const text = panelReviewDescription(landing, { osCheckout: 'home-os', installation: { root: '/srv/home-os', env: {} } });
-  assert.match(text, /all 6 collected result pages/);
-  assert.match(text, /docs\/20-signal-panels\.md in home-os/);
-  // The version the review was filed on, through the panel tools first.
-  assert.match(text, /get_panel asset=northwind\.example version=00000004-2026-08-03T13-10-04-637Z-4f83dc is the panel this review covers/);
-  assert.match(text, /\.local\/signal-dumps\/reports\/northwind\.example\//);
-  assert.match(text, /dataforseo_serp_panel/);
-  // Every path is qualified: none of these files are the reader's.
-  assert.match(text, /NoticeOS: Portfolio → northwind\.example → Settings → Tracked search terms/);
-  assert.match(text, /pnpm config:export in home-os/);
-  assert.match(text, /home-os\/installation\/serp-panel\.json/);
-  assert.doesNotMatch(text, /config\/serp-panel\.json/);
-  assert.match(text, /same files are in home-os \(\.local\/signal-dumps/);
-  const relocated = panelReviewDescription({ ...landing, panel: false }, {
-    osCheckout: 'home-os', installation: { root: '/srv/home-os', env: { NOTICEOS_INSTALLATION_DIR: '/srv/settings' } },
-  });
-  assert.match(relocated, /tracked terms in \/srv\/settings\/serp-panel\.json/);
-  assert.match(relocated, /refresh roster in \/srv\/settings\/signal-panels\.json/);
-  assert.doesNotMatch(relocated, /home-os\/installation\//);
-  // Measurement state belongs to the property repo, and recency is derived at
-  // the target surface rather than guessed from repository-wide activity.
-  assert.match(text, /THIS asset's open readback beads/);
-  assert.match(text, /git log/);
-  assert.match(text, /measurement state and last ship date\/commit/);
-  assert.match(text, /too-recently-changed-to-verdict/);
-  assert.match(text, /readback bead/);
-  assert.match(text, /scoped to the content source paths/);
-});
-
-// The OS checkout a filed bead points its reader at is the home checkout's own
-// folder name, never a name written into the runner.
-test("a filed bead names the OS checkout by the home folder's own name", () => {
+test("a filed review uses the configured checkout for its evidence pointer", () => {
   assert.equal(osCheckoutName('/home/operator/home-os'), 'home-os');
   assert.equal(osCheckoutName('/srv/noticeos'), 'noticeos');
   const landing = { asset: 'shop.example', panelDate: '2026-08-03', queries: 4 };
   const home = runnerPaths(REPO_ROOT, process.env).osCheckout;
-  const text = panelReviewDescription(landing);
-  assert.equal(text, panelReviewDescription(landing, { osCheckout: home }));
-  assert.match(text, new RegExp(`docs/20-signal-panels\\.md in ${home} is the read contract`));
-  const panelless = panelReviewDescription({ ...landing, panel: false, queries: null, families: 5 }, { osCheckout: 'noticeos' });
-  assert.match(panelless, /current saved terms at NoticeOS: Portfolio → shop\.example → Settings/);
-  assert.match(panelless, /that is a bead in the OS's own tracker/);
-  assert.match(panelless, /Filed automatically by the OS runner \(scripts\/os-up\.mjs\)/);
-});
-
-test('a panel of unknown size still asks for the whole panel', () => {
-  const text = panelReviewDescription({ asset: 'northwind.example', panelDate: '2026-08-02', queries: null });
-  assert.match(text, /every result page in the panel/);
-});
-
-/**
- * The landing's `queries` is a count of PROVIDER CALLS, one per (tracked term,
- * device), so a 28-term panel reports 56 while config/serp-panel.json hands the
- * reviewer 28 terms. The count sizes the triage session in the operator's head,
- * so it has to be named for what it counts.
- */
-test('a two-device panel is sized in result pages, never in tracked queries', () => {
-  const text = panelReviewDescription({ asset: 'meadow.example', panelDate: '2026-08-03', queries: 56 }, { osCheckout: 'root-os' });
-  assert.match(text, /all 56 collected result pages/);
-  // 56 is not a count of queries or of terms.
-  assert.doesNotMatch(text, /56 tracked queries/);
-  assert.doesNotMatch(text, /56 tracked terms/);
-  // And the reader is told what the extra rows ARE, so 56 pages against 28
-  // configured terms reads as one fact rather than two registers disagreeing.
-  assert.match(text, /one per tracked term per device/);
-  assert.match(text, /terms themselves are saved under NoticeOS: Portfolio → meadow\.example → Settings/);
-});
-
-test('the filer never divides a call count it cannot divide', () => {
-  // The device count does not ride on the wire (the manifest has no device
-  // column), so a filer that printed "28 tracked terms" would be inventing the
-  // denominator. An odd count (a one-device panel, or a partial collection) has
-  // to read as truthfully as an even one.
-  const odd = panelReviewDescription({ asset: 'northwind.example', panelDate: '2026-08-02', queries: 7 });
-  assert.match(odd, /all 7 collected result pages/);
-  // No halved count, and no COUNT of terms at all — the bead points at the term
-  // list, it never claims to know how long it is.
-  assert.doesNotMatch(odd, /3\.5/);
-  assert.doesNotMatch(odd, /\d+ tracked terms/);
-});
-
-/**
- * The panel day is the ANCHOR, and the scope is the week's whole collection:
- * the ranked-keywords inventory, the link and LLM families, and the property's
- * own GSC/GA4/Bing exports all land weekly and all need a reader.
- */
-test('the review asks for the week’s whole collection, not only the panel', () => {
-  const text = panelReviewDescription({ asset: 'northwind.example', panelDate: '2026-08-02', queries: 20 });
-  assert.match(text, /Inventory pass/);
-  for (const family of [
-    /ranked-keywords/,
-    /backlinks/,
-    /LLM-mention/,
-    /GSC \/ GA4 \/ Bing/,
-  ]) {
-    assert.match(text, family);
-  }
-  // The panel's attention list first, and the read contract named: a reviewer
-  // standing in the property's repo has to be able to tell stale from silent.
-  assert.match(text, /read its attention list first/);
-  assert.match(text, /docs\/20-signal-panels\.md/);
-  // Nothing to pull: the daily refresh already keeps the dir current, and a
-  // review that starts with a provider call is a review that does not happen.
-  assert.doesNotMatch(text, /signals:download/);
-});
-
-test('“done” covers both halves, or the second half is decoration', () => {
-  assert.match(PANEL_REVIEW_ACCEPTANCE, /Every panel row/);
-  assert.match(PANEL_REVIEW_ACCEPTANCE, /week's other collections/);
-  assert.match(PANEL_REVIEW_ACCEPTANCE, /evidence-to-readback/);
-  assert.match(PANEL_REVIEW_ACCEPTANCE, /measurement state and last content ship date\/commit/);
-  assert.match(PANEL_REVIEW_ACCEPTANCE, /readback beads updated/);
+  assert.equal(panelReviewDescription(landing), panelReviewDescription(landing, { osCheckout: home }));
 });
 
 test('the created id is read back for the log, and its absence is not a failure', () => {

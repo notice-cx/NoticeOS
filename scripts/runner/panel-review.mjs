@@ -7,7 +7,6 @@ export { PANEL_REVIEW_LABEL, INVALID_PANEL_REVIEW_LABEL, PANEL_REVIEW_ASSET_KEY,
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { checkoutRelative, installationPath } from '../installation.mjs';
 import { PANEL_FRESHNESS_FILE, PANEL_REPORTS_ROOT, panelReportPath, panelReportRelativePath } from '../signal-panel-paths.mjs';
 import { isPanelVersion } from '../panel-versions.mjs';
 import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
@@ -152,145 +151,51 @@ export function panelPublicationGap(freshness, landing) {
  * through NoticeOS's panel tools, and the same files on the OS's own machine. */
 function panelSource(landing, osCheckout) {
   const version = landing.version ? ` version=${landing.version}` : '';
-  return `NoticeOS's panel tools (the noticeos MCP server): get_panel asset=${landing.asset}${version} ` +
-    `is the panel this review covers — read its attention list first — and query_panel runs SQL over ` +
-    `its tables. On the OS's own machine the same files are in ${osCheckout} ` +
+  return `In NoticeOS MCP, open get_panel asset=${landing.asset}${version} and read its attention list first. ` +
+    `Use get_search_review if available and query_panel for detail on the same version. On the OS's own machine the files are in ${osCheckout} ` +
     `(${panelReportRelativePath(landing.asset)}/), and docs/20-signal-panels.md there is the read contract.`;
 }
 
-/** What the reviewer is being asked to do, written for somebody standing in the
- * PROPERTY's repo — every path is qualified, because none of these files are
- * theirs.
- *
- * Two forms, because a property with no panel has no panel walk to do: asking
- * it to "walk every tracked query" against a file that does not exist is how a
- * reviewer learns the bead is boilerplate. What it gets instead is the whole
- * Inventory pass and one thing the panel properties do not need — the standing
- * option of earning a panel, which is the only way a property ever gets one. */
-export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, installation = { root: HOME_ROOT } } = {}) {
-  const exportPath = (name) => {
-    const file = checkoutRelative(installationPath(name, installation), installation);
-    return path.isAbsolute(file) ? file : `${osCheckout}/${file}`;
-  };
-  const settings = `NoticeOS: Portfolio → ${landing.asset} → Settings → Tracked search terms`;
-  const exports = { terms: exportPath('serp-panel.json'), roster: exportPath('signal-panels.json') };
-  if (landing.panel === false) return collectionReviewDescription(landing, osCheckout, settings, exports);
-  // The landing's `queries` field counts provider calls — one per (tracked
-  // term, device) — not terms. The device count does not ride on the wire
-  // (the manifest has no device column), so it is not divided back: the count
-  // is named for what it is, result pages, and the term list stays where it
-  // is authored.
-  const size =
-    landing.queries === null
-      ? 'every result page in the panel'
-      : `all ${landing.queries} collected result pages`;
+export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT } = {}) {
+  const hasPanel = landing.panel !== false;
+  // The manifest counts one request per term and device, not distinct terms.
+  const size = Number.isInteger(landing.queries) ? ` (${landing.queries} result-page requests)` : '';
+  const scope = hasPanel
+    ? `tracked-query SERP panel${size} and weekly search inventory`
+    : 'weekly search inventory';
+  const table = hasPanel ? 'dataforseo_serp_panel, ' : '';
+  const roster = hasPanel
+    ? ' Compare observed term/device pairs with the roster saved for that collection. If it is unavailable, report observed coverage and leave expected pairs unknown. Keep organic ranks and AI Overview citations separate by device.'
+    : '';
+  const settings = `Portfolio → ${landing.asset} → Growth → Tracked panels`;
+  const termDecision = hasPanel
+    ? `Periodically use ${settings} to assess which paid terms still change a decision.`
+    : `If an opportunity would benefit from recurring tracking, propose the term, decision and weekly cost for owner approval. The roster is under ${settings}.`;
   return [
-    `WHAT: The ${landing.panelDate} tracked-query SERP panel for ${landing.asset} has ` +
-      `landed, and the rest of that week's collection landed with it. Triage BOTH on ` +
-      `the panel's own evidence (docs/20-signal-panels.md in ${osCheckout} is the read contract): ` +
-      `(1) the panel — walk ${size} (one per tracked term per device; the terms ` +
-      `themselves are saved under ${settings}) through the ` +
-      `decision rules (demand vs position, AI Overview citing us or not, decay); ` +
-      `(2) the week's other fresh collections in the same panel dir — the ranked-keywords ` +
-      `inventory, backlinks new/lost, the two LLM-mention families, and this asset's ` +
-      `own GSC / GA4 / Bing exports ("Inventory pass"). Every demand-vs-position gap, ` +
-      `decay signal, or new-opportunity cluster becomes a bead in THIS tracker; every row ` +
-      `that produces no bead gets the rule that closed it, named (institution-locked, ` +
-      `AIO-cites-us-protect, too-young-to-read). A finding that maps to work already open ` +
-      `is annotated on that bead, not filed again. Before any surface gets a verdict, ` +
-      `check THIS asset's open readback beads for an active measurement window and ` +
-      `run git log over the content sources that produce that surface. A new bead must ` +
-      `state the measurement state and last ship date/commit; a target changed inside ` +
-      `its measurement window is too-recently-changed-to-verdict, so annotate the ` +
-      `evidence on that window's readback bead instead of filing new copy work.`,
-    `WHY: The panel is bought every week to surface demand worth building against. A ` +
-      `collection nobody triages is money spent on a report nobody reads — and the gap it ` +
-      `would have named goes on costing traffic for every week it stays unread. The panel ` +
-      `is the metered part; the rest is already paid for and answers what the panel's ` +
-      `chosen terms cannot — what this asset ranks for AT ALL, who is linking to it, ` +
-      `and whether the models mention it.`,
-    `WHERE: ${panelSource(landing, osCheckout)} The panel is the dataforseo_serp_panel ` +
-      `table; the inventory is dataforseo_ranked_keywords; then the dataforseo_backlinks_*, ` +
-      `dataforseo_llm_mentions_*, gsc_*, ga4_* and bing_webmaster_* tables. The daily panel ` +
-      `refresh keeps it current, so nothing needs pulling. Read the saved terms at ${settings}. For a current local ` +
-      `export, run pnpm config:export in ${osCheckout}; the terms are exported to ${exports.terms}. ` +
-      `Measurement state is THIS asset's open readback beads; surface recency ` +
-      `comes from git log in this repo, scoped to the content source paths rather than ` +
-      `the repository as a whole.`,
-    `Filed automatically by the OS runner (scripts/os-up.mjs) when the collection ` +
-      `landed.`,
+    `WHAT: Review the ${landing.panelDate} ${scope} for ${landing.asset}. Check evidence and due readbacks, then recommend up to three material actions grouped by page or search intent. Zero actions is a valid outcome.`,
+    'WHY: Use measured demand and user outcomes to decide where a small test could pay off and where to protect existing gains.',
+    `WHERE: ${panelSource(landing, osCheckout)} Start with signal_trend_daily and the gsc_*, ga4_* and bing_webmaster_* tables. Use ${table}dataforseo_ranked_keywords, dataforseo_backlinks_* and dataforseo_llm_mentions_* as context. Work from stored evidence.`,
+    [
+      'FIX: Follow the weekly search review workflow in the panel read contract.',
+      `1. Check freshness and coverage for each source. Compare equal, complete measured periods at the same level of detail. Record provisional, stale, capped and suspect evidence and omit it from conclusions it cannot support.${roster} Route material collection defects to the NoticeOS tracker and continue with independent evidence.`,
+      '2. Check due readback tasks and standing protections. For each candidate surface, use git log on its content sources and record its measurement state and last content ship date and commit. Add evidence to the existing readback when an active window or recent change makes a verdict premature.',
+      '3. Rank candidates by observed lost or attainable clicks, relevant outcomes, confidence and effort. Use modeled demand as a lead. For each selected action state the upside range, smallest test, success measure and stop rule. Include dollars only where supported. Annotate existing work before filing anything new.',
+      `4. Record coverage and reasons for leaving groups alone, plus material exceptions. Read backlink and AI mention detail only when it changes a decision. ${termDecision}`,
+    ].join('\n'),
+    'Filed automatically by the OS runner (scripts/os-up.mjs) after publication.',
   ].join('\n\n');
 }
 
-/** The same ask for a property with no tracked-query panel: the Inventory
- * pass is the review, and the panel is named only as something this property
- * could earn. */
-function collectionReviewDescription(landing, osCheckout, settings, exports) {
-  const bought =
-    landing.families === null
-      ? `this week's DataForSEO report families`
-      : `${landing.families} DataForSEO report families`;
-  return [
-    `WHAT: The ${landing.panelDate} signal collection for ${landing.asset} has landed — ` +
-      `${bought} plus this asset's own GSC / GA4 / Bing exports. Triage it on the ` +
-      `collection's own evidence (docs/20-signal-panels.md in ${osCheckout} is the read ` +
-      `contract) as one Inventory pass: ` +
-      `the ranked-keywords inventory (what do we rank for AT ALL — cluster by URL, look at ` +
-      `pages ranking 11-60 with real demand), backlinks summary and new/lost (is authority ` +
-      `moving?), the two LLM-mention families (do the models mention us?), and the ` +
-      `asset's own reported clicks and impressions (what did it actually get?). Every ` +
-      `demand-vs-position gap, decay signal, or new-opportunity cluster becomes a bead in ` +
-      `THIS tracker; every finding that produces no bead gets the rule that closed it, ` +
-      `named (institution-locked, AIO-cites-us-protect, too-young-to-read). A finding that ` +
-      `maps to work already open is annotated on that bead, not filed again. Before any ` +
-      `surface gets a verdict, check THIS asset's open readback beads for an active ` +
-      `measurement window and run git log over the content sources that produce that ` +
-      `surface. A new bead must state the measurement state and last ship date/commit; a ` +
-      `target changed inside its measurement window is too-recently-changed-to-verdict, so ` +
-      `annotate the evidence on that window's readback bead instead of filing new copy work.`,
-    `WHY: This collection has no tracked-query SERP panel, and the asset buys the ` +
-      `rest of the collection every week anyway. Check its current saved terms at ${settings}. ` +
-      `A collection nobody triages is money spent on a report nobody reads, and the gap it ` +
-      `would have named goes on costing traffic for every week it stays unread. If the ` +
-      `inventory surfaces head terms worth watching every week, adding them through that ` +
-      `Settings section is a legitimate outcome of this review — that is how a ` +
-      `asset earns a panel, and the next review would then carry the panel walk too.`,
-    `WHERE: ${panelSource(landing, osCheckout)} The inventory is the ` +
-      `dataforseo_ranked_keywords table; then the dataforseo_backlinks_*, ` +
-      `dataforseo_llm_mentions_*, gsc_*, ga4_* and bing_webmaster_* tables. The daily ` +
-      `panel refresh keeps it current, so nothing needs pulling. No published panel ` +
-      `calls for checking Panel refresh in the same Settings section. ` +
-      `Run pnpm config:export in ${osCheckout} for current local exports: tracked terms ` +
-      `in ${exports.terms}, refresh roster in ${exports.roster}. A missing or failed ` +
-      `refresh needs investigation; that is a bead in the OS's own tracker, not a ` +
-      `reason to close this one. Measurement state is THIS asset's open readback ` +
-      `beads; surface recency comes from git log in this repo, scoped ` +
-      `to the content source paths rather than the repository as a whole.`,
-    `Filed automatically by the OS runner (scripts/os-up.mjs) when the collection ` +
-      `landed.`,
-  ].join('\n\n');
-}
+const REVIEW_DECISIONS =
+  'Summarize usable sources and comparison dates, grouped reasons for no action, and material exceptions. ' +
+  'Record due readbacks and up to three prioritized actions or a reason to take zero. ' +
+  'Link existing or new tasks for the actions and include evidence, upside, confidence, effort, a success measure and a stop rule. ' +
+  'New work names the target measurement state and last content ship date and commit.';
 
-/** What "done" means. */
+export const COLLECTION_REVIEW_ACCEPTANCE = `Cite the pinned panel version. ${REVIEW_DECISIONS}`;
 export const PANEL_REVIEW_ACCEPTANCE =
-  'Every panel row, and every finding in the week\'s other collections, ends in either a ' +
-  'bead in this tracker, an annotation on existing work, an evidence-to-readback ' +
-  'annotation for an active measurement window, or a no-action note naming the rule that closed it. ' +
-  'Every filed bead names the target surface\'s measurement state and last content ship ' +
-  'date/commit; this bead closes with a reason listing the beads filed, beads annotated, ' +
-  'readback beads updated, and rows deliberately left alone.';
-
-/** The same bar with the half this property does not have removed. A criterion
- * naming panel rows a panel-less review can never produce is a criterion that
- * gets closed by ignoring it. */
-export const COLLECTION_REVIEW_ACCEPTANCE =
-  'Every finding in the week\'s collection — ranked keywords, backlinks, LLM mentions, ' +
-  'and the asset\'s own GSC / GA4 / Bing exports — ends in either a bead in this ' +
-  'tracker, an annotation on existing work, an evidence-to-readback annotation for an ' +
-  'active measurement window, or a no-action note naming the rule that closed it. Every filed bead ' +
-  'names the target surface\'s measurement state and last content ship date/commit; this bead ' +
-  'closes with a reason listing the beads filed, beads annotated, readback beads updated, ' +
-  'and findings deliberately left alone.';
+  'Cite the pinned panel version and summarize expected and observed term/device coverage or its limits. ' +
+  REVIEW_DECISIONS;
 
 /** Which bar this landing is held to. */
 export function panelReviewAcceptance(hasPanel) {

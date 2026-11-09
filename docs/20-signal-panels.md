@@ -343,6 +343,49 @@ second question, using data the nightly Bing collection already archived.
 | **No ratio** | The file computes no "coverage %". The index count is dated to a measured day; the sitemap count is "as of the last collection". A single percentage would look exact while combining two dates; if you divide them yourself, account for the different dates. |
 | **What absence means** | **UNKNOWN — never "not indexed".** A missing file means the Bing collection returned nothing for this asset (unverified asset, failed family, pre-launch), not an empty index. A URL you cannot find here is not absent from the index: this family is **asset-level** and lists no URLs at all. And it is Bing's count — Google indexes different things, so a healthy `pages_in_index` is not evidence about Google, and a falling one is a reason to check Search Console, not proof of a problem. |
 
+## Weekly search review workflow
+
+1. **Check the evidence.** Open the version pinned in the review task with
+   `get_panel` and read its attention list. Use `get_search_review` when
+   available, or use `query_panel` on that version. Check freshness and coverage
+   for the tracked panel, ranked inventory, backlinks, both AI mention
+   families, and the asset's Search Console, GA4 and Bing reports. Compare
+   equal, complete measured periods at the same level of detail. Note
+   provisional days, caps, gaps and suspicious fields. For tracked terms,
+   count expected and observed term/device pairs against the roster saved for
+   that collection when available. Report expected coverage as unknown if the
+   roster was unavailable. Assess organic results and AI Overview citations
+   separately. If full coverage arrives with implausible organic domains, hold
+   rank and competitor conclusions, link the issue in the NoticeOS tracker,
+   and continue with independent evidence.
+2. **Read due experiments and check protections.** Find the asset's open
+   measurement readbacks and standing protections. Check `git log` on the
+   content sources for each candidate surface. Put evidence on the existing
+   readback while a measurement window or recent change makes a verdict
+   premature. Cite the measurement state and last content ship date and
+   commit for newly filed work.
+3. **Select up to three actions, including zero.** Group by page or search
+   intent. Prioritize observed lost or attainable clicks and relevant outcomes,
+   such as downloads or completions, over modeled demand. For each selected
+   action give the evidence, upside range, confidence, effort, smallest test,
+   success measure and stop rule. Use a dollar estimate only where measured
+   outcomes support it. Link existing work or file a task when the action is
+   distinct. Consider routing intent to an existing resource before proposing
+   new copy or a new page.
+4. **Close with compact evidence.** Record the panel version, covered sources
+   and dates, decision and readback links, grouped reasons for no action, and
+   material exceptions. The review can close with zero rank actions when the
+   rank evidence is suspect. Keep routine backlink and domain mention coverage
+   brief and inspect detail when an exception could change a decision. Use
+   periodic roster reviews to identify terms that rarely change a decision.
+
+For example, if comparable weeks show a sustained loss on a guide and its
+download events support the same concern, check the query intent before testing
+a link to the guide from a related page. Record the baseline clicks and
+downloads, the evaluation window, the minimum increase worth keeping and the
+condition for reverting. A protected guide in an open measurement window
+receives a readback annotation while other eligible actions proceed.
+
 ## Answering "what happened in search this week"
 
 Each file below is a `query_panel` table named after it
@@ -506,14 +549,10 @@ add a collector here.
 - **Somebody is asked to read it.** Every asset whose weekly DataForSEO
   collection arrives gets one `panel-review` task in its **own** tracker, filed
   by the runner within the hour and due seven days after the collection day
-  (`scripts/runner/panel-review.mjs` writes its requests). The review task for a
-  asset with a tracked-query panel requests the panel walk *and* the
-  inventory pass; for one without, it requests the inventory pass, which is all
-  that its collection paid for. Only an asset that collects nothing gets no
-  review task. The review task exists so that no panel dir goes unread.
-  **One collection day is one review however many devices it covered**: the panel's
-  two devices are one family, one archive and one manifest row, so the phone
-  adds a second row per term to the walk, not a second task.
+  (`scripts/runner/panel-review.mjs` writes the task after publication). Both
+  forms use the [weekly search review workflow](#weekly-search-review-workflow).
+  Assets with a tracked panel also review term and device coverage. One
+  collection day creates one review across devices.
 - **An asset that launched today can be collected before Monday.**
   `pnpm signals:collect -- --asset <id> [--families serp-panel]` (on a Compose
   installation, `pnpm os:collect -- --asset <id> [--families serp-panel]`)
