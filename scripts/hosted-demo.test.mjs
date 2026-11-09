@@ -34,11 +34,14 @@ const workspace = scenario.manifest.workspaceId;
 const customers = [randomUUID(), randomUUID()];
 const assets = scenario.assets.filter(asset => !asset.isOs);
 const projects = assets.map(asset => ({ asset: asset.id, projectId: randomUUID(), prefix: 'tt' }));
+/** A task service the test's lanes never reach. */
+const idleTasks = Object.freeze(Object.fromEntries(['labelled', 'create', 'claim', 'close', 'comments', 'comment', 'snapshot']
+  .map(name => [name, () => { throw new Error(`Unexpected task call ${name}`); }]).concat([['actor', agent => `service:demo${agent ? `/${agent}` : ''}`]])));
 
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } };
+    store: untouched, grant: untouched, tasks: idleTasks, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
@@ -48,7 +51,7 @@ test('demo composition refuses a foreign workspace, changed seed and ambiguous t
 test("the demo's scheduled lanes are the release's own workflows and accept only the scheduler's minute", () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
+    store: untouched, grant: untouched, tasks: idleTasks, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
   assert.deepEqual(demo.schedule.map(lane => lane.key), ['mercury', 'mediavine', 'counters', 'freshness', 'notifications', 'watch-windows', 'watch-readbacks', 'beads-snapshot']);
   // The Workflows page's lanes, each run once as the demo starts.
   assert.deepEqual(demo.startup, ['notifications', 'watch-windows', 'watch-readbacks']);
@@ -88,7 +91,7 @@ test('Mercury is funded at setup and refreshes atomically through the demo sched
     assert.equal(seeded.readings, 1); assert.equal(seeded.secrets, 0);
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { banking: helpers.writeDemoBanking, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
+      tasks: idleTasks, writer: { banking: helpers.writeDemoBanking, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'mercury');
     const minute = `${scenario.manifest.referenceDate}T19:40:00.000Z`;
     const run = tx => lane.steps[0].run({ input: lane.parseInput({ scheduledAt: minute }), signal: new AbortController().signal }, tx);
@@ -127,7 +130,7 @@ test("the demo's outcome check runs the release's evaluator over the demo's own 
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
+      tasks: idleTasks, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks, freshness() {}, uptime() {}, notify() {}, readbacks() {}, stampReadbacks() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'watch-windows');
     const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T03:30:00.000Z`;
     const run = () => store.write(tx => lane.steps[0].run({ input: minute, signal: new AbortController().signal }, tx));
@@ -167,7 +170,7 @@ test("the demo's hourly lane reads each fictional home page with the release's o
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {},
+      tasks: idleTasks, writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {},
         uptime: (scoped, at, homePages) => helpers.runUptimeChecks({ STORE: scoped }, { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 }),
         notify() {}, readbacks() {}, stampReadbacks() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'freshness');
@@ -290,16 +293,18 @@ test("a new demo's Workflows page shows three workflows with real runs from its 
     const constants = JSON.parse(readFileSync(path.join(REPO_ROOT, 'workers/ingest/test/fixture-config/constants.json'), 'utf8'));
     await admin.query("INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at,updated_by) VALUES($1,'constants',$2,1,now(),'fixture')",
       [workspace, { ...constants, schedules: demoSchedules() }]);
-    // The task service as the hosted executor answers it: each task's comments.
+    // The demo's Ntasks as its task service answers: each task's comments, by the actor that posted them.
     const comments = new Map(), taskCalls = [];
-    const tasks = { async execute(_proof, workspaceId, { projectId, operation }) {
-      assert.equal(workspaceId, workspace);
-      taskCalls.push({ projectId, kind: operation.kind, taskId: operation.taskId });
-      const held = comments.get(operation.taskId) ?? [];
-      if (operation.kind === 'comments') return held.map(row => ({ ...row }));
-      if (operation.kind === 'comment') { comments.set(operation.taskId, [...held, { issue_id: operation.taskId, author: serviceId, text: operation.text }]); return { id: operation.taskId }; }
-      throw new Error(`Unexpected task operation ${operation.kind}`);
-    } };
+    const tasks = { ...idleTasks,
+      async comments(projectId, taskId) {
+        taskCalls.push({ projectId, kind: 'comments', taskId });
+        return (comments.get(taskId) ?? []).map(row => ({ ...row }));
+      },
+      async comment(taskId, text, agent) {
+        const projectId = projects.find(project => scenario.tasks.some(task => task.id === taskId && task.asset === project.asset))?.projectId;
+        taskCalls.push({ projectId, kind: 'comment', taskId });
+        comments.set(taskId, [...(comments.get(taskId) ?? []), { author: idleTasks.actor(agent), text }]);
+      } };
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects, store: untouched, grant: untouched, tasks,
       writer: { banking() {}, write() {}, collect() {}, revenue() {}, snapshot() {}, freshness() {}, uptime() {}, outcomes: helpers.writeDemoOutcomeChecks,

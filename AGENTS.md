@@ -234,7 +234,8 @@ still apply.
 CI (`.github/workflows/ci.yml`) runs one of two lanes, chosen by
 `scripts/ci-scope.mjs`; every job starts with `pnpm install --frozen-lockfile`
 and installs only what its suites start (PostgreSQL 18, Chromium in the
-browser jobs, the pinned task and Dolt tools in the task-store job).
+browser jobs, the pinned task and Dolt tools and the demo's pinned Ntasks in
+the task-store job).
 
 - **PR lane**, on every pull request: the Tower's typecheck and unit tests;
   the other workspaces'; `pnpm test:scripts`; and `pnpm -r build`, the journey
@@ -251,7 +252,8 @@ browser jobs, the pinned task and Dolt tools in the task-store job).
   every browser journey split test by test across three shards, the journey
   harness, the journeys tagged `@dev-server` (they need Vite's dev server),
   the UX flow walker (a report; it fails only when a flow cannot be walked),
-  and `pnpm test:task-store` against a real Dolt server in Docker. A push to
+  and `pnpm test:task-store` against a real Dolt server in Docker and the
+  public demo's own Ntasks. A push to
   `main` whose commit already passed the full lane in the merge queue runs no
   job again.
 

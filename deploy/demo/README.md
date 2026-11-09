@@ -1,17 +1,26 @@
 # Run the public demo with Docker Compose
 
 This stack runs the compiled, read-only NoticeOS demo on a Linux server or VM,
-including a Proxmox VM. PostgreSQL and Dolt store its persistent synthetic data;
-a separate simulator supplies activity. This is a public preview, not customer
-account hosting. It uses no Vite development server.
+including a Proxmox VM. PostgreSQL and the demo's own Ntasks store its
+persistent synthetic data; a separate simulator supplies activity. This is a
+public preview, not customer account hosting. It uses no Vite development
+server.
+
+The demo's tasks live in its own [Ntasks](https://github.com/notice-cx/Ntasks):
+the Ntasks Worker the image builds from the commit
+[ntasks.json](ntasks.json) pins, which the `ntasks` service runs in Miniflare
+on the namespace's loopback. Its one workspace is the demo's, and visitors
+read it with no credential; every change they send is refused. The demo
+reaches no other Ntasks.
 
 ## Before starting
 
 Use Docker with Compose, an exact source commit, and at least 8 GiB free **after**
 the planned image/build allocation. Reserve approximately 4 GiB for the first
 build plus persistent database growth. The image uses the repository's pinned
-Node, pnpm, Beads, Dolt and PostgreSQL versions; no host Node installation is
-needed.
+Node, pnpm and PostgreSQL versions and the pinned Ntasks commit; no host Node
+installation is needed. Building it fetches that Ntasks commit from GitHub
+(`scripts/demo-ntasks-build.mjs`).
 
 Build from the history-free public source export bound to that exact commit.
 The supplied commit argument labels provenance; it does not independently prove
@@ -22,13 +31,14 @@ before the build context is sent.
 Choose a public HTTPS origin and a TLS reverse proxy. The proxy must preserve
 its exact Host header and browser Origin; forwarding headers cannot select the
 application's authority. Only application HTTP is published, on host loopback.
-PostgreSQL has no host port; app and setup share Dolt's network namespace so
-its plaintext listener stays on `127.0.0.1`.
-Only Dolt's shared namespace joins the normal ingress bridge, which permits the
-published loopback HTTP port. PostgreSQL joins only the internal private network.
-This is not a network-wide outbound firewall; the demo Worker transport rejects
-external HTTP, and the task clients disable telemetry and version checks.
-Use a proxy on the same VM, or a proxy container sharing Dolt's network namespace.
+PostgreSQL has no host port; app and setup share the ntasks service's network
+namespace so its Ntasks listener stays on `127.0.0.1`.
+Only the ntasks service's shared namespace joins the normal ingress bridge, which
+permits the published loopback HTTP port. PostgreSQL joins only the internal
+private network. This is not a network-wide outbound firewall; the demo Worker
+transport and the demo's Ntasks both reject external HTTP.
+Use a proxy on the same VM, or a proxy container sharing the ntasks service's
+network namespace.
 A tunnel can connect to the loopback application port with the same exact Host.
 A Proxmox host or separate LXC cannot reach a VM's loopback directly; it needs an
 explicit tunnel or a separately reviewed network route.
@@ -65,26 +75,34 @@ docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/comp
 docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml run --rm --no-deps prepare
 ```
 
+Preparation also provisions the demo's Ntasks: its secret, and the statements
+and credentials Ntasks's own `provision` command writes for its empty
+database (one credential to load the seed, one the simulator changes tasks
+through), all in the bootstrap volume. The ntasks service runs them on its
+first start.
+
 Start only the databases, run the fresh setup once, then start the application:
 
 ```sh
-docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait postgres dolt
+docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait postgres ntasks
 docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml run --rm setup
 docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait app
 ```
 
 Setup applies the committed schema only to its new empty store, creates the
-fixed demo workspace and scoped users, seeds its scenario, and writes private
-runtime configuration. Setup stops with an error, and does not adopt the data,
+fixed demo workspace and scoped users, seeds its scenario, loads the
+scenario's tasks into the demo's empty Ntasks through Ntasks's `seed` and
+`load` commands, and writes private runtime configuration. Setup stops with an error, and does not adopt the data,
 when the store holds partial or unmarked data.
 Preserve failed volumes for diagnosis; do not delete them to force a retry.
 Running setup again after it has completed validates and reuses its scenario
 instead of reseeding.
 
 The app mounts only its state volume. Bootstrap database administrator passwords
-stay in the separate bootstrap volume, never in app configuration or environment.
-All four volumes are private recovery material, including task client profiles
-and application role credentials. Do not publish them or include them in Git.
+and the demo Ntasks's seed credential stay in the separate bootstrap volume,
+never in app configuration or environment. All four volumes are private
+recovery material, including the simulator's Ntasks credential and application
+role credentials. Do not publish them or include them in Git.
 
 Check the local gateway with the configured public authority:
 
@@ -109,7 +127,11 @@ arrive each morning, an hourly freshness check raises and clears the alert for
 an asset whose nightly report has stopped arriving, and the task board refreshes every
 five minutes. Each asset's weekly task is claimed and closed as `codex` for a
 review and as `claude` for a change, with the model and the closer recorded, so
-the Agents page and the Wall keep crediting the named agents after the cutoff. The same hourly job runs the release's home-page check against
+the Agents page and the Wall keep crediting the named agents after the cutoff.
+The simulator makes these changes through the demo's one Ntasks credential,
+which reaches only the sites' projects, so Ntasks records them as
+`service:demo/codex` and `service:demo/claude`; the seeded history before the
+cutoff names `codex` and `claude` themselves. The same hourly job runs the release's home-page check against
 each fictional asset's synthetic page, so no asset is fetched. Each day one asset
 in turn returns HTTP 503 for 25 minutes: the check marks it down and raises its
 alert, and the next hour's check marks it up and closes the alert. System health
@@ -169,7 +191,9 @@ its unused code is not measured. The weeks-old product's Codebase tab shows how
 to send a first report. The release's own
 evaluators produce every alert and verdict from
 the synthetic history; none is seeded as a finished result.
-Visitor writes and provider actions are rejected. A passing health check does
+Visitor writes and provider actions are rejected: the demo refuses every task
+change on its own pages and task tools, and its Ntasks refuses every change
+from a visitor. A passing health check does
 not show that any remote domain has been deployed or that an expired grant can
 be renewed.
 
@@ -190,7 +214,7 @@ so none is monitored.
 Stop without deleting data:
 
 ```sh
-docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml stop app dolt postgres
+docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml stop app ntasks postgres
 ```
 
 Allow up to 90 seconds for owned runtime work and database shutdown. Confirm the
@@ -247,7 +271,7 @@ from. Keep a copy outside the checkout and run it from the demo host:
 By hand, recreate the namespace owner and application together after stopping them:
 
 ```sh
-docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait --force-recreate dolt
+docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait --force-recreate ntasks
 docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait --force-recreate app
 ```
 
@@ -258,18 +282,18 @@ to the previous exact image only if the stored schema remains compatible.
 ## Stopped backup and fresh restore
 
 This preview procedure is a stopped backup, not a nightly backup scheduler.
-Back up all four named volumes together after stopping app, Dolt and PostgreSQL.
+Back up all four named volumes together after stopping app, ntasks and PostgreSQL.
 Create a new private backup directory with mode `0700`; the archive includes
 credentials and must remain private. Use the exact application image and mount
 only this project's volumes, read-only:
 
 ```sh
-docker run --rm --network none --read-only --user 0 --entrypoint tar --mount type=volume,src=demo-preview_postgres,dst=/data/postgres,readonly --mount type=volume,src=demo-preview_dolt,dst=/data/dolt,readonly --mount type=volume,src=demo-preview_state,dst=/data/state,readonly --mount type=volume,src=demo-preview_bootstrap,dst=/data/bootstrap,readonly --mount type=bind,src=/operator/new-backup,dst=/backup noticeos-demo:FULL_SOURCE_COMMIT --numeric-owner -czf /backup/demo-data.tar.gz -C /data postgres dolt state bootstrap
+docker run --rm --network none --read-only --user 0 --entrypoint tar --mount type=volume,src=demo-preview_postgres,dst=/data/postgres,readonly --mount type=volume,src=demo-preview_ntasks,dst=/data/ntasks,readonly --mount type=volume,src=demo-preview_state,dst=/data/state,readonly --mount type=volume,src=demo-preview_bootstrap,dst=/data/bootstrap,readonly --mount type=bind,src=/operator/new-backup,dst=/backup noticeos-demo:FULL_SOURCE_COMMIT --numeric-owner -czf /backup/demo-data.tar.gz -C /data postgres ntasks state bootstrap
 sha256sum /operator/new-backup/demo-data.tar.gz
 ```
 
 Record the archive SHA-256, source/image identity and private operator config
-beside the backup. Keep the same PostgreSQL major, Dolt version and source image
+beside the backup. Keep the same PostgreSQL major and source image, which pins its Ntasks,
 for the first restore. Do not use an unverified downloaded archive.
 
 Restore into a **new project and four new empty volumes**, never over an existing
@@ -277,7 +301,7 @@ store. Create those volumes explicitly:
 
 ```sh
 docker volume create demo-restored_postgres
-docker volume create demo-restored_dolt
+docker volume create demo-restored_ntasks
 docker volume create demo-restored_state
 docker volume create demo-restored_bootstrap
 ```
@@ -286,11 +310,11 @@ Verify the saved archive checksum before extraction. The numeric ownership
 preserves PostgreSQL files and the app's UID 1000 private files:
 
 ```sh
-docker run --rm --network none --read-only --user 0 --entrypoint tar --mount type=volume,src=demo-restored_postgres,dst=/data/postgres --mount type=volume,src=demo-restored_dolt,dst=/data/dolt --mount type=volume,src=demo-restored_state,dst=/data/state --mount type=volume,src=demo-restored_bootstrap,dst=/data/bootstrap --mount type=bind,src=/operator/new-backup,dst=/backup,readonly noticeos-demo:FULL_SOURCE_COMMIT --same-owner -xzf /backup/demo-data.tar.gz -C /data
+docker run --rm --network none --read-only --user 0 --entrypoint tar --mount type=volume,src=demo-restored_postgres,dst=/data/postgres --mount type=volume,src=demo-restored_ntasks,dst=/data/ntasks --mount type=volume,src=demo-restored_state,dst=/data/state --mount type=volume,src=demo-restored_bootstrap,dst=/data/bootstrap --mount type=bind,src=/operator/new-backup,dst=/backup,readonly noticeos-demo:FULL_SOURCE_COMMIT --same-owner -xzf /backup/demo-data.tar.gz -C /data
 ```
 
 Use the original config and compatible image with `-p demo-restored`; start
-postgres/Dolt and then app. Do not run fresh preparation or reseed. Verify health,
+postgres and ntasks, and then app. Do not run fresh preparation or reseed. Verify health,
 same demo/task history and simulator progress before routing visitors to it.
 `docker compose down` retains named volumes. `down --volumes` irreversibly removes
 them and is only appropriate for a positively owned disposable proof after its

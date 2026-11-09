@@ -6,13 +6,13 @@ import os from 'node:os';
 import { testFixtureRoot } from './test-fixture-root.mjs';
 import { randomBytes, createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { captureHostedDemoSetupRequest, readHostedDemoSetupRequest, setupHostedDemo } from './hosted-demo-setup.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { prepareFreshDolt, startDoltPlan, doltComposeArgs, readDoltCredentials } from './dolt-host.mjs';
-import { containerProofCleanup } from './container-proof-cleanup.mjs';
-import { runCommand } from './run-command.mjs';
-import { openHostedTaskRuntime } from './hosted-task-runtime.mjs';
+import { generateDemoScenario } from './demo-scenario.mjs';
+import { applyDemoNtasksProvision, demoNtasksProvisionRequest, demoNtasksWorker, openDemoTasks, DEMO_NTASKS_CREDENTIALS } from './demo-ntasks.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 import { openHostedDemo } from './hosted-demo-runtime.mjs';
 import { readHostedDemoRuntimeFile } from './hosted-demo-server.mjs';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
@@ -26,8 +26,7 @@ function request(home) {
     publicOrigin: 'https://demo.example.test', listen: { host: '127.0.0.1', port: 6548 }, seed: 'portable-hosted-setup',
     cutoff: '2026-10-02T12:00:00.000Z', release: 'a'.repeat(40), serviceExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
     postgres: { adminUrl: 'postgresql://postgres@127.0.0.1:6500/noticeos_dev?sslmode=disable' },
-    dolt: { host: '127.0.0.1', port: 13383, adminUser: 'noticeos_owner', adminPassword: randomBytes(32).toString('hex'), tls: false },
-    binary: { path: '/not-a-tool/bd', sha256: 'b'.repeat(64) }, doltBinary: { path: '/not-a-tool/dolt', sha256: 'c'.repeat(64) } };
+    ntasks: { origin: 'http://127.0.0.1:13383', provisionFile: path.join(home, 'no-provision.json'), toolRoot: '/not-a-tool/ntasks' } };
 }
 function artifact(base) {
   const folder = path.join(base, 'artifact'); fs.mkdirSync(folder);
@@ -41,12 +40,13 @@ function artifact(base) {
 }
 test('fresh setup captures exact explicit configuration and refuses arbitrary inherited targets', () => {
   const input = request('/private/tmp/owned-demo');
-  const held = captureHostedDemoSetupRequest(input); input.dolt.port = 3308;
-  assert.equal(held.dolt.port, 13383);
+  const held = captureHostedDemoSetupRequest(input); input.ntasks.origin = 'http://127.0.0.1:3308';
+  assert.equal(held.ntasks.origin, 'http://127.0.0.1:13383');
   for (const changed of [
     { ...held, unknown: true }, { ...held, publicOrigin: 'http://demo.example.test' },
     { ...held, workerStateRoot: '/other-state' }, { ...held, postgres: { adminUrl: 'postgresql://postgres@db.example.test/noticeos?sslmode=disable' } },
-    { ...held, dolt: { ...held.dolt, host: 'dolt.example.test' } },
+    { ...held, ntasks: { ...held.ntasks, origin: 'https://ntasks.example.test' } },
+    { ...held, ntasks: { ...held.ntasks, origin: 'http://ntasks.example.test:8787' } },
     { ...held, serviceExpiresAt: new Date(Date.now() + 400 * 86400000).toISOString() },
   ]) assert.throws(() => captureHostedDemoSetupRequest(changed));
 });
@@ -79,9 +79,8 @@ test('artifact preflight and sanitized phase diagnostics refuse before database 
     const result = spawnSync(process.execPath, [path.join(root, 'scripts/hosted-demo-setup.mjs'), '--request', file], { encoding: 'utf8', timeout: 10000 });
     assert.equal(result.status, 1); assert.equal(result.stdout, '');
     assert.equal(result.stderr, 'Fresh hosted demo setup refused (tools); preserve partial state for explicit recovery.\n');
-    assert.equal(result.stderr.includes(input.dolt.adminPassword), false);
     assert.equal(result.stderr.includes(input.postgres.adminUrl), false);
-    assert.deepEqual(fs.readdirSync(home).sort(), ['.setup-pending.json','runtime','scratch','setup-home','setup-tmp','tasks']);
+    assert.deepEqual(fs.readdirSync(home).sort(), ['.setup-pending.json','runtime','setup-home','setup-tmp']);
   } finally { fs.rmSync(own, { recursive: true, force: true }); }
 });
 
@@ -103,76 +102,74 @@ test('durable task receipt lets the ordinary workflow writer proceed and cannot 
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('fresh PostgreSQL18 and Dolt create the complete scoped demo, reuse without reseed, and power real readers/activity', {
-  skip: process.env.NOTICEOS_TEST_HOSTED_DEMO_SETUP !== '1', timeout: 780000,
-}, async t => {
-  const evidence = process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE;
-  assert.ok(path.isAbsolute(evidence ?? ''));
+// The whole fresh setup against a new PostgreSQL 18 cluster and the stack's
+// own Ntasks, the pinned build in Miniflare, provisioned as its service
+// provisions it: opt in with NOTICEOS_TEST_HOSTED_DEMO_SETUP=1 and a built
+// Ntasks in NOTICEOS_NTASKS_ROOT (node scripts/demo-ntasks-build.mjs --out <folder>).
+test('fresh PostgreSQL18 and the demo\'s own Ntasks create the complete scoped demo, reuse without reseed, and power real readers/activity', {
+  skip: process.env.NOTICEOS_TEST_HOSTED_DEMO_SETUP !== '1' || !process.env.NOTICEOS_NTASKS_ROOT, timeout: 780000,
+}, async () => {
+  const ntasksRoot = process.env.NOTICEOS_NTASKS_ROOT;
   const base = testFixtureRoot('n-demo-setup-');
   fs.chmodSync(base, 0o700);
   const disk = fs.statfsSync(base); assert.ok(disk.bavail * disk.bsize >= 8 * 1024 ** 3 + 1024 ** 3);
-  const home = path.join(base, 'state'), hub = path.join(base, 'hub');
-  for (const dir of ['home','tmp','docker-config','cleanup']) fs.mkdirSync(path.join(base, dir), { mode: 0o700 });
-  const profile = startDoltPlan({ root, home: hub, port: 13380 }), compose = doltComposeArgs(profile);
-  const env = { PATH: process.env.PATH, HOME: path.join(base, 'home'), TMPDIR: path.join(base, 'tmp'),
-    DOCKER_CONFIG: path.join(base, 'docker-config'), DOCKER_HOST: process.env.DOCKER_HOST,
-    GIT_CONFIG_GLOBAL: os.devNull, GIT_CONFIG_NOSYSTEM: '1', DO_NOT_TRACK: '1', DOLT_DISABLE_EVENT_FLUSH: '1' };
-  const docker = async (args, options = {}) => runCommand('docker', args.includes('up') ? [...args, '--pull', 'never'] : args,
-    { env, timeoutMs: 30000, ...options });
-  let pg, cleanup, fresh = false, tasks, activity, store;
-  const proof = { freeBefore: disk.bavail * disk.bsize, expectedPeakAdditionalBytes: 1024 ** 3, base, stages: [] };
-  const save = () => fs.writeFileSync(path.join(evidence, 'setup-proof.json'), JSON.stringify(proof, null, 2) + '\n', { mode: 0o600 });
+  const home = path.join(base, 'state'), bootstrap = path.join(base, 'bootstrap');
+  fs.mkdirSync(bootstrap, { mode: 0o700 });
+  let pg, miniflare, tasks, activity, store;
   try {
-    save(); cleanup = containerProofCleanup({ base: path.join(base, 'cleanup'), project: profile.project, image: '', mounts: [], runDocker: docker });
-    await cleanup.proveFresh();
-    const absent = await docker(['volume','inspect',`${profile.project}_dolt-data`]); assert.notEqual(absent.code, 0); assert.match(absent.stderr, /no such volume/iu);
-    fresh = true;
     const tools = findPostgres(); pg = await openOnLoopbackPort(path.join(base, 'pg'), tools);
     const secret = randomBytes(32).toString('hex'); pg.onDatabase('postgres').run(`ALTER ROLE postgres PASSWORD '${secret}';`);
     fs.appendFileSync(path.join(pg.root, LOOPBACK_HBA), 'host all postgres 127.0.0.1/32 scram-sha-256\n' +
-      ['noticeos_app','noticeos_identity','noticeos_platform','noticeos_task_directory','noticeos_service_grant'].map(role => `host all ${role} 127.0.0.1/32 scram-sha-256\n`).join(''));
+      ['noticeos_app','noticeos_identity','noticeos_service_grant'].map(role => `host all ${role} 127.0.0.1/32 scram-sha-256\n`).join(''));
     execFileSync(tools.pgCtl, ['reload','-D',path.join(pg.root,'data')], { stdio: 'pipe' });
-    const started = await prepareFreshDolt({ root, home: hub, port: 13380 }, { fresh: true, env, run: (_binary,args,options) => docker(args, options) });
-    assert.equal(started.ok, true, started.line);
     const input = request(home); input.postgres.adminUrl = `postgresql://postgres:${secret}@127.0.0.1:${pg.loopbackPort}/noticeos_dev?sslmode=disable`;
     input.artifactRoot = artifact(base);
-    input.dolt.port = profile.port;
-    input.dolt.adminPassword = readDoltCredentials(profile).root.trim();
-    input.binary = { path: process.env.NOTICEOS_TEST_BEADS_NEW_BIN, sha256: process.env.NOTICEOS_TEST_BEADS_SHA256 };
-    input.doltBinary = { path: process.env.NOTICEOS_TEST_DOLT_CLIENT_BIN, sha256: process.env.NOTICEOS_TEST_DOLT_CLIENT_SHA256 };
+    // The stack's ntasks service, as preparation and its first start leave it.
+    const scenario = generateDemoScenario({ seed: input.seed, cutoff: input.cutoff, release: input.release });
+    fs.writeFileSync(path.join(bootstrap, 'request.json'), JSON.stringify(demoNtasksProvisionRequest(scenario)));
+    const provisionFile = path.join(bootstrap, 'ntasks-provision.json');
+    execFileSync(process.execPath, [path.join(ntasksRoot, 'tools/migrate/src/cli.ts'), 'provision', '--from', path.join(bootstrap, 'request.json'), '--out', provisionFile]);
+    const provision = JSON.parse(fs.readFileSync(provisionFile, 'utf8'));
+    const wrangler = createRequire(createRequire(new URL('../workers/ingest/package.json', import.meta.url)).resolve('wrangler/package.json'));
+    const { Miniflare, Log } = v4Miniflare(wrangler);
+    miniflare = new Miniflare({ ...demoNtasksWorker({ bundleRoot: path.join(ntasksRoot, 'dist'), authSecret: randomBytes(32).toString('base64url'),
+      workspaceId: scenario.manifest.workspaceId }), host: '127.0.0.1', port: 0, cf: false, resourcePersistencePath: path.join(base, 'ntasks'),
+      log: new Log(0), handleStructuredLogs: () => undefined });
+    const origin = (await miniflare.ready).origin;
+    await applyDemoNtasksProvision(await miniflare.getD1Database('DB'), provision);
+    input.ntasks = { origin, provisionFile, toolRoot: ntasksRoot };
     const result = await setupHostedDemo(input); assert.equal(result.created, true);
     const bytes = fs.readFileSync(result.runtimeFile), configuration = readHostedDemoRuntimeFile(result.runtimeFile);
     assert.equal(fs.statSync(result.runtimeFile).mode & 0o777, 0o600); assert.equal(fs.existsSync(path.join(home, '.setup-pending.json')), false);
-    assert.equal(configuration.tasks.targets.length, 6); assert.equal(configuration.activity.projects.length, 5);
-    assert.equal(bytes.includes(Buffer.from(secret)), false); assert.equal(bytes.includes(Buffer.from(input.dolt.adminPassword)), false);
+    assert.equal(configuration.activity.projects.length, 5);
+    assert.equal(bytes.includes(Buffer.from(secret)), false);
+    assert.equal(bytes.includes(Buffer.from(provision.tokens[DEMO_NTASKS_CREDENTIALS.seed])), false, 'the seed credential stays in the bootstrap volume');
+    assert.equal(fs.readdirSync(path.join(home, 'setup-tmp')).length, 0, 'the seed and its token are removed once loaded');
     assert.equal(configuration.workspaceDatabaseUrl.includes('noticeos_app:'), true);
     assert.equal(configuration.activity.grantConnectionString.includes('noticeos_service_grant:'), true);
     const receiptHash = hash(fs.readFileSync(path.join(home, 'setup.json')));
     const reused = await setupHostedDemo({ ...input, release: 'd'.repeat(40) });
     assert.equal(reused.created, false); assert.equal(hash(fs.readFileSync(path.join(home, 'setup.json'))), receiptHash);
     assert.equal(hash(fs.readFileSync(result.runtimeFile)), hash(bytes));
-    for (const changed of [{ ...input, publicOrigin: 'https://other.example.test' }, { ...input, binary: { ...input.binary, sha256: 'f'.repeat(64) } }]) {
+    for (const changed of [{ ...input, publicOrigin: 'https://other.example.test' }, { ...input, ntasks: { ...input.ntasks, origin: 'http://127.0.0.1:1' } }]) {
       await assert.rejects(setupHostedDemo(changed));
     }
-    proof.stages.push('fresh-schema-scenario-scoped-identities','repeat-no-reseed','changed-topology-refused'); save();
-    tasks = await openHostedTaskRuntime(configuration.tasks);
+    tasks = openDemoTasks(configuration.tasks);
     const catalog = await tasks.handle(new Request(input.publicOrigin + '/api/tasks/projects')); assert.equal(catalog.status, 200);
     const projects = await catalog.json(); assert.ok(JSON.stringify(projects).includes('Light Brief'));
-    const denied = await tasks.handle(new Request(input.publicOrigin + '/api/tasks', { method: 'POST', headers: { origin: input.publicOrigin }, body: '{}' })); assert.ok(denied.status >= 400);
+    const denied = await tasks.handle(new Request(input.publicOrigin + '/api/tasks', { method: 'POST', headers: { origin: input.publicOrigin }, body: '{}' }));
+    assert.equal(denied.status, 403);
     store = openWorkspaceStore(configuration.workspaceDatabaseUrl, { workspaceId: result.workspaceId });
     const rows = () => store.read(tx => tx.query('SELECT (SELECT count(*)::int FROM noticeos.pulses) AS pulses,(SELECT count(*)::int FROM noticeos.task_snapshots) AS snapshots'));
     const before = await rows();
+    assert.ok(before[0].snapshots > 0, 'setup wrote the task history');
     activity = await openHostedDemo({ ...configuration.activity, now: () => Date.parse('2026-10-03T12:00:00Z') });
     const tick = await activity.tick(); assert.equal(tick.days.length, 1); assert.equal(tick.days[0].receipt.state, 'succeeded');
     const after = await rows(); assert.ok(after[0].pulses > before[0].pulses);
-    proof.stages.push('real-task-catalog-read','visitor-write-refused','ordinary-simulator-tick-succeeded'); save();
   } finally {
     await Promise.allSettled([activity?.close(), tasks?.close(), store?.close()]);
+    await miniflare?.dispose();
     if (pg) pg.close();
-    if (cleanup && fresh) { proof.cleanup = await cleanup.finish([() => docker([...compose,'down','--volumes'], { timeoutMs: 90000 })]); }
-    save();
-    if ((!fresh || proof.cleanup?.complete) && (!pg || !fs.existsSync(path.join(pg.root, 'data/postmaster.pid')))) {
-      fs.rmSync(base, { recursive: true, force: true }); proof.ownedFixtureAbsent = !fs.existsSync(base); save();
-    }
+    if (!pg || !fs.existsSync(path.join(pg.root, 'data/postmaster.pid'))) fs.rmSync(base, { recursive: true, force: true });
   }
 });

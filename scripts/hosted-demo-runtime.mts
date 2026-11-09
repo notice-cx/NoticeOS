@@ -1,11 +1,9 @@
 /** Native deployment composition for one already seeded demo tenant. Opening
  * it never provisions a workspace, changes schema or reads an installation.
- * Its only outward adapter is the fixed, scoped Beads executor. */
+ * Its only outward adapter is the stack's own Ntasks, through the demo's credential. */
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
-import { openTaskDirectory, type TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
-import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { createHostedTaskExecutor, type HostedTaskTarget, type HostedTaskExecutorOptions } from './hosted-task-executor.mjs';
+import { createDemoTaskService, demoNtasks } from './demo-ntasks.mjs';
 import { createHostedDemo, type HostedDemoOptions, type HostedDemoTick, type DemoActivityWriter } from './hosted-demo.mjs';
 import { createDemoActivity, DEMO_NIGHTLY_HOUR } from './demo-activity.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
@@ -20,23 +18,19 @@ export interface HostedDemoRuntimeOptions {
   readonly serviceId: string;
   readonly connectionString: string;
   readonly grantConnectionString: string;
-  readonly directoryConnectionString: string;
-  readonly projects: readonly { readonly asset: string; readonly prefix: string; readonly mapping: TaskProjectMapping; readonly target: HostedTaskTarget }[];
-  readonly binary: HostedTaskExecutorOptions['binary'];
-  readonly doltBinary: HostedTaskExecutorOptions['doltBinary'];
-  readonly scratchRoot: string;
+  /** The stack's own Ntasks and the demo credential's token. */
+  readonly ntasks: { readonly origin: string; readonly token: string };
+  /** The sites' task projects in it. */
+  readonly projects: readonly { readonly asset: string; readonly prefix: string; readonly projectId: string }[];
   /** Trusted server clock; disposable qualification can hold a reporting day. */
   readonly now?: HostedDemoOptions['now'];
 }
 
 export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise<Pick<ReturnType<typeof createHostedDemo>, 'tick' | 'close'>> {
-  const { workspaceId, serviceId, sourceRoot, configurationRoot, connectionString, grantConnectionString, directoryConnectionString, scratchRoot, now } = options;
-  const scenario = structuredClone(options.scenario), binary = Object.freeze({ ...options.binary }), doltBinary = Object.freeze({ ...options.doltBinary });
-  const projects = options.projects.map(row => Object.freeze({ asset: row.asset, prefix: row.prefix,
-    mapping: Object.freeze({ ...row.mapping }), target: Object.freeze({ ...row.target }) }));
-  if (projects.some(row => row.mapping.workspaceId !== workspaceId)
-    || new Set(projects.map(row => row.mapping.projectId)).size !== projects.length) throw new Error('Demo project binding refused.');
-  const allocations = new Map(projects.map(row => [row.mapping.projectId, row]));
+  const { workspaceId, serviceId, sourceRoot, configurationRoot, connectionString, grantConnectionString, now } = options;
+  const scenario = structuredClone(options.scenario);
+  const projects = options.projects.map(row => Object.freeze({ asset: row.asset, prefix: row.prefix, projectId: row.projectId }));
+  if (new Set(projects.map(row => row.projectId)).size !== projects.length) throw new Error('Demo project binding refused.');
   const resources: { close(): Promise<void> }[] = [];
   let demo: ReturnType<typeof createHostedDemo> | undefined;
   let schedule: Awaited<ReturnType<typeof startHostedScheduler>> | undefined;
@@ -45,19 +39,7 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
     resources.push(store);
     const grant = openWorkspaceServiceGrant({ connectionString: grantConnectionString, principalId: serviceId, workspaceId });
     resources.push(grant);
-    const directory = openTaskDirectory({ connectionString: directoryConnectionString });
-    resources.push(directory);
-    const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('demo task service'), authority: async () => {
-      const facts = await grant.facts();
-      if (!facts || facts.principalId !== serviceId || facts.workspaceId !== workspaceId) throw new Error('Demo service refused.');
-      return facts;
-    } });
-    const tasks = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
-      resolveTarget: async mapping => {
-        const held = allocations.get(mapping.projectId);
-        if (!held || Object.keys(held.mapping).some(key => held.mapping[key as keyof TaskProjectMapping] !== mapping[key as keyof TaskProjectMapping])) return null;
-        return held.target;
-      } });
+    const tasks = createDemoTaskService({ ntasks: demoNtasks({ workspaceId, origin: options.ntasks.origin, token: options.ntasks.token }) });
     const helpers = await buildDemoWorkerHelpers(sourceRoot, { activity: true, configurationRoot });
     if (typeof helpers.writeDemoBanking !== 'function' || typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
       || typeof helpers.writeDemoAdRevenue !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function'
@@ -94,7 +76,7 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
     const stampReadbacks: DemoActivityWriter['stampReadbacks'] = (scoped, ids, at) => helpers.markWatchReadbacksPosted(Object.freeze({ STORE: scoped }), [...ids], Date.parse(at));
     demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, tasks, now,
       writer: { banking, write, collect, revenue, snapshot, outcomes, freshness, uptime, notify, readbacks, stampReadbacks },
-      projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
+      projects });
     const opened = demo;
     // The ordinary hosted scheduler owns its own connections and timers; a
     // controlled clock (disposable qualification) runs no live schedule.
@@ -110,7 +92,7 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
       if (closing) return closing;
       closing = (async () => {
         try { await scheduled?.close(); } finally {
-          try { await opened.close(); } finally { await directory.close(); }
+          await opened.close();
         }
       })(); return closing;
     } });

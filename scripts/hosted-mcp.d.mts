@@ -18,7 +18,11 @@ export interface HostedMcpOptions {
     readonly demoWorkspaceId?: string;
     /** Standalone only, and required there: the installation's one workspace. */
     readonly standaloneWorkspaceId?: string;
-    readonly operations: HostedTaskOperations;
+    /** The task operations the task tools run over; the demo gives `taskTools` instead. */
+    readonly operations?: HostedTaskOperations;
+    /** Demo only: runs each task tool in the demo's own Ntasks, whose tools take
+     * these names and arguments, as a visitor who may only read. */
+    readonly taskTools?: (name: string, args: Readonly<Record<string, unknown>>) => Promise<unknown>;
     /** Hosted only, and required there: the request's verified token, and its
      * person's workspaces. Admission verifies again, per workspace, per call. */
     readonly agents?: {

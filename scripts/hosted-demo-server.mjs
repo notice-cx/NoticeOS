@@ -6,8 +6,8 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, constants } from 'node:fs';
-import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
 import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
+import { demoNtasksOrigin, openDemoTasks } from './demo-ntasks.mjs';
 import { startHostedDemo } from './hosted-demo-runtime.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { createDemoRealtime } from './demo-realtime.mjs';
@@ -103,13 +103,30 @@ export function captureHostedDemoServerOptions(input) {
     if (!['127.0.0.1', '0.0.0.0'].includes(listen.host) || !Number.isInteger(listen.port)
         || listen.port < 1024 || listen.port > 65535)
         refused();
-    const tasks = captureHostedTaskRuntimeOptions(raw.tasks);
-    if (tasks.profile !== 'demo' || tasks.trustedOrigin !== publicOrigin || !tasks.demoWorkspaceId)
+    const taskRecord = record(raw.tasks);
+    exact(taskRecord, ['profile', 'trustedOrigin', 'demoWorkspaceId', 'identity', 'ntasks']);
+    const identity = record(taskRecord.identity);
+    exact(identity, ['connectionString', 'trustedOrigin', 'sessionSecret']);
+    const taskNtasks = record(taskRecord.ntasks);
+    exact(taskNtasks, ['origin']);
+    if (taskRecord.profile !== 'demo' || taskRecord.trustedOrigin !== publicOrigin || typeof taskRecord.demoWorkspaceId !== 'string'
+        || !UUID.test(taskRecord.demoWorkspaceId) || identity.trustedOrigin !== publicOrigin || typeof identity.connectionString !== 'string'
+        || typeof identity.sessionSecret !== 'string')
         refused();
+    let ntasksOrigin;
+    try {
+        ntasksOrigin = demoNtasksOrigin(taskNtasks.origin);
+    }
+    catch {
+        refused();
+    }
+    const tasks = Object.freeze({ profile: 'demo', trustedOrigin: publicOrigin, demoWorkspaceId: taskRecord.demoWorkspaceId,
+        identity: Object.freeze({ connectionString: identity.connectionString, trustedOrigin: publicOrigin, sessionSecret: identity.sessionSecret }),
+        ntasks: Object.freeze({ origin: ntasksOrigin }) });
     const activity = structuredClone(raw.activity);
     const activityRecord = record(raw.activity);
     if (Object.keys(activityRecord).some(key => !['sourceRoot', 'configurationRoot', 'scenario', 'workspaceId', 'serviceId', 'connectionString',
-        'grantConnectionString', 'directoryConnectionString', 'projects', 'binary', 'doltBinary', 'scratchRoot'].includes(key)))
+        'grantConnectionString', 'ntasks', 'projects'].includes(key)))
         refused();
     if (!activity || activity.workspaceId !== tasks.demoWorkspaceId || !UUID.test(activity.serviceId)
         || activity.now !== undefined || activity.scenario.manifest.workspaceId !== tasks.demoWorkspaceId
@@ -117,20 +134,13 @@ export function captureHostedDemoServerOptions(input) {
         refused();
     if (typeof raw.workspaceDatabaseUrl !== 'string' || !/^postgres(?:ql)?:\/\//u.test(raw.workspaceDatabaseUrl))
         refused();
-    if (!Array.isArray(activity.projects) || activity.projects.length > tasks.targets.length
-        || new Set(activity.projects.map(project => project.mapping.projectId)).size !== activity.projects.length
-        || activity.directoryConnectionString !== tasks.directoryConnectionString
-        || activity.binary.path !== tasks.binary.path || activity.binary.sha256 !== tasks.binary.sha256
-        || activity.doltBinary.path !== tasks.doltBinary.path || activity.doltBinary.sha256 !== tasks.doltBinary.sha256)
+    const activityNtasks = record(activityRecord.ntasks);
+    exact(activityNtasks, ['origin', 'token']);
+    if (activityNtasks.origin !== ntasksOrigin || typeof activityNtasks.token !== 'string' || !/^ntasks_service\./u.test(activityNtasks.token)
+        || !Array.isArray(activity.projects) || activity.projects.some(project => !UUID.test(project.projectId))
+        || new Set(activity.projects.map(project => project.projectId)).size !== activity.projects.length)
         refused();
-    for (const project of activity.projects) {
-        const held = tasks.targets.find(row => row.mapping.projectId === project.mapping.projectId);
-        if (!held || Object.keys(held.mapping).some(key => held.mapping[key] !== project.mapping[key])
-            || Object.keys(held.target).some(key => held.target[key] !== project.target[key]))
-            refused();
-    }
     absolute(activity.sourceRoot);
-    absolute(activity.scratchRoot);
     if (activity.configurationRoot !== undefined)
         absolute(activity.configurationRoot);
     // No customer cookies/mail/provider credentials or ambient worker overrides.
@@ -328,7 +338,7 @@ export async function startHostedDemoServer(input, adapters, presentation = {}) 
         const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
         const wrangler = createRequire(require.resolve('wrangler/package.json'));
         const { Miniflare, Log } = v4Miniflare(wrangler);
-        return { openTasks: openHostedTaskRuntime, startActivity: startHostedDemo,
+        return { openTasks: async (options, tasks) => openDemoTasks(options, tasks), startActivity: startHostedDemo,
             openWorkers: options => new Miniflare({ ...options, log: new Log(0), handleStructuredLogs: () => undefined }) };
     })();
     const binding = { [PRODUCT_ENV.workspaceProfile.name]: 'demo', [PRODUCT_ENV.workspaceOrigin.name]: configuration.publicOrigin,

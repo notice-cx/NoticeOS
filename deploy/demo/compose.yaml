@@ -12,7 +12,7 @@ services:
     volumes:
       - bootstrap:/setup
       - state:/state
-      - dolt:/dolt
+      - ntasks:/ntasks
       - type: bind
         source: ${NOTICEOS_DEMO_CONFIG:?Set an absolute nonsecret demo configuration}
         target: /config/demo.json
@@ -39,13 +39,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 24
-  dolt:
+  ntasks:
     <<: *app-image
     user: "1000:1000"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     init: true
-    entrypoint: [node, deploy/demo/dolt-start.mjs]
+    entrypoint: [node, deploy/demo/ntasks-start.mjs]
     restart: unless-stopped
     read_only: true
     stop_grace_period: 90s
@@ -53,13 +53,13 @@ services:
       HOME: /tmp/home
     tmpfs: [/tmp:mode=1777]
     volumes:
-      - dolt:/dolt
+      - ntasks:/ntasks
       - bootstrap:/setup:ro
     networks: [private, ingress]
     ports:
       - "127.0.0.1:${NOTICEOS_DEMO_HTTP_PORT:?Choose an unused loopback HTTP port}:8080"
     healthcheck:
-      test: [CMD, node, deploy/demo/health.mjs, --dolt]
+      test: [CMD, node, deploy/demo/health.mjs, --ntasks]
       interval: 5s
       timeout: 3s
       retries: 24
@@ -71,7 +71,7 @@ services:
     security_opt: [no-new-privileges:true]
     init: true
     entrypoint: [node, scripts/hosted-demo-setup.mjs, --request, /setup/bootstrap.json]
-    network_mode: service:dolt
+    network_mode: service:ntasks
     read_only: true
     environment:
       HOME: /tmp/home
@@ -82,7 +82,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      dolt:
+      ntasks:
         condition: service_healthy
   app:
     <<: *app-image
@@ -91,7 +91,7 @@ services:
     security_opt: [no-new-privileges:true]
     init: true
     restart: unless-stopped
-    network_mode: service:dolt
+    network_mode: service:ntasks
     read_only: true
     stop_grace_period: 90s
     environment:
@@ -103,7 +103,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      dolt:
+      ntasks:
         condition: service_healthy
     healthcheck:
       test: [CMD, node, deploy/demo/health.mjs, --runtime, /state/runtime/runtime.json]
@@ -118,6 +118,6 @@ networks:
     driver: bridge
 volumes:
   postgres:
-  dolt:
+  ntasks:
   state:
   bootstrap:

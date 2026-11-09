@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import net from 'node:net';
 import http from 'node:http';
 // Native HTTP preserves the fixed public Host while dialing only loopback.
 // Fetch may replace that header with the private destination's authority.
@@ -36,17 +35,17 @@ export async function demoHealth(runtimeFile, request = healthRequest) {
     return (await response.json()).ok === true;
   } catch { return false; }
 }
-export async function doltHealth() {
-  return new Promise(resolve => {
-    const socket = net.connect({ host: '127.0.0.1', port: 3306 });
-    const finish = value => { socket.destroy(); resolve(value); };
-    socket.setTimeout(2000); socket.once('connect', () => finish(true)); socket.once('error', () => finish(false)); socket.once('timeout', () => finish(false));
-  });
+/** The demo's own Ntasks answers its health check on the namespace's loopback. */
+export async function ntasksHealth(request = healthRequest) {
+  try {
+    const response = await request('http://127.0.0.1:8787/healthz', { signal: AbortSignal.timeout(2000) });
+    return response.ok && (await response.json()).ok === true;
+  } catch { return false; }
 }
 if (process.argv[1] === import.meta.filename) {
   try {
     const args = process.argv.slice(2);
-    const okay = args.length === 1 && args[0] === '--dolt' ? await doltHealth()
+    const okay = args.length === 1 && args[0] === '--ntasks' ? await ntasksHealth()
       : args.length === 2 && args[0] === '--runtime' ? await demoHealth(args[1]) : false;
     process.exitCode = okay ? 0 : 1;
   } catch { process.exitCode = 1; }

@@ -31,12 +31,10 @@ function fixture(input = { seed: 'gateway-fixture', cutoff: '2026-10-04T00:00:00
   const scenario = generateDemoScenario({ ...input, release: 'b'.repeat(40) });
   const workspaceId = scenario.manifest.workspaceId;
   const identity = { connectionString: 'postgres://identity:synthetic@127.0.0.1:6400/db', trustedOrigin: origin, sessionSecret: 'synthetic-fixture-session-secret' };
-  const tool = { path: '/synthetic/tool', sha256: 'c'.repeat(64) };
-  const tasks = { profile: 'demo', trustedOrigin: origin, demoWorkspaceId: workspaceId, identity,
-    directoryConnectionString: 'postgres://directory:synthetic@127.0.0.1:6400/db', targets: [], binary: tool, doltBinary: tool, scratchRoot: root };
+  const tasks = { profile: 'demo', trustedOrigin: origin, demoWorkspaceId: workspaceId, identity, ntasks: { origin: 'http://127.0.0.1:8787' } };
   const activity = { sourceRoot: root, scenario, workspaceId, serviceId: '11111111-1111-4111-8111-111111111111',
     connectionString: 'postgres://service:synthetic@127.0.0.1:6400/db', grantConnectionString: 'postgres://grant:synthetic@127.0.0.1:6400/db',
-    directoryConnectionString: tasks.directoryConnectionString, projects: [], binary: tool, doltBinary: tool, scratchRoot: root };
+    ntasks: { origin: 'http://127.0.0.1:8787', token: 'ntasks_service.synthetic-fixture-token' }, projects: [] };
   const options = { version: 1, publicOrigin: origin, listen: { host: '127.0.0.1', port: 6409 }, artifactRoot: root,
     workerStateRoot: path.join(root, 'worker'), workspaceDatabaseUrl: 'postgres://app:synthetic@127.0.0.1:6400/db', tasks, activity };
   return { root, manifest, save, options, close: () => rmSync(root, { recursive: true, force: true }) };
