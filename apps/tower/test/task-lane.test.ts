@@ -120,6 +120,8 @@ let root = "";
 let binDir = "";
 let logFile = "";
 let previousPath = "";
+/** The synthetic viewer's Dolt home (NOTICEOS_DOLT_HOME): the only task client the lane's bd routes run with. */
+let doltHome = "";
 
 const SAME_ORIGIN = {
   host: "office-mac.local:5173",
@@ -148,6 +150,8 @@ beforeAll(async () => {
   spawnSync("git", ["init", "-q", "-b", "main"], { cwd: repo });
   spawnSync("git", ["config", "user.name", "Operator Under Test"], { cwd: repo });
 
+  doltHome = await writeDoltHome(path.join(root, "viewer-home"), 5453);
+
   previousPath = process.env.PATH ?? "";
   process.env.PATH = `${binDir}${path.delimiter}${previousPath}`;
   process.env.FAKE_BD_LOG = logFile;
@@ -163,6 +167,19 @@ afterAll(async () => {
   delete process.env.FAKE_BD_NIL_RESPONSE;
   await fs.rm(root, { recursive: true, force: true });
 });
+
+/** A declared Dolt home with its profile and private credentials, as the synthetic viewer's. */
+async function writeDoltHome(home: string, port: number): Promise<string> {
+  const dolt = path.join(home, "dolt");
+  await fs.mkdir(path.join(dolt, "secrets"), { recursive: true, mode: 0o700 });
+  await fs.mkdir(path.join(dolt, "client-home"), { mode: 0o700 });
+  const profile = { project: "noticeos-start-0123456789abcdef", composeFile: path.join(dolt, "compose.yaml"),
+    secretsDir: path.join(dolt, "secrets"), credentialsFile: path.join(dolt, "credentials"), port };
+  await fs.writeFile(path.join(dolt, "profile.json"), JSON.stringify(profile), { mode: 0o600 });
+  for (const name of ["root", "noticeos"]) await fs.writeFile(path.join(profile.secretsDir, name), "a".repeat(64) + "\n", { mode: 0o600 });
+  await fs.writeFile(profile.credentialsFile, `[127.0.0.1:${port}]\npassword=${"a".repeat(64)}\n`, { mode: 0o600 });
+  return home;
+}
 
 /** The argv of every `bd` the lane spawned since the last reset. */
 async function spawned(): Promise<string[][]> {
@@ -192,6 +209,7 @@ function repoRoot(): string {
 
 async function fixtureProjects() {
   return readSpokes(repoRoot(), {
+    env: { NOTICEOS_DOLT_HOME: doltHome },
     token: "op",
     fetchImpl: async () => Response.json({ ready: true, documents: [
       { file: "config/beads.json", version: 3, body: SPOKES },
@@ -1088,20 +1106,17 @@ describe("the pieces underneath", () => {
   it("runs the real bd child with only its declared task profile and private client HOME", async () => {
     const own = await fs.mkdtemp(path.join(os.tmpdir(), "noticeos-task-child-env-"));
     try {
-      const home = path.join(own, "home");
+      const home = await writeDoltHome(path.join(own, "home"), 5453);
       const bin = path.join(own, "bin");
-      await fs.mkdir(path.join(home, "dolt"), { recursive: true });
       await fs.mkdir(bin);
-      const profile = { project: "noticeos-start-0123456789abcdef", composeFile: path.join(own, "compose.yaml"),
-        secretsDir: path.join(home, "dolt", "secrets"), credentialsFile: path.join(home, "dolt", "credentials"), port: 5453 };
-      await fs.writeFile(path.join(home, "dolt", "profile.json"), JSON.stringify(profile));
+      const profile = { credentialsFile: path.join(home, "dolt", "credentials") };
       await fs.writeFile(path.join(bin, "bd"), `#!${process.execPath}\nconsole.log(JSON.stringify({home:process.env.HOME, credentials:process.env.BEADS_CREDENTIALS_FILE, port:process.env.BEADS_DOLT_SERVER_PORT, user:process.env.BEADS_DOLT_SERVER_USER, inherited:['BD_DOLT_SERVER_SOCKET','BEADS_DOLT_PASSWORD','DOLT_ROOT_PATH','MYSQL_PWD'].some(k=>process.env[k]!==undefined)}));\n`, { mode: 0o700 });
-      const result = defaultRun(["list", "--json"], own, { PATH: bin, HOME: path.join(own, "global-home"), NOTICEOS_HOME: home,
+      const result = defaultRun(["list", "--json"], own, { PATH: bin, HOME: path.join(own, "global-home"), NOTICEOS_DOLT_HOME: home,
         BD_DOLT_SERVER_SOCKET: "synthetic-sentinel", BEADS_DOLT_PASSWORD: "synthetic-sentinel", DOLT_ROOT_PATH: "synthetic-sentinel", MYSQL_PWD: "synthetic-sentinel" });
       expect(result.code).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual({ home: path.join(home, "dolt", "client-home"), credentials: profile.credentialsFile, port: "5453", user: "noticeos", inherited: false });
       await fs.writeFile(path.join(home, "dolt", "profile.json"), "invalid");
-      const invalid = defaultRun(["list"], own, { PATH: bin, NOTICEOS_HOME: home });
+      const invalid = defaultRun(["list"], own, { PATH: bin, NOTICEOS_DOLT_HOME: home });
       expect(invalid.code).toBe(-1);
       expect(invalid.stdout).toBe("");
     } finally { await fs.rm(own, { recursive: true, force: true }); }
@@ -1202,6 +1217,7 @@ describe("saved project routing", () => {
     await reset();
     const saved = { asset: "new.example", prefix: "nx", database: "nx", repo: "/untrusted" };
     const readProjects = () => readSpokes(repoRoot(), {
+      env: { NOTICEOS_DOLT_HOME: doltHome },
       token: "op",
       fetchImpl: async () => Response.json({ ready: true, documents: [
         { file: "config/beads.json", version: 8, body: { spokes: [saved] } },
