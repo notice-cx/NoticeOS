@@ -166,7 +166,7 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT } = {
     : 'weekly search inventory';
   const table = hasPanel ? 'dataforseo_serp_panel, ' : '';
   const roster = hasPanel
-    ? ' Compare observed term/device pairs with the roster saved for that collection. If it is unavailable, report observed coverage and leave expected pairs unknown. Keep organic ranks and AI Overview citations separate by device.'
+    ? ' Compare observed term/device pairs with the roster saved for that collection. If it is unavailable, report observed coverage and leave expected pairs unknown. Keep organic ranks and AI Overview citations separate by device. Set aside rank and competitor conclusions when organic results are suspect.'
     : '';
   const settings = `Portfolio → ${landing.asset} → Settings → Tracked search terms`;
   const termDecision = hasPanel

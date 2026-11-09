@@ -3051,7 +3051,8 @@ test('an inventory review keeps the same evidence version and omits tracked cove
   for (const description of [tracked, inventory]) {
     assert.ok(description.includes('Portfolio → shop.example → Settings → Tracked search terms'));
   }
-  assert.doesNotMatch(inventory, /dataforseo_serp_panel|result-page requests|term\/device pairs/);
+  assert.match(tracked, /Set aside rank and competitor conclusions when organic results are suspect/u);
+  assert.doesNotMatch(inventory, /dataforseo_serp_panel|result-page requests|term\/device pairs|organic results are suspect/u);
   assert.notEqual(panelReviewAcceptance(true), panelReviewAcceptance(false));
   assert.doesNotMatch(panelReviewAcceptance(false), /term\/device coverage/);
 });
