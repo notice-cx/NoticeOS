@@ -7,7 +7,7 @@ import { LoaderCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel } from "@shared/tasks";
+import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorName } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import {
   PRIORITY_BANDS,
@@ -481,8 +481,9 @@ export function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
   const counts = new Map<string, { name: string; n: number }>();
   for (const task of tasks) {
     if (task.status !== "in_progress" || !task.assignee) continue;
-    const entry = counts.get(task.assignee) ?? { name: taskActorLabel(task.assignee, task.actors), n: 0 };
-    counts.set(task.assignee, { ...entry, n: entry.n + 1 });
+    const key = actorName(task.assignee);
+    const entry = counts.get(key) ?? { name: taskActorLabel(task.assignee, task.actors), n: 0 };
+    counts.set(key, { ...entry, n: entry.n + 1 });
   }
   const working = [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
   if (working.length === 0) return null;
@@ -548,7 +549,7 @@ function Filters({
   const retired = new Set((useWall().data?.assets ?? []).filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
   const assigneeNames = new Map<string, string>();
   for (const project of projects) for (const task of project.tasks) {
-    if (task.assignee) assigneeNames.set(task.assignee, taskActorLabel(task.assignee, task.actors));
+    if (task.assignee) assigneeNames.set(actorName(task.assignee), taskActorLabel(task.assignee, task.actors));
   }
   // What the fold's one press carries on a phone: how many of these are
   // narrowing the board now.

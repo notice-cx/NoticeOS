@@ -15,6 +15,7 @@ import type {
   SiteCounters,
 } from "@shared/asset-detail";
 import { translateAlert } from "@shared/alert-language";
+import { taskActorLabel } from "@shared/tasks";
 import { assetSetupChecklist } from "@shared/asset-setup";
 import { sourceReadings } from "@shared/connection-status";
 import { revenueCalendarDate } from "@shared/daily-revenue";
@@ -655,7 +656,7 @@ export function NeedsYou({
           caption={
             <>
               <code className="font-mono text-[11px]">{item.id}</code>
-              {item.assignee ? ` · ${item.assignee}` : ""}
+              {item.assignee ? ` · ${taskActorLabel(item.assignee)}` : ""}
             </>
           }
           value={formatAge(ageMs(nowMs, item.updatedAt))}

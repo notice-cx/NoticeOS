@@ -26,6 +26,7 @@ import {
   taskFieldAvailable,
   taskOperationAvailable,
   taskActorLabel,
+  actorName,
   claimedModel,
   closeAttribution,
   TASK_PROJECTS_PATH,
@@ -216,7 +217,7 @@ export function TaskRoute() {
           status: fromSnapshot.item.status,
           priority: fromSnapshot.item.priority,
           holder: fromSnapshot.item.status !== "closed" && fromSnapshot.item.assignee
-            ? { name: fromSnapshot.item.assignee, model: null, since: null }
+            ? { name: taskActorLabel(fromSnapshot.item.assignee), model: null, since: null }
             : null,
           // The photograph carries no labels, but its `waiting` list is the
           // poller's own answer to "is this in the operator's inbox".
@@ -1553,7 +1554,7 @@ function ReadOnly({
           ) : (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
               <dt className="text-muted-foreground">Assignee</dt>
-              <dd>{row.assignee ?? "nobody"}</dd>
+              <dd>{row.assignee ? taskActorLabel(row.assignee) : "nobody"}</dd>
               {row.parent ? (
                 <>
                   <dt className="text-muted-foreground">Parent</dt>
@@ -1603,7 +1604,7 @@ function LiveClosedSummary({ task, nowMs, project, canDispute }: { task: LiveTas
     <ClosedSummary by={closer ? taskActorLabel(closer.by, actors) : null} model={closer?.model ?? null} at={task.closedAt} nowMs={nowMs}
       resolution={resolution} duplicate={task.duplicateOf ? <TaskIdLink id={task.duplicateOf} /> : null}>
       {relayed ? <div className="space-y-2">
-        <p className="text-sm">{record?.outcome === "owner-performed" ? `Approved and done by ${String(record.performedBy)}; recorded by ${String(record.by)}.` : `Approved, relayed by ${String(record?.by)}.`}</p>
+        <p className="text-sm">{record?.outcome === "owner-performed" ? `Approved and done by ${taskActorLabel(String(record.performedBy))}; recorded by ${taskActorLabel(String(record.by))}.` : `Approved, relayed by ${taskActorLabel(String(record?.by))}.`}</p>
         {typeof record?.question === "string" ? <p className="whitespace-pre-wrap text-sm">Question: {record.question}</p> : null}
         <p className="whitespace-pre-wrap text-sm">{record?.outcome === "owner-performed" ? "Result" : "Reply"}: {String(record?.response)}</p>
         <p className="whitespace-pre-wrap text-sm">Scope: {String(record?.scope)}</p>
@@ -1627,7 +1628,7 @@ function SnapshotClosedSummary({ item, project, nowMs }: { item: WorkItem; proje
   const resolution = item.resolution ?? close?.resolution ?? "done";
   const note = close?.evidence ? closeNote(close.evidence, resolution, item.duplicateOf ?? null) : null;
   return (
-    <ClosedSummary by={close?.by ?? null} model={close?.model ?? null} at={close?.at ?? item.closedAt} nowMs={nowMs}
+    <ClosedSummary by={close ? taskActorLabel(close.by) : null} model={close?.model ?? null} at={close?.at ?? item.closedAt} nowMs={nowMs}
       resolution={resolution} duplicate={item.duplicateOf ? <TaskIdLink id={item.duplicateOf} /> : null}>
       {note ? (
         <MarkdownText source={note} />
@@ -1726,8 +1727,9 @@ const KIND_CHOICES: FactChoice[] = [
 /** Who a task can be given to: a hosted workspace's members, else the names
  * that hold work in this project; the current holder always, and nobody. */
 function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly string[]): FactChoice[] {
+  // The current holder keeps its own spelling of a name it shares, so it stays the pick.
   const named = actors === undefined
-    ? people.map((name) => ({ value: name, label: name }))
+    ? people.map((name) => ({ value: current !== null && actorName(current) === name ? current : name, label: name }))
     : actors.map((actor) => ({ value: actor.principalId, label: actor.displayName.trim() || "Unknown actor" }));
   const held = current && !named.some((choice) => choice.value === current)
     ? [{ value: current, label: taskActorLabel(current, actors) }] : [];
@@ -1817,9 +1819,9 @@ function relatedRows(task: LiveTask, known: readonly LiveTask[], actors: readonl
   return rows;
 }
 
-/** Who holds work in a project's read, each name once. */
+/** Who holds work in a project's read, each name once, as `actorName` shows it. */
 function holders(rows: readonly BoardTask[]): string[] {
-  return [...new Set(rows.flatMap((row) => (row.assignee ? [row.assignee] : [])))].sort((a, b) => a.localeCompare(b));
+  return [...new Set(rows.flatMap((row) => (row.assignee ? [actorName(row.assignee)] : [])))].sort((a, b) => a.localeCompare(b));
 }
 
 /** What this task blocks. `bd show` reports only the edges pointing out of a

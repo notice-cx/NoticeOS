@@ -1,6 +1,7 @@
 import { countLabel } from "@/lib/count-label";
 import { CircleCheck, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
+import { taskActorLabel } from "@shared/tasks";
 import type { AssetCard, OperatorPosture, WallDecision, WallDecisionAsk, WallNextUp, WallWorking } from "@shared/wall";
 import { sumWorkWeeks } from "@shared/work";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -85,7 +86,7 @@ export function decisionLine(decision: WallDecision, site: string): string {
 
 /** A held task's line: the site, who holds it and for how long. */
 export function workingLine(working: WallWorking, site: string): string {
-  return [site, working.who, working.sinceHours === null ? null : `${formatInt(working.sinceHours)}h in`]
+  return [site, working.who === null ? null : taskActorLabel(working.who), working.sinceHours === null ? null : `${formatInt(working.sinceHours)}h in`]
     .filter((clause): clause is string => clause !== null && clause !== "")
     .join(" · ");
 }

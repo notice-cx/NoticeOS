@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { SiteIcons } from "@noticeos/contract/site-icons";
+import { taskActorLabel } from "@shared/tasks";
 import type { AssetCard } from "@shared/wall";
 import {
   ArrowUp,
@@ -229,7 +230,8 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
           {visible.map((item, index) => {
             const tone = TONE[item.tone];
             const Glyph = GLYPH[item.kind];
-            const maker = item.who ? agentMaker(item.who, [item.model ?? null]) : null;
+            const who = item.who ? taskActorLabel(item.who) : null;
+            const maker = who ? agentMaker(who, [item.model ?? null]) : null;
             const atMs = Date.parse(item.at);
             const aged = nowMs - atMs > WALL_FEED_AGED_MS;
             const tinted = arrived.has(item.id);
@@ -261,9 +263,9 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       <PropertyFavicon domain={item.asset} icons={icons?.get(item.asset)} scheme="dark" displayName={item.site ?? item.asset} className="wall-feed-glyph" />
                       <span data-feed-badge className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}><Glyph className="size-2.5" aria-hidden /></span>
                     </span>
-                  ) : maker && item.who ? (
+                  ) : maker && who ? (
                     <span className="wall-feed-glyph relative" data-feed-agent={maker}>
-                      <AgentMark name={item.who} models={[item.model ?? null]} size="feed" className="wall-feed-agent-mark" />
+                      <AgentMark name={who} models={[item.model ?? null]} size="feed" className="wall-feed-agent-mark" />
                       <span
                         data-feed-badge
                         className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}
@@ -279,9 +281,9 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                   <span className="relative flex min-w-0 flex-col gap-0.5">
                     <span className="wall-feed-label truncate font-semibold" data-feed-label>
                       <span className={cn("uppercase tracking-[0.05em]", tone.ink)}>{item.label}</span>
-                      {maker && item.who ? (
+                      {maker && who ? (
                         <span className="text-muted-foreground" data-feed-model>
-                          {" · "}<span data-feed-agent={maker}><AgentMark name={item.who} models={[item.model ?? null]} size="small" className="wall-feed-header-agent" /></span>{" "}{item.model ?? item.who}
+                          {" · "}<span data-feed-agent={maker}><AgentMark name={who} models={[item.model ?? null]} size="small" className="wall-feed-header-agent" /></span>{" "}{item.model ?? who}
                         </span>
                       ) : item.model ? (
                         <span className="text-muted-foreground" data-feed-model>{" · "}{item.model}</span>
@@ -293,9 +295,9 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       className={cn("wall-feed-text line-clamp-3", aged ? "text-muted-foreground" : "text-foreground")}
                       data-feed-text
                     >
-                      {item.who ? (
+                      {who ? (
                         <>
-                          <span className="font-semibold" data-feed-who>{item.who}</span>
+                          <span className="font-semibold" data-feed-who>{who}</span>
                           {" "}<span className={cn(item.kind === "task-done" ? "text-healthy" : "text-muted-foreground")} data-feed-verb>{VERB[item.kind]}</span>{" "}
                           {item.choice ? (
                             <>

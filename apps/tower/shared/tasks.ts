@@ -153,13 +153,22 @@ export interface TaskActor {
   readonly principalId: string;
   readonly displayName: string;
 }
+/** The name an actor is shown and counted under. Ntasks records a service
+ * acting for an agent as `service:<credential>/<agent>`; the agent did the
+ * work, so it goes by the agent's name and the full actor stays in the
+ * task's history. A credential name holds no `/`, an agent's may. Every other
+ * actor is returned as recorded. */
+export function actorName(actor: string): string {
+  return /^service:[^/]+\/(.+)$/su.exec(actor)?.[1] ?? actor;
+}
+
 /** A name never changes authority. Unavailable hosted UUIDs have no guessed
- * person/service identity; standalone and explicit agent strings stay intact. */
+ * person/service identity; every other actor goes by `actorName`. */
 export function taskActorLabel(actor: string, actors?: readonly TaskActor[]): string {
-  if (actors === undefined) return actor;
+  if (actors === undefined) return actorName(actor);
   const found = actors.find(person => person.principalId === actor);
   if (found?.displayName.trim()) return found.displayName;
-  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(actor) ? 'Unknown actor' : actor;
+  return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(actor) ? 'Unknown actor' : actorName(actor);
 }
 
 /** Who closed a task and the model they named, when the server recorded it
