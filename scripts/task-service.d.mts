@@ -69,6 +69,8 @@ export interface TaskService {
     tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
     /** Ntasks's projects this credential reaches. */
     projects(): Promise<readonly NtasksProject[]>;
+    /** The id of the Ntasks workspace this credential belongs to. */
+    workspaceId(): Promise<string>;
 }
 export declare function createTaskService(options?: TaskServiceOptions): TaskService;
 /** A saved task project (config/beads.json `spokes`) and the Ntasks project

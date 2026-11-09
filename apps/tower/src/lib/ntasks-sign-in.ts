@@ -216,8 +216,9 @@ export interface PersonSession {
   token(): Promise<string | null>;
   /** One API call as the person. A 401 signs them out and throws `NtasksSignedOut`. */
   request(path: string, init?: RequestInit): Promise<Response>;
-  /** The Ntasks project id holding a task, by the prefix of its id. */
-  projectIdOf(taskId: string): Promise<string>;
+  /** The Ntasks project id holding a task, by the prefix of its id, and the
+   * workspace this sign-in reaches, as Ntasks names them for it. */
+  projectIdOf(taskId: string): Promise<{ projectId: string; workspaceId: string | null }>;
   /** Forget the tokens in this browser; revoking stays on Ntasks's own Connected apps page. */
   signOut(): void;
 }
@@ -235,7 +236,7 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
   let tokens = readTokens(options.storage.read(tokensName(app)));
   let state: PersonState = { signedIn: tokens !== null, name: tokens?.name ?? null };
   let refreshing: Promise<PersonTokens | null> | null = null;
-  let projects: Promise<ReadonlyMap<string, string>> | null = null;
+  let projects: Promise<{ byPrefix: ReadonlyMap<string, string>; workspaceId: string | null }> | null = null;
 
   function keep(next: PersonTokens | null) {
     tokens = next;
@@ -324,19 +325,20 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
     },
     projectIdOf(taskId) {
       projects ??= (async () => {
-        const response = await session.request("/api/tasks/projects");
-        const listed = response.ok ? (await bodyOf(response)).projects : null;
-        if (!Array.isArray(listed)) throw new ApiError("Ntasks did not list its projects for this sign-in.", response.status);
-        return new Map(listed.flatMap((value) => {
+        const [listing, me] = await Promise.all([session.request("/api/tasks/projects"), session.request("/api/access/me")]);
+        const listed = listing.ok ? (await bodyOf(listing)).projects : null;
+        if (!Array.isArray(listed)) throw new ApiError("Ntasks did not list its projects for this sign-in.", listing.status);
+        const workspaceId = me.ok ? record((await bodyOf(me)).app)?.workspaceId : null;
+        return { workspaceId: typeof workspaceId === "string" ? workspaceId : null, byPrefix: new Map(listed.flatMap((value) => {
           const entry = record(value);
           return typeof entry?.prefix === "string" && typeof entry.projectId === "string" ? [[entry.prefix.toLowerCase(), entry.projectId] as const] : [];
-        }));
+        })) };
       })().catch((error: unknown) => { projects = null; throw error; });
       const prefix = taskId.slice(0, Math.max(0, taskId.indexOf("-"))).toLowerCase();
-      return projects.then((byPrefix) => {
+      return projects.then(({ byPrefix, workspaceId }) => {
         const found = byPrefix.get(prefix);
         if (found === undefined) throw new ApiError(`No Ntasks project this sign-in reaches holds ${taskId}.`, 404, "unknown_project");
-        return found;
+        return { projectId: found, workspaceId };
       });
     },
     signOut() { keep(null); },
@@ -364,17 +366,25 @@ export interface PersonDecisions {
   disputeTask(id: string, options?: PersonWriteOptions): Promise<void>;
 }
 
+/** Where the Tower reads a task from, with the installation's service credential. */
+export interface TaskSource {
+  readonly projectId: string;
+  readonly workspaceId: string;
+}
+
 /**
- * `readsProject` names the Ntasks project the Tower reads a task from, with
- * the installation's service credential. A decision is sent only to that
- * same project: a sign-in to an app registered in another workspace would
- * otherwise reach another project with the same prefix.
+ * `readsFrom` names the Ntasks workspace and project the Tower reads a task
+ * from. A decision is sent only when the person's sign-in reaches that same
+ * workspace and project: a sign-in to an app registered in another workspace
+ * would otherwise reach another project with the same prefix, or, after a
+ * backup was loaded there, a copy with the same ids.
  */
-export function personDecisions(session: PersonSession, readsProject: (taskId: string) => string | null,
+export function personDecisions(session: PersonSession, readsFrom: (taskId: string) => TaskSource | null,
   crypto: Crypto = globalThis.crypto): PersonDecisions {
   async function decide(path: string, id: string, payload: Record<string, unknown>, options?: PersonWriteOptions): Promise<void> {
-    const projectId = await session.projectIdOf(id);
-    if (readsProject(id) !== projectId) {
+    const { projectId, workspaceId } = await session.projectIdOf(id);
+    const source = readsFrom(id);
+    if (source === null || source.projectId !== projectId || source.workspaceId !== workspaceId) {
       throw new ApiError(`This Ntasks sign-in reaches another workspace than the Tower reads ${id} from; register the Tower in the service credential's workspace. Nothing was sent.`,
         409, "workspace_mismatch");
     }

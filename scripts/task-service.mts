@@ -75,6 +75,8 @@ export interface TaskService {
   tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
   /** Ntasks's projects this credential reaches. */
   projects(): Promise<readonly NtasksProject[]>;
+  /** The id of the Ntasks workspace this credential belongs to. */
+  workspaceId(): Promise<string>;
 }
 
 function row(value: unknown): Record<string, unknown> | null {
@@ -186,6 +188,7 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     async tool(name, args, onBehalfOf) {
       return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);
     },
+    workspaceId,
     async projects() {
       if (catalog && now() - catalog.at < CATALOG_TTL_MS) return catalog.projects;
       const reply = await call({ method: 'GET', path: '/api/tasks/projects' });

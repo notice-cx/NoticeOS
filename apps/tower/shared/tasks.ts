@@ -131,7 +131,7 @@ export interface TaskServiceStatus {
   /** The Tower as a connected app of this Ntasks, when its client id is
    * saved: what a person's browser signs in to Ntasks with, so their
    * decisions are recorded under their own name. */
-  app?: { clientId: string } | null;
+  app?: { clientId: string; workspaceId: string | null } | null;
 }
 export const TASK_SERVICE_STATUS_PATH = "/api/tasks/service";
 /** The error a task route answers while no task service is connected. */

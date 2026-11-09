@@ -12,7 +12,7 @@ import type { WorkPayload } from "@shared/work";
 
 const ORIGIN = "https://ntasks.example.com";
 const APP = { origin: ORIGIN, clientId: "tower-client" };
-const NTASKS: TaskServiceStatus = { connected: true, origin: ORIGIN, app: { clientId: APP.clientId },
+const NTASKS: TaskServiceStatus = { connected: true, origin: ORIGIN, app: { clientId: APP.clientId, workspaceId: "w-1" },
   projects: [{ asset: "example.com", prefix: "md", project: { displayName: "Example", logicalKey: "example.com", projectId: "p-md" } }] };
 const UNCONFIGURED: TaskServiceStatus = { connected: true, origin: ORIGIN, projects: null, app: null };
 const LOCAL_HUB: TaskServiceStatus = { connected: false, origin: null, projects: null };
@@ -144,13 +144,17 @@ describe("the person's tokens", () => {
     expect(storage.values.has(NAME)).toBe(false);
   });
 
-  it("sends no decision to a project other than the one the Tower reads the task from", async () => {
+  it.each([
+    ["another project with the same prefix", "p-other", "w-1"],
+    ["the same project ids in another workspace, as after a backup was loaded there", "p-md", "w-2"],
+  ])("sends no decision when the sign-in reaches %s", async (_case, projectId, workspaceId) => {
     const storage = memoryStorage({ [NAME]: tokens(Number.MAX_SAFE_INTEGER) });
-    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({ projects: [{ projectId: "p-other-workspace", prefix: "md", logicalKey: "example.com", displayName: "Example" }] }));
-    const decisions = personDecisions(createPersonSession(APP, { storage, fetch, now: () => 0 }), () => "p-md");
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input).endsWith("/api/access/me")
+      ? Response.json({ kind: "person", name: "Pat Example", app: { workspaceId } })
+      : Response.json({ projects: [{ projectId, prefix: "md", logicalKey: "example.com", displayName: "Example" }] }));
+    const decisions = personDecisions(createPersonSession(APP, { storage, fetch, now: () => 0 }), () => ({ projectId: "p-md", workspaceId: "w-1" }));
     await expect(decisions.chooseOnTask("md-c1", "b")).rejects.toMatchObject({ code: "workspace_mismatch" });
-    expect(fetch.mock.calls.map(([input]) => String(input))).toEqual([`${ORIGIN}/api/tasks/projects`]);
+    expect(fetch.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/choose"))).toEqual([]);
   });
 
   it("starts a sign-in only with an Ntasks new enough for connected apps, with an S256 challenge of the verifier it keeps", async () => {
@@ -229,15 +233,16 @@ describe("deciding while tasks live in Ntasks", () => {
     window.localStorage.setItem(TOKENS_KEY, tokens(Number.MAX_SAFE_INTEGER, "person-token"));
     const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input).endsWith("/api/tasks/projects")
       ? Response.json({ projects: [{ projectId: "p-md", prefix: "md", logicalKey: "example.com", displayName: "Example" }] })
-      : Response.json({ task: { id: "md-c1" } }));
+      : String(input).endsWith("/api/access/me") ? Response.json({ kind: "person", name: "Pat Example", app: { workspaceId: "w-1" } })
+        : Response.json({ task: { id: "md-c1" } }));
     vi.stubGlobal("fetch", fetch);
     renderAt(<NextTab scope={null} />, "/tasks");
     expect(screen.queryByRole("button", { name: "Sign in to Ntasks" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: /Tuesday/u })[0]!);
     act(() => flushAnswers());
     const toNtasks = () => fetch.mock.calls.filter(([input]) => String(input).startsWith(ORIGIN));
-    await vi.waitFor(() => expect(toNtasks().map(([input]) => String(input))).toEqual([`${ORIGIN}/api/tasks/projects`, `${ORIGIN}/api/tasks/md-c1/choose`]));
-    const [, init] = toNtasks()[1]!;
+    await vi.waitFor(() => expect(toNtasks().map(([input]) => String(input))).toContain(`${ORIGIN}/api/tasks/md-c1/choose`));
+    const [, init] = toNtasks().find(([input]) => String(input).endsWith("/choose"))!;
     expect(init?.headers).toMatchObject({ authorization: "Bearer person-token", "content-type": "application/json" });
     expect(JSON.parse(String(init?.body))).toEqual({ projectId: "p-md", option: "b" });
     expect(api.chooseOnTask).not.toHaveBeenCalled();

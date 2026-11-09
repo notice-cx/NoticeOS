@@ -76,14 +76,17 @@ export function useNeedsNtasksSignIn(): boolean {
 export function useDecisionApi(): TowerApi {
   const api = useTowerApi();
   const signIn = useNtasksSignIn();
-  const projects = useTaskService().data?.projects;
+  const status = useTaskService().data;
+  const projects = status?.projects;
+  const workspaceId = status?.app?.workspaceId ?? null;
   const session = signIn.kind === "signed-in" ? signIn.session : null;
   return useMemo(() => {
     if (session === null) return api;
-    const readsProject = (taskId: string) => {
+    const readsFrom = (taskId: string) => {
       const prefix = taskId.slice(0, Math.max(0, taskId.indexOf("-"))).toLowerCase();
-      return projects?.find((entry) => entry.prefix.toLowerCase() === prefix)?.project?.projectId ?? null;
+      const projectId = projects?.find((entry) => entry.prefix.toLowerCase() === prefix)?.project?.projectId;
+      return projectId === undefined || workspaceId === null ? null : { projectId, workspaceId };
     };
-    return { ...api, ...personDecisions(session, readsProject) };
-  }, [api, session, projects]);
+    return { ...api, ...personDecisions(session, readsFrom) };
+  }, [api, session, projects, workspaceId]);
 }

@@ -167,6 +167,7 @@ export function createTaskService(options = {}) {
         async tool(name, args, onBehalfOf) {
             return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);
         },
+        workspaceId,
         async projects() {
             if (catalog && now() - catalog.at < CATALOG_TTL_MS)
                 return catalog.projects;

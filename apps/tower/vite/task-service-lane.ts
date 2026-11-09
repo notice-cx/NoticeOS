@@ -182,7 +182,9 @@ export async function taskServiceStatus(service: TaskService | null,
   if (connected !== true) return { connected, origin: null, projects: null, required: true };
   const origin = await service.origin().catch(() => null);
   const clientId = await service.appClientId().catch(() => null);
-  const app = clientId === null ? null : { clientId };
+  // The workspace the Tower reads, which a person's sign-in must reach before
+  // their decision is sent (src/lib/ntasks-sign-in.ts personDecisions).
+  const app = clientId === null ? null : { clientId, workspaceId: await service.workspaceId().catch(() => null) };
   try {
     const projects = mapTaskProjects(await readProjects(), await service.projects()).map(entry => ({ asset: entry.asset, prefix: entry.prefix,
       project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey, projectId: entry.project.projectId } }));

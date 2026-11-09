@@ -19,6 +19,7 @@ export const JOURNEY_NTASKS_APP_NAME = "Journey Tower";
 export const JOURNEY_NTASKS_PERSON = "journey-owner";
 const SERVICE_CREDENTIAL = "journey-service-credential";
 const PROJECT_ID = "journey-ntasks-project";
+const WORKSPACE_ID = "journey-workspace";
 const API_VERSION = 2;
 const SCOPES = ["tasks:read", "tasks:write", "tasks:decide"];
 const SERVICE_REFUSAL = "Only a person signed in to Ntasks decides; a service credential never does.";
@@ -189,7 +190,7 @@ export function createFixtureNtasks(options: {
     if (path === "/api/access/me") {
       return principal.kind === "person"
         ? answer(request, { kind: "person", name: principal.name, projects: "all", deploymentAdmin: false,
-          app: { clientId: principal.app, name: JOURNEY_NTASKS_APP_NAME, workspaceId: "journey-workspace", scopes: SCOPES } })
+          app: { clientId: principal.app, name: JOURNEY_NTASKS_APP_NAME, workspaceId: WORKSPACE_ID, scopes: SCOPES } })
         : answer(request, { kind: "service", name: "service:noticeos", projects: [PROJECT_ID] });
     }
     if (path === "/api/tasks/projects") return answer(request, { projects: [project()] });
@@ -235,6 +236,7 @@ export function createFixtureNtasks(options: {
     },
     tool: async () => { throw new Error("The fixture Ntasks has no MCP tools."); },
     projects: async () => [project()],
+    workspaceId: async () => WORKSPACE_ID,
   };
 
   return {
