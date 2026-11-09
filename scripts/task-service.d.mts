@@ -44,8 +44,11 @@ export declare class TaskServiceToolRefused extends Error {
  * since this process started. */
 export type TaskBackend = 'ntasks' | 'none' | 'unknown';
 export interface TaskService {
-    /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say. */
-    connected(): Promise<boolean>;
+    /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say.
+     * `fresh` asks the ingest now rather than reuse an answer from the last few seconds. */
+    connected(options?: {
+        readonly fresh?: boolean;
+    }): Promise<boolean>;
     /** Where the tasks live, for choosing a route: the last answer the ingest
      * gave when it cannot say now, and `unknown` only when it never has. */
     backend(): Promise<TaskBackend>;

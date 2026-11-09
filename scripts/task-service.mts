@@ -55,8 +55,9 @@ export class TaskServiceToolRefused extends Error {
 export type TaskBackend = 'ntasks' | 'none' | 'unknown';
 
 export interface TaskService {
-  /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say. */
-  connected(): Promise<boolean>;
+  /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say.
+   * `fresh` asks the ingest now rather than reuse an answer from the last few seconds. */
+  connected(options?: { readonly fresh?: boolean }): Promise<boolean>;
   /** Where the tasks live, for choosing a route: the last answer the ingest
    * gave when it cannot say now, and `unknown` only when it never has. */
   backend(): Promise<TaskBackend>;
@@ -104,9 +105,9 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     if (reply.status !== 200 || answer === null) throw new TaskServiceUnavailable('ingest', reply.status);
     return answer;
   }
-  async function read(): Promise<{ connected: boolean; origin: string | null }> {
-    if (status && now() - status.at < STATUS_TTL_MS) return status;
-    if (failed && now() - failed.at < STATUS_TTL_MS) throw failed.error;
+  async function read(fresh = false): Promise<{ connected: boolean; origin: string | null }> {
+    if (!fresh && status && now() - status.at < STATUS_TTL_MS) return status;
+    if (!fresh && failed && now() - failed.at < STATUS_TTL_MS) throw failed.error;
     pending ??= (async () => {
       try {
         let answer: Record<string, unknown>;
@@ -161,7 +162,7 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   }
 
   const service: TaskService = {
-    async connected() { return (await read()).connected; },
+    async connected(options) { return (await read(options?.fresh === true)).connected; },
     async backend() {
       try { return (await read()).connected ? 'ntasks' : 'none'; }
       catch { return known === null ? 'unknown' : known ? 'ntasks' : 'none'; }

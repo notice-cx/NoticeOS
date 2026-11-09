@@ -275,7 +275,7 @@ test('the task service check runs while Ntasks is connected, and the backup adds
   assert.equal(silent.outcome, 'ran');
   assert.notEqual(silent.detail, (await taskServiceCheck(answering(true))).detail);
   // The backup asks the ingest itself: one that does not answer now holds it back, whatever it said before.
-  const said = (connected) => ({ backend: async () => 'none', connected: async () => connected });
+  const said = (connected) => ({ backend: async () => 'none', connected: async ({ fresh } = {}) => { assert.equal(fresh, true); return connected; } });
   assert.equal(await backupTaskHub(said(true)), 'ntasks');
   assert.equal(await backupTaskHub(said(false)), undefined);
   assert.equal(await backupTaskHub({ backend: async () => 'none', connected: async () => { throw new TaskServiceUnavailable('ingest'); } }), 'unknown');

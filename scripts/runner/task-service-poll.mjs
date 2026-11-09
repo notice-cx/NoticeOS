@@ -49,7 +49,7 @@ export async function taskServiceCheck(service) {
  * "not connected" would publish a set without the tasks. */
 export async function backupTaskHub(service) {
   if (service == null) return undefined;
-  try { return await service.connected() ? 'ntasks' : undefined; } catch { return 'unknown'; }
+  try { return await service.connected({ fresh: true }) ? 'ntasks' : undefined; } catch { return 'unknown'; }
 }
 
 /** Why no backup ran: a set taken now could leave the tasks out and replace one that has them. */

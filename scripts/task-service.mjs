@@ -67,10 +67,10 @@ export function createTaskService(options = {}) {
             throw new TaskServiceUnavailable('ingest', reply.status);
         return answer;
     }
-    async function read() {
-        if (status && now() - status.at < STATUS_TTL_MS)
+    async function read(fresh = false) {
+        if (!fresh && status && now() - status.at < STATUS_TTL_MS)
             return status;
-        if (failed && now() - failed.at < STATUS_TTL_MS)
+        if (!fresh && failed && now() - failed.at < STATUS_TTL_MS)
             throw failed.error;
         pending ??= (async () => {
             try {
@@ -138,7 +138,7 @@ export function createTaskService(options = {}) {
         return workspace.id;
     }
     const service = {
-        async connected() { return (await read()).connected; },
+        async connected(options) { return (await read(options?.fresh === true)).connected; },
         async backend() {
             try {
                 return (await read()).connected ? 'ntasks' : 'none';
