@@ -2,34 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { appendFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { withOwnedTaskProjects } from './test-fixtures/hosted-task-projects.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
-import { openTaskDirectory } from '../packages/postgres/src/task-directory.mjs';
-import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedDemo } from './hosted-demo.mjs';
+import { applyDemoNtasksProvision, createDemoTaskService, demoNtasks, demoNtasksProvisionRequest, demoNtasksWorker, DEMO_NTASKS_CREDENTIALS } from './demo-ntasks.mjs';
+import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
+import { v4Miniflare } from './miniflare-v4.mjs';
 import { openHostedDemo, startHostedDemo } from './hosted-demo-runtime.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
 import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
 import { createDemoActivity } from './demo-activity.mjs';
 import { fillDemo } from './demo-store.mjs';
 import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
-import { proveHostedDemoBrowser } from './test-fixtures/hosted-demo-browser.mjs';
 
-// The persistent demo against the real task store: the pinned task client on
-// a disposable Dolt server (the CI task-store job; db/dolt/host/README.md
-// lists the opt-in inputs). The root suite skips it and runs the demo's
-// other proofs in hosted-demo.test.mjs; this file holds it alone so the
-// task-store job does not run those again.
+// The persistent demo against its real task store: the demo's own Ntasks, the
+// pinned build (scripts/demo-ntasks-build.mjs) in Miniflare, provisioned as
+// its ntasks service provisions it, with the sites' projects loaded empty. It
+// needs a built Ntasks in NOTICEOS_NTASKS_ROOT, which the CI task-store job
+// builds; the root suite skips it and runs the demo's other proofs in
+// hosted-demo.test.mjs.
 
 const require = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'));
 const { Pool } = require('pg');
@@ -37,26 +36,40 @@ const scenario = generateDemoScenario({ seed: 'hosted-activity-proof', cutoff: '
 const workspace = scenario.manifest.workspaceId;
 const customers = [randomUUID(), randomUUID()];
 const assets = scenario.assets.filter(asset => !asset.isOs);
-const allocations = [...customers.map(workspaceId => ({ workspaceId, projectId: randomUUID(), databaseId: randomUUID() })),
-  ...assets.map(asset => ({ workspaceId: workspace, projectId: randomUUID(), databaseId: randomUUID(),
-    ...(process.env.NOTICEOS_TEST_HOSTED_DEMO_BROWSER === '1' ? { prefix: asset.prefix } : {}) }))];
-const projects = assets.map((asset, i) => ({ asset: asset.id, projectId: allocations[i + 2].projectId, prefix: allocations[i + 2].prefix ?? 'tt' }));
+const seededProjects = demoNtasksSeed(scenario).projects;
+const projects = assets.map(asset => ({ asset: asset.id, projectId: seededProjects.find(project => project.prefix === asset.prefix).id, prefix: asset.prefix }));
+const NTASKS = process.env.NOTICEOS_NTASKS_ROOT;
 
-// About twenty demo days, each reading five task projects through the pinned
-// task client against a real Dolt server: about four minutes in CI.
-test('persistent demo uses ordinary Postgres writers and actual scoped Beads without changing either customer', {
-  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 600_000,
+// About twenty demo days, each reading five task projects in the demo's own Ntasks.
+test('persistent demo uses ordinary Postgres writers and the demo\'s own Ntasks without changing either customer', {
+  skip: !NTASKS && 'needs a built Ntasks in NOTICEOS_NTASKS_ROOT (node scripts/demo-ntasks-build.mjs --out <folder>)', timeout: 600_000,
 }, async t => {
-  // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
-  // runs other suites over the same folder: this file keeps its own inside it.
-  process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE = mkdtempSync(
-    path.join(process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE, 'hosted-demo-'));
   const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { activity: true, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
-  return withOwnedTaskProjects(async physical => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-demo-pg-'));
-  let owner, closeAdmin, directory;
+  let owner, closeAdmin, miniflare;
   const demos = [], stores = [], grants = [];
   try {
+    // The demo's own Ntasks, its sites' projects loaded with no task yet.
+    const cli = (...args) => execFileSync(process.execPath, [path.join(NTASKS, 'tools/migrate/src/cli.ts'), ...args], { encoding: 'utf8' });
+    writeFileSync(path.join(root, 'request.json'), JSON.stringify(demoNtasksProvisionRequest(scenario)));
+    cli('provision', '--from', path.join(root, 'request.json'), '--out', path.join(root, 'provision.json'));
+    const provision = JSON.parse(readFileSync(path.join(root, 'provision.json'), 'utf8'));
+    const wrangler = createRequire(createRequire(path.join(REPO_ROOT, 'workers/ingest/package.json')).resolve('wrangler/package.json'));
+    const { Miniflare, Log } = v4Miniflare(wrangler);
+    miniflare = new Miniflare({ ...demoNtasksWorker({ bundleRoot: path.join(NTASKS, 'dist'), authSecret: randomBytes(32).toString('base64url'), workspaceId: workspace }),
+      host: '127.0.0.1', port: 0, cf: false, resourcePersistencePath: path.join(root, 'ntasks'), log: new Log(0), handleStructuredLogs: () => undefined });
+    const ntasksOrigin = (await miniflare.ready).origin;
+    await applyDemoNtasksProvision(await miniflare.getD1Database('DB'), provision);
+    writeFileSync(path.join(root, 'seed.json'), JSON.stringify({ format: 'ntasks-seed-v1', projects: seededProjects.filter(project => projects.some(row => row.projectId === project.id)), tasks: [] }));
+    writeFileSync(path.join(root, 'seed.token'), `${provision.tokens[DEMO_NTASKS_CREDENTIALS.seed]}\n`, { mode: 0o600 });
+    cli('seed', '--from', path.join(root, 'seed.json'), '--out', path.join(root, 'backup.json'));
+    cli('load', '--api', ntasksOrigin, '--token-file', path.join(root, 'seed.token'), '--from', path.join(root, 'backup.json'));
+    const activityToken = provision.tokens[DEMO_NTASKS_CREDENTIALS.activity];
+    const tasks = createDemoTaskService({ ntasks: demoNtasks({ workspaceId: workspace, origin: ntasksOrigin, token: activityToken }) });
+    const visitor = demoNtasks({ workspaceId: workspace, origin: ntasksOrigin });
+    const readTasks = async project => (await visitor.call('GET', `/api/tasks?project=${project.projectId}&status=open,in_progress,blocked,deferred`)).body.tasks;
+    const readTask = async (project, id) => (await visitor.call('GET', `/api/tasks/${id}?project=${project.projectId}`)).body.task;
+
     const tools = findPostgres(); owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
     applyMigrations(owner);
     const admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
@@ -69,14 +82,10 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       execFileSync(tools.pgCtl, ['reload', '-D', path.join(owner.root, 'data')], { stdio: 'pipe' });
       const url = new URL(appUrl); url.username = role; url.password = password; return url.href;
     }
-    const grantUrl = await connection('noticeos_service_grant'), taskUrl = await connection('noticeos_task_directory');
-    directory = openTaskDirectory({ connectionString: taskUrl });
+    const grantUrl = await connection('noticeos_service_grant');
     const serviceId = randomUUID();
     for (const id of [...customers, workspace]) {
       await admin.query("INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES($1,$2,$2,'active')", [id, 'generated-' + id]);
-    }
-    for (const mapping of physical.mappings) {
-      await admin.query('INSERT INTO noticeos_platform.task_project_directory(workspace_id,project_id,executor_ref,credential_ref,database_key) VALUES($1,$2,$3,$4,$5)', Object.values(mapping));
     }
     await admin.query("INSERT INTO noticeos_platform.workspace_service_grants(service_id,workspace_id,actions,expires_at) VALUES($1,$2,$3,now()+interval '1 hour')",
       [serviceId, workspace, ['workflows.run', 'tasks.read', 'tasks.write']]);
@@ -90,22 +99,10 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
       await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
-    const taskGrant = openGrant();
-    const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('synthetic simulator'), authority: () => taskGrant.facts() });
-    const tasks = createHostedTaskExecutor({ admission, directory, resolveTarget: physical.resolveTarget,
-      binary: physical.pinnedBinary, doltBinary: physical.pinnedDoltBinary, scratchRoot: physical.scratchRoot });
-    const proof = new Request('https://noticeos.internal/demo', { method: 'POST' });
-    const readTasks = project => tasks.execute(proof, workspace, { projectId: project.projectId, operation: { kind: 'active-board', statuses: ['open', 'in_progress', 'blocked', 'deferred'] } });
     const runtimeOptions = async (now) => ({ sourceRoot: REPO_ROOT, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config'),
       scenario: structuredClone(scenario), workspaceId: workspace, serviceId,
-      connectionString: appUrl, grantConnectionString: grantUrl, directoryConnectionString: taskUrl,
-      projects: await Promise.all(projects.map(async project => {
-        const mapping = physical.mappings.find(row => row.projectId === project.projectId);
-        assert.ok(mapping);
-        const target = await physical.resolveTarget(mapping); assert.ok(target);
-        return { asset: project.asset, prefix: project.prefix, mapping: { ...mapping }, target: { ...target } };
-      })), binary: physical.pinnedBinary, doltBinary: physical.pinnedDoltBinary, scratchRoot: physical.scratchRoot,
-      ...(now ? { now } : {}) });
+      connectionString: appUrl, grantConnectionString: grantUrl, ntasks: { origin: ntasksOrigin, token: activityToken },
+      projects: projects.map(project => ({ ...project })), ...(now ? { now } : {}) });
     let clock = Date.parse('2026-09-22T12:00:00Z'), failDatabase = true, failSnapshot = true, lostEffect = false;
     let escapedStore, createdTaskId;
     const make = (over = {}) => {
@@ -137,11 +134,6 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const history = async () => (await admin.query(`SELECT md5(string_agg(envelope::text,'|' ORDER BY pulse_id)) hash
       FROM noticeos.pulses WHERE workspace_id=$1 AND generated_at<$2::timestamptz`, [workspace, scenario.manifest.cutoff])).rows[0].hash;
     const before = await counts(workspace), originalHistory = await history(), customerBefore = await Promise.all(customers.map(counts));
-    if (process.env.NOTICEOS_TEST_HOSTED_DEMO_BROWSER === '1') {
-      await proveHostedDemoBrowser(t, { root, admin, connection, appUrl, physical, tasks, runtimeOptions,
-        scenario, workspace, customers, serviceId, projects, counts, directoryConnectionString: taskUrl });
-      return;
-    }
     await t.test('ordinary rows and the journal checkpoint roll back together', async () => {
       const failed = await demo.tick(); assert.equal(failed.days[0].receipt.state, 'retryable');
       const after = await counts(workspace); assert.deepEqual({ ...after, jobs: before.jobs }, before);
@@ -153,22 +145,22 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       assert.deepEqual({ ...await counts(workspace), snapshots: inputsWritten.snapshots }, inputsWritten);
       const tasks = await readTasks(projects[0]);
       const created = tasks.filter(row => row.labels?.includes('synthetic-demo'));
-      assert.equal(created.length, 1); assert.equal(created[0].created_by, serviceId); assert.equal(created[0].status, 'open');
+      assert.equal(created.length, 1); assert.equal(created[0].status, 'open');
       createdTaskId = created[0].id;
       const snapshot = await latestSnapshot();
       assert.equal(snapshot.projects.length, assets.length); assert.ok(snapshot.projects.every(project => project.ok));
-      assert.equal(snapshot.projects.find(project => project.asset === projects[0].asset).counts.open, 2);
+      // The site's project held no task before the simulator filed this one.
+      assert.equal(snapshot.projects.find(project => project.asset === projects[0].asset).counts.open, 1);
       const held = await counts(workspace); assert.deepEqual((await demo.tick()).days, []); assert.deepEqual(await counts(workspace), held);
     });
     await t.test('a restarted service resumes retained checkpoints and cannot select a customer task project', async () => {
       const held = await counts(workspace);
       await demo.close(); demo = make();
       assert.deepEqual((await demo.tick()).days, []); assert.deepEqual(await counts(workspace), held);
-      for (let i = 0; i < customers.length; i++) {
-        await assert.rejects(tasks.execute(proof, workspace, { projectId: allocations[i].projectId,
-          operation: { kind: 'active-board', statuses: ['open'] } }));
-        await assert.rejects(tasks.execute(proof, customers[i], { projectId: allocations[i].projectId,
-          operation: { kind: 'create', title: 'Forbidden foreign task' } }));
+      // The demo's credential reaches only its own workspace's sites: any other project is none it knows.
+      for (const foreign of [randomUUID(), seededProjects.find(project => !projects.some(row => row.projectId === project.id)).id]) {
+        await assert.rejects(tasks.labelled(foreign, 'synthetic-demo', AbortSignal.timeout(10_000)));
+        await assert.rejects(tasks.create(foreign, { title: 'Forbidden foreign task', description: '', acceptance: '', labels: [] }, 'forbidden', AbortSignal.timeout(10_000)));
       }
       assert.deepEqual(await Promise.all(customers.map(counts)), customerBefore);
     });
@@ -176,7 +168,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       const options = await runtimeOptions(() => Date.parse('2026-09-24T12:00:00Z'));
       const runtime = await openHostedDemo(options), retained = await counts(workspace);
       options.workspaceId = customers[0]; options.now = () => { throw new Error('Caller clock changed after capture'); };
-      options.projects[0].mapping.workspaceId = customers[0]; options.projects[0].target.cwd = '/not-an-authorized-project';
+      options.projects[0].projectId = randomUUID(); options.ntasks.token = 'ntasks_service.changed-after-capture';
       options.scenario.daily[0].sessions++;
       try {
         const result = await runtime.tick();
@@ -190,13 +182,13 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
         assert.equal(current.snapshots, retained.snapshots + 2);
         assert.ok(result.days.every(day => day.receipt.steps['task-summary'].state === 'succeeded'));
         const task = (await readTasks(projects[0])).find(row => row.id === createdTaskId);
-        // The first cycle is a review: the verifier claims it by name.
-        assert.equal(task.status, 'in_progress'); assert.equal(task.assignee, 'codex');
+        // The first cycle is a review: the verifier claims it by name, through the demo's credential.
+        assert.equal(task.status, 'in_progress'); assert.equal(task.assignee, 'service:demo/codex');
         assert.equal((await latestSnapshot()).projects.find(project => project.asset === projects[0].asset).counts.inProgress, 1);
         assert.deepEqual(await Promise.all(customers.map(counts)), customerBefore);
       } finally { await runtime.close(); }
     });
-    await t.test('concurrent instances advance each completed day once and Beads progresses the same task', async () => {
+    await t.test('concurrent instances advance each completed day once and Ntasks progresses the same task', async () => {
       clock = Date.parse('2026-09-26T12:00:00Z');
       const other = make();
       const results = await Promise.allSettled([demo.tick(), other.tick()]);
@@ -213,14 +205,12 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
           [workspace, day, assets.map(asset => asset.id)])).rows[0].n;
         assert.equal(pulseCount, activity.day(day).assets.filter(asset => asset.pulse !== null).length, day);
       }
-      const closed = await tasks.execute(proof, workspace, { projectId: projects[0].projectId,
-        operation: { kind: 'show', taskId: createdTaskId } });
-      assert.equal(closed.length, 1); assert.equal(closed[0].status, 'closed');
-      assert.equal(closed[0].assignee, 'codex'); assert.ok(closed[0].close_reason.includes('No live deployment'));
-      assert.deepEqual([closed[0].metadata?.noticeos_closed_by, closed[0].metadata?.noticeos_closed_model], ['codex', 'GPT-5-Codex']);
-      assert.ok(Math.abs(Date.parse(closed[0].metadata?.noticeos_closed_at) - Date.parse(closed[0].closed_at)) <= 1000);
+      const closed = await readTask(projects[0], createdTaskId);
+      assert.equal(closed.status, 'closed');
+      assert.equal(closed.assignee, 'service:demo/codex'); assert.ok(closed.closeReason.includes('No live deployment'));
+      assert.deepEqual([closed.closedBy, closed.closedModel], ['service:demo/codex', 'GPT-5-Codex']);
       const project = (await latestSnapshot()).projects.find(project => project.asset === projects[0].asset);
-      assert.equal(project.counts.open, 1); assert.equal(project.counts.inProgress, 0); assert.equal(project.counts.closedRecent, 1);
+      assert.equal(project.counts.open, 0); assert.equal(project.counts.inProgress, 0); assert.equal(project.counts.closedRecent, 1);
       assert.ok(project.recentlyClosed.some(task => task.id === createdTaskId));
       assert.equal(await history(), originalHistory);
       assert.deepEqual(await Promise.all(customers.map(counts)), customerBefore);
@@ -238,9 +228,9 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       clock = Date.parse('2026-10-08T12:00:00Z');
       const limited = await demo.tick(); assert.equal(limited.days.length, 7);
       assert.ok(limited.days.every(day => day.receipt.state === 'succeeded'));
-      const uncertain = make({ tasks: { async execute(...args) {
-        const result = await tasks.execute(...args);
-        if (args[2].operation.kind === 'create' && !lostEffect) { lostEffect = true; throw new Error('Controlled lost task acknowledgement'); }
+      const uncertain = make({ tasks: { ...tasks, async create(...args) {
+        const result = await tasks.create(...args);
+        if (!lostEffect) { lostEffect = true; throw new Error('Controlled lost task acknowledgement'); }
         return result;
       } } });
       const failed = await uncertain.tick(); assert.equal(failed.days.at(-1).receipt.state, 'uncertain');
@@ -258,7 +248,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     await t.test('deployment factories await their owned handles on refusal and shutdown', async () => {
       const options = await runtimeOptions();
       const revoke = revoked => admin.query(`UPDATE noticeos_platform.workspace_service_grants SET revoked_at=${revoked ? 'now()' : 'NULL'} WHERE service_id=$1`, [serviceId]);
-      await assert.rejects(openHostedDemo({ ...options, directoryConnectionString: 'not-a-postgres-connection' }));
+      await assert.rejects(openHostedDemo({ ...options, ntasks: { ...options.ntasks, origin: 'https://ntasks.example.test' } }));
       // Without a clock each factory also starts the hosted scheduler, which
       // holds the workspace's schedule until it closes. This workspace saves
       // no schedule, so the scheduler arms no lane and runs none at start.
@@ -316,9 +306,8 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
   } finally {
     await Promise.all(demos.map(demo => demo.close()));
     await Promise.all([...stores.map(store => store.close()), ...grants.map(grant => grant.close())]);
-    await directory?.close(); await closeAdmin?.(); owner?.close();
+    await closeAdmin?.(); owner?.close(); await miniflare?.dispose();
     assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
     rmSync(root, { recursive: true, force: true }); assert.equal(existsSync(root), false);
   }
-  }, { projects: allocations });
 });

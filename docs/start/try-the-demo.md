@@ -17,11 +17,12 @@ Visitors can explore Portfolio, Money, Tasks, Workflows, Integrations, Settings 
 - **Integrations** shows Google (Analytics and Search Console), Bing, the ad network and Mercury as connected through demo connections. A demo connection stores no login and fetches nothing; its syncs are the collection runs the simulator records, so a failed run shows that source failing until the next one succeeds.
 - **Workflows** shows three workflows, each run once as the demo starts and then every hour, so their runs are there from the first minute.
 
-The demo package runs the compiled app, Postgres and Dolt on a Linux server or VM, including a Proxmox VM, behind an HTTPS reverse proxy you provide. To run your own copy you need:
+The demo package runs the compiled app, Postgres and the demo's own [Ntasks](https://github.com/notice-cx/Ntasks), which holds its tasks, on a Linux server or VM, including a Proxmox VM, behind an HTTPS reverse proxy you provide. To run your own copy you need:
 
 - Docker with Compose, and at least 8 GiB free **after** about 4 GiB for the first build.
 - An exact 40-character source commit, built from the history-free public source export for that commit.
-- A public HTTPS origin and a TLS reverse proxy on the same VM, or in a container sharing Dolt's network namespace. The proxy must pass the exact `Host` header and browser `Origin` through.
+- A public HTTPS origin and a TLS reverse proxy on the same VM, or in a container sharing the ntasks service's network namespace. The proxy must pass the exact `Host` header and browser `Origin` through.
+- Network access to GitHub while the image builds: it fetches the Ntasks commit the demo pins.
 
 Only the app's HTTP port is published, on the host's loopback. Postgres has no host port.
 
@@ -51,7 +52,7 @@ The TV dashboard at `/wall` uses the demo's own saved composition. Personal view
 
    ```sh
    docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml run --rm --no-deps prepare
-   docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait postgres dolt
+   docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait postgres ntasks
    docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml run --rm setup
    docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait app
    ```
@@ -67,7 +68,7 @@ Set `NOTICEOS_DEMO_STATCOUNTER=project:security` in the private env file to add 
 1. To stop without deleting data, run:
 
    ```sh
-   docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml stop app dolt postgres
+   docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml stop app ntasks postgres
    ```
 
    Allow up to 90 seconds.
@@ -80,13 +81,13 @@ Set `NOTICEOS_DEMO_STATCOUNTER=project:security` in the private env file to add 
    /operator/update.sh --env /operator/demo.env --source /operator/src --commit FULL_SOURCE_COMMIT
    ```
 
-A compatible release changes only the image tag and recreates Dolt and the app. A release with a different scenario version or schema gets a **fresh generation**: a new project (`demo-g2`, `demo-g3`, …) with new volumes, seeded from scratch and started in place of the old one on the same port. The script takes no backup; take one first.
+A compatible release changes only the image tag and recreates the ntasks service and the app. A release with a different scenario version or schema gets a **fresh generation**: a new project (`demo-g2`, `demo-g3`, …) with new volumes, seeded from scratch and started in place of the old one on the same port. The script takes no backup; take one first.
 
 Each build adds an image of about 2 GB, and each stopped generation keeps its image and its four volumes, so the script removes what no deploy needs. After a healthy update it removes every stopped generation except the one that update replaced, then demo images no container uses, keeping the new release and the one it replaced, and unused build cache. Before building it needs 12 GiB free for Docker; with less, it removes those unused images and the build cache, then every stopped generation. If that is still not enough it stops before building, leaves the running demo unchanged and prints `docker system df`. It never removes the running generation.
 
 ## Back up a demo
 
-1. Stop the app, Dolt and Postgres.
+1. Stop the app, the ntasks service and Postgres.
 2. Back up all four named volumes together into a new private folder with mode `0700`. The exact `docker run` commands are in the demo guide on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/demo/README.md.
 3. Restore only into a **new project with four new empty volumes**, never over an existing store.
 

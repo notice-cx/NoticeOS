@@ -7,7 +7,8 @@
 #                        release this generation was SEEDED from, the
 #                        configuration's `release`)
 #     the README's update path: build the exact-commit image, change only
-#     the image tag in the env file, recreate dolt then app, check health.
+#     the image tag in the env file, recreate the namespace owner (ntasks)
+#     then app, check health.
 #     Seeded history is kept.
 #
 #   incompatible release (scenario version or frozen migrations changed)
@@ -70,6 +71,9 @@ if [ -z "$SELF" ]; then case "$0" in /*) SELF=$0 ;; *) SELF=$PWD/$0 ;; esac; fi
 
 RAW=${NOTICEOS_DEMO_RAW_BASE:-https://raw.githubusercontent.com}
 is_sha() { echo "$1" | grep -Eq '^[0-9a-f]{40}$'; }
+# The service that owns a generation's network namespace and published port:
+# ntasks, or dolt in a generation seeded before the demo ran its own Ntasks.
+owner_of() { if grep -q '^  dolt:' "$1"; then echo dolt; else echo ntasks; fi; }
 env_value() { sed -n "s/^$2=//p" "$1" | head -n 1; }
 json_value() { sed -n "s|.*\"$2\" *: *\"\([^\"]*\)\".*|\1|p" "$1" | head -n 1; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%S.000Z; }
@@ -224,8 +228,8 @@ install_self() {
 if [ "$FRESH" = 0 ]; then
   echo "compatible release: swapping the app in place, data kept"
   write_env "$ENV_FILE" "$COMMIT" "$CONFIG" "$PORT" "$PROJECT" "$STATCOUNTER"
-  # The app shares dolt's network namespace, so dolt is recreated first.
-  compose "$ENV_FILE" "$PROJECT" "$COMPOSE_FILE" up -d --wait --force-recreate dolt
+  # The app shares the ntasks service's network namespace, so ntasks is recreated first.
+  compose "$ENV_FILE" "$PROJECT" "$COMPOSE_FILE" up -d --wait --force-recreate ntasks
   compose "$ENV_FILE" "$PROJECT" "$COMPOSE_FILE" up -d --wait --force-recreate app
   health "$CONFIG" "$PORT"
   install_self
@@ -264,15 +268,16 @@ OLD_ENV=$GENERATIONS/$PROJECT/demo.env
 OLD_COMPOSE=$GENERATIONS/$PROJECT/compose.yaml
 [ -f "$OLD_COMPOSE" ] || OLD_COMPOSE=$COMPOSE_FILE
 [ -f "$OLD_ENV" ] || OLD_ENV=$ENV_FILE
+OLD_OWNER=$(owner_of "$OLD_COMPOSE")
 # Only a generation that was healthy is worth bringing back.
 OLD_HEALTHY=0
 if [ -n "$CURRENT" ] && health "$CONFIG" "$PORT" >/dev/null 2>&1; then OLD_HEALTHY=1; fi
 rollback() {
   echo "fresh generation $NEW failed" >&2
-  compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" stop app dolt postgres || true
+  compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" stop app ntasks postgres || true
   if [ "$OLD_HEALTHY" = 1 ]; then
     echo "bringing $PROJECT back" >&2
-    compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait postgres dolt || true
+    compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait postgres "$OLD_OWNER" || true
     compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait app || true
     health "$CONFIG" "$PORT" || true
     echo "deploy of $COMMIT failed; $PROJECT at ${CURRENT:-nothing} is back; the volumes of $NEW are kept for diagnosis until the next update" >&2
@@ -283,9 +288,9 @@ rollback() {
 }
 if [ -n "$CURRENT" ]; then
   echo "stopping $PROJECT to free port $PORT"
-  compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" stop app dolt postgres || true
+  compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" stop app "$OLD_OWNER" postgres || true
 fi
-compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" up -d --wait postgres dolt || rollback
+compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" up -d --wait postgres ntasks || rollback
 compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" run --rm setup || rollback
 compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" up -d --wait app || rollback
 health "$NEW_CONFIG" "$PORT" || rollback

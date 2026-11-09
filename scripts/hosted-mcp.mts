@@ -49,7 +49,11 @@ export interface HostedMcpOptions {
   readonly demoWorkspaceId?: string;
   /** Standalone only, and required there: the installation's one workspace. */
   readonly standaloneWorkspaceId?: string;
-  readonly operations: HostedTaskOperations;
+  /** The task operations the task tools run over; the demo gives `taskTools` instead. */
+  readonly operations?: HostedTaskOperations;
+  /** Demo only: runs each task tool in the demo's own Ntasks, whose tools take
+   * these names and arguments, as a visitor who may only read. */
+  readonly taskTools?: (name: string, args: Readonly<Record<string, unknown>>) => Promise<unknown>;
   /** Hosted only, and required there: the request's verified token, and its
    * person's workspaces. Admission verifies again, per workspace, per call. */
   readonly agents?: {
@@ -118,8 +122,9 @@ function access(scopes: readonly string[], workspace: HostedMcpWorkspace): strin
 
 export function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response> {
   const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-  const { profile, operations, agents, readModels, panels, journeys, taskHome } = options;
-  if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
+  const { profile, operations, agents, readModels, panels, journeys, taskHome, taskTools } = options;
+  if (!['hosted', 'demo', 'standalone'].includes(profile)
+    || (taskTools === undefined ? typeof operations?.write !== 'function' : profile !== 'demo' || typeof taskTools !== 'function' || operations !== undefined)
     || taskHome !== undefined && (profile !== 'standalone' || typeof taskHome !== 'function')
     || readModels !== undefined && typeof readModels !== 'function'
     || panels !== undefined && typeof panels?.read !== 'function'
@@ -232,7 +237,8 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
         throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
       }
       try {
-        if (task) return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
+        if (task && taskTools) return await taskTools(name, { workspace, ...rest });
+        if (task) return await task.run({ proof, workspaceId: workspace, operations: operations!, guideVersion: guide.version }, rest);
         if (panel) return await panel.run({ proof, workspaceId: workspace, operations: panels! }, rest);
         if (journey) return await journey.run({ proof, workspaceId: workspace, transport: journeys! }, rest);
         return await readModel(original, name, workspace, rest);

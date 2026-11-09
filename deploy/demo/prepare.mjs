@@ -1,7 +1,10 @@
 // Offline secret preparation. No database, listener or inherited secret input.
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
+import { generateDemoScenario } from '../../scripts/demo-scenario.mjs';
+import { DEMO_NTASKS_ORIGIN, demoNtasksProvisionRequest } from '../../scripts/demo-ntasks.mjs';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 function refuse() { throw new Error('Demo preparation refused.'); }
 function plainDirectory(directory) {
@@ -25,8 +28,8 @@ export function demoPreparationConfig(value, now = Date.now()) {
   if (expiry <= now || expiry - now > 366 * 86400000) refuse();
   return Object.freeze({ ...value });
 }
-export function prepareDemo({ configFile, bootstrapRoot, stateRoot, doltRoot, sourceRoot, artifactRoot, binaryPath, doltBinaryPath, uid = 1000, gid = 1000 }) {
-  for (const directory of [bootstrapRoot, stateRoot, doltRoot]) plainDirectory(directory);
+export function prepareDemo({ configFile, bootstrapRoot, stateRoot, ntasksRoot, sourceRoot, artifactRoot, ntasksToolRoot, uid = 1000, gid = 1000 }) {
+  for (const directory of [bootstrapRoot, stateRoot, ntasksRoot]) plainDirectory(directory);
   const config = demoPreparationConfig(JSON.parse(readPlain(configFile)));
   if (readPlain(path.join(sourceRoot, 'source-commit')).toString().trim() !== config.release) refuse();
   const configHash = hash(JSON.stringify(config));
@@ -34,28 +37,34 @@ export function prepareDemo({ configFile, bootstrapRoot, stateRoot, doltRoot, so
   if (fs.existsSync(marker)) {
     const receipt = JSON.parse(readPlain(marker));
     if (receipt.version !== 1 || receipt.configHash !== configHash) refuse();
-    for (const name of ['postgres-password', 'dolt-password', 'bootstrap.json']) {
+    for (const name of ['postgres-password', 'ntasks.json', 'ntasks-provision.json', 'bootstrap.json']) {
       const target = path.join(bootstrapRoot, name); readPlain(target);
       if ((fs.statSync(target).mode & 0o777) !== 0o600 || fs.statSync(target).uid !== uid) refuse();
     }
     return receipt;
   }
   // Any interrupted preparation is retained for explicit recovery, never reset.
-  if ([bootstrapRoot, stateRoot, doltRoot].some(directory => fs.readdirSync(directory).length)) refuse();
+  if ([bootstrapRoot, stateRoot, ntasksRoot].some(directory => fs.readdirSync(directory).length)) refuse();
   const manifest = JSON.parse(readPlain(path.join(artifactRoot, 'manifest.json'), 2 * 1024 * 1024));
   if (manifest.version !== 1 || !/^[a-f0-9]{64}$/u.test(manifest.release)) refuse();
   const password = () => randomBytes(32).toString('hex');
-  const postgresPassword = password(), doltPassword = password();
+  const postgresPassword = password();
+  const scenario = generateDemoScenario({ seed: config.seed, cutoff: config.cutoff, release: config.release });
+  const provisionFile = path.join(bootstrapRoot, 'ntasks-provision.json');
   const request = { version: 1, stateRoot, sourceRoot, artifactRoot, workerStateRoot: path.join(stateRoot, 'worker'),
     publicOrigin: config.publicOrigin, listen: { host: '0.0.0.0', port: 8080 }, seed: config.seed, cutoff: config.cutoff, release: config.release,
     serviceExpiresAt: config.serviceExpiresAt,
     postgres: { adminUrl: `postgres://postgres:${postgresPassword}@postgres:5432/noticeos?sslmode=disable` },
-    dolt: { host: '127.0.0.1', port: 3306, adminUser: 'noticeos_owner', adminPassword: doltPassword, tls: false },
-    binary: { path: binaryPath, sha256: hash(readPlain(binaryPath, 256 * 1024 * 1024)) },
-    doltBinary: { path: doltBinaryPath, sha256: hash(readPlain(doltBinaryPath, 256 * 1024 * 1024)) } };
-  for (const directory of [bootstrapRoot, stateRoot, doltRoot]) { fs.chownSync(directory, uid, gid); fs.chmodSync(directory, 0o700); }
+    ntasks: { origin: DEMO_NTASKS_ORIGIN, provisionFile, toolRoot: ntasksToolRoot } };
+  for (const directory of [bootstrapRoot, stateRoot, ntasksRoot]) { fs.chownSync(directory, uid, gid); fs.chmodSync(directory, 0o700); }
   const write = (name, bytes) => { const target = path.join(bootstrapRoot, name); fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 }); fs.chownSync(target, uid, gid); };
-  write('postgres-password', postgresPassword + '\n'); write('dolt-password', doltPassword + '\n');
+  write('postgres-password', postgresPassword + '\n');
+  write('ntasks.json', JSON.stringify({ version: 1, authSecret: randomBytes(32).toString('base64url'), workspaceId: scenario.manifest.workspaceId }) + '\n');
+  // Ntasks's own provision command writes the statements and the credentials' tokens.
+  write('ntasks-provision-request.json', JSON.stringify(demoNtasksProvisionRequest(scenario)) + '\n');
+  execFileSync(process.execPath, [path.join(ntasksToolRoot, 'tools/migrate/src/cli.ts'), 'provision',
+    '--from', path.join(bootstrapRoot, 'ntasks-provision-request.json'), '--out', provisionFile], { stdio: 'ignore', timeout: 30000 });
+  fs.chownSync(provisionFile, uid, gid);
   write('bootstrap.json', JSON.stringify(request) + '\n');
   const receipt = { version: 1, configHash, artifactRelease: manifest.release };
   write('prepared.json', JSON.stringify(receipt) + '\n');
@@ -64,8 +73,8 @@ export function prepareDemo({ configFile, bootstrapRoot, stateRoot, doltRoot, so
 if (process.argv[1] === import.meta.filename) {
   try {
     if (process.argv.length !== 2) refuse();
-    prepareDemo({ configFile: '/config/demo.json', bootstrapRoot: '/setup', stateRoot: '/state', doltRoot: '/dolt',
-      sourceRoot: '/opt/noticeos', artifactRoot: '/opt/noticeos/demo-artifacts', binaryPath: '/usr/local/bin/bd', doltBinaryPath: '/usr/local/bin/dolt' });
+    prepareDemo({ configFile: '/config/demo.json', bootstrapRoot: '/setup', stateRoot: '/state', ntasksRoot: '/ntasks',
+      sourceRoot: '/opt/noticeos', artifactRoot: '/opt/noticeos/demo-artifacts', ntasksToolRoot: '/opt/ntasks' });
     process.stdout.write('Demo preparation complete.\n');
   } catch { process.stderr.write('Demo preparation refused; preserve partial volumes for recovery.\n'); process.exitCode = 1; }
 }

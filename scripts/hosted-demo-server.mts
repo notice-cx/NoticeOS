@@ -5,8 +5,9 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, constants } from 'node:fs';
-import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions, type HostedTaskRuntimeAdapters, type HostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
 import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
+import { demoNtasksOrigin, openDemoTasks } from './demo-ntasks.mjs';
+import type { IdentityOptions } from '../packages/postgres/src/identity.mjs';
 import { startHostedDemo, type HostedDemoRuntimeOptions } from './hosted-demo-runtime.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { createDemoRealtime } from './demo-realtime.mjs';
@@ -18,6 +19,15 @@ import { createChangeWatch, topicReader } from './change-watch.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import { v4Miniflare } from './miniflare-v4.mjs';
 
+/** The demo's task routes and task tools: its own Ntasks, read as a visitor (scripts/demo-ntasks.mts). */
+export interface DemoTasksOptions {
+  readonly profile: 'demo';
+  readonly trustedOrigin: string;
+  readonly demoWorkspaceId: string;
+  /** The Tower Worker's sign-in store; the demo signs nobody in. */
+  readonly identity: IdentityOptions;
+  readonly ntasks: { readonly origin: string };
+}
 export interface HostedDemoServerOptions {
   readonly version: 1;
   readonly publicOrigin: string;
@@ -26,7 +36,7 @@ export interface HostedDemoServerOptions {
   readonly artifactRoot: string;
   readonly workerStateRoot: string;
   readonly workspaceDatabaseUrl: string;
-  readonly tasks: HostedTaskRuntimeOptions;
+  readonly tasks: DemoTasksOptions;
   readonly activity: HostedDemoRuntimeOptions;
 }
 export interface DemoWorkerArtifact {
@@ -59,7 +69,7 @@ interface Workers {
 }
 /** Trusted in-process test composition only. Never read from JSON or env. */
 export interface HostedDemoServerAdapters {
-  openTasks(options: HostedTaskRuntimeOptions, adapters?: HostedTaskRuntimeAdapters): Promise<Runtime>;
+  openTasks(options: DemoTasksOptions, adapters: { readModels: (request: Request) => Promise<Response> }): Promise<Runtime>;
   startActivity(options: HostedDemoRuntimeOptions): Promise<Activity>;
   openWorkers(options: Record<string, unknown>): Workers;
 }
@@ -132,27 +142,30 @@ export function captureHostedDemoServerOptions(input: HostedDemoServerOptions): 
   const listen = record(raw.listen); exact(listen, ['host', 'port']);
   if (!['127.0.0.1', '0.0.0.0'].includes(listen.host as string) || !Number.isInteger(listen.port)
     || (listen.port as number) < 1024 || (listen.port as number) > 65535) refused();
-  const tasks = captureHostedTaskRuntimeOptions(raw.tasks as HostedTaskRuntimeOptions);
-  if (tasks.profile !== 'demo' || tasks.trustedOrigin !== publicOrigin || !tasks.demoWorkspaceId) refused();
+  const taskRecord = record(raw.tasks); exact(taskRecord, ['profile', 'trustedOrigin', 'demoWorkspaceId', 'identity', 'ntasks']);
+  const identity = record(taskRecord.identity); exact(identity, ['connectionString', 'trustedOrigin', 'sessionSecret']);
+  const taskNtasks = record(taskRecord.ntasks); exact(taskNtasks, ['origin']);
+  if (taskRecord.profile !== 'demo' || taskRecord.trustedOrigin !== publicOrigin || typeof taskRecord.demoWorkspaceId !== 'string'
+    || !UUID.test(taskRecord.demoWorkspaceId) || identity.trustedOrigin !== publicOrigin || typeof identity.connectionString !== 'string'
+    || typeof identity.sessionSecret !== 'string') refused();
+  let ntasksOrigin: string;
+  try { ntasksOrigin = demoNtasksOrigin(taskNtasks.origin); } catch { refused(); }
+  const tasks: DemoTasksOptions = Object.freeze({ profile: 'demo', trustedOrigin: publicOrigin, demoWorkspaceId: taskRecord.demoWorkspaceId,
+    identity: Object.freeze({ connectionString: identity.connectionString, trustedOrigin: publicOrigin, sessionSecret: identity.sessionSecret }),
+    ntasks: Object.freeze({ origin: ntasksOrigin }) });
   const activity = structuredClone(raw.activity) as HostedDemoRuntimeOptions;
   const activityRecord = record(raw.activity);
   if (Object.keys(activityRecord).some(key => !['sourceRoot', 'configurationRoot', 'scenario', 'workspaceId', 'serviceId', 'connectionString',
-    'grantConnectionString', 'directoryConnectionString', 'projects', 'binary', 'doltBinary', 'scratchRoot'].includes(key))) refused();
+    'grantConnectionString', 'ntasks', 'projects'].includes(key))) refused();
   if (!activity || activity.workspaceId !== tasks.demoWorkspaceId || !UUID.test(activity.serviceId)
     || activity.now !== undefined || activity.scenario.manifest.workspaceId !== tasks.demoWorkspaceId
     || demoScenarioHash(generateDemoScenario(activity.scenario.manifest)) !== demoScenarioHash(activity.scenario)) refused();
   if (typeof raw.workspaceDatabaseUrl !== 'string' || !/^postgres(?:ql)?:\/\//u.test(raw.workspaceDatabaseUrl)) refused();
-  if (!Array.isArray(activity.projects) || activity.projects.length > tasks.targets.length
-    || new Set(activity.projects.map(project => project.mapping.projectId)).size !== activity.projects.length
-    || activity.directoryConnectionString !== tasks.directoryConnectionString
-    || activity.binary.path !== tasks.binary.path || activity.binary.sha256 !== tasks.binary.sha256
-    || activity.doltBinary.path !== tasks.doltBinary.path || activity.doltBinary.sha256 !== tasks.doltBinary.sha256) refused();
-  for (const project of activity.projects) {
-    const held = tasks.targets.find(row => row.mapping.projectId === project.mapping.projectId);
-    if (!held || Object.keys(held.mapping).some(key => held.mapping[key as keyof typeof held.mapping] !== project.mapping[key as keyof typeof held.mapping])
-      || Object.keys(held.target).some(key => held.target[key as keyof typeof held.target] !== project.target[key as keyof typeof held.target])) refused();
-  }
-  absolute(activity.sourceRoot); absolute(activity.scratchRoot);
+  const activityNtasks = record(activityRecord.ntasks); exact(activityNtasks, ['origin', 'token']);
+  if (activityNtasks.origin !== ntasksOrigin || typeof activityNtasks.token !== 'string' || !/^ntasks_service\./u.test(activityNtasks.token)
+    || !Array.isArray(activity.projects) || activity.projects.some(project => !UUID.test(project.projectId))
+    || new Set(activity.projects.map(project => project.projectId)).size !== activity.projects.length) refused();
+  absolute(activity.sourceRoot);
   if (activity.configurationRoot !== undefined) absolute(activity.configurationRoot);
   // No customer cookies/mail/provider credentials or ambient worker overrides.
   return Object.freeze({ version: 1, publicOrigin,
@@ -302,7 +315,7 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
     const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
     const wrangler = createRequire(require.resolve('wrangler/package.json'));
     const { Miniflare, Log } = v4Miniflare<Workers>(wrangler);
-    return { openTasks: openHostedTaskRuntime, startActivity: startHostedDemo,
+    return { openTasks: async (options, tasks) => openDemoTasks(options, tasks), startActivity: startHostedDemo,
       openWorkers: options => new Miniflare({ ...options, log: new Log(0), handleStructuredLogs: () => undefined }) } satisfies HostedDemoServerAdapters;
   })();
   const binding = { [PRODUCT_ENV.workspaceProfile.name]: 'demo', [PRODUCT_ENV.workspaceOrigin.name]: configuration.publicOrigin,

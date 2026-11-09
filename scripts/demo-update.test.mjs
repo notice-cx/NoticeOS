@@ -15,13 +15,15 @@ const OLD = 'a'.repeat(40), NEW = 'b'.repeat(40);
 const GIB = 1024 * 1024; // df -k counts KiB
 
 /** A disposable operator directory, a target source archive and the two stubs. */
-function fixture(t, { scenarioVersion = 4, migrations = 'digest-one', installedDiffers = false } = {}) {
+function fixture(t, { scenarioVersion = 4, migrations = 'digest-one', installedDiffers = false,
+  runningCompose = 'services:\n  dolt:\n    image: x\n' } = {}) {
   const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'demo-update-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const operator = path.join(dir, 'operator'), source = path.join(operator, 'src'), stubs = path.join(dir, 'bin');
   fs.mkdirSync(stubs, { recursive: true });
   fs.mkdirSync(path.join(source, 'deploy/demo'), { recursive: true });
-  fs.writeFileSync(path.join(source, 'deploy/demo/compose.yaml'), 'services: {}\n');
+  // The running release's compose file, which the script keeps for a rollback: by default one seeded with Dolt.
+  fs.writeFileSync(path.join(source, 'deploy/demo/compose.yaml'), runningCompose);
   fs.writeFileSync(path.join(operator, 'demo.json'), JSON.stringify({ version: 1, publicOrigin: 'https://demo.example.com', seed: 'public-preview',
     cutoff: '2026-10-05T12:00:00.000Z', release: OLD, serviceExpiresAt: '2027-04-03T00:00:00.000Z' }, null, 2) + '\n');
   fs.writeFileSync(path.join(operator, 'demo.env'), `NOTICEOS_DEMO_IMAGE=noticeos-demo:${OLD}\nNOTICEOS_DEMO_CONFIG=${operator}/demo.json\nNOTICEOS_DEMO_HTTP_PORT=16448\n`);
@@ -98,7 +100,7 @@ esac
 const housekeeping = line => line === 'info' || /^(info --format|image ls|ps -a|image rm|builder prune|system df)/u.test(line);
 const compose = result => result.log.filter(line => !housekeeping(line) && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
 
-test('a compatible release swaps the app in place: build, image tag only, dolt before app, data kept', t => {
+test('a compatible release swaps the app in place: build, image tag only, the ntasks service before app, data kept', t => {
   const f = fixture(t);
   const result = f.run(['--commit', NEW]);
   assert.equal(result.status, 0, result.stderr);
@@ -106,7 +108,7 @@ test('a compatible release swaps the app in place: build, image tag only, dolt b
   const steps = result.log.filter(line => !housekeeping(line));
   assert.match(steps[0], new RegExp(`^build --build-arg NOTICEOS_SOURCE_COMMIT=${NEW} `, 'u'));
   assert.deepEqual(steps.slice(1).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, '')),
-    ['compose -p demo-preview up -d --wait --force-recreate dolt', 'compose -p demo-preview up -d --wait --force-recreate app']);
+    ['compose -p demo-preview up -d --wait --force-recreate ntasks', 'compose -p demo-preview up -d --wait --force-recreate app']);
   assert.match(f.env(), new RegExp(`^NOTICEOS_DEMO_IMAGE=noticeos-demo:${NEW}$`, 'mu'));
   assert.match(f.env(), /^NOTICEOS_DEMO_PROJECT=demo-preview$/mu);
   assert.ok(!fs.existsSync(path.join(f.operator, 'generations/demo-g2')), 'no generation is created');
@@ -124,8 +126,9 @@ test('an incompatible release brings up a fresh generation on the same port and 
   assert.deepEqual(steps, [
     'compose -p demo-g2 config --quiet',
     'compose -p demo-g2 run --rm --no-deps prepare',
+    // The running generation was seeded with Dolt: its own compose file names its namespace owner.
     'compose -p demo-preview stop app dolt postgres',
-    'compose -p demo-g2 up -d --wait postgres dolt',
+    'compose -p demo-g2 up -d --wait postgres ntasks',
     'compose -p demo-g2 run --rm setup',
     'compose -p demo-g2 up -d --wait app',
   ]);
@@ -147,12 +150,21 @@ test('a fresh generation that fails health is stopped and the previous generatio
   const steps = compose(result);
   assert.deepEqual(steps.slice(-4), [
     'compose -p demo-g2 up -d --wait app',
-    'compose -p demo-g2 stop app dolt postgres',
+    'compose -p demo-g2 stop app ntasks postgres',
     'compose -p demo-preview up -d --wait postgres dolt',
     'compose -p demo-preview up -d --wait app',
   ]);
   assert.match(f.env(), new RegExp(`^NOTICEOS_DEMO_IMAGE=noticeos-demo:${OLD}$`, 'mu'));
   assert.ok(!f.env().includes('demo-g2'), 'the env file still names the running generation');
+});
+
+test('a previous generation that runs the demo\'s own Ntasks is stopped and brought back by its ntasks service', t => {
+  const f = fixture(t, { migrations: 'digest-two', runningCompose: 'services:\n  ntasks:\n    image: x\n' });
+  const result = f.run(['--commit', NEW], { STUB_FAIL_PROJECT: 'demo-g2' });
+  assert.equal(result.status, 1);
+  const steps = compose(result);
+  assert.ok(steps.includes('compose -p demo-preview stop app ntasks postgres'), steps.join('\n'));
+  assert.deepEqual(steps.slice(-2), ['compose -p demo-preview up -d --wait postgres ntasks', 'compose -p demo-preview up -d --wait app']);
 });
 
 test('an installed copy that fell behind hands over to the target commit\'s script and is replaced by it', t => {

@@ -49,7 +49,7 @@ disposable qualification. The
 list the implemented explicit compositions and their limits.
 
 The [portable demo profile](../../deploy/demo/README.md) packages the compiled app,
-Postgres and Dolt for a Linux server or VM behind an HTTPS reverse proxy. It
+Postgres and its own Ntasks for a Linux server or VM behind an HTTPS reverse proxy. It
 creates one synthetic workspace in new, empty stores. Anonymous visitors have
 read-only access; a separately admitted simulator updates that workspace.
 It does not activate customer signup, mail delivery or provider integrations.
@@ -112,7 +112,7 @@ identity/mail/edge bindings, scoped service grants and executable registries,
 physical task allocations, private persistence and archive destinations. Qualify
 remote PostgreSQL connectivity/TLS, task transport and backup/restore for that
 same target before claiming support. The portable demo keeps PostgreSQL inside
-its private Compose network and shares a network namespace for app-to-Dolt
+its private Compose network and shares a network namespace for app-to-Ntasks
 loopback transport. It does not qualify remote database services. Customer
 hosting and other transports need their own qualification; the local stack
 commands are not a remote release mechanism.

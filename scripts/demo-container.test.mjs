@@ -5,31 +5,42 @@ import { testFixtureRoot } from './test-fixture-root.mjs';
 import test from 'node:test';
 import http from 'node:http';
 import { demoPreparationConfig, prepareDemo } from '../deploy/demo/prepare.mjs';
-import { demoHealth } from '../deploy/demo/health.mjs';
+import { demoHealth, ntasksHealth } from '../deploy/demo/health.mjs';
+import { generateDemoScenario } from './demo-scenario.mjs';
 const ROOT = path.resolve(import.meta.dirname, '..');
 function fixture(t) {
   const base = testFixtureRoot('n-demo-container-');
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
-  const names = ['bootstrap', 'state', 'dolt', 'source', 'artifact'];
-  for (const name of names) fs.mkdirSync(path.join(base, name), { mode: 0o700 });
+  const names = ['bootstrap', 'state', 'ntasks', 'source', 'artifact', 'ntasks-tools/tools/migrate/src'];
+  for (const name of names) fs.mkdirSync(path.join(base, name), { mode: 0o700, recursive: true });
   const config = { version: 1, publicOrigin: 'https://demo.example.test:18443', seed: 'fixture', cutoff: '2026-01-01T00:00:00.000Z', release: 'a'.repeat(40), serviceExpiresAt: new Date(Date.now() + 86400000).toISOString() };
   fs.writeFileSync(path.join(base, 'source/source-commit'), config.release + '\n');
   const configFile = path.join(base, 'config.json'); fs.writeFileSync(configFile, JSON.stringify(config));
-  const binaryPath = path.join(base, 'bd'), doltBinaryPath = path.join(base, 'dolt-bin');
-  fs.writeFileSync(binaryPath, 'synthetic pinned bd'); fs.writeFileSync(doltBinaryPath, 'synthetic pinned dolt');
+  // A stand-in for Ntasks's provision command (tools/migrate in Ntasks): the file it writes, from the request it reads.
+  fs.writeFileSync(path.join(base, 'ntasks-tools/tools/migrate/src/cli.ts'), `import fs from 'node:fs';
+const args = process.argv.slice(2), from = args[args.indexOf('--from') + 1], out = args[args.indexOf('--out') + 1];
+const request = JSON.parse(fs.readFileSync(from, 'utf8'));
+fs.writeFileSync(out, JSON.stringify({ format: 'ntasks-provision-v1', workspaceId: request.workspace.id, statements: [{ sql: 'SELECT 1', values: [] }],
+  tokens: Object.fromEntries(request.credentials.map(credential => [credential.name, 'ntasks_service.' + credential.name])) }), { flag: 'wx', mode: 0o600 });
+`);
   fs.writeFileSync(path.join(base, 'artifact/manifest.json'), JSON.stringify({ version: 1, release: 'b'.repeat(64) }));
-  return { base, config, configFile, bootstrapRoot: path.join(base, 'bootstrap'), stateRoot: path.join(base, 'state'), doltRoot: path.join(base, 'dolt'), sourceRoot: path.join(base, 'source'), artifactRoot: path.join(base, 'artifact'), binaryPath, doltBinaryPath, uid: process.getuid(), gid: process.getgid() };
+  return { base, config, configFile, bootstrapRoot: path.join(base, 'bootstrap'), stateRoot: path.join(base, 'state'), ntasksRoot: path.join(base, 'ntasks'), sourceRoot: path.join(base, 'source'), artifactRoot: path.join(base, 'artifact'), ntasksToolRoot: path.join(base, 'ntasks-tools'), uid: process.getuid(), gid: process.getgid() };
 }
-test('offline preparation separates admin inputs from empty app state and pins artifact/tools', t => {
+test('offline preparation separates admin inputs from empty app state and provisions the demo\'s own Ntasks', t => {
   const own = fixture(t); const receipt = prepareDemo(own);
   assert.equal(receipt.artifactRelease, 'b'.repeat(64));
   assert.deepEqual(fs.readdirSync(own.stateRoot), []);
+  assert.deepEqual(fs.readdirSync(own.ntasksRoot), []);
   const request = JSON.parse(fs.readFileSync(path.join(own.bootstrapRoot, 'bootstrap.json')));
-  assert.equal(request.dolt.host, '127.0.0.1'); assert.equal(request.dolt.adminUser, 'noticeos_owner');
+  const workspaceId = generateDemoScenario({ seed: own.config.seed, cutoff: own.config.cutoff, release: own.config.release }).manifest.workspaceId;
+  assert.deepEqual(request.ntasks, { origin: 'http://127.0.0.1:8787', provisionFile: path.join(own.bootstrapRoot, 'ntasks-provision.json'), toolRoot: own.ntasksToolRoot });
+  const settings = JSON.parse(fs.readFileSync(path.join(own.bootstrapRoot, 'ntasks.json')));
+  assert.equal(settings.workspaceId, workspaceId); assert.ok(settings.authSecret.length >= 32);
+  const provision = JSON.parse(fs.readFileSync(request.ntasks.provisionFile));
+  assert.equal(provision.workspaceId, workspaceId); assert.deepEqual(Object.keys(provision.tokens).sort(), ['demo', 'seed']);
   assert.equal(new URL(request.postgres.adminUrl).hostname, 'postgres');
   assert.equal(new URL(request.postgres.adminUrl).searchParams.get('sslmode'), 'disable');
   assert.equal(request.release, 'a'.repeat(40)); assert.equal(request.serviceExpiresAt, own.config.serviceExpiresAt);
-  assert.equal(request.binary.sha256.length, 64); assert.equal(request.doltBinary.sha256.length, 64);
   for (const file of fs.readdirSync(own.bootstrapRoot)) assert.equal(fs.statSync(path.join(own.bootstrapRoot, file)).mode & 0o777, 0o600);
   const before = fs.readFileSync(path.join(own.bootstrapRoot, 'bootstrap.json'));
   assert.deepEqual(prepareDemo(own), receipt); assert.deepEqual(fs.readFileSync(path.join(own.bootstrapRoot, 'bootstrap.json')), before);
@@ -59,6 +70,12 @@ test('app health uses fixed Host and bounded request, and refuses unhealthy or m
   }), true);
   assert.equal(await demoHealth(file, async () => Response.json({ ok: false })), false);
   assert.equal(await demoHealth(file, async () => Response.json({ ok: true }, { status: 503 })), false);
+});
+test('the ntasks service is healthy only when its own Ntasks answers its health check on loopback', async () => {
+  assert.equal(await ntasksHealth(async url => { assert.equal(url, 'http://127.0.0.1:8787/healthz'); return Response.json({ ok: true }); }), true);
+  assert.equal(await ntasksHealth(async () => Response.json({ ok: false })), false);
+  assert.equal(await ntasksHealth(async () => Response.json({ ok: true }, { status: 503 })), false);
+  assert.equal(await ntasksHealth(async () => { throw new Error('refused'); }), false);
 });
 test('native health dials loopback with the canonical public Host and bounds body completion', { timeout: 10000 }, async t => {
   const own = fixture(t), file = path.join(own.stateRoot, 'runtime.json');
@@ -98,19 +115,18 @@ test('native health dials loopback with the canonical public Host and bounds bod
 test('Compose exposes only loopback HTTP and gives no bootstrap volume to the app', () => {
   const text = fs.readFileSync(path.join(ROOT, 'deploy/demo/compose.yaml'), 'utf8');
   const section = name => text.split(`  ${name}:\n`)[1].split(/\n  [a-z]+:\n|\nnetworks:/u)[0];
-  assert.match(section('app'), /network_mode: service:dolt/u); assert.match(section('setup'), /network_mode: service:dolt/u);
+  assert.match(section('app'), /network_mode: service:ntasks/u); assert.match(section('setup'), /network_mode: service:ntasks/u);
   assert.doesNotMatch(section('app'), /bootstrap|setup\/bootstrap|adminUrl|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(section('postgres'), /ports:/u); assert.doesNotMatch(section('app'), /ports:/u);
   assert.match(section('postgres'), /networks: \[private\]/u);
-  assert.match(section('dolt'), /networks: \[private, ingress\]/u);
+  assert.match(section('ntasks'), /networks: \[private, ingress\]/u);
   assert.match(text, /ingress:\n    driver: bridge/u);
-  assert.match(section('dolt'), /127\.0\.0\.1:\$\{NOTICEOS_DEMO_HTTP_PORT/u);
-  assert.match(text, /internal: true/u); assert.match(fs.readFileSync(path.join(ROOT, 'deploy/demo/dolt.yaml'), 'utf8'), /host: 127\.0\.0\.1/u);
-  const doltStart = fs.readFileSync(path.join(ROOT, 'deploy/demo/dolt-start.mjs'), 'utf8');
-  const globalConfig = JSON.parse(doltStart.match(/'(\{"metrics\.disabled"[^']+\})\\n'/u)[1]);
-  assert.deepEqual(globalConfig, { 'metrics.disabled': 'true', 'versioncheck.disabled': 'true' });
+  assert.match(section('ntasks'), /127\.0\.0\.1:\$\{NOTICEOS_DEMO_HTTP_PORT/u);
+  assert.match(text, /internal: true/u); assert.doesNotMatch(text, /dolt/u);
+  assert.match(fs.readFileSync(path.join(ROOT, 'deploy/demo/ntasks-start.mjs'), 'utf8'), /host: '127\.0\.0\.1'/u);
   const image = fs.readFileSync(path.join(ROOT, 'deploy/demo/Dockerfile'), 'utf8');
   assert.match(image, /hosted-demo-build\.mjs --out/u); assert.doesNotMatch(image, /vite dev|COPY installation|os-supervisor/u);
+  assert.match(image, /demo-ntasks-build\.mjs --out \/opt\/ntasks/u); assert.doesNotMatch(image, /dolthub|gastownhall\/beads/u);
   const ignore = fs.readFileSync(path.join(ROOT, 'deploy/demo/Dockerfile.dockerignore'), 'utf8');
   assert.equal(ignore.split('\n')[0], '**'); assert.match(ignore, /\*\*\/\.\*/u); assert.doesNotMatch(ignore, /!installation/u);
   // No documentation enters the image: the Tower embeds none of it. The docs
@@ -118,17 +134,17 @@ test('Compose exposes only loopback HTTP and gives no bootstrap volume to the ap
   assert.doesNotMatch(ignore, /^!docs\/(?!package\.json$)/mu); assert.match(ignore, /^!docs\/package\.json$/mu);
 });
 
-test('the update script keeps the README invariants: exact commit, dolt before app, fresh generations never purge, no raw store writes', () => {
+test('the update script keeps the README invariants: exact commit, the namespace owner before app, fresh generations never purge, no raw store writes', () => {
   const file = path.join(ROOT, 'deploy/demo/update.sh');
   assert.ok(fs.statSync(file).mode & 0o100, 'update.sh is executable');
   const script = fs.readFileSync(file, 'utf8');
   assert.match(script, /^#!\/bin\/sh\n/u); assert.match(script, /^set -eu$/mu);
   assert.match(script, /\^\[0-9a-f\]\{40\}\$/u);
   assert.match(script, /NOTICEOS_SOURCE_COMMIT=\$COMMIT/u);
-  const dolt = script.indexOf('--force-recreate dolt'), app = script.indexOf('--force-recreate app');
-  assert.ok(dolt > 0 && app > dolt, 'dolt is recreated before app on a compatible swap');
+  const owner = script.indexOf('--force-recreate ntasks'), app = script.indexOf('--force-recreate app');
+  assert.ok(owner > 0 && app > owner, 'ntasks is recreated before app on a compatible swap');
   // A fresh generation follows the README's fresh-setup order on a NEW project; the old one is only stopped.
-  assert.match(script, /run --rm --no-deps prepare[\s\S]*stop app dolt postgres[\s\S]*up -d --wait postgres dolt[\s\S]*run --rm setup[\s\S]*up -d --wait app/u);
+  assert.match(script, /run --rm --no-deps prepare[\s\S]*stop app "\$OLD_OWNER" postgres[\s\S]*up -d --wait postgres ntasks[\s\S]*run --rm setup[\s\S]*up -d --wait app/u);
   // `compose <env> <project> <file> <subcommand> …`: the subcommand is never down or rm.
   assert.ok(!script.split('\n').some(line => /^\s*compose\s+(?:"[^"]*"\s+){3}(?:down|rm)\b/u.test(line)), 'no generation is ever removed by the script');
   assert.doesNotMatch(script, /hosted-demo-setup|prepare\.mjs|psql|dolt sql/u);
