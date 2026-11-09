@@ -36,6 +36,7 @@
     "scripts/task-service-cache.mts",
     "scripts/signal-panel-paths.mts",
     "scripts/panel-versions.mts",
+    "scripts/panel-serp-organic.mts",
     "scripts/panel-store.mts",
     "scripts/panel-query.mts",
     "scripts/panel-mcp.mts",

@@ -161,7 +161,7 @@ test('over the archive as delivered, the one difference is a report day delivere
   theirs.delete('command-line.json');
   theirs.delete('console.txt');
   const differing = [...theirs.keys()].filter((name) => ours.get(name) !== theirs.get(name));
-  assert.deepEqual(differing, ['bing-webmaster-crawl-stats.csv', 'executive.json', 'gsc-country.csv', 'gsc-query.csv', 'summary.json']);
+  assert.deepEqual(differing, ['bing-webmaster-crawl-stats.csv', 'dataforseo-serp-panel.csv', 'executive.json', 'gsc-country.csv', 'gsc-query.csv', 'summary.json']);
 
   // The summary differs by the set-aside copies and their rows, nothing else.
   // Where the rules resolve a day across report days, the copy read last won
@@ -211,6 +211,11 @@ test('a run names its generation; the same generation gives the same report agai
     history: path.relative(REPO_ROOT, ws.history),
     analyzedAt: FIXTURE_ANALYZED_AT,
     duckdb: manifest.writer.duckdb,
+    serpOrganicQuality: {
+      reportDate: '2026-09-14', status: 'unassessed', rows: 5, usableRows: 1, rankedRows: 2,
+      googleOnlyRows: 0, googleOnlyQueries: 0, sourceRows: 4, googleInternalUrls: 0,
+      conflictingDomains: 0, provenance: 'source-fields',
+    },
     // Every other file of the version, with the bytes it was written with.
     files: [...raw.keys()].sort().map((name) => ({ name, bytes: raw.get(name).length, sha256: createHash('sha256').update(raw.get(name)).digest('hex') })),
   });
