@@ -197,7 +197,7 @@ supported; the `os:*` commands reach it through the stack
 pnpm os:status                # each service's state and health, the database's migrations, the app's commit
 pnpm os:logs -- --lines 200   # recent redacted output (-- --follow to tail, -- <service> for one)
 pnpm os:restart               # the whole stack, in dependency order, waiting for health
-pnpm os:restart:noticeos      # only the app (also :backup, :postgres, :dolt; a database restarts with the app and backup worker stopped)
+pnpm os:restart:noticeos      # only the app (also :backup and :postgres; Postgres restarts with the app and backup worker stopped)
 pnpm os:capacity              # store size and growth per table, read-only
 pnpm os:backup                # one full backup now (Postgres + R2 + hub, then offsite)
 pnpm os:run-job -- "0 * * * *"   # fire the jobs scheduled on one cron expression now
