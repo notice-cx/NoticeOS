@@ -52,6 +52,7 @@ export const TREND_FILE = 'signal-trend-daily.csv';
 export const FRESHNESS_FILE = PANEL_FRESHNESS_FILE;
 const STABILITY_ARCHIVES = 64;
 const STABILITY_ARCHIVE_BYTES = 8 * 1024 * 1024;
+const TRACKED_SEARCH_FAMILY = 'dataforseo-serp-panel';
 
 /**
  * The report families no cron produces: the Bing AI Performance exports, which
@@ -463,7 +464,10 @@ export async function localStabilityReport(downloadsRoot, asset, manifest) {
   }
   let read = 0;
   const assessed = [];
-  for (const [family, recent] of [...families].sort(([a], [b]) => a.localeCompare(b))) {
+  const trackedSearchRosters = [];
+  const orderedFamilies = [...families].sort(([a], [b]) =>
+    Number(b === TRACKED_SEARCH_FAMILY) - Number(a === TRACKED_SEARCH_FAMILY) || a.localeCompare(b));
+  for (const [family, recent] of orderedFamilies) {
     const readings = [];
     for (const row of recent.reverse()) {
       const unknown = { family, reportDate: row.reportDate, collectedAt: null, providerDates: [], comparisonKey: null, resultHash: null };
@@ -485,6 +489,10 @@ export async function localStabilityReport(downloadsRoot, asset, manifest) {
         if (archive.integration !== row.integration || archive.report !== row.report || archive.reportDate !== row.reportDate) {
           readings.push(unknown); continue;
         }
+        if (family === TRACKED_SEARCH_FAMILY) {
+          const requests = archivedSerpRequests(archive);
+          if (requests !== null) trackedSearchRosters.push({ reportDate: archive.reportDate, requests });
+        }
         readings.push(archiveComparisonEvidence(archive));
       } catch {
         readings.push(unknown);
@@ -495,7 +503,26 @@ export async function localStabilityReport(downloadsRoot, asset, manifest) {
     assessed.push({ family, ...comparablePeriodStability(readings) });
   }
   return { schemaVersion: 1, asset, limits: { archives: STABILITY_ARCHIVES, archivesPerFamily: 4, archiveBytes: STABILITY_ARCHIVE_BYTES },
-    archivesRead: read, families: assessed };
+    archivesRead: read, families: assessed.sort((a, b) => a.family.localeCompare(b.family)), trackedSearchRosters };
+}
+
+/** Promoted SERP archives retain each call, including unanswered requests.
+ * The request envelopes preserve the actual roster if settings change later. */
+function archivedSerpRequests(archive) {
+  if (!Array.isArray(archive.pages) || archive.pages.length === 0) return null;
+  const requests = [];
+  const seen = new Set();
+  for (const page of archive.pages) {
+    const { keyword, device } = page?.request?.body ?? {};
+    const query = typeof keyword === 'string' ? keyword.trim() : '';
+    if (!query || (device !== 'desktop' && device !== 'mobile')) return null;
+    const identity = JSON.stringify([query, device]);
+    if (seen.has(identity)) return null;
+    seen.add(identity);
+    const label = page?.request?.label;
+    requests.push({ query, device, ...(typeof label === 'string' && label.trim() ? { label: label.trim() } : {}) });
+  }
+  return requests;
 }
 
 async function fileExists(file) {
@@ -632,7 +659,9 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
   });
   applyProductDataAvailability(freshness, await localProductDataAvailability(options.downloadsRoot, asset, merged),
     (await localProductDataAvailability(options.downloadsRoot, asset, merged, 'metrics-collection'))[0] ?? null);
-  freshness.stability = await localStabilityReport(options.downloadsRoot, asset, merged);
+  const { trackedSearchRosters, ...stability } = await localStabilityReport(options.downloadsRoot, asset, merged);
+  freshness.stability = stability;
+  if (trackedSearchRosters.length) freshness.trackedSearchRosters = trackedSearchRosters;
   const history = await writeHistory({ asset, input: downloadsDir, output: historyDir });
   const analysisStartedAt = now();
   const analysis = await analyze({

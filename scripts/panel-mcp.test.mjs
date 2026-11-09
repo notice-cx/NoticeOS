@@ -274,6 +274,100 @@ test('the endpoint offers the panel tools for evidence reads and answers them fr
     /workspace/u, 'another workspace is refused');
 });
 
+test('a search review aligns complete weeks, preserves unknowns and uses only its pinned version', async (t) => {
+  const trackedSearchRosters = [
+    { reportDate: '2026-10-11', requests: [
+      { query: 'soup', device: 'desktop' }, { query: 'soup', device: 'mobile' }, { query: 'salad', device: 'desktop' },
+    ] },
+    { reportDate: '2026-10-12', requests: [{ query: 'pasta', device: 'desktop' }] },
+  ];
+  const root = await panelRoot(t, { freshness: { asset: ASSET, trackedSearchRosters } });
+  const folder = path.join(root, `${ASSET}.reports`, OLDER);
+  const csv = (name, header, rows) => fs.writeFile(path.join(folder, `${name}.csv`),
+    [header, ...rows.map(row => row.join(','))].join('\n') + '\n');
+  const dates = (start) => Array.from({ length: 14 }, (_, index) =>
+    new Date(Date.parse(start) + index * 86_400_000).toISOString().slice(0, 10));
+  const complete = dates('2026-09-27');
+  const detail = dates('2026-09-26');
+  await Promise.all([
+    csv('signal-trend-daily', 'date,integration,metric,value,provisional', [
+      ...complete.flatMap((day, index) => [[day, 'gsc', 'clicks', index < 7 ? 10 : 12, 0],
+        [day, 'gsc', 'impressions', index < 7 ? 100 : 120, 0], [day, 'bing-webmaster', 'clicks', 999, 0]]),
+      ['2026-10-11', 'gsc', 'clicks', 999, 1], ['2026-10-11', 'gsc', 'impressions', 999, 1],
+    ]),
+    csv('gsc-page', 'report_date,page,clicks,impressions,position,provider_truncated', detail.flatMap((day, index) => [
+      [day, '/soup', index < 7 ? 3 : 1, 20, 5, false],
+      ...(index < 7 ? [[day, '/unknown-later', 99, 100, 1, false]] : []),
+    ])),
+    csv('gsc-query', 'report_date,query,clicks,impressions,position,provider_truncated',
+      detail.map((day, index) => [day, 'soup', index < 7 ? 3 : 1, 20, 5, true])),
+    csv('ga4-traffic-acquisition', 'report_date,window_start,window_end,sessionDefaultChannelGroup,sessions,engagedSessions,keyEvents,provisional',
+      complete.flatMap((day, index) => [
+        [day, day, day, 'Direct', 999, 999, 999, 0],
+        ...(index === 3 ? [] : [[day, day, day, 'Organic Search', 5, 4, 1, 0]]),
+      ])),
+    csv('bing-webmaster-rank-traffic', 'report_date,provider_date,clicks,impressions,provider_truncated', [
+      ...dates('2026-09-25').map((day) => ['2026-10-10', day, 2, 20, false]),
+      ['2026-10-09', '2026-10-07', 999, 999, false],
+    ]),
+    csv('bing-webmaster-pages', 'report_date,provider_date', [['2026-10-05', '2026-10-02']]),
+    csv('dataforseo-serp-panel', 'report_date,query,device,organic_results,tracked_depth', [
+      ['2026-10-11', 'soup', 'desktop', 20, 20], ['2026-10-11', 'soup', 'mobile', '', 20],
+    ]),
+  ]);
+  const { call, rpc } = await endpoint(root);
+  const summary = await call('get_search_review', { asset: ASSET, version: OLDER });
+  assert.equal(summary.error, undefined);
+  assert.deepEqual([summary.version, summary.latest], [OLDER, false]);
+  assert.deepEqual([summary.trackedSearch.expectedPairs, summary.trackedSearch.observedPairs], [3, 2]);
+  assert.deepEqual(summary.trackedSearch.missingPairs, [{ query: 'salad', device: 'desktop' }]);
+  assert.deepEqual(summary.trackedSearch.unansweredPairs, [{ query: 'soup', device: 'mobile' }]);
+
+  const { gscProperty, gscPages, gscQueries, ga4OrganicSearch, bingRankTraffic } = summary.comparisons;
+  assert.equal(gscProperty.status, 'comparable');
+  assert.equal(gscProperty.latestObserved, '2026-10-11');
+  assert.deepEqual(gscProperty.provisionalDates, ['2026-10-11']);
+  assert.equal(gscProperty.current.end, '2026-10-10');
+  assert.deepEqual(gscProperty.prior.totals, { clicks: 70, impressions: 700 });
+  assert.deepEqual(gscProperty.current.totals, { clicks: 84, impressions: 840 });
+  assert.equal(gscPages.current.end, '2026-10-09');
+  assert.deepEqual(gscPages.movements.map(({ subject, clickChange }) => [subject, clickChange]), [['/soup', -14]]);
+  assert.equal(gscPages.current.totals, null);
+  assert.equal(gscQueries.current.providerTruncated, true);
+  assert.equal(ga4OrganicSearch.status, 'insufficient-coverage');
+  assert.deepEqual(ga4OrganicSearch.prior.missingDates, ['2026-09-30']);
+  assert.equal(ga4OrganicSearch.prior.totals, null);
+  assert.deepEqual(ga4OrganicSearch.current.totals, { sessions: 35, engagedSessions: 28, keyEvents: 7 });
+  assert.equal(bingRankTraffic.reportDate, '2026-10-10');
+  assert.equal(bingRankTraffic.current.end, '2026-10-08');
+  assert.equal(bingRankTraffic.measuredLagDays, 2);
+  assert.deepEqual(bingRankTraffic.current.totals, { clicks: 14, impressions: 140 });
+  assert.deepEqual(summary.bingSnapshots.find(({ table }) => table === 'bing_webmaster_pages'),
+    { table: 'bing_webmaster_pages', reportDate: '2026-10-05', measuredThrough: '2026-10-02', measuredLagDays: 3, providerTruncated: null });
+
+  const sql = summary.drilldown.find(({ table }) => table === 'gsc_page').sql;
+  const drilldown = await call('query_panel', { asset: ASSET, version: summary.version, sql });
+  assert.deepEqual(JSON.parse(drilldown.rows[0][0]).movements, gscPages.movements);
+  const earlier = await call('get_search_review', { asset: ASSET, version: OLDER, report_date: '2026-10-10' });
+  assert.equal(earlier.trackedSearch.expectedPairs, null);
+  assert.equal(earlier.trackedSearch.observedPairs, null);
+  assert.equal(earlier.comparisons.gscProperty.latestObserved, '2026-10-10');
+  const latestFolder = path.join(root, `${ASSET}.reports`, LATEST);
+  await fs.copyFile(path.join(folder, 'dataforseo-serp-panel.csv'), path.join(latestFolder, 'dataforseo-serp-panel.csv'));
+  await fs.writeFile(path.join(latestFolder, 'gsc-page.csv'), 'report_date,page,clicks,impressions,position\n"unclosed');
+  const latest = await call('get_search_review', { asset: ASSET });
+  assert.equal(latest.error, undefined);
+  assert.equal(latest.trackedSearch.reportDate, '2026-10-12');
+  assert.equal(latest.trackedSearch.observedPairs, 0);
+  assert.deepEqual(latest.trackedSearch.missingPairs, [{ query: 'pasta', device: 'desktop' }]);
+  assert.equal(latest.comparisons.gscPages.status, 'unavailable');
+  assert.ok(latest.unavailableSources.some(({ table }) => table === 'gsc_page'));
+  assert.match((await call('get_search_review', { asset: ASSET, version: OLDER, report_date: '2026-02-31' })).error, /calendar date/u);
+  assert.match((await rpc('tools/call', { name: 'get_search_review', arguments: {
+    workspace: '0f42e967-bb21-4e9b-9c69-8b082e8491a6', asset: ASSET,
+  } })).result.content[0].text, /workspace/u);
+});
+
 test('a hosted endpoint asks for evidence reads before a panel tool runs, and refuses a panel configuration it cannot call', async () => {
   const reads = [];
   const handle = createHostedMcp({ profile: 'hosted', trustedOrigin: 'https://noticeos.example',
