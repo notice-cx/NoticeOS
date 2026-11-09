@@ -105,6 +105,10 @@ export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>>
     files: Object.freeze(["config/*.json"]),
     why: "New-workspace preparation must seed the complete released defaults and activation must refuse drift from that exact release; no installation document is read.",
   }),
+  "scripts/hosted-demo-setup.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json"]),
+    why: "The fresh demo setup seeds the released defaults, as the demo stack does, and refuses unless their task and asset rosters are the generic empty ones; a fixture with sample assets is refused and a synthetic copy would prove nothing about the release.",
+  }),
   "scripts/contract-dist.test.mjs": Object.freeze({
     files: Object.freeze(["config/constants.json"]),
     why: "The contract build compiles the checkout's constants.json in; the test compares the emitted copy with its source, which holds for any saved value.",
