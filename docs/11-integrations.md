@@ -155,8 +155,8 @@ there, through the ingest Worker, which adds the credential to each call.
 Agents connect to Ntasks's own MCP endpoint, and NoticeOS's MCP server lists
 no task tools. The connection test lists the projects the credential reaches
 and checks that the credential was made with the backup choice, which the
-nightly backup needs; a credential Ntasks refuses, or one without that choice,
-is not kept. HTTPS is required, except for a local address. Redirects are
+nightly backup needs. A credential that gets HTTP status 401 or 403 from
+Ntasks, or one made without that choice, is not kept. HTTPS is required, except for a local address. Redirects are
 refused. This connection is available in standalone installations.
 [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks) covers the credential,
 mapping sites to projects, connecting agents and what the Tower shows while

@@ -133,7 +133,7 @@ export function ntasksTaskHome(origin) {
 export function ntasksGuide(origin, panels) {
     return versionedGuide('Working with NoticeOS', ['## Start', '', ASSET_START, '', '## Tasks', '', ntasksTaskHome(origin),
         ...(origin === null ? [] : ['', `With Claude Code: \`claude mcp add --scope user --transport http ntasks ${origin}${NTASKS_MCP_PATH}\`. `
-                + 'On first use, Ntasks asks a person to allow the agent.']),
+                + 'On first use, a person must allow the agent in Ntasks.']),
         '', INSTALLATION_RULES_INTRO, ...INSTALLATION_TASK_RULES,
         ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])]);
 }

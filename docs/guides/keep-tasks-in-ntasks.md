@@ -34,7 +34,7 @@ While Ntasks holds the tasks, NoticeOS's MCP server (`pnpm os:mcp` and the Tower
 claude mcp add --scope user --transport http ntasks https://ntasks.example.com/api/mcp
 ```
 
-On first use, Ntasks asks a person to allow the agent. NoticeOS's server keeps its asset report, panel and journey tools; its instructions and its `get_task_guide` name the Ntasks endpoint, and a task tool an agent listed before the switch is refused with the same address. When Ntasks is disconnected, the task tools are listed again.
+On first use, a person must allow the agent in Ntasks. NoticeOS's server keeps its asset report, panel and journey tools; its instructions and its `get_task_guide` name the Ntasks endpoint, and a task tool an agent listed before the switch is refused with the same address. When Ntasks is disconnected, the task tools are listed again.
 
 ## Who Ntasks records
 
