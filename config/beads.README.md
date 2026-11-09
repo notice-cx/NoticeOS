@@ -109,16 +109,21 @@ hub access. See [Connect a task project](../docs/guides/connect-a-task-project.m
 ### The spoke stanza
 
 Every spoke's `CLAUDE.md` (and its `AGENTS.md`, where it has one) carries the
-same stanza, byte-identical, under its own repo-specific intro. It is a pointer,
-not the rules: the rules come from the `noticeos` MCP server's `get_task_guide`
-tool and its instructions, so they reach every agent without a copy to keep in
-step. The canonical stanza lives here between the markers;
-`scripts/spoke-stanza.test.mjs` fails when a spoke's copy drifts. Change it here
-first, then re-stamp the spokes.
+same stanza, byte-identical, under its own repo-specific intro. The stanza
+points to the rules and does not copy them: the `noticeos` MCP server's
+`get_task_guide` returns the installation's task rules and which MCP server
+serves its task tools, and when that is Ntasks's endpoint, the `ntasks` MCP
+server's `get_task_guide` returns the workflow and the rules for writing a
+task, so a rule change reaches every agent with no copy to update. A
+spoke holds no task files: no `.beads/` directory, no `.beads.gate.lock` and no
+`.beads` lines in its `.gitignore`. The canonical stanza is the text between
+the markers below. `scripts/spoke-stanza.test.mjs` fails when a checked-out
+spoke's copy differs from it or the spoke still holds a task file. Change the
+stanza here first, then re-stamp the spokes.
 
 <!-- spoke-stanza:begin -->
-- Tasks and asset data come from the `noticeos` MCP server. Call `get_task_guide` before task work: it returns the workflow and the rules for filing, claiming and closing a task.
-- Never run `bd`, `bv` or `br` in this repository: the MCP tools are the task interface.
+- Asset data comes from the `noticeos` MCP server. Before task work, call its `get_task_guide`: it returns this installation's task rules and which MCP server serves its task tools. When it directs you to Ntasks's MCP endpoint, also call `get_task_guide` on the `ntasks` MCP server and use its task tools. When it says no task service is connected, stop task work and ask the owner to connect one in the Tower. Otherwise use the `noticeos` task tools.
+- Never run `bd`, `bv` or `br`: the MCP task tools are the task interface. If the server the guide names is missing from your session, ask the owner to connect it.
 - Work only a person can do carries the `human` label; a step that must wait for approval uses `request_human_approval`.
 <!-- spoke-stanza:end -->
 
@@ -136,14 +141,12 @@ first, then re-stamp the spokes.
   the hub down.
 - **Prefix ≠ asset id, and both are load-bearing.** This file is the only
   place the two are tied together.
-- **`interactions.jsonl` is never committed.** It is `bd`'s per-machine
-  append-only interaction audit; every spoke's `.beads/.gitignore` covers it.
-  If a tree shows it modified or untracked, re-apply
-  `git rm --cached .beads/interactions.jsonl` plus the gitignore line.
-- **`br` (beads_rust) must never be run in a spoke.** It is a separate
-  SQLite + JSONL implementation with no Dolt backend: `br create` would
-  scaffold a private, divergent store inside `.beads/`. `bv` is retired.
-  **`bd` is the only task CLI.**
+- **No task CLI runs in a spoke.** Agents in a spoke use the MCP task tools
+  the stanza above names. The `bd` commands in this file run only in
+  the installation-owned client directory, for the
+  [Tower's task lane](#the-towers-task-lane--the-operators-hands-not-an-agents).
+  `br` (beads_rust) and `bv` are retired: `br create` would scaffold a private,
+  divergent store inside a `.beads/` folder.
 
 ## The Tower's task lane — the operator's hands, not an agent's
 
