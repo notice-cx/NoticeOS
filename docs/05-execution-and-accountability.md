@@ -58,9 +58,9 @@ work.
    Anything deferred must be filed as a task with an owner and a trigger; the
    Tower lists deferrals that have no owner as open debt. Work may be left
    undone on purpose, but that decision must always be recorded. The list of
-   open work is the task database — `bd create` in the repo the work belongs
-   to, `bd ready` to read it
-   ([AGENTS.md § Open work lives in the task hub](../AGENTS.md#open-work-lives-in-the-task-hub)).
+   open work is the task hub — `create_task` in the project the work belongs
+   to, `list_tasks` with `ready: true` to read it
+   ([AGENTS.md § Open work lives in Ntasks](../AGENTS.md#open-work-lives-in-ntasks)).
    A deferral written into a doc instead of a task is an unrecorded deferral.
 7. **Random deep audits.** A sampled fraction of completions that passed
    verification gets full re-verification each cycle. Any discrepancy is an incident; every incident

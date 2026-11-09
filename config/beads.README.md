@@ -181,7 +181,7 @@ judgment.
 The hub is the portfolio's **only** register of open work. The process rules
 — file a bead, claim before building, verify, close with evidence, the `human`
 label and gates — are written once, in
-[AGENTS.md](../AGENTS.md#open-work-lives-in-the-task-hub), and how to write a
+[AGENTS.md](../AGENTS.md#open-work-lives-in-ntasks), and how to write a
 task is `TASK_QUALITY` in
 [`scripts/hosted-task-mcp.mts`](../scripts/hosted-task-mcp.mts), which the task
 tools send to every connected agent. What belongs here is the filing grammar
