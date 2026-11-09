@@ -304,7 +304,11 @@ export function createPersonSession(app: NtasksApp, options: SessionOptions): Pe
       if (now() < current.expiresAt - EXPIRY_MARGIN_MS) return current.access;
       refreshing ??= refreshed(current).finally(() => { refreshing = null; });
       const next = await refreshing;
-      if (tokens === current) keep(next);
+      // Another tab may have signed out, or refreshed first, while this one
+      // waited: what is stored then wins over this refresh.
+      const stored = readTokens(options.storage.read(tokensName(app)));
+      if (tokens === current && stored?.access === current.access) keep(next);
+      else session.reload();
       return tokens?.access ?? null;
     },
     async request(path, init = {}) {
@@ -360,9 +364,20 @@ export interface PersonDecisions {
   disputeTask(id: string, options?: PersonWriteOptions): Promise<void>;
 }
 
-export function personDecisions(session: PersonSession, crypto: Crypto = globalThis.crypto): PersonDecisions {
+/**
+ * `readsProject` names the Ntasks project the Tower reads a task from, with
+ * the installation's service credential. A decision is sent only to that
+ * same project: a sign-in to an app registered in another workspace would
+ * otherwise reach another project with the same prefix.
+ */
+export function personDecisions(session: PersonSession, readsProject: (taskId: string) => string | null,
+  crypto: Crypto = globalThis.crypto): PersonDecisions {
   async function decide(path: string, id: string, payload: Record<string, unknown>, options?: PersonWriteOptions): Promise<void> {
     const projectId = await session.projectIdOf(id);
+    if (readsProject(id) !== projectId) {
+      throw new ApiError(`This Ntasks sign-in reaches another workspace than the Tower reads ${id} from; register the Tower in the service credential's workspace. Nothing was sent.`,
+        409, "workspace_mismatch");
+    }
     let response: Response;
     try {
       response = await session.request(path, { method: "POST", ...(options?.keepalive ? { keepalive: true } : {}),

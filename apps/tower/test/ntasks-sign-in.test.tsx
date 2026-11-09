@@ -12,7 +12,8 @@ import type { WorkPayload } from "@shared/work";
 
 const ORIGIN = "https://ntasks.example.com";
 const APP = { origin: ORIGIN, clientId: "tower-client" };
-const NTASKS: TaskServiceStatus = { connected: true, origin: ORIGIN, projects: null, app: { clientId: APP.clientId } };
+const NTASKS: TaskServiceStatus = { connected: true, origin: ORIGIN, app: { clientId: APP.clientId },
+  projects: [{ asset: "example.com", prefix: "md", project: { displayName: "Example", logicalKey: "example.com", projectId: "p-md" } }] };
 const UNCONFIGURED: TaskServiceStatus = { connected: true, origin: ORIGIN, projects: null, app: null };
 const LOCAL_HUB: TaskServiceStatus = { connected: false, origin: null, projects: null };
 const TOKENS_KEY = `noticeos:ntasks-person:${ORIGIN}:${APP.clientId}`;
@@ -51,7 +52,7 @@ vi.mock("@/hooks/useTasks", async (importOriginal) => ({
 
 import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
 import { flushAnswers, resetAnswerQueue } from "@/lib/answer-queue";
-import { createPersonSession, finishSignIn, NtasksSignedOut, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
+import { createPersonSession, finishSignIn, NtasksSignedOut, personDecisions, startSignIn, type TokenStorage } from "@/lib/ntasks-sign-in";
 import { closableHere } from "@/routes/tasks/close-actions";
 import { FocusRoute } from "@/routes/tasks/FocusRoute";
 import { NextTab } from "@/routes/tasks/next/NextTab";
@@ -128,6 +129,28 @@ describe("the person's tokens", () => {
     expect(session.snapshot().signedIn).toBe(true);
     expect(JSON.parse(storage.values.get(NAME)!)).toMatchObject({ access: "access-1", refresh: "refresh-1" });
     expect(await session.token()).toBe("access-2");
+  });
+
+  it("does not sign in again when another tab signed out while a refresh was on its way", async () => {
+    const storage = memoryStorage({ [NAME]: tokens(1_000) });
+    let signOutElsewhere = () => {};
+    const session = createPersonSession(APP, { storage, now: () => 10_000, fetch: async () => {
+      signOutElsewhere();
+      return Response.json({ access_token: "access-2", expires_in: 3600, refresh_token: "refresh-2" });
+    } });
+    signOutElsewhere = () => { storage.values.delete(NAME); };
+    expect(await session.token()).toBeNull();
+    expect(session.snapshot().signedIn).toBe(false);
+    expect(storage.values.has(NAME)).toBe(false);
+  });
+
+  it("sends no decision to a project other than the one the Tower reads the task from", async () => {
+    const storage = memoryStorage({ [NAME]: tokens(Number.MAX_SAFE_INTEGER) });
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ projects: [{ projectId: "p-other-workspace", prefix: "md", logicalKey: "example.com", displayName: "Example" }] }));
+    const decisions = personDecisions(createPersonSession(APP, { storage, fetch, now: () => 0 }), () => "p-md");
+    await expect(decisions.chooseOnTask("md-c1", "b")).rejects.toMatchObject({ code: "workspace_mismatch" });
+    expect(fetch.mock.calls.map(([input]) => String(input))).toEqual([`${ORIGIN}/api/tasks/projects`]);
   });
 
   it("starts a sign-in only with an Ntasks new enough for connected apps, with an S256 challenge of the verifier it keeps", async () => {

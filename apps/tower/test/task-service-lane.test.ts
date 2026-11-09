@@ -129,7 +129,8 @@ it("shows Ntasks's own sentence when a decision is refused for not coming from a
 
 it("names the Tower's client id in Ntasks, for a person's sign-in, only once one is saved", async () => {
   const saved = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true, appClientId: "tower-client" });
-  expect((await lane(saved.service)(request("GET", "/api/tasks/service"))).body).toMatchObject({ connected: true, app: { clientId: "tower-client" } });
+  expect((await lane(saved.service)(request("GET", "/api/tasks/service"))).body).toMatchObject({ connected: true, app: { clientId: "tower-client" },
+    projects: [{ asset: "example.com", project: { projectId: PROJECT.projectId } }] });
   const none = ntasks(() => ({ status: 200, body: {} }));
   expect((await lane(none.service)(request("GET", "/api/tasks/service"))).body).toMatchObject({ connected: true, app: null });
 });

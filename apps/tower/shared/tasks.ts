@@ -121,7 +121,7 @@ export interface LiveTasksPayload {
 export interface TaskServiceStatus {
   connected: boolean | null;
   origin: string | null;
-  projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string } | null }[] | null;
+  projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string; projectId: string } | null }[] | null;
   /** Why `projects` is null while connected. */
   reason?: string;
   /** True on an installation, whose tasks live only in its task service;

@@ -55,9 +55,9 @@ Ntasks takes an answer, a choice, a dismissal, an approval or a dispute only fro
 
 ### Register the Tower in Ntasks
 
-1. In **Settings** > **Task projects**, copy the **Sign-in address** beside **Ntasks**: the Tower's address followed by `/tasks/signed-in`. Ntasks takes it only on `https`, or on `http` for `localhost`, `127.0.0.1` or `[::1]`.
-2. In Ntasks, as an owner of the workspace, open **Settings** > **Connected apps**, choose **Register app**, name the app, paste the sign-in address and register it. Copy its **client ID**.
-3. Back in **Settings** > **Task projects**, choose **Manage** beside **Ntasks** and enter the **Ntasks address**, the **Service credential** and the **Tower client ID**, then **Connect**. The row then shows **Tower client ID saved**.
+1. In **Settings** > **Task projects**, copy the **Sign-in address** beside **Ntasks**: the Tower's address followed by `/tasks/signed-in`. Ntasks takes it on `https`, except on `localhost`, `127.0.0.1` and `[::1]`, which take `http` only.
+2. In Ntasks, as an owner of the workspace the service credential belongs to, open **Settings** > **Connected apps**, choose **Register app**, name the app, paste the sign-in address and register it. Copy its **client ID**.
+3. Back in **Settings** > **Task projects**, choose **Manage** beside **Ntasks**, then **Replace connection**, and enter the **Ntasks address**, the **Service credential** and the **Tower client ID**, then **Connect**. The row then shows **Tower client ID saved**.
 
 Until a client ID is saved, each decision shows **Set up Ntasks sign-in**, which opens **Settings** > **Task projects**.
 

@@ -76,7 +76,7 @@ it('keeps the Undo-window wording while tasks stay on the local task database', 
 
 it('names the Ntasks project of each site, and a site whose prefix none has', () => {
   const column = ntasksProjectColumn({ connected: true, origin: 'https://ntasks.example.com', projects: [
-    { asset: 'example.com', prefix: 'ex', project: { displayName: 'Example', logicalKey: 'example.com' } },
+    { asset: 'example.com', prefix: 'ex', project: { displayName: 'Example', logicalKey: 'example.com', projectId: 'p-example' } },
     { asset: 'shop.example', prefix: 'shop', project: null },
   ] });
   const cell = (key: string) => render(<>{column.render({ key, values: {} } as never)}</>).container;

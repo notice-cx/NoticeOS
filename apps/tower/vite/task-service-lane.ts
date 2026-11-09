@@ -185,7 +185,7 @@ export async function taskServiceStatus(service: TaskService | null,
   const app = clientId === null ? null : { clientId };
   try {
     const projects = mapTaskProjects(await readProjects(), await service.projects()).map(entry => ({ asset: entry.asset, prefix: entry.prefix,
-      project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey } }));
+      project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey, projectId: entry.project.projectId } }));
     return { connected, origin, projects, required: true, app };
   } catch (error) {
     return { connected, origin, projects: null, required: true, app, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
