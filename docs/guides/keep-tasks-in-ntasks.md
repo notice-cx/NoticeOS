@@ -47,7 +47,7 @@ On first use, a person must allow the agent in Ntasks. NoticeOS's server keeps i
 
 ## Who Ntasks records
 
-The Tower and the runner make their changes through the installation's one credential. Each request names who it is for, and Ntasks records the change as `service:<credential name>/<name>`: a change made on the Tower's pages is recorded as `service:noticeos/tower`. An agent connected to Ntasks is recorded under its own Ntasks sign-in.
+The Tower and the runner make their changes through the installation's one credential. Each request names who it is for, and Ntasks records the change as `service:<credential name>/<name>`: a change made on the Tower's pages is recorded as `service:noticeos/tower`. The Tower's task boards, task pages and Wall show such a change under the name after the credential's, `tower`, and the task's history in Ntasks keeps the full name. An agent connected to Ntasks is recorded under its own Ntasks sign-in.
 
 ## Decisions and approvals
 

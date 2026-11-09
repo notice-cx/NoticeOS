@@ -191,7 +191,8 @@ describe("an agent's line", () => {
   it("names who closed it, the model, and the commit and link as chips", () => {
     render(<WallFeed feed={payload([
       item("a", 5, { text: "Fix the export button", who: "claude", model: "Opus 5.5", evidence: "Exports pass · 3f2a91c · lightbrief.example/briefs" }),
-      item("b", 9, { kind: "task-claimed", label: "Claimed", tone: "neutral", text: "Restore the nightly report", who: "codex", model: null }),
+      // A service acting for an agent goes by the agent's name.
+      item("b", 9, { kind: "task-claimed", label: "Claimed", tone: "neutral", text: "Restore the nightly report", who: "service:demo/codex", model: null }),
     ])} nowMs={NOW} />);
     const [closed, claimed] = screen.getAllByRole("listitem");
     expect(within(closed!).getByText("claude")).toBeInTheDocument();

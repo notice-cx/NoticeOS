@@ -6,6 +6,7 @@ import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRun
 import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
+import { actorName } from "@shared/tasks";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
 import type { HomeModuleId } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
@@ -354,9 +355,10 @@ export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work:
   const projects = work?.projects ?? [];
   for (const project of projects) {
     for (const worker of project.ok ? project.workers ?? [] : []) {
-      const entry = totals.get(worker.id) ?? { name: worker.id, closed: 0, active: 0, models: new Set<string>() };
+      const name = actorName(worker.id);
+      const entry = totals.get(name) ?? { name, closed: 0, active: 0, models: new Set<string>() };
       if (worker.model !== null) entry.models.add(worker.model);
-      totals.set(worker.id, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress });
+      totals.set(name, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress });
     }
   }
   const agents = [...totals.values()].filter((entry) => entry.models.size > 0).sort((a, b) => b.closed - a.closed || a.name.localeCompare(b.name));

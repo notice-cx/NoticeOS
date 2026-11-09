@@ -1,7 +1,7 @@
 import { TaskViewContext } from "../task-view-context";
 import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { TASK_PROJECTS_PATH, taskActorLabel } from "@shared/tasks";
+import { TASK_PROJECTS_PATH, taskActorLabel, actorName } from "@shared/tasks";
 import { siteCount } from "@shared/site-noun";
 import type { WorkProject, WorkWeeks } from "@shared/work";
 import { EmptyState } from "@/components/EmptyState";
@@ -219,8 +219,9 @@ function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
   const counts = new Map<string, { name: string; n: number }>();
   for (const task of tasks) {
     if (task.status !== IN_PROGRESS || !task.assignee) continue;
-    const entry = counts.get(task.assignee) ?? { name: taskActorLabel(task.assignee, task.actors), n: 0 };
-    counts.set(task.assignee, { ...entry, n: entry.n + 1 });
+    const key = actorName(task.assignee);
+    const entry = counts.get(key) ?? { name: taskActorLabel(task.assignee, task.actors), n: 0 };
+    counts.set(key, { ...entry, n: entry.n + 1 });
   }
   const working = [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
   if (working.length === 0) return null;

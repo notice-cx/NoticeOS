@@ -238,6 +238,18 @@ describe("task board read", () => {
     expect(view.statusCounts.get("in-progress")).toBe(1);
     expect(view.assigneeCounts.get("agent")).toBe(1);
   });
+
+  it("counts and filters an agent and a service acting for it as one holder", () => {
+    const tasks = [
+      liveTask({ id: "md-a", status: "in_progress", assignee: "claude" }),
+      liveTask({ id: "md-b", status: "in_progress", assignee: "service:demo/claude" }),
+      liveTask({ id: "md-c", status: "in_progress", assignee: "codex" }),
+    ];
+    const reads = new Map([["meadow.example", success(board(tasks))]]);
+    expect(Object.fromEntries(read({ reads }).assigneeCounts)).toEqual({ claude: 2, codex: 1 });
+    const narrowed = read({ reads, filters: { ...filters, assignee: "claude" } });
+    expect(narrowed.rows.map(row => row.id).sort()).toEqual(["md-a", "md-b"]);
+  });
 });
 
 // The one rule the board's Your decisions and a task's own page both read:

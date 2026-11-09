@@ -130,8 +130,8 @@ review and as `claude` for a change, with the model and the closer recorded, so
 the Agents page and the Wall keep crediting the named agents after the cutoff.
 The simulator makes these changes through the demo's one Ntasks credential,
 which reaches only the sites' projects, so Ntasks records them as
-`service:demo/codex` and `service:demo/claude`; the seeded history before the
-cutoff names `codex` and `claude` themselves. The same hourly job runs the release's home-page check against
+`service:demo/codex` and `service:demo/claude`. The Tower shows them as `codex`
+and `claude`, the names the seeded history before the cutoff records. The same hourly job runs the release's home-page check against
 each fictional asset's synthetic page, so no asset is fetched. Each day one asset
 in turn returns HTTP 503 for 25 minutes: the check marks it down and raises its
 alert, and the next hour's check marks it up and closes the alert. System health
