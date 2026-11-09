@@ -232,6 +232,26 @@ test('a compressed pinned panel can have complete collection and suspect organic
   assert.deepEqual(query.rows, [[16]]);
 });
 
+test('a legacy organic assessment distinguishes incomplete scans from missing data', async (t) => {
+  const root = await panelRoot(t);
+  const file = path.join(root, `${ASSET}.reports`, LATEST, 'dataforseo-serp-panel.csv');
+  const header = 'report_date,query,device,best_rank,top3_domains\n';
+  const { call } = await endpoint(root);
+  const rows = Array.from({ length: 2001 }, (_, index) =>
+    `2026-10-12,term ${index},desktop,,google.com|google.com|google.com\n`);
+  for (const [data, detail] of [
+    [header + rows.join(''), /reached the query limit/u],
+    [header + '2026-10-12,term,desktop,,google.com,unexpected column\n', /could not read/u],
+  ]) {
+    await fs.writeFile(file, data);
+    const panel = await call('get_panel', { asset: ASSET, version: LATEST });
+    assert.equal(panel.serpOrganicQuality, null);
+    const note = panel.attention.find(({ status }) => status === 'organic-quality-unchecked');
+    assert.equal(note?.family, 'dataforseo-serp-panel');
+    assert.match(note.detail, detail);
+  }
+});
+
 test('a query runs one SELECT in a bounded child, reads only its version, and says when it cut the result', async (t) => {
   const folder = await tempRoot(t, 'noticeos-panel-query-');
   await fs.writeFile(path.join(folder, 'posthog-web-vitals.csv'), VITALS);

@@ -104,8 +104,7 @@ async function readJson(file) {
         throw error;
     }
 }
-/** Older pinned versions predate the publication-time check. Read their
- * latest tracked snapshot from its CSV, even when the version is compressed. */
+/** Older versions need a bounded CSV check. Report incomplete reads separately from absent evidence. */
 async function legacyOrganicQuality(ref, tables) {
     const table = tables.find(entry => entry.file === `${SERP_PANEL_FAMILY}.csv`);
     if (!table || !['report_date', 'query', 'device', 'best_rank', 'top3_domains'].every(column => table.columns.includes(column)))
@@ -119,14 +118,17 @@ async function legacyOrganicQuality(ref, tables) {
         CAST(top3_domains AS VARCHAR), ${sources.join(', ')} FROM dataforseo_serp_panel
         WHERE report_date = (SELECT MAX(report_date) FROM dataforseo_serp_panel)`,
         });
-        return result.truncated ? null : assessSerpOrganicQuality(result.rows.map(row => ({
+        if (result.truncated) {
+            return { status: 'unchecked', detail: 'The organic quality check reached the query limit for this older version.' };
+        }
+        return assessSerpOrganicQuality(result.rows.map(row => ({
             report_date: text(row[0]) ?? '', query: text(row[1]) ?? '', device: text(row[2]) ?? '',
             best_rank: text(row[3]), top3_domains: text(row[4]), top3_reported_domains: text(row[5]),
             top3_url_domains: text(row[6]), top3_google_url_kinds: text(row[7]),
         })));
     }
     catch {
-        return null;
+        return { status: 'unchecked', detail: 'The organic quality check could not read the search results for this older version.' };
     }
 }
 /** A family's status from what the panel holds and how its collection stood. */
@@ -284,7 +286,8 @@ export function createPanelStore(root) {
             }));
             const collection = record(freshness?.collection);
             const attention = [];
-            const serpOrganicQuality = report?.serpOrganicQuality ?? await legacyOrganicQuality(ref, tables);
+            const assessment = report?.serpOrganicQuality ?? await legacyOrganicQuality(ref, tables);
+            const serpOrganicQuality = assessment?.status === 'unchecked' ? null : assessment;
             const latest = ref.version === ref.latestVersion;
             if (!latest)
                 attention.push({ family: null, status: 'not-latest', detail: `A newer version is published: ${ref.latestVersion}.` });
@@ -295,7 +298,10 @@ export function createPanelStore(root) {
             const healthRead = collection?.available === true;
             if (!healthRead)
                 attention.push({ family: null, status: 'unchecked', detail: 'Collection health was not read when this version was built.' });
-            if (serpOrganicQuality?.status === 'suspect') {
+            if (assessment?.status === 'unchecked') {
+                attention.push({ family: SERP_PANEL_FAMILY, status: 'organic-quality-unchecked', detail: assessment.detail });
+            }
+            else if (serpOrganicQuality?.status === 'suspect') {
                 const { reportDate, googleOnlyRows, rows, provenance } = serpOrganicQuality;
                 const sourceNote = provenance === 'legacy-top-domains' ? ' This version retains only projected domains, so the original domain and URL are unknown.' : '';
                 attention.push({ family: SERP_PANEL_FAMILY, status: 'suspect-organic-results',

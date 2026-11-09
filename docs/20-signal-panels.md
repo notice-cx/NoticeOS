@@ -372,12 +372,21 @@ Each file below is a `query_panel` table named after it
    calculators gaining — and on which device?"), where the asset's panel
    defines its clusters.
 
-The panel metadata separates organic result quality from collection health.
-`serpOrganicQuality` flags a snapshot when the same Google search domains fill
-almost all top-three results across different queries and the asset has no
-recorded rank. For a suspect snapshot, set aside organic rank, competitor
-domain and rank-based decay decisions. AI Overview fields retain their own
-three-state interpretation.
+`get_panel` returns `serpOrganicQuality` separately from collection health.
+It reports `unassessed` when fewer than five distinct queries have a row with
+three usable top-result domains. Otherwise, it reports `suspect` when the
+newest report date meets all three conditions:
+
+- The tracked asset has zero recorded ranks.
+- At least five distinct queries have a qualifying row.
+- At least 90% of the query and device rows qualify.
+
+A qualifying row lists Google search domains in all three organic slots.
+Rows where all three URLs are known Google-hosted destinations are excluded.
+Use organic rank and competitor domain evidence for ranking decisions only
+when its quality is clear. AI Overview fields keep their three-state meaning.
+If the legacy quality query fails or reaches its limit, `get_panel` adds an
+`organic-quality-unchecked` attention entry.
 
 The `top3_reported_domains`, `top3_url_domains` and `top3_google_url_kinds`
 columns preserve corresponding organic slots in order. Empty positions
