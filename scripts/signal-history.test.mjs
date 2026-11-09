@@ -231,8 +231,12 @@ test('read as text, a dataset is the analyzer’s CSV, but for a report day deli
     }
     assert.equal(rows.length, lines.length, dataset.name);
     if (lines.length === 0) continue;
+    const added = dataset.name === 'dataforseo-serp-panel'
+      ? ['top3_google_url_kinds', 'top3_reported_domains', 'top3_url_domains'] : [];
+    const schemaColumns = dataset.schema.columns.map(([column]) => column).filter((column) => !LINEAGE_COLUMNS.includes(column));
+    assert.deepEqual(schemaColumns.filter((column) => added.includes(column)), added);
     assert.deepEqual(
-      dataset.schema.columns.map(([column]) => column).filter((column) => !LINEAGE_COLUMNS.includes(column)),
+      schemaColumns.filter((column) => !added.includes(column)),
       header,
       dataset.name,
     );

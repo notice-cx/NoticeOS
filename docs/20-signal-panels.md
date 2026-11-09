@@ -372,6 +372,21 @@ Each file below is a `query_panel` table named after it
    calculators gaining — and on which device?"), where the asset's panel
    defines its clusters.
 
+The panel metadata separates organic result quality from collection health.
+`serpOrganicQuality` flags a snapshot when the same Google search domains fill
+almost all top-three results across different queries and the asset has no
+recorded rank. For a suspect snapshot, set aside organic rank, competitor
+domain and rank-based decay decisions. AI Overview fields retain their own
+three-state interpretation.
+
+The `top3_reported_domains`, `top3_url_domains` and `top3_google_url_kinds`
+columns preserve corresponding organic slots in order. Empty positions
+preserve alignment. These fields record the declared host, the host from the
+URL and whether the URL points to a Google search/redirect or hosted content.
+They omit paths, query strings and destination parameters. Older versions
+can still show the collapse from `top3_domains`, with the original host source
+unknown.
+
 ## The honesty rules (they are the contract)
 
 These rules are the terms on which the data may be used. Each is enforced

@@ -1,4 +1,5 @@
 import { productDataRows } from './product-data-pack.mjs';
+import { serpDomainSource } from './panel-serp-organic.mjs';
 // One reading of the provider archive.
 //
 // A signal archive is one provider answer as a collector stored it: an envelope
@@ -951,6 +952,8 @@ function flattenSerpPanel(archive) {
     );
     const [ours, second] = ourResults;
     const aio = aiOverviewState(result, ourDomain);
+    const top3 = organic.slice(0, 3);
+    const top3Sources = top3.map((item) => serpDomainSource(hostOf(item?.domain), string(item?.url)));
     return [
       {
         ...base,
@@ -969,7 +972,10 @@ function flattenSerpPanel(archive) {
         aio_cites_us: aio.citesUs === null ? '' : aio.citesUs,
         sitelinks_us: ours ? serpItemSitelinks(ours) : '',
         serp_features: serpPageFeatures(result),
-        top3_domains: organic.slice(0, 3).map(serpItemDomain).filter(Boolean).join('|'),
+        top3_domains: top3.map(serpItemDomain).filter(Boolean).join('|'),
+        top3_reported_domains: top3Sources.map((source) => source.reportedDomain).join('|'),
+        top3_url_domains: top3Sources.map((source) => source.urlDomain).join('|'),
+        top3_google_url_kinds: top3Sources.map((source) => source.googleUrlKind).join('|'),
         organic_results: organic.length,
         provider_status: '',
       },

@@ -11,6 +11,8 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createGunzip } from 'node:zlib';
+import { assessSerpOrganicQuality, SERP_PANEL_FAMILY, type SerpOrganicQuality } from './panel-serp-organic.mjs';
+import { PANEL_QUERY_LIMITS, queryPanel } from './panel-query.mjs';
 import { GZIP_SUFFIX, PANEL_VERSION_KEEP_DAYS, isPanelVersion, panelVersionTime, storedPanelFile } from './panel-versions.mjs';
 
 const ASSET = /^[a-z0-9.-]+$/u;
@@ -36,7 +38,7 @@ export const PANEL_RULES: readonly string[] = Object.freeze([
   'Bing weekly snapshots are revisions of each other; never sum them across collections.',
   'GSC page and query tables are top rows only; their totals never match signal_trend_daily.',
   'dataforseo_serp_panel, posthog_web_vitals and posthog_inp_targets rows are per device; filter to one device before counting.',
-  'Empty aio_present or aio_cites_us means unknown, not false; empty best_rank means outside the tracked depth.',
+  'Empty aio_present or aio_cites_us means unknown. Check organic quality and provider_status before interpreting empty ranks as outside the tracked depth.',
   'people counts do not add across rows, days or report dates.',
   'Cite the panel version you read in any finding.',
 ]);
@@ -122,6 +124,30 @@ async function readJson(file: string): Promise<unknown> {
   try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
+  }
+}
+
+/** Older pinned versions predate the publication-time check. Read their
+ * latest tracked snapshot from its CSV, even when the version is compressed. */
+async function legacyOrganicQuality(ref: PanelRef, tables: readonly PanelTableInfo[]): Promise<SerpOrganicQuality | null> {
+  const table = tables.find(entry => entry.file === `${SERP_PANEL_FAMILY}.csv`);
+  if (!table || !['report_date', 'query', 'device', 'best_rank', 'top3_domains'].every(column => table.columns.includes(column))) return null;
+  const sources = ['top3_reported_domains', 'top3_url_domains', 'top3_google_url_kinds']
+    .map(column => table.columns.includes(column) ? `CAST(${column} AS VARCHAR)` : 'NULL');
+  try {
+    const result = await queryPanel({
+      folder: ref.folder, tables: [{ table: table.table, file: table.stored }], maxRows: PANEL_QUERY_LIMITS.maxRows,
+      sql: `SELECT CAST(report_date AS VARCHAR), CAST(query AS VARCHAR), CAST(device AS VARCHAR), CAST(best_rank AS VARCHAR),
+        CAST(top3_domains AS VARCHAR), ${sources.join(', ')} FROM dataforseo_serp_panel
+        WHERE report_date = (SELECT MAX(report_date) FROM dataforseo_serp_panel)`,
+    });
+    return result.truncated ? null : assessSerpOrganicQuality(result.rows.map(row => ({
+      report_date: text(row[0]) ?? '', query: text(row[1]) ?? '', device: text(row[2]) ?? '',
+      best_rank: text(row[3]), top3_domains: text(row[4]), top3_reported_domains: text(row[5]),
+      top3_url_domains: text(row[6]), top3_google_url_kinds: text(row[7]),
+    })));
+  } catch {
+    return null;
   }
 }
 
@@ -273,6 +299,7 @@ export function createPanelStore(root: string) {
       }));
       const collection = record(freshness?.collection);
       const attention: { family: string | null; status: string; detail: string }[] = [];
+      const serpOrganicQuality = (report?.serpOrganicQuality as SerpOrganicQuality | undefined) ?? await legacyOrganicQuality(ref, tables);
       const latest = ref.version === ref.latestVersion;
       if (!latest) attention.push({ family: null, status: 'not-latest', detail: `A newer version is published: ${ref.latestVersion}.` });
       else if (ageHours !== null && ageHours > PANEL_BEHIND_HOURS) {
@@ -281,6 +308,12 @@ export function createPanelStore(root: string) {
       // Without a health read, every family is unchecked: one line says so.
       const healthRead = collection?.available === true;
       if (!healthRead) attention.push({ family: null, status: 'unchecked', detail: 'Collection health was not read when this version was built.' });
+      if (serpOrganicQuality?.status === 'suspect') {
+        const { reportDate, googleOnlyRows, rows, provenance } = serpOrganicQuality;
+        const sourceNote = provenance === 'legacy-top-domains' ? ' This version retains only projected domains, so the original domain and URL are unknown.' : '';
+        attention.push({ family: SERP_PANEL_FAMILY, status: 'suspect-organic-results',
+          detail: `Organic ranks and competitor domains for ${reportDate} are suspect. ${googleOnlyRows} of ${rows} rows list only Google search domains in the top three, with no rank for this asset. The warning covers organic results only.${sourceNote}` });
+      }
       for (const family of families) {
         const note = familyAttention(family);
         if (note !== null && (healthRead || family.status !== 'unchecked')) attention.push({ family: family.family, ...note });
@@ -288,7 +321,7 @@ export function createPanelStore(root: string) {
       return {
         asset: ref.asset, version: ref.version, latest, latestVersion: ref.latestVersion,
         builtAt, asOf, ageHours, generation: typeof report?.generation === 'number' ? report.generation : null,
-        collectionReadAt: text(collection?.readAt), attention, families, tables,
+        collectionReadAt: text(collection?.readAt), attention, families, tables, serpOrganicQuality,
       };
     },
 

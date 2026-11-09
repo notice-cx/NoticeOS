@@ -204,6 +204,34 @@ test('a version built before families were recorded reads its families from its 
   assert.deepEqual(panel.attention.map(({ family, status }) => [family, status]), [[null, 'unchecked'], ['bing-webmaster-ai-pages', 'imported']]);
 });
 
+test('a compressed pinned panel can have complete collection and suspect organic results independently of AI Overviews', async (t) => {
+  const reportDate = '2026-10-11';
+  const root = await panelRoot(t, { freshness: {
+    asset: ASSET, collection: { available: true },
+    families: [{ family: 'dataforseo-serp-panel', newestReportDate: reportDate, role: 'collected', collection: healthy }],
+  } });
+  const reports = path.join(root, `${ASSET}.reports`);
+  const file = path.join(reports, OLDER, 'dataforseo-serp-panel.csv');
+  const rows = Array.from({ length: 60 }, (_, index) =>
+    `${reportDate},term ${Math.floor(index / 2)},${index % 2 ? 'mobile' : 'desktop'},,${index ? 'google.com|google.com|google.com' : 'google.com|google.com|play.google.com'},true,${index < 16}`);
+  await fs.writeFile(file, ['report_date,query,device,best_rank,top3_domains,aio_present,aio_cites_us', ...rows, ''].join('\n'));
+  await retainPanelVersions(reports, { current: LATEST, previous: null, now: '2026-10-12T13:10:04.637Z' });
+  const { call } = await endpoint(root);
+
+  const panel = await call('get_panel', { asset: ASSET, version: OLDER });
+  assert.equal(panel.families[0].collection.state, 'healthy');
+  assert.deepEqual(panel.attention.map(({ family, status }) => [family, status]), [
+    [null, 'not-latest'], ['dataforseo-serp-panel', 'suspect-organic-results'],
+  ]);
+  assert.deepEqual(panel.serpOrganicQuality, {
+    reportDate, status: 'suspect', rows: 60, usableRows: 60, rankedRows: 0, googleOnlyRows: 59,
+    googleOnlyQueries: 30, sourceRows: 0, googleInternalUrls: 0, conflictingDomains: 0, provenance: 'legacy-top-domains',
+  });
+  const query = await call('query_panel', { asset: ASSET, version: OLDER,
+    sql: 'SELECT count(*) FILTER (WHERE aio_cites_us) FROM dataforseo_serp_panel' });
+  assert.deepEqual(query.rows, [[16]]);
+});
+
 test('a query runs one SELECT in a bounded child, reads only its version, and says when it cut the result', async (t) => {
   const folder = await tempRoot(t, 'noticeos-panel-query-');
   await fs.writeFile(path.join(folder, 'posthog-web-vitals.csv'), VITALS);

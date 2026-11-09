@@ -73,6 +73,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
+import { assessSerpOrganicQuality, SERP_PANEL_FAMILY } from './panel-serp-organic.mjs';
 import { DuckDBInstance } from '@duckdb/node-api';
 import { readConfigSnapshot } from './config-store-client.mjs';
 import {
@@ -639,6 +640,7 @@ async function runJob(job, stage) {
     archives: inputs.archives,
   }, write);
   for (const [name, text] of Object.entries(job.reportFiles)) await write(name, text);
+  const serpOrganicQuality = assessSerpOrganicQuality(inputs.families.get(SERP_PANEL_FAMILY) ?? []);
   await write(REPORT_RECORD, `${JSON.stringify({
     format: REPORT_FORMAT,
     asset,
@@ -648,6 +650,7 @@ async function runJob(job, stage) {
     history: path.relative(REPO_ROOT, history),
     analyzedAt,
     duckdb: engine.version,
+    ...(serpOrganicQuality === null ? {} : { serpOrganicQuality }),
     files: [...files].sort((left, right) => left.name.localeCompare(right.name)),
   }, null, 2)}\n`);
   // Every file on disk before the link can name it; flushed together, which

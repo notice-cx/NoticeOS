@@ -168,6 +168,7 @@ export {
  * them is a new derivation, and the next run rebuilds every dataset. */
 export const DERIVATION_FILES = [
   'scripts/signal-archive.mjs',
+  'scripts/panel-serp-organic.mjs',
   'scripts/product-data-pack.mjs',
   'packages/contract/src/posthog-families.mjs',
   'packages/contract/src/journeys.mjs',

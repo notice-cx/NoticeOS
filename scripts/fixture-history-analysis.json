@@ -59,6 +59,7 @@
     "executive.json": "122f7685e1422163105acdf0de4992b493d6b7c3b0c2402054648c887b34f98d"
   },
   "currentFiles": {
+    "dataforseo-serp-panel.csv": "33fd10586140009ddfdee5c46d67bb00bedce1a8e41469e7b9f50df9673aa250",
     "executive.json": "c6b9fcfefc13f7608651e743f45a1922131fb90cdc83aef9a59204dd52d2131d",
     "posthog-events.csv": "56da07e41d8a8df64868147d71b6f08ba1e60ac28f6c9c6c956fcd932a014ae2",
     "posthog-funnels.csv": "4685a0e57c2dd4fc0a91322ba8b08e886206e1529890678a5d34e9c2bbe4d539",
