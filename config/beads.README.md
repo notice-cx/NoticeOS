@@ -109,16 +109,20 @@ hub access. See [Connect a task project](../docs/guides/connect-a-task-project.m
 ### The spoke stanza
 
 Every spoke's `CLAUDE.md` (and its `AGENTS.md`, where it has one) carries the
-same stanza, byte-identical, under its own repo-specific intro. It is a pointer,
-not the rules: the rules come from the `noticeos` MCP server's `get_task_guide`
-tool and its instructions, so they reach every agent without a copy to keep in
-step. The canonical stanza lives here between the markers;
-`scripts/spoke-stanza.test.mjs` fails when a spoke's copy drifts. Change it here
-first, then re-stamp the spokes.
+same stanza, byte-identical, under its own repo-specific intro. The stanza
+points to the rules and does not copy them: the `ntasks` MCP server's
+`get_task_guide` returns the task workflow and the rules for writing a task, and
+the `noticeos` MCP server's `get_task_guide` returns this installation's own
+task rules, so a rule change reaches every agent with no copy to update. A
+spoke holds no task files: no `.beads/` directory, no `.beads.gate.lock` and no
+`.beads` lines in its `.gitignore`. The canonical stanza is the text between
+the markers below. `scripts/spoke-stanza.test.mjs` fails when a checked-out
+spoke's copy differs from it or the spoke still holds a task file. Change the
+stanza here first, then re-stamp the spokes.
 
 <!-- spoke-stanza:begin -->
-- Tasks and asset data come from the `noticeos` MCP server. Call `get_task_guide` before task work: it returns the workflow and the rules for filing, claiming and closing a task.
-- Never run `bd`, `bv` or `br` in this repository: the MCP tools are the task interface.
+- Tasks come from the `ntasks` MCP server and asset data from the `noticeos` MCP server. Before task work, call `get_task_guide` on both: `ntasks` returns the workflow and the rules for writing, claiming and closing a task, and `noticeos` returns this installation's own task rules.
+- Never run `bd`, `bv` or `br`: the `ntasks` tools are the task interface. If they are missing, ask the owner to connect the `ntasks` server.
 - Work only a person can do carries the `human` label; a step that must wait for approval uses `request_human_approval`.
 <!-- spoke-stanza:end -->
 
