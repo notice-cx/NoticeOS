@@ -31,7 +31,8 @@ export function readNtasksPin(text = fs.readFileSync(NTASKS_PIN, 'utf8')) {
 }
 
 function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, stdio: ['ignore', 'inherit', 'inherit'],
+  // The tools' own output goes to stderr: stdout carries only the one line a CI env file takes.
+  const result = spawnSync(command, args, { cwd, stdio: ['ignore', 2, 2],
     env: { ...process.env, WRANGLER_SEND_METRICS: 'false', DO_NOT_TRACK: '1' } });
   if (result.status !== 0) throw new Error(`${command} ${args[0]} did not finish.`);
 }

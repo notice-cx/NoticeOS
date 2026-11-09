@@ -105,9 +105,15 @@ describe('the demo\'s own Ntasks', { skip }, () => {
     const before = await read(tasks, `/api/tasks/${fact.id}?project=${projectId}`);
     const page = await tasks.handle(new Request(PUBLIC + `/api/tasks/${fact.id}/comments`, { method: 'POST', body: JSON.stringify({ projectId, text: 'hello' }) }));
     assert.deepEqual([page.status, (await page.json()).error], [403, 'demo_read_only']);
-    const created = await mcp(tasks, 'create_task', { project: projectId, title: 'A visitor task' });
-    assert.equal(created.isError, true);
-    assert.match(created.content[0].text, /^refused: this call needs tasks:write/u);
+    for (const [name, args] of [['create_task', { project: projectId, title: 'A visitor task' }], ['comment_on_task', { task: fact.id, text: 'hello' }],
+      ['claim_task', { task: fact.id }]]) {
+      const refused = await mcp(tasks, name, args);
+      assert.equal(refused.isError, true, name);
+      assert.match(refused.content[0].text, /^refused: Read only in this synthetic demo\./u, name);
+    }
+    const asVisitor = await demoNtasks({ workspaceId, origin }).tool('create_task', { project: projectId, title: 'A visitor task' })
+      .then(() => 'written', error => error.message);
+    assert.match(asVisitor, /^refused: this call needs tasks:write/u);
     const direct = await demoNtasks({ workspaceId, origin }).call('POST', `/api/tasks/${fact.id}/comments`, { body: { projectId, text: 'hello' }, idempotencyKey: 'visitor-comment-1' });
     assert.deepEqual([direct.status, direct.body.error], [403, 'insufficient_scope']);
     assert.deepEqual((await read(tasks, `/api/tasks/${fact.id}?project=${projectId}`)).body.task, before.body.task);

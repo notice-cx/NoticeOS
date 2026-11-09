@@ -13,6 +13,7 @@ import path from 'node:path';
 import { readdirSync } from 'node:fs';
 import { DEMO_READ_ONLY } from './demo-viewer-policy.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
+import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { demoNtasksSeed } from './demo-ntasks-seed.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
@@ -211,6 +212,10 @@ export function openDemoTasks(options: { trustedOrigin: string; demoWorkspaceId:
   const mcp = createHostedMcp({ profile: 'demo', trustedOrigin: options.trustedOrigin, demoWorkspaceId: options.demoWorkspaceId,
     ...(readModels ? { readModels } : {}),
     taskTools: async (name, args) => {
+      // Refused here as the task routes refuse a change, whatever the Ntasks behind it allows a visitor.
+      if (TASK_MCP_TOOLS.find(tool => tool.name === name)?.annotations.readOnlyHint !== true) {
+        throw new McpToolError(`refused: ${DEMO_READ_ONLY} Nothing was read or changed.`);
+      }
       try { return await ntasks.tool(name, args); } catch (error) {
         if (error instanceof DemoNtasksRefused) throw new McpToolError(error.message);
         throw error;
@@ -280,7 +285,6 @@ export function createDemoTaskService({ ntasks, now = () => Date.now() }: { ntas
     if (reply.status !== 200 || !Array.isArray(tasks)) throw new Error(`The demo's Ntasks answered a board read with HTTP ${reply.status}.`);
     return tasks.flatMap(task => record(task) ? [record(task)!] : []);
   };
-  const service = { call: ({ method, path: at }: { method: 'GET'; path: string }) => ntasks.call(method, at) };
   const tasks: DemoTaskService = {
     actor: (agent?: string) => `service:${DEMO_NTASKS_CREDENTIALS.activity}${agent === undefined ? '' : `/${agent}`}`,
     async labelled(projectId, label, signal) {
@@ -318,6 +322,8 @@ export function createDemoTaskService({ ntasks, now = () => Date.now() }: { ntas
     },
     async snapshot(projects, signal) {
       const at = now();
+      // The label reads go through the same call, so the step's signal stops them too.
+      const service = { call: ({ method, path: read }: { method: 'GET'; path: string }) => ntasks.call(method, read, { signal }) };
       const reach = { closedSince: beadsClosedSince(at), closesSince: beadsClosesSince(at) };
       const entries: BeadsProjectInput[] = [];
       for (const project of projects) {
