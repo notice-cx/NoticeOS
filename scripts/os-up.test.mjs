@@ -6,7 +6,8 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { mayReadOwnerConfig } from './test-config-isolation.mjs';
 
-import { resolveTowerExposure, TOWER_NETWORK_NOTICE, towerChild, tickRefusal } from './os-up.mjs';
+import { resolveTowerExposure, runBackup, TOWER_NETWORK_NOTICE, towerChild, tickRefusal } from './os-up.mjs';
+import { BACKUP_TASKS_UNKNOWN } from './runner/task-service-poll.mjs';
 import {
   JOB_RUN_CATCHUP_DAYS,
   JOB_RUN_OUTCOMES,
@@ -3531,4 +3532,20 @@ test('os:run-job names the refusal and lists the expressions it does run', () =>
   assert.doesNotMatch(line, /Search review tasks/u, 'a job the runner runs itself is not an expression os:run-job fires');
   assert.equal(tickRefusal('0 * * * *', 'scheduled_failed'), null);
   assert.equal(tickRefusal('0 * * * *', null), null);
+});
+
+test('while the ingest cannot say where the tasks live, no backup is taken, so no set is written or pruned', async () => {
+  const taken = [];
+  const ways = { env: { NOTICEOS_BACKUP_CLIENT_PROFILE: '/state/backup-client.json' }, emit: () => {},
+    container: async (_profile, request) => { taken.push(['worker', request]); return { ok: true, detail: 'complete' }; },
+    host: async () => { taken.push(['host']); return { ok: true, detail: 'complete' }; },
+    exportTasks: async () => { taken.push(['export']); return { file: '/state/.local/task-export/backup.json' }; } };
+  const unanswered = { connected: async () => { throw new TaskServiceUnavailable('ingest'); } };
+  assert.deepEqual(await runBackup({ ...ways, service: unanswered }), { ok: false, detail: BACKUP_TASKS_UNKNOWN });
+  assert.deepEqual(taken, [], 'neither the worker nor the local backup runs');
+  assert.deepEqual(await runBackup({ ...ways, service: { connected: async () => false } }), { ok: true, detail: 'complete' });
+  assert.deepEqual(taken, [['worker', {}]], 'with no task service connected the set is taken without tasks');
+  taken.length = 0;
+  await runBackup({ ...ways, service: { connected: async () => true } });
+  assert.deepEqual(taken, [['export'], ['worker', { tasks: 'ntasks', tasksExport: '/state/.local/task-export/backup.json' }]]);
 });

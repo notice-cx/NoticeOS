@@ -293,31 +293,33 @@ function waitForExit(children, timeoutMs) {
 }
 
 // Backup: the module owns copy completeness; the runner schedules and records.
-async function runBackup() {
+// Tests supply the task service and the two ways a backup is taken.
+export async function runBackup({ service = runnerTaskService(), container = requestContainerBackup, host = backupHost,
+  exportTasks = takeNtasksExport, env = process.env, emit = log } = {}) {
   // The offsite folder is read by the backup itself (scripts/host-backup.mjs),
   // so an edit applies at the next run.
-  const taskHub = await backupTaskHub(runnerTaskService());
+  const taskHub = await backupTaskHub(service);
   if (taskHub === 'unknown') {
-    log('ERROR', `backup: ${BACKUP_TASKS_UNKNOWN}`);
+    emit('ERROR', `backup: ${BACKUP_TASKS_UNKNOWN}`);
     return { ok: false, detail: BACKUP_TASKS_UNKNOWN };
   }
   // While tasks live in Ntasks the set keeps Ntasks's own export, taken now.
-  const exported = taskHub ? await takeNtasksExport(runnerTaskService(), path.join(HOME_ROOT, '.local', 'task-export')) : null;
-  if (exported?.error) log('ERROR', `backup: no Ntasks export — ${exported.error}`);
+  const exported = taskHub ? await exportTasks(service, path.join(HOME_ROOT, '.local', 'task-export')) : null;
+  if (exported?.error) emit('ERROR', `backup: no Ntasks export — ${exported.error}`);
   const tasks = exported ? { tasksExport: exported.file, tasksExportError: exported.error } : {};
   try {
-    let result = process.env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
-      ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub, tasksExport: tasks.tasksExport } : {})
-      : await backupHost({
+    let result = env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
+      ? await container(env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub, tasksExport: tasks.tasksExport } : {})
+      : await host({
       repoRoot: HOME_ROOT,
       retentionDays: CONFIG.backupRetentionDays,
       bdBinary: bdBin(),
       ...(taskHub ? { taskHub, ...tasks } : {}),
-      ...(process.env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: process.env.NOTICEOS_DOLT_HOME } : {}),
+      ...(env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: env.NOTICEOS_DOLT_HOME } : {}),
     });
     // The worker sees only that no export came; the reason is the runner's.
     if (exported?.error && typeof result?.detail === 'string') result = { ...result, detail: `${result.detail} Ntasks export: ${exported.error}` };
-    log(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
+    emit(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
     return result;
   } finally {
     if (exported?.dir) await fs.rm(exported.dir, { recursive: true, force: true });
