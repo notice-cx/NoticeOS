@@ -111,10 +111,10 @@ hub access. See [Connect a task project](../docs/guides/connect-a-task-project.m
 Every spoke's `CLAUDE.md` (and its `AGENTS.md`, where it has one) carries the
 same stanza, byte-identical, under its own repo-specific intro. The stanza
 points to the rules and does not copy them: the `noticeos` MCP server's
-`get_task_guide` returns where the installation's tasks live and its task
-rules, and when they live in Ntasks, the `ntasks` MCP server's
-`get_task_guide` returns the workflow and the rules for writing a task, so a
-rule change reaches every agent with no copy to update. A
+`get_task_guide` returns the installation's task rules and which MCP server
+serves its task tools, and when that is Ntasks's endpoint, the `ntasks` MCP
+server's `get_task_guide` returns the workflow and the rules for writing a
+task, so a rule change reaches every agent with no copy to update. A
 spoke holds no task files: no `.beads/` directory, no `.beads.gate.lock` and no
 `.beads` lines in its `.gitignore`. The canonical stanza is the text between
 the markers below. `scripts/spoke-stanza.test.mjs` fails when a checked-out
@@ -122,7 +122,7 @@ spoke's copy differs from it or the spoke still holds a task file. Change the
 stanza here first, then re-stamp the spokes.
 
 <!-- spoke-stanza:begin -->
-- Asset data comes from the `noticeos` MCP server. Before task work, call its `get_task_guide`: it returns where this installation's tasks live and its task rules. When the tasks live in Ntasks, also call `get_task_guide` on the `ntasks` MCP server and use its task tools; otherwise use the `noticeos` task tools.
+- Asset data comes from the `noticeos` MCP server. Before task work, call its `get_task_guide`: it returns this installation's task rules and which MCP server serves its task tools. When it directs you to Ntasks's MCP endpoint, also call `get_task_guide` on the `ntasks` MCP server and use its task tools; otherwise use the `noticeos` task tools.
 - Never run `bd`, `bv` or `br`: the MCP task tools are the task interface. If they are missing, ask the owner to connect the server the guide names.
 - Work only a person can do carries the `human` label; a step that must wait for approval uses `request_human_approval`.
 <!-- spoke-stanza:end -->
