@@ -1942,7 +1942,10 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
         cellWidth: cell.width, chartWidth: chart.width,
       };
     });
-    expect(found.brandHeight).toBeGreaterThan(found.clockHeight * 0.55);
+    // The mark is the brand's N, 0.95em of the brand's size (docs/brand.md):
+    // about 0.53 of the clock's line, and 0.42 if the brand fell back to the
+    // countdown's size.
+    expect(found.brandHeight).toBeGreaterThan(found.clockHeight * 0.5);
     expect(found.pace).toBe("6.9%");
     expect(found.meaning).toContain("6.9% ahead; completed hours today vs last Tue");
     expect(found.cutoffPosition).not.toBe("absolute");
