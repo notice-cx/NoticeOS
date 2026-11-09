@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { TaskServiceStatus } from "@shared/tasks";
-import { useOwnerPreferences, useTowerApi } from "@/lib/browser-context";
+import { useBrowserRuntime, useOwnerPreferences, useTowerApi } from "@/lib/browser-context";
 import type { TowerApi } from "@/lib/api";
 import { createPersonSession, personDecisions, type NtasksApp, type PersonSession, type TokenStorage } from "@/lib/ntasks-sign-in";
 import { useTaskService } from "@/hooks/useTaskService";
@@ -24,28 +24,32 @@ export function ntasksApp(status: TaskServiceStatus | undefined): NtasksApp | "u
   return status.app ? { origin: status.origin, clientId: status.app.clientId } : "unconfigured";
 }
 
-/** One holder per app in this page, so every surface sees one sign-in. */
-const sessions = new Map<string, PersonSession>();
-export function personSession(app: NtasksApp, storage: TokenStorage): PersonSession {
+/** One holder per app in each browser runtime, so every surface sees one
+ * sign-in, and a runtime that replaced a retired one starts its own. */
+let sessions = new WeakMap<object, Map<string, PersonSession>>();
+export function personSession(runtime: object, app: NtasksApp, storage: TokenStorage): PersonSession {
   const key = JSON.stringify([app.origin, app.clientId]);
-  let session = sessions.get(key);
-  if (!session) { session = createPersonSession(app, { storage }); sessions.set(key, session); }
+  let held = sessions.get(runtime);
+  if (!held) { held = new Map(); sessions.set(runtime, held); }
+  let session = held.get(key);
+  if (!session) { session = createPersonSession(app, { storage }); held.set(key, session); }
   return session;
 }
 /** Tests only: forget every holder. */
-export function resetPersonSessions(): void { sessions.clear(); }
+export function resetPersonSessions(): void { sessions = new WeakMap(); }
 
 const NO_SUBSCRIPTION = () => () => {};
 const SIGNED_OUT = { signedIn: false, name: null } as const;
 
 export function useNtasksSignIn(): NtasksSignIn {
   const { data } = useTaskService();
+  const runtime = useBrowserRuntime();
   const storage = useOwnerPreferences();
   const app = ntasksApp(data);
   const origin = app === null ? null : app === "unconfigured" ? data!.origin! : app.origin;
   const clientId = app === null || app === "unconfigured" ? null : app.clientId;
-  const session = useMemo(() => origin !== null && clientId !== null ? personSession({ origin, clientId }, storage) : null,
-    [origin, clientId, storage]);
+  const session = useMemo(() => origin !== null && clientId !== null ? personSession(runtime, { origin, clientId }, storage) : null,
+    [runtime, origin, clientId, storage]);
   const state = useSyncExternalStore(session?.subscribe ?? NO_SUBSCRIPTION, session?.snapshot ?? (() => SIGNED_OUT), session?.snapshot ?? (() => SIGNED_OUT));
   // A sign-in or a sign-out in another tab of this browser holds here too.
   useEffect(() => {

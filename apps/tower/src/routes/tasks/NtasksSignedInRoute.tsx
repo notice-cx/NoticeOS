@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { personSession } from "@/hooks/useNtasksSignIn";
-import { useOwnerPreferences } from "@/lib/browser-context";
+import { useBrowserRuntime, useOwnerPreferences } from "@/lib/browser-context";
 import { useDocumentTitle } from "@/lib/document-title";
 import { finishSignIn } from "@/lib/ntasks-sign-in";
 
@@ -15,19 +15,20 @@ export function NtasksSignedInRoute() {
   useDocumentTitle("Signing in to Ntasks");
   const { search } = useLocation();
   const navigate = useNavigate();
+  const runtime = useBrowserRuntime();
   const storage = useOwnerPreferences();
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
     let current = true;
     let exchange = exchanges.get(search);
     if (!exchange) {
-      exchange = finishSignIn(search, { sessionFor: (app) => personSession(app, storage) });
+      exchange = finishSignIn(search, { sessionFor: (app) => personSession(runtime, app, storage) });
       exchanges.set(search, exchange);
     }
     exchange.then(({ returnTo }) => { if (current) navigate(/^\/(?!\/)/u.test(returnTo) ? returnTo : "/tasks", { replace: true }); },
       (error: unknown) => { if (current) setFailure(error instanceof Error ? error.message : String(error)); });
     return () => { current = false; };
-  }, [search, storage, navigate]);
+  }, [search, runtime, storage, navigate]);
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
       <PageHeader title="Tasks" />

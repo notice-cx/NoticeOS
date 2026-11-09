@@ -157,6 +157,16 @@ describe("the person's tokens", () => {
     expect(fetch.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/choose"))).toEqual([]);
   });
 
+  it("sends no decision, and blames no sign-in, while the Tower cannot say where the task is held", async () => {
+    const storage = memoryStorage({ [NAME]: tokens(Number.MAX_SAFE_INTEGER) });
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => String(input).endsWith("/api/access/me")
+      ? Response.json({ kind: "person", name: "Pat Example", app: { workspaceId: "w-1" } })
+      : Response.json({ projects: [{ projectId: "p-md", prefix: "md", logicalKey: "example.com", displayName: "Example" }] }));
+    const decisions = personDecisions(createPersonSession(APP, { storage, fetch, now: () => 0 }), () => null);
+    await expect(decisions.chooseOnTask("md-c1", "b")).rejects.toMatchObject({ code: "task_source_unknown" });
+    expect(fetch.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/choose"))).toEqual([]);
+  });
+
   it("starts a sign-in only with an Ntasks new enough for connected apps, with an S256 challenge of the verifier it keeps", async () => {
     const session = window.sessionStorage;
     const older = vi.fn<typeof globalThis.fetch>(async () => Response.json({ version: 1, oldest: 1 }));

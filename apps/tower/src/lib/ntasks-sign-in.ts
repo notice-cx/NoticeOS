@@ -384,7 +384,10 @@ export function personDecisions(session: PersonSession, readsFrom: (taskId: stri
   async function decide(path: string, id: string, payload: Record<string, unknown>, options?: PersonWriteOptions): Promise<void> {
     const { projectId, workspaceId } = await session.projectIdOf(id);
     const source = readsFrom(id);
-    if (source === null || source.projectId !== projectId || source.workspaceId !== workspaceId) {
+    if (source === null) {
+      throw new ApiError(`The Tower has not read where ${id} is held in Ntasks yet; try again in a minute. Nothing was sent.`, 503, "task_source_unknown");
+    }
+    if (source.projectId !== projectId || source.workspaceId !== workspaceId) {
       throw new ApiError(`This Ntasks sign-in reaches another workspace than the Tower reads ${id} from; register the Tower in the service credential's workspace. Nothing was sent.`,
         409, "workspace_mismatch");
     }
