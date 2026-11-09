@@ -471,8 +471,9 @@ describe("HeroChart", () => {
     const gutter = container.querySelector("[data-hero-gutter]")!;
     const widest = Math.max(...labels.map((label) => axisLabelWidth(label)));
     expect(Number(gutter.getAttribute("data-hero-gutter"))).toBeGreaterThanOrEqual(widest);
-    expect((gutter.parentElement as HTMLElement).style.gridTemplateColumns).toBe(
-      `${widest}px minmax(0,1fr)`,
+    // jsdom 31 serializes the zero as 0px, as browsers do.
+    expect((gutter.parentElement as HTMLElement).style.gridTemplateColumns).toMatch(
+      new RegExp(`^${widest}px\\s+minmax\\(0(?:px)?\\s*,\\s*1fr\\)$`),
     );
   });
 

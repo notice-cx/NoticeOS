@@ -20,3 +20,12 @@ minimumReleaseAgeExclude:
   - "@better-auth/telemetry@1.7.7"
   - "@better-auth/oauth-provider@1.7.7"
   - better-auth@1.7.7
+overrides:
+  # parse5-parser-stream 8.1.0 declares parse5 ^8.0.0 but calls a tokenizer method added in parse5 8.1.0.
+  "parse5-parser-stream>parse5": "^8.1.0"
+  # The deprecated Workers test pool pins these exactly; the patched releases are drop-in.
+  "miniflare@5.20260815.0-alpha>undici": "^7.30.1"
+  "miniflare@5.20260815.0-alpha>sharp": "^0.35.5"
+  "@cloudflare/vitest-pool-workers@0.23.0>zod": "^4.6.6"
+  # minimatch 11 drops only makeRe, which vitepress-plugin-llms does not import.
+  "vitepress-plugin-llms>minimatch": "^11.0.1"
