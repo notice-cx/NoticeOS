@@ -36,7 +36,9 @@ export interface McpServer {
   readonly info: Readonly<{ name: string; version: string }>;
   readonly instructions?: string;
   readonly tools: readonly McpTool[];
-  /** Runs a listed tool. Throw McpToolError for an answer the model should
+  /** What tools/list names, where that is fewer than `tools`; a call may still name any of `tools`. */
+  readonly listed?: readonly McpTool[];
+  /** Runs a tool of `tools`. Throw McpToolError for an answer the model should
    * read; anything else is a fault and is never echoed. */
   call(name: string, args: Record<string, unknown>): Promise<unknown>;
 }
@@ -208,7 +210,7 @@ async function toolCall(server: McpServer, message: McpMessage, complete: (resul
     ...(isRow(value) ? { structuredContent: value } : {}) }) });
 }
 function toolList(server: McpServer): Row[] {
-  return server.tools.map(({ name, description, inputSchema, annotations }) =>
+  return (server.listed ?? server.tools).map(({ name, description, inputSchema, annotations }) =>
     ({ name, description, inputSchema, ...(annotations ? { annotations } : {}) }));
 }
 

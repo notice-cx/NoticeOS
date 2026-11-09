@@ -150,14 +150,17 @@ provider. Disconnecting the model prevents generation.
 
 In **Settings** > **Task projects**, connect **Ntasks** with the address of an
 Ntasks Worker and a service credential from it. Ntasks then holds the
-installation's tasks: the task tools, the **Tasks** pages and the runner's task
-snapshot read and change them there, through the ingest Worker, which adds the
-credential to each call. The connection test lists the projects the credential
-reaches; a credential Ntasks refuses is not kept. HTTPS is required, except for
-a local address. Redirects are refused. This connection is available in
-standalone installations. [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)
-covers mapping sites to projects and what the Tower shows while Ntasks does not
-answer.
+installation's tasks: the **Tasks** pages and the runner read and change them
+there, through the ingest Worker, which adds the credential to each call.
+Agents connect to Ntasks's own MCP endpoint, and NoticeOS's MCP server lists
+no task tools. The connection test lists the projects the credential reaches
+and checks that the credential was made with the backup choice, which the
+nightly backup needs. A credential that gets HTTP status 401 or 403 from
+Ntasks, or one made without that choice, is not kept. HTTPS is required, except for a local address. Redirects are
+refused. This connection is available in standalone installations.
+[Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks) covers the credential,
+mapping sites to projects, connecting agents and what the Tower shows while
+Ntasks does not answer.
 
 ## Mediavine revenue
 

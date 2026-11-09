@@ -104,14 +104,33 @@ export async function callNtasks(fields: Record<string, string>, call: TaskServi
   } finally { clearTimeout(timer); }
 }
 
-/** The connection test and the connect panel's proof: the projects the credential reaches. */
+/** The scopes the credential holds in its workspace, as Ntasks's list_workspaces
+ * answers them; null when the answer is not one. */
+async function credentialScopes(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<string[] | null> {
+  const { status, body } = await callNtasks(fields, { method: 'POST', path: '/api/mcp',
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_workspaces', arguments: {} } }) }, fetchImpl);
+  const workspaces = (body as { result?: { structuredContent?: { workspaces?: unknown } } } | null)?.result?.structuredContent?.workspaces;
+  if (status !== 200 || !Array.isArray(workspaces)) return null;
+  return workspaces.flatMap(workspace => {
+    const access = (workspace as { access?: unknown } | null)?.access;
+    return Array.isArray(access) ? access.filter((scope): scope is string => typeof scope === 'string') : [];
+  });
+}
+
+/** The connection test and the connect panel's proof: the projects the
+ * credential reaches, and that it was made with the backup choice, without
+ * which the nightly backup cannot read the store. */
 export async function checkNtasks(fields: Record<string, string>, fetchImpl: typeof fetch = fetch): Promise<ProbeResult> {
   try {
     const { status, body } = await callNtasks(fields, { method: 'GET', path: '/api/tasks/projects' }, fetchImpl);
     if (status === 401 || status === 403) return { outcome: 'refused', fix: { kind: 'replace' }, failure: { kind: 'access', status } };
     const projects = (body as { projects?: unknown } | null)?.projects;
     if (status !== 200 || !Array.isArray(projects)) return { outcome: 'unreachable', failure: { kind: status === 200 ? 'invalid-response' : 'http', status } };
-    return { outcome: 'answered', facts: { projects: projects.length } };
+    const facts = { projects: projects.length };
+    const scopes = await credentialScopes(fields, fetchImpl);
+    if (scopes === null) return { outcome: 'unreachable', facts, failure: { kind: 'invalid-response' } };
+    if (!scopes.includes('tasks:backup')) return { outcome: 'refused', facts, fix: { kind: 'replace' }, failure: { kind: 'backup-missing' } };
+    return { outcome: 'answered', facts };
   } catch (error) {
     if (error instanceof TaskServiceError && error.failure.kind === 'configuration') return { outcome: 'invalid', failing: ['Ntasks address'], failure: error.failure };
     return { outcome: 'unreachable', ...(error instanceof TaskServiceError ? { failure: error.failure } : {}) };

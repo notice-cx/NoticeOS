@@ -50,6 +50,13 @@ export interface TaskService {
     backend(): Promise<TaskBackend>;
     /** Where the task service is, when one is connected. */
     origin(): Promise<string | null>;
+    /** Where the tasks live and the task service's address, waiting for the
+     * ingest at most `within` milliseconds, or until it answers or fails when
+     * `within` is absent; then its last answer, or `unknown` when it never gave one. */
+    home(within?: number): Promise<{
+        readonly backend: TaskBackend;
+        readonly origin: string | null;
+    }>;
     call(call: TaskServiceCall): Promise<TaskServiceReply>;
     /** One Ntasks MCP tool, with `workspace` set to Ntasks's own, for the agent `onBehalfOf`; its structured result. */
     tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;

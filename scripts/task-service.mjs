@@ -47,6 +47,8 @@ export function createTaskService(options = {}) {
      * stalled ingest costs one wait per few seconds rather than one per call. */
     let failed = null;
     let known = null;
+    /** The read in flight, which every caller shares while the ingest is slow. */
+    let pending = null;
     let catalog = null;
     let workspace = null;
     /** One request to the ingest door, through the one door client that carries the operator bearer. */
@@ -70,18 +72,26 @@ export function createTaskService(options = {}) {
             return status;
         if (failed && now() - failed.at < STATUS_TTL_MS)
             throw failed.error;
-        let answer;
-        try {
-            answer = await door_('GET');
-        }
-        catch (error) {
-            failed = { at: now(), error };
-            throw error;
-        }
-        failed = null;
-        status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
-        known = status.connected;
-        return status;
+        pending ??= (async () => {
+            try {
+                let answer;
+                try {
+                    answer = await door_('GET');
+                }
+                catch (error) {
+                    failed = { at: now(), error };
+                    throw error;
+                }
+                failed = null;
+                status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
+                known = status.connected;
+                return status;
+            }
+            finally {
+                pending = null;
+            }
+        })();
+        return pending;
     }
     async function call(request) {
         const answer = await door_('POST', { method: request.method, path: request.path,
@@ -138,6 +148,19 @@ export function createTaskService(options = {}) {
             }
         },
         async origin() { return (await read()).origin; },
+        async home(within) {
+            let timer;
+            const late = within === undefined ? [] : [new Promise(resolve => { timer = setTimeout(resolve, within, null); })];
+            try {
+                const answer = await Promise.race([read().catch(() => null), ...late]);
+                if (answer)
+                    return { backend: answer.connected ? 'ntasks' : 'local', origin: answer.origin };
+                return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'local', origin: known ? status?.origin ?? null : null };
+            }
+            finally {
+                clearTimeout(timer);
+            }
+        },
         call,
         async tool(name, args, onBehalfOf) {
             return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);

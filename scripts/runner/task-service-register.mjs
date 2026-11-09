@@ -51,9 +51,11 @@ export function ntasksRegister(service, actor) {
       if (reply.status < 200 || reply.status >= 300 || typeof reply.body?.id !== 'string') throw failed('create', reply);
       return reply.body.id;
     },
-    /** Links two tasks of the project as related; a link they already have stays as it is. */
-    async relate(spoke, taskId, otherId) {
-      await service.tool('add_dependency', { workspace: '', project: await projectOf(spoke), task: taskId, depends_on: otherId, type: 'related' }, actor);
+    /** Sets the one link between two tasks of the project to related, replacing
+     * the kind it had, or removes it with `remove`. */
+    async relate(spoke, taskId, otherId, { remove = false } = {}) {
+      await service.tool('link_tasks', { workspace: '', project: await projectOf(spoke), task: taskId, to: otherId,
+        ...(remove ? { remove: true } : { type: 'related' }) }, actor);
     },
   });
 }

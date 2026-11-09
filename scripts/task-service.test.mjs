@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTaskService, mapTaskProjects, TaskServiceToolRefused, TaskServiceUnavailable } from './task-service.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
+import { INSTALLATION_TASK_RULES, ntasksGuide, TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/task-service.mts and the standalone MCP's task service. The ingest
@@ -70,6 +71,24 @@ test('whether a task service is connected is read at most every few seconds', as
   assert.equal(reads, 2);
 });
 
+test('where the tasks live is answered within its bound while the ingest stalls: the last answer, from one shared read', async () => {
+  let clock = 0, reads = 0, stall = Promise.withResolvers();
+  const answer = door(async () => null);
+  const tasks = service(async (url, init) => { reads += 1; await stall.promise; return answer(url, init); }, () => clock);
+  const inNtasks = { backend: 'ntasks', origin: 'https://ntasks.example.com' };
+
+  assert.deepEqual(await tasks.home(0), { backend: 'unknown', origin: null }, 'before the ingest has ever answered');
+  stall.resolve();
+  assert.equal(await tasks.connected(), true);
+  assert.deepEqual(await tasks.home(0), inNtasks);
+
+  clock = 6_000; stall = Promise.withResolvers();
+  assert.deepEqual(await Promise.all([tasks.home(0), tasks.home(0)]), [inNtasks, inNtasks], 'the last answer while the new read waits');
+  stall.resolve();
+  assert.equal(await tasks.connected(), true);
+  assert.equal(reads, 2, 'callers waiting at once share one read');
+});
+
 test('a tool call names Ntasks\'s workspace and keeps each refusal\'s own sentence', async () => {
   const calls = [];
   const tasks = service(door(mcp({
@@ -98,53 +117,84 @@ async function standalone(fetch, now = Date.now) {
     inWorkspace: async () => [] }, receipts: memoryReceipts(Date.now),
     projects: async () => [{ projectId: PROJECT.projectId, asset: 'example.com', prefix: 'ex', cwd: '/nowhere' }],
     run: async argv => { ran.push(argv); return { code: 0, stdout: '[]' }; }, taskService: service(fetch, now) });
-  const call = async (name, args) => (await handle.handle(new Request('http://localhost/api/mcp', { method: 'POST',
+  const rpc = async (method, params = {}) => (await handle.handle(new Request('http://localhost/api/mcp', { method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }))).json();
-  return { call, ran, close: () => handle.close() };
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }))).json();
+  const call = (name, args) => rpc('tools/call', { name, arguments: args });
+  return { rpc, call, ran, close: () => handle.close() };
 }
 
-test('while Ntasks is connected the task tools run there and never on the local task client', async t => {
-  const seen = [];
-  const actors = [];
-  const fetch = door(mcp({
-    list_tasks: async args => { seen.push(['list_tasks', args]); return { tasks: [{ id: 'ex-1', title: 'From Ntasks' }] }; },
-    claim_task: async args => { seen.push(['claim_task', args]); return { task: { id: 'ex-1', status: 'in_progress' } }; },
-  }));
-  const local = await standalone(async (url, init) => {
-    if (init.method === 'POST') actors.push(JSON.parse(init.body).onBehalfOf);
-    return fetch(url, init);
-  });
+const TASK_TOOL_NAMES = new Set(TASK_MCP_TOOLS.map(tool => tool.name));
+const ENDPOINT = 'https://ntasks.example.com/api/mcp';
+
+test('while the tasks live in Ntasks, the endpoint lists no task tools and names Ntasks\'s endpoint instead', async t => {
+  let connected = true;
+  const asked = [];
+  const fetch = async (url, init) => door(async call => { asked.push(call); return null; }, { connected })(url, init);
+  let clock = 0;
+  const local = await standalone(fetch, () => clock);
   t.after(local.close);
-  const listed = await local.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
-  assert.deepEqual(listed.result.structuredContent, { tasks: [{ id: 'ex-1', title: 'From Ntasks' }] });
+  const listedNames = async () => (await local.rpc('tools/list')).result.tools.map(tool => tool.name);
+
+  const names = await listedNames();
+  assert.deepEqual(names.filter(name => TASK_TOOL_NAMES.has(name)), []);
+  assert.ok(names.includes('list_workspaces') && names.includes('get_task_guide') && names.includes('get_panel'), 'the other tools stay');
+  const { instructions } = (await local.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } })).result;
+  assert.ok(instructions.includes(ENDPOINT));
+  const { guide, version } = (await local.call('get_task_guide', {})).result.structuredContent;
+  assert.ok(guide.includes(ENDPOINT));
+  // NoticeOS's own rules for a task's card and change_class still reach agents writing tasks in Ntasks.
+  for (const rule of INSTALLATION_TASK_RULES) assert.ok(instructions.includes(rule) && guide.includes(rule), rule);
+  const [workspace] = (await local.call('list_workspaces', {})).result.structuredContent.workspaces;
+  assert.equal(workspace.access.some(scope => scope.startsWith('tasks:')), false);
+  assert.equal((await local.call('list_workspaces', {})).result.structuredContent.guideVersion, version);
+
+  // A client that listed the task tools earlier is told where the tasks are; nothing runs.
   const claimed = await local.call('claim_task', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', idempotency_key: 'claim-12345678', model: 'm' });
-  assert.equal(claimed.result.isError, undefined);
-  assert.deepEqual(seen.map(([name, args]) => [name, args.workspace]), [['list_tasks', REMOTE], ['claim_task', REMOTE]]);
-  // Every task tool call names the agent; the workspace lookup is the installation's own.
-  assert.ok(actors.length >= 2 && actors.filter(actor => actor !== undefined).every(actor => actor === 'agent'));
-  const missing = await local.call('close_task', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', reason: 'Done', idempotency_key: 'close-12345678' });
-  assert.equal(missing.result.isError, true);
-  assert.match(missing.result.content[0].text, /does not offer close_task yet/u);
+  assert.equal(claimed.result.isError, true);
+  assert.ok(claimed.result.content[0].text.includes(ENDPOINT));
+  assert.deepEqual(asked, [], 'Ntasks is not asked for a task tool');
   assert.deepEqual(local.ran, []);
+
+  connected = false; clock = 6_000;
+  assert.ok((await listedNames()).includes('claim_task'), 'the task tools come back with the local task database');
+  assert.notEqual((await local.call('get_task_guide', {})).result.structuredContent.version, version);
 });
 
-test('with Ntasks unreachable no task tool reports success', async t => {
-  const local = await standalone(door(async () => null));
+test('a task tool waits for the ingest\'s current answer, and is refused once it says the tasks moved to Ntasks', async t => {
+  let connected = false, clock = 0, stall = null;
+  const fetch = async (url, init) => { if (stall) await stall.promise; return door(async () => null, { connected })(url, init); };
+  const local = await standalone(fetch, () => clock);
   t.after(local.close);
-  const read = await local.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
-  assert.equal(read.result.isError, true);
-  assert.match(read.result.content[0].text, /^unavailable: https:\/\/ntasks\.example\.com did not answer \(network\)\. Nothing was read/u);
-  const write = await local.call('comment_on_task', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', text: 'Note', idempotency_key: 'note-12345678' });
-  assert.equal(write.result.isError, true);
-  assert.match(write.result.content[0].text, /Its outcome is not confirmed: read the task, or retry with the same idempotency_key/u);
-  assert.deepEqual(local.ran, []);
+  await local.rpc('tools/list');
 
+  // The tasks moved to Ntasks; the next read stalls past the request's short wait.
+  connected = true; clock = 6_000; stall = Promise.withResolvers();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const call = local.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
+  await new Promise(setImmediate);
+  t.mock.timers.tick(2_000);
+  await new Promise(setImmediate);
+  stall.resolve();
+  const answer = await call;
+  assert.equal(answer.result.isError, true);
+  assert.ok(answer.result.content[0].text.includes(ENDPOINT));
+  assert.deepEqual(local.ran, [], 'the local task database is not read');
+});
+
+test('the guide gives the Claude Code command only for an address a shell runs unchanged', () => {
+  assert.ok(ntasksGuide('https://ntasks.example.com', false).guide.includes(`ntasks ${ENDPOINT}\``));
+  const odd = ntasksGuide('https://$(id).example', false).guide;
+  assert.ok(odd.includes('https://$(id).example/api/mcp'), 'the address is still named');
+  assert.equal(odd.includes('claude mcp add'), false);
+});
+
+test('before the ingest has ever said where the tasks live, a task tool answers unavailable', async t => {
   const down = await standalone(async () => { throw new TypeError('ECONNREFUSED'); });
   t.after(down.close);
   const unknown = await down.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
   assert.equal(unknown.result.isError, true);
-  assert.match(unknown.result.content[0].text, /^unavailable: The installation's ingest did not answer/u);
+  assert.match(unknown.result.content[0].text, /^unavailable:/u);
   assert.deepEqual(down.ran, []);
 });
 
@@ -184,13 +234,4 @@ test('a known local backend keeps the task tools local while the ingest does not
   const listed = await local.call('list_projects', { workspace: LOCAL });
   assert.deepEqual(listed.result.structuredContent.projects.map(project => project.prefix), ['ex']);
   assert.equal(reads, 1, 'the ingest was asked, and its last answer stood');
-});
-
-test('a change that takes no retry key says to read the task before retrying', async t => {
-  const local = await standalone(door(async ({ path }) => path === '/api/mcp' ? null : { status: 200, body: { projects: [PROJECT] } }));
-  t.after(local.close);
-  const linked = await local.call('add_dependency', { workspace: LOCAL, project: PROJECT.projectId, task: 'ex-1', depends_on: 'ex-2' });
-  assert.equal(linked.result.isError, true);
-  assert.match(linked.result.content[0].text, /read the task to see whether it landed before retrying\.$/u);
-  assert.doesNotMatch(linked.result.content[0].text, /idempotency_key/u);
 });

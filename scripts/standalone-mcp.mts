@@ -11,10 +11,8 @@ import { openStore, type PostgresStore } from '../packages/postgres/src/store.mj
 import { taskReceipts, type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
 import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
-import { createHostedMcp, MCP_PATH, type RemoteTaskTools } from './hosted-mcp.mjs';
-import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
-import { McpToolError } from './mcp-protocol.mjs';
-import { TaskServiceToolRefused, TaskServiceUnavailable, unavailableSentence, type TaskService } from './task-service.mjs';
+import { createHostedMcp, MCP_PATH, type TaskHome } from './hosted-mcp.mjs';
+import type { TaskService } from './task-service.mjs';
 import { createHostedTaskOperations, type HostedTaskOperations } from './hosted-task-operations.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory,
   type StandaloneSite, type StandaloneTaskProject } from './standalone-tasks.mjs';
@@ -104,38 +102,22 @@ export interface StandaloneMcpOptions {
   readonly fetch?: typeof globalThis.fetch;
   /** Where the installation publishes its site panels; tests name a fixture. */
   readonly panelRoot?: string;
-  /** The installation's task service. While it is connected the task tools
-   * run there, and the linked projects and `run` are not used. */
+  /** The installation's task service. While the tasks live there, the
+   * endpoint lists no task tools and names its address instead. */
   readonly taskService?: TaskService;
 }
 
-/** The task tools on the task service, refusing in a sentence an agent can act on. */
-export function remoteTaskTools(service: TaskService): RemoteTaskTools {
-  const where = () => service.origin().catch(() => null);
-  return Object.freeze({
-    async connected() {
-      const backend = await service.backend();
-      if (backend === 'unknown') {
-        throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
-      }
-      return backend === 'ntasks';
-    },
-    async call(name: string, args: Readonly<Record<string, unknown>>, request: Request) {
-      // Ntasks records the change as this agent's, under the installation's credential.
-      const actor = actorOf(request);
-      if (actor === null) throw new McpToolError('refused: invalid actor; an actor is 1–128 of A–Z a–z 0–9 . _ : / - starting with a letter or digit.');
-      try { return await service.tool(name, args, actor); } catch (error) {
-        if (error instanceof TaskServiceToolRefused) throw new McpToolError(error.message);
-        if (!(error instanceof TaskServiceUnavailable)) throw error;
-        const tool = TASK_MCP_TOOLS.find(entry => entry.name === name);
-        const changes = tool?.annotations.readOnlyHint === false;
-        const keyed = Object.hasOwn((tool?.inputSchema as { properties?: object } | undefined)?.properties ?? {}, 'idempotency_key');
-        throw new McpToolError(`unavailable: ${unavailableSentence(error, await where())} ${!changes ? 'Nothing was read; retry the same call.'
-          : keyed ? 'Its outcome is not confirmed: read the task, or retry with the same idempotency_key, which lands it at most once.'
-          : 'Its outcome is not confirmed: read the task to see whether it landed before retrying.'}`);
-      }
-    },
-  });
+/** How long one MCP request waits for the ingest to say where the tasks live
+ * before it uses the ingest's last answer: every request reads it, so a stalled
+ * ingest must not hold up a client's start or a tool that is not a task tool. */
+const TASK_HOME_WAIT_MS = 2_000;
+
+/** Where the installation's tasks live, as the task service last said. */
+export function taskHome(service: TaskService): (options: { readonly forTaskTool: boolean }) => Promise<TaskHome> {
+  return async ({ forTaskTool }) => {
+    const { backend, origin } = await service.home(forTaskTool ? undefined : TASK_HOME_WAIT_MS);
+    return backend === 'ntasks' ? { kind: 'ntasks', origin } : { kind: backend };
+  };
 }
 
 /** Shared by the standalone Tower and MCP writers, across processes. */
@@ -189,7 +171,7 @@ export async function openStandaloneMcp(options: StandaloneMcpOptions): Promise<
   const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;
   const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;
   const handle = createHostedMcp({ profile: 'standalone', trustedOrigin: STANDALONE_MCP_ORIGIN, standaloneWorkspaceId: workspaceId,
-    operations, ...(options.taskService ? { remoteTasks: remoteTaskTools(options.taskService) } : {}),
+    operations, ...(options.taskService ? { taskHome: taskHome(options.taskService) } : {}),
     readModels: async request => fetch(tower + MCP_PATH,
       { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }),
     panels: createPanelOperations({ admission, root: () => panelRoot }),
