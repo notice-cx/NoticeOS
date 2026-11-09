@@ -379,6 +379,7 @@ test('the guard catches runtime migration reach and retired importer commands in
   plant('scripts/test-config-isolation.mts', 'export const SEED_VALIDATION_TESTS = Object.freeze({\n  "scripts/hosted-demo-setup.test.mjs": Object.freeze({\n    files: Object.freeze(["config/*.json"]),\n  }),\n});\n');
   // Each way in, planted once.
   plant('scripts/os-status.mjs', "import './hosted-demo-setup.test.mjs';\n");
+  plant('scripts/test-config-isolation.mjs', 'import { setupHostedDemo } from "./hosted-demo-setup.mjs";\nexport const SEED_VALIDATION_TESTS = Object.freeze({\n  "scripts/hosted-demo-setup.test.mjs": Object.freeze({\n    files: Object.freeze(["config/*.json"]),\n  }),\n});\n');
   plant('scripts/runner/lifecycle.mjs', "import { runImport } from '../postgres-import.mjs';\nimport { prepareFreshPostgres } from '../start-postgres.mjs';\n");
   plant('scripts/os-up.mjs', "import { main } from './postgres-apply.mjs';\n");
   plant('scripts/os-restart.mjs', "import { setupHostedDemo } from './hosted-demo-setup.mjs';\n");
@@ -404,7 +405,7 @@ test('the guard catches runtime migration reach and retired importer commands in
   );
 
   const found = operatorOnlyReach(root);
-  assert.deepEqual(found.freshLoaders.sort(), ['.githooks/post-commit', 'scripts/os-restart.mjs', 'scripts/os-status.mjs', 'scripts/runner/lifecycle.mjs', 'workers/ingest/src/index.ts'], 'hooks, the runtime and Workers cannot load either fresh setup entry, even through its test');
+  assert.deepEqual(found.freshLoaders.sort(), ['.githooks/post-commit', 'scripts/os-restart.mjs', 'scripts/os-status.mjs', 'scripts/runner/lifecycle.mjs', 'scripts/test-config-isolation.mjs', 'workers/ingest/src/index.ts'], 'hooks, the runtime and Workers cannot load either fresh setup entry, even through its test or beside the guard\'s key');
   assert.deepEqual(found.importerLoaders.sort(), ['scripts/runner/lifecycle.mjs'], 'loading the importer, and through it the operator’s command, is caught');
   assert.deepEqual(
     found.commandLoaders.sort(),
