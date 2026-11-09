@@ -104,7 +104,9 @@ test('the fixed backup worker publishes private complete sets and restores every
   const databases = (args) => runCommand('docker', ['compose', '-p', pg.project,
     ...(fs.existsSync(isolatedDatabases) ? ['-f', isolatedDatabases] : ['-f', pg.compose]),
     '--env-file', os.devNull, ...args], { cwd: ROOT, env: databaseEnv, timeoutMs: 120_000 });
-  const appEnv = { ...env, NOTICEOS_APP_IMAGE: image, NOTICEOS_STATE_DIR: state, NOTICEOS_SPOKES_DIR: spokes,
+  // The worker names its sets by the host's paths, and an offsite folder must be
+  // outside the installation's: this one names the installation, not a mount.
+  const appEnv = { ...env, NOTICEOS_APP_IMAGE: image, NOTICEOS_INSTALLATION: path.join(base, 'installation'), NOTICEOS_STATE_DIR: state, NOTICEOS_SPOKES_DIR: spokes,
     NOTICEOS_NETWORK: `${pg.project}_default`, NOTICEOS_TOWER_PORT: String(plan.port),
     NOTICEOS_APP_UID: String(process.getuid()), NOTICEOS_APP_GID: String(process.getgid()),
     NOTICEOS_POSTGRES_SECRETS: pg.secrets,
