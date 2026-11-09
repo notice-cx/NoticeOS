@@ -3048,6 +3048,9 @@ test('an inventory review keeps the same evidence version and omits tracked cove
   const evidence = `get_panel asset=${landing.asset} version=${landing.version}`;
   assert.ok(tracked.includes(evidence));
   assert.ok(inventory.includes(evidence));
+  for (const description of [tracked, inventory]) {
+    assert.ok(description.includes('Portfolio → shop.example → Settings → Tracked search terms'));
+  }
   assert.doesNotMatch(inventory, /dataforseo_serp_panel|result-page requests|term\/device pairs/);
   assert.notEqual(panelReviewAcceptance(true), panelReviewAcceptance(false));
   assert.doesNotMatch(panelReviewAcceptance(false), /term\/device coverage/);

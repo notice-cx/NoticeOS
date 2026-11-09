@@ -156,6 +156,7 @@ function panelSource(landing, osCheckout) {
     `(${panelReportRelativePath(landing.asset)}/), and docs/20-signal-panels.md there is the read contract.`;
 }
 
+/** Tie the task to its published evidence and include roster checks only for a tracked panel. */
 export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT } = {}) {
   const hasPanel = landing.panel !== false;
   // The manifest counts one request per term and device, not distinct terms.
@@ -167,7 +168,7 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT } = {
   const roster = hasPanel
     ? ' Compare observed term/device pairs with the roster saved for that collection. If it is unavailable, report observed coverage and leave expected pairs unknown. Keep organic ranks and AI Overview citations separate by device.'
     : '';
-  const settings = `Portfolio → ${landing.asset} → Growth → Tracked panels`;
+  const settings = `Portfolio → ${landing.asset} → Settings → Tracked search terms`;
   const termDecision = hasPanel
     ? `Periodically use ${settings} to assess which paid terms still change a decision.`
     : `If an opportunity would benefit from recurring tracking, propose the term, decision and weekly cost for owner approval. The roster is under ${settings}.`;
