@@ -2,7 +2,7 @@
 # Every download retries any error: a connection dropped mid-transfer (curl's
 # exit 18) is outside --retry's own set, and one would fail the release.
 # Official Node image index, including Linux amd64 and arm64.
-FROM node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS sqlite-build
+FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS sqlite-build
 # Official SQLite download page publishes this release's SHA3-256 checksum.
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl gcc libc6-dev \
     && curl --fail --retry 5 --retry-all-errors --location --silent --show-error https://www.sqlite.org/2026/sqlite-autoconf-3530400.tar.gz -o /tmp/sqlite.tar.gz \
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates
     && gcc -O2 -DSQLITE_THREADSAFE=1 -DSQLITE_ENABLE_COLUMN_METADATA -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_RTREE \
        /tmp/sqlite-autoconf-3530400/shell.c /tmp/sqlite-autoconf-3530400/sqlite3.c -o /usr/local/bin/sqlite3 -ldl -lpthread -lm \
     && sqlite3 --version
-FROM node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9
+FROM node:26.13.0-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
 ARG TARGETARCH
 COPY --from=sqlite-build /usr/local/bin/sqlite3 /usr/local/bin/sqlite3
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl git lsof \
