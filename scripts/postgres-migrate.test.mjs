@@ -241,6 +241,9 @@ const ENGINE = 'scripts/postgres-apply.mjs';
 const FIRST_START = 'scripts/start-postgres.mjs';
 const DEVELOPMENT_START = 'scripts/start-development.mjs';
 const HOSTED_DEMO_SETUP = new Set(['scripts/hosted-demo-setup.mts', 'scripts/hosted-demo-setup.mjs']);
+/** The config guard's allow-list key for the demo setup test: it names the test and loads nothing. Any other mention, there or elsewhere, still counts. */
+const CONFIG_GUARD = new Set(['scripts/test-config-isolation.mts', 'scripts/test-config-isolation.mjs']);
+const CONFIG_GUARD_KEY = /^\s*["']scripts\/hosted-demo-setup\.test\.mjs["']:\s*Object\.freeze\(\{\s*$/u;
 /** `noticeos migrate`, an installation without a checkout's way of typing the operator command (scripts/noticeos-cli.mjs). */
 const LAUNCHER_DISPATCH = 'scripts/noticeos-cli.mjs';
 const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START, LAUNCHER_DISPATCH]);
@@ -289,8 +292,8 @@ function operatorOnlyReach(root) {
         if (isTest(relative)) continue;
         const text = readFileSync(full, 'utf8');
         if (!FRESH_USERS.has(relative) && /start-postgres/u.test(codeOnly(text))) found.freshLoaders.push(relative);
-        // Naming its test file (the config guard lists it) loads nothing.
-        if (!HOSTED_DEMO_SETUP.has(relative) && /hosted-demo-setup(?!\.test\.mjs)/u.test(codeOnly(text))) found.freshLoaders.push(relative);
+        const demoSetupText = CONFIG_GUARD.has(relative) ? codeOnly(text).split('\n').filter((line) => !CONFIG_GUARD_KEY.test(line)).join('\n') : codeOnly(text);
+        if (!HOSTED_DEMO_SETUP.has(relative) && /hosted-demo-setup/u.test(demoSetupText)) found.freshLoaders.push(relative);
         if (relative !== OPERATOR_COMMAND && !COMMAND_USERS.has(relative) && reachesCommand(relative, text)) found.commandLoaders.push(relative);
         if (/postgres-import/u.test(text)) found.importerLoaders.push(relative);
         if (allowed.has(relative)) continue;
@@ -373,7 +376,9 @@ test('the guard catches runtime migration reach and retired importer commands in
   plant('scripts/demo-seed.mjs', "import { prepareFreshPostgres } from './start-postgres.mjs';\n");
   plant(FIRST_START, "import { main } from './postgres-apply.mjs';\nimport { readMigrations } from './postgres-migrate.mjs';\n");
   plant('scripts/os-update.mjs', "// Its migrations go in with pnpm os:migrate, typed by the operator.\nconsole.log('run pnpm os:migrate -- --apply yourself');\n");
+  plant('scripts/test-config-isolation.mts', 'export const SEED_VALIDATION_TESTS = Object.freeze({\n  "scripts/hosted-demo-setup.test.mjs": Object.freeze({\n    files: Object.freeze(["config/*.json"]),\n  }),\n});\n');
   // Each way in, planted once.
+  plant('scripts/os-status.mjs', "import './hosted-demo-setup.test.mjs';\n");
   plant('scripts/runner/lifecycle.mjs', "import { runImport } from '../postgres-import.mjs';\nimport { prepareFreshPostgres } from '../start-postgres.mjs';\n");
   plant('scripts/os-up.mjs', "import { main } from './postgres-apply.mjs';\n");
   plant('scripts/os-restart.mjs', "import { setupHostedDemo } from './hosted-demo-setup.mjs';\n");
@@ -399,7 +404,7 @@ test('the guard catches runtime migration reach and retired importer commands in
   );
 
   const found = operatorOnlyReach(root);
-  assert.deepEqual(found.freshLoaders.sort(), ['.githooks/post-commit', 'scripts/os-restart.mjs', 'scripts/runner/lifecycle.mjs', 'workers/ingest/src/index.ts'], 'hooks, the runtime and Workers cannot load either fresh setup entry');
+  assert.deepEqual(found.freshLoaders.sort(), ['.githooks/post-commit', 'scripts/os-restart.mjs', 'scripts/os-status.mjs', 'scripts/runner/lifecycle.mjs', 'workers/ingest/src/index.ts'], 'hooks, the runtime and Workers cannot load either fresh setup entry, even through its test');
   assert.deepEqual(found.importerLoaders.sort(), ['scripts/runner/lifecycle.mjs'], 'loading the importer, and through it the operator’s command, is caught');
   assert.deepEqual(
     found.commandLoaders.sort(),
