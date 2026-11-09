@@ -16,11 +16,11 @@ const PROJECT = { projectId: '8b3adafa-0d35-8bd9-b981-7a238b7cf410', logicalKey:
 
 /** The ingest's /api/task-service in front of `ntasks(call)`, which answers
  * `{ status, body }`, or `null` for an Ntasks that does not answer. */
-function door(ntasks, { connected = true, seen = [] } = {}) {
+function door(ntasks, { connected = true, seen = [], appClientId = null } = {}) {
   return async (url, init) => {
     assert.equal(url, `${DOOR}/api/task-service`);
     assert.equal(new Headers(init.headers).get('authorization'), 'Bearer operator-token');
-    if (init.method === 'GET') return Response.json({ connected, origin: connected ? 'https://ntasks.example.com' : null });
+    if (init.method === 'GET') return Response.json({ connected, origin: connected ? 'https://ntasks.example.com' : null, appClientId });
     const call = JSON.parse(init.body);
     seen.push(call);
     if (!connected) return Response.json({ answered: false, reason: 'not-connected' });
@@ -49,6 +49,8 @@ test('a call reaches Ntasks through the ingest door, and an unanswered one names
   const tasks = service(door(async () => ({ status: 200, body: { events: [], lastSeq: 7 } }), { seen }));
   assert.equal(await tasks.connected(), true);
   assert.equal(await tasks.origin(), 'https://ntasks.example.com');
+  assert.equal(await tasks.appClientId(), null);
+  assert.equal(await service(door(async () => null, { appClientId: 'tower-client' })).appClientId(), 'tower-client');
   assert.deepEqual(await tasks.call({ method: 'GET', path: '/api/changes?after=7' }), { status: 200, body: { events: [], lastSeq: 7 } });
   await tasks.call({ method: 'POST', path: '/api/tasks', body: { title: 'One' }, idempotencyKey: 'key-12345678' });
   assert.deepEqual(seen, [{ method: 'GET', path: '/api/changes?after=7' },

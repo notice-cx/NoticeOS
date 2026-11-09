@@ -139,6 +139,14 @@ client directories. It never starts `bd`, git or a
 database client, and needs no secrets file: the suite runs the same from a fresh
 checkout, in CI and on the operator's machine.
 
+A fixture Ntasks (`ntasks-fixture.ts`), connected by `POST /__journey/ntasks`,
+holds the same task rows as the fixture's task client. The real task lane
+reaches it in process with a synthetic service credential. The browser's
+requests to its `.test` address are answered by the fixture server through
+`ntasks-route.mjs`, and the server's CSP names that address. Like Ntasks, it
+refuses a decision sent with the service credential and records a person's
+decision with the connected app's client id.
+
 External credentials/probes and arriving provider rows are explicit fixture
 boundaries. Only `journey-only-not-a-real-key` is accepted; its value is never
 returned or journaled. The connect panel's save-and-test is the ingest's own

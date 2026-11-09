@@ -34,6 +34,8 @@ import { towerConfigResolver } from "../worker/config-source";
 import { recordConnectionStatusDay } from "../worker/connection-status-daily";
 import { HOURLY_TICK, runTowerCron } from "../worker/tower-cron";
 import { handleTasksRequest, ownsPath, readSpokes, type BdResult } from "../vite/task-lane";
+import { createFixtureNtasks, type FixtureNtasks } from "./ntasks-fixture";
+import { JOURNEY_NTASKS_ORIGIN, JOURNEY_NTASKS_PATH } from "./ntasks-origin.mjs";
 import {
   WALL_FEED_INJECTED_TEXT, WALL_FEED_SITES_ADDED_AT, injectWallFeedEvent, seedWallFeedAlertsAndReports, seedWallFeedChanges,
   seedWallFeedProviderReports, seedWallFeedRevenue, seedWallFeedRuns, seedWallFeedTasks, wallFeedSites,
@@ -601,6 +603,9 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
 
   let tasks = initialTasks();
   let taskProject = JOURNEY_TASK_PROJECT;
+  /** While set (`/__journey/ntasks`), this installation's tasks live in a
+   * fixture Ntasks over the same rows, and a person can sign in to it. */
+  let ntasks: FixtureNtasks | null = null;
   const requests: { method: string; path: string; status: number }[] = [];
   const taskCommands: string[][] = [];
   const fixtureRoot = fileURLToPath(new URL("./fixture-repo", import.meta.url));
@@ -1150,13 +1155,24 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       response = Response.json({ isolated: true, now: JOURNEY_NOW,
         connected: await connected("bing-webmaster"), tested: await tested("bing-webmaster"), collected,
         assets: await storedSites(),
-        documents, tasks, requests, taskCommands });
+        documents, tasks, requests, taskCommands, ntasksDecisions: ntasks?.decisions() ?? [] });
     } else if (url.pathname === "/__journey/reset" && request.method === "POST") {
       await postgres.reset(); bucket = journeyBucket(); documents = structuredClone(INITIAL_DOCUMENTS);
       versions = new Map(Object.keys(documents).map((file) => [file, 1]));
       collected = false; failNextSave = false; hostedGoogle = false; posthogQueryDenied = false; googleReportsDenied = false; tasks = initialTasks(); taskProject = JOURNEY_TASK_PROJECT;
-      requests.length = 0; taskCommands.length = 0;
+      requests.length = 0; taskCommands.length = 0; ntasks = null;
       response = Response.json({ reset: true });
+    } else if (url.pathname === "/__journey/ntasks" && request.method === "POST") {
+      // Tasks live in Ntasks from here, the Tower registered there as a
+      // connected app: the Tower's server reaches it with the installation's
+      // credential, and a browser through `ntasks-route.mjs`.
+      ntasks = createFixtureNtasks({ rows: () => tasks, changed: publishTasks, project: () => taskProject, towerOrigin: url.origin, now: JOURNEY_NOW });
+      response = Response.json({ origin: JOURNEY_NTASKS_ORIGIN });
+    } else if (url.pathname.startsWith(`${JOURNEY_NTASKS_PATH}/`)) {
+      // What the browser sent to the fixture Ntasks's address, answered as it.
+      response = ntasks === null ? Response.json({ error: "No fixture Ntasks is connected" }, { status: 404 })
+        : await ntasks.handle(new Request(`${JOURNEY_NTASKS_ORIGIN}${url.pathname.slice(JOURNEY_NTASKS_PATH.length)}${url.search}`, {
+          method: request.method, headers: request.headers, ...(request.method === "GET" || request.method === "HEAD" ? {} : { body: await request.text() }) }));
     } else if (url.pathname === "/__journey/google-hosted" && request.method === "POST") {
       // A hosted installation: its Google OAuth client is the deployment's
       // own, so Google's panel is one button.
@@ -1620,7 +1636,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     } else if (ownsPath(url.pathname)) {
       const reply = await handleTasksRequest({ method: request.method, url: request.url,
         headers: Object.fromEntries(request.headers), body: request.method === "GET" ? "" : await request.text() },
-      { repoRoot: fixtureRoot, readProjects, actor: "journey-fixture", now: () => new Date(JOURNEY_NOW), run: runBd });
+      { repoRoot: fixtureRoot, readProjects, actor: "journey-fixture", now: () => new Date(JOURNEY_NOW), run: runBd,
+        ...(ntasks === null ? {} : { taskService: ntasks.service, taskCacheDir: path.join(installationRoot, "task-cache") }) });
       response = Response.json(reply.body, { status: reply.status });
     } else if (url.pathname.startsWith("/api/")) {
       response = await worker.fetch(request, { NOTICEOS_WORKSPACE_PROFILE: "standalone", INGEST: ingest, POSTGRES: { connectionString: postgres.current().url } }, CALL_CONTEXT);
