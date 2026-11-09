@@ -51,7 +51,23 @@ The Tower and the runner make their changes through the installation's one crede
 
 ## Decisions and approvals
 
-Ntasks takes an answer, a choice, a dismissal, an approval or a dispute only from a person signed in to Ntasks, never from the installation's credential. While tasks live in Ntasks, each decision on the **Tasks** pages shows **Decide in Ntasks** in place of its buttons, and an approval that can be disputed shows **Dispute in Ntasks**. Each opens the task's page in Ntasks in a new tab. The decisions queue offers no **Select**, and on **All tasks** a task waiting on a person has no **Close as**. A decision sent from a page opened before the switch is refused with Ntasks's own sentence, which names where to answer it.
+Ntasks takes an answer, a choice, a dismissal, an approval or a dispute only from a person signed in to Ntasks, never from the installation's credential. The Tower is registered in Ntasks as a [connected app](https://github.com/notice-cx/Ntasks/blob/main/docs/sign-in.md#connected-apps), and each person signs in to Ntasks from the **Tasks** pages once in each browser. Their decisions are then sent from their browser to Ntasks with their own sign-in, and Ntasks records each one under their name and the Tower's client ID. The Tower's server never holds a person's sign-in.
+
+### Register the Tower in Ntasks
+
+1. In **Settings** > **Task projects**, copy the **Sign-in address** beside **Ntasks**: the Tower's address followed by `/tasks/signed-in`. Ntasks takes it only on `https`, or on `http` for `localhost`, `127.0.0.1` or `[::1]`.
+2. In Ntasks, as an owner of the workspace, open **Settings** > **Connected apps**, choose **Register app**, name the app, paste the sign-in address and register it. Copy its **client ID**.
+3. Back in **Settings** > **Task projects**, choose **Manage** beside **Ntasks** and enter the **Ntasks address**, the **Service credential** and the **Tower client ID**, then **Connect**. The row then shows **Tower client ID saved**.
+
+Until a client ID is saved, each decision shows **Set up Ntasks sign-in**, which opens **Settings** > **Task projects**.
+
+### Sign in and decide
+
+- A browser not signed in shows **Sign in to Ntasks** in place of each decision's buttons, and of **Dispute** on an approval an agent recorded. The decisions queue offers no **Select**, and on **All tasks** a task waiting on a person has no **Close as**.
+- **Sign in to Ntasks** opens Ntasks's sign-in and its page that names the Tower and what it may do; after **Allow**, the browser returns to the page it started from with the buttons in place. Sign-in needs an Ntasks that answers HTTP API version 2 or later.
+- The sign-in lasts in that browser across reloads. The **Tasks** page header shows the person's Ntasks name and **Sign out of Ntasks**, which forgets the sign-in in that browser. Revoking the Tower's access for everyone stays on Ntasks's **Connected apps** page.
+- When Ntasks no longer takes the sign-in, such as after **Revoke**, the next decision is not sent: its message says to sign in again, and **Sign in to Ntasks** returns.
+- A decision sent through the Tower's own task routes, as from a page opened before this release, is refused with Ntasks's own sentence.
 
 ## While Ntasks does not answer
 
