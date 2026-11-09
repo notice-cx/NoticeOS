@@ -26,7 +26,9 @@ const row = (overrides: Partial<JourneyRow>): JourneyRow => ({
 describe("ProjectJourneys", () => {
   it("rules today through every row, under today's date, with a tick on each Monday", () => {
     const { container } = draw();
-    expect(container.querySelector("[data-journeys-today]")).toHaveStyle({ left: "calc(var(--journey-label) + (100% - var(--journey-label)) * 0.5)" });
+    // The inline value: --journey-label is set by the stylesheet, which the
+    // test does not load, so the computed left would resolve to auto.
+    expect(container.querySelector<HTMLElement>("[data-journeys-today]")!.style.left).toBe("calc(var(--journey-label) + (100% - var(--journey-label)) * 0.5)");
     expect(container.querySelector("[data-journeys-today-label]")).toHaveTextContent("Today · Oct 21");
     const ticks = [...container.querySelectorAll("[data-journeys-tick]")].map((node) => node.textContent);
     // This week's Monday sits under today's label and gives way to it.
@@ -39,8 +41,9 @@ describe("ProjectJourneys", () => {
     const track = container.querySelector<HTMLElement>('[data-journey-track="mw-e1"]')!;
     const span = track.querySelector<HTMLElement>('[data-journey-mark="waiting"]')!;
     // Asked nine days ago on an eight-week axis centred on today.
-    expect(parseFloat(span.style.left)).toBeCloseTo(50 - (9 / 56) * 100, 5);
-    expect(parseFloat(span.style.width)).toBeCloseTo((9 / 56) * 100, 5);
+    // The style serializer rounds a percentage to six significant digits.
+    expect(parseFloat(span.style.left)).toBeCloseTo(50 - (9 / 56) * 100, 3);
+    expect(parseFloat(span.style.width)).toBeCloseTo((9 / 56) * 100, 3);
     expect(track.querySelector('[data-journey-asked="approve"]')).not.toBeNull();
     expect(within(track).getByText("Approve the new schema · waiting 9d")).toHaveAttribute("data-side", "below");
     expect(track.querySelectorAll('[data-journey-mark="blocked"]')).toHaveLength(2);
