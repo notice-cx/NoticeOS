@@ -24,7 +24,7 @@ export function NtasksSignedInRoute() {
       exchange = finishSignIn(search, { sessionFor: (app) => personSession(app, storage) });
       exchanges.set(search, exchange);
     }
-    exchange.then(({ returnTo }) => { if (current) navigate(returnTo.startsWith("/") ? returnTo : "/tasks", { replace: true }); },
+    exchange.then(({ returnTo }) => { if (current) navigate(/^\/(?!\/)/u.test(returnTo) ? returnTo : "/tasks", { replace: true }); },
       (error: unknown) => { if (current) setFailure(error instanceof Error ? error.message : String(error)); });
     return () => { current = false; };
   }, [search, storage, navigate]);
@@ -32,7 +32,7 @@ export function NtasksSignedInRoute() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
       <PageHeader title="Tasks" />
       {failure === null ? (
-        <p className="m-0 text-sm text-muted-foreground" role="status">Signing in to Ntasks…</p>
+        <p className="m-0 text-sm text-muted-foreground" role="status" data-status-for="tasks:ntasks-sign-in">Signing in to Ntasks…</p>
       ) : (
         <div className="flex flex-col items-start gap-2" data-ntasks-sign-in-failed>
           <p className="m-0 text-sm text-destructive" role="alert">{failure}</p>
