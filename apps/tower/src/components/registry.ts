@@ -82,10 +82,10 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["Anthropic", "OpenAI", "Google", "by model", "first letter", "small", "default", "feed"],
   },
   {
-    name: "TaskSourceSection / TaskSourceRows / TaskHubUnavailable",
+    name: "TaskSourceSection / TaskSourceRows / TaskHubUnavailable / ConnectNtasks",
     file: "components/TaskSourceSection.tsx",
-    purpose: "Core task database health beside Settings → Task projects. TaskSourceRows presents actual snapshot availability and project count without gating Tasks navigation or task actions. TaskHubUnavailable leads an unmapped installation to this existing project manager. TaskProjectSteps retains the host commands after adding a project. Provider credentials stay on Integrations.",
-    variants: ["checking", "no projects", "waiting for first read", "available", "partial failure", "stale", "unavailable", "project-management door", "host steps"],
+    purpose: "Core task database health beside Settings → Task projects. TaskSourceRows presents actual snapshot availability and project count without gating Tasks navigation or task actions. TaskHubUnavailable leads an unmapped installation to this existing project manager. ConnectNtasks replaces the Tasks pages while an installation has no task service connected and leads to Settings → Task projects. TaskProjectSteps retains the host commands after adding a project. Provider credentials stay on Integrations.",
+    variants: ["checking", "no projects", "waiting for first read", "available", "partial failure", "stale", "unavailable", "project-management door", "connect Ntasks", "host steps"],
   },
   {
     name: "BrandLockup",

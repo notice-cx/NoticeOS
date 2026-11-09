@@ -141,10 +141,10 @@ export function createTaskService(options = {}) {
         async connected() { return (await read()).connected; },
         async backend() {
             try {
-                return (await read()).connected ? 'ntasks' : 'local';
+                return (await read()).connected ? 'ntasks' : 'none';
             }
             catch {
-                return known === null ? 'unknown' : known ? 'ntasks' : 'local';
+                return known === null ? 'unknown' : known ? 'ntasks' : 'none';
             }
         },
         async origin() { return (await read()).origin; },
@@ -154,8 +154,8 @@ export function createTaskService(options = {}) {
             try {
                 const answer = await Promise.race([read().catch(() => null), ...late]);
                 if (answer)
-                    return { backend: answer.connected ? 'ntasks' : 'local', origin: answer.origin };
-                return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'local', origin: known ? status?.origin ?? null : null };
+                    return { backend: answer.connected ? 'ntasks' : 'none', origin: answer.origin };
+                return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'none', origin: known ? status?.origin ?? null : null };
             }
             finally {
                 clearTimeout(timer);

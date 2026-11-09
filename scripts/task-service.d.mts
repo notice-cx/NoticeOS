@@ -39,9 +39,10 @@ export declare class TaskServiceUnavailable extends Error {
 export declare class TaskServiceToolRefused extends Error {
     name: string;
 }
-/** Where this installation's tasks live: `local` is the task database on this
- * machine; `unknown` means the ingest has not said since this process started. */
-export type TaskBackend = 'ntasks' | 'local' | 'unknown';
+/** Where this installation's tasks live: `none` while no task service is
+ * connected, when it has no tasks; `unknown` means the ingest has not said
+ * since this process started. */
+export type TaskBackend = 'ntasks' | 'none' | 'unknown';
 export interface TaskService {
     /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say. */
     connected(): Promise<boolean>;

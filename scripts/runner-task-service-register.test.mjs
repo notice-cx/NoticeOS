@@ -1,23 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileNtasksPanelReview, PANEL_REVIEW_ACTOR, panelReviewDueDate, runPanelReviewFiler } from './runner/panel-review.mjs';
-import { runTaskMapCheck } from './runner/task-map.mjs';
 import { ntasksRegister } from './runner/task-service-register.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 import { withNoticeosRecords } from './task-service.mjs';
 
 // The runner's filing lanes while tasks live in Ntasks: panel reviews,
 // verdict comments and outcome reviews are read and written there, each named
-// for its lane. Ntasks is a scripted task service here; `bd` and the hub probe
-// must never run.
+// for its lane. Ntasks is a scripted task service here.
 
 const PROJECT = { projectId: 'p-shop', logicalKey: 'shop.example', displayName: 'Shop', prefix: 'shop' };
-// A site whose tasks are in Ntasks has no bd link on this host.
+// A site whose tasks are in Ntasks has no checkout link on this host.
 const SPOKES = JSON.stringify({ spokes: [{ asset: 'shop.example', prefix: 'shop', repo: '', database: 'shop',
   unavailableReason: 'shop.example has no matching task connection on this host' }] });
 const VERSION = '00000004-2026-09-22T13-10-04-637Z-4f83dc';
 const UP = { running: true, ready: true };
-const never = () => { throw new Error('bd and the hub must not be reached'); };
 
 /** An Ntasks that keeps tasks, comments, retry keys and links, as the HTTP routes and link_tasks answer. */
 function ntasks(tasks = []) {
@@ -79,10 +76,10 @@ function ntasks(tasks = []) {
 
 function panelDeps(service) {
   const lines = [];
-  return { lines, deps: { taskService: service, probe: never, run: never, readConfig: async () => SPOKES, readToken: async () => 'operator-token',
+  return { lines, deps: { taskService: service, readConfig: async () => SPOKES, readToken: async () => 'operator-token',
     get: async () => Response.json({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }] }),
     readPublished: async (asset) => ({ asset, sources: [{ key: 'dataforseo', integration: 'dataforseo', collected: true, newestReportDate: '2026-09-21', reports: [] }] }),
-    readVersion: async () => VERSION, createReview: never,
+    readVersion: async () => VERSION,
     state: { skipping: null, unmapped: new Set(), waiting: new Set() }, emit: (level, text) => lines.push(`${level} ${text}`), stopped: () => false } };
 }
 
@@ -126,7 +123,7 @@ test('a review closed long ago still counts as filed', async () => {
 const OPEN = { id: 'shop-1', title: 'Rewrite the pricing copy', status: 'open', labels: [], metadata: {} };
 function readbackDeps(service, queue) {
   const requests = [], lines = [];
-  return { requests, lines, deps: { taskService: service, run: never, createReview: never, readConfig: async () => SPOKES,
+  return { requests, lines, deps: { taskService: service, readConfig: async () => SPOKES,
     config: { ingestHost: '127.0.0.1', ingestPort: 8858 }, readToken: async () => 'operator-token', now: () => Date.parse('2026-08-22T04:00:00.000Z'),
     fetchImpl: async (url, init = {}) => {
       const body = init.body ? JSON.parse(init.body) : null;
@@ -184,14 +181,6 @@ test('a review task Ntasks closed as done marks its outcome read, from the close
   assert.deepEqual(await runWatchReadbackFiler(lane.deps), { posted: [], failed: [] });
   assert.deepEqual(lane.requests.find(request => request.body?.reviewed)?.body.reviewed,
     [{ ...review, closedAt: '2026-08-22T03:00:00.000Z', checkedAt: '2026-08-22T04:00:00.000Z', reason: 'Keep; evidence in abc1234' }]);
-});
-
-test('the task map check is retired while tasks live in Ntasks', async () => {
-  const { service } = ntasks();
-  const lines = [];
-  assert.equal(await runTaskMapCheck({ taskService: service, readConfig: never, run: never, state: { skipping: null },
-    emit: (_level, text) => lines.push(text), stopped: () => false }), null);
-  assert.match(lines.at(-1), /tasks live in Ntasks, which keeps no task databases to check/u);
 });
 
 test('Ntasks\'s close and claim read under the NoticeOS keys', () => {

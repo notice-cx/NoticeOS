@@ -9,19 +9,20 @@
 //   pnpm os:setup -- --image <id>          use an image already on this machine
 //   pnpm os:setup -- --without-backup      no backup worker
 //
-// It needs Docker, Node and pnpm, nothing else: the steps that need psql and
-// Beads run inside a one-off app container (scripts/os-setup-container.mjs).
+// It needs Docker, Node and pnpm, nothing else: the steps that need psql run
+// inside a one-off app container (scripts/os-setup-container.mjs).
 // With no checkout at all, the launcher deploy/compose/noticeos runs it from
 // the published image, which becomes the app's image; the folder then keeps
 // its own copy of the stack definition, its selector and the launcher.
 // In order: it checks that the folder, the Compose project and its volumes
 // are all new; fetches main's published app image, checked against this
 // checkout's source, or builds it when none is published; writes the installation folder
-// (scripts/installation-layout.mjs) with new secrets; starts Postgres and
-// Dolt; applies the frozen schema and one workspace and makes the OS's task
-// project; starts the app and the backup worker; loads the default settings;
-// and writes `.local/stack.json`, after which every `pnpm os:*` command acts
-// on it.
+// (scripts/installation-layout.mjs) with new secrets; starts Postgres;
+// applies the frozen schema and one workspace and adds the System asset;
+// starts the app and the backup worker; loads the default settings; and
+// writes `.local/stack.json`, after which every `pnpm os:*` command acts on
+// it. Its tasks live in Ntasks, connected later under Settings > Task
+// projects; setup takes no Ntasks address or credential.
 //
 // This is the fresh-install exception (AGENTS.md): nothing here touches an
 // existing installation, database or volume. A failed step stops, names
@@ -131,18 +132,12 @@ export function writeInstallation(choices, { backup, offsite, root = ROOT, rando
     url.port = '5432';
     return url.href;
   };
-  dir(paths.doltSecrets);
-  const taskPassword = random(32).toString('hex');
-  file(path.join(paths.doltSecrets, 'root'), `${random(32).toString('hex')}\n`);
-  file(path.join(paths.doltSecrets, 'noticeos'), `${taskPassword}\n`);
-  for (const folder of ['installation', '.local', '.wrangler', 'workers/ingest', 'dolt/client-home']) dir(path.join(paths.state, folder));
+  for (const folder of ['installation', '.local', '.wrangler', 'workers/ingest', 'home']) dir(path.join(paths.state, folder));
   file(path.join(paths.state, 'workers', 'ingest', '.dev.secrets.json'), json({
     CREDENTIALS_KEY: random(32).toString('base64'),
     OPERATOR_TOKEN: random(32).toString('base64url'),
     DATABASE_URL: internal('database.url'),
   }));
-  file(path.join(paths.state, 'task-client.json'), json({ host: 'dolt', port: 3306, user: 'noticeos', credentialsFile: '/state/dolt/credentials', clientHome: '/state/dolt/client-home' }));
-  file(path.join(paths.state, 'dolt', 'credentials'), `[dolt:3306]\npassword=${taskPassword}\n`);
   dir(choices.spokes ?? paths.spokes);
   if (backup) {
     for (const folder of [paths.backupProfile, paths.backupStaging, paths.backupTransport, choices.backupAssets ?? paths.backupAssets]) dir(folder);
@@ -189,8 +184,8 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   const owned = (await docker([...host, 'ps', '--all', '--quiet', '--filter', `label=com.docker.compose.project=${options.project}`], 'Listing the project\'s containers')).trim();
   if (owned) refuse(`Docker already has containers for the project ${options.project}; choose another with --project${legacy(', or pnpm os:convert-legacy moves that installation')}.`);
   const draft = { project: options.project, dir: options.dir };
-  const names = { postgresVolume: `${draft.project}_postgres-data`, doltVolume: `${draft.project}_dolt-data`, network: `${draft.project}_installation` };
-  for (const [kind, name] of [['volume', names.postgresVolume], ['volume', names.doltVolume], ['network', names.network]]) {
+  const names = { postgresVolume: `${draft.project}_postgres-data`, network: `${draft.project}_installation` };
+  for (const [kind, name] of [['volume', names.postgresVolume], ['network', names.network]]) {
     const found = await run('docker', [...host, kind, 'inspect', name], { env: tools, timeoutMs: 20_000 });
     if (found.code === 0) refuse(`the ${kind} ${name} already exists; setup never takes over existing data. Choose another --project.`);
   }
@@ -201,7 +196,6 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   const ports = {
     towerPort: await pick(options.towerPort ?? DEFAULTS.towerPort, options.towerPort !== null),
     postgresPort: await pick(DEFAULTS.postgresPort, false),
-    doltPort: await pick(DEFAULTS.doltPort, false),
   };
 
   let image = options.image;
@@ -223,16 +217,14 @@ export async function setup(options, { run = runCommand, env = process.env, out 
     say(`Writing the installation to ${choices.dir}.`);
     made.push(`the folder ${choices.dir}`);
     const { ownerUrl } = writeInstallation(choices, { backup: options.backup, offsite: options.offsite, root, fromImage: Boolean(fromImage) });
-    for (const volume of [choices.postgresVolume, choices.doltVolume]) {
-      await docker([...host, 'volume', 'create', '--label', `cx.noticeos.installation=${choices.dir}`, volume], `Creating the volume ${volume}`);
-      made.push(`the volume ${volume}`);
-    }
-    say('Starting Postgres and the task server.');
+    await docker([...host, 'volume', 'create', '--label', `cx.noticeos.installation=${choices.dir}`, choices.postgresVolume], `Creating the volume ${choices.postgresVolume}`);
+    made.push(`the volume ${choices.postgresVolume}`);
+    say('Starting Postgres.');
     made.push(`the Compose project ${choices.project}`);
-    await docker(compose(['up', '--detach', '--wait', '--wait-timeout', '180', 'postgres', 'dolt']), 'Starting Postgres and the task server', { timeoutMs: 240_000 });
-    say('Applying the frozen schema, the workspace and the task project.');
+    await docker(compose(['up', '--detach', '--wait', '--wait-timeout', '180', 'postgres']), 'Starting Postgres', { timeoutMs: 240_000 });
+    say('Applying the frozen schema, the workspace and the System asset.');
     const prepared = await run('docker', compose(['run', '--rm', '--no-deps', '-T', 'noticeos', 'setup']), { env: tools, timeoutMs: 300_000, stdin: `${ownerUrl}\n` });
-    if (prepared.code !== 0) refuse(String(prepared.stderr ?? '').split('\n').find((line) => line.startsWith('setup refused:') || line.startsWith('NoticeOS container refused:')) ?? 'the database and task setup did not finish.');
+    if (prepared.code !== 0) refuse(String(prepared.stderr ?? '').split('\n').find((line) => line.startsWith('setup refused:') || line.startsWith('NoticeOS container refused:')) ?? 'the database setup did not finish.');
     say('Starting the app and loading the default settings.');
     await docker(compose(['up', '--detach']), 'Starting the app', { timeoutMs: 120_000 });
     // The app reports healthy only once its schedules, which are settings, are armed.

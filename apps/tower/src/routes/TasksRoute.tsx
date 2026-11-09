@@ -2,8 +2,10 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
 import { TabPanel, Tabs, type TabSpec } from "@/components/Tabs";
 import { TaskComposer } from "@/components/TaskComposer";
+import { ConnectNtasks } from "@/components/TaskSourceSection";
 import { workQueue } from "@/components/viz/WorkFlow";
 import { useTaskBoard } from "@/hooks/useTaskBoard";
+import { useNeedsNtasks } from "@/hooks/useTaskService";
 import { boardWorkRows } from "@/lib/task-board-viz";
 import { COMPOSE_STATE, NewTaskButton, TasksBoard, composeRequested } from "@/routes/tasks/TasksBoard";
 import { NextTab } from "@/routes/tasks/next/NextTab";
@@ -46,6 +48,16 @@ export function TasksRoute() {
   // The open-task count All tasks carries: the board's own yardstick.
   const { drawn, projects, availableSpokes, selectedProject } = useTaskBoard(null, { ...UNFILTERED, project });
   const open = drawn ? boardWorkRows(projects).reduce((sum, row) => sum + workQueue(row), 0) : null;
+  const needsNtasks = useNeedsNtasks();
+
+  if (needsNtasks) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
+        <PageHeader title="Tasks" />
+        <ConnectNtasks />
+      </div>
+    );
+  }
 
   if (tab === "next" && BOARD_KEYS.some((key) => params.has(key))) {
     return <Navigate to={`${TAB_PATH.all}${location.search}${location.hash}`} replace state={location.state} />;

@@ -156,9 +156,12 @@ test('while the tasks live in Ntasks, the endpoint lists no task tools and names
   assert.deepEqual(asked, [], 'Ntasks is not asked for a task tool');
   assert.deepEqual(local.ran, []);
 
+  // Disconnected, the installation has no tasks: still no task tools, and the guide names where to connect.
   connected = false; clock = 6_000;
-  assert.ok((await listedNames()).includes('claim_task'), 'the task tools come back with the local task database');
-  assert.notEqual((await local.call('get_task_guide', {})).result.structuredContent.version, version);
+  assert.deepEqual((await listedNames()).filter(name => TASK_TOOL_NAMES.has(name)), []);
+  const disconnected = (await local.call('get_task_guide', {})).result.structuredContent;
+  assert.notEqual(disconnected.version, version);
+  assert.ok(disconnected.guide.includes('Settings → Task projects') && !disconnected.guide.includes(ENDPOINT));
 });
 
 test('a task tool waits for the ingest\'s current answer, and is refused once it says the tasks moved to Ntasks', async t => {
@@ -198,11 +201,20 @@ test('before the ingest has ever said where the tasks live, a task tool answers 
   assert.deepEqual(down.ran, []);
 });
 
-test('with no task service connected the task tools stay on the linked projects', async t => {
+test('with no task service connected the endpoint has no task tools, names where to connect Ntasks, and runs none', async t => {
   const local = await standalone(door(async () => { throw new Error('Ntasks must not be asked'); }, { connected: false }));
   t.after(local.close);
+  const names = (await local.rpc('tools/list')).result.tools.map(tool => tool.name);
+  assert.deepEqual(names.filter(name => TASK_TOOL_NAMES.has(name)), []);
+  assert.ok(names.includes('list_workspaces') && names.includes('get_task_guide'), 'the other tools stay');
+  const { instructions } = (await local.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } })).result;
+  assert.ok(instructions.includes('Settings → Task projects'));
+  const [workspace] = (await local.call('list_workspaces', {})).result.structuredContent.workspaces;
+  assert.equal(workspace.access.some(scope => scope.startsWith('tasks:')), false);
   const listed = await local.call('list_projects', { workspace: LOCAL });
-  assert.deepEqual(listed.result.structuredContent.projects.map(project => project.prefix), ['ex']);
+  assert.equal(listed.result.isError, true);
+  assert.match(listed.result.content[0].text, /^refused: .*Settings → Task projects/u);
+  assert.deepEqual(local.ran, [], 'no task client runs');
 });
 
 test('where the tasks live is the ingest\'s last answer while it cannot say, and unknown before it ever has', async () => {
@@ -214,9 +226,9 @@ test('where the tasks live is the ingest\'s last answer while it cannot say, and
   assert.equal(reads, 1, 'a failed read is reused for a few seconds');
   reads = 0;
   const tasks = service(fetch, () => clock);
-  assert.equal(await tasks.backend(), 'local');
+  assert.equal(await tasks.backend(), 'none');
   clock = 6_000; up = false;
-  assert.equal(await tasks.backend(), 'local');
+  assert.equal(await tasks.backend(), 'none');
   clock = 12_000; up = true; connected = true;
   assert.equal(await tasks.backend(), 'ntasks');
   clock = 18_000; up = false;
@@ -224,14 +236,15 @@ test('where the tasks live is the ingest\'s last answer while it cannot say, and
   await assert.rejects(tasks.connected(), error => error instanceof TaskServiceUnavailable && error.reason === 'ingest');
 });
 
-test('a known local backend keeps the task tools local while the ingest does not answer', async t => {
+test('a known answer that no task service is connected stands while the ingest does not answer', async t => {
   let up = true, clock = 0, reads = 0;
   const fetch = door(async () => { throw new Error('Ntasks must not be asked'); }, { connected: false });
   const local = await standalone(async (url, init) => { reads += 1; if (!up) throw new TypeError('ECONNREFUSED'); return fetch(url, init); }, () => clock);
   t.after(local.close);
-  assert.equal((await local.call('list_projects', { workspace: LOCAL })).result.isError, undefined);
+  assert.match((await local.call('list_projects', { workspace: LOCAL })).result.content[0].text, /^refused: /u);
   up = false; clock = 6_000; reads = 0;
   const listed = await local.call('list_projects', { workspace: LOCAL });
-  assert.deepEqual(listed.result.structuredContent.projects.map(project => project.prefix), ['ex']);
+  assert.match(listed.result.content[0].text, /^refused: .*Settings → Task projects/u);
   assert.equal(reads, 1, 'the ingest was asked, and its last answer stood');
+  assert.deepEqual(local.ran, []);
 });

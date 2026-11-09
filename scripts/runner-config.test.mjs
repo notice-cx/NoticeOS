@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { resolveHomeRoot, statePaths } from './os-runtime.mjs';
 import {
   BACKUPS_DIR,
-  BEADS_DOLT_DIR,
   CONFIG,
   HOME_ROOT,
   INGEST_WRANGLER,
@@ -40,7 +39,6 @@ test('state resolves from home, the way a code folder needs it to', () => {
   assert.equal(LOG_FILE, STATE.logFile);
   assert.equal(RUNNER_STATE_FILE, STATE.runnerStateFile);
   assert.equal(BACKUPS_DIR, STATE.backupsDir);
-  assert.equal(BEADS_DOLT_DIR, STATE.beadsDoltDir);
   assert.equal(OS_CHECKOUT, osCheckoutName(HOME_ROOT));
 });
 
@@ -56,7 +54,6 @@ test("the secret files are home's paths, never a code folder's", () => {
 
 test('the port map keeps the ingest door on loopback and off the Tower port', () => {
   assert.equal(CONFIG.ingestHost, '127.0.0.1');
-  assert.equal(CONFIG.beadsHubHost, '127.0.0.1');
   assert.notEqual(CONFIG.ingestPort, CONFIG.towerPort);
   assert.notEqual(CONFIG.ingestPort, 8787, 'wrangler’s default, squatted on this machine');
 });

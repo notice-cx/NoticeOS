@@ -32,9 +32,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
 export const USAGE = 'usage: pnpm os:apply [-- --confirm apply] [--config <stack.json>]';
 /** The order services return in: what the others depend on first. */
-const LAYERS = [['postgres', 'dolt'], ['backup'], ['noticeos']];
+const LAYERS = [['postgres'], ['backup'], ['noticeos']];
 /** Where each database keeps its data. */
-const DATA = { postgres: '/var/lib/postgresql', dolt: '/var/lib/dolt' };
+const DATA = { postgres: '/var/lib/postgresql' };
 
 class ApplyRefused extends Error {}
 const refuse = (line) => { throw new ApplyRefused(line); };

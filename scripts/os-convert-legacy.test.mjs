@@ -30,12 +30,14 @@ function legacyModel(old, outside) {
 test('the running stack is read in the layout\'s terms: its choices, what is copied and what stays', () => {
   const found = readInstallation(legacyModel('/old/checkout/.local', '/home/me/tasks'), { project: 'noticeos', imageId: IMAGE, legacyRoot: '/old/checkout' });
   assert.deepEqual(found.copies.map(({ key, from }) => [key, from]), [
-    ['state', '/old/checkout/.local/state'], ['postgresSecrets', '/old/checkout/.local/pg-secrets'], ['doltSecrets', '/old/checkout/.local/dolt-secrets'],
+    ['state', '/old/checkout/.local/state'], ['postgresSecrets', '/old/checkout/.local/pg-secrets'],
     ['backupProfile', '/old/checkout/.local/worker'], ['backupAssets', '/old/checkout/.local/assets']]);
   assert.deepEqual(found.kept, { spokes: '/home/me/tasks', backupOffsite: '/mnt/sync' });
   const choices = convertedChoices(found, '/srv/noticeos');
-  assert.deepEqual([choices.towerPort, choices.postgresPort, choices.doltPort, choices.uid, choices.gid], [5180, 5440, 3310, 501, 20]);
-  assert.deepEqual([choices.postgresVolume, choices.doltVolume, choices.image, choices.allowedHosts], ['office_postgres', 'office_dolt', IMAGE, 'tower.example.com']);
+  assert.deepEqual([choices.towerPort, choices.postgresPort, choices.uid, choices.gid], [5180, 5440, 501, 20]);
+  assert.deepEqual([choices.postgresVolume, choices.image, choices.allowedHosts], ['office_postgres', IMAGE, 'tower.example.com']);
+  // The task server, its port, volume and secrets stay behind; its tasks live in Ntasks.
+  assert.equal(JSON.stringify(choices).includes('dolt'), false);
   assert.deepEqual([choices.spokes, choices.backupOffsite, choices.backupAssets], ['/home/me/tasks', '/mnt/sync', null]);
   assert.equal(choices.towerBind, '127.0.0.1');
   // A Tower published with no address listened on every interface, and still does.
@@ -65,13 +67,16 @@ test('only differences beyond the move are listed: a changed file, a dropped mou
   after.services.backup.volumes = after.services.backup.volumes.filter((mount) => mount.target !== '/backup-exporter-auth');
   after.services.noticeos.ports = [{ host_ip: '0.0.0.0', published: '5180', target: 5173 }];
   after.volumes['pg-backup-socket'] = { name: 'noticeos_pg-backup-socket' };
-  after.secrets = { noticeos_owner: { file: '/srv/n/postgres-secrets/noticeos_owner' }, dolt_root: { file: '/srv/n/dolt-secrets/root' } };
+  delete after.services.dolt;
+  after.secrets = { noticeos_owner: { file: '/srv/n/postgres-secrets/noticeos_owner' } };
   const hash = (file) => (file.includes('checkout') ? 'new rules' : 'old rules');
   const { moved: count, changes } = compareStacks(before, after, { copies: found.copies, fresh: found.fresh, dir: '/srv/n', hash });
   assert.deepEqual(changes, [
     'backup: /backup-exporter-auth is no longer mounted (it was /old/auth)',
+    'dolt: not in the new stack',
     'noticeos: published ports change',
     'postgres: /etc/noticeos/pg_hba.conf comes from /checkout/db/postgres/host/pg_hba.conf, which differs from /old/pg_hba.conf',
+    'secret dolt_root: not in the new stack',
   ]);
   assert.equal(count, 7);
   const same = compareStacks(before, after, { copies: found.copies, fresh: found.fresh, dir: '/srv/n', hash: () => 'same' });
@@ -140,6 +145,8 @@ function legacyFixture(t, { live = false } = {}) {
       const envFile = args[args.indexOf('--env-file') + 1];
       if (envFile === prepared.envFile) return { code: 0, stdout: JSON.stringify(files.includes(override) ? developing : model) };
       const after = structuredClone(model);
+      delete after.services.dolt;
+      delete after.secrets.dolt_root;
       after.networks = { installation: { name: 'noticeos_installation' } };
       return { code: 0, stdout: JSON.stringify(after) };
     }

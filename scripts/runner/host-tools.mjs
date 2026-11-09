@@ -46,9 +46,8 @@ export function lsofBin() {
   return resolveBin(process.env.OS_UP_LSOF_BIN, LSOF_CANDIDATES, existsSync, 'lsof');
 }
 
-/** Can something accept a TCP connection here? The beads hub speaks the MySQL
- * wire protocol and logs nothing we can read from here, so a connect is the
- * only truthful liveness signal available. */
+/** Can something accept a TCP connection here? The runner asks it of the
+ * ingest port before it arms, to refuse a second runner. */
 export function probeTcp(host, port, timeoutMs = 1000) {
   return new Promise((resolve) => {
     const sock = net.connect({ host, port });

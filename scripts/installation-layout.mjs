@@ -7,7 +7,6 @@
 //     state/               the app's /state: settings exports, bootstrap secrets, logs, task client
 //     spokes/              the app's /spokes: task repositories (a choice; default here)
 //     postgres-secrets/    the Postgres logins' verifiers and addresses
-//     dolt-secrets/        the task server's passwords
 //     backup/profile/      the backup worker's declaration
 //     backup/staging/, backup/transport/   the backup's working folders
 //     backup/assets/       exporter checkouts (a choice; default here)
@@ -35,10 +34,8 @@ export const ENV_FILE = 'installation.env';
  */
 export const STACK_SOURCES = Object.freeze([
   'deploy/compose/stack.yaml', 'deploy/compose/compose.yaml', 'deploy/compose/backup.compose.yaml',
-  'deploy/compose/stack/app.yaml', 'deploy/compose/stack/postgres.yaml', 'deploy/compose/stack/dolt.yaml',
+  'deploy/compose/stack/app.yaml', 'deploy/compose/stack/postgres.yaml',
   'db/postgres/host/compose.yaml', 'db/postgres/host/pg_hba.conf', 'db/postgres/host/first-start.sh', 'db/postgres/roles.sql',
-  'db/dolt/host/compose.yaml', 'db/dolt/host/server.yaml', 'db/dolt/host/start.sh', 'db/dolt/host/sql.sh',
-  'db/dolt/host/capture.sh', 'db/dolt/host/backup-metadata.sh', 'db/dolt/host/restore.sh', 'db/dolt/host/restore-native.sh',
 ]);
 /** The stack sources Postgres runs as programs rather than reads. */
 export const STACK_EXECUTABLES = Object.freeze(['db/postgres/host/first-start.sh']);
@@ -57,7 +54,6 @@ export const LAYOUT = Object.freeze({
   state: 'state',
   spokes: 'spokes',
   postgresSecrets: 'postgres-secrets',
-  doltSecrets: 'dolt-secrets',
   backupProfile: 'backup/profile',
   backupStaging: 'backup/staging',
   backupTransport: 'backup/transport',
@@ -72,7 +68,7 @@ export function installationPaths(dir) {
 }
 
 /** Defaults a new installation starts from. */
-export const DEFAULTS = Object.freeze({ project: 'noticeos', towerBind: '127.0.0.1', towerPort: 5173, postgresPort: 5432, doltPort: 3306 });
+export const DEFAULTS = Object.freeze({ project: 'noticeos', towerBind: '127.0.0.1', towerPort: 5173, postgresPort: 5432 });
 
 /** The variables an installation chooses, in the order the file lists them. */
 const CHOICES = [
@@ -85,9 +81,7 @@ const CHOICES = [
   ['NOTICEOS_TOWER_PORT', 'towerPort'],
   ['TOWER_ALLOWED_HOSTS', 'allowedHosts'],
   ['NOTICEOS_POSTGRES_PORT', 'postgresPort'],
-  ['NOTICEOS_DOLT_PORT', 'doltPort'],
   ['NOTICEOS_POSTGRES_VOLUME', 'postgresVolume'],
-  ['NOTICEOS_DOLT_VOLUME', 'doltVolume'],
   ['NOTICEOS_SPOKES_DIR', 'spokes'],
   ['NOTICEOS_BACKUP_ASSETS_DIR', 'backupAssets'],
   ['NOTICEOS_BACKUP_OFFSITE_PARENT', 'backupOffsite'],
@@ -97,11 +91,9 @@ const CHOICES = [
 const DERIVED = [
   ['NOTICEOS_STATE_DIR', '${NOTICEOS_INSTALLATION}/' + LAYOUT.state],
   ['NOTICEOS_POSTGRES_SECRETS', '${NOTICEOS_INSTALLATION}/' + LAYOUT.postgresSecrets],
-  ['NOTICEOS_DOLT_SECRETS', '${NOTICEOS_INSTALLATION}/' + LAYOUT.doltSecrets],
   ['NOTICEOS_BACKUP_PROFILE_DIR', '${NOTICEOS_INSTALLATION}/' + LAYOUT.backupProfile],
   ['NOTICEOS_BACKUP_STAGING_DIR', '${NOTICEOS_INSTALLATION}/' + LAYOUT.backupStaging],
   ['NOTICEOS_BACKUP_TRANSPORT_DIR', '${NOTICEOS_INSTALLATION}/' + LAYOUT.backupTransport],
-  ['NOTICEOS_DOLT_BACKUP_VOLUME', '${NOTICEOS_DOLT_VOLUME}'],
   ['NOTICEOS_NETWORK', '${COMPOSE_PROJECT_NAME}_installation'],
 ];
 
@@ -159,9 +151,7 @@ export function installationChoices(input) {
     towerPort: port(input.towerPort ?? DEFAULTS.towerPort, 'The Tower port'),
     allowedHosts,
     postgresPort: port(input.postgresPort ?? DEFAULTS.postgresPort, 'The Postgres port'),
-    doltPort: port(input.doltPort ?? DEFAULTS.doltPort, 'The task server port'),
     postgresVolume: volume(input.postgresVolume, `${project}_postgres-data`, 'The Postgres volume'),
-    doltVolume: volume(input.doltVolume, `${project}_dolt-data`, 'The task data volume'),
     spokes: optionalFolder(input.spokes, 'The task repositories folder'),
     backupAssets: optionalFolder(input.backupAssets, 'The exporter checkouts folder'),
     backupOffsite: optionalFolder(input.backupOffsite, 'The offsite folder'),

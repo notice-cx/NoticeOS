@@ -5,13 +5,13 @@ import { createInstallationHandler, hostFacts } from "../vite/installation-lane"
 
 const get = { method: "GET", headers: {}, body: "", url: "/api/installation" };
 const host = { NOTICEOS_HOST_FOLDER: "/srv/noticeos", NOTICEOS_HOST_TOWER_ADDRESS: "0.0.0.0", NOTICEOS_HOST_TOWER_PORT: "5180",
-  NOTICEOS_HOST_POSTGRES_PORT: "5432", NOTICEOS_HOST_TASK_PORT: "3307", NOTICEOS_HOST_LAUNCHER: "/srv/noticeos/noticeos" };
+  NOTICEOS_HOST_POSTGRES_PORT: "5432", NOTICEOS_HOST_LAUNCHER: "/srv/noticeos/noticeos" };
 
 describe("/api/installation", () => {
   it("reads the host's facts the stack hands the app, and nothing it was not told", () => {
-    expect(hostFacts(host)).toEqual({ folder: "/srv/noticeos", tower: { address: "0.0.0.0", port: 5180 }, postgresPort: 5432, taskPort: 3307, launcher: "/srv/noticeos/noticeos" });
-    expect(hostFacts({})).toEqual({ folder: null, tower: null, postgresPort: null, taskPort: null, launcher: null });
-    expect(hostFacts({ NOTICEOS_HOST_TOWER_PORT: "5173", NOTICEOS_HOST_TASK_PORT: "not a port" })).toMatchObject({ tower: { address: "127.0.0.1", port: 5173 }, taskPort: null });
+    expect(hostFacts(host)).toEqual({ folder: "/srv/noticeos", tower: { address: "0.0.0.0", port: 5180 }, postgresPort: 5432, launcher: "/srv/noticeos/noticeos" });
+    expect(hostFacts({})).toEqual({ folder: null, tower: null, postgresPort: null, launcher: null });
+    expect(hostFacts({ NOTICEOS_HOST_TOWER_PORT: "5173", NOTICEOS_HOST_POSTGRES_PORT: "not a port" })).toMatchObject({ tower: { address: "127.0.0.1", port: 5173 }, postgresPort: null });
   });
 
   it("asks the registry at most once an hour, and never for a checkout's live source", async () => {

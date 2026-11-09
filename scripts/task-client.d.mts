@@ -11,6 +11,7 @@ export type TaskClientEnvironment = Record<string, string | undefined>;
 export declare function validateTaskClient(input: unknown): TaskClient;
 export declare function readDeclaredTaskClient(file: string): TaskClient;
 export declare function taskClientEnvironment(profile: TaskClient, env?: TaskClientEnvironment): TaskClientEnvironment;
+/** The Dolt profile NOTICEOS_DOLT_HOME names, or null when it names none. */
 export declare function selectedDoltProfile(env?: TaskClientEnvironment): DoltProfile | null;
 export declare function declaredTaskClient(env?: TaskClientEnvironment): TaskClient | null;
 export declare function taskChildEnvironment(env?: TaskClientEnvironment): TaskClientEnvironment;

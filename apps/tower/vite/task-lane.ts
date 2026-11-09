@@ -1,8 +1,10 @@
-// The task lane: dev-server middleware that runs the operator's `bd` commands
-// against the task hub. A Worker can spawn no process and reach no Dolt socket,
-// so a built Tower answers these paths read-only from worker/tasks-route.ts.
+// The task lane: dev-server middleware for the Tower's task routes. An
+// installation's routes are answered from its task service
+// (task-service-lane.ts); the synthetic viewer, which has none, runs `bd`
+// against its own task hub here. A Worker can spawn no process, so a built
+// Tower answers these paths read-only from worker/tasks-route.ts.
 //
-// Three guards: same origin (vite/lane.ts), an allowlist of verbs checked
+// For `bd`, three guards: same origin (vite/lane.ts), an allowlist of verbs checked
 // before anything is spawned, and `--actor` on every write. `bd`'s output is
 // flattened into shared/tasks.ts's vocabulary and nothing more: no derived
 // status, no re-implemented blocker semantics, no invented grouping.
@@ -21,7 +23,7 @@ import type {
   LiveTaskDetail,
   LiveTasksPayload,
 } from "../shared/tasks";
-import { isTaskId, TASK_SERVICE_STATUS_PATH, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
+import { isTaskId, TASK_SERVICE_NOT_CONNECTED, TASK_SERVICE_STATUS_PATH, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsProject } from "../../../packages/contract/src/agent-stats.mjs";
 import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
@@ -1039,22 +1041,23 @@ export async function handleTasksRequest(
     return { status: 200, body: { ...await taskServiceStatus(opts.taskService, opts.readProjects) } };
   }
 
+  // An installation's tasks live only in its task service; `bd` runs here for
+  // the synthetic viewer alone, which has none.
   if (opts.taskService) {
     const backend = await opts.taskService.backend();
-    // Never knowing where the tasks live, a change could land in the wrong
-    // register; a read stays on `bd`, which reads the saved projects through
-    // that same ingest.
-    if (backend === "unknown" && request.method !== "GET") {
-      return { status: 503, body: { error: "task_service_unknown",
-        detail: "The installation's ingest did not answer, so it is unknown where its tasks live. Nothing was saved." } };
+    if (backend === "none") {
+      return { status: 409, body: { error: TASK_SERVICE_NOT_CONNECTED,
+        detail: "No task service is connected; connect Ntasks in Settings → Task projects." } };
     }
-    if (backend === "ntasks") {
-      try {
-        return await handleTaskServiceRequest(pathname, url, request, { service: opts.taskService,
-          readProjects: opts.readProjects, cacheDir: opts.taskCacheDir, now: opts.now });
-      } catch (err) {
-        return { status: 500, body: { error: "task_lane_failed", detail: err instanceof Error ? err.message : String(err) } };
-      }
+    if (backend === "unknown") {
+      return { status: 503, body: { error: "task_service_unknown",
+        detail: "The installation's ingest did not answer, so it is unknown where its tasks live. Nothing was read or saved." } };
+    }
+    try {
+      return await handleTaskServiceRequest(pathname, url, request, { service: opts.taskService,
+        readProjects: opts.readProjects, cacheDir: opts.taskCacheDir, now: opts.now });
+    } catch (err) {
+      return { status: 500, body: { error: "task_lane_failed", detail: err instanceof Error ? err.message : String(err) } };
     }
   }
 

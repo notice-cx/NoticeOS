@@ -94,11 +94,13 @@ export async function readTaskProjects({ repoRoot = REPO_ROOT, readHost, env = p
     if (!saved)
         throw new Error('Task projects are not stored yet. Run pnpm config:seed before using task projects.');
     const projects = resolveTaskProjects(saved.body, await readTaskHost({ repoRoot, readHost, env, absentLinksNone: true }));
+    // Only a declared task client runs bd in these folders; an installation's tasks live in Ntasks.
+    const client = declaredTaskClient(env);
     for (const project of projects) {
-        if (project.unavailableReason)
+        if (project.unavailableReason || !client)
             continue;
         try {
-            project.cwd = await prepareTaskDirectory(project, { repoRoot, env });
+            project.cwd = await prepareTaskDirectory(project, client, { repoRoot, env });
         }
         catch {
             project.unavailableReason = `${project.asset} task client configuration is unavailable`;
@@ -129,10 +131,8 @@ async function regularDirectory(directory) {
 /** Local configuration only: never initializes, imports or migrates a database.
  * Each binding has an immutable folder, so an in-flight command cannot follow
  * a newly saved database/prefix or a changed service connection. */
-async function prepareTaskDirectory(project, { repoRoot, env }) {
-    const client = declaredTaskClient(env);
-    const connection = { dolt_server_host: client?.host ?? '127.0.0.1', dolt_server_port: client?.port ?? 3308,
-        dolt_server_user: client?.user ?? 'root' };
+async function prepareTaskDirectory(project, client, { repoRoot, env }) {
+    const connection = { dolt_server_host: client.host, dolt_server_port: client.port, dolt_server_user: client.user };
     const metadata = JSON.stringify({ database: 'dolt', backend: 'dolt', dolt_mode: 'server', dolt_database: project.database, ...connection }) + '\n';
     const config = `issue-prefix: ${project.prefix}\nno-git-ops: true\nimport.auto: false\nexport.auto: false\ndolt.auto-start: false\n`;
     const key = createHash('sha256').update(metadata).update(config).digest('hex');

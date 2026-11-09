@@ -20,7 +20,7 @@
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp, type McpMessage, type McpServer, type McpTool } from './mcp-protocol.mjs';
 import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopesSatisfy } from './agent-access.mjs';
-import { ntasksGuide, ntasksInstructions, ntasksTaskHome, TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions,
+import { noTasksGuide, noTasksInstructions, NO_TASK_SERVICE, ntasksGuide, ntasksInstructions, ntasksTaskHome, TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions,
   taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS, type PanelOperations } from './panel-mcp.mjs';
@@ -70,10 +70,11 @@ export interface HostedMcpOptions {
    * otherwise the wait is short, then the ingest's last answer stands. */
   readonly taskHome?: (options: { readonly forTaskTool: boolean }) => Promise<TaskHome>;
 }
-/** Where a standalone installation's tasks live: its own task database, Ntasks
- * at `origin` (null while the ingest cannot say), or `unknown` when the ingest
- * has never said. */
-export type TaskHome = { readonly kind: 'local' | 'unknown' } | { readonly kind: 'ntasks'; readonly origin: string | null };
+/** Where the tasks live: this server's own task operations (`local`, the
+ * demo's and the hosted profile's), Ntasks at `origin` (null while the ingest
+ * cannot say), `none` while a standalone installation has no task service
+ * connected, or `unknown` when its ingest has never said. */
+export type TaskHome = { readonly kind: 'local' | 'none' | 'unknown' } | { readonly kind: 'ntasks'; readonly origin: string | null };
 const LOCAL_TASKS: TaskHome = Object.freeze({ kind: 'local' });
 
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });
@@ -195,9 +196,10 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
     const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
     const home = taskHome ? await taskHome({ forTaskTool: false }) : LOCAL_TASKS;
     const ntasks = home.kind === 'ntasks' ? home : null;
-    const instructions = ntasks ? ntasksInstructions(ntasks.origin, Boolean(panels)) : localInstructions;
-    const guide = ntasks ? ntasksGuide(ntasks.origin, Boolean(panels)) : localGuide;
-    const server: McpServer = { info: SERVER_INFO, instructions, tools, ...(ntasks ? { listed: withoutTasks } : {}), async call(name, args) {
+    const tasksElsewhere = ntasks !== null || home.kind === 'none';
+    const instructions = ntasks ? ntasksInstructions(ntasks.origin, Boolean(panels)) : home.kind === 'none' ? noTasksInstructions(Boolean(panels)) : localInstructions;
+    const guide = ntasks ? ntasksGuide(ntasks.origin, Boolean(panels)) : home.kind === 'none' ? noTasksGuide(Boolean(panels)) : localGuide;
+    const server: McpServer = { info: SERVER_INFO, instructions, tools, ...(tasksElsewhere ? { listed: withoutTasks } : {}), async call(name, args) {
       if (name === TASK_GUIDE_TOOL) {
         if (Object.keys(args).length) throw new McpToolError(`invalid arguments: ${TASK_GUIDE_TOOL} takes none`);
         return guide;
@@ -208,7 +210,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
         const guideVersion = guide.version;
         if (profile === 'demo') return { guideVersion, workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
         if (profile === 'standalone') return { guideVersion, workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
-          access: [...(ntasks ? [] : ['tasks:read', 'tasks:write']), ...(readModels || panels ? ['evidence:read'] : []), ...(journeys ? ['journeys:read', 'journeys:write'] : [])] }] };
+          access: [...(tasksElsewhere ? [] : ['tasks:read', 'tasks:write']), ...(readModels || panels ? ['evidence:read'] : []), ...(journeys ? ['journeys:read', 'journeys:write'] : [])] }] };
         const workspaces = await agents!.workspaces(original).catch(() => null);
         if (!workspaces) throw refused();
         return { guideVersion, workspaces: workspaces.map(workspace => ({ workspaceId: workspace.workspaceId, name: workspace.displayName,
@@ -225,6 +227,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       const current = task && taskHome ? await taskHome({ forTaskTool: true }) : home;
       // A client that listed the tools before the tasks moved to Ntasks learns where they are.
       if (task && current.kind === 'ntasks') throw new McpToolError(`refused: ${ntasksTaskHome(current.origin)} Nothing was read or changed.`);
+      if (task && current.kind === 'none') throw new McpToolError(`refused: ${NO_TASK_SERVICE} Nothing was read or changed.`);
       if (task && current.kind === 'unknown') {
         throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
       }

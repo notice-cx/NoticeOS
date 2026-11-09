@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { main, parseOptions } from './local-mcp.mjs';
-import { chooseProject, main as bdMain } from './local-bd.mjs';
 import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient, storeSites, withStandaloneTaskMutation } from './standalone-mcp.mjs';
 
 const lockingStore = { inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ acquired: true }] }) };
@@ -29,10 +27,9 @@ import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { openStore } from '../packages/postgres/src/store.mjs';
 import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 
-// scripts/standalone-mcp.mts, local-mcp.mjs and local-bd.mjs: a standalone
-// installation's MCP endpoint (the Tower's /api/mcp and pnpm os:mcp) and its
-// task client for this machine (pnpm os:bd). The served tools are proved in
-// standalone-tasks.test.mjs and hosted-mcp.test.mjs; this is their setup.
+// scripts/standalone-mcp.mts and local-mcp.mjs: a standalone installation's MCP
+// endpoint (the Tower's /api/mcp and pnpm os:mcp). The served tools are proved
+// in standalone-tasks.test.mjs and hosted-mcp.test.mjs; this is their setup.
 
 const PROJECTS = [{ asset: 'example', prefix: 'ex', database: 'example_tasks', repo: '/spokes/example' },
   { asset: 'second', prefix: 'se', database: 'second_tasks', repo: 'spokes/second' },
@@ -263,33 +260,4 @@ test('an agent\'s new tasks record the agent as their filer and the model it nam
   assert.match((await call('create_task', { title: 'Padded', model: ' Example', idempotency_key: 'local-file-0004' })).result.content[0].text,
     /^invalid arguments: model/u);
   await mcp.close();
-});
-
-test('os:bd runs in the project a task id or --project names, or the only linked one, as the operator', async () => {
-  assert.equal(chooseProject([PROJECTS[0], PROJECTS[2]]).asset, 'example');
-  assert.equal(chooseProject(PROJECTS, undefined, ['show', 'se-1x2.3']).asset, 'second', 'a task id names its project by its prefix');
-  assert.throws(() => chooseProject(PROJECTS, undefined, ['dep', 'add', 'ex-1', 'se-2']), /Name a project with --project/u, 'two projects\' ids');
-  assert.throws(() => chooseProject(PROJECTS, undefined, ['show', 'zz-1']), /Name a project with --project/u, 'no linked project has that prefix');
-  assert.throws(() => chooseProject(PROJECTS), { message: 'Name a project with --project: ex (example), se (second).' });
-  assert.equal(chooseProject(PROJECTS, 'se').asset, 'second');
-  assert.equal(chooseProject(PROJECTS, 'example').asset, 'example');
-  assert.throws(() => chooseProject(PROJECTS, 'un'), /No linked task project is un/u);
-  assert.throws(() => chooseProject([PROJECTS[2]]), /links no task project/u);
-  const spawned = [];
-  const spawnChild = (...args) => { spawned.push(args); const child = new EventEmitter(); setImmediate(() => child.emit('exit', 3)); return child; };
-  const run = argv => bdMain(argv, { env: { PATH: '/usr/bin' }, read: async () => PROJECTS, root: '/opt/noticeos', spawnChild,
-    err: { write() {} } });
-  assert.equal(await run(['--project=se', 'ready', '--json']), 3, 'its exit code is the command\'s');
-  assert.deepEqual(spawned[0].slice(0, 2), ['bd', ['ready', '--json']]);
-  assert.equal(spawned[0][2].cwd, '/opt/noticeos/spokes/second');
-  assert.equal(spawned[0][2].env.BEADS_ACTOR, 'operator');
-  await run(['--project', 'ex', 'list', '--actor', 'sam']);
-  assert.deepEqual([spawned[1][1], spawned[1][2].cwd], [['list', '--actor', 'sam'], '/spokes/example']);
-  await run(['view', 'se-9', '--project', 'ex']);
-  assert.deepEqual([spawned[2][1], spawned[2][2].cwd], [['view', 'se-9'], '/spokes/example'], '--project wherever it stands wins');
-  await run(['view', 'se-9']);
-  assert.deepEqual([spawned[3][1], spawned[3][2].cwd], [['view', 'se-9'], '/opt/noticeos/spokes/second']);
-  assert.equal(await run([]), 2);
-  assert.equal(await run(['list']), 1, 'two linked projects and no task id need --project');
-  assert.equal(spawned.length, 4);
 });

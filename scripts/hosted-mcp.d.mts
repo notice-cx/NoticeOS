@@ -43,11 +43,12 @@ export interface HostedMcpOptions {
         readonly forTaskTool: boolean;
     }) => Promise<TaskHome>;
 }
-/** Where a standalone installation's tasks live: its own task database, Ntasks
- * at `origin` (null while the ingest cannot say), or `unknown` when the ingest
- * has never said. */
+/** Where the tasks live: this server's own task operations (`local`, the
+ * demo's and the hosted profile's), Ntasks at `origin` (null while the ingest
+ * cannot say), `none` while a standalone installation has no task service
+ * connected, or `unknown` when its ingest has never said. */
 export type TaskHome = {
-    readonly kind: 'local' | 'unknown';
+    readonly kind: 'local' | 'none' | 'unknown';
 } | {
     readonly kind: 'ntasks';
     readonly origin: string | null;

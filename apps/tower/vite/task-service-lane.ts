@@ -176,14 +176,14 @@ export async function taskServiceStatus(service: TaskService | null,
   readProjects: TaskServiceLaneOptions["readProjects"]): Promise<TaskServiceStatus> {
   if (!service) return { connected: false, origin: null, projects: null };
   const connected = await service.connected().catch(() => null);
-  if (connected !== true) return { connected, origin: null, projects: null };
+  if (connected !== true) return { connected, origin: null, projects: null, required: true };
   const origin = await service.origin().catch(() => null);
   try {
     const projects = mapTaskProjects(await readProjects(), await service.projects()).map(entry => ({ asset: entry.asset, prefix: entry.prefix,
       project: entry.project && { displayName: entry.project.displayName, logicalKey: entry.project.logicalKey } }));
-    return { connected, origin, projects };
+    return { connected, origin, projects, required: true };
   } catch (error) {
-    return { connected, origin, projects: null, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
+    return { connected, origin, projects: null, required: true, reason: error instanceof TaskServiceUnavailable ? unavailableSentence(error, origin)
       : "The saved task projects could not be read." };
   }
 }

@@ -1,18 +1,18 @@
-import { beadsClosedSince, beadsClosesSince, beadsPollArgs, beadsProjectError, summarizeBeadsProject } from '../task-snapshot-summary.mjs';
 export * from '../task-snapshot-summary.mjs';
-// runner/task-snapshot.mjs — the task-board snapshot: once a minute the runner
-// reads every saved project through `bd` (read-only) and files one snapshot at
-// its ingest door, which is what the Tower's task screens render. It also
-// joins each project's Tower handoff beads and its panel-review state.
+// runner/task-snapshot.mjs — the task-board snapshot: once a minute, while
+// this installation's tasks live in Ntasks, the runner reads every saved
+// project's boards from Ntasks's change feed (runner/task-service-poll.mjs)
+// and files one snapshot at its ingest door, which is what the Tower's task
+// screens render.
 
-import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
+import { readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
 import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 import { captureWorkflowDiagnostic } from '../workflow-diagnostics.mjs';
-import { checkBeadsHub, parseBeadsProjects, runBd } from './task-hub.mjs';
-import { syncTaskService, taskBackend } from './task-service-poll.mjs';
+import { parseBeadsProjects } from './task-hub.mjs';
+import { syncTaskService, taskBackend, taskLaneSkip } from './task-service-poll.mjs';
 import { createTaskService, TaskServiceUnavailable } from '../task-service.mjs';
 import { taskCacheDir } from '../task-service-cache.mjs';
 
@@ -43,41 +43,6 @@ async function responseDiagnostic(response, token) {
   return { ...safe, truncated: safe.truncated || truncated };
 }
 
-/**
- * One snapshot of the whole portfolio.
- *
- * `run(args)` is injected so the tests exercise the assembly without spawning
- * anything. Projects are polled in `config/beads.json` order and that order is
- * preserved into the payload — it is the order the board renders, and the file
- * is where the operator changes it.
- */
-export async function collectBeadsSnapshot({ projects, run, nowMs = Date.now(), repoRoot = HOME_ROOT }) {
-  const reach = { closedSince: beadsClosedSince(nowMs), closesSince: beadsClosesSince(nowMs) };
-  const entries = [];
-  for (const project of projects) {
-    if (project.unavailableReason) {
-      entries.push(beadsProjectError(project, project.unavailableReason));
-      continue;
-    }
-    const repoDir = taskProjectDirectory(project, repoRoot);
-    const args = beadsPollArgs(repoDir, reach.closesSince);
-    const results = {};
-    let failed = null;
-    for (const [key, argv] of Object.entries(args)) {
-      try {
-        results[key] = await run(argv);
-      } catch (err) {
-        // A spawn that never produced a process (bd missing, EACCES) is the same
-        // class of problem as a bd that exited non-zero: this project, only.
-        failed = beadsProjectError(project, `bd ${key} could not run: ${err.message}`);
-        break;
-      }
-    }
-    entries.push(failed ?? summarizeBeadsProject(project, results, reach));
-  }
-  return { capturedAt: new Date(nowMs).toISOString(), projects: entries };
-}
-
 export function beadsSnapshotUrl(config) {
   return `http://${config.ingestHost}:${config.ingestPort}/api/beads-snapshot`;
 }
@@ -91,28 +56,18 @@ const beadsPollState = { skipping: null };
  */
 export async function runBeadsPoll(runtime, deps = {}) {
   const {
-    // `checkBeadsHub`, not a second `probeTcp` call: one owner of "is the hub
-    // up?", one place that logs its state changes, and — because the poller
-    // runs every minute rather than every fifteen — a contention or crash-loop
-    // is named within a minute of starting instead of a quarter hour.
-    probe = () => checkBeadsHub(),
     readConfig = () => readTaskProjectConfig({ repoRoot: HOME_ROOT }),
     readToken = operatorToken,
-    run = runBd,
     post = fetch,
     now = Date.now,
     state = beadsPollState,
     emit = log,
     stopped = () => isShuttingDown(),
-    // Where the snapshot is filed and where project checkouts resolve from:
-    // the stack's door and home checkout, unless the caller names its own.
+    // Where the snapshot is filed: the stack's door, unless the caller names its own.
     url = beadsSnapshotUrl(CONFIG),
-    repoRoot = HOME_ROOT,
-    // While tasks live in Ntasks the snapshot comes from its change feed
-    // (runner/task-service-poll.mjs) and `bd` is never run. Only the runner
-    // itself passes one (os-up.mjs), so no test reaches a real ingest.
+    // The runner passes its own (os-up.mjs); without one the lane stands down.
     taskService = null,
-    cacheDir = taskCacheDir(repoRoot),
+    cacheDir = taskCacheDir(HOME_ROOT),
   } = deps;
 
   const { skip, resume } = laneSkips('beads snapshot', state, emit);
@@ -120,6 +75,9 @@ export async function runBeadsPoll(runtime, deps = {}) {
   if (stopped()) return null;
   // The tower's child hosts both Workers, so its readiness is the ingest's.
   if (!runtime.running || !runtime.ready) return skip('ingest is down/restarting');
+  // A snapshot from the wrong register would look current; the last one keeps its own time.
+  const standDown = taskLaneSkip(await taskBackend(taskService), 'file a task snapshot');
+  if (standDown) return skip(standDown);
   let projects;
   try {
     const raw = await readConfig();
@@ -130,28 +88,17 @@ export async function runBeadsPoll(runtime, deps = {}) {
   } catch (err) {
     return skip(`the task map is unreadable (${err.message})`);
   }
-  const backend = await taskBackend(taskService);
-  // A snapshot from the wrong register would look current; the last one keeps its own time.
-  if (backend === 'unknown') return skip('the ingest has not said whether tasks live in Ntasks');
-  const remote = backend === 'ntasks';
-  // An acknowledged empty map must clear the last snapshot even when the hub
-  // is down. Store failures above never turn into a fabricated empty roster.
-  if (!remote && projects.length > 0 && !(await probe())) return skip('the beads task hub is unreachable');
 
   const token = await readToken().catch(() => null);
   if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
 
   let body;
-  if (remote) {
-    try {
-      ({ body } = await syncTaskService({ service: taskService, spokes: projects, cacheDir, now }));
-    } catch (err) {
-      // Nothing is filed, so the last snapshot keeps the time it was taken.
-      if (err instanceof TaskServiceUnavailable) return skip(`Ntasks did not answer (${err.reason})`);
-      throw err;
-    }
-  } else {
-    body = await collectBeadsSnapshot({ projects, run, nowMs: now(), repoRoot });
+  try {
+    ({ body } = await syncTaskService({ service: taskService, spokes: projects, cacheDir, now }));
+  } catch (err) {
+    // Nothing is filed, so the last snapshot keeps the time it was taken.
+    if (err instanceof TaskServiceUnavailable) return skip(`Ntasks did not answer (${err.reason})`);
+    throw err;
   }
   resume();
   const failed = body.projects.filter((entry) => !entry.ok);

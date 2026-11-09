@@ -3,9 +3,6 @@ import { test } from 'node:test';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readTaskProjects, readTaskProjectConfig } from './task-project-config.mjs';
-import { linkedProjects, openStandaloneTasks } from './standalone-mcp.mjs';
-import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 import { CONFIG } from './runner/config.mjs';
 import {
@@ -14,9 +11,6 @@ import {
   panelReviewAlreadyFiled,
   panelReviewDueDate,
   panelReviewEntry,
-  panelReviewListArgs,
-  panelReviewCreateArgs,
-  filePanelReview,
   panelReviewPanelDate,
   panelPublicationGap,
   readPublishedFreshness,
@@ -26,86 +20,13 @@ import {
   serpPanelLandingsUrl,
 } from './runner/panel-review.mjs';
 
-// scripts/runner/panel-review.mjs: the panel-review
-// vocabulary and the filer that writes review beads. The filer is driven with
-// a canned door and a recording `bd`; nothing reaches a real tracker.
+// scripts/runner/panel-review.mjs: the panel-review vocabulary and the filer
+// that files review tasks in Ntasks. The filer is driven with a canned door and
+// a scripted Ntasks; nothing reaches a real tracker.
 
 const UP = { running: true, ready: true };
 const VERSION = '00000004-2026-09-22T13-10-04-637Z-4f83dc';
 const PROJECTS = JSON.stringify({ spokes: [{ asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' }] });
-
-test('a no-checkout review waits for publication and reconciles a lost create across concurrent polls', async t => {
-  const root = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'noticeos-review-no-checkout-'));
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  const project = { asset: 'shop.example', prefix: 'shop', database: 'shop' };
-  const options = { repoRoot: root, env: {}, token: 'fixture',
-    readHost: async () => JSON.stringify({ repositories: [project] }),
-    fetchImpl: async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 1, body: { spokes: [project] } }] }) };
-  const projects = linkedProjects({ read: () => readTaskProjects(options) });
-  const [connection] = await readTaskProjects(options);
-  const receipts = memoryReceipts(Date.now), rows = [], commands = [];
-  let closes = 0, creates = 0, publishedNow = false, loseResponse = true;
-  const store = { onlyWorkspace: async () => '5f42e967-bb21-4e9b-9c69-8b082e8491a6', close: async () => { closes++; },
-    inWorkspace: async (_workspace, work) => work({ query: async sql => sql.includes('pg_try_advisory') ? [{ acquired: true }] : [] }) };
-  const client = async (argv, cwd) => {
-    assert.equal(cwd, connection.cwd);
-    commands.push(argv);
-    const flag = name => argv.find(word => word.startsWith(name + '='))?.slice(name.length + 1);
-    if (argv.includes('create')) {
-      creates++;
-      assert.equal(flag('--due'), '2026-09-28');
-      rows.push({ id: `shop-${creates}`, title: flag('--title'), status: 'open', issue_type: 'task',
-        labels: ['panel-review'], metadata: JSON.parse(flag('--metadata')), created_at: new Date().toISOString() });
-      if (loseResponse) { loseResponse = false; return { code: 1, stdout: '' }; }
-    }
-    return { code: 0, stdout: JSON.stringify(argv.includes('create') ? rows.at(-1) : rows) };
-  };
-  const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4,
-    reports: ['serp-panel', 'ranked-keywords'] }] });
-  Object.assign(pass.deps, {
-    readConfig: () => readTaskProjectConfig(options),
-    // A stale ordinary list cannot cause a duplicate: receipt recovery performs
-    // its own complete read and matches the operation identity on the task.
-    run: async argv => { assert.equal(argv[1], connection.cwd); return { code: 0, stdout: '[]' }; },
-    readPublished: async () => publishedNow ? published(project.asset, '2026-09-21', ['serp-panel', 'ranked-keywords']) : null,
-    createReview: (resolved, landing) => filePanelReview(resolved, landing, {
-      readBindings: async () => ({ bindings: { DATABASE_URL: 'synthetic-bootstrap-address' } }),
-      open: options => {
-        assert.equal(options.databaseUrl, 'synthetic-bootstrap-address');
-        return openStandaloneTasks({ store, projects, receipts, run: client });
-      },
-    }),
-  });
-  await Promise.all([runPanelReviewFiler(UP, pass.deps), runPanelReviewFiler(UP, pass.deps)]);
-  assert.equal(creates, 0); assert.equal(closes, 0);
-  publishedNow = true;
-  await Promise.all([runPanelReviewFiler(UP, pass.deps), runPanelReviewFiler(UP, pass.deps)]);
-  assert.equal(creates, 1, pass.lines.join('\n')); assert.equal(rows.length, 1);
-  for (let poll = 0; poll < 3; poll++) await runPanelReviewFiler(UP, pass.deps);
-  assert.equal(creates, 1); assert.equal(rows.length, 1);
-  assert.equal(rows[0].metadata.noticeos_panel_version, VERSION);
-  const create = commands.find(argv => argv.includes('create'));
-  assert.ok(create.some(arg => arg.includes(`get_panel asset=shop.example version=${VERSION}`)));
-  assert.ok(commands.some(argv => argv.includes('--limit=0') && argv.includes('list')), 'lost response was reconciled through complete task reads');
-  assert.equal(closes, 5, 'every opened operation store is closed, including failed and concurrent writes');
-  rows[0].labels.push('invalid-automation');
-  pass.deps.run = async argv => { assert.equal(argv[1], connection.cwd); return { code: 0, stdout: JSON.stringify(rows) }; };
-  await runPanelReviewFiler(UP, pass.deps);
-  await runPanelReviewFiler(UP, pass.deps);
-  assert.equal(creates, 2, 'an invalidated review permits exactly one replacement');
-  assert.equal(rows[1].id, 'shop-2');
-  assert.equal(rows[1].metadata.noticeos_panel_version, VERSION);
-  assert.equal(closes, 6);
-  rows[1].labels.push('invalid-automation');
-  await runPanelReviewFiler(UP, pass.deps);
-  await runPanelReviewFiler(UP, pass.deps);
-  assert.equal(creates, 3, 'invalidating the replacement permits one subsequent valid review');
-  assert.equal(rows[2].id, 'shop-3');
-  assert.equal(closes, 7);
-
-
-  assert.equal(await fs.stat(path.join(root, '.beads')).catch(() => null), null);
-});
 
 /** A published panel's freshness.json whose DataForSEO source reaches `day`,
  * with each named family at that day. */
@@ -119,21 +40,42 @@ function published(asset, day, reports = []) {
   };
 }
 
-function filer({ landings, existing = '[]', hub = true, panel = (asset) => published(asset, '2026-09-21') } = {}) {
-  const ran = [];
+/** An Ntasks holding the shop project's `tasks`: the label read answers them,
+ * and a create files one more. */
+function ntasks(tasks = []) {
+  const state = { tasks: [...tasks], calls: [], creates: [] };
+  const service = {
+    backend: async () => 'ntasks',
+    projects: async () => [{ projectId: 'p-shop', logicalKey: 'shop.example', displayName: 'Shop', prefix: 'shop' }],
+    async call(call) {
+      state.calls.push(call);
+      const url = new URL(call.path, 'https://ntasks.example.com');
+      if (call.method === 'GET' && url.searchParams.has('label')) {
+        return { status: 200, body: { tasks: state.tasks.filter((task) => task.labels.includes(url.searchParams.get('label'))), next: null } };
+      }
+      if (call.method === 'POST' && url.pathname === '/api/tasks') {
+        const id = `shop-${state.tasks.length + 1}`;
+        state.creates.push(call.body);
+        state.tasks.push({ id, status: 'open', title: call.body.title, labels: call.body.labels, metadata: call.body.metadata });
+        return { status: 201, body: { id } };
+      }
+      throw new Error(`unexpected ${call.method} ${call.path}`);
+    },
+  };
+  return { service, state };
+}
+
+function filer({ landings, tasks = [], panel = (asset) => published(asset, '2026-09-21') } = {}) {
   const asked = [];
   const lines = [];
+  const { service, state } = ntasks(tasks);
   const deps = {
-    probe: async () => hub,
+    taskService: service,
     readConfig: async () => PROJECTS,
     readToken: async () => 'example-bearer',
     get: async (url, init) => {
       asked.push({ url, init });
       return new Response(JSON.stringify({ landings }), { status: 200 });
-    },
-    run: async (argv) => {
-      ran.push(argv);
-      return { code: 0, stdout: argv.includes('create') ? '{"id":"shop-1"}' : existing, stderr: '' };
     },
     readPublished: async (asset) => panel(asset),
     readVersion: async () => VERSION,
@@ -141,12 +83,7 @@ function filer({ landings, existing = '[]', hub = true, panel = (asset) => publi
     emit: (level, text) => lines.push(`${level} ${text}`),
     stopped: () => false,
   };
-  deps.createReview = async (project, landing) => {
-    const result = await deps.run(panelReviewCreateArgs(project.cwd ?? new URL('../shop', import.meta.url).pathname, landing));
-    if (result.code !== 0) throw new Error('task client create failed');
-    return JSON.parse(result.stdout).id;
-  };
-  return { deps, ran, asked, lines };
+  return { deps, ntasks: state, asked, lines };
 }
 
 test('publication movement cannot change the version whose families the filer checked', async t => {
@@ -184,23 +121,14 @@ test('a missing, invalid or unreadable publication version files nothing until i
       assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
     }
     assert.deepEqual(checkedVersions, [], 'a mutable current publication cannot substitute for a version');
-    assert.equal(pass.ran.some(argv => argv.includes('create')), false);
+    assert.deepEqual(pass.ntasks.creates, []);
     assert.equal(pass.lines.length, 1, 'the same publication gap is reported once');
     version = VERSION;
     assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed,
       [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
     assert.deepEqual(checkedVersions, [VERSION]);
-    const create = pass.ran.find(argv => argv.includes('create')).join(' ');
-    assert.match(create, new RegExp(`"noticeos_panel_version":"${VERSION}"`, 'u'));
+    assert.equal(pass.ntasks.creates[0].metadata.noticeos_panel_version, VERSION);
   }
-});
-
-test('an invalid task-list shape files nothing and leaves the next pass available', async () => {
-  const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], existing: '{}' });
-  const result = await runPanelReviewFiler(UP, pass.deps);
-  assert.deepEqual(result, { checked: 0, filed: [] });
-  assert.equal(pass.ran.length, 1);
-  assert.match(pass.lines[0], /invalid task list; filing nothing/);
 });
 
 test('a review is identified by its metadata first and its title second', () => {
@@ -223,29 +151,18 @@ test('a review marked invalid neither dedupes a new one nor shows on the board',
   assert.equal(panelReviewAlreadyFiled(rows, '2026-09-21'), false);
   assert.equal(panelReviewAlreadyFiled(rows, '2026-09-14'), true);
   assert.equal(panelReviewEntry(rows).beadId, 'shop-2');
-  assert.ok(panelReviewListArgs('/r').includes('open,in_progress,blocked,deferred,closed'), 'closed reviews count too');
 });
 
-test('a landing with no review files one bead, asked of this runner’s own door', async () => {
-  const { deps, ran, asked } = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }] });
+test('a landing with no review files one task, asked of this runner’s own door', async () => {
+  const { deps, ntasks, asked } = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }] });
   const result = await runPanelReviewFiler(UP, deps);
   assert.equal(asked[0].url, serpPanelLandingsUrl(CONFIG));
   assert.deepEqual(result.filed, [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
-  assert.deepEqual(ran.map((argv) => argv[2] === '--actor' ? argv[4] : argv[2]), ['list', 'create']);
+  assert.deepEqual(ntasks.calls.map((call) => call.method), ['GET', 'POST']);
   // The review names the panel version it was filed on, beside its identity.
-  const create = ran[1].join(' ');
-  assert.match(create, new RegExp(`"noticeos_panel_version":"${VERSION}"`, 'u'));
-  assert.match(create, new RegExp(`get_panel asset=shop\\.example version=${VERSION}`, 'u'));
-});
-
-test('an already-filed landing files nothing, and a down hub asks nothing', async () => {
-  const filed = JSON.stringify([{ id: 'shop-1', status: 'open', title: panelReviewTitle('shop.example', '2026-09-21') }]);
-  const again = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], existing: filed });
-  assert.deepEqual((await runPanelReviewFiler(UP, again.deps)).filed, []);
-  const down = filer({ landings: [], hub: false });
-  assert.equal(await runPanelReviewFiler(UP, down.deps), null);
-  assert.deepEqual([down.asked, down.ran], [[], []]);
-  assert.match(down.lines[0], /the beads task hub is unreachable/u);
+  const [create] = ntasks.creates;
+  assert.equal(create.metadata.noticeos_panel_version, VERSION);
+  assert.ok(create.description.includes(`get_panel asset=shop.example version=${VERSION}`));
 });
 
 // The review points at the panel dir, so it waits until the
@@ -257,7 +174,7 @@ test('a review waits for the published panel, then files', async () => {
 
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
-  assert.deepEqual(pass.ran.map((argv) => argv[2] === '--actor' ? argv[4] : argv[2]), ['list', 'list'], 'nothing created while unpublished');
+  assert.deepEqual(pass.ntasks.creates, [], 'nothing created while unpublished');
   assert.equal(pass.lines.length, 1, 'repeated polls report the same publication gap once');
   assert.match(pass.lines[0], /^WARN /);
   assert.ok(pass.lines[0].includes('shop.example'));
@@ -291,8 +208,8 @@ test('a published panel holds a collection only when it holds every family of th
 });
 
 test('an already-filed review is not held for its panel', async () => {
-  const filed = JSON.stringify([{ id: 'shop-1', status: 'open', title: panelReviewTitle('shop.example', '2026-09-21') }]);
-  const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], existing: filed, panel: () => null });
+  const filed = [{ id: 'shop-1', status: 'open', title: panelReviewTitle('shop.example', '2026-09-21'), labels: [PANEL_REVIEW_LABEL] }];
+  const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], tasks: filed, panel: () => null });
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
   assert.deepEqual(pass.lines, []);
 });

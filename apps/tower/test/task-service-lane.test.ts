@@ -24,7 +24,7 @@ function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unkno
   const calls: TaskServiceCall[] = [];
   const service: TaskService = {
     connected: async () => state.connected,
-    backend: async () => state.unknown ? "unknown" : state.connected ? "ntasks" : "local",
+    backend: async () => state.unknown ? "unknown" : state.connected ? "ntasks" : "none",
     origin: async () => "https://ntasks.example.com",
     home: async () => ({ backend: await service.backend(), origin: state.connected ? "https://ntasks.example.com" : null }),
     async call(call) {
@@ -133,22 +133,28 @@ it("names a site with no Ntasks project instead of reading another", async () =>
   expect(reply).toMatchObject({ status: 404, body: { error: "unmapped_project", detail: "No Ntasks project has the prefix shop" } });
 });
 
-it("keeps the task routes on bd while no task service is connected", async () => {
+it.each([
+  ["GET", "/api/tasks?project=example.com", undefined],
+  ["GET", "/api/tasks/projects", undefined],
+  ["POST", "/api/tasks/ex-1/comments", { text: "Note" }],
+])("answers %s %s as not connected while no task service is connected, and runs no bd", async (method, url, body) => {
   const ran: string[][] = [];
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false });
-  await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
+  const reply = await lane(service, ran)(request(method, url, body));
+  expect(reply).toMatchObject({ status: 409, body: { error: "task_service_not_connected" } });
   expect(calls).toEqual([]);
-  expect(ran.length).toBeGreaterThan(0);
+  expect(ran).toEqual([]);
 });
 
-it("refuses a change while the ingest has never said where the tasks live, and reads stay on bd", async () => {
+it("refuses reads and changes while the ingest has never said where the tasks live, and runs no bd", async () => {
   const ran: string[][] = [];
   const { service, calls } = ntasks(() => ({ status: 200, body: BOARD }), { down: false, connected: false, unknown: true });
   const change = await lane(service, ran)(request("POST", "/api/tasks/ex-1/comments", { text: "Note" }));
   expect(change).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
-  await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
+  const read = await lane(service, ran)(request("GET", "/api/tasks?project=example.com"));
+  expect(read).toMatchObject({ status: 503, body: { error: "task_service_unknown" } });
   expect(calls).toEqual([]);
-  expect(ran.length).toBeGreaterThan(0);
+  expect(ran).toEqual([]);
 });
 
 it("does not pass off a read Ntasks answered with something else as a board", async () => {

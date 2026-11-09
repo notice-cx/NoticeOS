@@ -19,7 +19,7 @@ import { backupAsset, validateAssetBackups } from './asset-backup.mjs';
 import { createCloudflareD1BackupClient, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
 import { backupDate, backupReportComplete, retainedBackupDates, validateBackupRetention } from './backup-retention.mjs';
 import { BACKUP_PATHS, readBackupWorker, privateBackupFile } from './container-backup-profile.mjs';
-import { dumpContainerPostgres, backupContainerDolt, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
+import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
 import { analyticalHistoryDirectory, backupAnalyticalHistory, verifyAnalyticalHistoryBackup,
   assertAnalyticalHistoryReplacement, retainedAnalyticalHistoryDates } from './analytical-history-backup.mjs';
 
@@ -496,14 +496,20 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
           });
           return;
         }
-        // A declared container profile owns its storage boundary. A malformed
+        // A container installation's tasks live only in Ntasks: with none
+        // connected it has no tasks to keep.
+        if (containerMode) {
+          stages.taskHub = stage('not_configured');
+          return;
+        }
+        // A declared host profile owns its storage boundary. A malformed
         // profile fails this stage; it must never fall back to another hub.
         if (doltHome !== undefined && (typeof doltHome !== 'string' || !path.isAbsolute(doltHome))) {
           throw new Error('The selected task backup home must be an absolute declared installation folder.');
         }
-        const profile = containerMode ? null : await readDoltProfile(doltHome ?? repoRoot);
+        const profile = await readDoltProfile(doltHome ?? repoRoot);
         if (doltHome !== undefined && !profile) throw new Error('The selected task backup home has no declared Dolt profile; legacy capture was refused.');
-        composeTaskHub = containerMode || profile !== null;
+        composeTaskHub = profile !== null;
         const host = await readTaskHost({
           repoRoot, readHost: () => io.readFile(taskHostFile(repoRoot), 'utf8'), absentLinksNone: taskHub === 'linked',
         });
@@ -528,11 +534,11 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
           }
           fail(result, 'Inventory', 'No task databases configured');
         }
-        if (containerMode || profile) {
+        if (profile) {
           if (!databases.size) return;
           const failures = result.failureCount;
           await copyItem(result, 'Task hub', path.join(working, 'beads'), () =>
-            containerMode ? backupContainerDolt([...databases.keys()], path.join(working, 'beads')) : backupDolt(profile, [...databases.keys()], path.join(working, 'beads'), {
+            backupDolt(profile, [...databases.keys()], path.join(working, 'beads'), {
               run: adapters.runDolt,
               env: adapters.env ?? process.env,
             }));
@@ -741,8 +747,10 @@ the synchronization folder does not establish completed remote synchronization.
 - \`r2/\`: immutable blobs and online SQLite metadata snapshots from \`.wrangler/state/v3/r2/\`.
 ${tasksInNtasks
     ? `- \`ntasks/backup.json\`: every row of the Ntasks task store, as its backup route hands them out (${NTASKS_BACKUP_FORMAT}).`
+    : containerMode
+    ? '- No tasks: no task service was connected when the set was taken.'
     : composeTaskHub
-    ? '- `beads/`: online Dolt database snapshots, server metadata and a complete-backup manifest for the declared Compose task hub.'
+    ? '- `beads/`: online Dolt database snapshots, server metadata and a complete-backup manifest for the declared task hub.'
     : '- `beads/<db>/`: consistent Dolt backups of the physical databases in the installation\'s `task-host.json`.'}
 - \`assets/<asset>/*.sql.gz\`: gzip-compressed exports from explicitly configured asset \`backup:prod\` tasks.
 - \`cloudflare-d1/<account>/<database>/\`, when selected in Integrations:
@@ -753,7 +761,7 @@ ${tasksInNtasks
   records their generation content fingerprints and file sizes/SHA-256 hashes.
 - \`backup.json\`: copy completeness used by daily/weekly retention.
 - \`RESTORE.md\`: these copy results and restore instructions.
-${containerMode ? '- `recovery/`: private bootstrap credentials, Postgres role custody and task installation declarations, with a hashed manifest. Keep the whole set private.\n  Only the local set has it; the offsite copy leaves it out. Keep a copy of it in a password manager.\n' : ''}
+${containerMode ? '- `recovery/`: private bootstrap credentials and Postgres role custody, with a hashed manifest. Keep the whole set private.\n  Only the local set has it; the offsite copy leaves it out. Keep a copy of it in a password manager.\n' : ''}
 
 ## Restore
 
@@ -784,6 +792,8 @@ replacing an existing installation requires an explicitly approved maintenance w
   performs no restore, database deletion or schema migration.
 ${tasksInNtasks
     ? '- Task hub: in an Ntasks checkout of the version the set was taken from, run\n  `node tools/migrate/src/cli.ts restore --from <this-dir>/ntasks/backup.json --store restored.sqlite`.\n  It loads every row into a new store copy and prints `0 differences.` when the copy matches the file.'
+    : containerMode
+    ? ''
     : composeTaskHub
     ? '- Task hub: follow `db/dolt/host/README.md` to restore `beads/` into a new, empty Compose project with the pinned Dolt image. Restore the database snapshots and server metadata together, then verify task records, history and access before accepting recovery. Database snapshots are taken sequentially while the source stays online; they are not one transaction across all projects.'
     : '- Task hub: from an empty scratch directory, run\n  `dolt backup restore file://<this-dir>/beads/<db> <db>`, then inspect with `dolt sql`.\n  Move it into the hub\'s data directory only with the hub service stopped.'}

@@ -314,7 +314,8 @@ owner may designate a local Compose installation as development and let it
 follow a mounted checkout, recorded in `.local/stack-development/authorization.json`.
 
 NoticeOS runs as one Docker Compose stack of the app (`noticeos`: Tower,
-ingest and the runner), `postgres`, `dolt` and an optional `backup` worker. The
+ingest and the runner), `postgres` and an optional `backup` worker; its tasks
+live in Ntasks. The
 ignored `.local/stack.json` selects it, and every `pnpm os:*` command acts on
 that stack ([Docker guide](deploy/compose/README.md)). Every installation runs
 from the one definition `deploy/compose/stack.yaml` and its folder's
@@ -331,7 +332,7 @@ pnpm os:status                 # each service's health, the database's migration
 pnpm os:logs -- --lines 200    # recent logs; -- --follow, -- <service>
 pnpm os:capacity               # store size and growth per table, read-only
 pnpm os:restart                # the whole stack, in dependency order, waiting for health
-pnpm os:restart:noticeos       # only the app; :backup, :postgres and :dolt name the other services
+pnpm os:restart:noticeos       # only the app; :backup and :postgres name the other services
 pnpm os:update                 # move the app to main's image (published, or built here), show the plan, apply it after you type `update`
 ```
 
@@ -356,7 +357,7 @@ migration is operator-only: `pnpm os:status` → a backup you can restore
 reports; apply changes count alerts), `os:collect` (it asks providers and can
 spend) and `os:refresh-comparison` (it asks Google) are operator-directed. An
 agent's verbs are `os:status`, `os:logs`, `os:restart` and its one-service
-forms, the task verbs `os:mcp` and `os:bd` and, after a verified merge,
+forms, `os:mcp` and, after a verified merge,
 `os:update`; never `os:migrate`.
 
 `pnpm os:setup` on a machine that already runs an installation stops when it

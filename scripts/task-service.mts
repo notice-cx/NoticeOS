@@ -49,9 +49,10 @@ export class TaskServiceToolRefused extends Error {
   override name = 'TaskServiceToolRefused';
 }
 
-/** Where this installation's tasks live: `local` is the task database on this
- * machine; `unknown` means the ingest has not said since this process started. */
-export type TaskBackend = 'ntasks' | 'local' | 'unknown';
+/** Where this installation's tasks live: `none` while no task service is
+ * connected, when it has no tasks; `unknown` means the ingest has not said
+ * since this process started. */
+export type TaskBackend = 'ntasks' | 'none' | 'unknown';
 
 export interface TaskService {
   /** Whether this installation's tasks live in Ntasks; throws when the ingest cannot say. */
@@ -162,8 +163,8 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   const service: TaskService = {
     async connected() { return (await read()).connected; },
     async backend() {
-      try { return (await read()).connected ? 'ntasks' : 'local'; }
-      catch { return known === null ? 'unknown' : known ? 'ntasks' : 'local'; }
+      try { return (await read()).connected ? 'ntasks' : 'none'; }
+      catch { return known === null ? 'unknown' : known ? 'ntasks' : 'none'; }
     },
     async origin() { return (await read()).origin; },
     async home(within) {
@@ -171,8 +172,8 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
       const late = within === undefined ? [] : [new Promise<null>(resolve => { timer = setTimeout(resolve, within, null); })];
       try {
         const answer = await Promise.race([read().catch(() => null), ...late]);
-        if (answer) return { backend: answer.connected ? 'ntasks' : 'local', origin: answer.origin };
-        return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'local', origin: known ? status?.origin ?? null : null };
+        if (answer) return { backend: answer.connected ? 'ntasks' : 'none', origin: answer.origin };
+        return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'none', origin: known ? status?.origin ?? null : null };
       } finally { clearTimeout(timer); }
     },
     call,

@@ -9,13 +9,12 @@
 | `os:apply` | Apply your edits to installation.env to the running stack, after you confirm the plan. | `scripts/stack-apply.mjs` |
 | `os:status` | Where the installation is, what runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
 | `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
-| `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
-| `os:stop` | Stop the app, then backup, then the databases. | `scripts/stack-control.mjs stop` |
+| `os:start` | Start the stack: Postgres, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
+| `os:stop` | Stop the app, then backup, then Postgres. | `scripts/stack-control.mjs stop` |
 | `os:restart` | Restart the stack in the same order, waiting for each layer's health. | `scripts/stack-control.mjs restart` |
 | `os:restart:noticeos` | Restart only the app, waiting for its health. | `scripts/stack-control.mjs restart noticeos` |
 | `os:restart:backup` | Restart only the backup worker, waiting for its health. | `scripts/stack-control.mjs restart backup` |
 | `os:restart:postgres` | Restart Postgres, with the app and backup worker stopped until it is healthy again. | `scripts/stack-control.mjs restart postgres` |
-| `os:restart:dolt` | Restart the task store, with the app and backup worker stopped until it is healthy again. | `scripts/stack-control.mjs restart dolt` |
 | `os:update` | Move the app to main's image, show the plan, and apply it after you confirm. | `scripts/stack-deploy.mjs` |
 | `os:rollback` | Move the app back to the previous image, after you confirm. | `scripts/stack-deploy.mjs --rollback` |
 | `os:migrate` | What is applied and pending; `-- --apply` applies it after you type the database's name. | `scripts/os-migrate.mjs` |
@@ -28,7 +27,6 @@
 | `os:refresh-anomalies` | Re-evaluate current count alerts from stored reports, with no provider calls. | `scripts/stack-control.mjs refresh-anomalies` |
 | `os:refresh-comparison` | Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site. | `scripts/stack-control.mjs refresh-comparison` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
-| `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
 | `os:codebase-report` | Measure one asset's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
 | `os:codebase-history` | Preview Git-history snapshots and release records offline; measure a pinned image, or explicitly import a prepared bundle. | `scripts/codebase-history.mjs` |
 
@@ -335,7 +333,6 @@ and missing output is unavailable, never an invented zero
 |---|---|---|
 | tower + ingest (`vite`) | **5173** in the app container | one workerd runtime hosting both Workers; published only on the host's `${NOTICEOS_TOWER_BIND}:${NOTICEOS_TOWER_PORT}`, `127.0.0.1` unless the installation chooses otherwise |
 | ingest door | **8791** in the app container | a second loopback listener from `apps/tower/vite/runner-door.ts` serving the ingest's routes and cron fires; never published, because the scheduled endpoint is unauthenticated |
-| task hub (`dolt sql-server`) | **3306** on the installation network | the stack's `dolt` service, declared in `/state/task-client.json` |
 
 The port constants are the `CONFIG` block of `scripts/runner/config.mjs`;
 `os:run-job` reads the same constant, and the runner passes the door address
@@ -463,44 +460,33 @@ regular tick after a failure.
 > reboot; a stack stopped with `pnpm os:stop` fires nothing until
 > `pnpm os:start`.
 
-## The beads task hub
+## The task service
 
-[beads](https://github.com/steveyegge/beads) (`bd`) is a Dolt-backed task
-tracker. The portfolio shares **one Dolt SQL server** — the hub — and every
-repo is a **spoke**: a `bd` client in server mode with no database of its own,
-which is what makes concurrent writers safe. Tasks are coordination state, not
-signals: a second store beside the ledger. The contract — how a project joins,
-the spoke config standard, filing conventions — is
-[`config/beads.README.md`](../config/beads.README.md); hosting and recovery of
-the Compose service are [`db/dolt/host/README.md`](../db/dolt/host/README.md).
-In the stack the hub is the `dolt` service, declared to the app in
-`/state/task-client.json`; a missing or malformed declaration refuses startup
-and backup.
+An installation's tasks live in Ntasks
+([Keep tasks in Ntasks](../docs/guides/keep-tasks-in-ntasks.md)); the stack
+runs no task database. The runner's task lanes, each a module under
+`scripts/runner/` with its cadence in `CONFIG`, run only while Ntasks is
+connected. With none connected, or while the ingest has not said whether one
+is, each lane records a skip and reads or changes nothing:
 
-The hub is not the runner's child: it is its own service, so every repository
-keeps its tracker while the app is stopped. The runner probes it, backs it up
-nightly, and runs these
-lanes against it, each a module under `scripts/runner/` with its cadence in
-`CONFIG`:
-
-- **The snapshot poller** (every minute, `beadsPollCron`) reads each saved
-  project through `bd -C <repo>` and files one `POST /api/beads-snapshot`
-  through the ingest door; failure is isolated per project, and it never
-  writes a bead.
-- **The task-map lane** (`beadsMapCheckCron`) files one `task-map-drift,human`
-  bead for a declared database the hub's `SHOW DATABASES` does not hold; a hub
-  that will not answer decides nothing. The same hourly check evaluates timed
-  task gates for each available project, including folders without a code checkout.
+- **The snapshot poller** (every minute, `beadsPollCron`) reads Ntasks's change
+  feed and the boards it names, and files one `POST /api/beads-snapshot`
+  through the ingest door
+  ([how the snapshot stays current](../docs/guides/keep-tasks-in-ntasks.md#how-the-snapshot-stays-current)).
+- **Task service health** (`beadsHubCheckCron`) records whether a task service
+  is connected.
+- **The task-map lane** (`beadsMapCheckCron`) records a skip: Ntasks keeps no
+  task databases to check.
 
 ### The panel-review filer
 
-Hourly (`panelFilerCron`), the runner asks the ingest what landed
-(`GET /api/serp-panel-landings`) and, once the asset's published panel
-`freshness.json` holds that collection day, files one `panel-review` bead in
-the asset's repo, due seven days later, with `noticeos_panel_asset` /
-`noticeos_panel_date` metadata. Identity is (asset, collection day),
-re-derived every pass from the spoke itself, so there is no state file and no
-duplicate; every failure path writes nothing. Close the task after recording
+Hourly (`panelFilerCron`), while Ntasks is connected, the runner asks the
+ingest what landed (`GET /api/serp-panel-landings`) and, once the asset's
+published panel `freshness.json` holds that collection day, files one
+`panel-review` task in the asset's Ntasks project, due seven days later, with
+`noticeos_panel_asset` / `noticeos_panel_date` metadata. Identity is (asset,
+collection day), re-derived every pass from the project's own tasks, so there
+is no state file and no duplicate; every failure path writes nothing. Close the task after recording
 the evidence version, coverage, and up to three recommended actions. A review
 can conclude that no action is warranted. See
 [`config/serp-panel.README.md`](../config/serp-panel.README.md).

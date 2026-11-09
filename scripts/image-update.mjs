@@ -148,7 +148,7 @@ export async function moveVersion(options, { run = runCommand, env = process.env
       await declared(selector.files.map((file) => file.startsWith(`${stack}/`) ? staged + file.slice(stack.length) : file), nextEnv),
       { from: staged, to: stack });
   } finally { fs.rmSync(nextEnv, { force: true }); }
-  const databases = changing.filter((name) => ['postgres', 'dolt'].includes(name));
+  const databases = changing.filter((name) => name === 'postgres');
   say(`${options.rollback ? 'Rolling back' : 'Updating'} ${selector.project} from ${short(current.revision)} to ${short(target.revision)}. Nothing has changed yet.`);
   say(`  The app${changing.includes('backup') ? ' and backup worker' : ''} run${changing.includes('backup') ? '' : 's'} the ${options.rollback ? 'earlier' : 'new'} image.`);
   if (databases.length) say(`  ${databases.join(', ')}: ${databases.length === 1 ? 'its' : 'their'} declaration changes; the app and backup worker stop while ${databases.length === 1 ? 'it returns' : 'they return'}.`);

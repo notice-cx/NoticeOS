@@ -1,11 +1,10 @@
 import { captureWorkflowDiagnostic } from '../workflow-diagnostics.mjs';
 import { runCommand } from '../run-command.mjs';
-import { runBd } from './task-hub.mjs';
 import { log } from './log.mjs';
 
 /** Capture existing local command results without changing their return or verdict. */
-export function localLaneDiagnostics(capture, job, { task = runBd, command = runCommand, emit = log, resultMetadata = () => ({}) } = {}) {
-  if (!capture) return { runTask: task, runCommand: command, emit, finish() {} };
+export function localLaneDiagnostics(capture, job, { command = runCommand, emit = log, resultMetadata = () => ({}) } = {}) {
+  if (!capture) return { runCommand: command, emit, finish() {} };
   const calls = [], errors = [];
   let omitted = 0;
   const telemetry = fn => { try { fn(); } catch { /* diagnostics cannot change a command result */ } };
@@ -35,7 +34,6 @@ export function localLaneDiagnostics(capture, job, { task = runBd, command = run
       if (error) { errors.push(diagnostic(error)); telemetry(() => capture.error(errors, flags(errors))); }
       telemetry(() => capture.output({ result, commands: calls, omittedCommands: omitted }, flags([commandFlags(), resultMetadata(result)])));
     },
-    runTask: (args, timeoutMs) => observe({ command: 'task client', args, ...(timeoutMs !== undefined ? { timeoutMs } : {}) }, () => task(args, timeoutMs)),
     runCommand: (name, args, options = {}) => observe({ command: name, args, cwd: options.cwd, timeoutMs: options.timeoutMs }, () => command(name, args, options)),
     emit(level, text) {
       emit(level, text);

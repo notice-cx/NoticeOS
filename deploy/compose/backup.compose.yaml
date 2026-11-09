@@ -4,12 +4,6 @@ services:
   postgres:
     volumes:
       - pg-backup-socket:/var/run/postgresql
-  dolt:
-    volumes:
-      - type: bind
-        source: ${NOTICEOS_BACKUP_STAGING_DIR:?Declare the private shared staging folder}
-        target: /backup-staging
-        bind: {create_host_path: false}
   noticeos:
     volumes:
       - type: bind
@@ -58,11 +52,6 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ${NOTICEOS_DOLT_SECRETS:?Declare the existing protected task custody folder}
-        target: /run/dolt-secrets
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
         source: ${NOTICEOS_BACKUP_STAGING_DIR:?Declare the private shared staging folder}
         target: /backup-staging
         bind: {create_host_path: false}
@@ -79,11 +68,7 @@ services:
         source: ${NOTICEOS_BACKUP_OFFSITE_PARENT:?Declare the existing handoff parent}
         target: /backup-offsite
         bind: {create_host_path: false}
-      - dolt-backup-source:/dolt-data:ro
       - pg-backup-socket:/postgres-socket:ro
     networks: [installation]
 volumes:
   pg-backup-socket: {}
-  dolt-backup-source:
-    external: true
-    name: ${NOTICEOS_DOLT_BACKUP_VOLUME:?Declare the exact existing task data volume}

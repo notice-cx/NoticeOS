@@ -42,7 +42,6 @@ export function runnerPaths(codeRoot, env = process.env) {
     jobRunsFile: state.jobRunsFile,
     runnerStateFile: state.runnerStateFile,
     backupsDir: state.backupsDir,
-    beadsDoltDir: state.beadsDoltDir,
     scheduleStatusFile: path.join(homeRoot, SCHEDULE_STATUS_FILE),
     devSecrets: state.devSecrets,
     devVars: state.devVars,
@@ -75,19 +74,13 @@ export const CONFIG = {
   ingestPort: 8791,
   towerLanHost: '0.0.0.0',
   towerPort: 5173,
-  // Legacy native task-hub fallback only. A declared task client (including
-  // NOTICEOS_DOLT_HOME's Compose profile) supplies its own endpoint to health
-  // checks and backups. The hub's service lifecycle is independent of the runner;
-  // never start the retired native service to recover a declared Compose hub.
-  // Existing native installations keep these coordinates in sync with their
-  // saved task map and dolt-server.yaml until an approved cutover.
+  // The legacy local task hub's address, which the runner never contacts.
   beadsHubHost: '127.0.0.1',
   beadsHubPort: 3308,
-  // How often to re-check the hub. Only state *changes* are logged, so this
-  // cadence costs one line when the hub goes down and one when it comes back.
+  // How often the runner records whether a task service is connected.
   beadsHubCheckCron: '*/15 * * * *',
-  // How often the hub is photographed into the central store for the Tower's
-  // work board. Every minute: a minute-old answer is current and a
+  // How often the task boards are photographed into the central store for the
+  // Tower's work board. Every minute: a minute-old answer is current and a
   // ten-minute-old one is a lie about what an agent is doing right now.
   beadsPollCron: '* * * * *',
   // How often the runner asks whether a weekly DataForSEO collection has landed
@@ -99,12 +92,7 @@ export const CONFIG = {
   // 03:30 sweep closes something, so it stays silent on ticks with nothing to
   // carry.
   watchReadbackCron: '50 * * * *',
-  // How often each project's declared task database is reconciled against what
-  // the hub actually holds. Hourly at :05 — off every other lane's tick, and
-  // the cheapest pass here: one `SHOW DATABASES` for the whole portfolio, then
-  // a `bd list` only when something has drifted. Hourly rather than nightly
-  // because the value is edited on /settings and by hand, and otherwise only
-  // the nightly backup reads it.
+  // The task-map lane's tick, hourly at :05 (runner/task-map.mjs).
   beadsMapCheckCron: '5 * * * *',
   // How often every rostered property's local signal panels are rebuilt
   // (config/signal-panels.json). 13:10 UTC: after both archive crons have
@@ -139,11 +127,6 @@ export const RUNNER_STATE_FILE = STATE.runnerStateFile;
 export const BACKUPS_DIR = STATE.backupsDir;
 // Code: the cron list ships with the code it schedules.
 export const INGEST_WRANGLER = path.join(REPO_ROOT, 'workers', 'ingest', 'wrangler.jsonc');
-// The task hub's data directory. The `brew services` dolt server owns its
-// contents (the installation's dolt-server.yaml points at this path); we only
-// guarantee the directory exists, so a fresh clone does not leave the service
-// crash-looping on a missing data_dir. Under .local/ (gitignored).
-export const BEADS_DOLT_DIR = STATE.beadsDoltDir;
 // The secret files, always home's: a code folder links to them, but the sync
 // below WRITES .dev.vars, and an atomic write through a link would replace the
 // link with a copy of the secrets inside the code folder.

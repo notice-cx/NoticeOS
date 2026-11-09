@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { actionArgs, main, mcpConnectHelp, readSelector, validateSelector, parseServices, stackControl } from './stack-control.mjs';
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
-const rows = (backup = true) => ['noticeos','postgres','dolt',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
+const rows = (backup = true) => ['noticeos','postgres',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
+/** The stopped task server an installation set up while its tasks were in Dolt keeps. */
+const retired = { Project: selector.project, Service: 'dolt', ID: '9'.repeat(64), State: 'exited', Health: '' };
 function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revision = null, main = 'a'.repeat(40), development=false, at = selector } = {}) {
   const calls = []; let inspections = 0; let output = '';
   const run = async (command, args, options) => {
@@ -82,19 +84,30 @@ test('missing, extra, duplicate and foreign services refuse before any mutation'
   }
   assert.throws(() => parseServices('PRIVATE-SENTINEL', selector.project), /invalid/u);
 });
-test('start waits databases, optional backup and app without creating resources', async () => {
+test('start waits Postgres, optional backup and app without creating resources', async () => {
   const own = fixture(); await stackControl('start', selector, own);
-  assert.deepEqual(own.writes(), [['start','--wait','--wait-timeout','90','postgres','dolt'],['start','--wait','--wait-timeout','90','backup'],['start','--wait','--wait-timeout','90','noticeos']]);
+  assert.deepEqual(own.writes(), [['start','--wait','--wait-timeout','90','postgres'],['start','--wait','--wait-timeout','90','backup'],['start','--wait','--wait-timeout','90','noticeos']]);
 });
-test('stop shuts down app, backup then databases', async () => {
+test('stop shuts down app, backup then Postgres', async () => {
   const own = fixture(); await stackControl('stop', selector, own);
-  assert.deepEqual(own.writes(), [['stop','noticeos'],['stop','backup'],['stop','postgres','dolt']]);
+  assert.deepEqual(own.writes(), [['stop','noticeos'],['stop','backup'],['stop','postgres']]);
 });
-test('restart stops consumers before databases and waits each restarted layer', async () => {
+test('restart stops consumers before Postgres and waits each restarted layer', async () => {
   const own = fixture(); await stackControl('restart', selector, own);
-  assert.deepEqual(own.writes(), [['stop','noticeos','backup'],['restart','--no-deps','postgres','dolt'],['start','--wait','--wait-timeout','90','postgres','dolt'],['restart','--no-deps','backup'],['start','--wait','--wait-timeout','90','backup'],['restart','--no-deps','noticeos'],['start','--wait','--wait-timeout','90','noticeos']]);
+  assert.deepEqual(own.writes(), [['stop','noticeos','backup'],['restart','--no-deps','postgres'],['start','--wait','--wait-timeout','90','postgres'],['restart','--no-deps','backup'],['start','--wait','--wait-timeout','90','backup'],['restart','--no-deps','noticeos'],['start','--wait','--wait-timeout','90','noticeos']]);
 });
-test('the three-service profile omits backup and only uses existing-container operations', async () => {
+test('an earlier stack\'s stopped task server is neither listed, started, stopped nor restarted', async () => {
+  const inventory = [...rows(), retired];
+  const status = fixture({ inventory }); await stackControl('status', selector, status);
+  assert.doesNotMatch(status.output(), /dolt/u);
+  for (const action of ['start', 'stop', 'restart']) {
+    const own = fixture({ inventory }); await stackControl(action, selector, own);
+    assert.ok(own.writes().every(step => !step.includes('dolt')), action);
+  }
+  assert.throws(() => actionArgs('restart', ['dolt']), /Usage/u);
+  assert.throws(() => actionArgs('logs', ['dolt']), /Usage/u);
+});
+test('a stack without a backup worker omits it and only uses existing-container operations', async () => {
   const own = fixture({ inventory: rows(false) }); await stackControl('restart', selector, own);
   assert.ok(own.writes().every(step => !step.includes('backup') && ['start','stop','restart'].includes(step[0])));
   assert.equal(own.writes().length, 5);
@@ -106,17 +119,15 @@ test('restarting the app or the backup worker restarts that container alone and 
     assert.match(own.output(), new RegExp(`${service} restart complete\\.\\n$`, 'u'));
   }
 });
-test('restarting one database stops the app and backup worker until it is healthy again', async () => {
-  for (const service of ['postgres', 'dolt']) {
-    const own = fixture(); await stackControl('restart', selector, { ...own, args: [service] });
-    assert.deepEqual(own.writes(), [['stop','noticeos','backup'],['restart','--no-deps',service],['start','--wait','--wait-timeout','90',service],
-      ['start','--wait','--wait-timeout','90','backup'],['start','--wait','--wait-timeout','90','noticeos']], service);
-  }
+test('restarting Postgres stops the app and backup worker until it is healthy again', async () => {
+  const own = fixture(); await stackControl('restart', selector, { ...own, args: ['postgres'] });
+  assert.deepEqual(own.writes(), [['stop','noticeos','backup'],['restart','--no-deps','postgres'],['start','--wait','--wait-timeout','90','postgres'],
+    ['start','--wait','--wait-timeout','90','backup'],['start','--wait','--wait-timeout','90','noticeos']]);
   const lean = fixture({ inventory: rows(false) }); await stackControl('restart', selector, { ...lean, args: ['postgres'] });
   assert.deepEqual(lean.writes(), [['stop','noticeos'],['restart','--no-deps','postgres'],['start','--wait','--wait-timeout','90','postgres'],['start','--wait','--wait-timeout','90','noticeos']]);
 });
 test('a one-service restart names a service the stack has, and nothing else', async () => {
-  for (const args of [['foreign'], ['noticeos', 'dolt'], ['--all']]) assert.throws(() => actionArgs('restart', args), /Usage/u, args.join(' '));
+  for (const args of [['foreign'], ['noticeos', 'postgres'], ['--all']]) assert.throws(() => actionArgs('restart', args), /Usage/u, args.join(' '));
   const lean = fixture({ inventory: rows(false) });
   await assert.rejects(stackControl('restart', selector, { ...lean, args: ['backup'] }), /no backup worker/u);
   assert.deepEqual(lean.writes(), []);
@@ -127,7 +138,7 @@ test('the activity comparison refresh runs inside the running app with no argume
   assert.throws(() => actionArgs('refresh-comparison', ['--asset', 'example.com']), /Usage/u);
 });
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
-  const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\), dolt \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
+  const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));
 });
 test('a replaced container refuses the next mutation', async () => {
@@ -194,14 +205,13 @@ test('one asset\'s collection runs inside the running app with exactly the asset
     assert.deepEqual(own.writes(), [], args.join(' '));
   }
 });
-test('the MCP server and the task client run inside the running app, over this terminal\'s own input and output', async () => {
-  for (const [action, args, job] of [['mcp', [], ['mcp']], ['mcp', ['--actor', 'agent-1'], ['mcp', '--actor', 'agent-1']],
-    ['bd', ['--project', 'ex', 'ready', '--json'], ['bd', '--project', 'ex', 'ready', '--json']]]) {
+test('the MCP server runs inside the running app, over this terminal\'s own input and output', async () => {
+  for (const [action, args, job] of [['mcp', [], ['mcp']], ['mcp', ['--actor', 'agent-1'], ['mcp', '--actor', 'agent-1']]]) {
     const own = fixture(); await stackControl(action, selector, { ...own, args });
     assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs',...job]], action);
   }
   assert.throws(() => actionArgs('mcp', ['--http']), /pnpm os:mcp -- --actor <name>/u);
-  assert.throws(() => actionArgs('bd', []), /pnpm os:bd -- list/u);
+  await assert.rejects(stackControl('bd', selector, { ...fixture(), args: ['ready'] }), /Usage/u);
 });
 test('at a terminal the MCP server does not wait for messages: it says how to connect it and starts nothing', async () => {
   let output = ''; const out = { write: value => { output += value; } };

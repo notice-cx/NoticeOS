@@ -2,18 +2,20 @@
 
 NoticeOS runs as one Docker Compose stack of `noticeos` (this app: the Tower,
 the ingest and the runner, `scripts/os-up.mjs` started by
-[`entrypoint.mjs`](entrypoint.mjs)), `postgres`, `dolt` and an optional
-[`backup`](backup.README.md) worker. In production the app runs a prepared
+[`entrypoint.mjs`](entrypoint.mjs)), `postgres` and an optional
+[`backup`](backup.README.md) worker. Its tasks live in Ntasks, connected in the
+Tower ([Keep tasks in Ntasks](../../docs/guides/keep-tasks-in-ntasks.md)); the
+stack runs no task database. In production the app runs a prepared
 image; in development it runs a checkout's live source
 ([below](#follow-a-checkout-during-local-development)). The `pnpm os:*`
 commands [run the stack](#run-the-stack).
 
 The app starts an **already prepared installation**. It never initializes or
-migrates either database.
+migrates the database.
 
 Every installation runs from one definition, [`stack.yaml`](stack.yaml). It
-includes each service's own file (Postgres and Dolt beside their scripts, the
-app in [`compose.yaml`](compose.yaml)) and the small shared files in
+includes each service's own file (Postgres beside its scripts, the app in
+[`compose.yaml`](compose.yaml)) and the small shared files in
 [`stack/`](stack): one network that the project creates, and data volumes that
 it names but never creates. [`backup.compose.yaml`](backup.compose.yaml) is added on top when the
 installation has a backup worker. The installation folder's `installation.env`
@@ -28,10 +30,10 @@ pnpm os:convert-legacy   # the installation .local/stack.json selects, moved int
 `os:setup` needs only Docker, Node and pnpm: it takes main's
 [published image](#update-the-app-from-main), checked against this checkout's
 source, or builds `main` into the image when none is published (`-- --build`
-always builds). It writes the folder and new secrets, creates the two data
-volumes, starts the databases, and runs the steps that need psql and Beads
-inside a one-off app container (`entrypoint.mjs setup`: the frozen schema and one workspace on a
-database it proves empty, the System's asset and its task project). It then
+always builds). It writes the folder and new secrets, creates the Postgres data
+volume, starts Postgres, and runs the steps that need psql inside a one-off app
+container (`entrypoint.mjs setup`: the frozen schema and one workspace on a
+database it proves empty, and the System's asset). It then
 starts the app and the backup worker, loads the default settings
 (`entrypoint.mjs seed-settings`) and writes `.local/stack.json`. It stops
 without making anything when the folder already has content or a project
@@ -150,29 +152,12 @@ Runtime archives, logs and records stay in `/state/.wrangler` and
 must name those stable container paths. The two mounts must already exist; Compose never creates an
 empty substitute for them.
 
-The declared task client is a private `/state/task-client.json` file:
+The app's home folder is `/state/home`, which the app makes when it is missing.
+The Postgres bootstrap address must name `postgres:5432`. Product settings, the
+Ntasks connection and provider credentials are connected through the Tower.
 
-```json
-{
-  "host": "dolt",
-  "port": 3306,
-  "user": "noticeos",
-  "credentialsFile": "/state/dolt/credentials",
-  "clientHome": "/state/dolt/client-home"
-}
-```
-
-The credentials file is mode `0600`, with one `[dolt:3306]` section and one
-`password` entry. The client home is a private `0700` directory. The same
-isolated client environment is used by the runner and Tower; inherited task
-selectors and credentials cannot select another task server. The Postgres
-bootstrap address must name `postgres:5432`. Each existing linked task project
-must declare its own database on that prepared task server. Product settings
-and provider credentials
-continue to be connected through the Tower.
-
-Postgres and Dolt are separately managed durable services, each published on
-`127.0.0.1` only. Of the app's ports, only Tower port 5173 is published, on the
+Postgres is a separately managed durable service, published on `127.0.0.1`
+only. Of the app's ports, only Tower port 5173 is published, on the
 host address `NOTICEOS_TOWER_BIND` names (`127.0.0.1` unless the installation
 chooses otherwise). The ingest endpoint listens only on loopback inside the
 application container and is never published. The app has a read only image.
@@ -202,17 +187,20 @@ Every `pnpm os:*` command acts on the stack the ignored `.local/stack.json`
 selects; `os:setup` and `os:convert-legacy` write it, naming the Compose project,
 `stack.yaml` (and the backup layer), the installation's `installation.env` and
 the local Docker socket. `-- --config /absolute/stack.json` names another
-installation's selector. The stack must already have `noticeos`, `postgres`
-and `dolt` containers; `backup` is supported when present. When the stack has
-unexpected services or replaced containers, the commands stop with an error.
+installation's selector. The stack must already have `noticeos` and
+`postgres` containers; `backup` is supported when present. An installation set
+up while its tasks were in Dolt keeps its stopped `dolt` container and data
+volume, which the commands do not list, start or remove. When the stack has
+other unexpected services or replaced containers, the commands stop with an
+error.
 
 ```sh
 pnpm os:status       # each service's state and health, the database's migrations, the app's commit, whether main is ahead
 pnpm os:logs         # recent logs; -- --follow, -- --lines N, -- <service>
-pnpm os:start        # databases, then backup, then the app, each healthy first
-pnpm os:stop         # the app, then backup, then the databases
+pnpm os:start        # Postgres, then backup, then the app, each healthy first
+pnpm os:stop         # the app, then backup, then Postgres
 pnpm os:restart      # the whole stack in dependency order, waiting for health
-pnpm os:restart:noticeos   # only the app; :backup only the backup worker; :postgres or :dolt one database, with the app and backup worker stopped until it is healthy
+pnpm os:restart:noticeos   # only the app; :backup only the backup worker; :postgres the database, with the app and backup worker stopped until it is healthy
 pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
@@ -221,7 +209,6 @@ pnpm os:collect -- --asset example.com --families posthog-events   # one asset's
 pnpm os:refresh-comparison   # every GA4 site's last-week comparison now, instead of at its next hourly attempt
 pnpm os:capacity     # the store's size and growth per table; -- --json
 pnpm os:mcp          # at a terminal, the line that connects an agent to the Tower's /api/mcp; run by an agent, the same server over stdio; -- --actor <name>
-pnpm os:bd -- ready  # the task tool, inside the app; -- --project <prefix> picks a project
 ```
 
 Without a checkout, run each as `~/noticeos/noticeos <command>`, with the same
@@ -318,8 +305,8 @@ the preparation reads and separately for this exact activation and verification.
 Apply stops without changing anything when the source, declarations,
 containers or image labels have changed. It
 recreates only `noticeos`, with no dependency restart, image pull, build or
-migration, and waits up to 90 seconds for health. Postgres, Dolt, backups and
-their mounts must keep their identities. The app is briefly unavailable;
+migration, and waits up to 90 seconds for health. Postgres, backups and their
+mounts must keep their identities. The app is briefly unavailable;
 startup resumes its existing scheduled jobs.
 
 The selected image is pinned through a private `stack-deploy/current.json`
@@ -462,20 +449,20 @@ installation-operator commands for the standalone profile, not a hosted
 customer's workspace API. What a hosted service may do is set by
 [the tenancy contract](../../docs/23-configuration-ownership.md).
 
-The disposable proof creates new database volumes, a synthetic core task
-project and prepared settings, runs the application on ports 5750–5799, tests task
-detail/create/complete and snapshot recording, and restarts only the app. Its
-synthetic roster contains only the System, with no provider connections. Before the app starts, the
+The disposable proof creates a new database volume and prepared settings, runs
+the application on ports 5750–5799 with no task service connected, checks that
+the task routes answer that none is connected and that the snapshot job files
+nothing, and restarts only the app. Its synthetic roster contains only the
+System, with no provider connections. Before the app starts, the
 proof recreates only its owned network as internal and verifies that flag;
 API and store assertions run inside the exact app container. Cleanup removes only its own
-project and volumes. The proof's preparation uses a declared compatible host
-Beads binary and PostgreSQL client; the running app uses its bundled tools.
-Enable it explicitly with a locally built proof image:
+project and volumes. The running app uses its bundled tools. Enable it
+explicitly with a locally built proof image:
 
 ```sh
-NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-review BEADS_BD_BIN=/absolute/test-tools/bd node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
+NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-review node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
 ```
 
-Ordinary root tests run the context, startup, task client and health contracts
-without Docker. A passing proof does not qualify the stack for production
+Ordinary root tests run the context, startup and health contracts without
+Docker. A passing proof does not qualify the stack for production
 hosting.
