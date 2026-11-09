@@ -1244,11 +1244,11 @@ function InstallationSection() {
         {facts.tower ? (
           <KnobRow className={PANEL_ROW} label="Tower" value={<span className="font-mono text-sm tabular-nums">{facts.tower.address}:{facts.tower.port}</span>} explain={towerReach(facts.tower.address)} />
         ) : null}
-        {facts.postgresPort !== null || facts.taskPort !== null ? (
+        {facts.postgresPort !== null ? (
           <KnobRow
             className={PANEL_ROW}
             label="Databases"
-            value={<span className="text-sm tabular-nums">{[facts.postgresPort !== null ? `Postgres ${facts.postgresPort}` : null, facts.taskPort !== null ? `Tasks ${facts.taskPort}` : null].filter(Boolean).join(" · ")}</span>}
+            value={<span className="text-sm tabular-nums">Postgres {facts.postgresPort}</span>}
             explain="Open to tools on this machine."
           />
         ) : null}
@@ -1324,9 +1324,13 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const serverDown = taskServerFailure(work?.projects);
   const found = drifting !== null ? FOUND_COLUMN(drifting) : serverDown !== null ? FOUND_UNKNOWN : null;
   // While tasks live in Ntasks, the task database server and its checks no
-  // longer decide anything: each row shows its Ntasks project instead.
+  // longer decide anything: each row shows its Ntasks project instead. An
+  // installation has no task database server at all, only Ntasks.
   const { data: service } = useTaskService();
   const inNtasks = service?.connected === true;
+  // Hidden on an installation (`required`) whatever `connected` says, unknown
+  // included; shown while the status is unread, as on a Tower whose tasks come from elsewhere.
+  const localHub = service?.required !== true && !inNtasks;
 
   return (
     <>
@@ -1336,7 +1340,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
           {taskHub.hub === null ? null : <NtasksConnection />}
           <TaskSourceSection />
         </div>
-        {inNtasks ? null : <HubConnection hub={taskHub.hub} failure={serverDown} />}
+        {localHub ? <HubConnection hub={taskHub.hub} failure={serverDown} /> : null}
       </SettingsPanel>
       <SettingsPanel
         title="Projects"
@@ -1376,8 +1380,8 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
             commit="auto"
           />
         )}
-        {!inNtasks && taskHub.hub !== null && drifting !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} tasks={drifting} hub={taskHub.hub} /> : null}
-        {!inNtasks && taskHub.hub !== null && added ? (
+        {localHub && taskHub.hub !== null && drifting !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} tasks={drifting} hub={taskHub.hub} /> : null}
+        {localHub && taskHub.hub !== null && added ? (
           <div className="mt-4">
             <TaskProjectSteps
               spoke={added}

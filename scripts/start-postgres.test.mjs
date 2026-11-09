@@ -60,19 +60,6 @@ test('new setup uses its own declared Compose project, protected secrets and por
   assert.deepEqual(calls, [], 'a later start never applies or starts anything');
 });
 
-test('a required fresh task setup is recorded inside the exclusive PG reservation before schema work', async t => {
-  const { plan, effects } = fixture(t);
-  const file = path.join(plan.home, '.noticeos-first-start', 'tasks-required');
-  assert.equal((await prepareFreshPostgres(plan, { ...effects, requireTasks: true, apply: async () => {
-    assert.equal(existsSync(file), true);
-    assert.equal(statSync(file).mode & 0o777, 0o600);
-    return false;
-  } })).ok, false);
-  const content = readFileSync(file, 'utf8');
-  assert.equal((await prepareFreshPostgres(plan, { ...effects, requireTasks: true })).created, false);
-  assert.equal(readFileSync(file, 'utf8'), content, 'a later start never clears or retries incomplete task setup');
-});
-
 test('the default operational Postgres port is refused without even a TCP occupancy probe', async t => {
   const { plan, calls, effects } = fixture(t, { port: 5430 });
   let probed = false;

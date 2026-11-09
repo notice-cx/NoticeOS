@@ -49,29 +49,29 @@ test('a new installation is written in the layout, private, with the app reachin
   let shown = '';
   assert.equal(await setup(options(box, { offsite: box.base }), deps(docker, box.root, { write: (text) => { shown += text; } })), 0);
 
-  for (const folder of ['', 'state', 'state/dolt', 'state/dolt/client-home', 'state/installation', 'spokes', 'postgres-secrets', 'dolt-secrets', 'backup/profile', 'backup/transport']) {
+  for (const folder of ['', 'state', 'state/home', 'state/installation', 'spokes', 'postgres-secrets', 'backup/profile', 'backup/transport']) {
     assert.equal(statSync(path.join(box.dir, folder)).mode & 0o777, 0o700, folder);
   }
-  for (const file of ['state/workers/ingest/.dev.secrets.json', 'state/task-client.json', 'state/dolt/credentials', 'dolt-secrets/root', 'dolt-secrets/noticeos', 'postgres-secrets/owner.url', 'installation.env']) {
+  for (const file of ['state/workers/ingest/.dev.secrets.json', 'postgres-secrets/owner.url', 'installation.env']) {
     assert.equal(statSync(path.join(box.dir, file)).mode & 0o777, 0o600, file);
   }
+  // No task database: its tasks live in Ntasks, connected later in the Tower.
+  for (const made of ['dolt-secrets', 'state/dolt', 'state/task-client.json']) assert.equal(existsSync(path.join(box.dir, made)), false, made);
   const bindings = JSON.parse(readFileSync(path.join(box.dir, 'state/workers/ingest/.dev.secrets.json'), 'utf8'));
   const address = new URL(bindings.DATABASE_URL);
   assert.deepEqual([address.username, address.hostname, address.port], ['noticeos_app', 'postgres', '5432']);
   assert.ok(bindings.CREDENTIALS_KEY && bindings.OPERATOR_TOKEN);
-  const password = readFileSync(path.join(box.dir, 'dolt-secrets/noticeos'), 'utf8').trim();
-  assert.match(password, /^[0-9a-f]{64}$/u);
-  assert.equal(readFileSync(path.join(box.dir, 'state/dolt/credentials'), 'utf8'), `[dolt:3306]\npassword=${password}\n`);
   assert.deepEqual(JSON.parse(readFileSync(path.join(box.dir, 'backup/profile/host-backup.json'), 'utf8')).offsiteBackupDir, '/backup-offsite/backups');
   const values = readInstallationEnv(path.join(box.dir, 'installation.env'));
   assert.equal(values.NOTICEOS_APP_IMAGE, IMAGE);
   assert.equal(values.NOTICEOS_BACKUP_OFFSITE_PARENT, box.base);
   assert.equal(values.NOTICEOS_APP_UID, '501');
 
-  // Volumes first, databases, the one-off setup, the app, its settings, then health.
+  // The volume first, Postgres, the one-off setup, the app, its settings, then health.
   const steps = docker.calls.map(({ args }) => args.join(' '));
+  assert.ok(steps.every((line) => !/dolt/u.test(line)), steps.join('\n'));
   const at = (pattern) => steps.findIndex((line) => pattern.test(line));
-  const order = [/volume create .*postgres-data/u, /volume create .*dolt-data/u, /up --detach --wait .* postgres dolt$/u, /run --rm --no-deps -T noticeos setup$/u, /up --detach$/u, /seed-settings$/u, /up --detach --wait --wait-timeout 300$/u];
+  const order = [/volume create .*postgres-data/u, /up --detach --wait .* postgres$/u, /run --rm --no-deps -T noticeos setup$/u, /up --detach$/u, /seed-settings$/u, /up --detach --wait --wait-timeout 300$/u];
   const positions = order.map(at);
   assert.ok(positions.every((position, index) => position >= 0 && (index === 0 || position > positions[index - 1])), steps.join('\n'));
   assert.equal(steps.filter((line) => /seed-settings$/u.test(line)).length, 3, 'loading the settings waits for the app');
@@ -80,7 +80,7 @@ test('a new installation is written in the layout, private, with the app reachin
   const owner = new URL(handed.stdin.trim());
   assert.deepEqual([owner.username, owner.hostname, owner.port], ['noticeos_owner', 'postgres', '5432']);
   assert.ok(docker.calls.every(({ args }) => !args.join(' ').includes(owner.password)));
-  assert.ok(!shown.includes(owner.password) && !shown.includes(password));
+  assert.ok(!shown.includes(owner.password));
 
   const selector = JSON.parse(readFileSync(box.selectorFile, 'utf8'));
   assert.deepEqual(selector, { project: 'noticeos', files: [path.join(box.root, 'deploy/compose/stack.yaml'), path.join(box.root, 'deploy/compose/backup.compose.yaml')],

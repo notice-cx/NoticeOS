@@ -95,16 +95,15 @@ test('the host\'s repository links come from the installation, and a fresh clone
 test('the runner resolves the stored task projects against the installation\'s links', async (t) => {
   const home = await checkout(t, { defaults: { 'task-host.json': { repositories: [] } }, installed: { 'task-host.json': HOST } });
   const store = async () => Response.json({ ready: true, documents: [{ file: 'config/beads.json', version: 3, body: BEADS }] });
-  const connected = await readTaskProjects({ repoRoot: home, token: 'op', fetchImpl: store });
-  assert.ok(connected[0].cwd.startsWith(path.join(home, 'installation/task-projects/')));
-  assert.deepEqual(connected.map(({ cwd, ...row }) => row), [
+  const connected = await readTaskProjects({ repoRoot: home, env: {}, token: 'op', fetchImpl: store });
+  assert.deepEqual(connected, [
     { asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop.example' },
   ]);
 
   // The same stored projects on a clone with no installation links: every
   // project reports that it needs local setup instead of opening a checkout.
   const fresh = await checkout(t, { defaults: { 'task-host.json': { repositories: [] } } });
-  const [project] = await readTaskProjects({ repoRoot: fresh, token: 'op', fetchImpl: store });
+  const [project] = await readTaskProjects({ repoRoot: fresh, env: {}, token: 'op', fetchImpl: store });
   assert.equal(project.repo, '');
   assert.match(project.unavailableReason, /no matching task connection on this host/);
 });

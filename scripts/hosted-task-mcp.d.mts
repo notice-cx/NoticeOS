@@ -37,6 +37,15 @@ export declare const NTASKS_MCP_PATH = "/api/mcp";
 /** Where the tasks are while they live in Ntasks at `origin` (null while the
  * ingest cannot say), said in place of the task rules, which Ntasks's own guide holds. */
 export declare function ntasksTaskHome(origin: string | null): string;
+/** Where the tasks are while a standalone installation has no task service connected. */
+export declare const NO_TASK_SERVICE: string;
+/** The guide while no task service is connected. */
+export declare function noTasksGuide(panels: boolean): {
+    readonly version: string;
+    readonly guide: string;
+};
+/** Every session's instructions while no task service is connected. */
+export declare function noTasksInstructions(panels: boolean): string;
 /** The guide while the tasks live in Ntasks: where they are, how to connect, and the rules this installation adds to Ntasks's. */
 export declare function ntasksGuide(origin: string | null, panels: boolean): {
     readonly version: string;

@@ -30,6 +30,17 @@ export function ntasksTaskPage(status: TaskServiceStatus | undefined): ((id: str
   return (id) => `${origin}/tasks/${encodeURIComponent(id)}`;
 }
 
+/** Whether this installation has no task service connected: its tasks live
+ * only there, so its Tasks pages lead to connecting Ntasks. False while the
+ * status is unread or the ingest cannot say. */
+export function needsNtasks(status: TaskServiceStatus | undefined): boolean {
+  return status?.required === true && status.connected === false;
+}
+
+export function useNeedsNtasks(): boolean {
+  return needsNtasks(useTaskService().data);
+}
+
 export function useNtasksTaskPage(): ((id: string) => string) | null {
   const { data } = useTaskService();
   return useMemo(() => ntasksTaskPage(data), [data]);

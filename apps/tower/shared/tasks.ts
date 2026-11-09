@@ -124,8 +124,14 @@ export interface TaskServiceStatus {
   projects: { asset: string; prefix: string; project: { displayName: string; logicalKey: string } | null }[] | null;
   /** Why `projects` is null while connected. */
   reason?: string;
+  /** True on an installation, whose tasks live only in its task service;
+   * absent where this Tower's tasks come from elsewhere (a deployed Tower, the
+   * synthetic viewer). */
+  required?: true;
 }
 export const TASK_SERVICE_STATUS_PATH = "/api/tasks/service";
+/** The error a task route answers while no task service is connected. */
+export const TASK_SERVICE_NOT_CONNECTED = "task_service_not_connected";
 
 /** A task read answered from the copy kept on this machine (vite/task-service-lane.ts). */
 export interface TaskReadCached {

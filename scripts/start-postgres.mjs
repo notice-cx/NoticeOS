@@ -105,7 +105,6 @@ export async function prepareFreshPostgres(plan, {
   apply = applyFreshSchema,
   freeze = null,
   alive = processAlive,
-  requireTasks = false,
   workspace: declaredWorkspace,
 } = {}) {
   let active = null;
@@ -167,7 +166,6 @@ export async function prepareFreshPostgres(plan, {
     }
     writeFileSync(pidFile, JSON.stringify({ pid: process.pid }), { flag: 'wx', mode: 0o600 });
     active = pidFile;
-    if (requireTasks) writeFileSync(path.join(reservation, 'tasks-required'), 'Core task setup is required for this new installation.\n', { flag: 'wx', mode: 0o600 });
     // Provenance permits ordinary startup after an explicit operator repair.
     // The active record above keeps concurrent starts out during preparation.
     writeFileSync(plan.mark, 'NoticeOS runtime files; operational data lives in this installation’s Postgres.\n', { flag: 'wx' });

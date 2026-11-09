@@ -11,11 +11,10 @@ import type { WorkProject } from "./work";
 /**
  * The project a filed task is about, or null when it is some other task.
  *
- * The runner titles it `Point <asset>'s task database at one the hub holds`
- * (`taskMapTitle` in `scripts/runner/task-map.mjs`). This matches the distinctive opening
- * rather than the whole line: the asset id and the words around it are what
- * identify the task, while the tail is prose somebody may reword.
- * `scripts/os-up.test.mjs` pins that prefix from the writing side.
+ * Such a task is titled `Point <asset>'s task database at one the hub holds`.
+ * This matches the distinctive opening rather than the whole line: the asset
+ * id and the words around it are what identify the task, while the tail is
+ * prose somebody may reword.
  */
 export function driftingAssetOf(title: string): string | null {
   const match = /^Point (\S+)'s task database at one\b/.exec(title.trim());

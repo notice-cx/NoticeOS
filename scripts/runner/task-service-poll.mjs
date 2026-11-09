@@ -17,35 +17,43 @@ export const FEED_PAGE = 200;
 export const FEED_PAGES = 5;
 export const BOARD_MAX_AGE_MS = 15 * 60_000;
 
-/** Where this installation's tasks live: `ntasks`, `local` (the bd hub), or
- * `unknown` when the ingest has never said. No task service is `local`. */
+/** Where this installation's tasks live: `ntasks`, `none` while no task
+ * service is connected, or `unknown` when the ingest has never said. */
 export async function taskBackend(service) {
-  return service == null ? 'local' : service.backend();
+  return service == null ? 'none' : service.backend();
 }
 
-/** Why a lane that writes tasks stands down while it is unknown where they live, or null. */
-export function bdLaneSkip(backend, lane) {
-  return backend === 'unknown' ? `the ingest has not said whether tasks live in Ntasks, so this lane does not ${lane}` : null;
+export const NO_TASK_SERVICE = 'no task service is connected';
+
+/** Why a task lane stands down while its tasks are not in Ntasks, or null when they are. */
+export function taskLaneSkip(backend, lane) {
+  if (backend === 'ntasks') return null;
+  const why = backend === 'unknown' ? 'the ingest has not said whether tasks live in Ntasks' : NO_TASK_SERVICE;
+  return `${why}, so this lane does not ${lane}`;
 }
 
-export const HUB_IN_NTASKS = 'tasks live in Ntasks, so the Dolt task hub is not checked';
-
-/** The Dolt hub's check (`check`, true when it answers), or null while tasks
- * live in Ntasks, where nothing reads or writes Dolt. */
-export async function taskHubCheck(service, check) {
-  return await taskBackend(service) === 'ntasks' ? null : check();
+/** The task-service lane's record: whether the ingest says Ntasks is connected. */
+export async function taskServiceCheck(service) {
+  if (service == null) return { outcome: 'skipped', detail: NO_TASK_SERVICE };
+  try {
+    return await service.connected() ? { outcome: 'ran', detail: 'Ntasks is connected' } : { outcome: 'skipped', detail: NO_TASK_SERVICE };
+  } catch {
+    return { outcome: 'ran', detail: 'the ingest did not say whether a task service is connected' };
+  }
 }
 
-/** The task-hub lane's record of one taskHubCheck answer. */
-export function taskHubOutcome(reachable) {
-  return reachable === null ? { outcome: 'skipped', detail: HUB_IN_NTASKS } : { outcome: 'ran', detail: reachable ? 'hub reachable' : 'hub down' };
-}
-
-/** The nightly backup's task-hub setting: `ntasks` while tasks live there,
- * which leaves Dolt out of the set; otherwise none, the backup's default. */
+/** The nightly backup's task setting: `ntasks` while tasks live there, which
+ * adds Ntasks's export to the set; none while no task service is connected;
+ * `unknown` when the ingest does not answer now, when no backup runs
+ * (BACKUP_TASKS_UNKNOWN). Its own read, never an earlier answer: a stale
+ * "not connected" would publish a set without the tasks. */
 export async function backupTaskHub(service) {
-  return await taskBackend(service) === 'ntasks' ? 'ntasks' : undefined;
+  if (service == null) return undefined;
+  try { return await service.connected({ fresh: true }) ? 'ntasks' : undefined; } catch { return 'unknown'; }
 }
+
+/** Why no backup ran: a set taken now could leave the tasks out and replace one that has them. */
+export const BACKUP_TASKS_UNKNOWN = 'The ingest has not said whether tasks live in Ntasks, so no backup ran; earlier sets are kept.';
 
 /** Ntasks's label read: at most this many pages of LABEL_PAGE per label. */
 export const LABEL_PAGES = 10;

@@ -36,7 +36,8 @@ function fixture(t) {
   const containers=Object.fromEntries(['noticeos','postgres','dolt','backup'].map((name,i)=>[name,{
     Id:String(i+1).repeat(64),Image:i===0?OLD:'sha256:'+String(i+2).repeat(64),
     Config:{Labels:{'com.docker.compose.project':'synthetic','com.docker.compose.service':name}},
-    State:{Status:'running',Health:{Status:'healthy'}},Mounts:[{Type:'bind',Source:'/fixture/'+name,Destination:'/state',RW:true}],
+    // The stopped task server an installation set up while its tasks were in Dolt keeps.
+    State:name==='dolt'?{Status:'exited',Health:{Status:''}}:{Status:'running',Health:{Status:'healthy'}},Mounts:[{Type:'bind',Source:'/fixture/'+name,Destination:'/state',RW:true}],
   }]));
   const images=new Map([[OLD,{Id:OLD,Os:'linux',Architecture:'arm64',Config:{Labels:{}}}]]);
   const calls=[]; const contexts=[]; let output=''; let updates=0;
@@ -225,8 +226,8 @@ test('an update refused for an unhealthy service names it, its logs, and for the
   f.control.database={ok:false,line:'it is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date'};
   await assert.rejects(f.prepare(),/^Error: noticeos is running, unhealthy; an update needs every service running and healthy\. pnpm os:logs -- noticeos shows why\.\nThe database: it is 1 migration behind/);
   assert.ok(!f.calls.some(call=>call[0]==='build'));assert.equal(f.writes().length,0);
-  f.containers.noticeos.State={Status:'running',Health:{Status:'healthy'}};f.containers.dolt.State={Status:'exited',Health:{Status:''}};
-  await assert.rejects(f.prepare(),(error)=>/^dolt is exited; an update needs/.test(error.message)&&!/The database/.test(error.message));
+  f.containers.noticeos.State={Status:'running',Health:{Status:'healthy'}};f.containers.postgres.State={Status:'exited',Health:{Status:''}};
+  await assert.rejects(f.prepare(),(error)=>/^postgres is exited; an update needs/.test(error.message)&&!/The database/.test(error.message));
 });
 test('a development image is built from the checkout as it is, showing Docker\'s output, with no source provenance',async t=>{
   const f=fixture(t);

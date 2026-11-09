@@ -5,13 +5,13 @@ import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "@notic
 import { choiceOrder } from "@/components/ChoiceButtons";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
-import { TaskHubUnavailable } from "@/components/TaskSourceSection";
+import { ConnectNtasks, TaskHubUnavailable } from "@/components/TaskSourceSection";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { pillControlClass } from "@/components/ui/pill";
 import { WhyItRanks } from "@/components/viz/WhyItRanks";
-import { useNtasksTaskPage } from "@/hooks/useTaskService";
+import { useNeedsNtasks, useNtasksTaskPage } from "@/hooks/useTaskService";
 import { useInboxAnswer } from "@/hooks/useTasks";
 import { useDocumentTitle } from "@/lib/document-title";
 import { formatInt } from "@/lib/format";
@@ -52,6 +52,7 @@ export function FocusRoute() {
   const scope = params.get("project");
   const start = params.get("task");
   const next = useNextBoard(scope);
+  const needsNtasks = useNeedsNtasks();
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
   const [handled, setHandled] = useState<ReadonlySet<string>>(() => new Set());
   const leave = returnPath(location.state);
@@ -69,7 +70,7 @@ export function FocusRoute() {
   const total = queue.length + gone;
   const position = Math.min(total, ordered.length - pending.length + gone + 1);
 
-  const body = !next.data || !next.drawn ? (
+  const body = needsNtasks ? <ConnectNtasks /> : !next.data || !next.drawn ? (
     next.isError && !next.data ? (
       <ReadFailed title="Couldn't load tasks" subject="read:tasks" error={next.error} retrying={next.isFetching} onRetry={() => void next.refetch()} />
     ) : (

@@ -86,7 +86,9 @@ import { ChoiceSummary, ClosedSummary, TaskHead, type TaskHeadFacts } from "@/ro
 import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
 import { DecideInNtasks } from "@/routes/tasks/decide-in-ntasks";
-import { useNtasksTaskPage } from "@/hooks/useTaskService";
+import { useNeedsNtasks, useNtasksTaskPage } from "@/hooks/useTaskService";
+import { ConnectNtasks } from "@/components/TaskSourceSection";
+import { PageHeader } from "@/components/PageHeader";
 import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
 import { GuideText, MarkdownText, TaskTextRefsProvider, taskListItems, toggleTaskListLine } from "@/routes/tasks/task-markdown";
 import { TaskRow, taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
@@ -140,6 +142,7 @@ export function TaskRoute() {
   const detail = useTask(id, selectedProject);
   const snapshot = useWork();
   const now = useNow();
+  const needsNtasks = useNeedsNtasks();
 
   const task = detail.data?.task ?? null;
   const project = detail.data?.project ?? null;
@@ -259,6 +262,14 @@ export function TaskRoute() {
 
   // A kept copy is shown, not acted on: the task service did not answer.
   const pageWritable = writable && detail.data?.cached === undefined;
+  if (needsNtasks) {
+    return (
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6" data-task-page="">
+        <PageHeader title="Tasks" />
+        <ConnectNtasks />
+      </div>
+    );
+  }
   return (
     <TaskWritePermission.Provider value={pageWritable}>
     <TaskActors.Provider value={actors}>

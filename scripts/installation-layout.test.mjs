@@ -26,10 +26,8 @@ test('installation.env holds the choices, and every other path follows from the 
   assert.equal(values.NOTICEOS_STATE_DIR, paths.state);
   assert.equal(values.NOTICEOS_SPOKES_DIR, paths.spokes);
   assert.equal(values.NOTICEOS_POSTGRES_SECRETS, paths.postgresSecrets);
-  assert.equal(values.NOTICEOS_DOLT_SECRETS, paths.doltSecrets);
   assert.equal(values.NOTICEOS_BACKUP_OFFSITE_PARENT, paths.backupOffsite);
   assert.equal(values.NOTICEOS_POSTGRES_VOLUME, 'noticeos_postgres-data');
-  assert.equal(values.NOTICEOS_DOLT_BACKUP_VOLUME, values.NOTICEOS_DOLT_VOLUME);
   assert.equal(values.NOTICEOS_NETWORK, 'noticeos_installation');
   // A folder an installation keeps elsewhere is its own line.
   const kept = readInstallationEnv(tempFile(t, renderInstallationEnv({ ...base, spokes: '/home/me/tasks', backupOffsite: '/mnt/sync' })));
@@ -95,20 +93,19 @@ test('Compose resolves the stack from installation.env alone: one network it cre
     return JSON.parse(result.stdout);
   };
   const full = resolve(stackFiles(ROOT));
-  assert.deepEqual(Object.keys(full.services).sort(), ['backup', 'dolt', 'noticeos', 'postgres']);
+  assert.deepEqual(Object.keys(full.services).sort(), ['backup', 'noticeos', 'postgres']);
   assert.equal(full.networks.installation.name, 'noticeos_installation');
   assert.notEqual(full.networks.installation.external, true);
-  for (const name of ['postgres', 'dolt', 'noticeos', 'backup']) assert.deepEqual(Object.keys(full.services[name].networks), ['installation'], name);
+  for (const name of ['postgres', 'noticeos', 'backup']) assert.deepEqual(Object.keys(full.services[name].networks), ['installation'], name);
   assert.deepEqual(full.volumes['postgres-data'], { name: 'noticeos_postgres-data', external: true });
-  assert.deepEqual(full.volumes['dolt-data'], { name: 'noticeos_dolt-data', external: true });
   const binds = Object.values(full.services).flatMap((service) => service.volumes ?? []).filter((mount) => mount.type === 'bind').map((mount) => mount.source);
   for (const source of binds) {
     assert.ok(source.startsWith('/srv/one-installation/') || source === '/mnt/sync' || source.startsWith(path.join(ROOT, 'db/')), source);
   }
-  for (const secret of Object.values(full.secrets)) assert.ok(secret.file.startsWith('/srv/one-installation/'), secret.file);
+  for (const secret of Object.values(full.secrets ?? {})) assert.ok(secret.file.startsWith('/srv/one-installation/'), secret.file);
   assert.deepEqual(full.services.noticeos.ports.map((row) => [row.host_ip, row.published]), [['127.0.0.1', '5173']]);
   assert.equal(full.services.noticeos.user, '501:20');
-  assert.deepEqual(Object.keys(resolve(stackFiles(ROOT, { backup: false })).services).sort(), ['dolt', 'noticeos', 'postgres']);
+  assert.deepEqual(Object.keys(resolve(stackFiles(ROOT, { backup: false })).services).sort(), ['noticeos', 'postgres']);
 });
 
 test('Compose resolves an image installation\'s stack from its own copy alone: every file it reads is in the folder', { skip: compose.status !== 0 && 'no docker compose' }, (t) => {
@@ -123,7 +120,7 @@ test('Compose resolves an image installation\'s stack from its own copy alone: e
   const model = JSON.parse(result.stdout);
   const sources = Object.values(model.services).flatMap((service) => service.volumes ?? []).filter((mount) => mount.type === 'bind').map((mount) => mount.source);
   const stackFilesRead = sources.filter((source) => source.startsWith(path.join(dir, 'stack') + '/'));
-  assert.ok(stackFilesRead.length >= 8, 'the databases read their configuration and scripts from the copy');
+  assert.ok(stackFilesRead.length >= 3, 'Postgres reads its configuration and scripts from the copy');
   for (const source of stackFilesRead) assert.ok(existsSync(source), `${source} is in the copy`);
   for (const source of sources) assert.ok(source.startsWith(dir + '/'), `${source} is in the installation folder`);
   assert.equal(result.stdout.includes(ROOT + '/'), false, 'nothing is read from the checkout');

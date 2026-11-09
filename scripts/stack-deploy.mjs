@@ -4,8 +4,7 @@
 // It takes main's published image, checked against this checkout's source,
 // or builds main here when none is published (`-- --build` always builds),
 // seals a plan, shows it, then applies it. Only the app container changes;
-// databases, Dolt and backup stay in place, and no migration is ever applied
-// here.
+// Postgres and backup stay in place, and no migration is ever applied here.
 //
 //   pnpm os:update      Move the app to main's image, show the plan, and apply it after you confirm.
 //   pnpm os:rollback    Move the app back to the previous image, after you confirm.

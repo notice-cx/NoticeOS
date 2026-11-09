@@ -1,18 +1,21 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import {
   BEADS_OPTIONAL_READS,
+  beadsClosedSince,
   beadsPollArgs,
-  collectBeadsSnapshot,
   handoffEntries,
   runBeadsPoll,
   summarizeBeadsProject,
 } from './runner/task-snapshot.mjs';
 
-// scripts/runner/task-snapshot.mjs: the task-board
-// snapshot. `bd` is answered here and the snapshot is filed at a recorded door;
-// nothing reaches a real hub or ingest.
+// scripts/runner/task-snapshot.mjs: the task-board snapshot. Ntasks is
+// scripted here and the snapshot is filed at a recorded door; nothing reaches
+// a real task service or ingest.
 
 const PROJECT = { asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' };
 const ok = (value) => ({ code: 0, stdout: JSON.stringify(value), stderr: '' });
@@ -48,12 +51,22 @@ test('attention above the transport safety bound is unknown rather than a trunca
   assert.equal(entry.counts.highPriority, active.length);
 });
 
-/** A `bd` that answers every poll read with `answers[key]`, or an empty list. */
-function bdAnswering(answers = {}) {
-  const keys = Object.entries(beadsPollArgs('/r', '2026-09-17'));
-  return async (argv) => {
-    const [key] = keys.find(([, args]) => args.slice(2).join(' ') === argv.slice(2).join(' ')) ?? ['unknown'];
-    return answers[key] ?? ok([]);
+async function cacheDir(t) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'task-snapshot-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+/** An Ntasks with `prefixes`' projects and no tasks, as the snapshot's change-feed sync reads it. */
+function ntasks(prefixes = []) {
+  return {
+    backend: async () => 'ntasks',
+    origin: async () => 'https://ntasks.example.com',
+    projects: async () => prefixes.map((prefix) => ({ projectId: `p-${prefix}`, logicalKey: prefix, displayName: prefix, prefix })),
+    async call({ path: target }) {
+      if (target.startsWith('/api/changes')) return { status: 200, body: { events: [], lastSeq: 0 } };
+      return { status: 200, body: { tasks: [], next: null } };
+    },
   };
 }
 
@@ -132,31 +145,20 @@ test('the handoff join keeps one bead per finding, open first, and only this ass
   assert.deepEqual(handoffEntries(rows, 'shop.example').map((entry) => [entry.key, entry.beadId]), [['k1', 'shop-8']]);
 });
 
-test('projects keep their saved order, and an unlinked one is a named error', async () => {
-  const body = await collectBeadsSnapshot({
-    projects: [{ ...PROJECT, asset: 'blog.example', unavailableReason: 'not linked on this host' }, PROJECT],
-    run: bdAnswering(),
-    nowMs: Date.parse('2026-09-24T00:00:00Z'),
-    repoRoot: '/host',
-  });
-  assert.deepEqual(body.projects.map((entry) => [entry.asset, entry.ok]), [['blog.example', false], ['shop.example', true]]);
-});
-
-test('a snapshot is filed at the given door, and a down runtime is one line, not one per tick', async () => {
+test('a snapshot is filed at the given door, and a down runtime is one line, not one per tick', async (t) => {
   const lines = [];
   const posted = [];
   const deps = {
-    probe: async () => true,
+    taskService: ntasks(['shop']),
+    cacheDir: await cacheDir(t),
     readConfig: async () => JSON.stringify({ spokes: [PROJECT] }),
     readToken: async () => 'example-bearer',
-    run: bdAnswering(),
     post: async (url, init) => (posted.push({ url, body: JSON.parse(init.body) }), new Response('{}', { status: 201 })),
     now: () => Date.parse('2026-09-24T00:00:00Z'),
     state: { skipping: null },
     emit: (level, text) => lines.push(`${level} ${text}`),
     stopped: () => false,
     url: 'http://127.0.0.1:8857/api/beads-snapshot',
-    repoRoot: '/host',
   };
   assert.equal(await runBeadsPoll({ running: false, ready: false }, deps), null);
   assert.equal(await runBeadsPoll({ running: false, ready: false }, deps), null);
@@ -244,7 +246,7 @@ test('every close counts as work done while its row and event retain the resolut
     ['shop-2', 'wont-do'], ['shop-1', null]]);
 });
 
-test('the closed read reaches over this calendar week and last, carries every close, and keeps the recent lists to their week', async () => {
+test('the closes reach over this calendar week and last, every close is carried, and the recent lists keep to their week', async () => {
   const { beadsClosesSince } = await import('./task-snapshot-summary.mjs');
   const nowMs = Date.parse('2026-10-17T12:00:00Z');
   const close = (id, at, resolution) => ({ id, title: id, status: 'closed', issue_type: 'task', closed_at: at,
@@ -255,12 +257,10 @@ test('the closed read reaches over this calendar week and last, carries every cl
     close('shop-3', '2026-10-16T09:00:00Z'),
     { id: 'shop-e', title: 'Epic', status: 'closed', issue_type: 'epic', closed_at: '2026-10-16T09:00:00Z' },
   ];
-  const asked = [];
-  const run = async (argv) => { asked.push(argv); return argv.includes('--closed-after') ? ok(closed) : ok([]); };
-  const { projects: [entry] } = await collectBeadsSnapshot({ projects: [PROJECT], run, nowMs, repoRoot: '/r' });
+  const entry = summarizeBeadsProject(PROJECT, { active: ok([]), ready: ok([]), blocked: ok([]), closed: ok(closed) },
+    { closedSince: beadsClosedSince(nowMs), closesSince: beadsClosesSince(nowMs) });
   // Fifteen days: last Monday in any zone, and the boundary day the client may leave out.
   assert.equal(beadsClosesSince(nowMs), '2026-10-02');
-  assert.ok(asked.some((argv) => argv[argv.indexOf('--closed-after') + 1] === '2026-10-02'));
   assert.equal(entry.counts.closedRecent, 2);
   assert.deepEqual(entry.recentlyClosed.map((row) => row.id), ['shop-3', 'shop-2']);
   assert.deepEqual(entry.closes, { since: '2026-10-02', items: [
@@ -354,9 +354,9 @@ test('the blocked list is capped, and the tasks a listed decision holds lead it'
 });
 
 
-test('failed snapshot POST retains bounded actual response diagnostics and redacts the known token before logging', async () => {
+test('failed snapshot POST retains bounded actual response diagnostics and redacts the known token before logging', async (t) => {
   const token = 'synthetic-bare-post-token'; const lines = [];
-  const result = await runBeadsPoll({ running: true, ready: true }, {
+  const result = await runBeadsPoll({ running: true, ready: true }, { taskService: ntasks(), cacheDir: await cacheDir(t),
     readConfig: async () => JSON.stringify({ spokes: [] }), readToken: async () => token, stopped: () => false,
     state: { skipping: null }, emit: (_level, text) => lines.push(text),
     post: async () => new Response(`Actual rejected POST: ${token} ${'x'.repeat(100_000)}`, { status: 503 }),
@@ -368,9 +368,9 @@ test('failed snapshot POST retains bounded actual response diagnostics and redac
   assert.ok(!JSON.stringify({ result, lines }).includes(token));
 });
 
-test('thrown snapshot POST errors retain actual error detail without bare known tokens', async () => {
+test('thrown snapshot POST errors retain actual error detail without bare known tokens', async (t) => {
   const token = 'synthetic-bare-error-token'; const lines = [];
-  const result = await runBeadsPoll({ running: true, ready: true }, {
+  const result = await runBeadsPoll({ running: true, ready: true }, { taskService: ntasks(), cacheDir: await cacheDir(t),
     readConfig: async () => JSON.stringify({ spokes: [] }), readToken: async () => token, stopped: () => false,
     state: { skipping: null }, emit: (_level, text) => lines.push(text),
     post: async () => { throw new Error(`Actual POST error: ${token}`); },

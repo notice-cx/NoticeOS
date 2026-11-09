@@ -21,7 +21,7 @@
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp } from './mcp-protocol.mjs';
 import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopesSatisfy } from './agent-access.mjs';
-import { ntasksGuide, ntasksInstructions, ntasksTaskHome, TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefusal } from './hosted-task-mcp.mjs';
+import { noTasksGuide, noTasksInstructions, NO_TASK_SERVICE, ntasksGuide, ntasksInstructions, ntasksTaskHome, TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS } from './panel-mcp.mjs';
 import { JOURNEY_MCP_TOOLS } from './journey-mcp.mjs';
@@ -176,9 +176,10 @@ export function createHostedMcp(options) {
         const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
         const home = taskHome ? await taskHome({ forTaskTool: false }) : LOCAL_TASKS;
         const ntasks = home.kind === 'ntasks' ? home : null;
-        const instructions = ntasks ? ntasksInstructions(ntasks.origin, Boolean(panels)) : localInstructions;
-        const guide = ntasks ? ntasksGuide(ntasks.origin, Boolean(panels)) : localGuide;
-        const server = { info: SERVER_INFO, instructions, tools, ...(ntasks ? { listed: withoutTasks } : {}), async call(name, args) {
+        const tasksElsewhere = ntasks !== null || home.kind === 'none';
+        const instructions = ntasks ? ntasksInstructions(ntasks.origin, Boolean(panels)) : home.kind === 'none' ? noTasksInstructions(Boolean(panels)) : localInstructions;
+        const guide = ntasks ? ntasksGuide(ntasks.origin, Boolean(panels)) : home.kind === 'none' ? noTasksGuide(Boolean(panels)) : localGuide;
+        const server = { info: SERVER_INFO, instructions, tools, ...(tasksElsewhere ? { listed: withoutTasks } : {}), async call(name, args) {
                 if (name === TASK_GUIDE_TOOL) {
                     if (Object.keys(args).length)
                         throw new McpToolError(`invalid arguments: ${TASK_GUIDE_TOOL} takes none`);
@@ -193,7 +194,7 @@ export function createHostedMcp(options) {
                         return { guideVersion, workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
                     if (profile === 'standalone')
                         return { guideVersion, workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
-                                    access: [...(ntasks ? [] : ['tasks:read', 'tasks:write']), ...(readModels || panels ? ['evidence:read'] : []), ...(journeys ? ['journeys:read', 'journeys:write'] : [])] }] };
+                                    access: [...(tasksElsewhere ? [] : ['tasks:read', 'tasks:write']), ...(readModels || panels ? ['evidence:read'] : []), ...(journeys ? ['journeys:read', 'journeys:write'] : [])] }] };
                     const workspaces = await agents.workspaces(original).catch(() => null);
                     if (!workspaces)
                         throw refused();
@@ -212,6 +213,8 @@ export function createHostedMcp(options) {
                 // A client that listed the tools before the tasks moved to Ntasks learns where they are.
                 if (task && current.kind === 'ntasks')
                     throw new McpToolError(`refused: ${ntasksTaskHome(current.origin)} Nothing was read or changed.`);
+                if (task && current.kind === 'none')
+                    throw new McpToolError(`refused: ${NO_TASK_SERVICE} Nothing was read or changed.`);
                 if (task && current.kind === 'unknown') {
                     throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
                 }

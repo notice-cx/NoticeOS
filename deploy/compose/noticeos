@@ -12,15 +12,13 @@
 #   ~/noticeos/noticeos mcp [--actor <name>]
 #       the MCP server an agent on this machine starts, over stdio; at a
 #       terminal it prints how to connect it
-#   ~/noticeos/noticeos bd [--project <prefix>] <arguments>
-#       the task client, in the installation's task project
 #
 # setup, update and migrate run main's newest published image, so the newest
 # version sets up, moves and migrates the installation; every other command
-# runs the image the installation's app runs; mcp and bd run inside the app
-# itself, where the task client and the database are. The container reaches Docker
-# through its socket and sees only the installation folder (and the offsite
-# folder setup is given) at the same path as here; it writes files as you.
+# runs the image the installation's app runs; mcp runs inside the app itself,
+# where the database is. The container reaches Docker through its socket and
+# sees only the installation folder (and the offsite folder setup is given) at
+# the same path as here; it writes files as you.
 #
 #   NOTICEOS_IMAGE           another image to run those three from (a local one included)
 #   NOTICEOS_DOCKER_SOCKET   the Docker socket, when it is not /var/run/docker.sock
@@ -33,7 +31,7 @@ fail() { printf 'noticeos: %s\n' "$1" >&2; exit 1; }
 absolute() { case $1 in /*) printf '%s' "$1" ;; '~') printf '%s' "$HOME" ;; '~/'*) printf '%s/%s' "$HOME" "${1#'~/'}" ;; *) printf '%s/%s' "$PWD" "$1" ;; esac; }
 
 command -v docker >/dev/null 2>&1 || fail 'Docker is not installed; install Docker Desktop or Docker Engine first.'
-[ $# -gt 0 ] || fail 'name a command: setup, status, logs, start, stop, restart, apply, backup, capacity, refresh-anomalies, refresh-comparison, run-job, collect, update, rollback, migrate, mcp or bd.'
+[ $# -gt 0 ] || fail 'name a command: setup, status, logs, start, stop, restart, apply, backup, capacity, refresh-anomalies, refresh-comparison, run-job, collect, update, rollback, migrate or mcp.'
 verb=$1
 shift
 
@@ -95,8 +93,8 @@ case $verb in
     if [ -n "$app" ]; then image=$(docker inspect --format '{{.Image}}' "$app"); else
       image=$(sed -n 's/^NOTICEOS_APP_IMAGE="\(.*\)"$/\1/p' "$dir/installation.env"); fi
     [ -n "$image" ] || fail "neither the app nor installation.env names the installation's image." ;;
-  mcp|bd)
-    if [ "$verb" = mcp ] && [ -t 0 ]; then
+  mcp)
+    if [ -t 0 ]; then
       # An agent starts the server and talks to it over a pipe; a terminal would only wait.
       actor=claude
       [ "${1:-}" != --actor ] || [ $# -lt 2 ] || actor=$2
@@ -117,12 +115,8 @@ case $verb in
     fi
     app=$(docker ps --quiet --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=noticeos)
     [ -n "$app" ] || fail "the app is not running; $launcher start starts it."
-    # An MCP client reads plain lines; a person at a terminal gets one.
-    if [ "$verb" = bd ] && [ -t 0 ] && [ -t 1 ]; then
-      exec docker exec --interactive --tty "$app" node deploy/compose/entrypoint.mjs "$verb" "$@"
-    fi
     exec docker exec --interactive "$app" node deploy/compose/entrypoint.mjs "$verb" "$@" ;;
-  *) fail "$verb is not a command: setup, status, logs, start, stop, restart, apply, backup, capacity, refresh-anomalies, refresh-comparison, run-job, collect, update, rollback, migrate, mcp or bd." ;;
+  *) fail "$verb is not a command: setup, status, logs, start, stop, restart, apply, backup, capacity, refresh-anomalies, refresh-comparison, run-job, collect, update, rollback, migrate or mcp." ;;
 esac
 
 set -- scripts/noticeos-cli.mjs "$verb" "$@"

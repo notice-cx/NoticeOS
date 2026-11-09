@@ -8,7 +8,7 @@ import { parseDeclaredHashes, parseRunningHashes } from './stack-drift.mjs';
 import { stackControl } from './stack-control.mjs';
 
 const hash = (letter) => letter.repeat(64);
-const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
+const SERVICES = ['postgres', 'backup', 'noticeos'];
 
 /** A running stack and a Docker that answers for it; `declared` overrides a service's declared hash. */
 function fixture(t, { declared = {}, model: change = (model) => model, failUp = () => false } = {}) {
@@ -27,16 +27,14 @@ function fixture(t, { declared = {}, model: change = (model) => model, failUp = 
     name: 'noticeos',
     services: {
       postgres: { ports: [{ host_ip: '127.0.0.1', target: 5432, published: '5432' }], volumes: [{ type: 'volume', source: 'postgres-data', target: '/var/lib/postgresql' }] },
-      dolt: { ports: [{ host_ip: '127.0.0.1', target: 3306, published: '3306' }], volumes: [{ type: 'volume', source: 'dolt-data', target: '/var/lib/dolt' }] },
       backup: { volumes: [] },
       noticeos: { user: '501:20', environment: { TOWER_ALLOWED_HOSTS: '' }, ports: [{ host_ip: '127.0.0.1', target: 5173, published: '5173' }],
         volumes: [{ type: 'bind', source: '/srv/n/state', target: '/state' }] },
     },
-    volumes: { 'postgres-data': { name: 'noticeos_postgres-data' }, 'dolt-data': { name: 'noticeos_dolt-data' } },
+    volumes: { 'postgres-data': { name: 'noticeos_postgres-data' } },
   });
   const containers = {
     postgres: { HostConfig: { PortBindings: { '5432/tcp': [{ HostIp: '127.0.0.1', HostPort: '5432' }] } }, Config: { Env: [] }, Mounts: [{ Type: 'volume', Name: 'noticeos_postgres-data', Destination: '/var/lib/postgresql' }] },
-    dolt: { HostConfig: { PortBindings: { '3306/tcp': [{ HostIp: '127.0.0.1', HostPort: '3306' }] } }, Config: { Env: [] }, Mounts: [{ Type: 'volume', Name: 'noticeos_dolt-data', Destination: '/var/lib/dolt' }] },
     backup: { HostConfig: { PortBindings: {} }, Config: { Env: [] }, Mounts: [] },
     noticeos: { HostConfig: { PortBindings: { '5173/tcp': [{ HostIp: '127.0.0.1', HostPort: '5173' }] } }, Config: { User: '501:20', Env: ['TOWER_ALLOWED_HOSTS=', 'PATH=/usr/bin'] },
       Mounts: [{ Type: 'bind', Source: '/srv/n/state', Destination: '/state' }] },
@@ -126,7 +124,7 @@ test('opening the Tower to the network says plainly that it has no login', async
 test('a database change stops the app and backup worker, then brings each layer back in order', async (t) => {
   const box = fixture(t, { declared: { postgres: hash('b') }, model: (model) => { model.services.postgres.ports[0].published = '5440'; return model; } });
   await applyStack(options(box, '--confirm', 'apply'), { run: box.run, out: quiet, interactive: false, held: async () => false });
-  assert.deepEqual(steps(box), ['stop noticeos backup', 'up postgres dolt', 'up backup', 'up noticeos']);
+  assert.deepEqual(steps(box), ['stop noticeos backup', 'up postgres', 'up backup', 'up noticeos']);
 });
 
 test('what apply never does: point a database at other data, rename the project, take a held port, create a service', async (t) => {

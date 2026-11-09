@@ -69,7 +69,6 @@ export function statePaths(homeRoot) {
     jobRunsFile: path.join(logsDir, 'job-runs.jsonl'),
     runnerStateFile: path.join(localDir, 'runner-state.json'),
     backupsDir: path.join(localDir, 'backups'),
-    beadsDoltDir: path.join(localDir, 'beads-dolt'),
     devSecrets: path.join(ingestDir, '.dev.secrets.json'),
     devVars: path.join(ingestDir, '.dev.vars'),
     taskHost: readablePath(TASK_HOST_FILE, { root: homeRoot }),

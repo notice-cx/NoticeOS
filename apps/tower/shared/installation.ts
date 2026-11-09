@@ -10,7 +10,6 @@ export interface InstallationFacts {
   /** Where the Tower listens on the host. */
   tower: { address: string; port: number } | null;
   postgresPort: number | null;
-  taskPort: number | null;
   /** The launcher an installation without a checkout runs its commands through; null runs `pnpm os:*` in the checkout. */
   launcher: string | null;
   /** The commit the app runs, and whether that is a checkout's live source rather than a fixed version. */

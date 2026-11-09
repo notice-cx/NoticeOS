@@ -14,11 +14,10 @@ function fixture(t) {
     fs.mkdirSync(path.dirname(map(file)), { recursive: true, mode: 0o700 });
     fs.writeFileSync(map(file), contents, { mode: 0o600 });
   };
-  for (const name of ['state', 'transport', 'staging', 'data', 'spokes', 'postgresSocket', 'doltSecrets']) fs.mkdirSync(map(BACKUP_PATHS[name]), { recursive: true, mode: 0o700 });
+  for (const name of ['state', 'transport', 'staging', 'spokes', 'postgresSocket']) fs.mkdirSync(map(BACKUP_PATHS[name]), { recursive: true, mode: 0o700 });
   writeSecrets(map(BACKUP_PATHS.postgresSecrets), { port: 5772 });
   write(BACKUP_PATHS.profile, JSON.stringify({ format: 'noticeos-backup-worker-v1', retentionDays: 14 }));
   write(BACKUP_PATHS.client, JSON.stringify({ format: 'noticeos-backup-client-v1', transportDir: BACKUP_PATHS.transport }));
-  for (const name of ['root', 'noticeos']) write(path.join(BACKUP_PATHS.doltSecrets, name), 'a'.repeat(64) + '\n');
   write('/state/workers/ingest/.dev.secrets.json', JSON.stringify({
     DATABASE_URL: 'postgresql://noticeos_app:synthetic@postgres:5432/noticeos',
     CREDENTIALS_KEY: 'synthetic', OPERATOR_TOKEN: 'synthetic',
@@ -45,7 +44,7 @@ test('wrong endpoints, exposed credentials and aliased storage refuse the worker
   f.write(BACKUP_PATHS.client, JSON.stringify({ format: 'noticeos-backup-client-v1', transportDir: '/other' }));
   assert.throws(() => readBackupWorker({ fs: f.io }), /not prepared/u);
   f.write(BACKUP_PATHS.client, JSON.stringify({ format: 'noticeos-backup-client-v1', transportDir: BACKUP_PATHS.transport }));
-  fs.rmdirSync(f.map(BACKUP_PATHS.staging)); fs.symlinkSync(f.map(BACKUP_PATHS.data), f.map(BACKUP_PATHS.staging));
+  fs.rmdirSync(f.map(BACKUP_PATHS.staging)); fs.symlinkSync(f.map(BACKUP_PATHS.spokes), f.map(BACKUP_PATHS.staging));
   assert.throws(() => readBackupWorker({ fs: f.io }), /not prepared/u);
 });
 

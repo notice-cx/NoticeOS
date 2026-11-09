@@ -3,17 +3,16 @@
 //
 // The one-off jobs run inside the app container with the runner's own
 // environment (deploy/compose/entrypoint.mjs): one backup, one schedule, one
-// asset's collection, the capacity report, the MCP server and the task client.
+// asset's collection, the capacity report and the MCP server.
 //
 //   pnpm os:status      Where the installation is, what runs, its health, the database's migrations, and whether main is ahead.
 //   pnpm os:logs        Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them.
-//   pnpm os:start       Start the stack: databases, then backup, then the app, each healthy first.
-//   pnpm os:stop        Stop the app, then backup, then the databases.
+//   pnpm os:start       Start the stack: Postgres, then backup, then the app, each healthy first.
+//   pnpm os:stop        Stop the app, then backup, then Postgres.
 //   pnpm os:restart     Restart the stack in the same order, waiting for each layer's health.
 //   pnpm os:restart:noticeos  Restart only the app, waiting for its health.
 //   pnpm os:restart:backup    Restart only the backup worker, waiting for its health.
 //   pnpm os:restart:postgres  Restart Postgres, with the app and backup worker stopped until it is healthy again.
-//   pnpm os:restart:dolt      Restart the task store, with the app and backup worker stopped until it is healthy again.
 //   pnpm os:backup      Run one backup now, inside the app container.
 //   pnpm os:run-job -- "<cron>"  Run one allowed local job with `--id <job-id>`, or fire one cron expression now.
 //   pnpm os:run-job -- --id <job-id>  Run one allowed local job now through the live scheduler.
@@ -22,7 +21,6 @@
 //   pnpm os:refresh-anomalies -- --asset <id> [--apply <preview-token>]  Re-evaluate current count alerts from stored reports, with no provider calls.
 //   pnpm os:refresh-comparison  Read every GA4 property's last-week activity comparison now instead of at its next hourly attempt; two Google requests per site.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
-//   pnpm os:bd -- <arguments>  Run bd in the installation's task project; `--project <prefix>` picks one of several.
 //
 // The stack is the one `.local/stack.json` (or --config) selects.
 import * as fs from 'node:fs';
@@ -38,17 +36,21 @@ import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
 import { manualScheduledJob } from './scheduled-jobs.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'mcp', 'bd'];
-const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'refresh-anomalies', 'refresh-comparison', 'mcp'];
+const SERVICES = ['postgres', 'backup', 'noticeos'];
+/** Services an earlier stack ran and this one does not: an installation set up
+ * while its tasks were in Dolt keeps that stopped container and its volume,
+ * which no command here lists, starts or removes. */
+export const RETIRED = ['dolt'];
 /** How long a job run inside the app container may take. */
 // A tracked-query panel is one call per term per device, so a collection runs for minutes.
 const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, 'refresh-anomalies': 180_000,
-  'refresh-comparison': 180_000, mcp: Infinity, bd: 600_000 };
+  'refresh-comparison': 180_000, mcp: Infinity };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
-       stack-control.mjs restart postgres|dolt|backup|noticeos
+       stack-control.mjs restart postgres|backup|noticeos
        stack-control.mjs refresh-comparison
-       stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
-       stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>
+       stack-control.mjs logs [--follow] [--lines N] [postgres|backup|noticeos]
+       stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>]
        stack-control.mjs run-job --id <job-id>
        stack-control.mjs refresh-anomalies --asset <id> [--apply <preview-token>]
        stack-control.mjs collect --asset <id> [--families <a,b>] [--start <YYYY-MM-DD> --end <YYYY-MM-DD>]`;
@@ -86,15 +88,16 @@ export function parseServices(stdout, project) {
     const raw = stdout.trim();
     rows = raw.startsWith('[') ? JSON.parse(raw) : raw.split(/\r?\n/u).filter(Boolean).map(line => JSON.parse(line));
   } catch { refuse('Stack inventory is invalid.'); }
-  if (!Array.isArray(rows) || rows.length < 3 || rows.length > 4) refuse('Stack must contain the declared existing services.');
+  if (!Array.isArray(rows)) refuse('Stack inventory is invalid.');
   const seen = new Map();
   for (const row of rows) {
+    if (row?.Project === project && RETIRED.includes(row.Service)) continue;
     if (!row || row.Project !== project || !SERVICES.includes(row.Service) || seen.has(row.Service) ||
       typeof row.ID !== 'string' || !/^[a-f0-9]{12,64}$/u.test(row.ID) || row.OneOff === true) refuse('Stack contains an unexpected or mismatched service.');
     seen.set(row.Service, { id: row.ID, state: ['running','exited','created','restarting','paused','dead','removing'].includes(row.State) ? row.State : 'unknown',
       health: ['healthy','unhealthy','starting'].includes(row.Health) ? row.Health : null });
   }
-  for (const service of ['noticeos', 'postgres', 'dolt']) if (!seen.has(service)) refuse('Stack is missing a required existing service.');
+  for (const service of ['noticeos', 'postgres']) if (!seen.has(service)) refuse('Stack is missing a required existing service.');
   return seen;
 }
 /**
@@ -145,10 +148,6 @@ export function actionArgs(action, args) {
   if (action === 'mcp') {
     if (!(args.length === 0 || args.length === 2 && args[0] === '--actor')) refuse('Name the agent, if at all, as: pnpm os:mcp -- --actor <name>');
     return { job: ['mcp', ...args] };
-  }
-  if (action === 'bd') {
-    if (!args.length) refuse('Name the task command: pnpm os:bd -- list');
-    return { job: ['bd', ...args] };
   }
   if (action === 'restart' && args.length === 1 && SERVICES.includes(args[0])) return { service: args[0] };
   if (args.length) refuse(HELP);
@@ -234,13 +233,13 @@ export async function stackControl(action, input, { run = runCommand, out = proc
   const wait = services => ['start','--wait','--wait-timeout','90',...services];
   const one = own.service ?? null;
   if (one === 'backup' && !backup.length) refuse('This installation runs no backup worker.');
-  // A database restarts with the app and backup worker stopped, as in the whole
+  // Postgres restarts with the app and backup worker stopped, as in the whole
   // stack's restart: neither loses its connections in the middle of work.
-  const steps = action === 'stop' ? [['stop','noticeos'], ...(backup.length ? [['stop',...backup]] : []), ['stop','postgres','dolt']] :
-    action === 'start' ? [wait(['postgres','dolt']), ...(backup.length ? [wait(backup)] : []), wait(['noticeos'])] :
+  const steps = action === 'stop' ? [['stop','noticeos'], ...(backup.length ? [['stop',...backup]] : []), ['stop','postgres']] :
+    action === 'start' ? [wait(['postgres']), ...(backup.length ? [wait(backup)] : []), wait(['noticeos'])] :
     one === 'noticeos' || one === 'backup' ? [['restart','--no-deps',one], wait([one])] :
     one ? [['stop','noticeos',...backup], ['restart','--no-deps',one], wait([one]), ...(backup.length ? [wait(backup)] : []), wait(['noticeos'])] :
-    [['stop','noticeos',...backup], ['restart','--no-deps','postgres','dolt'], wait(['postgres','dolt']),
+    [['stop','noticeos',...backup], ['restart','--no-deps','postgres'], wait(['postgres']),
       ...(backup.length ? [['restart','--no-deps',...backup],wait(backup)] : []), ['restart','--no-deps','noticeos'],wait(['noticeos'])];
   for (const step of steps) {
     const current = await inventory();

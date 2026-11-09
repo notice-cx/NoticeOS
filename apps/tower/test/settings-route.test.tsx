@@ -7,6 +7,7 @@ import type { AlertRuleStatsPayload } from "@shared/alert-rules";
 import type { IntegrationsMatrix } from "@shared/integrations";
 import type { InstallationFacts } from "@shared/installation";
 import type { SettingsPayload } from "@shared/settings";
+import type { TaskServiceStatus } from "@shared/tasks";
 import { configSaveReply } from "./config-save-reply";
 import * as configDeclarations from "@shared/config-registers";
 import type { AssetCard, WallPayload } from "@shared/wall";
@@ -41,8 +42,14 @@ const state = vi.hoisted(() => ({
   liveClock: false,
   /** How many times the page itself rendered (it reads its settings once a render). */
   pageRenders: 0,
+  /** Where the tasks live; undefined is a status the page has not read. */
+  service: undefined as TaskServiceStatus | undefined,
 }));
 
+vi.mock("@/hooks/useTaskService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useTaskService")>();
+  return { ...actual, useTaskService: () => ({ data: state.service, isPending: state.service === undefined }) };
+});
 vi.mock("@/hooks/useInstallation", () => ({
   useInstallation: () => ({ data: state.installation ?? undefined, isError: false, isFetching: false, error: null, refetch: () => {} }),
 }));
@@ -391,7 +398,7 @@ describe("/settings", () => {
 
   it("shows where the installation lives, who can reach it, its version and the command that updates it", () => {
     stubFetch();
-    const facts: InstallationFacts = { folder: "/srv/noticeos", tower: { address: "0.0.0.0", port: 5180 }, postgresPort: 5432, taskPort: 3307,
+    const facts: InstallationFacts = { folder: "/srv/noticeos", tower: { address: "0.0.0.0", port: 5180 }, postgresPort: 5432,
       launcher: "/srv/noticeos/noticeos", commit: "a".repeat(40), live: false, published: "b".repeat(40) };
     state.installation = facts;
     const { container, unmount } = renderPage("installation");
@@ -399,7 +406,7 @@ describe("/settings", () => {
     expect(section.getByText("/srv/noticeos")).toBeVisible();
     expect(section.getByText("0.0.0.0:5180")).toBeVisible();
     expect(section.getByText("Every device on your network.")).toBeVisible();
-    expect(section.getByText("Postgres 5432 · Tasks 3307")).toBeVisible();
+    expect(section.getByText("Postgres 5432")).toBeVisible();
     expect(section.getByText("a".repeat(12))).toBeVisible();
     expect(section.getByText("Newer version published")).toBeVisible();
     expect(container.querySelector('[data-installation-command="update"]')).toHaveTextContent("/srv/noticeos/noticeos update");
@@ -430,7 +437,7 @@ describe("/settings", () => {
     ["2026-08-30T04:00:00.000Z", "0 4 * * *", false, "Off", null],
   ])("uses backup schedule health in Installation after %s", (good, cron, enabled, label, tone) => {
     stubFetch();
-    state.installation = { folder: null, tower: null, postgresPort: null, taskPort: null, launcher: null, commit: null, live: false, published: null };
+    state.installation = { folder: null, tower: null, postgresPort: null, launcher: null, commit: null, live: false, published: null };
     state.wall = { ...wall([]), system: {
       assetId: null, hasPulse: false, spendTodayUsd: 0, dailyCapUsd: 1,
       ingest: { fresh: 0, stale: 0, notExpected: 0, expected: 0 },
@@ -1286,6 +1293,16 @@ describe("/settings — the task-hub project map", () => {
 
     const checklist = await findChecklist();
     expect(checklist.textContent).toContain("--prefix nw --database nwnow");
+  });
+
+  it("shows an installation with no task service only the Ntasks connection, never a task database server", () => {
+    state.service = { connected: false, origin: null, projects: null, required: true };
+    try {
+      stubFetch();
+      renderPage();
+      expect(document.querySelector("[data-ntasks-connection]")).toHaveAttribute("data-ntasks-connection", "not-connected");
+      expect(document.querySelector("[data-task-hub-connection]")).toBeNull();
+    } finally { state.service = undefined; }
   });
 
   it("shows the connection as the fixed fact it is, never as a field", () => {

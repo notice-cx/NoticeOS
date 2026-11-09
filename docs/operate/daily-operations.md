@@ -9,7 +9,7 @@ This page lists the commands that keep an installation running, and what each he
 
 ## The stack
 
-An installation runs as a **stack**: a few Docker containers that start and stop together. The app, `noticeos`, serves the Tower, receives reports and runs the scheduled jobs; `postgres` holds the store, your data; `dolt` holds the task database; and an optional `backup` worker takes the nightly backup. [Run with Docker](/start/run-with-docker) describes each one.
+An installation runs as a **stack**: a few Docker containers that start and stop together. The app, `noticeos`, serves the Tower, receives reports and runs the scheduled jobs; `postgres` holds the store, your data; and an optional `backup` worker takes the nightly backup. Tasks live in Ntasks ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)). [Run with Docker](/start/run-with-docker) describes each one.
 
 Every `pnpm os:*` command acts on the stack that `.local/stack.json` selects; `pnpm os:setup` writes it. Run them from the checkout.
 

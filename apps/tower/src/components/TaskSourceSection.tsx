@@ -218,6 +218,31 @@ export function CommandBlock({
   );
 }
 
+/** An installation with no task service connected: its one step to having tasks. */
+export function ConnectNtasks() {
+  return (
+    <div className="rounded-[10px] border border-border bg-card p-4" data-connect-ntasks>
+      <EmptyState
+        title="Connect Ntasks"
+        hint={
+          <span className="flex flex-col items-start gap-2">
+            <span>This installation's tasks live in Ntasks. Connect it to plan and track work here.</span>
+            <Link
+              to={TASK_SOURCES_PATH}
+              className={cn(
+                "inline-flex items-center font-medium text-foreground underline-offset-4 hover:underline",
+                pillControlClass,
+              )}
+            >
+              Go to Task projects →
+            </Link>
+          </span>
+        }
+      />
+    </div>
+  );
+}
+
 /**
  * An unread or unconfigured core hub leads to the existing project settings.
  * This is not an empty queue and never hides known tasks.

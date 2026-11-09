@@ -3,8 +3,6 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { readDeclaredTaskClient } from '../../scripts/task-client.mjs';
-import { probeTcp } from '../../scripts/runner/host-tools.mjs';
 import { ContainerRefusal, developmentDependencies } from './development.mjs';
 import { collectJobArgs } from '../../scripts/signal-collect.mjs';
 import { BACKUP_APP_ORIGIN } from '../../scripts/container-backup-profile.mjs';
@@ -12,16 +10,15 @@ import { manualLocalJob } from '../../scripts/scheduled-jobs.mjs';
 
 /** The installation as the host sees it (compose.yaml), shown read-only on the Tower's Settings > Installation. */
 export const HOST_FACTS = ['NOTICEOS_HOST_FOLDER', 'NOTICEOS_HOST_TOWER_ADDRESS', 'NOTICEOS_HOST_TOWER_PORT',
-  'NOTICEOS_HOST_POSTGRES_PORT', 'NOTICEOS_HOST_TASK_PORT', 'NOTICEOS_HOST_LAUNCHER'];
+  'NOTICEOS_HOST_POSTGRES_PORT', 'NOTICEOS_HOST_LAUNCHER'];
+/** The app's home folder, inside the installation's state so it outlives the container. */
+export const APP_HOME = '/state/home';
 
-export function containerEnvironment(env = process.env, { fs: io = fs, readClient = readDeclaredTaskClient, checkDependencies = developmentDependencies } = {}) {
+export function containerEnvironment(env = process.env, { fs: io = fs, checkDependencies = developmentDependencies } = {}) {
   const mode = env.NOTICEOS_CONTAINER_MODE ?? 'prepared';
   if (!['prepared', 'development'].includes(mode)) throw new ContainerRefusal('Choose prepared or development container mode.');
   if (mode === 'development') checkDependencies({ fs: io, metadataFile:'/dependency-image.json' });
   const home = '/state';
-  const profileFile = path.join(home, 'task-client.json');
-  const profile = readClient(profileFile);
-  if (profile.host !== 'dolt' || profile.port !== 3306 || profile.credentialsFile !== '/state/dolt/credentials' || profile.clientHome !== '/state/dolt/client-home') throw new ContainerRefusal('The container needs its declared internal task service.');
   for (const dir of [home, '/spokes', '/state/installation', '/state/.local', '/state/.wrangler', '/state/workers/ingest']) {
     const stat = io.lstatSync(dir);
     if (!stat.isDirectory() || stat.isSymbolicLink()) throw new ContainerRefusal('The prepared installation mount is incomplete.');
@@ -40,13 +37,13 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
   // The backup worker asks this app by its service name; Vite's host guard refuses names it was not given.
   selected.TOWER_ALLOWED_HOSTS = [env.TOWER_ALLOWED_HOSTS, new URL(BACKUP_APP_ORIGIN).hostname].filter(Boolean).join(',');
   // The standalone runtime serves through Vite; its React transforms need development mode.
-  return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'development',
+  return { ...selected, HOME: APP_HOME, TMPDIR: '/tmp', NODE_ENV: 'development',
     // Docker forwards published ports to the container interface, not its loopback.
     // Host exposure remains controlled by the Compose port binding.
     OS_UP_HOST: '1',
-    NOTICEOS_HOME: home, NOTICEOS_INSTALLATION_DIR: '/state/installation', NOTICEOS_TASK_CLIENT_PROFILE: profileFile,
+    NOTICEOS_HOME: home, NOTICEOS_INSTALLATION_DIR: '/state/installation',
     NOTICEOS_BACKUP_CLIENT_PROFILE: '/state/backup-client.json',
-    BEADS_BD_BIN: '/usr/local/bin/bd', NOTICEOS_VITE_CACHE_DIR: '/state/.local/vite-cache', WRANGLER_SEND_METRICS: 'false',
+    NOTICEOS_VITE_CACHE_DIR: '/state/.local/vite-cache', WRANGLER_SEND_METRICS: 'false',
     NOTICEOS_IMMUTABLE_APP: mode === 'development' ? '0' : '1',
     ...(mode === 'development' ? { NOTICEOS_LIVE_SOURCE_ROOT: '/source' } : {}),
     CLOUDFLARE_CF_FETCH_ENABLED: 'false',
@@ -56,7 +53,7 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
 
 /** What the container runs: the runner with no job named, or one job beside
  * it (`pnpm os:backup`, `os:run-job`, `os:collect`, `os:capacity`,
- * `os:refresh-anomalies`, `os:refresh-comparison`, `os:mcp`, `os:bd` exec it
+ * `os:refresh-anomalies`, `os:refresh-comparison` and `os:mcp` exec it
  * here; `pnpm os:setup` runs `setup` in a one-off container and `seed-settings` in the
  * new app), each with the environment the runner itself gets. Null for
  * anything else. */
@@ -73,7 +70,6 @@ export function containerCommand(argv) {
   if (job === 'refresh-anomalies') { try { anomalyRefreshArgs(rest); return ['scripts/anomaly-refresh.mjs', ...rest]; } catch { return null; } }
   if (job === 'refresh-comparison' && rest.length === 0) return ['scripts/ga4-comparison-refresh.mjs'];
   if (job === 'mcp' && (rest.length === 0 || rest.length === 2 && rest[0] === '--actor')) return ['scripts/local-mcp.mjs', ...rest];
-  if (job === 'bd' && rest.length > 0) return ['scripts/local-bd.mjs', ...rest];
   return null;
 }
 
@@ -81,11 +77,12 @@ export async function main(argv = process.argv.slice(2), { environment = contain
   // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
   if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
   const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>" or run-job --id <job-id>, collect --asset <id> [--families <a,b>], capacity [--json], refresh-anomalies --asset <id> [--apply <preview-token>], refresh-comparison, mcp [--actor <name>], bd <arguments>, setup or seed-settings.\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>" or run-job --id <job-id>, collect --asset <id> [--families <a,b>], capacity [--json], refresh-anomalies --asset <id> [--apply <preview-token>], refresh-comparison, mcp [--actor <name>], setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();
-    if (!await probeTcp('dolt', 3306, 5000)) throw new ContainerRefusal('The declared task service is unavailable.');
+    // An installation made before the app's home was in the layout gains it here.
+    fs.mkdirSync(APP_HOME, { recursive: true, mode: 0o700 });
   }
   catch (error) {
     const reason = error instanceof ContainerRefusal ? error.message : 'prepare its mounted installation and internal service credentials.';

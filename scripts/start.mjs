@@ -46,7 +46,6 @@ import { redactLogText } from './os-log.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import { developmentRefusal, openDevelopmentStart } from './start-development.mjs';
 import { MANAGED_START_PORTS } from './start-postgres.mjs';
-import { scrubTaskEnvironment } from './start-dolt.mjs';
 import { HOME_ENV, invokedDirectly, samePath, statePaths } from './os-runtime.mjs';
 import { WORKER_CONFIGS, WRANGLER_SECRET_SWITCHES, workerConfig } from './worker-config-folder.mjs';
 
@@ -73,6 +72,8 @@ export const FOLDER_MARK = '.made-by-pnpm-start';
 /** Wrangler's older name for the database address, which it still reads when
  * the current one is unset: never inherited by a started Tower. */
 const LEGACY_CONNECTION_VARIABLE = 'WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES';
+/** A task CLI's selectors and credentials the shell may carry: never inherited by a started Tower. */
+const TASK_VARIABLES = /^(?:BD_|BEADS_|DOLT_|MYSQL_)/u;
 
 // ─── The plan ────────────────────────────────────────────────────────────────
 
@@ -137,7 +138,7 @@ export function startPlan({ root = REPO_ROOT, dir, port = DEFAULT_PORT } = {}) {
  * (`database`, from `towerDatabase`): one the shell carries is dropped.
  */
 export function towerEnv(plan, env = process.env, database = {}) {
-  const own = scrubTaskEnvironment(env);
+  const own = Object.fromEntries(Object.entries(env).filter(([key]) => !TASK_VARIABLES.test(key)));
   for (const name of WRANGLER_SECRET_SWITCHES) delete own[name];
   for (const variable of Object.values(PRODUCT_ENV)) delete own[variable.legacy];
   for (const name of [LOCAL_CONNECTION_VARIABLE, LEGACY_CONNECTION_VARIABLE]) delete own[name];

@@ -5,12 +5,27 @@ import path from 'node:path';
 import test from 'node:test';
 import { beadsDatabaseName, readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
 import { parseBeadsProjects } from './runner/task-hub.mjs';
-import { collectBeadsSnapshot, runBeadsPoll } from './runner/task-snapshot.mjs';
+import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 let fixtureRoot;
 test.before(async () => { fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-task-config-suite-')); });
 test.after(async () => { await fs.rm(fixtureRoot, { recursive: true, force: true }); });
+
+/** An Ntasks holding an empty project for each prefix, as the snapshot's change-feed sync reads it. */
+function ntasks(prefixes = []) {
+  return {
+    backend: async () => 'ntasks',
+    origin: async () => 'https://ntasks.example.com',
+    projects: async () => prefixes.map((prefix) => ({ projectId: `p-${prefix}`, logicalKey: prefix, displayName: prefix, prefix })),
+    async call({ path: target }) {
+      if (target.startsWith('/api/changes')) return { status: 200, body: { events: [], lastSeq: 0 } };
+      return { status: 200, body: { tasks: [], next: null } };
+    },
+  };
+}
+let caches = 0;
+const taskCache = () => path.join(fixtureRoot, 'task-cache', String(caches++));
 
 const old = { asset: 'old.example', prefix: 'old', database: 'old', repo: '../old' };
 const current = { asset: 'current.example', prefix: 'cur', database: 'cur', repo: '../untrusted-request' };
@@ -33,8 +48,8 @@ test('stored membership wins over exported map while repository paths come only 
   await fs.writeFile(path.join(repoRoot, 'config/task-host.json'), JSON.stringify(host));
   const config = options({ spokes: [current], hub: { host: 'untrusted.example' } }, { repoRoot, readHost: undefined });
   const projects = await readTaskProjects(config);
-  assert.deepEqual(projects.map(({ cwd, ...row }) => row), [{ ...current, repo: '../linked-checkout' }]);
-  assert.ok(projects[0].cwd.startsWith(path.join(repoRoot, 'installation/task-projects/')));
+  // Without a declared task client no task folder is prepared (no-checkout-task-projects.test.mjs has one).
+  assert.deepEqual(projects, [{ ...current, repo: '../linked-checkout' }]);
   assert.deepEqual(parseBeadsProjects(await readTaskProjectConfig(config)), projects);
   assert.equal(JSON.stringify(projects).includes('untrusted'), false);
 });
@@ -49,15 +64,6 @@ test('unknown or reassigned project links cannot choose a directory, and do not 
   const otherDatabase = resolveTaskProjects({ spokes: [{ ...current, database: 'other' }] }, host);
   assert.equal(otherDatabase[0].repo, '');
   assert.match(otherDatabase[0].unavailableReason, /no matching task connection on this host/);
-  const argv = [];
-  const snapshot = await collectBeadsSnapshot({ projects, repoRoot: '/host',
-    run: async (args) => { argv.push(args); return { code: 0, stdout: '[]', stderr: '' }; },
-  });
-  assert.ok(argv.length > 0);
-  assert.ok(argv.every((args) => args[1] === '/linked-checkout'));
-  assert.equal(snapshot.projects[0].ok, true);
-  assert.equal(snapshot.projects[1].ok, false);
-  assert.match(snapshot.projects[1].error, /no matching task connection on this host/);
 });
 
 test('empty membership stays empty; unavailable or invalid configuration never falls back to a file', async () => {
@@ -71,19 +77,16 @@ test('empty membership stays empty; unavailable or invalid configuration never f
   ]) await assert.rejects(readTaskProjects(config));
 });
 
-test('the runner polls the acknowledged map and publishes per-project setup errors without running unknown checkouts', async () => {
-  const argv = [];
+test('the runner files the acknowledged map, each project from its Ntasks project and one with none as an error', async () => {
   const posted = [];
   const map = options({ spokes: [old, current] });
   await runBeadsPoll({ running: true, ready: true }, {
-    probe: async () => true, readConfig: () => readTaskProjectConfig(map), readToken: async () => 'op',
-    run: async (args) => { argv.push(args); return { code: 0, stdout: '[]', stderr: '' }; },
+    taskService: ntasks([current.prefix]), cacheDir: taskCache(), readConfig: () => readTaskProjectConfig(map), readToken: async () => 'op',
     post: async (_url, init) => { posted.push(JSON.parse(init.body)); return { ok: true }; },
     state: { skipping: null }, stopped: () => false, emit: () => {}, now: () => Date.parse('2026-09-09T12:00:00Z'),
   });
   assert.equal(posted.length, 1);
   assert.deepEqual(posted[0].projects.map((row) => [row.asset, row.ok]), [[old.asset, false], [current.asset, true]]);
-  assert.ok(argv.every((args) => args[1].startsWith(path.join(fixtureRoot, 'installation/task-projects/'))));
 });
 
 test('physical backup inventory remains available without the workspace store and retains removed projects', async () => {
@@ -98,10 +101,9 @@ test('physical backup inventory remains available without the workspace store an
   await assert.rejects(readTaskHost({ readHost: async () => JSON.stringify({ repositories: null }) }));
 });
 
-test('an acknowledged empty map clears the board without a task hub; an unreadable map never clears it', async () => {
+test('an acknowledged empty map clears the board; an unreadable map never clears it', async () => {
   const posted = [];
-  const deps = { probe: async () => { throw new Error('must not probe'); }, readToken: async () => 'op',
-    run: async () => { throw new Error('must not execute'); },
+  const deps = { taskService: ntasks(), cacheDir: taskCache(), readToken: async () => 'op',
     post: async (_url, init) => { posted.push(JSON.parse(init.body)); return { ok: true }; },
     state: { skipping: null }, stopped: () => false, emit: () => {},
   };
@@ -114,12 +116,11 @@ test('an acknowledged empty map clears the board without a task hub; an unreadab
   assert.equal(posted.length, 1);
 });
 
-test('pending readbacks report a configuration outage without claiming projects are unconfigured or executing commands', async () => {
+test('pending readbacks report a configuration outage without claiming projects are unconfigured', async () => {
   const emitted = [];
-  const result = await runWatchReadbackFiler({ readToken: async () => 'op',
+  const result = await runWatchReadbackFiler({ taskService: ntasks([current.prefix]), readToken: async () => 'op',
     fetchImpl: async (_url, init) => { assert.notEqual(init.method, 'POST'); return Response.json({ pending: [{ asset: 'current.example', bead: 'cur-aaa' }] }); },
-    readConfig: async () => { throw new Error('store unavailable'); },
-    run: async () => { throw new Error('must not execute'); }, emit: (_level, text) => emitted.push(text),
+    readConfig: async () => { throw new Error('store unavailable'); }, emit: (_level, text) => emitted.push(text),
   });
   assert.deepEqual(result.posted, []);
   assert.match(result.failed[0], /configuration unavailable: store unavailable/);

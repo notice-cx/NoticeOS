@@ -12,13 +12,12 @@ const port = (value: string | undefined): number | null => {
 };
 
 /** The host's facts the stack hands the app (deploy/compose/compose.yaml), as /api/installation answers them. */
-export function hostFacts(env: NodeJS.ProcessEnv): Pick<InstallationFacts, 'folder' | 'tower' | 'postgresPort' | 'taskPort' | 'launcher'> {
+export function hostFacts(env: NodeJS.ProcessEnv): Pick<InstallationFacts, 'folder' | 'tower' | 'postgresPort' | 'launcher'> {
   const towerPort = port(env.NOTICEOS_HOST_TOWER_PORT);
   return {
     folder: env.NOTICEOS_HOST_FOLDER || null,
     tower: towerPort === null ? null : { address: env.NOTICEOS_HOST_TOWER_ADDRESS || '127.0.0.1', port: towerPort },
     postgresPort: port(env.NOTICEOS_HOST_POSTGRES_PORT),
-    taskPort: port(env.NOTICEOS_HOST_TASK_PORT),
     launcher: env.NOTICEOS_HOST_LAUNCHER || null,
   };
 }

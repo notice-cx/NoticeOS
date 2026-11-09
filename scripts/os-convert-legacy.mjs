@@ -14,7 +14,7 @@
 // until you type `convert` (or pass `--confirm convert` without a terminal).
 //
 // Then it stops the stack, copies the installation's own folders (its state,
-// both secrets folders, the backup worker's declaration) into the new folder,
+// the Postgres secrets, the backup worker's declaration) into the new folder,
 // checks every copied secret, starts the stack from the new folder and only
 // then points .local/stack.json at it. Folders the operator keeps elsewhere
 // (task repositories, exporter checkouts, the offsite folder) stay where they
@@ -88,7 +88,9 @@ const NEW_FOLDERS = [
  */
 export function readInstallation(model, { project, imageId, legacyRoot }) {
   const services = model?.services ?? {};
-  for (const name of ['noticeos', 'postgres', 'dolt']) if (!services[name]) refuse(`the stack has no ${name} service.`);
+  for (const name of ['noticeos', 'postgres']) if (!services[name]) refuse(`the stack has no ${name} service.`);
+  // A legacy stack's task server stays behind, stopped with the rest; the
+  // installation's tasks live in Ntasks, and the plan lists it as leaving.
   const unknown = Object.keys(services).filter((name) => !['noticeos', 'postgres', 'dolt', 'backup'].includes(name));
   if (unknown.length) refuse(`the stack has services the layout does not: ${unknown.join(', ')}.`);
   if (services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') refuse('the app runs from live source that pnpm os:dev does not own; pnpm os:prod first, then convert.');
@@ -119,7 +121,6 @@ export function readInstallation(model, { project, imageId, legacyRoot }) {
   const copies = [
     { what: 'state', from: bind('noticeos', '/state'), key: 'state' },
     { what: 'Postgres secrets', from: secretsDir('noticeos_owner'), key: 'postgresSecrets' },
-    { what: 'task server secrets', from: secretsDir('dolt_root'), key: 'doltSecrets' },
     ...(backup ? [{ what: 'backup worker declaration', from: bind('backup', '/run/backup-worker'), key: 'backupProfile' }] : []),
   ];
   const fresh = backup ? NEW_FOLDERS.map(([service, target, key]) => ({ what: target.slice(1), from: bind(service, target), key })) : [];
@@ -139,9 +140,7 @@ export function readInstallation(model, { project, imageId, legacyRoot }) {
     towerHostIp: tower.hostIp,
     allowedHosts: services.noticeos.environment?.TOWER_ALLOWED_HOSTS ?? '',
     postgresPort: port('postgres', 5432).port,
-    doltPort: port('dolt', 3306).port,
     postgresVolume: volume('postgres', '/var/lib/postgresql'),
-    doltVolume: volume('dolt', '/var/lib/dolt'),
     copies,
     fresh,
     kept,
@@ -154,8 +153,8 @@ export function convertedChoices(found, dir) {
     dir, project: found.project, image: found.imageId, uid: found.uid, gid: found.gid,
     // A published port with no address listens on every interface.
     towerBind: found.towerHostIp === null ? '0.0.0.0' : /^\d{1,3}(?:\.\d{1,3}){3}$/u.test(found.towerHostIp) ? found.towerHostIp : undefined,
-    towerPort: found.towerPort, allowedHosts: found.allowedHosts, postgresPort: found.postgresPort, doltPort: found.doltPort,
-    postgresVolume: found.postgresVolume, doltVolume: found.doltVolume,
+    towerPort: found.towerPort, allowedHosts: found.allowedHosts, postgresPort: found.postgresPort,
+    postgresVolume: found.postgresVolume,
     spokes: found.kept.spokes ?? null, backupAssets: found.kept.backupAssets ?? null, backupOffsite: found.kept.backupOffsite ?? null,
   });
 }
@@ -362,9 +361,7 @@ export async function convertLegacy(options, { run = runCommand, env = process.e
     fs.writeFileSync(draft, renderInstallationEnv(choices), { mode: 0o600 });
     after = await resolved({ ...selector, envFile: draft });
   } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
-  for (const [kind, name] of [['volume', choices.postgresVolume], ['volume', choices.doltVolume]]) {
-    if ((await run('docker', ['--host', old.dockerHost, kind, 'inspect', name], { env: tools, timeoutMs: 20_000 })).code !== 0) refuse(`the ${kind} ${name} the stack uses does not exist.`);
-  }
+  if ((await run('docker', ['--host', old.dockerHost, 'volume', 'inspect', choices.postgresVolume], { env: tools, timeoutMs: 20_000 })).code !== 0) refuse(`the volume ${choices.postgresVolume} the stack uses does not exist.`);
   const network = after.networks?.installation?.name;
   const existing = await run('docker', ['--host', old.dockerHost, 'network', 'inspect', '--format', '{{json .Labels}}', network], { env: tools, timeoutMs: 20_000 });
   if (existing.code === 0) {
@@ -385,7 +382,7 @@ export async function convertLegacy(options, { run = runCommand, env = process.e
     say('Kept where they are:');
     for (const [key, from] of keptRows) say(`  ${key}: ${from}`);
   }
-  say(`Data volumes stay: ${choices.postgresVolume}, ${choices.doltVolume}. Image stays: ${imageId.slice(0, 19)}.`);
+  say(`The data volume stays: ${choices.postgresVolume}. Image stays: ${imageId.slice(0, 19)}.`);
   say(`${moved} mount${moved === 1 ? '' : 's'} only change folder.`);
   if (changes.length) {
     say('Also changes:');
@@ -418,7 +415,9 @@ export async function convertLegacy(options, { run = runCommand, env = process.e
       copyTree(copy.from, paths[copy.key]);
     }
     if (found.backup) for (const [, , key] of NEW_FOLDERS) fs.mkdirSync(paths[key], { recursive: true, mode: 0o700 });
-    for (const secret of Object.values(before.secrets ?? {})) {
+    // Only the secrets the new stack declares are carried; the task server's stay behind with it.
+    for (const [name, secret] of Object.entries(before.secrets ?? {})) {
+      if (!after.secrets?.[name]) continue;
       const target = found.copies.map((copy) => inside(secret.file, copy.from) ? path.join(paths[copy.key], path.relative(copy.from, secret.file)) : null).find(Boolean);
       if (!target || sha(target) !== sha(secret.file)) refuse(`the copy of ${secret.file} does not match it.`);
     }

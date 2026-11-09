@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { lateWritingCommand } from './test-late-command.mjs';
 import { mayReadOwnerConfig } from './test-config-isolation.mjs';
 
-import { resolveTowerExposure, TOWER_NETWORK_NOTICE, towerChild, tickRefusal } from './os-up.mjs';
+import { resolveTowerExposure, runBackup, TOWER_NETWORK_NOTICE, towerChild, tickRefusal } from './os-up.mjs';
+import { BACKUP_TASKS_UNKNOWN } from './runner/task-service-poll.mjs';
 import {
   JOB_RUN_CATCHUP_DAYS,
   JOB_RUN_OUTCOMES,
@@ -53,7 +53,7 @@ import {
 } from './runner/lifecycle.mjs';
 import { rotateLogFile } from './runner/log.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
-import { PANEL_REVIEW_VERSION_KEY } from './panel-review-summary.mjs';
+import { PANEL_REVIEW_VERSION_KEY, panelReviewListArgs } from './panel-review-summary.mjs';
 import {
   COLLECTION_REVIEW_ACCEPTANCE,
   INVALID_PANEL_REVIEW_LABEL,
@@ -64,13 +64,11 @@ import {
   PANEL_REVIEW_LABEL,
   invalidPanelReview,
   panelReviewAcceptance,
+  fileNtasksPanelReview,
   panelReviewAlreadyFiled,
-  panelReviewCreateArgs,
-  panelReviewCreatedId,
   panelReviewDescription,
   panelReviewDueDate,
   panelReviewEntry,
-  panelReviewListArgs,
   panelReviewPanelDate,
   panelReviewTitle,
   parsePanelLandings,
@@ -86,26 +84,7 @@ import {
   reportConfigStore,
   reportLegacyEnvCredentials,
 } from './runner/startup-report.mjs';
-import {
-  beadsCreatedId,
-  beadsHubDiagnosis,
-  beadsHubHealthLine,
-  parseBeadsProjects,
-  parseDoltServers,
-  runBd,
-} from './runner/task-hub.mjs';
-import {
-  TASK_MAP_ACTOR,
-  TASK_MAP_ASSET_KEY,
-  TASK_MAP_HUMAN_LABEL,
-  TASK_MAP_LABEL,
-  beadsDatabaseDrift,
-  parseBeadsDatabases,
-  runTaskMapCheck,
-  taskMapBeadAsset,
-  taskMapOpenBeads,
-  taskMapTitle,
-} from './runner/task-map.mjs';
+import { parseBeadsProjects } from './runner/task-hub.mjs';
 import {
   BEADS_CLOSED_LIMIT,
   BEADS_CLOSED_WINDOW_DAYS,
@@ -121,13 +100,13 @@ import {
   beadsGateReason,
   beadsPollArgs,
   beadsSnapshotUrl,
-  collectBeadsSnapshot,
   handoffEntries,
   handoffListArgs,
   runBeadsPoll,
   summarizeBeadsProject,
 } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
+import { TaskServiceUnavailable } from './task-service.mjs';
 import { beadsDatabaseName } from './task-project-config.mjs';
 import { doorErrorCode, fireScheduledTrigger } from './ingest-door.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
@@ -1003,70 +982,12 @@ test('a down or restarting ingest still skips without replay', () => {
   assert.equal(unchecked.level, 'WARN');
 });
 
-test('a reachable hub reports where it is, once', () => {
-  const line = beadsHubHealthLine(true, { beadsHubHost: '127.0.0.1', beadsHubPort: 3308 });
-  assert.equal(line.level, 'INFO');
-  assert.match(line.text, /127\.0\.0\.1:3308/);
-});
-
-test('a down hub warns with the command that fixes it', () => {
-  // The runner cannot restart the hub, so the line has to hand over the fix.
-  const line = beadsHubHealthLine(false, { beadsHubHost: '127.0.0.1', beadsHubPort: 3308 });
-  assert.equal(line.level, 'WARN');
-  assert.match(line.text, /brew services start dolt/);
-  assert.match(line.text, /127\.0\.0\.1:3308/);
-});
-
-test('the beads hub is never expected beyond loopback', () => {
-  // root-with-no-password is only safe while nothing off-machine can connect.
-  assert.equal(CONFIG.beadsHubHost, '127.0.0.1');
-});
-
-/** Settings only — comments differ between the repo copy and the installed one
- * by design, and prose has never bound a port. */
-function yamlSettings(text) {
-  return text
-    .split('\n')
-    .filter((l) => !/^\s*(#|$)/.test(l))
-    .map((l) => l.trimEnd());
-}
-
-const FIXTURE_DOLT_CONFIG = path.join(REPO_ROOT, 'scripts', 'fixture-config', 'dolt-server.yaml');
 const FIXTURE_BEADS_MAP = path.join(REPO_ROOT, 'scripts', 'fixture-config', 'beads.json');
 
 test('runner tests cannot read real installation or product settings', () => {
   const testFile = fileURLToPath(import.meta.url);
   for (const file of ['config/beads.json', 'installation/beads.json', 'installation/dolt-server.yaml']) {
     assert.equal(mayReadOwnerConfig(testFile, file), false, file);
-  }
-});
-
-test('the synthetic hub map, server config and runner port agree', () => {
-  const map = JSON.parse(readFileSync(FIXTURE_BEADS_MAP, 'utf8'));
-  assert.equal(map.hub.port, CONFIG.beadsHubPort);
-  assert.equal(map.hub.host, CONFIG.beadsHubHost);
-
-  // Parsed narrowly on purpose: a YAML dep to read three lines is not worth it.
-  const settings = yamlSettings(readFileSync(FIXTURE_DOLT_CONFIG, 'utf8'));
-  assert.ok(settings.some((l) => l.trim() === `port: ${CONFIG.beadsHubPort}`));
-  assert.ok(settings.some((l) => l.trim() === `host: ${CONFIG.beadsHubHost}`));
-  // The data lives in the checkout's gitignored .local/, wherever it is.
-  assert.ok(settings.some((l) => /^data_dir: \/.+\/\.local\/beads-dolt$/.test(l.trim())));
-});
-
-test('a synthetic server config copy matches settings, detects drift and refuses absence', () => {
-  const home = mkdtempSync(path.join(tmpdir(), 'hub-config-fixture-'));
-  try {
-    const copy = path.join(home, 'server.yaml');
-    const source = readFileSync(FIXTURE_DOLT_CONFIG, 'utf8');
-    writeFileSync(copy, '# synthetic copied configuration\n' + source);
-    assert.deepEqual(yamlSettings(readFileSync(copy, 'utf8')), yamlSettings(source));
-    writeFileSync(copy, source.replace('port: 3308', 'port: 3399'));
-    assert.notDeepEqual(yamlSettings(readFileSync(copy, 'utf8')), yamlSettings(source));
-    rmSync(copy);
-    assert.throws(() => readFileSync(copy, 'utf8'), { code: 'ENOENT' });
-  } finally {
-    rmSync(home, { recursive: true, force: true });
   }
 });
 
@@ -1092,32 +1013,6 @@ test('what counts as a usable task database is declared once', () => {
   assert.equal(beadsDatabaseName(undefined), null);
 });
 
-test('the poller and the drift check agree on every spoke', () => {
-  // The whole point of one declaration: the same file read two ways cannot
-  // produce two different opinions about which database is usable.
-  const raw = JSON.stringify({
-    spokes: [
-      { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example', database: ' md ' },
-      { asset: 'northwind.example', prefix: 'nw', repo: '../nw', database: 'nw; DROP' },
-      { asset: 'acorn.example', prefix: 'ac', repo: '../acorn.example' },
-    ],
-  });
-  const carried = parseBeadsProjects(raw).map((project) => project.database);
-  assert.deepEqual(carried, ['md', null, null]);
-  // A spoke with no usable name is exactly a spoke the drift check reports
-  // with no declared name — nothing in between, and nothing missed.
-  assert.deepEqual(
-    beadsDatabaseDrift(parseBeadsProjects(raw), new Set(['md'])).map((entry) => [
-      entry.asset,
-      entry.declared,
-    ]),
-    [
-      ['northwind.example', null],
-      ['acorn.example', null],
-    ],
-  );
-});
-
 test('spoke database names that could not be safely interpolated travel as null', () => {
   const databases = ['md', 'nw; DROP DATABASE md', '', 42, undefined, 'md'];
   const raw = JSON.stringify({
@@ -1139,137 +1034,6 @@ test('binary resolution prefers a known install over a service’s minimal PATH'
     '/usr/local/bin/dolt',
   );
   assert.equal(resolveBin(undefined, ['/opt/homebrew/bin/dolt'], () => false, 'dolt'), 'dolt');
-});
-
-// The runner's commands (bd, git, lsof, ps, pgrep, the panel refresh) go
-// through scripts/run-command.mjs. A bd whose answer is still in the pipe when
-// it exits must be read in full, never cut short at the exit.
-test('a bd answer still arriving after bd exited is read in full', async () => {
-  const late = lateWritingCommand('bd', { early: '[{"id":"ex-1",', late: '"title":"late"}]\n' });
-  const saved = process.env.BEADS_BD_BIN;
-  process.env.BEADS_BD_BIN = late.bin;
-  try {
-    const result = await runBd(['list', '--json']);
-    assert.equal(result.code, 0);
-    assert.deepEqual(JSON.parse(result.stdout), [{ id: 'ex-1', title: 'late' }]);
-  } finally {
-    if (saved === undefined) delete process.env.BEADS_BD_BIN;
-    else process.env.BEADS_BD_BIN = saved;
-    late.remove();
-  }
-});
-
-// Hub contention diagnosis: a stray `dolt sql-server` holding the port and the
-// per-database write locks must be named as the cause, with the fix, rather
-// than restarted around blindly.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const HUB = { beadsHubHost: '127.0.0.1', beadsHubPort: 3308 };
-const DATA_DIR = '/repo/.local/beads-dolt';
-
-const server = (pid, command) => ({ pid, command });
-
-test('pgrep output becomes pids we can name in a log line', () => {
-  const stdout = [
-    '78866 /opt/homebrew/opt/dolt/bin/dolt sql-server --config /opt/homebrew/etc/dolt/config.yaml',
-    '68972 dolt sql-server -H 127.0.0.1 -P 3308 --data-dir /repo/.local/beads-dolt --loglevel=warning',
-    '',
-  ].join('\n');
-  assert.deepEqual(parseDoltServers(stdout), [
-    server(78866, '/opt/homebrew/opt/dolt/bin/dolt sql-server --config /opt/homebrew/etc/dolt/config.yaml'),
-    server(68972, 'dolt sql-server -H 127.0.0.1 -P 3308 --data-dir /repo/.local/beads-dolt --loglevel=warning'),
-  ]);
-  assert.deepEqual(parseDoltServers(''), []);
-  assert.deepEqual(parseDoltServers(undefined), []);
-});
-
-test('a concurrent pgrep is not a stray server, however its argv reads', () => {
-  // The 15-minute cron check and the per-poll check coincide at :00/:15/:30/:45
-  // and each ran `pgrep -fl "dolt sql-server"`; pgrep excludes itself but not
-  // its twin, so every coinciding tick reported a phantom second server.
-  const stdout = [
-    '78866 /opt/homebrew/opt/dolt/bin/dolt sql-server --config /opt/homebrew/etc/dolt/config.yaml',
-    '97636 /usr/bin/pgrep -fl dolt sql-server',
-    '13624 grep dolt sql-server',
-  ].join('\n');
-  assert.deepEqual(parseDoltServers(stdout), [
-    server(78866, '/opt/homebrew/opt/dolt/bin/dolt sql-server --config /opt/homebrew/etc/dolt/config.yaml'),
-  ]);
-});
-
-test('one server on an open port is the healthy line, unchanged', () => {
-  const d = beadsHubDiagnosis(
-    { reachable: true, servers: [server(78866, 'dolt sql-server --config x')], dataDir: DATA_DIR },
-    HUB,
-  );
-  assert.equal(d.key, 'up');
-  assert.equal(d.level, 'INFO');
-  assert.deepEqual({ level: d.level, text: d.text }, beadsHubHealthLine(true, HUB));
-});
-
-test('no server and a closed port is the down line, unchanged', () => {
-  const d = beadsHubDiagnosis({ reachable: false, servers: [], dataDir: DATA_DIR }, HUB);
-  assert.equal(d.key, 'down');
-  assert.deepEqual({ level: d.level, text: d.text }, beadsHubHealthLine(false, HUB));
-});
-
-test('a stray alongside the hub is named, with both pids and the fix', () => {
-  // The port is OPEN here — which is exactly the trap. A bare probe reports a
-  // green "reachable" line while the loser of the lock race crash-loops.
-  const d = beadsHubDiagnosis(
-    {
-      reachable: true,
-      servers: [server(78866, 'dolt sql-server --config x'), server(68972, 'dolt sql-server --data-dir y')],
-      dataDir: DATA_DIR,
-    },
-    HUB,
-  );
-  assert.equal(d.key, 'contended');
-  assert.equal(d.level, 'WARN');
-  assert.match(d.text, /CONTENDED/);
-  assert.match(d.text, /pids 78866, 68972/);
-  assert.match(d.text, /exclusive write lock per database/);
-  assert.match(d.text, new RegExp(DATA_DIR));
-  // The operator gets the identify step AND the repair step, not a symptom.
-  assert.match(d.text, /lsof -nP -iTCP:3308 -sTCP:LISTEN/);
-  assert.match(d.text, /brew services restart dolt/);
-});
-
-test('a dead port with a live dolt is called what it is: a crash loop', () => {
-  const d = beadsHubDiagnosis(
-    { reachable: false, servers: [server(68972, 'dolt sql-server --data-dir y')], dataDir: DATA_DIR },
-    HUB,
-  );
-  assert.equal(d.key, 'crash-looping');
-  assert.equal(d.level, 'WARN');
-  assert.match(d.text, /crash-loop signature/);
-  assert.match(d.text, /pids 68972/);
-  assert.match(d.text, /brew services info dolt/);
-});
-
-test('a diagnosis we could not make degrades to the plain health line', () => {
-  // pgrep missing must not invent a conflict, nor suppress the basic answer.
-  for (const reachable of [true, false]) {
-    const d = beadsHubDiagnosis({ reachable, servers: null, dataDir: DATA_DIR }, HUB);
-    assert.equal(d.key, reachable ? 'up' : 'down');
-    assert.deepEqual({ level: d.level, text: d.text }, beadsHubHealthLine(reachable, HUB));
-  }
-});
-
-test('every hub state is one line the operator can act on', () => {
-  // No state may report a symptom without a next step, and each is distinct so
-  // "log state changes only" can tell them apart.
-  const cases = [
-    { reachable: true, servers: [server(1, 'a')] },
-    { reachable: false, servers: [] },
-    { reachable: true, servers: [server(1, 'a'), server(2, 'b')] },
-    { reachable: false, servers: [server(1, 'a')] },
-  ];
-  const keys = cases.map((c) => beadsHubDiagnosis({ ...c, dataDir: DATA_DIR }, HUB).key);
-  assert.deepEqual(keys, ['up', 'down', 'contended', 'crash-looping']);
-  for (const c of cases.slice(1)) {
-    assert.match(beadsHubDiagnosis({ ...c, dataDir: DATA_DIR }, HUB).text, /brew services/);
-  }
 });
 
 // Beads snapshot poller, the Tower work board's supply.
@@ -2213,69 +1977,6 @@ for (const key of ['active', 'ready', 'blocked', 'closed']) {
   });
 }
 
-test('one missing repo does not cost the others their snapshot', async () => {
-  const projects = [
-    { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example' },
-    { asset: 'northwind.example', prefix: 'nw', repo: '../nw' },
-    { asset: 'ferns.example', prefix: 'fn', repo: '../ferns.example' },
-  ];
-  const body = await collectBeadsSnapshot({
-    projects,
-    nowMs: Date.parse('2026-08-01T09:00:00Z'),
-    repoRoot: '/repo',
-    run: (argv) => {
-      const dir = argv[1];
-      if (dir.endsWith('/nw')) {
-        return Promise.resolve({ code: 1, stdout: '', stderr: 'Error: no such directory' });
-      }
-      if (dir.endsWith('/ferns.example')) {
-        // bd itself never launched — a different failure, same isolation.
-        return Promise.reject(new Error('spawn bd ENOENT'));
-      }
-      return Promise.resolve(FULL_RESULTS[argv.includes('blocked') ? 'blocked' : argv.includes('ready') ? 'ready' : argv.includes('closed') ? 'closed' : 'active']);
-    },
-  });
-
-  assert.equal(body.capturedAt, '2026-08-01T09:00:00.000Z');
-  assert.deepEqual(body.projects.map((p) => p.ok), [true, false, false]);
-  assert.equal(body.projects[0].counts.ready, 2);
-  assert.match(body.projects[1].error, /no such directory/);
-  assert.match(body.projects[2].error, /could not run: spawn bd ENOENT/);
-});
-
-test('a malformed ready list fails only its own project in the collected snapshot', async () => {
-  const body = await collectBeadsSnapshot({
-    projects: [PROJECT, { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example' }],
-    nowMs: Date.parse('2026-08-01T09:00:00Z'),
-    repoRoot: '/repo',
-    run: (argv) => {
-      if (argv[1].endsWith('/meadow.example') && argv.includes('ready')) return Promise.resolve(ok('{}'));
-      const key = argv.includes('blocked') ? 'blocked' : argv.includes('ready') ? 'ready' : argv.includes('closed') ? 'closed' : 'active';
-      return Promise.resolve(FULL_RESULTS[key]);
-    },
-  });
-  assert.deepEqual(body.projects.map((project) => project.ok), [true, false]);
-  assert.equal(body.projects[0].counts.ready, 2);
-  assert.deepEqual(body.projects[0].ready.map((issue) => issue.id), ['zz-135', 'zz-4qr']);
-  assert.match(body.projects[1].error, /bd ready returned invalid issue list JSON/);
-  assert.deepEqual(body.projects[1].ready, []);
-});
-
-test('projects are photographed in the order the task map lists them', async () => {
-  const projects = [
-    { asset: 'a.example', prefix: 'a', repo: '../a' },
-    { asset: 'b.example', prefix: 'b', repo: '../b' },
-  ];
-  const body = await collectBeadsSnapshot({
-    projects,
-    repoRoot: '/repo',
-    run: () => Promise.resolve(ok('[]')),
-  });
-  // config/beads.json is where the operator changes this order; a busy project
-  // must not float to the top just because it is busy.
-  assert.deepEqual(body.projects.map((p) => p.asset), ['a.example', 'b.example']);
-});
-
 test('the snapshot is filed against the ingest the runner actually started', () => {
   assert.equal(
     beadsSnapshotUrl(CONFIG),
@@ -2287,18 +1988,79 @@ test('the board is refreshed every minute', () => {
   assert.equal(CONFIG.beadsPollCron, '* * * * *');
 });
 
-/** A poll with everything stubbed: no spawn, no socket, no network. */
+const TASK_CACHE_ROOT = mkdtempSync(path.join(tmpdir(), 'os-up-task-cache-'));
+after(() => rmSync(TASK_CACHE_ROOT, { recursive: true, force: true }));
+let taskCaches = 0;
+/** A fresh task cache for one lane fixture, removed with the rest after the file. */
+const taskCache = () => path.join(TASK_CACHE_ROOT, String(taskCaches++));
+
+/**
+ * An Ntasks reached through the ingest, as the runner's lanes call it: one
+ * project per prefix, boards, label reads, task reads, comments and creates.
+ * `state.fail(call)` answers a call with that reply instead, `state.down`
+ * leaves every call unanswered, and `state.backend` is where the ingest says
+ * the tasks live.
+ */
+function fakeNtasks({ prefixes = ['ro'], tasks = [] } = {}) {
+  const state = { tasks: [...tasks], creates: [], comments: [], calls: [], down: false, fail: () => null, backend: 'ntasks' };
+  const projects = prefixes.map((prefix) => ({ projectId: `p-${prefix}`, logicalKey: prefix, displayName: prefix, prefix }));
+  const inProject = (projectId) => (task) => `p-${task.id.split('-')[0]}` === projectId;
+  const service = {
+    backend: async () => state.backend,
+    connected: async () => state.backend === 'ntasks',
+    origin: async () => 'https://ntasks.example.com',
+    projects: async () => { if (state.down) throw new TaskServiceUnavailable('network'); return projects; },
+    tool: async () => null,
+    async call(call) {
+      state.calls.push(call);
+      if (state.down) throw new TaskServiceUnavailable('network');
+      const failed = state.fail(call);
+      if (failed) return failed;
+      const url = new URL(call.path, 'https://ntasks.example.com');
+      if (url.pathname === '/api/changes') return { status: 200, body: { events: [], lastSeq: 0 } };
+      if (call.method === 'GET' && url.pathname === '/api/tasks') {
+        const label = url.searchParams.get('label');
+        const rows = state.tasks.filter(inProject(url.searchParams.get('project')));
+        if (label !== null) return { status: 200, body: { tasks: rows.filter((task) => task.labels.includes(label)), next: null } };
+        return { status: 200, body: { tasks: url.searchParams.get('status') === 'closed' ? rows.filter((task) => task.status === 'closed') : rows } };
+      }
+      const one = /^\/api\/tasks\/([^/]+)$/u.exec(url.pathname);
+      if (call.method === 'GET' && one) {
+        const task = state.tasks.find((entry) => entry.id === decodeURIComponent(one[1]));
+        return task ? { status: 200, body: { task } } : { status: 404, body: { error: 'not_found' } };
+      }
+      if (call.method === 'POST' && url.pathname === '/api/tasks') {
+        const { projectId, ...fields } = call.body;
+        const id = `${projectId.slice(2)}-${state.tasks.length + 1}`;
+        state.creates.push(call);
+        state.tasks.push({ status: 'open', issueType: 'task', labels: [], metadata: {}, ...fields, id });
+        return { status: 201, body: { id } };
+      }
+      const comment = /^\/api\/tasks\/([^/]+)\/comments$/u.exec(url.pathname);
+      if (call.method === 'POST' && comment) {
+        state.comments.push({ taskId: decodeURIComponent(comment[1]), text: call.body.text });
+        return { status: 201, body: {} };
+      }
+      throw new Error(`unexpected ${call.method} ${call.path}`);
+    },
+  };
+  return { service, state };
+}
+
+/** A poll against a scripted Ntasks and a recorded door: no socket, no network. */
 function pollDeps(overrides = {}) {
   const lines = [];
   const posted = [];
+  const ntasks = fakeNtasks({ tasks: [{ id: 'ro-1', title: 'Ready work', status: 'open', priority: 1, issueType: 'task', labels: [], ready: true }] });
   return {
     lines,
     posted,
+    ntasks: ntasks.state,
     deps: {
-      probe: () => Promise.resolve(true),
+      taskService: ntasks.service,
+      cacheDir: taskCache(),
       readConfig: () => Promise.resolve(JSON.stringify({ spokes: [PROJECT] })),
       readToken: () => Promise.resolve('operator-secret'),
-      run: () => Promise.resolve(ok('[]')),
       post: (url, init) => {
         posted.push({ url, init });
         return Promise.resolve({ ok: true, status: 201, text: () => Promise.resolve('') });
@@ -2314,24 +2076,25 @@ function pollDeps(overrides = {}) {
 
 const UP = { running: true, ready: true };
 
-test('a down hub skips the tick with one WARN and never spams', async () => {
-  const { lines, posted, deps } = pollDeps({ probe: () => Promise.resolve(false) });
+test('an Ntasks that does not answer skips the tick with one WARN and never spams', async () => {
+  const { lines, posted, ntasks, deps } = pollDeps();
+  ntasks.down = true;
   assert.equal(await runBeadsPoll(UP, deps), null);
   await runBeadsPoll(UP, deps);
   await runBeadsPoll(UP, deps);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^WARN beads snapshot skipped — the beads task hub is unreachable/);
+  assert.match(lines[0], /^WARN beads snapshot skipped — Ntasks did not answer \(network\)/);
   assert.equal(posted.length, 0);
 });
 
-test('a recovered hub says so, then files', async () => {
-  let reachable = false;
-  const { lines, posted, deps } = pollDeps({ probe: () => Promise.resolve(reachable) });
+test('a recovered Ntasks says so, then files', async () => {
+  const { lines, posted, ntasks, deps } = pollDeps();
+  ntasks.down = true;
   await runBeadsPoll(UP, deps);
-  reachable = true;
+  ntasks.down = false;
   await runBeadsPoll(UP, deps);
   assert.equal(posted.length, 1);
-  assert.match(lines[1], /^INFO beads snapshot resumed \(was skipped: the beads task hub is unreachable\)/);
+  assert.match(lines[1], /^INFO beads snapshot resumed \(was skipped: Ntasks did not answer \(network\)\)/);
 });
 
 test('the poll waits for ingest rather than posting into a closed port', async () => {
@@ -2349,7 +2112,7 @@ test('no operator token means no post, and a line saying why', async () => {
 });
 
 test('the snapshot is posted with the operator bearer and the captured instant', async () => {
-  const { posted, deps } = pollDeps({ run: () => Promise.resolve(ok(BD_READY)) });
+  const { posted, deps } = pollDeps();
   await runBeadsPoll(UP, deps);
   assert.equal(posted.length, 1);
   assert.equal(posted[0].url, beadsSnapshotUrl(CONFIG));
@@ -2359,6 +2122,7 @@ test('the snapshot is posted with the operator bearer and the captured instant',
   assert.equal(body.capturedAt, '2026-08-01T09:00:00.000Z');
   assert.equal(body.projects.length, 1);
   assert.equal(body.projects[0].asset, 'root-os');
+  assert.deepEqual(body.projects[0].ready.map((issue) => issue.id), ['ro-1']);
 });
 
 test('a non-201 from ingest is an ERROR line, never a thrown tick', async () => {
@@ -2376,11 +2140,10 @@ test('an unreachable ingest is an ERROR line, never a thrown tick', async () => 
 });
 
 test('an unreadable project is reported in the filed line, not hidden', async () => {
-  const { lines, deps } = pollDeps({
-    run: () => Promise.resolve({ code: 1, stdout: '', stderr: 'Error: no beads project found' }),
-  });
+  const { lines, ntasks, deps } = pollDeps();
+  ntasks.fail = (call) => (call.path.startsWith('/api/tasks?') ? { status: 503, body: { error: 'unavailable' } } : null);
   await runBeadsPoll(UP, deps);
-  assert.match(lines[0], /1 unreadable: root-os \(bd active exited 1/);
+  assert.match(lines[0], /1 unreadable: root-os \(Ntasks did not answer for ro\)/);
 });
 
 // ── The panel-review convention ─────────────────────────────────────────────
@@ -2557,12 +2320,6 @@ test('the poller asks each spoke what it has triaged', () => {
   assert.ok(args.includes('--json'));
 });
 
-test('the filer and the board ask the spoke exactly the same question', () => {
-  // Two different questions would let the filer duplicate a review the board
-  // then fails to show.
-  assert.deepEqual(beadsPollArgs('/repos/nw', '2026-07-25').panelReview, panelReviewListArgs('/repos/nw'));
-});
-
 test('triage state rides the snapshot alongside the work', () => {
   const entry = summarizeBeadsProject(PROJECT, { ...FULL_RESULTS, panelReview: ok(BD_PANEL_REVIEW) });
   assert.deepEqual(entry.panelReview, {
@@ -2715,12 +2472,10 @@ test('a bead filed before the rename still joins its finding, and still dedupes 
   assert.deepEqual(handoffEntries([legacyHandoff()], 'northwind.example'), []);
 });
 
-test('a panel review and a drift report filed before the rename are still recognized', () => {
+test('a panel review filed before the rename is still recognized', () => {
   assert.equal(panelReviewPanelDate(review({ metadata: { reindex_panel_asset: 'northwind.example', reindex_panel_date: '2026-08-02' } })), '2026-08-02');
   assert.equal(panelReviewAlreadyFiled([review({ metadata: { reindex_panel_asset: 'northwind.example', reindex_panel_date: '2026-08-02' } })], '2026-08-02'), true);
-  assert.equal(taskMapBeadAsset({ title: 'something else', metadata: { reindex_task_map_asset: 'northwind.example' } }), 'northwind.example');
   assert.equal(PANEL_REVIEW_DATE_KEY, 'noticeos_panel_date');
-  assert.equal(TASK_MAP_ASSET_KEY, 'noticeos_task_map_asset');
 });
 
 test('a key keeps every byte the searcher typed', () => {
@@ -2949,22 +2704,24 @@ test('one property gets one review, whatever the endpoint says', () => {
   assert.equal(landings[0].panelDate, '2026-08-02');
 });
 
-test('the bead carries the whole convention, in the property’s own repo', () => {
-  const argv = panelReviewCreateArgs('/repos/nw', { asset: 'northwind.example', panelDate: '2026-08-02', panel: true, queries: 6 });
-  assert.deepEqual(argv.slice(0, 2), ['-C', '/repos/nw']);
-  assert.deepEqual(argv.slice(2, 4), ['--actor', PANEL_REVIEW_ACTOR]);
-  assert.equal(argv[4], 'create');
-  assert.equal(argv[5], 'Triage the 2026-08-02 serp panel for northwind.example');
-  assert.deepEqual(argv.slice(argv.indexOf('--labels'), argv.indexOf('--labels') + 2), ['--labels', PANEL_REVIEW_LABEL]);
-  assert.deepEqual(argv.slice(argv.indexOf('--due'), argv.indexOf('--due') + 2), ['--due', '2026-08-09']);
-  assert.deepEqual(JSON.parse(argv[argv.indexOf('--metadata') + 1]), {
-    [PANEL_REVIEW_ASSET_KEY]: 'northwind.example',
-    [PANEL_REVIEW_DATE_KEY]: '2026-08-02',
-  });
-  // Stated, not inherited: a bd default that changes upstream must not
-  // re-grade a year of review beads.
-  assert.deepEqual(argv.slice(argv.indexOf('--type'), argv.indexOf('--type') + 2), ['--type', 'task']);
-  assert.deepEqual(argv.slice(argv.indexOf('--priority'), argv.indexOf('--priority') + 2), ['--priority', '2']);
+/** A register that records what a review files, as task-service-register.mjs's create takes it. */
+function recordingRegister() {
+  const filed = [];
+  return { filed, create: async (project, body, key) => { filed.push({ project, body, key }); return `${project.prefix}-1`; } };
+}
+
+test('the review carries the whole convention, in the property’s own project', async () => {
+  const register = recordingRegister();
+  await fileNtasksPanelReview(register, { asset: 'northwind.example', prefix: 'nw' }, { asset: 'northwind.example', panelDate: '2026-08-02', panel: true, queries: 6 });
+  const [{ project, body }] = register.filed;
+  assert.equal(project.prefix, 'nw');
+  assert.equal(body.title, panelReviewTitle('northwind.example', '2026-08-02', true));
+  assert.deepEqual(body.labels, [PANEL_REVIEW_LABEL]);
+  assert.equal(body.dueAt, '2026-08-09');
+  assert.deepEqual(body.metadata, { [PANEL_REVIEW_ASSET_KEY]: 'northwind.example', [PANEL_REVIEW_DATE_KEY]: '2026-08-02' });
+  // Stated, not inherited: a default that changes upstream must not re-grade a
+  // year of review tasks.
+  assert.deepEqual([body.type, body.priority], ['task', 2]);
 });
 
 /**
@@ -2974,17 +2731,15 @@ test('the bead carries the whole convention, in the property’s own repo', () =
  * change them and every review already filed goes unrecognized, which the filer
  * would read as "never filed" and duplicate.
  */
-test('a panel-less review is the same bead with a different noun', () => {
-  const landing = { asset: 'acorn.example', panelDate: '2026-08-03', panel: false, queries: null, families: 5 };
-  const argv = panelReviewCreateArgs('/repos/areas', landing);
-  assert.equal(argv[5], 'Triage the 2026-08-03 signal collection for acorn.example');
-  assert.deepEqual(argv.slice(argv.indexOf('--labels'), argv.indexOf('--labels') + 2), ['--labels', PANEL_REVIEW_LABEL]);
-  assert.deepEqual(JSON.parse(argv[argv.indexOf('--metadata') + 1]), {
-    [PANEL_REVIEW_ASSET_KEY]: 'acorn.example',
-    [PANEL_REVIEW_DATE_KEY]: '2026-08-03',
-  });
-  assert.deepEqual(argv.slice(argv.indexOf('--due'), argv.indexOf('--due') + 2), ['--due', '2026-08-10']);
-  assert.equal(argv[argv.indexOf('--acceptance') + 1], COLLECTION_REVIEW_ACCEPTANCE);
+test('a panel-less review is the same task with a different noun', async () => {
+  const register = recordingRegister();
+  await fileNtasksPanelReview(register, { asset: 'acorn.example', prefix: 'ac' }, { asset: 'acorn.example', panelDate: '2026-08-03', panel: false, queries: null, families: 5 });
+  const [{ body }] = register.filed;
+  assert.equal(body.title, panelReviewTitle('acorn.example', '2026-08-03', false));
+  assert.deepEqual(body.labels, [PANEL_REVIEW_LABEL]);
+  assert.deepEqual(body.metadata, { [PANEL_REVIEW_ASSET_KEY]: 'acorn.example', [PANEL_REVIEW_DATE_KEY]: '2026-08-03' });
+  assert.equal(body.dueAt, '2026-08-10');
+  assert.equal(body.acceptance, COLLECTION_REVIEW_ACCEPTANCE);
 });
 
 test('the title says panel only when a panel landed', () => {
@@ -3065,47 +2820,29 @@ test("a filed review uses the configured checkout for its evidence pointer", () 
   assert.equal(panelReviewDescription(landing), panelReviewDescription(landing, { osCheckout: home }));
 });
 
-test('the created id is read back for the log, and its absence is not a failure', () => {
-  assert.equal(panelReviewCreatedId('{"id":"nw-4q2"}'), 'nw-4q2');
-  assert.equal(panelReviewCreatedId('[{"id":"nw-4q2"}]'), 'nw-4q2');
-  assert.equal(panelReviewCreatedId('Created issue nw-4q2'), null);
-  assert.equal(panelReviewCreatedId(''), null);
-});
-
 const FILER_PANEL_VERSION = '00000004-2026-08-03T13-10-04-637Z-4f83dc';
+const FILER_LANDINGS = [
+  { asset: 'northwind.example', panelDate: '2026-08-02', landedAt: '2026-08-02T12:47:31Z', status: 'success', queries: 6 },
+];
 
-/** A filer pass with everything stubbed: no spawn, no socket, no network — and
- * so no `bd create` has ever run against a real property tracker. */
-function filerDeps(overrides = {}) {
+/** A filer pass against a scripted Ntasks and a canned landings door: no
+ * socket, no network, and no review ever filed in a real project. */
+function filerDeps(overrides = {}, { prefixes = ['nw'], tasks = [] } = {}) {
   const lines = [];
-  const ran = [];
   const fetched = [];
+  const ntasks = fakeNtasks({ prefixes, tasks });
   const fixture = {
     lines,
-    ran,
     fetched,
+    ntasks: ntasks.state,
     deps: {
-      probe: () => Promise.resolve(true),
+      taskService: ntasks.service,
       readConfig: () =>
         Promise.resolve(JSON.stringify({ spokes: [{ asset: 'northwind.example', prefix: 'nw', repo: '../nw' }] })),
       readToken: () => Promise.resolve('operator-secret'),
       get: (url, init) => {
         fetched.push({ url, init });
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () =>
-            Promise.resolve({
-              windowDays: 21,
-              landings: [
-                { asset: 'northwind.example', panelDate: '2026-08-02', landedAt: '2026-08-02T12:47:31Z', status: 'success', queries: 6 },
-              ],
-            }),
-        });
-      },
-      run: (argv) => {
-        ran.push(argv);
-        return Promise.resolve(ok(argv.includes('create') ? '{"id":"nw-4q2"}' : '[]'));
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ windowDays: 21, landings: FILER_LANDINGS }) });
       },
       // Every collection here is already in its property's published panel;
       // runner-panel-review.test.mjs covers the wait.
@@ -3120,37 +2857,29 @@ function filerDeps(overrides = {}) {
       ...overrides,
     },
   };
-  fixture.deps.createReview ??= async (project, landing) => {
-    const result = await fixture.deps.run(panelReviewCreateArgs(path.resolve(REPO_ROOT, project.repo), landing));
-    if (result.code !== 0) throw new Error(`task client create exited ${result.code}`);
-    return JSON.parse(result.stdout).id;
-  };
   return fixture;
 }
 
-test('a landed panel with no review becomes one bead in the property’s tracker', async () => {
-  const { lines, ran, fetched, deps } = filerDeps();
+test('a landed panel with no review becomes one task in the property’s project', async () => {
+  const { lines, fetched, ntasks, deps } = filerDeps();
   const result = await runPanelReviewFiler(UP, deps);
   assert.equal(fetched[0].url, serpPanelLandingsUrl(CONFIG));
   assert.equal(fetched[0].init.headers.authorization, 'Bearer operator-secret');
-  assert.deepEqual(result.filed, [{ asset: 'northwind.example', panelDate: '2026-08-02', beadId: 'nw-4q2' }]);
+  assert.deepEqual(result.filed, [{ asset: 'northwind.example', panelDate: '2026-08-02', beadId: 'nw-1' }]);
   // The read that decided it, then the write it decided on — in that order.
-  assert.equal(ran.length, 2);
-  assert.equal(ran[0].includes('create'), false);
-  assert.equal(ran[1][4], 'create');
-  // Bounded by the property's repo, never by the runner's cwd.
-  assert.equal(ran[1][1], path.resolve(REPO_ROOT, '../nw'));
-  assert.equal(JSON.parse(ran[1][ran[1].indexOf('--metadata') + 1])[PANEL_REVIEW_VERSION_KEY], FILER_PANEL_VERSION);
-  assert.match(lines[0], /^INFO panel review filed — nw-4q2 in \.\.\/nw/);
+  assert.deepEqual(ntasks.calls.map((call) => call.method), ['GET', 'POST']);
+  assert.equal(ntasks.creates[0].body.projectId, 'p-nw');
+  assert.equal(ntasks.creates[0].body.metadata[PANEL_REVIEW_VERSION_KEY], FILER_PANEL_VERSION);
+  assert.match(lines[0], /^INFO panel review filed — nw-1 in Ntasks/);
 });
 
 /**
  * End to end: a panel property and a panel-less property (five report families
  * every Monday, no entry in config/serp-panel.json) are one landing each, one
- * bead each, worded for what they actually bought.
+ * task each, worded for what they actually bought.
  */
 test('a property with no panel gets the same obligation, worded for what it bought', async () => {
-  const { ran, deps } = filerDeps({
+  const { ntasks, deps } = filerDeps({
     readConfig: () =>
       Promise.resolve(
         JSON.stringify({
@@ -3172,19 +2901,18 @@ test('a property with no panel gets the same obligation, worded for what it boug
             ],
           }),
       }),
-  });
+  }, { prefixes: ['nw', 'ac'] });
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result.filed.map((f) => f.asset), ['northwind.example', 'acorn.example']);
-  const titles = ran.filter((argv) => argv.includes('create')).map((argv) => argv[5]);
-  assert.deepEqual(titles, [
-    'Triage the 2026-08-03 serp panel for northwind.example',
-    'Triage the 2026-08-03 signal collection for acorn.example',
+  assert.deepEqual(ntasks.creates.map((call) => call.body.title), [
+    panelReviewTitle('northwind.example', '2026-08-03', true),
+    panelReviewTitle('acorn.example', '2026-08-03', false),
   ]);
   // One identity for both: the label and the metadata pair never depend on the
   // wording, which is what keeps the poller and the Tower able to see them.
-  for (const argv of ran.filter((a) => a.includes('create'))) {
-    assert.deepEqual(JSON.parse(argv[argv.indexOf('--metadata') + 1])[PANEL_REVIEW_DATE_KEY], '2026-08-03');
-    assert.ok(argv.includes(PANEL_REVIEW_LABEL));
+  for (const { body } of ntasks.creates) {
+    assert.equal(body.metadata[PANEL_REVIEW_DATE_KEY], '2026-08-03');
+    assert.deepEqual(body.labels, [PANEL_REVIEW_LABEL]);
   }
 });
 
@@ -3192,47 +2920,33 @@ test('a property with no panel gets the same obligation, worded for what it boug
 // owed. The endpoint reports what the archive holds, so a property that collects
 // nothing is simply absent from it.
 test('a property that bought nothing is never asked to read anything', async () => {
-  const { ran, deps } = filerDeps({
+  const { ntasks, deps } = filerDeps({
     get: () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ landings: [] }) }),
   });
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result, { checked: 0, filed: [] });
-  assert.equal(ran.length, 0);
+  assert.deepEqual(ntasks.calls, []);
 });
 
 test('a panel already reviewed costs a read and nothing else', async () => {
-  const ran = [];
-  const { lines, deps } = filerDeps({
-    run: (argv) => {
-      ran.push(argv);
-      if (argv.includes('create')) throw new Error('the filer wrote when it should not have');
-      return Promise.resolve(ok(JSON.stringify([review()])));
-    },
-  });
+  const filed = { id: 'nw-4q2', title: panelReviewTitle('northwind.example', '2026-08-02'), status: 'open', labels: [PANEL_REVIEW_LABEL],
+    metadata: { [PANEL_REVIEW_ASSET_KEY]: 'northwind.example', [PANEL_REVIEW_DATE_KEY]: '2026-08-02' } };
+  const { lines, ntasks, deps } = filerDeps({}, { tasks: [filed] });
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result, { checked: 1, filed: [] });
-  assert.equal(ran.length, 1);
+  assert.equal(ntasks.calls.length, 1);
+  assert.deepEqual(ntasks.creates, []);
   assert.deepEqual(lines, []);
 });
 
 test('re-running the filer creates nothing the second time', async () => {
-  // The whole idempotence claim, end to end: the spoke's own beads are the
+  // The whole idempotence claim, end to end: the project's own tasks are the
   // record, so a pass that already filed finds its own work next time.
-  const spoke = [];
-  const { ran, deps } = filerDeps({
-    run: (argv) => {
-      ran.push(argv);
-      if (argv.includes('create')) {
-        spoke.push(review());
-        return Promise.resolve(ok('{"id":"nw-4q2"}'));
-      }
-      return Promise.resolve(ok(JSON.stringify(spoke)));
-    },
-  });
+  const { ntasks, deps } = filerDeps();
   assert.equal((await runPanelReviewFiler(UP, deps)).filed.length, 1);
   assert.equal((await runPanelReviewFiler(UP, deps)).filed.length, 0);
   assert.equal((await runPanelReviewFiler(UP, deps)).filed.length, 0);
-  assert.equal(spoke.length, 1);
+  assert.equal(ntasks.creates.length, 1);
 });
 
 test('a runner that was asleep when the panel landed files it on the next pass', async () => {
@@ -3244,32 +2958,16 @@ test('a runner that was asleep when the panel landed files it on the next pass',
 });
 
 test('a dedupe read that failed writes nothing at all', async () => {
-  const { lines, ran, deps } = filerDeps({
-    run: (argv) => {
-      ran.push(argv);
-      if (argv.includes('create')) throw new Error('the filer wrote blind');
-      return Promise.resolve({ code: 1, stdout: '', stderr: 'Error: no beads project found' });
-    },
-  });
+  const { lines, ntasks, deps } = filerDeps();
+  ntasks.fail = (call) => (call.method === 'GET' ? { status: 503, body: { detail: 'unavailable' } } : null);
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result, { checked: 0, filed: [] });
-  assert.match(lines[0], /^ERROR panel review: northwind\.example — bd panel review list exited 1/);
+  assert.deepEqual(ntasks.creates, []);
+  assert.match(lines[0], /^ERROR panel review: northwind\.example — the Ntasks review list could not be read/);
 });
 
-test('unparseable bd output is a reason to write nothing, not to write anyway', async () => {
-  const { lines, deps } = filerDeps({
-    run: (argv) => {
-      if (argv.includes('create')) throw new Error('the filer wrote blind');
-      return Promise.resolve(ok('<html>nope</html>'));
-    },
-  });
-  const result = await runPanelReviewFiler(UP, deps);
-  assert.deepEqual(result, { checked: 0, filed: [] });
-  assert.match(lines[0], /unparseable JSON; filing nothing/);
-});
-
-test('a bd that never launched fails that property only', async () => {
-  const { lines, deps } = filerDeps({
+test('a review list Ntasks did not answer fails that property only', async () => {
+  const { lines, ntasks, deps } = filerDeps({
     readConfig: () =>
       Promise.resolve(
         JSON.stringify({
@@ -3291,28 +2989,19 @@ test('a bd that never launched fails that property only', async () => {
             ],
           }),
       }),
-    run: (argv) => {
-      if (argv[1].endsWith('/nw')) return Promise.reject(new Error('spawn bd ENOENT'));
-      return Promise.resolve(ok(argv.includes('create') ? '{"id":"md-7g1"}' : '[]'));
-    },
-  });
+  }, { prefixes: ['nw', 'md'] });
+  ntasks.fail = (call) => (call.path.includes('project=p-nw') ? { status: 503, body: {} } : null);
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result.filed.map((f) => f.asset), ['meadow.example']);
-  assert.match(lines[0], /^ERROR panel review: northwind\.example — bd list could not run: spawn bd ENOENT/);
+  assert.match(lines[0], /^ERROR panel review: northwind\.example — the Ntasks review list could not be read/);
 });
 
-test('a bd create that failed is a line, never a claimed bead', async () => {
-  const { lines, deps } = filerDeps({
-    run: (argv) =>
-      Promise.resolve(
-        argv.includes('create')
-          ? { code: 1, stdout: '', stderr: 'Error: prefix mismatch' }
-          : ok('[]'),
-      ),
-  });
+test('a create Ntasks refused is a line, never a claimed task', async () => {
+  const { lines, ntasks, deps } = filerDeps();
+  ntasks.fail = (call) => (call.method === 'POST' ? { status: 500, body: { detail: 'prefix mismatch' } } : null);
   const result = await runPanelReviewFiler(UP, deps);
   assert.deepEqual(result.filed, []);
-  assert.match(lines[0], /^ERROR panel review: northwind\.example — review create failed: task client create exited 1/);
+  assert.match(lines[0], /^ERROR panel review: northwind\.example — review create failed: Ntasks create answered HTTP 500/);
 });
 
 test('a property with a collection and no tracker is named once, not hourly', async () => {
@@ -3326,13 +3015,14 @@ test('a property with a collection and no tracker is named once, not hourly', as
   assert.match(lines[0], /northwind\.example has a 2026-08-02 collection but no spoke in config\/beads\.json/);
 });
 
-test('a down hub files nothing and says so once', async () => {
-  const { lines, ran, deps } = filerDeps({ probe: () => Promise.resolve(false) });
+test('with no task service connected the filer files nothing and says so once', async () => {
+  const { lines, fetched, ntasks, deps } = filerDeps();
+  ntasks.backend = 'none';
   assert.equal(await runPanelReviewFiler(UP, deps), null);
   await runPanelReviewFiler(UP, deps);
-  assert.equal(ran.length, 0);
+  assert.deepEqual([ntasks.calls, fetched], [[], []]);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^WARN panel review filer skipped — the beads task hub is unreachable/);
+  assert.match(lines[0], /^WARN panel review filer skipped — no task service is connected/);
 });
 
 test('the filer waits for ingest rather than reading a closed port', async () => {
@@ -3343,17 +3033,17 @@ test('the filer waits for ingest rather than reading a closed port', async () =>
 });
 
 test('no operator token means no read and no write', async () => {
-  const { lines, fetched, ran, deps } = filerDeps({ readToken: () => Promise.resolve(null) });
+  const { lines, fetched, ntasks, deps } = filerDeps({ readToken: () => Promise.resolve(null) });
   assert.equal(await runPanelReviewFiler(UP, deps), null);
   assert.equal(fetched.length, 0);
-  assert.equal(ran.length, 0);
+  assert.deepEqual(ntasks.calls, []);
   assert.match(lines[0], /no OPERATOR_TOKEN is configured/);
 });
 
 test('an ingest that cannot answer files nothing, and never throws the tick', async () => {
-  const { lines, ran, deps } = filerDeps({ get: () => Promise.reject(new Error('ECONNREFUSED')) });
+  const { lines, ntasks, deps } = filerDeps({ get: () => Promise.reject(new Error('ECONNREFUSED')) });
   assert.equal(await runPanelReviewFiler(UP, deps), null);
-  assert.equal(ran.length, 0);
+  assert.deepEqual(ntasks.calls, []);
   assert.match(lines[0], /panel landings read failed \(ECONNREFUSED\)/);
 
   const nonOk = filerDeps({ get: () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }) });
@@ -3361,19 +3051,19 @@ test('an ingest that cannot answer files nothing, and never throws the tick', as
   assert.match(nonOk.lines[0], /panel landings read returned HTTP 401/);
 });
 
-test('a recovered read says so before it files again', async () => {
-  let reachable = false;
-  const { lines, deps } = filerDeps({ probe: () => Promise.resolve(reachable) });
+test('a task service connected again says so before the filer files', async () => {
+  const { lines, ntasks, deps } = filerDeps();
+  ntasks.backend = 'none';
   await runPanelReviewFiler(UP, deps);
-  reachable = true;
-  await runPanelReviewFiler(UP, deps);
-  assert.match(lines[1], /^INFO panel review filer resumed \(was skipped: the beads task hub is unreachable\)/);
+  ntasks.backend = 'ntasks';
+  assert.equal((await runPanelReviewFiler(UP, deps)).filed.length, 1);
+  assert.match(lines[1], /^INFO panel review filer resumed \(was skipped: no task service is connected/);
 });
 
 test('a shutting-down runner files nothing', async () => {
-  const { ran, fetched, deps } = filerDeps({ stopped: () => true });
+  const { fetched, ntasks, deps } = filerDeps({ stopped: () => true });
   assert.equal(await runPanelReviewFiler(UP, deps), null);
-  assert.equal(ran.length, 0);
+  assert.deepEqual(ntasks.calls, []);
   assert.equal(fetched.length, 0);
 });
 
@@ -3507,14 +3197,13 @@ test('docs/06 names where the number lives, so the next change moves one thing',
 });
 
 
-// The readback lane: a closed bet's verdict, carried to the bead that owns its
-// reading. Everything is stubbed: no spawn, no network.
+// The readback lane: a closed bet's verdict, carried to the task that owns its
+// reading. Ntasks is scripted and the door recorded: no socket, no network.
 
 const READBACK_SPOKE = { asset: 'meadow.example', prefix: 'md', repo: '../meadow.example' };
 
 function readbackDeps(overrides = {}) {
   const lines = [];
-  const spawned = [];
   const requests = [];
   const pending = overrides.pending ?? [
     {
@@ -3526,18 +3215,16 @@ function readbackDeps(overrides = {}) {
     },
   ];
   delete overrides.pending;
+  const ntasks = fakeNtasks({ prefixes: ['md'], tasks: [{ id: 'md-w1n.2', title: 'Kill the old page', status: 'open', labels: [], metadata: {} }] });
   return {
     lines,
-    spawned,
     requests,
+    ntasks: ntasks.state,
     deps: {
+      taskService: ntasks.service,
       config: { ingestHost: '127.0.0.1', ingestPort: 8791 },
       readToken: () => Promise.resolve('operator-secret'),
       readConfig: () => Promise.resolve(JSON.stringify({ spokes: [READBACK_SPOKE] })),
-      run: (argv) => {
-        spawned.push(argv);
-        return Promise.resolve(ok(argv[2] === 'show' ? JSON.stringify([{ id: argv[3], status: 'open' }]) : ''));
-      },
       fetchImpl: (url, init) => {
         requests.push({ url, init });
         if (!init || init.method !== 'POST') {
@@ -3546,26 +3233,17 @@ function readbackDeps(overrides = {}) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ posted: [], skipped: [] }) });
       },
       emit: (level, text) => lines.push(`${level} ${text}`),
-      repoRoot: '/home/operator/reindex-os',
       ...overrides,
     },
   };
 }
 
-test('a verdict reaches its bead in the spoke that owns it, then is stamped', async () => {
-  const { lines, spawned, requests, deps } = readbackDeps();
+test('a verdict reaches the task that owns it, then is stamped', async () => {
+  const { lines, ntasks, requests, deps } = readbackDeps();
   const result = await runWatchReadbackFiler(deps);
 
   assert.deepEqual(result.posted, ['w-1']);
-  // `-C <repo>`: bead ids are project-scoped, so the comment has to be made
-  // from the spoke's own repo or the hub cannot resolve the id.
-  assert.deepEqual(spawned, [
-    // Resolved from the HOME checkout the inventory is relative to: a runner
-    // running from a code folder must not look for ../meadow.example beside
-    // that folder.
-    ['-C', '/home/operator/meadow.example', 'show', 'md-w1n.2', '--json'],
-    ['-C', '/home/operator/meadow.example', 'comment', 'md-w1n.2', 'Watch window kill_confirmed — meadow.example\n\nReading: …'],
-  ]);
+  assert.deepEqual(ntasks.comments, [{ taskId: 'md-w1n.2', text: 'Watch window kill_confirmed — meadow.example\n\nReading: …' }]);
   // Read, then post — the stamp is the LAST thing that happens.
   assert.equal(requests.length, 2);
   assert.equal(requests[1].init.method, 'POST');
@@ -3575,24 +3253,22 @@ test('a verdict reaches its bead in the spoke that owns it, then is stamped', as
 });
 
 test('an empty queue says nothing at all', async () => {
-  const { lines, spawned, requests, deps } = readbackDeps({ pending: [] });
+  const { lines, ntasks, requests, deps } = readbackDeps({ pending: [] });
   await runWatchReadbackFiler(deps);
   assert.deepEqual(lines, []);
-  assert.deepEqual(spawned, []);
+  assert.deepEqual(ntasks.calls, []);
   assert.equal(requests.length, 1);
 });
 
 test('a failed comment is not stamped, so the next tick tries again', async () => {
-  const { lines, requests, deps } = readbackDeps({
-    run: argv => Promise.resolve(argv[2] === 'show' ? ok(JSON.stringify([{ id: argv[3], status: 'open' }]))
-      : { code: 1, stdout: '', stderr: 'Error: no issue found matching "md-w1n.2"' }),
-  });
+  const { lines, ntasks, requests, deps } = readbackDeps();
+  ntasks.fail = (call) => (call.path.endsWith('/comments') ? { status: 404, body: { detail: 'no task md-w1n.2' } } : null);
   const result = await runWatchReadbackFiler(deps);
 
   assert.deepEqual(result.posted, []);
   // Nothing posted means nothing stamped: only the read happened.
   assert.equal(requests.length, 1);
-  assert.match(lines[0], /^WARN watch readbacks: bd comment exited 1/);
+  assert.match(lines[0], /^WARN watch readbacks: md-w1n\.2: result delivery failed: Ntasks comment answered HTTP 404/);
 });
 
 test('a verdict for an asset with no spoke is named, never dropped in silence', async () => {
@@ -3784,282 +3460,6 @@ test('the config line reads the ingest door, and stays silent when it cannot', a
   assert.equal(lines.length, 1);
 });
 
-// The task-map lane: is each project's declared database one the hub holds?
-//
-// What these guard is not the SQL but the decisions: what counts as drift, what
-// refuses to decide at all, and that the answer is a bead somebody will see
-// rather than a line nobody reads.
-
-const TASK_MAP_CONFIG = JSON.stringify({
-  spokes: [
-    { asset: 'root-os', prefix: 'ro', database: 'ro', repo: '.' },
-    { asset: 'meadow.example', prefix: 'md', database: 'md_typo', repo: '../meadow.example' },
-    { asset: 'northwind.example', prefix: 'nw', repo: '../nw' },
-  ],
-});
-
-/** The store's answer to "which asset is the OS" (`GET /api/os-asset`), as the
- * lane's `homeAsset` dependency: the fixture's own OS spoke. */
-const TASK_MAP_HOME = async () => 'root-os';
-
-/** A `bd` stub that answers by the verb in the argv, and records every call. */
-function taskMapBd(answers) {
-  const calls = [];
-  return {
-    calls,
-    run: async (argv) => {
-      calls.push(argv);
-      const verb = argv.includes('sql')
-        ? 'sql'
-        : argv.includes('create')
-          ? 'create'
-          : argv.includes('close')
-            ? 'close'
-            : 'list';
-      return answers[verb] ?? { code: 0, stdout: '[]', stderr: '' };
-    },
-  };
-}
-
-test('SHOW DATABASES is read as data, and unreadable output is not an empty hub', () => {
-  assert.deepEqual(
-    [...parseBeadsDatabases('[{"Database":"ro"},{"Database":"md"}]')],
-    ['ro', 'md'],
-  );
-  // A client that labels the column differently is still readable — the row has
-  // exactly one value and it is the name.
-  assert.deepEqual([...parseBeadsDatabases('[{"database":"ro"}]')], ['ro']);
-  // NULL, not an empty set. An empty set would mean every project has drifted,
-  // and that is a conclusion only a hub that genuinely answered may license.
-  assert.equal(parseBeadsDatabases('not json'), null);
-  assert.equal(parseBeadsDatabases('{"rows":[]}'), null);
-});
-
-test('drift is a declared name the hub does not hold — and a missing name too', () => {
-  const spokes = parseBeadsProjects(TASK_MAP_CONFIG);
-  const held = new Set(['ro', 'md', 'information_schema', 'mysql']);
-
-  assert.deepEqual(beadsDatabaseDrift(spokes, held), [
-    // "md_typo" is a plausible-looking name that is simply not there.
-    { asset: 'meadow.example', declared: 'md_typo' },
-    // No database at all is drift too, and the more urgent kind: the backup
-    // lane drops this project silently, so it is not being copied and nothing
-    // says so.
-    { asset: 'northwind.example', declared: null },
-  ]);
-  // A hub we could not ask decides nothing.
-  assert.deepEqual(beadsDatabaseDrift(spokes, null), []);
-});
-
-test('a drift bead is identified by its project, metadata first and title second', () => {
-  assert.equal(
-    taskMapBeadAsset({ metadata: { [TASK_MAP_ASSET_KEY]: 'northwind.example' }, title: 'anything' }),
-    'northwind.example',
-  );
-  // `bd`'s list JSON omits metadata for a bead that carries none; reading a
-  // thinner client's bead beats filing a duplicate beside it.
-  assert.equal(taskMapBeadAsset({ title: taskMapTitle('meadow.example') }), 'meadow.example');
-  assert.equal(taskMapBeadAsset({ title: 'Something else entirely' }), null);
-
-  // AND THE TOWER READS THE SAME TITLE. /settings/task-projects marks the row whose
-  // database the hub does not hold, and it learns which one from the bead this
-  // lane files; its matcher (`driftingAssetOf` in apps/tower/shared/task-map.ts)
-  // keys on this prefix, so it is pinned HERE, on the writing side.
-  assert.match(taskMapTitle('northwind.example'), /^Point northwind\.example's task database at one\b/);
-
-  const open = taskMapOpenBeads([
-    { id: 'ro-1', status: 'open', metadata: { [TASK_MAP_ASSET_KEY]: 'northwind.example' } },
-    { id: 'ro-2', status: 'closed', metadata: { [TASK_MAP_ASSET_KEY]: 'ferns.example' } },
-    { id: 'ro-3', status: 'open', title: 'unrelated work' },
-  ]);
-  assert.deepEqual([...open], [['northwind.example', 'ro-1']]);
-  // Null forbids both filing and closing this pass.
-  assert.equal(taskMapOpenBeads('nope'), null);
-});
-
-test('the lane files one bead per drifting project, into this repo', async () => {
-  const lines = [];
-  const bd = taskMapBd({
-    sql: { code: 0, stdout: '[{"Database":"ro"},{"Database":"md"}]', stderr: '' },
-    list: { code: 0, stdout: '[]', stderr: '' },
-    create: { code: 0, stdout: '{"id":"ro-new"}', stderr: '' },
-  });
-
-  const result = await runTaskMapCheck({
-    exists: () => false,
-    homeAsset: TASK_MAP_HOME,
-    readConfig: async () => TASK_MAP_CONFIG,
-    run: bd.run,
-    now: () => new Date('2026-09-05T05:00:00.000Z'),
-    state: { skipping: null },
-    emit: (level, line) => lines.push(`${level} ${line}`),
-    stopped: () => false,
-  });
-
-  assert.deepEqual(
-    result.filed.map((f) => f.asset),
-    ['meadow.example', 'northwind.example'],
-  );
-  const created = bd.calls.filter((argv) => argv.includes('create'));
-  assert.equal(created.length, 2);
-  // Filed into THIS repo's tracker: the wrong value is in this repo's file and
-  // the lane it breaks is this repo's backup.
-  assert.equal(created[0][1], REPO_ROOT);
-  assert.ok(created[0].includes(TASK_MAP_ACTOR));
-  // `human`, because only the operator can run `bd init` or change the value.
-  assert.ok(created[0].some((arg) => arg === `${TASK_MAP_LABEL},${TASK_MAP_HUMAN_LABEL}`));
-  // The description carries both fixes and the names the hub actually has.
-  const description = created[0][created[0].indexOf('--description') + 1];
-  assert.match(description, /provision that database from the project checkout/);
-  assert.match(description, /installation\/task-host\.json/);
-  assert.match(description, /\/settings\/task-projects/);
-  assert.match(description, /the hub holds: md, ro/);
-  // ERROR, not WARN: the backup for this project is aimed at nothing.
-  assert.ok(lines.some((line) => line.startsWith('ERROR task map: meadow.example')));
-});
-
-test('a bead already open for a project is kept rather than filed again', async () => {
-  const bd = taskMapBd({
-    sql: { code: 0, stdout: '[{"Database":"ro"},{"Database":"md"}]', stderr: '' },
-    list: {
-      code: 0,
-      stdout: JSON.stringify([
-        { id: 'ro-old', status: 'open', metadata: { [TASK_MAP_ASSET_KEY]: 'meadow.example' } },
-        { id: 'ro-old2', status: 'open', metadata: { [TASK_MAP_ASSET_KEY]: 'northwind.example' } },
-      ]),
-      stderr: '',
-    },
-  });
-
-  const result = await runTaskMapCheck({
-    exists: () => false,
-    homeAsset: TASK_MAP_HOME,
-    readConfig: async () => TASK_MAP_CONFIG,
-    run: bd.run,
-    state: { skipping: null },
-    emit: () => {},
-    stopped: () => false,
-  });
-
-  assert.deepEqual(result.filed, []);
-  assert.deepEqual(result.closed, []);
-  assert.equal(bd.calls.filter((argv) => argv.includes('create')).length, 0);
-});
-
-test('the lane closes its own bead when the two agree again, with the evidence', async () => {
-  const bd = taskMapBd({
-    // The hub now holds every declared database.
-    sql: {
-      code: 0,
-      stdout: '[{"Database":"ro"},{"Database":"md"}]',
-      stderr: '',
-    },
-    list: {
-      code: 0,
-      stdout: JSON.stringify([
-        { id: 'ro-old', status: 'open', metadata: { [TASK_MAP_ASSET_KEY]: 'meadow.example' } },
-      ]),
-      stderr: '',
-    },
-    close: { code: 0, stdout: '', stderr: '' },
-  });
-  const agreeing = JSON.stringify({
-    spokes: [
-      { asset: 'root-os', prefix: 'ro', database: 'ro', repo: '.' },
-      { asset: 'meadow.example', prefix: 'md', database: 'md', repo: '../meadow.example' },
-    ],
-  });
-
-  const result = await runTaskMapCheck({
-    exists: () => false,
-    homeAsset: TASK_MAP_HOME,
-    readConfig: async () => agreeing,
-    run: bd.run,
-    now: () => new Date('2026-09-05T05:00:00.000Z'),
-    state: { skipping: null },
-    emit: () => {},
-    stopped: () => false,
-  });
-
-  assert.deepEqual(result.closed, [{ asset: 'meadow.example', beadId: 'ro-old' }]);
-  const closed = bd.calls.find((argv) => argv.includes('close'));
-  const reason = closed[closed.indexOf('-r') + 1];
-  assert.match(reason, /SHOW DATABASES/);
-  assert.match(reason, /2026-09-05T05:00:00\.000Z/);
-  // Recurrence is a FRESH bead, said out loud in the close itself.
-  assert.match(reason, /files a fresh bead rather than reopening this one/);
-});
-
-test('a hub that will not answer decides nothing at all', async () => {
-  for (const sql of [
-    { code: 1, stdout: '', stderr: 'connection refused' },
-    { code: 0, stdout: 'not json', stderr: '' },
-  ]) {
-    const bd = taskMapBd({ sql });
-    const result = await runTaskMapCheck({
-      exists: () => false,
-      homeAsset: TASK_MAP_HOME,
-      readConfig: async () => TASK_MAP_CONFIG,
-      run: bd.run,
-      state: { skipping: null },
-      emit: () => {},
-      stopped: () => false,
-    });
-    assert.equal(result, null);
-    // Nothing filed, nothing closed, and the bead list was never even asked
-    // for: a bead filed against a hub we could not read is the same lie as
-    // silence, in the other direction.
-    assert.equal(bd.calls.length, 1);
-  }
-});
-
-// The lane files into the OS's own project as the STORE names it
-// (`assets.is_os`), whatever that asset is called, and files nothing when the
-// store names none rather than guessing an id.
-test('the lane files into whichever project the store names as the OS', async () => {
-  const bd = taskMapBd({
-    sql: { code: 0, stdout: '[{"Database":"home"}]', stderr: '' },
-    list: { code: 0, stdout: '[]', stderr: '' },
-    create: { code: 0, stdout: '{"id":"home-new"}', stderr: '' },
-  });
-  const renamed = JSON.stringify({
-    spokes: [
-      { asset: 'home-os.example', prefix: 'home', database: 'home', repo: '.' },
-      { asset: 'shop.example', prefix: 'shop', database: 'shop', repo: '../shop' },
-    ],
-  });
-  const result = await runTaskMapCheck({
-    exists: () => false,
-    homeAsset: async () => 'home-os.example',
-    readConfig: async () => renamed,
-    run: bd.run,
-    now: () => new Date('2026-09-05T05:00:00.000Z'),
-    state: { skipping: null },
-    emit: () => {},
-    stopped: () => false,
-  });
-  assert.deepEqual(result.filed.map((f) => f.asset), ['shop.example']);
-  const created = bd.calls.find((argv) => argv.includes('create'));
-  assert.equal(created[1], REPO_ROOT, 'filed into the OS project’s own checkout');
-
-  const lines = [];
-  const unnamed = taskMapBd({});
-  assert.equal(
-    await runTaskMapCheck({
-      exists: () => false,
-      homeAsset: async () => null,
-      readConfig: async () => renamed,
-      run: unnamed.run,
-      state: { skipping: null },
-      emit: (level, line) => lines.push(`${level} ${line}`),
-      stopped: () => false,
-    }),
-    null,
-  );
-  assert.equal(unnamed.calls.length, 0, 'the hub is never asked when there is no OS project');
-  assert.ok(lines.some((line) => line.includes('the store names no OS asset')));
-});
-
 // --- starting from a code folder apart from home ------------------------------
 //
 // The container image keeps its code apart from the installation's state.
@@ -4132,4 +3532,20 @@ test('os:run-job names the refusal and lists the expressions it does run', () =>
   assert.doesNotMatch(line, /Search review tasks/u, 'a job the runner runs itself is not an expression os:run-job fires');
   assert.equal(tickRefusal('0 * * * *', 'scheduled_failed'), null);
   assert.equal(tickRefusal('0 * * * *', null), null);
+});
+
+test('while the ingest cannot say where the tasks live, no backup is taken, so no set is written or pruned', async () => {
+  const taken = [];
+  const ways = { env: { NOTICEOS_BACKUP_CLIENT_PROFILE: '/state/backup-client.json' }, emit: () => {},
+    container: async (_profile, request) => { taken.push(['worker', request]); return { ok: true, detail: 'complete' }; },
+    host: async () => { taken.push(['host']); return { ok: true, detail: 'complete' }; },
+    exportTasks: async () => { taken.push(['export']); return { file: '/state/.local/task-export/backup.json' }; } };
+  const unanswered = { connected: async () => { throw new TaskServiceUnavailable('ingest'); } };
+  assert.deepEqual(await runBackup({ ...ways, service: unanswered }), { ok: false, detail: BACKUP_TASKS_UNKNOWN });
+  assert.deepEqual(taken, [], 'neither the worker nor the local backup runs');
+  assert.deepEqual(await runBackup({ ...ways, service: { connected: async () => false } }), { ok: true, detail: 'complete' });
+  assert.deepEqual(taken, [['worker', {}]], 'with no task service connected the set is taken without tasks');
+  taken.length = 0;
+  await runBackup({ ...ways, service: { connected: async () => true } });
+  assert.deepEqual(taken, [['export'], ['worker', { tasks: 'ntasks', tasksExport: '/state/.local/task-export/backup.json' }]]);
 });

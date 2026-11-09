@@ -26,7 +26,7 @@ import { copyStack, LAUNCHER, STACK_DIR } from './installation-layout.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runCommand } from './run-command.mjs';
 import { holdingStackLock, planChanges, portTaken, recordApplied, recreate } from './stack-apply.mjs';
-import { readSelector } from './stack-control.mjs';
+import { readSelector, RETIRED } from './stack-control.mjs';
 import { composePrefix, stackDatabaseCurrent } from './stack-database.mjs';
 import { stackAtomic, stackImageMetadata, stackSnapshot } from './stack-deploy.mjs';
 
@@ -60,14 +60,23 @@ export function withImage(text, image) {
  * The services whose declaration differs between `now` and `then` (each
  * `docker compose config` output), reading paths under `from` as paths under
  * `to`: a version's definition is compared where it will be, not where it is
- * staged. Throws when the two declare different services.
+ * staged. Throws when the two declare different services, except a retired
+ * one (stack-control.mjs RETIRED) that only one of them runs (retiredMoves).
  */
 export function changedServices(now, then, { from, to }) {
-  const names = Object.keys(now.services ?? {}).sort();
-  const theirs = Object.keys(then.services ?? {}).sort();
+  const own = (model) => Object.keys(model.services ?? {}).filter((name) => !RETIRED.includes(name)).sort();
+  const names = own(now);
+  const theirs = own(then);
   if (names.join() !== theirs.join()) refuse(`the other version runs ${theirs.join(', ')} where this one runs ${names.join(', ')}; moving between them is not something update does. Nothing was changed.`);
   const moved = (value) => JSON.stringify(value).replaceAll(`${from}/`, `${to}/`);
-  return names.filter((name) => moved(then.services[name]) !== JSON.stringify(now.services[name]));
+  return [...names, ...RETIRED.filter((name) => now.services?.[name] && then.services?.[name])].sort()
+    .filter((name) => moved(then.services[name]) !== JSON.stringify(now.services[name]));
+}
+
+/** The retired services the other version stops running (`leaving`) or runs again (`returning`). */
+export function retiredMoves(now, then) {
+  return { leaving: RETIRED.filter((name) => now.services?.[name] && !then.services?.[name]),
+    returning: RETIRED.filter((name) => !now.services?.[name] && then.services?.[name]) };
 }
 
 const ask = async (question) => {
@@ -142,17 +151,20 @@ export async function moveVersion(options, { run = runCommand, env = process.env
   const envText = fs.readFileSync(selector.envFile, 'utf8');
   stackAtomic(nextEnv, withImage(envText, target.id));
   const declared = async (files, envFile) => JSON.parse(await docker([...composePrefix({ ...selector, files, envFile }), 'config', '--format', 'json'], 'Reading the stack\'s declaration'));
-  let changing;
+  let changing, retired;
   try {
-    changing = changedServices(await declared(selector.files, selector.envFile),
-      await declared(selector.files.map((file) => file.startsWith(`${stack}/`) ? staged + file.slice(stack.length) : file), nextEnv),
-      { from: staged, to: stack });
+    const [now, then] = [await declared(selector.files, selector.envFile),
+      await declared(selector.files.map((file) => file.startsWith(`${stack}/`) ? staged + file.slice(stack.length) : file), nextEnv)];
+    changing = changedServices(now, then, { from: staged, to: stack });
+    retired = retiredMoves(now, then);
   } finally { fs.rmSync(nextEnv, { force: true }); }
-  const databases = changing.filter((name) => ['postgres', 'dolt'].includes(name));
+  const databases = changing.filter((name) => name === 'postgres');
   say(`${options.rollback ? 'Rolling back' : 'Updating'} ${selector.project} from ${short(current.revision)} to ${short(target.revision)}. Nothing has changed yet.`);
   say(`  The app${changing.includes('backup') ? ' and backup worker' : ''} run${changing.includes('backup') ? '' : 's'} the ${options.rollback ? 'earlier' : 'new'} image.`);
   if (databases.length) say(`  ${databases.join(', ')}: ${databases.length === 1 ? 'its' : 'their'} declaration changes; the app and backup worker stop while ${databases.length === 1 ? 'it returns' : 'they return'}.`);
   for (const name of changing.filter((name) => !['noticeos', 'backup', ...databases].includes(name))) say(`  ${name}: its declaration changes.`);
+  for (const name of retired.leaving) say(`  ${name}: the new version does not run it; it stops, and its container and data volume stay for a rollback.`);
+  for (const name of retired.returning) say(`  ${name}: the earlier version runs it again, from its kept container and data volume.`);
   say(`If a service does not become healthy, the stack returns to ${short(current.revision)}.`);
   const confirmed = options.confirm ?? (interactive ? await question(`Type ${verb} to do it, or press Enter to stop: `) : null);
   if (confirmed !== verb) {
@@ -187,12 +199,25 @@ export async function moveVersion(options, { run = runCommand, env = process.env
       const plan = await planChanges(selector, { run, env, taken });
       const beyond = plan.changed.filter((name) => !changing.includes(name));
       if (beyond.length) refuse(`${beyond.join(', ')} would change beyond the plan; nothing was changed.`);
+      // The earlier version's app needs its retired service running before it starts.
+      for (const name of retired.returning) {
+        say(`Starting ${name}.`);
+        await docker([...composePrefix(selector), 'up', '--detach', '--no-deps', '--pull', 'never', '--wait', '--wait-timeout', '180', name], `Starting ${name}`, { timeoutMs: 240_000, inherit: true });
+      }
       await recreate(selector, plan, { previous: selector, restore, returned: ` The stack runs ${short(current.revision)} again, as it did before.`, run, env, out });
     } catch (error) {
       restore();
       // What was staged for the failed version is not kept.
       if (!options.rollback) fs.rmSync(next, { recursive: true, force: true });
       throw error;
+    }
+    // Kept, not removed: a rollback starts it again. The move stands if it does not stop.
+    for (const name of retired.leaving) {
+      try {
+        const ids = (await docker(['--host', selector.dockerHost, 'ps', '--quiet', '--filter', `label=com.docker.compose.project=${selector.project}`,
+          '--filter', `label=com.docker.compose.service=${name}`], `Finding ${name}`)).trim().split('\n').filter(Boolean);
+        if (ids.length) await docker(['--host', selector.dockerHost, 'stop', ...ids], `Stopping ${name}`, { timeoutMs: 120_000 });
+      } catch { say(`${name} still runs; docker stop ${selector.project}-${name}-1 stops it.`); }
     }
     if (!options.rollback) {
       fs.rmSync(spare, { recursive: true, force: true });

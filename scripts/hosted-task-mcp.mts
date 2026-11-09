@@ -141,6 +141,23 @@ export function ntasksTaskHome(origin: string | null): string {
     + `Connect to Ntasks's MCP endpoint, ${endpoint}, for every task tool, and read the get_task_guide it serves before task work.`;
 }
 
+/** Where the tasks are while a standalone installation has no task service connected. */
+export const NO_TASK_SERVICE = 'This installation has no task service connected, so it has no tasks and this server has no task tools. '
+  + 'Connect Ntasks in the Tower under Settings → Task projects.';
+
+/** The guide while no task service is connected. */
+export function noTasksGuide(panels: boolean): { readonly version: string; readonly guide: string } {
+  return versionedGuide('Working with NoticeOS', ['## Start', '', ASSET_START, '', '## Tasks', '', NO_TASK_SERVICE,
+    ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])]);
+}
+
+/** Every session's instructions while no task service is connected. */
+export function noTasksInstructions(panels: boolean): string {
+  return [[ASSET_START, NO_TASK_SERVICE, ...(panels ? [PANEL_RULE] : [])].join(' '),
+    `${TASK_GUIDE_TOOL} here returns where the tasks live, at any time; list_workspaces returns its version as guideVersion, `
+      + 'so read it again when that changes.'].join('\n');
+}
+
 /** An address of letters, digits, dots, hyphens and a port: one that a shell
  * command and a Markdown code span carry unchanged. A URL's host may hold `$(`,
  * a backtick or `;`, which a shell runs. */

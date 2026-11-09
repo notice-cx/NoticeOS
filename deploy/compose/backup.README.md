@@ -1,23 +1,24 @@
 # Container backup worker
 
-`backup.compose.yaml` adds a backup worker to the application, Postgres and Dolt
+`backup.compose.yaml` adds a backup worker to the application and Postgres
 services of [`stack.yaml`](stack.yaml); `pnpm os:setup` includes it unless given
 `--without-backup`. The application sends one generated request identity
 through a private folder. The worker's protected declarations select the operation,
 stores, exporter checkouts and handoff folder.
 
-The worker uses the application's pinned image, including PostgreSQL 18.6's client,
-Dolt 2.4.0 and SQLite 3.53.4. SQLite is built from the official release source and
+The worker uses the application's pinned image, including PostgreSQL 18.6's client
+and SQLite 3.53.4. SQLite is built from the official release source and
 its published SHA3-256 checksum in the Dockerfile. Database service pins remain in
 their existing host definitions.
 
 ## Preparation and custody
 
 The installation folder's `installation.env` sets the variables
-`backup.compose.yaml` requires: its folders under `backup/`, the task data
-volume and the network. Compose stops with an error when a declaration or bind source is missing. The application mounts the request folder; the worker also mounts
-the declared task project repositories, task data, credentials, exporter roots
-and private Postgres socket. Dolt and the worker share `/backup-staging` at the same path.
+`backup.compose.yaml` requires: its folders under `backup/` and the network.
+Compose stops with an error when a declaration or bind source is missing. The
+application mounts the request folder; the worker also mounts the declared task
+project repositories, the Postgres credentials, exporter roots and the private
+Postgres socket.
 
 `pnpm os:setup` writes the worker profile folder, `backup/profile/`, mode `0700`
 with private files `0600`. Its `profile.json` is exactly:
@@ -61,10 +62,11 @@ steps; if the selection changes or any target fails, the set is not published. A
 the same asset. Account activation and recurring export impact still require
 the owner's specific production approval.
 
-The worker runs with UID 0 to read existing private server metadata and credentials.
-Its capabilities are limited to `DAC_OVERRIDE`, `CHOWN`, `SETUID` and `SETGID`, with a
-read-only image and explicit mounts. Postgres capture uses the existing socket
-superuser authority. Task capture uses the existing declared `noticeos` identity.
+The worker runs with UID 0 to read existing private credentials. Its
+capabilities are limited to `DAC_OVERRIDE`, `CHOWN`, `SETUID` and `SETGID`, with
+a read-only image and explicit mounts. Postgres capture uses the existing socket
+superuser authority. The tasks come from the Ntasks export the app takes for
+each run ([Keep tasks in Ntasks](../../docs/guides/keep-tasks-in-ntasks.md#the-nightly-backup)).
 The profile introduces no SQL grant changes. The app and worker mount no Docker
 socket.
 
@@ -73,10 +75,10 @@ socket.
 The existing backup pipeline attempts every store, publishes completion last,
 preserves earlier complete sets after a failure, and retains its existing dated,
 daily and weekly retention behavior. A complete container set includes Postgres,
-R2, task databases and server metadata, approved exporter output, restore
-instructions and private recovery material. The recovery material includes the bootstrap
-bindings, database credentials, task selector, task inventory, task project
-configuration and worker/exporter declarations. If a source credential or
+R2, the Ntasks export while Ntasks is connected, approved exporter output,
+restore instructions and private recovery material. The recovery material
+includes the bootstrap bindings, database credentials, the saved task projects
+when the installation has exported them, and the worker/exporter declarations. If a source credential or
 declaration changes during capture, the set is not published.
 
 The offsite copy leaves out `recovery/`; only the local set has it. The copy
@@ -108,15 +110,13 @@ the operation that made the claim has stopped, then remove its protected claim.
 
 Restore uses a new, proven absent destination. The Postgres restore identity must
 receive its own private copy or input stream; the backup's own copy stays mode `0600`.
-Task restore verifies the complete snapshot's file hashes and pinned format before
-starting the new server. Restore the archived bootstrap bindings and task
-project configuration, adapting only the explicitly chosen new endpoint and credentials
-selector.
+Restore the archived bootstrap bindings, adapting only the explicitly chosen new
+endpoint and credentials selector.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 `NOTICEOS_TEST_CONTAINER_BACKUP=1` and a qualified local
-`NOTICEOS_TEST_APP_IMAGE=noticeos-local:backup-proof-…` tag. It requires the qualified
-Beads binary through `BEADS_BD_BIN`, a local Docker endpoint and a nonroot operator.
+`NOTICEOS_TEST_APP_IMAGE=noticeos-local:backup-proof-…` tag. It requires a local
+Docker endpoint and a nonroot operator.
 Preserve explicit `DOCKER_CONFIG` when isolating HOME. Run with
 `node --import ./scripts/script-tests-setup.mjs --test scripts/container-backup-compose.test.mjs`.
 It creates and removes only its own projects and volumes, reserves loopback ports

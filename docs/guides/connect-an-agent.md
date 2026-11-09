@@ -124,17 +124,6 @@ A repository's own instructions do not repeat the rules; they point at the tool:
 - **Everything else in [What agents are not allowed to touch](/concepts/tasks-and-agents#what-agents-are-not-allowed-to-touch).**
 - **Who may connect.** Anything that reaches the Tower has full task access in the installation, as the Tower's own pages do: this machine by default, and every device on your network once you open the Tower to it. Open it only on a network you trust.
 
-## Use the task tool without installing it
-
-For a person at the terminal, `pnpm os:bd -- <command>`, or `~/noticeos/noticeos bd <command>`, runs the task tool inside the app, in the installation's task project:
-
-```sh
-pnpm os:bd -- ready
-pnpm os:bd -- --project ex show ex-14
-```
-
-`--project` names the prefix when the installation links more than one project. Changes are recorded as `operator` unless `--actor` names someone else.
-
 ## A hosted workspace
 
 A hosted workspace serves the same tools at its own `/api/mcp` address. The agent signs in there, and you approve the access it asks for; see [Tasks and agents](/concepts/tasks-and-agents#what-ai-agents-do-in-noticeos-today).

@@ -1,57 +1,25 @@
-// runner/watch-readbacks.mjs — carries each closed bet's verdict to the bead
-// that owns its reading: the store keeps the queue, this lane posts
-// a `bd comment` in the owning project, then tells the store what landed.
+// runner/watch-readbacks.mjs — carries each closed bet's verdict to the task
+// that owns its reading: the store keeps the queue, this lane comments in
+// Ntasks on the owning task, then tells the store what landed.
 
-import { readTaskProjectConfig, taskProjectDirectory } from '../task-project-config.mjs';
-import { CONFIG, HOME_ROOT, SECRET_FILES } from './config.mjs';
+import { readTaskProjectConfig } from '../task-project-config.mjs';
+import { CONFIG, HOME_ROOT } from './config.mjs';
 import { log } from './log.mjs';
-import { bdLaneSkip, taskBackend } from './task-service-poll.mjs';
+import { taskBackend, taskLaneSkip } from './task-service-poll.mjs';
 import { ntasksRegister } from './task-service-register.mjs';
-
-/** Who Ntasks records for this lane's verdict comments and for the reviews it files. */
-export const OUTCOME_UPDATES_ACTOR = 'outcome-task-updates';
-export const OUTCOME_REVIEW_ACTOR = 'outcome-review-filer';
 import { operatorToken } from './operator-token.mjs';
-import { beadsFailure, parseBeadsProjects, runBd } from './task-hub.mjs';
+import { parseBeadsProjects } from './task-hub.mjs';
 import { beadsInstant } from '../task-snapshot-values.mjs';
 import { readTaskResolution } from '../../packages/contract/src/task-resolution.mjs';
 import { recordsClose, TASK_METADATA } from '../../packages/contract/src/task-metadata.mjs';
 import { createHash } from 'node:crypto';
-import { openStandaloneTasks, ACTOR_HEADER } from '../standalone-mcp.mjs';
-import { standaloneProjectId } from '../standalone-tasks.mjs';
-import { DATABASE_URL, readDevSecretBindings } from '../dev-secrets.mjs';
 
-/** Uses the task hub's durable create receipt, shared with the panel filer. */
-export async function fileOutcomeReview(project, entry, { open = openStandaloneTasks,
-  readBindings = () => readDevSecretBindings(SECRET_FILES) } = {}) {
-  const { bindings } = await readBindings();
-  const tasks = await open({ databaseUrl: bindings[DATABASE_URL] });
-  try {
-    const projectId = standaloneProjectId(project.database);
-    const key = 'outcome-review:' + createHash('sha256').update(JSON.stringify(
-      [projectId, entry.asset, entry.windowId, entry.bead])).digest('hex');
-    const proof = new Request('http://localhost/api/mcp', { method: 'POST',
-      headers: { [ACTOR_HEADER]: 'outcome-review-filer' } });
-    const outcome = await tasks.operations.write(proof, tasks.workspaceId, { projectId, operation: {
-      kind: 'create', title: `Review the ${entry.asset} outcome (${entry.bead})`, type: 'task', priority: 2,
-      labels: ['outcome-review'], links: [{ type: 'related', taskId: entry.bead }],
-      metadata: { [TASK_METADATA.source.name]: 'outcome-review', [TASK_METADATA.asset.name]: entry.asset,
-        [TASK_METADATA.rule.name]: 'watch-window-closed', [TASK_METADATA.key.name]: entry.windowId },
-      description: `WHAT: Review the recorded outcome for ${entry.asset}.\n` +
-        `WHY: The original task ${entry.bead} was closed before this result was delivered; the measurement still needs review.\n` +
-        `WHERE: Outcome window ${entry.windowId}; related task ${entry.bead}.\n` +
-        'FIX: Review the result comment posted by Outcome task updates, record the decision and evidence, and file any required follow-up work.',
-      acceptance: 'Record the review decision and evidence, then close this review task. Preserve the measured outcome and original implementation evidence.',
-    } }, key);
-    if (outcome.status !== 'done' || typeof outcome.value?.id !== 'string') {
-      throw new Error(`Outcome review filing ${outcome.status}; retry unchanged.`);
-    }
-    return outcome.value.id;
-  } finally { await tasks.close(); }
-}
+/** Who Ntasks records for this lane's verdict comments and for the reviews it files. */
+export const OUTCOME_UPDATES_ACTOR = 'outcome-task-updates';
+export const OUTCOME_REVIEW_ACTOR = 'outcome-review-filer';
 
-/** The same outcome review filed in Ntasks, under a key for the project's
- * prefix, then linked to the task whose reading it reviews. */
+/** An outcome review filed in Ntasks, under a key for the project's prefix,
+ * then linked to the task whose reading it reviews. */
 export async function fileNtasksOutcomeReview(register, project, entry) {
   const key = 'outcome-review:' + createHash('sha256').update(JSON.stringify(
     ['ntasks', project.prefix, entry.asset, entry.windowId, entry.bead])).digest('hex');
@@ -74,15 +42,6 @@ function verdictKey(entry, bead) {
   return 'readback:' + createHash('sha256').update(JSON.stringify([entry.windowId, bead])).digest('hex');
 }
 
-async function readLinkedTask(run, directory, id) {
-  const result = await run(['-C', directory, 'show', id, '--json']);
-  if (result.code !== 0) throw new Error(beadsFailure('show', result));
-  const parsed = JSON.parse(result.stdout);
-  const task = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
-  if (task?.id !== id || typeof task.status !== 'string') throw new Error('Linked task is unavailable');
-  return task;
-}
-
 async function attachReview(fetchImpl, url, auth, entry, bead, previousPostedAt) {
   const response = await fetchImpl(url, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
     body: JSON.stringify({ linked: [{ windowId: entry.windowId, asset: entry.asset, previousBead: entry.bead, bead, previousPostedAt }] }) });
@@ -95,13 +54,11 @@ export function watchReadbacksUrl(config) {
 }
 
 /**
- * Carry each closed bet's verdict to the bead that owns its reading.
+ * Carry each closed bet's verdict to the task that owns its reading.
  *
- * This lane exists because neither end can do it alone. The evaluator lives in
- * a Worker and cannot run `bd`; the beads hub knows nothing about watch
- * windows. So the store keeps the queue, this process does the posting, and the
- * store is told what actually landed — in that order, so a crash mid-post
- * leaves a verdict pending rather than silently delivered.
+ * The store keeps the queue, this process comments in Ntasks, and the store is
+ * told what actually landed — in that order, so a crash mid-post leaves a
+ * verdict pending rather than silently delivered.
  *
  * Silent when nothing is owed. A lane that logged "0 verdicts" every hour would
  * be teaching the operator to skim the one line that matters.
@@ -111,12 +68,9 @@ export async function runWatchReadbackFiler(deps = {}) {
     config = CONFIG,
     readToken = operatorToken,
     fetchImpl = fetch,
-    run = runBd,
     readConfig = () => readTaskProjectConfig({ repoRoot: HOME_ROOT }),
     emit = log,
-    repoRoot = HOME_ROOT,
     now = Date.now,
-    createReview = fileOutcomeReview,
     taskService = null,
   } = deps;
 
@@ -144,17 +98,14 @@ export async function runWatchReadbackFiler(deps = {}) {
   }
   if (!Array.isArray(pending) || !Array.isArray(reviews)) return { posted: [], failed: [] };
   if (pending.length === 0 && reviews.length === 0) return { posted: [], failed: [] };
-  // The verdicts stay queued in the store until it is known where to post them.
-  const backend = await taskBackend(taskService);
-  if (backend === 'unknown') {
-    emit('WARN', `watch readbacks wait — ${bdLaneSkip(backend, 'post')} (${pending.length + reviews.length} queued)`);
+  // The verdicts stay queued in the store until they can be posted in Ntasks.
+  const standDown = taskLaneSkip(await taskBackend(taskService), 'post');
+  if (standDown) {
+    emit('WARN', `watch readbacks wait — ${standDown} (${pending.length + reviews.length} queued)`);
     return { posted: [], failed: [] };
   }
-  // While tasks live in Ntasks, a verdict is posted and a review filed there.
-  const ntasks = backend === 'ntasks' ? { updates: ntasksRegister(taskService, OUTCOME_UPDATES_ACTOR),
-    reviews: ntasksRegister(taskService, OUTCOME_REVIEW_ACTOR) } : null;
-  const show = (spoke, id) => ntasks ? ntasks.updates.show(spoke, id) : readLinkedTask(run, taskProjectDirectory(spoke, repoRoot), id);
-  const fileReview = (spoke, entry) => ntasks ? fileNtasksOutcomeReview(ntasks.reviews, spoke, entry) : createReview(spoke, entry);
+  const updates = ntasksRegister(taskService, OUTCOME_UPDATES_ACTOR);
+  const reviewer = ntasksRegister(taskService, OUTCOME_REVIEW_ACTOR);
 
   let projects = [];
   try {
@@ -175,35 +126,17 @@ export async function runWatchReadbackFiler(deps = {}) {
       failed.push(`${entry.bead}: no beads spoke is configured for ${entry.asset}`);
       continue;
     }
-    // A project's bd link on this host says nothing about its Ntasks project.
-    if (!ntasks && spoke.unavailableReason) {
-      failed.push(`${entry.bead}: ${spoke.unavailableReason}`);
-      continue;
-    }
-    // `-C <repo>`: bead ids are project-scoped, and the hub answers for the
-    // project whose repo it is asked from. Resolved from the home checkout:
-    // the inventory's paths are relative to it, not to the code folder.
-    let result;
     try {
-      const task = await show(spoke, entry.bead);
+      const task = await updates.show(spoke, entry.bead);
       let bead = entry.bead;
       if (task.status === 'closed' && entry.reviewRequired !== false) {
-        bead = await fileReview(spoke, entry);
+        bead = await fileNtasksOutcomeReview(reviewer, spoke, entry);
         await attachReview(fetchImpl, url, auth, entry, bead, null);
       }
-      if (ntasks) {
-        await ntasks.updates.comment(spoke, bead, entry.comment, verdictKey(entry, bead));
-        result = { code: 0 };
-      } else {
-        result = await run(['-C', taskProjectDirectory(spoke, repoRoot), 'comment', bead, entry.comment]);
-      }
-      if (result.code === 0) expectedTasks[entry.windowId] = bead;
+      await updates.comment(spoke, bead, entry.comment, verdictKey(entry, bead));
+      expectedTasks[entry.windowId] = bead;
     } catch (err) {
       failed.push(`${entry.bead}: result delivery failed: ${err.message}`);
-      continue;
-    }
-    if (result.code !== 0) {
-      failed.push(beadsFailure('comment', result));
       continue;
     }
     posted.push(entry.windowId);
@@ -217,8 +150,8 @@ export async function runWatchReadbackFiler(deps = {}) {
         body: JSON.stringify({ posted, expectedTasks }),
       });
       if (!res.ok) {
-        // The comments ARE on the beads; only the stamp failed. Saying so is
-        // what stops the next tick's duplicate from looking like a mystery.
+        // The comments ARE on the tasks; only the stamp failed. Saying so is
+        // what stops the next tick's retry from looking like a mystery.
         emit(
           'WARN',
           `watch readbacks: ${posted.length} verdict(s) filed but NOT stamped (HTTP ${res.status}) — ` +
@@ -245,18 +178,18 @@ export async function runWatchReadbackFiler(deps = {}) {
   while (reviews.length > 0) {
     for (const review of reviews) {
       const spoke = spokes.get(review.asset);
-      if (!spoke || (!ntasks && spoke.unavailableReason)) {
-        const failure = `${review.bead}: ${spoke?.unavailableReason ?? 'task project unavailable'}`;
+      if (!spoke) {
+        const failure = `${review.bead}: task project unavailable`;
         failed.push(failure);
         emit('WARN', `watch readbacks: ${failure}`);
         continue;
       }
       try {
-        const task = await show(spoke, review.bead);
+        const task = await updates.show(spoke, review.bead);
         const closedAt = beadsInstant(task?.closed_at);
         const checkedAt = new Date(now()).toISOString();
         if (task.status === 'closed' && closedAt && closedAt <= review.postedAt) {
-          const bead = await fileReview(spoke, review);
+          const bead = await fileNtasksOutcomeReview(reviewer, spoke, review);
           await attachReview(fetchImpl, url, auth, review, bead, review.postedAt);
           // Delivery stays pending until the new task's comment is confirmed.
           continue;

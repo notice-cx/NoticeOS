@@ -4,9 +4,9 @@ import { VERIFIERS, URLS } from './postgres-secrets.mjs';
 
 export const BACKUP_PATHS = Object.freeze({
   state: '/state', profile: '/run/backup-worker/profile.json', client: '/state/backup-client.json',
-  transport: '/backup-transport', staging: '/backup-staging', data: '/dolt-data', spokes: '/spokes',
+  transport: '/backup-transport', staging: '/backup-staging', spokes: '/spokes',
   postgresSocket: '/postgres-socket', postgresSecrets: '/run/postgres-secrets',
-  doltSecrets: '/run/dolt-secrets', clientHome: '/tmp/backup-client-home',
+  clientHome: '/tmp/backup-client-home',
   exporterHome: '/tmp/backup-exporter-home', offsite: '/backup-offsite/backups',
 });
 /** The app as the worker reaches it on the installation network: its Compose
@@ -29,7 +29,7 @@ export function readBackupWorker({ fs: io = fs } = {}) {
     if (!value || typeof value !== 'object' || Array.isArray(value) ||
       Object.keys(value).sort().join() !== 'format,retentionDays' || value.format !== 'noticeos-backup-worker-v1' ||
       !Number.isSafeInteger(value.retentionDays) || value.retentionDays < 1 || value.retentionDays > 3650) refusal();
-    for (const name of ['state', 'transport', 'staging', 'data', 'spokes', 'postgresSocket', 'postgresSecrets', 'doltSecrets']) {
+    for (const name of ['state', 'transport', 'staging', 'spokes', 'postgresSocket', 'postgresSecrets']) {
       const stat = io.lstatSync(BACKUP_PATHS[name]);
       if (!stat.isDirectory() || stat.isSymbolicLink()) refusal();
     }
@@ -60,10 +60,6 @@ export function readBackupWorker({ fs: io = fs } = {}) {
       const address = new URL(credential.text.trim());
       if (!['postgres:', 'postgresql:'].includes(address.protocol) || !address.password || address.pathname !== '/noticeos') refusal();
     }
-    for (const name of ['root', 'noticeos']) {
-      const credential = privateBackupFile(path.join(BACKUP_PATHS.doltSecrets, name), io);
-      if (!/^[0-9a-f]{64}\n$/u.test(credential.text)) refusal();
-    }
     return { format: value.format, retentionDays: value.retentionDays, clientUid: client.uid, clientGid: client.gid,
       operatorUid: file.uid, operatorGid: file.gid };
   } catch { refusal(); }
@@ -73,6 +69,5 @@ export function backupWorkerEnvironment(env = process.env) {
   const selected = {};
   for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'NOTICEOS_HOST_FOLDER', 'NOTICEOS_HOST_BACKUP_OFFSITE_PARENT']) if (env[key] !== undefined) selected[key] = env[key];
   return { ...selected, HOME: BACKUP_PATHS.clientHome, TMPDIR: '/tmp',
-    NOTICEOS_HOME: BACKUP_PATHS.state, NOTICEOS_INSTALLATION_DIR: '/state/installation',
-    BD_DISABLE_METRICS: '1', BD_DISABLE_ERROR_REPORTING: '1', DO_NOT_TRACK: '1', DOLT_DISABLE_EVENT_FLUSH: '1' };
+    NOTICEOS_HOME: BACKUP_PATHS.state, NOTICEOS_INSTALLATION_DIR: '/state/installation', DO_NOT_TRACK: '1' };
 }

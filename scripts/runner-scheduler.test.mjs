@@ -44,8 +44,9 @@ test("the coordinator's lane table has one body for every local job, and nothing
     assert.equal(typeof lane.run, 'function', `${id} has no body`);
     if (lane.outcomeOf !== undefined) assert.equal(typeof lane.outcomeOf, 'function', `${id}'s outcome reader`);
   }
-  assert.deepEqual(lanes['beads-hub'].outcomeOf(false), { outcome: 'ran', detail: 'hub down' });
-  assert.equal(lanes['beads-hub'].outcomeOf(null).outcome, 'skipped', 'no check while tasks live in Ntasks');
+  // The task service lane records its check as the check says, skip included.
+  const skipped = { outcome: 'skipped', detail: 'no task service is connected' };
+  assert.deepEqual(lanes['beads-hub'].outcomeOf(skipped), skipped);
 });
 
 test('every cron the ingest declares is a scheduled job the runner knows', async () => {

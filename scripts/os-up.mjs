@@ -7,9 +7,9 @@
 // else), and spawns and supervises one child: the tower (vite), whose workerd
 // runtime hosts both Workers and holds the one ingest door. It arms the
 // schedules only after proving its own child holds that door, fires the
-// ingest crons and the host lanes (task-hub snapshot, review and project checks
-// filers, panel refresh, nightly backup), keeps the job-run record, and shuts
-// down cleanly on SIGINT/SIGTERM.
+// ingest crons and the host lanes (task service check, task snapshot, review
+// and readback filers, panel refresh, nightly backup), keeps the job-run
+// record, and shuts down cleanly on SIGINT/SIGTERM.
 //
 // Modes: (default) supervise with loopback Tower · --host (network Tower) ·
 // --tick "<expr>" or --run-job <id> (os:run-job) · --backup (os:backup).
@@ -32,7 +32,6 @@ import { runtimeDoorOwnership } from './runner/door-ownership.mjs';
 // knob live in scripts/runner/config.mjs.
 import {
   BACKUPS_DIR,
-  BEADS_DOLT_DIR,
   CONFIG,
   HOME_ROOT,
   LOGS_DIR,
@@ -61,16 +60,14 @@ import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { scheduledUrl, startScheduler, stopScheduler, trackTimer, waitForRuntime } from './runner/scheduler.mjs';
 import { reportConfigStore, reportLegacyEnvCredentials } from './runner/startup-report.mjs';
-import { checkBeadsHub, taskHubPortDescription } from './runner/task-hub.mjs';
 import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runBeadsPoll, runnerTaskService } from './runner/task-snapshot.mjs';
-import { backupTaskHub, HUB_IN_NTASKS, taskHubCheck, taskHubOutcome } from './runner/task-service-poll.mjs';
+import { BACKUP_TASKS_UNKNOWN, backupTaskHub, taskServiceCheck } from './runner/task-service-poll.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 async function ensureDirs() {
   await fs.mkdir(LOGS_DIR, { recursive: true });
   await fs.mkdir(BACKUPS_DIR, { recursive: true });
-  await fs.mkdir(BEADS_DOLT_DIR, { recursive: true });
 }
 
 const runnerState = {
@@ -296,27 +293,33 @@ function waitForExit(children, timeoutMs) {
 }
 
 // Backup: the module owns copy completeness; the runner schedules and records.
-async function runBackup() {
+// Tests supply the task service and the two ways a backup is taken.
+export async function runBackup({ service = runnerTaskService(), container = requestContainerBackup, host = backupHost,
+  exportTasks = takeNtasksExport, env = process.env, emit = log } = {}) {
   // The offsite folder is read by the backup itself (scripts/host-backup.mjs),
   // so an edit applies at the next run.
-  const taskHub = await backupTaskHub(runnerTaskService());
+  const taskHub = await backupTaskHub(service);
+  if (taskHub === 'unknown') {
+    emit('ERROR', `backup: ${BACKUP_TASKS_UNKNOWN}`);
+    return { ok: false, detail: BACKUP_TASKS_UNKNOWN };
+  }
   // While tasks live in Ntasks the set keeps Ntasks's own export, taken now.
-  const exported = taskHub ? await takeNtasksExport(runnerTaskService(), path.join(HOME_ROOT, '.local', 'task-export')) : null;
-  if (exported?.error) log('ERROR', `backup: no Ntasks export — ${exported.error}`);
+  const exported = taskHub ? await exportTasks(service, path.join(HOME_ROOT, '.local', 'task-export')) : null;
+  if (exported?.error) emit('ERROR', `backup: no Ntasks export — ${exported.error}`);
   const tasks = exported ? { tasksExport: exported.file, tasksExportError: exported.error } : {};
   try {
-    let result = process.env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
-      ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub, tasksExport: tasks.tasksExport } : {})
-      : await backupHost({
+    let result = env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
+      ? await container(env.NOTICEOS_BACKUP_CLIENT_PROFILE, taskHub ? { tasks: taskHub, tasksExport: tasks.tasksExport } : {})
+      : await host({
       repoRoot: HOME_ROOT,
       retentionDays: CONFIG.backupRetentionDays,
       bdBinary: bdBin(),
       ...(taskHub ? { taskHub, ...tasks } : {}),
-      ...(process.env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: process.env.NOTICEOS_DOLT_HOME } : {}),
+      ...(env.NOTICEOS_DOLT_HOME !== undefined ? { doltHome: env.NOTICEOS_DOLT_HOME } : {}),
     });
     // The worker sees only that no export came; the reason is the runner's.
     if (exported?.error && typeof result?.detail === 'string') result = { ...result, detail: `${result.detail} Ntasks export: ${exported.error}` };
-    log(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
+    emit(result.ok ? 'INFO' : 'ERROR', `backup: ${result.detail}`);
     return result;
   } finally {
     if (exported?.dir) await fs.rm(exported.dir, { recursive: true, force: true });
@@ -329,14 +332,11 @@ async function runBackup() {
 export function hostLanes(runtime) {
   const traced = (id, run, adapters) => ({ run: capture => runLocalLaneWithDiagnostics(capture, id, run, adapters) });
   return {
-    'beads-hub': {
-      run: () => taskHubCheck(runnerTaskService(), () => checkBeadsHub()),
-      outcomeOf: taskHubOutcome,
-    },
-    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit }), { resultMetadata: result => result?.response ?? result?.error ?? {} }),
-    'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
-    'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
-    'task-map': traced('task-map', observed => runTaskMapCheck({ taskService: runnerTaskService(), run: observed.runTask, emit: observed.emit })),
+    'beads-hub': { run: () => taskServiceCheck(runnerTaskService()), outcomeOf: (check) => check },
+    'beads-snapshot': traced('beads-snapshot', observed => runBeadsPoll(runtime, { taskService: runnerTaskService(), emit: observed.emit }), { resultMetadata: result => result?.response ?? result?.error ?? {} }),
+    'panel-review': traced('panel-review', observed => runPanelReviewFiler(runtime, { taskService: runnerTaskService(), emit: observed.emit })),
+    'watch-readbacks': traced('watch-readbacks', observed => runWatchReadbackFiler({ taskService: runnerTaskService(), emit: observed.emit })),
+    'task-map': traced('task-map', observed => runTaskMapCheck({ taskService: runnerTaskService(), emit: observed.emit })),
     'panel-refresh': traced('panel-refresh', observed => runPanelRefresh(runtime, { run: observed.runCommand, emit: observed.emit })),
     backup: { run: () => runBackup(), outcomeOf: backupRunOutcome },
   };
@@ -406,7 +406,7 @@ async function supervise({ exposeTowerToLan }) {
     'INFO',
     `port map — ingest door: ${CONFIG.ingestHost}:${CONFIG.ingestPort} (loopback only) · tower: ${
       exposeTowerToLan ? CONFIG.towerLanHost : '127.0.0.1'
-    }:${CONFIG.towerPort} (${exposeTowerToLan ? 'network/explicit opt-in' : 'loopback/default'}) · one runtime serves both · beads hub: ${taskHubPortDescription()}`,
+    }:${CONFIG.towerPort} (${exposeTowerToLan ? 'network/explicit opt-in' : 'loopback/default'}) · one runtime serves both`,
   );
   if (exposeTowerToLan) log('WARN', TOWER_NETWORK_NOTICE);
 
@@ -495,8 +495,6 @@ async function supervise({ exposeTowerToLan }) {
       process.exit(1);
     }
   }
-  // force: say where the hub stands every startup, even when nothing changed.
-  if (await taskHubCheck(runnerTaskService(), () => checkBeadsHub({ force: true })) === null) log('INFO', HUB_IN_NTASKS);
   // Read before the lanes arm, so a restart answers "has the nightly backup
   // been running?" without a scroll.
   const recorded = await reportJobRuns();
@@ -546,13 +544,16 @@ async function supervise({ exposeTowerToLan }) {
   });
   const heartbeat = setInterval(() => void writeRunnerState(), 30_000);
   trackTimer(heartbeat);
-  // Where this install's credentials and config are read from, said once,
-  // after the runtime is up, because the answer comes from the OS itself.
+  // Where this install's credentials, config and tasks are read from, said
+  // once, after the runtime is up, because the answer comes from the OS itself.
   void waitForRuntime(tower)
     .then(() => reportLegacyEnvCredentials(tower))
     .catch(() => {});
   void waitForRuntime(tower)
     .then(() => reportConfigStore(tower))
+    .catch(() => {});
+  void waitForRuntime(tower)
+    .then(async () => log('INFO', `task service: ${(await taskServiceCheck(runnerTaskService())).detail}`))
     .catch(() => {});
 
   log('INFO', 'runner up — children supervised, scheduler armed. Ctrl-C to stop.');

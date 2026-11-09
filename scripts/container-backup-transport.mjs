@@ -3,43 +3,26 @@
 import * as fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomBytes, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { runCommand } from './run-command.mjs';
 import { BACKUP_PATHS, readBackupWorker, privateBackupFile, backupWorkerEnvironment } from './container-backup-profile.mjs';
-import { finalizeDoltBackup, checkedBackupDatabases, doltBackupInventory } from './dolt-backup-format.mjs';
 import { FILES as POSTGRES_SECRET_FILES, VERIFIERS } from './postgres-secrets.mjs';
-import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
-const refusal = phase => { throw new Error(phase
-  ? `Task snapshot failed during ${phase}; no complete backup was published.`
-  : 'The declared container snapshot failed; no complete backup was published.'); };
+const refusal = () => { throw new Error('The declared container snapshot failed; no complete backup was published.'); };
 const recoverySources = [
   ['bootstrap.json', '/state/workers/ingest/.dev.secrets.json', true],
-  ['task-client.json', '/state/task-client.json', true],
-  ['task-host.json', '/state/installation/task-host.json', true],
-  ['beads.json', '/state/installation/beads.json', true],
   ['worker-profile.json', BACKUP_PATHS.profile, true],
   ...POSTGRES_SECRET_FILES.map(name => [`postgres/${name}`, path.join(BACKUP_PATHS.postgresSecrets, name), !VERIFIERS.includes(name)]),
 ];
+/** The recovery set: every fixed source, and the declarations an installation keeps only when it has them.
+ * The saved task projects are a settings export the Tower writes with any mode; their copy is private. */
 function recoveryInputs(io) {
-  const host = JSON.parse(privateBackupFile('/state/installation/task-host.json', io).text);
-  if (!Array.isArray(host.repositories) || !host.repositories.length) refusal();
   const inputs = [...recoverySources];
-  try {
-    io.lstatSync('/run/backup-worker/host-backup.json');
-    inputs.push(['host-backup.json', '/run/backup-worker/host-backup.json', true]);
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const seen = new Set();
-  for (const row of host.repositories) {
-    if (typeof row.repo !== 'string' || !/^\/spokes\/[a-zA-Z0-9_-]+$/u.test(row.repo) || seen.has(row.repo)) refusal();
-    seen.add(row.repo);
-    for (const directory of [row.repo, path.join(row.repo, '.beads')]) {
-      const stat = io.lstatSync(directory);
-      if (!stat.isDirectory() || stat.isSymbolicLink()) refusal();
-    }
-    for (const name of ['config.yaml', 'metadata.json']) {
-      inputs.push([`spokes/${path.basename(row.repo)}/.beads/${name}`, path.join(row.repo, '.beads', name), false]);
-    }
+  for (const [name, source, privateMode] of [['host-backup.json', '/run/backup-worker/host-backup.json', true], ['beads.json', '/state/installation/beads.json', false]]) {
+    try {
+      io.lstatSync(source);
+      inputs.push([name, source, privateMode]);
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   return inputs.sort(([a], [b]) => a.localeCompare(b));
 }
@@ -91,12 +74,6 @@ export async function copyOffsiteBackup(source, output, worker, { fs: io = fs, o
   };
   await copy(source, output, true);
 }
-function sourceCredentials(io) {
-  return { root: privateBackupFile('/run/dolt-secrets/root', io).text,
-    noticeos: privateBackupFile('/run/dolt-secrets/noticeos', io).text,
-    credentials: privateBackupFile('/state/dolt/credentials', io).text };
-}
-
 export async function dumpContainerPostgres(output, options = {}) {
   const io = options.fs ?? fs;
   const run = options.run ?? runCommand;
@@ -115,75 +92,6 @@ export async function dumpContainerPostgres(output, options = {}) {
     const { bytesRead } = await handle.read(magic, 0, 5, 0);
     if (bytesRead !== 5 || magic.toString() !== 'PGDMP') refusal();
   } finally { await handle.close(); }
-}
-
-export async function backupContainerDolt(databases, output, options = {}) {
-  const io = options.fs ?? fs;
-  const sync = options.fsSync ?? fsSync;
-  const run = options.run ?? runCommand;
-  outputChecked(output); checkedBackupDatabases(databases); readBackupWorker({ fs: sync });
-  const beforeCredentials = sourceCredentials(sync);
-  const client = readDeclaredTaskClient('/state/task-client.json');
-  if (client.host !== 'dolt' || client.port !== 3306 || client.user !== 'noticeos' || client.credentialsFile !== '/state/dolt/credentials') refusal();
-  try { await io.lstat(output); refusal(); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const stage = `/backup-staging/noticeos-backup-${randomBytes(16).toString('hex')}`;
-  const env = backupWorkerEnvironment(options.env);
-  let complete = false;
-  let ownsStage = false;
-  let ownsOutput = false;
-  let phase = 'metadata capture';
-  try {
-    await io.mkdir(stage, { mode: 0o700 });
-    ownsStage = true;
-    for (const name of ['databases', 'status']) await io.mkdir(path.join(stage, name), { mode: 0o700 });
-    const captureMetadata = async name => {
-      const result = await run('/bin/bash', ['/etc/noticeos/backup-metadata.sh', '/dolt-data',
-        '/dolt-data/.noticeos-home', path.join(stage, name), ...databases], { cwd: '/state', env, timeoutMs: 30_000 });
-      if (result.code !== 0) refusal();
-    };
-    await captureMetadata('before');
-    phase = 'database capture';
-    await io.mkdir(BACKUP_PATHS.clientHome, { recursive: true, mode: 0o700 });
-    for (const database of databases) {
-      const result = await run('/usr/local/bin/dolt', ['--host=dolt', '--port=3306', '--user=noticeos', '--no-tls',
-        '--use-db', database, 'sql', '--result-format=json', '--query',
-        `CALL DOLT_BACKUP('sync-url', 'file://${stage}/databases/${database}');`], {
-        cwd: '/state', env: { ...taskClientEnvironment({ ...client, clientHome: BACKUP_PATHS.clientHome }, env),
-          DOLT_CLI_PASSWORD: beforeCredentials.noticeos.trim() }, timeoutMs: 300_000,
-      });
-      if (result.code !== 0 || result.stdout.length > 65536) refusal();
-      await io.writeFile(path.join(stage, 'status', `${database}.json`), result.stdout, { flag: 'wx', mode: 0o600 });
-    }
-    phase = 'metadata verification';
-    await captureMetadata('after');
-    const before = doltBackupInventory(path.join(stage, 'before'), '', false);
-    const after = doltBackupInventory(path.join(stage, 'after'), '', false);
-    if (JSON.stringify(Object.entries(before).sort()) !== JSON.stringify(Object.entries(after).sort()) ||
-      JSON.stringify(beforeCredentials) !== JSON.stringify(sourceCredentials(sync))) refusal();
-    await io.rename(path.join(stage, 'before'), path.join(stage, 'metadata'));
-    await io.rm(path.join(stage, 'after'), { recursive: true });
-    await io.mkdir(output, { mode: 0o700 });
-    phase = 'snapshot copy';
-    ownsOutput = true;
-    // Reserve the parent ourselves; Node 24's exclusive cp also rejects an
-    // existing directory. Each child therefore gets its own absent target.
-    for (const entry of await io.readdir(stage, { withFileTypes: true })) {
-      if (entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) refusal();
-      await io.cp(path.join(stage, entry.name), path.join(output, entry.name), { recursive: true, errorOnExist: true, force: false });
-    }
-    phase = 'snapshot verification';
-    const result = finalizeDoltBackup(output, databases, beforeCredentials, { transport: 'noticeos-container-backup-v1', host: 'dolt', port: 3306 });
-    complete = true;
-    return result;
-  } catch { refusal(phase); }
-  finally {
-    if (ownsStage) try { await io.rm(stage, { recursive: true }); } catch { complete = false; }
-    if (!complete) {
-      if (ownsOutput) try { await io.rm(path.join(output, 'backup.json'), { force: true }); } catch { /* Failed set is not publishable. */ }
-      refusal(phase);
-    }
-  }
 }
 
 export async function copyContainerRecovery(output, options = {}) {

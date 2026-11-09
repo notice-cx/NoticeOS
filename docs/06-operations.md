@@ -40,9 +40,9 @@ the other data it displays can be relied on.
 
 ## Running the installation
 
-NoticeOS runs as one Docker Compose stack of four services: `noticeos` (the
-app: Tower, ingest and the runner), `postgres`, `dolt` and an optional
-`backup` worker ([Docker guide](../deploy/compose/README.md)). A development
+NoticeOS runs as one Docker Compose stack of three services: `noticeos` (the
+app: Tower, ingest and the runner), `postgres` and an optional `backup` worker;
+its tasks live in Ntasks ([Docker guide](../deploy/compose/README.md)). A development
 stack's app runs a checkout's live source; a production stack's app runs a
 prepared image. Running the runner directly on a host is not supported.
 `.local/stack.json` selects the stack, and agents and operators use one set of

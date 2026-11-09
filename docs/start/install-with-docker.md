@@ -7,7 +7,7 @@ description: "Set up NoticeOS with one Docker command, with no checkout, Node or
 
 Follow this page to go from a machine with Docker to the Tower open in your browser, with no checkout of the repository.
 
-Setup makes an **installation**: a folder on your machine, `~/noticeos`, and a set of Docker containers, the **stack**, that keeps running in the background. One container serves the **Tower**, the NoticeOS web app you open in your browser; the others hold your data and your tasks, and one takes backups. A small **launcher** script in the folder checks, restarts and updates them. You never need a copy of NoticeOS's source code, a checkout, on this path.
+Setup makes an **installation**: a folder on your machine, `~/noticeos`, and a set of Docker containers, the **stack**, that keeps running in the background. One container serves the **Tower**, the NoticeOS web app you open in your browser; Postgres keeps your data, and another container takes backups. A small **launcher** script in the folder checks, restarts and updates them. You never need a copy of NoticeOS's source code, a checkout, on this path.
 
 ## Before you begin
 
@@ -58,7 +58,7 @@ docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup --dir 
 
 `--build` and `--image` need a checkout; see [Install from source](/start/install-from-source).
 
-The Tower uses port 5173, Postgres 5432 and the task database 3306, all on `127.0.0.1`. Setup checks with Docker whether each is free, uses the next free port when one is taken and prints the Tower's.
+The Tower uses port 5173 and Postgres 5432, both on `127.0.0.1`. Setup checks with Docker whether each is free, uses the next free port when one is taken and prints the Tower's.
 
 ### What setup creates
 
@@ -70,15 +70,15 @@ One installation folder, `~/noticeos` unless you name another, holds everything 
 | `installation.env` | This installation's choices (ports, image, folders) and the layout derived from them |
 | `stack.json` | Points the commands at this folder |
 | `stack/` | The stack definition, copied from the image the app runs |
-| `state/` | The app's state: saved settings, bootstrap secrets, logs, the task client |
-| `spokes/` | Task repositories, starting with NoticeOS's own |
-| `postgres-secrets/`, `dolt-secrets/` | The database logins, made new for this installation |
+| `state/` | The app's state: saved settings, bootstrap secrets, logs and the app's home folder |
+| `spokes/` | Task repositories |
+| `postgres-secrets/` | The database logins, made new for this installation |
 | `backup/` | The backup worker's settings and working folders |
 | `stack-apply/` | The settings the stack last ran healthy with, and the version before the last update |
 
-The app runs the same image setup ran from, pinned by its ID in `installation.env` (`NOTICEOS_APP_IMAGE`). The databases' data is stored in two Docker volumes named after the project (`noticeos_postgres-data`, `noticeos_dolt-data`).
+The app runs the same image setup ran from, pinned by its ID in `installation.env` (`NOTICEOS_APP_IMAGE`). The database's data is stored in a Docker volume named after the project (`noticeos_postgres-data`).
 
-Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the database schema, creates one workspace and one internal NoticeOS task project, and loads the default settings. The installation starts with no assets and no provider accounts.
+Before it makes anything, setup checks that the folder, the Compose project and its volumes are all new. It then applies the database schema, creates one workspace, and loads the default settings. The installation starts with no assets, no provider accounts and no task service: its tasks live in Ntasks, connected later under **Settings** > **Task projects** ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks)).
 
 ### How the launcher runs
 
@@ -121,9 +121,8 @@ Each matches a `pnpm os:*` command in a checkout, with the same options and no `
 | `noticeos update`, `rollback` | `pnpm os:update`, `os:rollback` | Move to the newest published version, or back |
 | `noticeos migrate` | `pnpm os:migrate` | List pending database changes; `--apply` applies them |
 | `noticeos mcp` | `pnpm os:mcp` | Start the MCP server for an agent on this machine; see [Connect an agent](/guides/connect-an-agent) |
-| `noticeos bd` | `pnpm os:bd` | Run the task tool inside the app |
 
-`setup`, `update` and `migrate` run main's newest published image, which the launcher fetches first. `mcp` and `bd` run inside the app itself. Every other command runs the image the app runs. Where a message would show a `pnpm os:*` command, it shows the launcher command instead. `os:dev`, `os:prod` and `os:convert-legacy` need a checkout.
+`setup`, `update` and `migrate` run main's newest published image, which the launcher fetches first. `mcp` runs inside the app itself. Every other command runs the image the app runs. Where a message would show a `pnpm os:*` command, it shows the launcher command instead. `os:dev`, `os:prod` and `os:convert-legacy` need a checkout.
 
 [Daily operations](/operate/daily-operations) covers what each command prints. **Settings** > **Installation** in the Tower shows the folder, ports and version, read-only.
 
@@ -174,7 +173,7 @@ It returns to the version before the last update the same way, after you type `r
 
 ## Verify
 
-- `~/noticeos/noticeos status` prints the folder first, then `postgres`, `dolt`, `backup` and `noticeos` running and healthy, `database: has every migration this code carries` and `update: current`.
+- `~/noticeos/noticeos status` prints the folder first, then `postgres`, `backup` and `noticeos` running and healthy, `database: has every migration this code carries` and `update: current`.
 - **Settings** > **Installation** shows the folder, the Tower's port and **Current** under **Updates**.
 - **Home** shows three steps: **Add your first asset**, **Connect a source** and **See your first number**.
 

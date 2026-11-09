@@ -22,8 +22,8 @@ The app is starting or its scheduler has not yet set its timers. Wait a minute a
 **`noticeos: running, unhealthy`.**
 The scheduler's heartbeat (a regular signal that it is still running) is old, the Tower or the data receiver does not respond, or a configured backup worker does not. Read `pnpm os:logs -- noticeos`, then `pnpm os:restart`.
 
-**`postgres` or `dolt` is `unhealthy`.**
-A database did not pass its own health check. Read `pnpm os:logs -- postgres` or `-- dolt`, then `pnpm os:restart`.
+**`postgres` is `unhealthy`.**
+The database did not pass its own health check. Read `pnpm os:logs -- postgres`, then `pnpm os:restart`.
 
 **`database:` shows the database is behind.**
 The code the app runs carries migrations the database has not applied. Applying them is your own step; see [Upgrade](/start/upgrade#apply-database-changes).
@@ -177,7 +177,7 @@ The previous image would run older code on the newer schema. Restoring a backup 
 Run `pnpm os:prod` first.
 
 **An `os:*` command prints that the selector is invalid or a service is unexpected.**
-`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. Without a checkout, the selector is the folder's `stack.json`, which setup wrote. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. Without a checkout, the selector is the folder's `stack.json`, which setup wrote. The stack must contain `noticeos` and `postgres`, and at most `backup` besides; a stopped `dolt` container from before tasks moved to Ntasks is skipped.
 
 ## The `noticeos` launcher
 
@@ -275,7 +275,7 @@ A browser running code from before the update prompt existed needs one manual re
 The folder in `host-backup.json` has no existing parent; usually the sync mount is missing. Fix the mount. The local set is kept.
 
 **The backup failed on "Task hub".**
-The task database service was not running; task databases are backed up online. Start it and run `pnpm os:backup`.
+Ntasks gave no export; the backup's record names why ([Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks#the-nightly-backup)). Run `pnpm os:backup` again once it answers.
 
 ::: tip When nothing here matches
 `pnpm os:status` and `pnpm os:logs -- --lines 200` print redacted output that is safe to paste into an issue.

@@ -12,7 +12,6 @@ import { containerHealthy } from '../deploy/compose/health.mjs';
 import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
 import { towerAllowedHosts } from '../apps/tower/vite/allowed-hosts.ts';
 
-const profile = { host: 'dolt', port: 3306, user: 'noticeos', credentialsFile: '/state/dolt/credentials', clientHome: '/state/dolt/client-home' };
 function io(defect) {
   return { lstatSync(file) {
     if (defect === file) throw new Error('Missing synthetic file');
@@ -22,13 +21,13 @@ function io(defect) {
 }
 
 test('container startup declares its mounts and internal services and strips ambient installation selectors', () => {
-  const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', BEADS_DOLT_PASSWORD: 'private', DOCKER_HOST: 'foreign', OS_UP_HOST: '0', TOWER_ALLOWED_HOSTS: 'office.example' }, { fs: io(), readClient: () => profile });
-  assert.equal(env.NOTICEOS_HOME, '/state'); assert.equal(env.NOTICEOS_TASK_CLIENT_PROFILE, '/state/task-client.json');
+  const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', BEADS_DOLT_PASSWORD: 'private', DOCKER_HOST: 'foreign', OS_UP_HOST: '0', TOWER_ALLOWED_HOSTS: 'office.example' }, { fs: io() });
+  assert.equal(env.NOTICEOS_HOME, '/state'); assert.equal(env.HOME, '/state/home');
   assert.equal(env.OS_UP_HOST, '1');
   // The backup worker's requests reach the app by its service name in every mode.
   assert.equal(env.TOWER_ALLOWED_HOSTS, 'office.example,noticeos');
-  assert.equal(containerEnvironment({}, { fs: io(), readClient: () => profile }).TOWER_ALLOWED_HOSTS, 'noticeos');
-  assert.equal(containerEnvironment({ NOTICEOS_CONTAINER_MODE: 'development' }, { fs: io(), readClient: () => profile, checkDependencies: () => {} }).TOWER_ALLOWED_HOSTS, 'noticeos');
+  assert.equal(containerEnvironment({}, { fs: io() }).TOWER_ALLOWED_HOSTS, 'noticeos');
+  assert.equal(containerEnvironment({ NOTICEOS_CONTAINER_MODE: 'development' }, { fs: io(), checkDependencies: () => {} }).TOWER_ALLOWED_HOSTS, 'noticeos');
   assert.ok(towerAllowedHosts({ hostname: 'container-id', env: { TOWER_ALLOWED_HOSTS: env.TOWER_ALLOWED_HOSTS } }).includes(new URL(BACKUP_APP_ORIGIN).hostname));
   assert.equal(env.NOTICEOS_IMMUTABLE_APP, '1');
   assert.equal(env.NOTICEOS_VITE_CACHE_DIR, '/state/.local/vite-cache');
@@ -36,10 +35,9 @@ test('container startup declares its mounts and internal services and strips amb
   assert.equal(env.NOTICEOS_BACKUP_CLIENT_PROFILE, '/state/backup-client.json');
   for (const key of ['DATABASE_URL', 'BEADS_DOLT_PASSWORD', 'DOCKER_HOST']) assert.equal(env[key], undefined);
   assert.ok(!JSON.stringify(env).includes('synthetic-private'));
-  assert.throws(() => containerEnvironment({}, { fs: io('/state/.wrangler'), readClient: () => profile }), /Missing/);
-  assert.throws(() => containerEnvironment({}, { fs: io(), readClient: () => ({ ...profile, host: 'foreign' }) }), /internal task/);
-  assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@postgres/noticeos' }) }, readClient: () => profile }), /incomplete/);
-  assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@foreign/noticeos' }) }, readClient: () => profile }), /internal database/);
+  assert.throws(() => containerEnvironment({}, { fs: io('/state/.wrangler') }), /Missing/);
+  assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@postgres/noticeos' }) } }), /incomplete/);
+  assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@foreign/noticeos' }) } }), /internal database/);
 });
 
 test('the container runs the runner, or one named job beside it, and nothing else', () => {
@@ -52,11 +50,10 @@ test('the container runs the runner, or one named job beside it, and nothing els
   assert.deepEqual(containerCommand(['seed-settings']), ['scripts/config-seed.mjs']);
   assert.deepEqual(containerCommand(['mcp']), ['scripts/local-mcp.mjs']);
   assert.deepEqual(containerCommand(['mcp', '--actor', 'agent-1']), ['scripts/local-mcp.mjs', '--actor', 'agent-1']);
-  assert.deepEqual(containerCommand(['bd', 'list', '--json']), ['scripts/local-bd.mjs', 'list', '--json']);
   assert.deepEqual(containerCommand(['collect', '--asset', 'example.com', '--families', 'posthog-inp-targets']),
     ['scripts/signal-collect.mjs', '--asset', 'example.com', '--families', 'posthog-inp-targets']);
   for (const argv of [['shell'], ['backup', '--now'], ['run-job'], ['run-job', '$(id)'], ['run-job', '0 6 * * *', 'x'], ['capacity', '--all'],
-    ['setup', '--force'], ['seed-settings', '--force', 'config/tower.json'], ['mcp', '--http'], ['mcp', '--actor'], ['bd'],
+    ['setup', '--force'], ['seed-settings', '--force', 'config/tower.json'], ['mcp', '--http'], ['mcp', '--actor'], ['bd'], ['bd', 'list', '--json'],
     ['collect'], ['collect', '--asset', '$(id)'], ['collect', '--asset', 'example.com', '--door', 'http://example.org'],
     ['collect', '--asset', 'example.com', '--families', 'everything']]) {
     assert.equal(containerCommand(argv), null, argv.join(' '));
@@ -89,19 +86,19 @@ test('container health requires a fresh supervised runner and both answering int
 });
 
 test('live source is explicit, checks dependencies and keeps the same installation boundaries', () => {
-  let checked=0;const options={fs:io(),readClient:()=>profile,checkDependencies:()=>{checked++;}};
+  let checked=0;const options={fs:io(),checkDependencies:()=>{checked++;}};
   const prepared=containerEnvironment({NOTICEOS_LIVE_SOURCE_ROOT:'/foreign'},options);
   assert.equal(checked,0);assert.equal(prepared.NOTICEOS_LIVE_SOURCE_ROOT,undefined);
   const dev=containerEnvironment({NOTICEOS_CONTAINER_MODE:'development'},options);
   assert.equal(checked,1);assert.equal(dev.NOTICEOS_IMMUTABLE_APP,'0');assert.equal(dev.NOTICEOS_LIVE_SOURCE_ROOT,'/source');
-  for(const key of ['NOTICEOS_HOME','NOTICEOS_TASK_CLIENT_PROFILE','NOTICEOS_BACKUP_CLIENT_PROFILE']) assert.equal(dev[key],prepared[key]);
+  for(const key of ['NOTICEOS_HOME','HOME','NOTICEOS_BACKUP_CLIENT_PROFILE']) assert.equal(dev[key],prepared[key]);
   assert.throws(()=>containerEnvironment({NOTICEOS_CONTAINER_MODE:'unknown'},options),/Choose/);
   assert.throws(()=>containerEnvironment({NOTICEOS_CONTAINER_MODE:'development'},{...options,checkDependencies:()=>{throw new Error('lock drift');}}),/lock drift/);
 });
 
 
 test('container Vite serve supplies the refresh runtime even when ambient NODE_ENV is production', async () => {
-  const env = containerEnvironment({ NODE_ENV: 'production' }, { fs: io(), readClient: () => profile });
+  const env = containerEnvironment({ NODE_ENV: 'production' }, { fs: io() });
   assert.equal(env.NODE_ENV, 'development');
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const require = createRequire(path.join(root, 'apps/tower/package.json'));

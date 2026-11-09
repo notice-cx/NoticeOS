@@ -1,4 +1,8 @@
-// One declared task client for both the runner and Tower process children.
+// The task clients the demo code runs, never an installation's: an
+// installation's tasks live in Ntasks. The hosted demo's executor reads its
+// own declared client file (readDeclaredTaskClient), and the synthetic viewer
+// (scripts/demo-viewer.mjs) names its Dolt profile with NOTICEOS_DOLT_HOME for
+// the Tower's task lane and the MCP server it starts.
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { doltEnvironment, readDoltProfile, readDoltCredentials, type DoltProfile } from './dolt-profile.mjs';
@@ -53,27 +57,24 @@ export function taskClientEnvironment(profile: TaskClient, env: TaskClientEnviro
     BD_DISABLE_METRICS: '1', BD_DISABLE_ERROR_REPORTING: '1', DO_NOT_TRACK: '1', DOLT_DISABLE_EVENT_FLUSH: '1' };
 }
 
+/** The Dolt profile NOTICEOS_DOLT_HOME names, or null when it names none. */
 export function selectedDoltProfile(env: TaskClientEnvironment = process.env): DoltProfile | null {
-  const explicit = env.NOTICEOS_DOLT_HOME !== undefined;
-  if (explicit && env.NOTICEOS_TASK_CLIENT_PROFILE !== undefined) throw new Error('Select one declared task profile, not two independent task services.');
-  if (env.NOTICEOS_TASK_CLIENT_PROFILE !== undefined) return null;
-  const home = explicit ? env.NOTICEOS_DOLT_HOME : env.NOTICEOS_HOME;
-  if (explicit && !absolutePath(home)) throw new Error('The selected Dolt home must be an absolute installation folder.');
-  const profile = home ? readDoltProfile(home) : null;
-  if (explicit && !profile) throw new Error('The selected Dolt home has no declared profile; task fallback was refused.');
-  if (explicit && profile) readDoltCredentials(profile);
+  if (env.NOTICEOS_DOLT_HOME === undefined) return null;
+  const home = env.NOTICEOS_DOLT_HOME;
+  if (!absolutePath(home)) throw new Error('The selected Dolt home must be an absolute installation folder.');
+  const profile = readDoltProfile(home);
+  if (!profile) throw new Error('The selected Dolt home has no declared profile; task fallback was refused.');
+  readDoltCredentials(profile);
   return profile;
 }
 
 export function declaredTaskClient(env: TaskClientEnvironment = process.env): TaskClient | null {
   const profile = selectedDoltProfile(env);
-  if (env.NOTICEOS_TASK_CLIENT_PROFILE !== undefined) return readDeclaredTaskClient(env.NOTICEOS_TASK_CLIENT_PROFILE);
   return profile ? { host: '127.0.0.1', port: profile.port, user: 'noticeos', credentialsFile: profile.credentialsFile,
     clientHome: path.join(path.dirname(profile.credentialsFile), 'client-home') } : null;
 }
 
 export function taskChildEnvironment(env: TaskClientEnvironment = process.env): TaskClientEnvironment {
   const profile = selectedDoltProfile(env);
-  if (env.NOTICEOS_TASK_CLIENT_PROFILE !== undefined) return taskClientEnvironment(readDeclaredTaskClient(env.NOTICEOS_TASK_CLIENT_PROFILE), env);
   return profile ? doltEnvironment(profile, env) : env;
 }
