@@ -141,10 +141,15 @@ export function ntasksTaskHome(origin: string | null): string {
     + `Connect to Ntasks's MCP endpoint, ${endpoint}, for every task tool, and read the get_task_guide it serves before task work.`;
 }
 
+/** An address of letters, digits, dots, hyphens and a port: one that a shell
+ * command and a Markdown code span carry unchanged. A URL's host may hold `$(`,
+ * a backtick or `;`, which a shell runs. */
+const PLAIN_ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(?::\d+)?$/u;
+
 /** The guide while the tasks live in Ntasks: where they are, how to connect, and the rules this installation adds to Ntasks's. */
 export function ntasksGuide(origin: string | null, panels: boolean): { readonly version: string; readonly guide: string } {
   return versionedGuide('Working with NoticeOS', ['## Start', '', ASSET_START, '', '## Tasks', '', ntasksTaskHome(origin),
-    ...(origin === null ? [] : ['', `With Claude Code: \`claude mcp add --scope user --transport http ntasks ${origin}${NTASKS_MCP_PATH}\`. `
+    ...(origin === null || !PLAIN_ORIGIN.test(origin) ? [] : ['', `With Claude Code: \`claude mcp add --scope user --transport http ntasks ${origin}${NTASKS_MCP_PATH}\`. `
       + 'On first use, a person must allow the agent in Ntasks.']),
     '', INSTALLATION_RULES_INTRO, ...INSTALLATION_TASK_RULES,
     ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])]);

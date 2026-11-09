@@ -36,8 +36,12 @@ export interface HostedMcpOptions {
     readonly journeys?: (request: Request) => Promise<Response>;
     /** Standalone only: where the installation's tasks live, read for each
      * request. While they live in Ntasks, agents use Ntasks's own MCP endpoint,
-     * so this one lists no task tools and its instructions and guide name that address. */
-    readonly taskHome?: () => Promise<TaskHome>;
+     * so this one lists no task tools and its instructions and guide name that address.
+     * `forTaskTool` waits for the ingest's current answer before a task tool runs;
+     * otherwise the wait is short, then the ingest's last answer stands. */
+    readonly taskHome?: (options: {
+        readonly forTaskTool: boolean;
+    }) => Promise<TaskHome>;
 }
 /** Where a standalone installation's tasks live: its own task database, Ntasks
  * at `origin` (null while the ingest cannot say), or `unknown` when the ingest

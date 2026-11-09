@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTaskService, mapTaskProjects, TaskServiceToolRefused, TaskServiceUnavailable } from './task-service.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
-import { INSTALLATION_TASK_RULES, TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
+import { INSTALLATION_TASK_RULES, ntasksGuide, TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/task-service.mts and the standalone MCP's task service. The ingest
@@ -159,6 +159,34 @@ test('while the tasks live in Ntasks, the endpoint lists no task tools and names
   connected = false; clock = 6_000;
   assert.ok((await listedNames()).includes('claim_task'), 'the task tools come back with the local task database');
   assert.notEqual((await local.call('get_task_guide', {})).result.structuredContent.version, version);
+});
+
+test('a task tool waits for the ingest\'s current answer, and is refused once it says the tasks moved to Ntasks', async t => {
+  let connected = false, clock = 0, stall = null;
+  const fetch = async (url, init) => { if (stall) await stall.promise; return door(async () => null, { connected })(url, init); };
+  const local = await standalone(fetch, () => clock);
+  t.after(local.close);
+  await local.rpc('tools/list');
+
+  // The tasks moved to Ntasks; the next read stalls past the request's short wait.
+  connected = true; clock = 6_000; stall = Promise.withResolvers();
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const call = local.call('list_tasks', { workspace: LOCAL, project: PROJECT.projectId });
+  await new Promise(setImmediate);
+  t.mock.timers.tick(2_000);
+  await new Promise(setImmediate);
+  stall.resolve();
+  const answer = await call;
+  assert.equal(answer.result.isError, true);
+  assert.ok(answer.result.content[0].text.includes(ENDPOINT));
+  assert.deepEqual(local.ran, [], 'the local task database is not read');
+});
+
+test('the guide gives the Claude Code command only for an address a shell runs unchanged', () => {
+  assert.ok(ntasksGuide('https://ntasks.example.com', false).guide.includes(`ntasks ${ENDPOINT}\``));
+  const odd = ntasksGuide('https://$(id).example', false).guide;
+  assert.ok(odd.includes('https://$(id).example/api/mcp'), 'the address is still named');
+  assert.equal(odd.includes('claude mcp add'), false);
 });
 
 test('before the ingest has ever said where the tasks live, a task tool answers unavailable', async t => {

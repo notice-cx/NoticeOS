@@ -57,7 +57,9 @@ export interface StandaloneMcpOptions {
     readonly taskService?: TaskService;
 }
 /** Where the installation's tasks live, as the task service last said. */
-export declare function taskHome(service: TaskService): () => Promise<TaskHome>;
+export declare function taskHome(service: TaskService): (options: {
+    readonly forTaskTool: boolean;
+}) => Promise<TaskHome>;
 /** Shared by the standalone Tower and MCP writers, across processes. */
 export declare function withStandaloneTaskMutation<T>(store: Pick<PostgresStore, 'inWorkspace'>, workspaceId: string, work: () => Promise<T>): Promise<T>;
 /** The local Tower opens the selected installation only while handling a write. */

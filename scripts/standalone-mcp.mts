@@ -113,9 +113,9 @@ export interface StandaloneMcpOptions {
 const TASK_HOME_WAIT_MS = 2_000;
 
 /** Where the installation's tasks live, as the task service last said. */
-export function taskHome(service: TaskService): () => Promise<TaskHome> {
-  return async () => {
-    const { backend, origin } = await service.home(TASK_HOME_WAIT_MS);
+export function taskHome(service: TaskService): (options: { readonly forTaskTool: boolean }) => Promise<TaskHome> {
+  return async ({ forTaskTool }) => {
+    const { backend, origin } = await service.home(forTaskTool ? undefined : TASK_HOME_WAIT_MS);
     return backend === 'ntasks' ? { kind: 'ntasks', origin } : { kind: backend };
   };
 }

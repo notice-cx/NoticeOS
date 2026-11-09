@@ -65,8 +65,10 @@ export interface HostedMcpOptions {
   readonly journeys?: (request: Request) => Promise<Response>;
   /** Standalone only: where the installation's tasks live, read for each
    * request. While they live in Ntasks, agents use Ntasks's own MCP endpoint,
-   * so this one lists no task tools and its instructions and guide name that address. */
-  readonly taskHome?: () => Promise<TaskHome>;
+   * so this one lists no task tools and its instructions and guide name that address.
+   * `forTaskTool` waits for the ingest's current answer before a task tool runs;
+   * otherwise the wait is short, then the ingest's last answer stands. */
+  readonly taskHome?: (options: { readonly forTaskTool: boolean }) => Promise<TaskHome>;
 }
 /** Where a standalone installation's tasks live: its own task database, Ntasks
  * at `origin` (null while the ingest cannot say), or `unknown` when the ingest
@@ -191,7 +193,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
     } else if (bearer !== null) return invalid('this endpoint takes no credentials');
     // The parsed body is not forwarded: admission reads only request metadata.
     const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
-    const home = taskHome ? await taskHome() : LOCAL_TASKS;
+    const home = taskHome ? await taskHome({ forTaskTool: false }) : LOCAL_TASKS;
     const ntasks = home.kind === 'ntasks' ? home : null;
     const instructions = ntasks ? ntasksInstructions(ntasks.origin, Boolean(panels)) : localInstructions;
     const guide = ntasks ? ntasksGuide(ntasks.origin, Boolean(panels)) : localGuide;
@@ -219,9 +221,11 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
       const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       const journey = journeys ? JOURNEY_MCP_TOOLS.find(tool => tool.name === name) : undefined;
+      // A task tool runs against the local database only on the ingest's current answer, not the request's quick read.
+      const current = task && taskHome ? await taskHome({ forTaskTool: true }) : home;
       // A client that listed the tools before the tasks moved to Ntasks learns where they are.
-      if (task && ntasks) throw new McpToolError(`refused: ${ntasksTaskHome(ntasks.origin)} Nothing was read or changed.`);
-      if (task && home.kind === 'unknown') {
+      if (task && current.kind === 'ntasks') throw new McpToolError(`refused: ${ntasksTaskHome(current.origin)} Nothing was read or changed.`);
+      if (task && current.kind === 'unknown') {
         throw new McpToolError('unavailable: The installation\'s ingest did not answer, so it is unknown whether its tasks live in Ntasks; nothing was read or changed.');
       }
       try {

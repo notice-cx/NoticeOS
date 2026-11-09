@@ -51,9 +51,9 @@ export interface TaskService {
     /** Where the task service is, when one is connected. */
     origin(): Promise<string | null>;
     /** Where the tasks live and the task service's address, waiting for the
-     * ingest at most `within` milliseconds; past that, its last answer, or
-     * `unknown` when it never gave one. */
-    home(within: number): Promise<{
+     * ingest at most `within` milliseconds, or until it answers or fails when
+     * `within` is absent; then its last answer, or `unknown` when it never gave one. */
+    home(within?: number): Promise<{
         readonly backend: TaskBackend;
         readonly origin: string | null;
     }>;

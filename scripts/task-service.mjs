@@ -150,9 +150,9 @@ export function createTaskService(options = {}) {
         async origin() { return (await read()).origin; },
         async home(within) {
             let timer;
-            const late = new Promise(resolve => { timer = setTimeout(resolve, within, null); });
+            const late = within === undefined ? [] : [new Promise(resolve => { timer = setTimeout(resolve, within, null); })];
             try {
-                const answer = await Promise.race([read().catch(() => null), late]);
+                const answer = await Promise.race([read().catch(() => null), ...late]);
                 if (answer)
                     return { backend: answer.connected ? 'ntasks' : 'local', origin: answer.origin };
                 return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'local', origin: known ? status?.origin ?? null : null };

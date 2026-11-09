@@ -78,8 +78,8 @@ export function runTaskClient(argv, cwd, env = process.env, timeout = 30_000) {
 const TASK_HOME_WAIT_MS = 2_000;
 /** Where the installation's tasks live, as the task service last said. */
 export function taskHome(service) {
-    return async () => {
-        const { backend, origin } = await service.home(TASK_HOME_WAIT_MS);
+    return async ({ forTaskTool }) => {
+        const { backend, origin } = await service.home(forTaskTool ? undefined : TASK_HOME_WAIT_MS);
         return backend === 'ntasks' ? { kind: 'ntasks', origin } : { kind: backend };
     };
 }

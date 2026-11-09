@@ -62,9 +62,9 @@ export interface TaskService {
   /** Where the task service is, when one is connected. */
   origin(): Promise<string | null>;
   /** Where the tasks live and the task service's address, waiting for the
-   * ingest at most `within` milliseconds; past that, its last answer, or
-   * `unknown` when it never gave one. */
-  home(within: number): Promise<{ readonly backend: TaskBackend; readonly origin: string | null }>;
+   * ingest at most `within` milliseconds, or until it answers or fails when
+   * `within` is absent; then its last answer, or `unknown` when it never gave one. */
+  home(within?: number): Promise<{ readonly backend: TaskBackend; readonly origin: string | null }>;
   call(call: TaskServiceCall): Promise<TaskServiceReply>;
   /** One Ntasks MCP tool, with `workspace` set to Ntasks's own, for the agent `onBehalfOf`; its structured result. */
   tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
@@ -168,9 +168,9 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
     async origin() { return (await read()).origin; },
     async home(within) {
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const late = new Promise<null>(resolve => { timer = setTimeout(resolve, within, null); });
+      const late = within === undefined ? [] : [new Promise<null>(resolve => { timer = setTimeout(resolve, within, null); })];
       try {
-        const answer = await Promise.race([read().catch(() => null), late]);
+        const answer = await Promise.race([read().catch(() => null), ...late]);
         if (answer) return { backend: answer.connected ? 'ntasks' : 'local', origin: answer.origin };
         return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'local', origin: known ? status?.origin ?? null : null };
       } finally { clearTimeout(timer); }
