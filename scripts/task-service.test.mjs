@@ -71,6 +71,24 @@ test('whether a task service is connected is read at most every few seconds', as
   assert.equal(reads, 2);
 });
 
+test('where the tasks live is answered within its bound while the ingest stalls: the last answer, from one shared read', async () => {
+  let clock = 0, reads = 0, stall = Promise.withResolvers();
+  const answer = door(async () => null);
+  const tasks = service(async (url, init) => { reads += 1; await stall.promise; return answer(url, init); }, () => clock);
+  const inNtasks = { backend: 'ntasks', origin: 'https://ntasks.example.com' };
+
+  assert.deepEqual(await tasks.home(0), { backend: 'unknown', origin: null }, 'before the ingest has ever answered');
+  stall.resolve();
+  assert.equal(await tasks.connected(), true);
+  assert.deepEqual(await tasks.home(0), inNtasks);
+
+  clock = 6_000; stall = Promise.withResolvers();
+  assert.deepEqual(await Promise.all([tasks.home(0), tasks.home(0)]), [inNtasks, inNtasks], 'the last answer while the new read waits');
+  stall.resolve();
+  assert.equal(await tasks.connected(), true);
+  assert.equal(reads, 2, 'callers waiting at once share one read');
+});
+
 test('a tool call names Ntasks\'s workspace and keeps each refusal\'s own sentence', async () => {
   const calls = [];
   const tasks = service(door(mcp({

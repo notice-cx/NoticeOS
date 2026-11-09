@@ -72,11 +72,15 @@ export function runTaskClient(argv, cwd, env = process.env, timeout = 30_000) {
         });
     });
 }
+/** How long one MCP request waits for the ingest to say where the tasks live
+ * before it uses the ingest's last answer: every request reads it, so a stalled
+ * ingest must not hold up a client's start or a tool that is not a task tool. */
+const TASK_HOME_WAIT_MS = 2_000;
 /** Where the installation's tasks live, as the task service last said. */
 export function taskHome(service) {
     return async () => {
-        const backend = await service.backend();
-        return backend === 'ntasks' ? { kind: 'ntasks', origin: await service.origin().catch(() => null) } : { kind: backend };
+        const { backend, origin } = await service.home(TASK_HOME_WAIT_MS);
+        return backend === 'ntasks' ? { kind: 'ntasks', origin } : { kind: backend };
     };
 }
 /** Shared by the standalone Tower and MCP writers, across processes. */

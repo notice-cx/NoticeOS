@@ -61,6 +61,10 @@ export interface TaskService {
   backend(): Promise<TaskBackend>;
   /** Where the task service is, when one is connected. */
   origin(): Promise<string | null>;
+  /** Where the tasks live and the task service's address, waiting for the
+   * ingest at most `within` milliseconds; past that, its last answer, or
+   * `unknown` when it never gave one. */
+  home(within: number): Promise<{ readonly backend: TaskBackend; readonly origin: string | null }>;
   call(call: TaskServiceCall): Promise<TaskServiceReply>;
   /** One Ntasks MCP tool, with `workspace` set to Ntasks's own, for the agent `onBehalfOf`; its structured result. */
   tool(name: string, args: Readonly<Record<string, unknown>>, onBehalfOf?: string): Promise<unknown>;
@@ -82,6 +86,8 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
    * stalled ingest costs one wait per few seconds rather than one per call. */
   let failed: { at: number; error: unknown } | null = null;
   let known: boolean | null = null;
+  /** The read in flight, which every caller shares while the ingest is slow. */
+  let pending: Promise<{ connected: boolean; origin: string | null }> | null = null;
   let catalog: { at: number; projects: readonly NtasksProject[] } | null = null;
   let workspace: { at: number; id: string } | null = null;
 
@@ -100,12 +106,17 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
   async function read(): Promise<{ connected: boolean; origin: string | null }> {
     if (status && now() - status.at < STATUS_TTL_MS) return status;
     if (failed && now() - failed.at < STATUS_TTL_MS) throw failed.error;
-    let answer: Record<string, unknown>;
-    try { answer = await door_('GET'); } catch (error) { failed = { at: now(), error }; throw error; }
-    failed = null;
-    status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
-    known = status.connected;
-    return status;
+    pending ??= (async () => {
+      try {
+        let answer: Record<string, unknown>;
+        try { answer = await door_('GET'); } catch (error) { failed = { at: now(), error }; throw error; }
+        failed = null;
+        status = { at: now(), connected: answer.connected === true, origin: typeof answer.origin === 'string' ? answer.origin : null };
+        known = status.connected;
+        return status;
+      } finally { pending = null; }
+    })();
+    return pending;
   }
   async function call(request: TaskServiceCall): Promise<TaskServiceReply> {
     const answer = await door_('POST', { method: request.method, path: request.path,
@@ -155,6 +166,15 @@ export function createTaskService(options: TaskServiceOptions = {}): TaskService
       catch { return known === null ? 'unknown' : known ? 'ntasks' : 'local'; }
     },
     async origin() { return (await read()).origin; },
+    async home(within) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const late = new Promise<null>(resolve => { timer = setTimeout(resolve, within, null); });
+      try {
+        const answer = await Promise.race([read().catch(() => null), late]);
+        if (answer) return { backend: answer.connected ? 'ntasks' : 'local', origin: answer.origin };
+        return { backend: known === null ? 'unknown' : known ? 'ntasks' : 'local', origin: known ? status?.origin ?? null : null };
+      } finally { clearTimeout(timer); }
+    },
     call,
     async tool(name, args, onBehalfOf) {
       return rpc(name, Object.hasOwn(args, 'workspace') ? { ...args, workspace: await workspaceId() } : args, onBehalfOf);
