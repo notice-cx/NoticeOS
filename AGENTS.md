@@ -365,17 +365,21 @@ finds that installation's selector; an agent runs it only with a throwaway `--di
 installation: the Tower on a throwaway development database, for screens with
 invented data.
 
-## Open work lives in the task hub
+## Open work lives in Ntasks
 
-In a checkout connected to a Beads hub, the hub is the only register of open
-work: one hub, one database per asset, configured through the
-[task-project contract](config/beads.README.md). Public contributors need no
-access to a maintainer's private hub; follow [CONTRIBUTING.md](CONTRIBUTING.md).
+The maintainers' open work lives in [Ntasks](https://github.com/notice-cx/Ntasks),
+the only register of it. Public contributors need no access to it; follow
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-Reach it through the NoticeOS MCP server's task tools: `list_workspaces`,
-`get_task_guide`, then `list_projects`. The task guide is the canonical workflow
-and task-quality policy. Never run `bd`, `bv` or `br` directly. If the tools are
-missing, ask the owner to reconnect the server with `/mcp`.
+Reach it through the `ntasks` MCP server
+([connecting an agent](https://github.com/notice-cx/Ntasks/blob/main/docs/agents.md)):
+`list_workspaces`, `get_task_guide`, then `list_projects`. The task guide is
+the canonical workflow and task-quality policy. Never run `bd`, `bv` or `br`.
+If the tools are missing, ask the owner to connect the server and reconnect it
+with `/mcp`. While an installation's tasks live in Ntasks, NoticeOS's MCP server
+lists no task tools; its instructions and its `get_task_guide` add this
+installation's own task rules, such as the money card and `change_class`
+([Keep tasks in Ntasks](docs/guides/keep-tasks-in-ntasks.md)).
 
 Use `reconcile_task` for an existing owner answer, evidence-backed retirement,
 a routine human-label correction or a checked abandoned assignment. The guide
