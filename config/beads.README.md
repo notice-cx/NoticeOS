@@ -122,8 +122,8 @@ spoke's copy differs from it or the spoke still holds a task file. Change the
 stanza here first, then re-stamp the spokes.
 
 <!-- spoke-stanza:begin -->
-- Asset data comes from the `noticeos` MCP server. Before task work, call its `get_task_guide`: it returns this installation's task rules and which MCP server serves its task tools. When it directs you to Ntasks's MCP endpoint, also call `get_task_guide` on the `ntasks` MCP server and use its task tools; otherwise use the `noticeos` task tools.
-- Never run `bd`, `bv` or `br`: the MCP task tools are the task interface. If they are missing, ask the owner to connect the server the guide names.
+- Asset data comes from the `noticeos` MCP server. Before task work, call its `get_task_guide`: it returns this installation's task rules and which MCP server serves its task tools. When it directs you to Ntasks's MCP endpoint, also call `get_task_guide` on the `ntasks` MCP server and use its task tools. When it says no task service is connected, stop task work and ask the owner to connect one in the Tower. Otherwise use the `noticeos` task tools.
+- Never run `bd`, `bv` or `br`: the MCP task tools are the task interface. If the server the guide names is missing from your session, ask the owner to connect it.
 - Work only a person can do carries the `human` label; a step that must wait for approval uses `request_human_approval`.
 <!-- spoke-stanza:end -->
 
