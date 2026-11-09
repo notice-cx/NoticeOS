@@ -645,7 +645,7 @@ function Filters({
       <select
         id="tasks-assignee"
         className={fieldClass}
-        value={value.assignee}
+        value={actorName(value.assignee)}
         onChange={(event) => onPick("assignee", event.target.value)}
       >
         <option value="all">Anyone</option>

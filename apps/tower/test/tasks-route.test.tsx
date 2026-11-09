@@ -703,6 +703,24 @@ describe("/tasks — the filters are the URL", () => {
     expect(assignee.options[1]!.textContent).toBe("agent-x · 1");
   });
 
+  it("offers an agent once beside a service acting for it, and an old link to either spelling selects it", () => {
+    const { container } = renderBoard({
+      live: true,
+      boards: {
+        "meadow.example": board([
+          liveTask({ id: "md-1w2", assignee: "claude" }),
+          liveTask({ id: "md-88x", title: "Rewrite the FAQ", assignee: "service:demo/claude" }),
+        ]),
+      },
+      entry: "/tasks?assignee=service%3Ademo%2Fclaude",
+    });
+    const assignee = container.querySelector<HTMLSelectElement>("#tasks-assignee")!;
+    expect([...assignee.options].map((option) => option.textContent)).toEqual(["Anyone", "claude · 2"]);
+    expect(assignee.value).toBe("claude");
+    expect(row(container, "md-1w2")).toBeInTheDocument();
+    expect(row(container, "md-88x")).toBeInTheDocument();
+  });
+
   it("filters by label on the live read", () => {
     const { container } = renderBoard({
       live: true,
