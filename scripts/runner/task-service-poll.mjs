@@ -44,10 +44,12 @@ export async function taskServiceCheck(service) {
 
 /** The nightly backup's task setting: `ntasks` while tasks live there, which
  * adds Ntasks's export to the set; none while no task service is connected;
- * `unknown` while the ingest cannot say, when no backup runs (BACKUP_TASKS_UNKNOWN). */
+ * `unknown` when the ingest does not answer now, when no backup runs
+ * (BACKUP_TASKS_UNKNOWN). Its own read, never an earlier answer: a stale
+ * "not connected" would publish a set without the tasks. */
 export async function backupTaskHub(service) {
-  const backend = await taskBackend(service);
-  return backend === 'none' ? undefined : backend;
+  if (service == null) return undefined;
+  try { return await service.connected() ? 'ntasks' : undefined; } catch { return 'unknown'; }
 }
 
 /** Why no backup ran: a set taken now could leave the tasks out and replace one that has them. */
