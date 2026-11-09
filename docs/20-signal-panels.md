@@ -18,21 +18,48 @@ per-integration catalog is
 ## How an agent reads a panel
 
 The `noticeos` MCP server ([Connect an agent](guides/connect-an-agent.md))
-serves four read-only tools. Each one names the workspace from
+serves five read-only tools. Each one names the workspace from
 `list_workspaces`.
 
 | Tool | What it returns |
 |---|---|
 | `list_panels` | Every asset with a published panel: its latest version, when it was built, and the report families that need attention. |
 | `get_panel` | One version of an asset's panel (the latest unless `version` names another): when it was built, every report family with its newest report day, its age on the day of the read and its collection status, every table with its columns and row count, the versions kept, and the reading rules below in short form. |
+| `get_search_review` | A weekly search summary from a single panel version. It lists tracked-search coverage, comparable dates, the largest observed Search Console changes, related source status and SQL to reproduce the figures. |
 | `query_panel` | One read-only SQL `SELECT` in DuckDB's dialect over a version's tables, named after their files (`posthog-web-vitals.csv` is `posthog_web_vitals`). It returns the column names and types and at most `max_rows` rows (200 unless named, 2000 at most), and marks a result it cut short. |
 | `read_panel_document` | One of a version's JSON documents: `executive`, `summary`, `freshness` or `report`. A part larger than 64 KB returns as an outline of its keys; `pointer` (a JSON Pointer such as `/items/0`) selects a part. |
 
-Open `get_panel` first. Its `attention` list names every report family whose
+For a weekly review, start with `get_search_review` and pass the version named
+on the task. For other panel reads or a schema check, use `get_panel`. Its
+`attention` list names every report family whose
 collection is failing, overdue or paused, every family with no report in the
 panel, every family imported by hand and how old it is, and the panel itself
 when it is not the latest version or the daily refresh has not published it
 for more than 36 hours.
+
+### Weekly search summary
+
+The summary's `trackedSearch` separates archived requests, published pairs and
+unanswered requests. The roster comes from the requests saved in the archive
+for that date, including failed calls. Earlier panel versions or incomplete
+request records may have unknown expected coverage. The observed pair count
+does not supply the missing denominator. Where available, organic result
+quality is reported independently of request coverage.
+
+`comparisons` keeps property-level Search Console, Search Console top pages
+and queries, GA4 Organic Search and Bing rank traffic separate. Each source
+uses its latest complete day and the 13 preceding dates for two aligned
+seven-day periods. Missing or provisional dates leave that period incomplete.
+Search Console top-row movements require the same subject on all 14 dates.
+Those movements can differ from property totals. Bing rank traffic uses only
+the latest archive, while `bingSnapshots` lists the archive date and latest
+measured date for overlapping and manually imported reports. An unknown
+measurement date stays empty.
+
+Use `report_date` to restrict the summary to evidence through an earlier day
+in the pinned version. Keep the relevant summary fields and SQL in the task's
+evidence. The task keeps the saved figures after the panel version’s retention
+period ends. See [Versions](#versions) for the retention period.
 
 ### Versions
 
@@ -89,10 +116,11 @@ asset repo.
 ## Repeated report evidence
 
 A refresh records `stability` inside `freshness.json`, separately from collection
-health. It reads only local downloaded archives: at most four report dates per
-family, 64 archives per refresh and 8 MiB per archive. Families are visited in
-name order; inputs outside those limits, unreadable inputs, empty normalized
-results or missing comparison identity remain unknown.
+health. It reads only local downloaded archives, with up to four report dates
+per family, 64 archives per refresh and 8 MiB per archive. Tracked-search
+archives go first to retain the request roster. The other families follow
+in name order. Inputs outside those limits, unreadable inputs, empty normalized
+results and missing comparison identities remain unknown.
 
 Each family's latest reading records its report date, collection timestamp,
 provider dates and comparison hashes. Up to three earlier report dates have one

@@ -39,6 +39,7 @@
     "scripts/panel-serp-organic.mts",
     "scripts/panel-store.mts",
     "scripts/panel-query.mts",
+    "scripts/panel-search-review.mts",
     "scripts/panel-mcp.mts",
     "scripts/task-row.mts",
     "scripts/hosted-task-http.mts",

@@ -742,6 +742,35 @@ test('local stability bounds total archives and bytes, recording unavailable inp
   assert.ok(report.families.every((family) => family.latest.comparisonKey === null));
 });
 
+test('panel publication preserves the request roster from a partial SERP archive', async (t) => {
+  const { dir, options } = await scratch();
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const asset = 'meadow.example';
+  const reportDate = '2026-09-25';
+  const row = { integration: 'dataforseo', report: 'serp-panel', reportDate, objectKey: 'serp-archive' };
+  const archive = {
+    schemaVersion: 1, asset, ...row, collectedAt: `${reportDate}T12:00:00Z`, dataState: 'provider-snapshot',
+    pages: [
+      { request: { body: { keyword: 'soup', device: 'desktop' }, label: 'Recipes' },
+        response: { tasks: [{ result: [{ keyword: 'soup', items: [] }] }] } },
+      { request: { body: { keyword: 'soup', device: 'mobile' }, label: 'Recipes' },
+        response: { tasks: [{ status_message: 'Timeout' }] } },
+    ],
+  };
+  let published;
+  await realRefreshAsset(asset, { ...options, publish: false }, {
+    token: 'fixture', windowDays: 35, freshnessMaxAgeDays: 7,
+    get: async (url) => new URL(url).pathname === '/api/panel-source'
+      ? { ok: true, json: async () => ({ asset, manifest: [row], trend: [] }) }
+      : { ok: true, text: async () => JSON.stringify(archive) },
+    writeHistory: async () => ({ generation: 1 }),
+    analyze: async ({ reportFiles }) => { published = JSON.parse(reportFiles[FRESHNESS_FILE]); return {}; },
+  });
+  assert.deepEqual(published.trackedSearchRosters, [{ reportDate, requests: [
+    { query: 'soup', device: 'desktop', label: 'Recipes' }, { query: 'soup', device: 'mobile', label: 'Recipes' },
+  ] }]);
+});
+
 
 test('versioned journey requests publish one bounded family instead of per-request hashes', () => {
   const manifest = ['a','b','c'].map((hash,index) => ({integration:'ga4',report:`journeys-${hash}`,reportDate:`2026-10-${18+index}`}));

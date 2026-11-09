@@ -12,6 +12,7 @@ import { McpToolError } from './mcp-protocol.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import { createPanelStore, PANEL_DOCUMENTS, PANEL_RULES, PanelReadError, type PanelDocument, type PanelRef } from './panel-store.mjs';
 import { PANEL_QUERY_LIMITS, PanelQueryError, queryPanel } from './panel-query.mjs';
+import { readSearchReview } from './panel-search-review.mjs';
 import { PANEL_VERSION_KEEP_DAYS, panelVersionTime } from './panel-versions.mjs';
 
 type Args = Record<string, unknown>;
@@ -150,6 +151,21 @@ export const PANEL_MCP_TOOLS: readonly PanelTool[] = Object.freeze([
           rules: PANEL_RULES,
           query: `query_panel runs one SELECT over these tables, e.g. SELECT * FROM ${tables[0]?.table ?? 'signal_trend_daily'} LIMIT 20.` };
       });
+    } },
+  { name: 'get_search_review',
+    description: 'Read one weekly search review from a pinned panel. Includes the archived tracked-search requests where available, '
+      + 'observed coverage, quality, aligned complete weeks for Search Console, Analytics and Bing, and SQL to reproduce the numbers. '
+      + 'Save the returned evidence with the review if it needs to outlive the panel version.',
+    inputSchema: schema({ asset: ASSET, version: VERSION, report_date: { type: 'string', format: 'date',
+      description: 'Only consider evidence through this date (YYYY-MM-DD). Defaults to the panel build date.' } }, ['asset']),
+    annotations: READ,
+    /** Resolve the asset and version once, within the caller's authorized workspace. */
+    async run({ proof, workspaceId, operations }, args) {
+      only(args, ['asset', 'version', 'report_date']);
+      const asset = textArg(args, 'asset', true), version = textArg(args, 'version', false);
+      const reportDate = textArg(args, 'report_date', false);
+      return operations.read(proof, workspaceId, async (store, asOf) =>
+        readSearchReview(store, await store.resolve(asset, version), asOf, reportDate));
     } },
   { name: 'query_panel',
     description: 'Run one read-only SQL SELECT (DuckDB dialect) over a panel version\'s tables, named as get_panel lists them '
