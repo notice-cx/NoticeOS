@@ -36,6 +36,12 @@ const LINKS = Object.freeze([['depends_on', 'blocked-by'], ['blocks', 'blocks'],
     ['discovered_from', 'discovered-from']]);
 /** How many tasks one create_tasks call files: few enough to finish well inside a client's patience. */
 const BATCH = 25;
+/** The rules for a task's card and change_class: NoticeOS's own, so they hold
+ * wherever the installation's tasks live, Ntasks included. */
+export const INSTALLATION_TASK_RULES = Object.freeze([
+    '- Work meant to change money carries a card: the predicted change in USD a month, how likely it pays off, the operator\'s review minutes and your build minutes, the days until the ledger shows it, how it is measured, and the state and date to give up on it; the Tower ranks tasks by their cards, and a task without one is listed, not ranked.',
+    '- change_class names the kind of change a task makes, one of content-data, copy, template, feature and infra, which the autonomy ladder and the likelihood priors are kept by.',
+]);
 /** How to write a task that reads cold, said to every agent the task tools
  * reach (hosted-mcp.mts puts it in the server's instructions). The one copy:
  * AGENTS.md and config/beads.README.md point here. Lint checks the shape;
@@ -46,8 +52,7 @@ export const TASK_QUALITY = Object.freeze([
     '- description: plain labelled lines, unwrapped: WHAT, WHY with the numbers, WHERE as pointers that resolve in a repo (file paths, commits, doc sections), FIX. A bug also has a "## Steps to Reproduce" section.',
     '- acceptance: the proof that completes it, provable the day the work lands. Never "watch for N days": close on today\'s proof and name where a recurrence would show.',
     '- Implementation evidence cites the repo, commits and tests, never a session summary or temporary file. An existing owner answer cites its task comment or explicitly linked conversation, with the exact proposal and scope.',
-    '- Work meant to change money carries a card: the predicted change in USD a month, how likely it pays off, the operator\'s review minutes and your build minutes, the days until the ledger shows it, how it is measured, and the state and date to give up on it; the Tower ranks tasks by their cards, and a task without one is listed, not ranked.',
-    '- change_class names the kind of change a task makes, one of content-data, copy, template, feature and infra, which the autonomy ladder and the likelihood priors are kept by.',
+    ...INSTALLATION_TASK_RULES,
     '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
     '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
     '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
@@ -114,6 +119,7 @@ export function taskInstructions(panels) {
 }
 /** Where Ntasks serves its MCP endpoint, under its address. */
 export const NTASKS_MCP_PATH = '/api/mcp';
+const INSTALLATION_RULES_INTRO = 'Ntasks\'s guide holds the rules for writing a task. Tasks for this installation also follow these:';
 const ASSET_START = 'NoticeOS asset reports for this installation. Start with list_workspaces; every other tool here takes a workspace from it.';
 /** Where the tasks are while they live in Ntasks at `origin` (null while the
  * ingest cannot say), said in place of the task rules, which Ntasks's own guide holds. */
@@ -123,18 +129,19 @@ export function ntasksTaskHome(origin) {
     return `This installation's tasks live in Ntasks${origin === null ? '' : ` at ${origin}`}, and this server has no task tools. `
         + `Connect to Ntasks's MCP endpoint, ${endpoint}, for every task tool, and read the get_task_guide it serves before task work.`;
 }
-/** The guide while the tasks live in Ntasks: where they are and how to connect. */
+/** The guide while the tasks live in Ntasks: where they are, how to connect, and the rules this installation adds to Ntasks's. */
 export function ntasksGuide(origin, panels) {
     return versionedGuide('Working with NoticeOS', ['## Start', '', ASSET_START, '', '## Tasks', '', ntasksTaskHome(origin),
         ...(origin === null ? [] : ['', `With Claude Code: \`claude mcp add --scope user --transport http ntasks ${origin}${NTASKS_MCP_PATH}\`. `
                 + 'On first use, Ntasks asks a person to allow the agent.']),
+        '', INSTALLATION_RULES_INTRO, ...INSTALLATION_TASK_RULES,
         ...(panels ? ['', '## Asset data', '', PANEL_RULE] : [])]);
 }
 /** Every session's instructions while the tasks live in Ntasks. */
 export function ntasksInstructions(origin, panels) {
     return [[ASSET_START, ntasksTaskHome(origin), ...(panels ? [PANEL_RULE] : [])].join(' '),
         `${TASK_GUIDE_TOOL} here returns where the tasks live and how to connect, at any time; list_workspaces returns its version as guideVersion, `
-            + 'so read it again when that changes.'].join('\n');
+            + 'so read it again when that changes.', '', INSTALLATION_RULES_INTRO, ...INSTALLATION_TASK_RULES].join('\n');
 }
 function refuse(message) { throw new McpToolError(message); }
 const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';

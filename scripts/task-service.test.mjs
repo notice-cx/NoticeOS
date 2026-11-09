@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTaskService, mapTaskProjects, TaskServiceToolRefused, TaskServiceUnavailable } from './task-service.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
-import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
+import { INSTALLATION_TASK_RULES, TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/task-service.mts and the standalone MCP's task service. The ingest
@@ -125,6 +125,8 @@ test('while the tasks live in Ntasks, the endpoint lists no task tools and names
   assert.ok(instructions.includes(ENDPOINT));
   const { guide, version } = (await local.call('get_task_guide', {})).result.structuredContent;
   assert.ok(guide.includes(ENDPOINT));
+  // NoticeOS's own rules for a task's card and change_class still reach agents writing tasks in Ntasks.
+  for (const rule of INSTALLATION_TASK_RULES) assert.ok(instructions.includes(rule) && guide.includes(rule), rule);
   const [workspace] = (await local.call('list_workspaces', {})).result.structuredContent.workspaces;
   assert.equal(workspace.access.some(scope => scope.startsWith('tasks:')), false);
   assert.equal((await local.call('list_workspaces', {})).result.structuredContent.guideVersion, version);
