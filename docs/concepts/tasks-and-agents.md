@@ -13,7 +13,7 @@ NoticeOS keeps one task database. Every asset gets its own project in it, and th
 
 The **Tasks** page is the Ntasks web app inside the Tower: the board of every project, each task's page, and your decisions, which you take there as the person signed in to Ntasks ([Tasks](/tower/tasks)).
 
-A task can carry a card that records what the work is worth: the predicted change in the asset's money a month, how likely it is to pay off, your minutes to review it, the days until the result shows, how the change is measured, and the state and date at which the work is given up. An agent writes the card through the task tools, and you write it in **New task** or on the task's page. The Tower ranks tasks by their cards, with the scoring policy in [doc 04, Decision policy](../04-decision-policy.md); a task without a card is listed, not ranked. A task can also record the kind of change it makes: content data, copy, a template, a feature or infrastructure.
+A task can carry a card that records what the work is worth: the predicted change in the asset's money a month, how likely it is to pay off, your minutes to review it, the days until the result shows, how the change is measured, and the state and date at which the work is given up. An agent writes the card through the task tools, and you write it in **New task** or on the task's page. When a task closes as done, its card is kept as it stood: the prediction the change's outcome is graded against ([doc 04, Decision policy](../04-decision-policy.md)). A task can also record the kind of change it makes: content data, copy, a template, a feature or infrastructure.
 
 An asset's own **Tasks** tab shows that asset's decisions, ranked the same way, over the board narrowed to that asset.
 

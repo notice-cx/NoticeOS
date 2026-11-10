@@ -399,11 +399,11 @@ that names the day it shipped. It holds the prediction the change is graded
 against ([doc 04](../docs/04-decision-policy.md)). `readTaskCardShipped`
 reads it, and reads a value that fails its rules as none.
 
-The Tower ranks tasks by their cards with policy v1.0, the scoring function
-of [doc 04](../docs/04-decision-policy.md):
+Policy v1.0, the scoring function of [doc 04](../docs/04-decision-policy.md),
+scores a card as
 `(likelihood × valuePerMonth × durability) / review cost / max(weeks to signal, 2)`,
 where the review cost is `reviewMinutes` at the installation's
-`operator_rate_usd_per_min`. A task without a card is listed and not ranked.
+`operator_rate_usd_per_min`; no Tower page ranks tasks by it today.
 Every reader goes through `readTaskCard` and `readTaskChangeClass`, which read
 a value that fails the rules as no card and no class.
 
