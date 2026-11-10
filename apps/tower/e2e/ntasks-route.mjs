@@ -14,8 +14,8 @@ export async function installFixtureNtasks(context, base) {
     const asked = new URL(request.url());
     // A page's call carries its origin, which Ntasks answers only for a
     // registered app; a navigation carries none.
-    const headers = { ...(await request.allHeaders()), ...(request.isNavigationRequest() ? {} : { origin: base }) };
     try {
+      const headers = { ...(await request.allHeaders()), ...(request.isNavigationRequest() ? {} : { origin: base }) };
       const response = await route.fetch({ url: `${base}${JOURNEY_NTASKS_PATH}${asked.pathname}${asked.search}`, headers, maxRedirects: 0 });
       return await route.fulfill({ response });
     } catch (error) {
