@@ -160,7 +160,9 @@ Ntasks, or one made without that choice, is not kept. HTTPS is required, except 
 refused. This connection is available in standalone installations.
 The **Tower client ID** is the Tower's client ID as a connected app of that
 Ntasks; with it, people sign in to Ntasks on the **Tasks** pages and their
-decisions are recorded under their own names.
+decisions are recorded under their own names. The first **Sign in to Ntasks**
+registers the Tower and saves it, so the field is filled by hand only for an
+Ntasks that cannot register the Tower.
 [Keep tasks in Ntasks](/guides/keep-tasks-in-ntasks) covers the credential,
 mapping sites to projects, registering the Tower for sign-in, connecting agents
 and what the Tower shows while Ntasks does not answer.

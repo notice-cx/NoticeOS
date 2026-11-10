@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { handleTasksRequest } from "../vite/task-lane";
-import { TaskServiceUnavailable, type TaskService, type TaskServiceCall } from "../../../scripts/task-service.mjs";
+import { TaskServiceAppRefused, TaskServiceUnavailable, type TaskService, type TaskServiceCall } from "../../../scripts/task-service.mjs";
 
 // The Tower's task routes while tasks live in Ntasks (vite/task-service-lane.ts).
 // Ntasks is a scripted TaskService here; `bd` must never run.
@@ -20,13 +20,19 @@ afterEach(async () => { await fs.rm(cacheDir, { recursive: true, force: true });
 
 /** A task service that answers `answer(call)`; `down` makes every call unanswered. */
 function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unknown },
-  state: { down: boolean; connected: boolean; unknown?: boolean; appClientId?: string } = { down: false, connected: true }) {
+  state: { down: boolean; connected: boolean; unknown?: boolean; appClientId?: string; register?: (redirectUri: string) => string } = { down: false, connected: true }) {
   const calls: TaskServiceCall[] = [];
+  const registered: string[] = [];
   const service: TaskService = {
     connected: async () => state.connected,
     backend: async () => state.unknown ? "unknown" : state.connected ? "ntasks" : "none",
     origin: async () => "https://ntasks.example.com",
     appClientId: async () => state.appClientId ?? null,
+    async registerApp(redirectUri) {
+      registered.push(redirectUri);
+      if (!state.register) throw new Error("no registration here");
+      return state.register(redirectUri);
+    },
     home: async () => ({ backend: await service.backend(), origin: state.connected ? "https://ntasks.example.com" : null }),
     async call(call) {
       calls.push(call);
@@ -40,7 +46,7 @@ function ntasks(answer: (call: TaskServiceCall) => { status: number; body: unkno
     tool: async () => { throw new Error("no tools here"); },
     workspaceId: async () => "w-example",
   };
-  return { service, calls, state };
+  return { service, calls, state, registered };
 }
 
 function request(method: string, url: string, body?: unknown, headers: Record<string, string> = {}) {
@@ -134,6 +140,26 @@ it("names the Tower's client id in Ntasks, for a person's sign-in, only once one
     projects: [{ asset: "example.com", project: { projectId: PROJECT.projectId } }] });
   const none = ntasks(() => ({ status: 200, body: {} }));
   expect((await lane(none.service)(request("GET", "/api/tasks/service"))).body).toMatchObject({ connected: true, app: null });
+});
+
+it("registers the Tower for the origin the browser is on, and says plainly why Ntasks refused", async () => {
+  const at = { origin: "https://tower.example.com", host: "tower.example.com" };
+  const fine = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true, register: () => "tower-registered" });
+  expect(await lane(fine.service)(request("POST", "/api/tasks/service/app", {}, at))).toEqual({ status: 200, body: { clientId: "tower-registered" } });
+  expect(fine.registered).toEqual(["https://tower.example.com/tasks/signed-in"]);
+  expect((await lane(fine.service)(request("POST", "/api/tasks/service/app", {}))).status).toBe(400);
+
+  const refused = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true,
+    register: () => { throw new TaskServiceAppRefused("invalid_redirect_uri", 400); } });
+  const reply = await lane(refused.service)(request("POST", "/api/tasks/service/app", {}, at));
+  expect(reply).toMatchObject({ status: 502, body: { error: "ntasks_registration_refused", code: "invalid_redirect_uri" } });
+  expect(reply.body.detail).toContain("https://tower.example.com/tasks/signed-in");
+  const unanswered = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: true,
+    register: () => { throw new TaskServiceUnavailable("timeout"); } });
+  expect((await lane(unanswered.service)(request("POST", "/api/tasks/service/app", {}, at)))).toMatchObject({ status: 503, body: { error: "task_service_unreachable" } });
+  const elsewhere = ntasks(() => ({ status: 200, body: {} }), { down: false, connected: false, register: () => "never" });
+  expect((await lane(elsewhere.service)(request("POST", "/api/tasks/service/app", {}, at))).status).toBe(409);
+  expect(elsewhere.registered).toEqual([]);
 });
 
 it("names a site with no Ntasks project instead of reading another", async () => {

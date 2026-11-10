@@ -146,7 +146,10 @@ sends the browser's requests for its `.test` address to the fixture server,
 which passes them to the fixture Ntasks, and the server's CSP lists that
 address. As Ntasks does, the fixture returns 403 for a decision sent with the
 service credential and records a person's decision with the connected app's
-client id.
+client id. It starts with the Tower registered and its client id saved;
+`POST /__journey/ntasks?app=unregistered` starts with none saved, so the first
+**Sign in to Ntasks** registers the Tower, and `?app=refused` with an Ntasks
+that refuses to register it.
 
 External credentials/probes and arriving provider rows are explicit fixture
 boundaries. Only `journey-only-not-a-real-key` is accepted; its value is never
