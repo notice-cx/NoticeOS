@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import os from 'node:os';
 import childProcess from 'node:child_process';
@@ -10,6 +9,7 @@ import { runCommand } from '../run-command.mjs';
 import { startDoltPlan, prepareFreshDolt, doltComposeArgs, doltEnvironment, readDoltCredentials, DOLT_IMAGE } from '../dolt-host.mjs';
 import { containerProofCleanup } from '../container-proof-cleanup.mjs';
 import { commandEvidence } from './command-evidence.mjs';
+import { portListener, reserveTaskPort } from './task-port.mjs';
 import { localDockerEndpoint } from '../postgres-compose.mjs';
 import { createWorkspaceAdmission } from '../workspace-admission.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from '../browser-request-policy.mjs';
@@ -27,16 +27,6 @@ const OTHER_CREDENTIAL = '99999999-9999-4999-8999-999999999999';
 const headers = { origin: 'https://tower.example.com', 'sec-fetch-site': 'same-origin', [WORKSPACE_SESSION_HEADER]: SESSION };
 const request = workspace => new Request('https://tower.example.com/api/tasks', { method: 'POST', headers: { ...headers, [WORKSPACE_SELECTION_HEADER]: workspace } });
 
-/** A loopback port the kernel has just reported free. Each fixture's Dolt
- * server listens on its own, so the task-store test files can run side by side. */
-async function freeLoopbackPort() {
-  const server = net.createServer();
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  const { port } = server.address();
-  await new Promise(resolve => server.close(resolve));
-  return port;
-}
-
 /** A task initializer may commit connection files when it discovers Git above
  * its working directory. Synthetic task stores must be outside every checkout. */
 export function assertTaskFixtureOutsideGit(directory) {
@@ -49,8 +39,15 @@ export function assertTaskFixtureOutsideGit(directory) {
 // Test-only physical fixture. No raw SQL, provisioning credentials, or mutable
 // readiness assertion crosses this callback. The outer lifetime owns every
 // container, file, command observer, and awaited cleanup even when work fails.
-export async function withOwnedTaskProjects(work, { projects } = {}) {
+export async function withOwnedTaskProjects(work, options) {
   assert.equal(process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR, '1', 'Explicit synthetic fixture opt-in is required');
+  // Held until the task server and its volume are gone.
+  const reservation = await reserveTaskPort();
+  try { return await ownedTaskProjects(work, options, reservation.port); }
+  finally { await reservation.release(); }
+}
+
+async function ownedTaskProjects(work, { projects } = {}, port) {
   assert.equal(typeof work, 'function');
   const selections = projects ?? [A, B].map(workspaceId => ({ workspaceId, projectId: P, databaseId: workspaceId }));
   const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value);
@@ -78,7 +75,6 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
   assert.match(imageId ?? '', /^sha256:[0-9a-f]{64}$/u);
   const free = fs.statfsSync(os.tmpdir());
   assert.ok(free.bavail * free.bsize >= 8 * 1024 ** 3 + 128 * 1024 ** 2);
-  const port = await freeLoopbackPort();
   const suppliedBase = process.env.NOTICEOS_TEST_HOSTED_TASK_OWNED_BASE;
   assertTaskFixtureOutsideGit(suppliedBase ?? os.tmpdir());
   const base = suppliedBase ?? fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'noticeos-task-executor-'));
@@ -150,7 +146,7 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     process.once('exit', teardownOnExit);
     fs.writeFileSync(path.join(evidence, 'planned-config.json'), JSON.stringify({ profile, compose, image: DOLT_IMAGE, listener: `127.0.0.1:${port}`, base }, null, 2));
     const started = await prepareFreshDolt(plan, { fresh: true, env, run: (_bin, args, opts) => exec(args, opts) });
-    assert.equal(started.ok, true, started.line);
+    if (!started.ok) assert.fail(/port/u.test(started.line) ? `${started.line} ${await portListener(port)}` : started.line);
     secrets = [...clients.map(c => c.password), ...Object.values(readDoltCredentials(profile)).map(x => x.trim())];
     record = commandEvidence(path.join(evidence, 'commands'), { secrets });
     assert.deepEqual(rows(await ownerSql('SELECT DOLT_VERSION() AS version')), [{ version: '2.4.0' }]);
