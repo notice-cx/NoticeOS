@@ -50,6 +50,7 @@ export const FEED_TAIL_ROWS = 500;
 export const FEED_SNAPSHOT_STEP_MINUTES = 15;
 /** Slack on the tables whose index is on the START of a run. */
 const RUN_START_SLACK_MS = 2 * 86_400_000;
+const GOOGLE_ARCHIVES = "Google archives";
 
 // ─── the statements ─────────────────────────────────────────────────────────
 
@@ -660,10 +661,12 @@ function collectedLines(attempts: readonly Attempt[]): FeedEvent[] {
     const ok = new Set(newest.map((attempt) => attempt.asset));
     const failed = new Set(list.filter((attempt) => !attempt.ok && attempt.atMs >= from && attempt.atMs <= to).map((attempt) => attempt.asset));
     const partial = [...failed].filter(asset => ok.has(asset)).length;
+    const failedOnly = failed.size - partial;
     const sites = siteCount(ok.size);
-    const result = partial > 0 ? `${sites} collected · ${failed.size} with failures`
-      : failed.size > 0 ? `${ok.size} of ${siteCount(ok.size + failed.size)}`
-        : provider === "Google archives" ? `${sites} collected` : `${sites}, none failed`;
+    const result = partial > 0
+      ? `${sites} collected · ${failedOnly ? `${partial} partial · ${failedOnly} failed` : `${partial} with failures`}`
+      : failedOnly > 0 ? `${ok.size} of ${siteCount(ok.size + failedOnly)}`
+        : provider === GOOGLE_ARCHIVES ? `${sites} collected` : `${sites}, none failed`;
     lines.push({
       // Its own namespace: a source coming back shares the run's id.
       id: `collected:${top.id}`,
@@ -976,7 +979,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     const provider = collector(row.integration);
     const searchArchive = row.integration === "gsc";
     if (!ok) failure(`signal_dump_runs:${row.id}`, row.asset, row.at, searchArchive ? "Search Console report archive" : `${provider} report`, searchArchive);
-    attempts.push({ id: `signal_dump_runs:${row.id}`, asset: row.asset, provider: provider === "Google" ? "Google archives" : provider, atMs: ms(row.at), ok });
+    attempts.push({ id: `signal_dump_runs:${row.id}`, asset: row.asset, provider: provider === "Google" ? GOOGLE_ARCHIVES : provider, atMs: ms(row.at), ok });
   }
   for (const row of active(mediavine)) {
     const ok = row.outcome === "success";

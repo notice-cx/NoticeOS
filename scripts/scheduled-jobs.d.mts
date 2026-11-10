@@ -91,6 +91,7 @@ export declare const LOCAL_JOB_SOCKET: string;
 /** Requests name an existing job; its registered execution owns all effects. */
 export declare function manualScheduledJob(id: unknown): ScheduledJob | null;
 export declare const manualLocalJob: typeof manualScheduledJob;
+/** The browser route and private runner socket admit the same named jobs. */
 export declare function parseLocalJobRequest(body: string): {
     id: string;
     background?: true;

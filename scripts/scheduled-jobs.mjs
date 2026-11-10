@@ -15,6 +15,7 @@ export function manualScheduledJob(id) {
     return SCHEDULED_JOBS.find((job) => job.id === id) ?? null;
 }
 export const manualLocalJob = manualScheduledJob;
+/** The browser route and private runner socket admit the same named jobs. */
 export function parseLocalJobRequest(body) {
     let input;
     try {

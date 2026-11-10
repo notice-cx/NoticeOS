@@ -83,6 +83,7 @@ export function manualScheduledJob(id: unknown): ScheduledJob | null {
 
 export const manualLocalJob = manualScheduledJob;
 
+/** The browser route and private runner socket admit the same named jobs. */
 export function parseLocalJobRequest(body: string): { id: string; background?: true } | null {
   let input: unknown;
   try { input = JSON.parse(body); } catch { return null; }

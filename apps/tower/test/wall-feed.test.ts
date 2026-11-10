@@ -724,21 +724,23 @@ needsPostgres("buildWallFeed with independent stores", () => {
     try {
       const site = "example.com";
       await asset(store, site, "Example");
+      const other = "second.example";
+      await asset(store, other, "Second");
       await signalRun(store.call, "analytics-success", site, "ga4", at("19:19"));
       await signalRun(store.call, "search-failure", site, "gsc", at("19:18"), false);
       await writeArchiveRuns(store.call, [
         dump("archive-success", site, "ga4", at("19:17"), 0),
         dump("archive-failure-1", site, "gsc", at("19:16"), 0, false),
-        dump("archive-failure-2", site, "gsc", at("19:15"), 0, false),
+        dump("archive-failure-2", other, "gsc", at("19:15"), 0, false),
       ]);
       const { items } = await buildWallFeed(store.call, DEPS);
-      expect(items.filter(item => item.kind === "collected").map(item => [item.text, item.count])).toEqual([
-        ["Google · 1 asset collected · 1 with failures", 1],
-        ["Google archives · 1 asset collected · 1 with failures", 1],
+      expect(items.filter(item => item.kind === "collected")).toMatchObject([
+        { count: 1, text: expect.stringMatching(/^Google · .*1 with failures/u) },
+        { count: 1, text: expect.stringMatching(/^Google archives · .*1 partial.*1 failed/u) },
       ]);
-      expect(items.filter(item => item.kind === "source-failed").map(item => [item.text, item.count])).toEqual([
-        ["Google Search Console failed", 1],
-        ["Search Console · 2 archive reports failed", 2],
+      expect(items.filter(item => item.kind === "source-failed")).toMatchObject([
+        { count: 1, asset: site, text: expect.stringContaining("Search Console") },
+        { count: 2, asset: null, text: expect.stringMatching(/Search Console.*archive reports failed/u) },
       ]);
     } finally { await store.close(); }
   });

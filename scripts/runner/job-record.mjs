@@ -132,7 +132,10 @@ export async function runJobLane(
     },
     begin: begin ? (name, at) => {
       const trace = begin(name, at, deps.trigger);
-      if (trace && deps.onStart) void trace.observed.then(() => deps.onStart(trace.id));
+      if (trace && deps.onStart) {
+        void trace.observed.then(() => deps.onStart(trace.id))
+          .catch(() => emit('WARN', 'Could not send the run start receipt.'));
+      }
       return trace;
     } : null,
     stepOf: (value) => (value === REGULAR_LANE_HELD ? stepResult(null) : stepResult(value)),

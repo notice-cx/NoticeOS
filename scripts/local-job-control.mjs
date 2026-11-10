@@ -6,6 +6,8 @@ import { chmod, lstat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { LOCAL_JOB_SOCKET, manualScheduledJob, parseLocalJobRequest } from './scheduled-jobs.mjs';
 import { redactLogText } from './os-log.mjs';
+/** Background callers get a receipt once the run enters history. The scheduler
+ * holds ownership until completion regardless of which reply the caller needs. */
 export async function invokeLocalJob(id, { scheduler, ready, stopped, }, background = false) {
     const job = manualScheduledJob(id);
     if (!job)

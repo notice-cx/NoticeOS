@@ -7,6 +7,8 @@ import { LOCAL_JOB_SOCKET, manualScheduledJob, parseLocalJobRequest, type LocalJ
 import type { ScheduledJobRunner } from './scheduled-job-runner.mjs';
 import { redactLogText } from './os-log.mjs';
 
+/** Background callers get a receipt once the run enters history. The scheduler
+ * holds ownership until completion regardless of which reply the caller needs. */
 export async function invokeLocalJob(id: unknown, {
   scheduler, ready, stopped,
 }: { scheduler: ScheduledJobRunner; ready: () => boolean; stopped: () => boolean }, background = false): Promise<LocalJobReply> {
