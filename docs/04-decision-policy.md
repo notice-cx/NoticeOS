@@ -48,17 +48,13 @@ score = (P_success × ΔV_predicted × F) / C_fully_loaded / max(T_signal, 2wk)
 ([the fields and their limits](../config/beads.README.md#what-a-task-is-worth)).
 An agent writes both through the task tools' `card` and `change_class`
 arguments on `create_task`, `create_tasks` and `update_task`; the operator
-writes them in the Tower's New task and on a task's page under "Why it
-ranks". The Tower ranks the operator's decisions and the agents' ready work
-with policy v1.0 on every read of the tasks, pricing review minutes at the
-installation's `operator_rate_usd_per_min` (Settings' "Value of your time");
-build minutes are shown beside the score and not priced, and a task without a
-card is listed after the ranked ones with no score. When a task with a card
+writes them in the Tower's New task and on a task's page in Tasks. No
+surface ranks tasks by this function today: the Tasks page is the Ntasks UI,
+which lists tasks by status. When a task with a card
 closes as done, through the task tools, the hosted Tasks API or the Tower's
 task lane, the server keeps the card as it stood in the task's metadata as
 `noticeos_card_shipped`, with the close time and the commit the close reason
-names; the task's page shows those figures with **as shipped** and the day,
-and from then on every writer stops a change to that task's card, also after
+names, and from then on every writer stops a change to that task's card, also after
 the task is reopened. A close with any other resolution keeps no card. Not
 built yet: the change entry. No code books a `change` row in
 `ledger_entries`, so the figures as they stood at ship are recorded on the
@@ -67,7 +63,7 @@ booking is built, it reads the entry's prediction from the shipped card: ΔV
 per month from `valuePerMonth` in minor units, P_success from `likelihood`,
 C from `reviewMinutes` at the operator rate, and T_signal from
 `daysToSignal`. Also not built: the scheduled batch reallocation below, so
-the ranking is the live order and no batch is planned from it.
+no batch is planned from the cards.
 
 **Why not a live bandit:** SEO/revenue rewards arrive over weeks-to-months;
 at that delay, online bandit algorithms get too little feedback and end up
