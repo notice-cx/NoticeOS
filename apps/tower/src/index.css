@@ -70,6 +70,11 @@
   --sidebar: var(--brand-sidebar);
   --panel: var(--brand-panel);
   --shadow-raise: var(--brand-shadow-raise);
+  --shadow-pop: var(--brand-shadow-pop);
+  --task-wait: var(--brand-task-wait);
+  --task-wait-text: var(--brand-task-wait-text);
+  --task-block: var(--brand-task-block);
+  --task-done: var(--brand-task-done);
   --border: var(--brand-line);
   --ring: var(--brand-accent);
 
@@ -128,18 +133,9 @@
 
   --spark: oklch(0.64 0.025 250);
   --error-soft: var(--brand-danger-soft);
-  /* Surface kinds: a card's subject as a low-chroma tint on its top edge,
-     with one inner highlight line and, for chrome only, a translucent glass.
-     A tint is never a verdict: severity rides the ring, the glyph and the
-     word. None points at the brand accent (apps/tower/test/brand-identity.test.ts). */
-  --surface-money: oklch(0.25 0.035 200);
-  --surface-money-line: oklch(0.42 0.06 200);
-  --surface-alert: oklch(0.24 0.04 12);
-  --surface-alert-line: oklch(0.42 0.07 12);
-  --surface-win: oklch(0.23 0.04 160);
-  --surface-win-line: oklch(0.4 0.07 160);
-  --surface-neutral: var(--brand-raised);
-  --surface-neutral-line: var(--brand-line);
+  /* A chart bar's one inner highlight line and, for chrome only, a
+     translucent glass. None points at the brand accent
+     (apps/tower/test/brand-identity.test.ts). */
   --surface-highlight: oklch(1 0 0 / 0.07);
   --glass: oklch(1 0 0 / 0.05);
   --glass-line: oklch(1 0 0 / 0.1);
@@ -160,7 +156,6 @@
   /* The highlight that passes over a skeleton block, which is drawn in
      --viz-track: a few percent of white on the dark canvas. */
   --skeleton-shine: oklch(1 0 0 / 0.06);
-  --shadow-raised: inset 0 1px 0 oklch(1 0 0 / 0.05), 0 24px 48px -28px oklch(0 0 0 / 0.85);
   /* A dropdown's chevron in the muted ink; an image cannot read a variable,
      so each theme spells its own. */
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a4aec3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -471,6 +466,11 @@
   --sidebar: var(--brand-sidebar);
   --panel: var(--brand-panel);
   --shadow-raise: var(--brand-shadow-raise);
+  --shadow-pop: var(--brand-shadow-pop);
+  --task-wait: var(--brand-task-wait);
+  --task-wait-text: var(--brand-task-wait-text);
+  --task-block: var(--brand-task-block);
+  --task-done: var(--brand-task-done);
   --border: var(--brand-line);
   --ring: var(--brand-accent);
 
@@ -514,14 +514,6 @@
 
   --spark: oklch(0.55 0.025 250);
   --error-soft: var(--brand-danger-soft);
-  --surface-money: oklch(0.96 0.025 200);
-  --surface-money-line: oklch(0.82 0.06 200);
-  --surface-alert: oklch(0.965 0.02 12);
-  --surface-alert-line: oklch(0.84 0.07 12);
-  --surface-win: oklch(0.965 0.03 160);
-  --surface-win-line: oklch(0.82 0.07 160);
-  --surface-neutral: var(--brand-raised);
-  --surface-neutral-line: var(--brand-line);
   --surface-highlight: oklch(1 0 0 / 0.7);
   --glass: oklch(1 0 0 / 0.55);
   --glass-line: oklch(0 0 0 / 0.08);
@@ -537,7 +529,6 @@
   --viz-track: oklch(0.94 0.008 255);
   --viz-grid: oklch(0.88 0.01 255 / 0.8);
   --skeleton-shine: oklch(1 0 0 / 0.7);
-  --shadow-raised: inset 0 1px 0 oklch(1 0 0 / 0.8), 0 24px 48px -30px oklch(0.25 0.04 260 / 0.28);
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23586176' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --asset-1: oklch(0.51 0.1 200);
   --asset-2: oklch(0.5 0.15 295);
@@ -603,14 +594,6 @@
   --color-pace-behind: var(--pace-behind);
   --color-pace-far-behind: var(--pace-far-behind);
   --color-spark: var(--spark);
-  --color-surface-money: var(--surface-money);
-  --color-surface-money-line: var(--surface-money-line);
-  --color-surface-alert: var(--surface-alert);
-  --color-surface-alert-line: var(--surface-alert-line);
-  --color-surface-win: var(--surface-win);
-  --color-surface-win-line: var(--surface-win-line);
-  --color-surface-neutral: var(--surface-neutral);
-  --color-surface-neutral-line: var(--surface-neutral-line);
   --color-surface-highlight: var(--surface-highlight);
   --color-glass: var(--glass);
   --color-glass-line: var(--glass-line);
@@ -618,11 +601,16 @@
   --color-viz-grid: var(--viz-grid);
   --color-swatch-light: var(--swatch-light);
   --color-swatch-dark: var(--swatch-dark);
-  --shadow-raised: var(--shadow-raised);
-  /* Precise's raised control (a secondary button) and the sidebar's width. */
+  /* Precise's raised control (a secondary button), its popover lift, and the
+     sidebar's width. */
   --shadow-raise: var(--shadow-raise);
+  --shadow-pop: var(--shadow-pop);
   --color-sidebar: var(--sidebar);
   --color-panel: var(--panel);
+  --color-task-wait: var(--task-wait);
+  --color-task-wait-text: var(--task-wait-text);
+  --color-task-block: var(--task-block);
+  --color-task-done: var(--task-done);
   --color-secondary-foreground: var(--secondary-foreground);
   --spacing-sidebar: 236px;
 

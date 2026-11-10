@@ -148,7 +148,7 @@ function FunnelSide({ cards }: { cards: readonly AssetCard[] }) {
 export function ChannelsModule({ cards }: { cards: readonly AssetCard[] }) {
   const shares = channelShares(cards);
   return (
-    <section aria-label="Where visitors come from" className="grid content-start gap-5 rounded-xl bg-card p-5 ring-1 ring-border/70 @container" data-home-channels="">
+    <section aria-label="Where visitors come from" className="grid content-start gap-5 rounded-xl bg-card p-5 ring-1 ring-inset ring-border @container" data-home-channels="">
       <SectionLabel title="Where visitors come from · 4 weeks" />
       <div className="grid gap-5 @2xl:grid-cols-2">
         {shares === null || shares.length === 0 ? (

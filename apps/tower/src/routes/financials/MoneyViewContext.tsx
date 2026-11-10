@@ -30,7 +30,7 @@ export function MoneyViewContext({ data, rows, view }: { data: FinancialsPayload
     { label: "Revenue sources", value: data.revenueLines?.length ?? "—", caption: data.revenueLines ? "source and currency groups" : "source breakdown is unavailable" },
   ];
   return (
-    <section aria-label={title} data-money-view={view} className="overflow-hidden rounded-xl bg-card ring-1 ring-border/70">
+    <section aria-label={title} data-money-view={view} className="overflow-hidden rounded-xl bg-card ring-1 ring-inset ring-border">
       <SectionLabel title={title} className="px-5 pt-4 pb-3" />
       <KpiStrip columns={3}>
         {metrics.map((metric) => <Kpi key={metric.label} {...metric} />)}

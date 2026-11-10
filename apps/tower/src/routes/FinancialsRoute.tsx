@@ -366,7 +366,7 @@ function Panel({
   const [open, setOpen] = useState(defaultOpen);
   return (
     <section
-      className={cn("rounded-[10px] border border-border bg-card", className)}
+      className={cn("rounded-xl border border-border bg-card", className)}
       data-panel={mark}
       data-panel-open={open ? "" : undefined}
       data-config-surface={configSurface ? "" : undefined}
@@ -549,7 +549,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           className="@3xl:col-span-2 @6xl:col-span-12"
         />
         {upto.length >= 2 ? (
-          <section aria-label="Month by month" data-money-months="" className="rounded-xl bg-card px-5 pt-4 pb-3 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12">
+          <section aria-label="Month by month" data-money-months="" className="rounded-xl bg-card px-5 pt-4 pb-3 ring-1 ring-inset ring-border @3xl:col-span-2 @6xl:col-span-12">
             {/* Net is drawn, not inferred: the scale takes a signed domain, so
                 the page's headline figure is a line rather than a subtraction
                 performed by eye. */}

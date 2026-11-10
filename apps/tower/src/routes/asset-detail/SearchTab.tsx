@@ -265,7 +265,7 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
             timeline={timelineAnnotations(data.annotations.items, data.osTimeZone)}
           />
         </div>
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-border bg-card px-4 py-3" data-search-next>
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3" data-search-next>
           <SectionLabel title="Tracked terms" caption="none yet" />
           <Button asChild size="sm">
             <Link to={step.to}>{step.label}</Link>
@@ -281,7 +281,7 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
       id="search-evidence"
       data-surface-hero
       data-search-start="none"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-border bg-card px-4 py-3"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3"
     >
       <EmptyState title="No search numbers yet" />
       <Button asChild size="sm">
@@ -359,7 +359,7 @@ function SearchContext({
         }
       />
 
-      <div className="grid gap-x-10 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2.5fr)]">
+      <div className="grid gap-x-10 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-inset ring-border @3xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2.5fr)]">
         {/* Ahrefs' "traffic value": the estimated visits priced as ads. The
             line under it says both halves, so it needs no hover. */}
         <div className="flex min-w-0 flex-col gap-1" {...cell("traffic-value")}>
@@ -382,7 +382,7 @@ function SearchContext({
       {/* The rankings above answer what the asset's search position is
           worth; links, AI mentions and competitors qualify that answer and
           are one press away with the rows they are drawn from. */}
-      <details className="rounded-xl bg-card ring-1 ring-border/70">
+      <details className="rounded-xl bg-card ring-1 ring-inset ring-border">
         <summary className="flex min-h-11 cursor-pointer list-none items-center px-5 text-xs text-muted-foreground hover:text-foreground">
           More context · links, AI mentions, competitors
         </summary>
@@ -584,7 +584,7 @@ function SearchContextRows({
   return (
     // One door, not four; the tables inside keep their own summaries, so
     // nothing about what is behind each one is hidden.
-    <details className="rounded-[10px] border border-border bg-card">
+    <details className="rounded-xl border border-border bg-card">
       <summary className="flex min-h-11 cursor-pointer list-none items-center px-3 text-xs text-muted-foreground hover:text-foreground">
         The rows behind these numbers · {formatInt(tables.length)}{" "}
         {tables.length === 1 ? "table" : "tables"}

@@ -9,7 +9,7 @@ export function AlertDaily() {
     total: day.errors === null || day.warnings === null ? null : day.errors + day.warnings,
   })) ?? [];
   return (
-    <section aria-label="Daily open-alert snapshots" className="min-w-0 rounded-xl bg-card p-4 ring-1 ring-border/70" data-alert-daily="">
+    <section aria-label="Daily open-alert snapshots" className="min-w-0 rounded-xl bg-card p-4 ring-1 ring-inset ring-border" data-alert-daily="">
       <div className="flex items-baseline justify-between gap-3"><h2 className="text-sm font-semibold">Open alerts by day</h2><span className="text-xs text-muted-foreground">UTC</span></div>
       {isError ? <div role="status" data-status-for="read:alert-daily" className="mt-3 flex flex-wrap items-center gap-2 text-sm">
         <span>Couldn't load daily alert snapshots.{data ? " Showing the last successful read." : " Counts are unknown."}</span>

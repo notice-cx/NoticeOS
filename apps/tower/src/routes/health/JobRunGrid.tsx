@@ -65,7 +65,7 @@ export function JobRunGrid({ week, nowMs, state }: { week: JobRunWeek | null; no
   const truncated = week?.rows.some((row) => row.truncated) ?? false;
 
   return (
-    <section aria-labelledby={titleId} data-job-runs="" className="@container grid gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70">
+    <section aria-labelledby={titleId} data-job-runs="" className="@container grid gap-4 rounded-xl bg-card p-5 ring-1 ring-inset ring-border">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="grid min-w-0 gap-1.5">
           <h2 id={titleId} className={cn("m-0", eyebrowClass)}>

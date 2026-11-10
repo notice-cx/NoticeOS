@@ -32,7 +32,7 @@ const STACKED =
   "@max-[40rem]:[&_tr[data-row-opens]]:after:border-muted-foreground @max-[40rem]:[&_tr[data-row-opens]]:after:content-[''] " +
   "@max-[40rem]:[&_td[data-label]]:before:shrink-0 " +
   "@max-[40rem]:[&_td[data-label]]:before:font-semibold " +
-  "@max-[40rem]:[&_td[data-label]]:before:uppercase @max-[40rem]:[&_td[data-label]]:before:tracking-wider " +
+  "" +
   "@max-[40rem]:[&_td[data-label]]:before:text-muted-foreground " +
   "@max-[40rem]:[&_td[data-label]]:before:content-[attr(data-label)]";
 
@@ -94,7 +94,7 @@ export function TableHead({ className, ...props }: React.ThHTMLAttributes<HTMLTa
   return (
     <th
       className={cn(
-        "h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground",
+        "h-9 px-3 text-left align-middle font-semibold text-muted-foreground",
         className,
       )}
       {...props}

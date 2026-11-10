@@ -1228,14 +1228,13 @@ describe("Home — Decide", () => {
     // own priority band.
     expect(rows.map((row) => row.getAttribute("data-queue-item"))).toEqual(["ro-3z7", "md-9k1"]);
     expect(rows[0]).toHaveTextContent("Approve the spend cap");
-    expect(within(rows[0]!).getByLabelText("Approval")).toBeInTheDocument();
-    expect(rows[0]).toHaveTextContent("System");
+    expect(rows[0]).toHaveTextContent("Approval · System");
     expect(rows[0]!.textContent).not.toContain("· gate");
     expect(rows[0]!.textContent).not.toContain("ro-3z7");
     expect(within(rows[0]!).queryAllByRole("button")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link")).toHaveAttribute("href", "/tasks/ro-3z7");
     expect(rows[1]).toHaveTextContent("Top-priority ask");
-    expect(within(rows[1]!).getByLabelText("Question")).toBeInTheDocument();
+    expect(rows[1]).toHaveTextContent(/Question · /);
     expect(within(rows[1]!).queryAllByRole("button")).toHaveLength(0);
     expect(screen.getByRole("link", { name: "All decisions →" })).toHaveAttribute("href", "/tasks?view=waiting");
   });
@@ -1352,7 +1351,7 @@ describe("Home — Decide", () => {
     expect(panelFor("Decisions")).not.toHaveTextContent("Could not read");
   });
 
-  it("gives every row the ask face — warn at every priority, a gate's triangle", () => {
+  it("draws every row with the waiting mark at every priority, named by its kind", () => {
     workState.data = workPayload([
       project("System", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" })]),
       project("Meadow Board", [
@@ -1365,12 +1364,12 @@ describe("Home — Decide", () => {
     renderHome();
 
     const rows = within(panelFor("Decisions")).getAllByRole("listitem");
-    const glyphs = rows.map((row) => row.querySelector("svg[aria-label]")!);
-    // A task's priority is not a severity: priority is the order, not the colour.
-    expect(glyphs.map((glyph) => glyph.classList.contains("text-warn"))).toEqual([true, true, true]);
-    // Never colour-only: a gate holding other work is a triangle, an ask a
-    // question mark, and each says which.
-    expect(glyphs.map((glyph) => glyph.getAttribute("aria-label"))).toEqual(["Approval", "Question", "Question"]);
+    const glyphs = rows.map((row) => row.querySelector("svg[data-task-status]")!);
+    // Every row is waiting for you, whatever its priority: Precise's one mark
+    // for it, the same as on the Tasks board.
+    expect(glyphs.map((glyph) => glyph.getAttribute("data-task-status"))).toEqual(["waiting", "waiting", "waiting"]);
+    // Never colour-only: each row's words say which kind it is.
+    expect(rows.map((row) => row.textContent?.match(/Approval|Question/)?.[0])).toEqual(["Approval", "Question", "Question"]);
     expect(within(rows[0]!).queryAllByRole("button")).toHaveLength(0);
     expect(within(panelFor("Decisions")).queryAllByRole("button")).toHaveLength(0);
   });

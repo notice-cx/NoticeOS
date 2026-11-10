@@ -95,7 +95,7 @@ export function RecommendationFacts({ validity, subject, heading }: { validity: 
     </div>
     {validity.sources.length > 0 ? (
       <table className="w-full text-left tabular-nums">
-        <thead className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+        <thead className="text-xs text-muted-foreground">
           <tr><th className="py-0.5 font-medium">Source</th><th className="py-0.5 font-medium">Analyzed</th><th className="py-0.5 text-right font-medium">Latest</th></tr>
         </thead>
         <tbody className="divide-y divide-border/60">

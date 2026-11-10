@@ -240,7 +240,7 @@ function PanelSummary({
         caption={serpPanelScope(panel)}
         action={{ to: searchTab, label: "Search terms →" }}
       />
-      <div className="@container grid gap-x-8 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="@container grid gap-x-8 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-inset ring-border @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <PanelRanks panel={panel} />
         <div className="flex min-w-0 flex-col gap-4">
           <PanelOverviews panel={panel} />
@@ -337,7 +337,7 @@ function ProductUse({ snapshot }: { snapshot: ProductUseSnapshot | null }) {
         title={`Product use · last ${formatInt(snapshot.days)} days`}
         caption={formatCalendarRange(snapshot.windowStart, snapshot.windowEnd)}
       />
-      <div className={cn("@container grid gap-x-8 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-border/70", comparisons.length > 0 && "@3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]")}>
+      <div className={cn("@container grid gap-x-8 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-inset ring-border", comparisons.length > 0 && "@3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]")}>
         <ul className="m-0 grid list-none gap-2.5 p-0" aria-label="People who took each action">
           {ranked.map((metric, index) => (
             <li key={metric.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @lg:grid-cols-[minmax(7rem,12rem)_minmax(0,1fr)_minmax(6rem,auto)]" data-product-action={metric.key}>

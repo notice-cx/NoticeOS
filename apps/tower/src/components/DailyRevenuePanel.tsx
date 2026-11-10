@@ -36,7 +36,7 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   const latest = history.days.at(-1);
   const currency = (value: number) => formatUsd(value, { cents: true });
   const noun = revenueNoun(history.bySource);
-  return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
+  return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
     {/* The kind of revenue, not a source's name; the reporting day's clock is one press away. */}
     <SectionLabel id={id} title={title} caption={<>{noun} · estimates{history.clock ? <> <InfoTooltip label="About the reporting day">{`Days end at midnight ${history.clock.label} time`}</InfoTooltip></> : null}</>} className="px-4 pt-3">{aside}</SectionLabel>
     <p className="px-4 pt-1 text-xs text-muted-foreground">{range === 0 ? 'Reporting has not started for this period.' : <>{formatCalendarDate(history.from)} – {formatCalendarDate(history.to)}</>}</p>

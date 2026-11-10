@@ -841,6 +841,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The phone fold is the viewport, not a prop; pinned in test/components.test.tsx.",
   },
   {
+    name: "TaskStatusMark",
+    file: "components/TaskStatusMark.tsx",
+    purpose: "A task's state as Precise draws it on /tasks: one of six 14px circles, amber only for waiting for you, red only for blocked, green only for done. Home's decisions and an asset's needs-you list draw the waiting one.",
+    variants: ["waiting", "in progress", "open", "blocked", "parked", "done", "named or hidden beside words"],
+  },
+  {
     name: "MarkdownText",
     file: "components/MarkdownText.tsx",
     purpose: "A task's Markdown as the Tower draws it, in the composer's preview: headings, lists and task lists, tables, code, callouts, task ids and paths as chips. Raw HTML and unsafe links are written out as text.",
@@ -1250,7 +1256,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SectionLabel",
     file: "components/surface/SectionLabel.tsx",
     purpose:
-      "The eyebrow every section opens with: an 11px tracked uppercase title, one quiet caption of at most a sentence and one link at the right that takes the question elsewhere. `eyebrowClass` is exported for an eyebrow that is a label inside a control, and ListPanel composes this one as its header.",
+      "The heading every section opens with: a 14px semibold title in sentence case, one quiet caption of at most a sentence and one link at the right that takes the question elsewhere. `eyebrowClass` is exported for an eyebrow that is a label inside a control, and ListPanel composes this one as its header.",
     variants: ["title only", "with a caption", "with a link action", "with an owner chip (node slot)", "inside a summary", "as a panel header (Home's assets)", "inside ListPanel", "phone (44px floor claimed)"],
   },
   {

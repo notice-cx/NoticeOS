@@ -96,7 +96,7 @@ export function StatTile({
   );
 
   const shell = cn(
-    "relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70",
+    "relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-xl bg-card p-4 ring-1 ring-inset ring-border",
     "before:absolute before:inset-x-0 before:top-0 before:h-0.5",
     RULE[role],
     className,

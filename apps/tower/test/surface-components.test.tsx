@@ -894,10 +894,10 @@ describe("SectionLabel", () => {
     );
 
     const eyebrow = screen.getByRole("heading", { level: 2, name: "Search" });
-    expect(eyebrow.className).toContain("text-[11px]");
-    expect(eyebrow.className).toContain("tracking-[0.08em]");
-    expect(eyebrow.className).toContain("uppercase");
-    expect(eyebrow.className).toContain("text-muted-foreground");
+    // Precise's section heading: sentence case, never capitals.
+    expect(eyebrow.className).toContain("font-semibold");
+    expect(eyebrow.className).toContain("text-foreground");
+    expect(eyebrow.className).not.toContain("uppercase");
     expect(screen.getByText("Google and Bing added, one line each")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Queries and pages →" })).toHaveAttribute(
       "href",

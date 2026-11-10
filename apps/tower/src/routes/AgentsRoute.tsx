@@ -74,7 +74,7 @@ function AgentsBoard({ work, broken, complete, failed }: {
       </div>
       <div className="grid gap-4 lg:grid-cols-2" data-agent-section-order={view.id}>
         {AGENT_SECTION_ORDER[view.id].map(section => <Fragment key={section}>{({
-          velocity: work.velocity.weeks.some(week => week.total > 0) ? <section aria-label="Velocity" data-agent-velocity="" className={cn(PANEL, "shadow-raised", (view.id === "overview" || work.workers.length === 0) && "lg:col-span-2")}>
+          velocity: work.velocity.weeks.some(week => week.total > 0) ? <section aria-label="Velocity" data-agent-velocity="" className={cn(PANEL, "", (view.id === "overview" || work.workers.length === 0) && "lg:col-span-2")}>
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className={cn("m-0", eyebrowClass)}>Velocity · tasks closed a week</h2>
             <span className="text-xs text-muted-foreground">{complete ? "last 8 weeks" : "last 8 weeks · incomplete read"}</span>

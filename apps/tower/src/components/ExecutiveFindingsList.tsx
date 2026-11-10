@@ -258,7 +258,7 @@ export function ExecutiveFindingsList({
       )}
       {showDismissed && dismissedItems.length > 0 ? (
         <div className="rounded-lg border border-dashed border-border p-3">
-          <h3 className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+          <h3 className="text-sm font-semibold text-foreground">
             Dismissed findings
           </h3>
           <div className="mt-2 divide-y divide-border border-y border-border">
@@ -371,7 +371,7 @@ function FindingGroups({
             aria-label={label}
             data-finding-group={group.key}
           >
-            <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               {group.key === "marked" ? (
                 <Bookmark className="size-3 fill-current" aria-hidden />
               ) : (

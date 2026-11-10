@@ -91,7 +91,7 @@ export function CountdownFace({
               // not parse stays hot, because that one is still broken.
               <div
                 className={cn(
-                  "flex min-w-0 flex-1 items-center justify-center px-4 text-center font-mono text-4xl font-bold uppercase tracking-wide md:text-5xl",
+                  "flex min-w-0 flex-1 items-center justify-center px-4 text-center font-mono text-4xl font-bold md:text-5xl",
                   proximity.valueClassName,
                   proximity.surfaceClassName,
                 )}

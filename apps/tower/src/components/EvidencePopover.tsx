@@ -66,7 +66,7 @@ export function EvidencePopover({
         data-evidence-panel
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+          <span className="text-sm font-semibold text-foreground">
             {question}
           </span>
           {contextLabel ? (

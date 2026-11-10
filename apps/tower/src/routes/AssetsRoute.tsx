@@ -174,7 +174,7 @@ export function AssetsRoute() {
           <PageSkeleton subject="read:sites" shape="list" />
         )
       ) : all.length === 0 ? (
-        <section data-surface-hero data-assets-empty className="rounded-[10px] border border-border bg-card px-4 py-3">
+        <section data-surface-hero data-assets-empty className="rounded-xl border border-border bg-card px-4 py-3">
           <EmptyState title="No assets yet" />
         </section>
       ) : arranging ? (
@@ -193,7 +193,7 @@ export function AssetsRoute() {
           <LiveSiteArrange />
         </section>
       ) : assets.length === 0 ? (
-        <section data-surface-hero data-assets-all-hidden className="rounded-[10px] border border-border bg-card px-4 py-3">
+        <section data-surface-hero data-assets-all-hidden className="rounded-xl border border-border bg-card px-4 py-3">
           <EmptyState title="Every asset is hidden" hint={<HiddenSites count={hidden} to={arrangeHref(true)} />} />
         </section>
       ) : assets.length === 1 ? (
@@ -273,7 +273,7 @@ export function AssetsRoute() {
             {visible.length === 0 ? (
               // Not "No sites yet": a control hides them, and the line above
               // names the controls and holds Clear.
-              <section className="rounded-[10px] border border-border bg-card px-4 py-3">
+              <section className="rounded-xl border border-border bg-card px-4 py-3">
                 <EmptyState title="No assets match these filters" />
               </section>
             ) : (

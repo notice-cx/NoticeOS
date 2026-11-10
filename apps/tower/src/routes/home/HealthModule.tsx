@@ -74,7 +74,7 @@ const NAME_CELL = "col-span-full @md:col-span-1";
  */
 export function HealthModule({ cards, issues, nowMs = null }: { cards: readonly AssetCard[]; issues: readonly WallIssue[]; nowMs?: number | null }) {
   return (
-    <section aria-label="Asset health" className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-site-health="">
+    <section aria-label="Asset health" className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-inset ring-border" data-home-site-health="">
       <SectionLabel title="Asset health" />
       <div className="@container flex flex-col">
         <div aria-hidden className={cn(ROW, "pb-1 text-micro text-muted-foreground")} data-site-health-header="">

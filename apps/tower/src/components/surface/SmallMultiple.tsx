@@ -35,7 +35,7 @@ export function SmallMultipleStrip({
   return (
     <div
       className={cn(
-        "grid gap-px overflow-hidden rounded-[10px] border border-border bg-border/60",
+        "grid gap-px overflow-hidden rounded-xl border border-border bg-border/60",
         COLUMNS[columns] ?? COLUMNS[5],
         className,
       )}

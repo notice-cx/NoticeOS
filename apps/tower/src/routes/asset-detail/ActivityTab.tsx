@@ -269,7 +269,7 @@ function ActivityPicture({ data, nowMs }: { data: AssetDetailFor<"activity">; no
   if (events.length === 0) return null;
   const lanes = ACTIVITY_LANES.filter((lane) => events.some((event) => event.lane === lane.id));
   return (
-    <section aria-label={`The last ${ACTIVITY_WINDOW_DAYS} days`} data-activity-timeline="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-border/70">
+    <section aria-label={`The last ${ACTIVITY_WINDOW_DAYS} days`} data-activity-timeline="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-inset ring-border">
       <h2 className={cn("m-0 pb-1", eyebrowClass)}>Last {ACTIVITY_WINDOW_DAYS} days</h2>
       <EventTimeline
         lanes={lanes}

@@ -530,7 +530,7 @@ function HistoryView({
       ) : (
         <>
           {/* The archive is one group, so one panel, like the board on Open. */}
-          <div className="rounded-xl bg-card p-2 ring-1 ring-border/70">
+          <div className="rounded-xl bg-card p-2 ring-1 ring-inset ring-border">
             <AlertList label="Settled alerts">
               {data.rows.map((row) => (
                 <AlertRow

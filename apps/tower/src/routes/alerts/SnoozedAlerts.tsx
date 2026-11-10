@@ -26,7 +26,7 @@ export function SnoozedAlerts({ items, nowMs }: { items: readonly SnoozedItem[];
   if (items.length === 0) return null;
   const soonest = [...items].sort((a, b) => a.snoozeUntil.localeCompare(b.snoozeUntil));
   return (
-    <section aria-label="Snoozed" data-snoozed-alerts="" className="@container flex flex-col rounded-xl ring-1 ring-border/70">
+    <section aria-label="Snoozed" data-snoozed-alerts="" className="@container flex flex-col rounded-xl ring-1 ring-inset ring-border">
       <header className="flex items-baseline gap-3 px-5 pb-1 pt-4">
         <h2 className={cn("m-0", eyebrowClass)}>Snoozed</h2>
         <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{formatInt(items.length)} parked</span>

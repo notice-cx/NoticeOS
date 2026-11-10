@@ -331,7 +331,7 @@ function SitePickerSession({
       ) : null}
       {others.length > 0 ? (
         <section aria-labelledby={`${provider.id}-other-sites`} className="flex flex-col gap-2" data-other-sites>
-          <h3 id={`${provider.id}-other-sites`} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <h3 id={`${provider.id}-other-sites`} className="text-xs font-semibold text-muted-foreground">
             No matching asset · <span className="tabular-nums">{others.length}</span>
           </h3>
           <ul className="overflow-hidden rounded-xl border border-border">

@@ -90,7 +90,7 @@ export function SourceHistory({ rows, notConnected, domain, nowMs, headline, act
   };
 
   return (
-    <section aria-labelledby={titleId} data-source-history="" className={cn("@container flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70", className)}>
+    <section aria-labelledby={titleId} data-source-history="" className={cn("@container flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-inset ring-border", className)}>
       <header className="flex items-start justify-between gap-4">
         <div className="grid min-w-0 gap-1.5">
           <h2 id={titleId} className={cn("m-0", eyebrowClass)}>Data sources · last {length} days</h2>

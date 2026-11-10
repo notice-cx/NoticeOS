@@ -16,7 +16,7 @@ export function SetupChecklistPanel({ setup, open = false }: { setup: SetupCheck
     <details
       id="setup"
       open={open || undefined}
-      className="scroll-mt-4 rounded-[10px] border border-border bg-card px-4"
+      className="scroll-mt-4 rounded-xl border border-border bg-card px-4"
       data-setup
     >
       <summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">

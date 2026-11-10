@@ -18,7 +18,7 @@ export interface SectionLabelAction {
  * Everywhere else renders `SectionLabel` itself.
  */
 export const eyebrowClass =
-  "text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground";
+  "text-sm font-semibold text-foreground";
 
 export interface SectionLabelProps {
   /** One or two words. The section's question is the page's; this names the
@@ -40,7 +40,7 @@ export interface SectionLabelProps {
 }
 
 /**
- * The desk's one section eyebrow: an 11px tracked uppercase title, one quiet
+ * The desk's one section heading: Precise's 14px semibold title in Text, sentence case, one quiet
  * caption saying what the section is, and a link at the right that takes the
  * question elsewhere. `ListPanel` composes it as its header.
  */

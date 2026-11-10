@@ -204,7 +204,7 @@ export function ExecutiveInsightRow({
           </span>
 
           <span className="min-w-0">
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               {grouped ? null : (
                 <span className={cn("font-semibold", meta.text)}>{meta.label}</span>
               )}
@@ -230,7 +230,7 @@ export function ExecutiveInsightRow({
               <span className="block text-lg font-semibold leading-none tabular-nums text-foreground sm:text-xl">
                 {insight.primary.value}
               </span>
-              <span className="mt-1 block max-w-40 text-[9px] uppercase leading-tight tracking-wider text-muted-foreground">
+              <span className="mt-1 block max-w-40 text-xs leading-tight text-muted-foreground">
                 {savedEvidenceLabel(insight.primary.label)}
               </span>
             </span>
@@ -266,7 +266,7 @@ export function ExecutiveInsightRow({
           data-insight-detail
         >
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-xs font-semibold text-muted-foreground">
               Original suggested move · review before acting
             </div>
             <p className="mt-1 text-sm leading-relaxed text-foreground">
@@ -283,7 +283,7 @@ export function ExecutiveInsightRow({
           </div>
 
           <div className="min-w-0 border-t border-border pt-3 lg:border-t-0 lg:border-l-2 lg:pl-3 lg:pt-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="text-xs font-semibold text-muted-foreground">
               Handoff
             </div>
             <Button
@@ -384,16 +384,16 @@ export function ExecutiveInsightRow({
               {formatCount(insight.evidence.length, "fact")} ·{" "}
               {formatCount(insight.sources.length, "source")}
             </span>
-            <span className="text-[10px] uppercase tracking-wider group-open/evidence:hidden">
+            <span className="text-xs group-open/evidence:hidden">
               Expand
             </span>
-            <span className="hidden text-[10px] uppercase tracking-wider group-open/evidence:inline">
+            <span className="hidden text-xs group-open/evidence:inline">
               Collapse
             </span>
           </summary>
           <div className="grid gap-4 border-t border-border bg-muted/20 p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
             <div>
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-xs font-semibold text-muted-foreground">
                 Sources
               </span>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -423,7 +423,7 @@ export function ExecutiveInsightRow({
               <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
                 {insight.evidence.map((row) => (
                   <div key={`${row.label}-${row.value}`} className="min-w-0">
-                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <dt className="text-xs text-muted-foreground">
                       {savedEvidenceLabel(row.label)}
                     </dt>
                     <dd

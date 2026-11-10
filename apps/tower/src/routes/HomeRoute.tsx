@@ -198,7 +198,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     channels: () => <ChannelsModule cards={listed} />,
     gaps: () => <GapsModule cards={listed} onFileTask={setTaskDraft} />,
     timeline: () => (
-      <section id="home-timeline" tabIndex={-1} aria-labelledby="home-timeline-title" className="flex scroll-mt-6 flex-col gap-4 rounded-xl bg-card px-5 py-4 outline-none ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+      <section id="home-timeline" tabIndex={-1} aria-labelledby="home-timeline-title" className="flex scroll-mt-6 flex-col gap-4 rounded-xl bg-card px-5 py-4 outline-none ring-1 ring-inset ring-border @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
         <SectionLabel id="home-timeline-title" title="Problems and activity" caption="Last 24 hours" />
         <EventTimeline
           lanes={timeline.lanes}
@@ -369,7 +369,7 @@ export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work:
   const active = agents.reduce((sum, entry) => sum + entry.active, 0);
   const empty = failed ? "Could not read agent activity." : work === undefined ? "Reading agent activity…" : !hasSnapshot ? "No agent activity read yet." : !complete ? "Agent activity not fully read." : "No agent activity reported.";
   return (
-    <section aria-label="Agents" className="flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-agents="">
+    <section aria-label="Agents" className="flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-inset ring-border" data-home-agents="">
       <SectionLabel title="Agents" action={{ label: "Agents →", to: AGENTS_ROUTE }} />
       {!hasSnapshot || agents.length === 0 ? <p className="m-0 text-sm text-muted-foreground">{empty}</p> : (
         <>
@@ -483,7 +483,7 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
       ) : (
         // Until the site's read arrives: the site itself, in the place its
         // numbers will take, so nothing below jumps when they land.
-        <div className="flex min-h-[152px] flex-wrap items-start justify-end gap-2 rounded-[10px] border border-border bg-card px-4 py-3">
+        <div className="flex min-h-[152px] flex-wrap items-start justify-end gap-2 rounded-xl border border-border bg-card px-4 py-3">
           {aside}
         </div>
       )}

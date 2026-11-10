@@ -64,7 +64,7 @@ export function ChangeRows({ title, caption, action, rows, against, scale, id, c
       id={id}
       aria-label={title}
       data-change-rows=""
-      className={cn("@container flex min-w-0 scroll-mt-4 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}
+      className={cn("@container flex min-w-0 scroll-mt-4 flex-col rounded-xl bg-card ring-1 ring-inset ring-border", className)}
     >
       <SectionLabel title={title} caption={caption} action={action} className="px-5 pb-2 pt-4" />
       <div className={cn("hidden gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro text-muted-foreground @lg:grid", COLUMNS)} aria-hidden>

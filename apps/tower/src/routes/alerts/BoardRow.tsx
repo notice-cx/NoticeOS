@@ -94,7 +94,7 @@ export function BoardRow({
   return (
     <li
       ref={ref}
-      className={cn("group/row m-0 rounded-lg ring-inset hover:ring-1 hover:ring-border/70", open && "ring-1 ring-border/70")}
+      className={cn("group/row m-0 rounded-lg ring-inset hover:ring-1 hover:ring-border", open && "ring-1 ring-inset ring-border")}
       data-open={open}
       {...marks}
     >

@@ -8,6 +8,7 @@ import { useOwnerToast } from '@/lib/browser-context';
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { BrandLockup } from "@/components/BrandLockup";
 import { MarkdownText } from "@/components/MarkdownText";
+import { TaskStatusMark } from "@/components/TaskStatusMark";
 import { AgentMark } from "@/components/AgentMark";
 import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
@@ -1969,7 +1970,7 @@ function RegistryContents() {
       <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         {[...groups].map(([label, names]) => (
           <div key={label} className="flex min-w-0 flex-col gap-1.5">
-            <h3 className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+            <h3 className="text-sm font-semibold text-foreground">
               {label} <span className="tabular-nums">({names.length})</span>
             </h3>
             <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -2030,7 +2031,7 @@ function NavigationProgressDemo() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         {title}
       </h2>
       <div className="flex flex-wrap items-start gap-4 rounded-lg border border-border p-4">
@@ -3449,7 +3450,7 @@ export function KitchenSinkRoute() {
               hint="Revenue and cost book on reconciliation; estimates don't count yet."
             />
             <EmptyState size="sm" title="None yet" hint="Conversion counts unchecked" />
-            <div className="w-full max-w-xl rounded-[10px] border border-border bg-card px-4 py-3">
+            <div className="w-full max-w-xl rounded-xl border border-border bg-card px-4 py-3">
               <NoSitesYet />
             </div>
           </Section>
@@ -4495,6 +4496,12 @@ export function KitchenSinkRoute() {
           {/* The pair, side by side: booked and forecast money are told apart
               by fill and tone, so the split survives a glance across a room
               and a grayscale screen. */}
+          <Section title="TaskStatusMark (a task's state, as the Ntasks UI draws it)">
+            {(["waiting", "in-progress", "open", "blocked", "parked", "done"] as const).map((status) => (
+              <span key={status} className="inline-flex items-center gap-1.5 text-label"><TaskStatusMark status={status} label={null} />{status}</span>
+            ))}
+          </Section>
+
           <Section title="MarkdownText (a task's description as the composer previews it)">
             <div className="w-full max-w-xl">
               <MarkdownText source={"## Steps\n\n- [x] Rebuild the sitemap\n- [ ] Check ex-a1 in `app/sitemap.ts`\n\n| Page | Visits |\n|---|---:|\n| /recipes | 120 |\n\n> [!NOTE]\n> The fixture's numbers are invented."} />
@@ -6626,7 +6633,7 @@ function SurfaceSections() {
           </details>
           {/* Home's assets panel: the same eyebrow, given the card's padding by
               its caller rather than growing a variant. */}
-          <div className="rounded-[10px] border border-border bg-card">
+          <div className="rounded-xl border border-border bg-card">
             <SectionLabel
               title="Assets"
               caption="one row each"

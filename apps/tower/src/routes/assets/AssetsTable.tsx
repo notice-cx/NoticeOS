@@ -24,7 +24,7 @@ export function AssetsTable({ lines, className, view = "overview" }: { lines: re
       }))}
       columnOrder={view === "overview" ? undefined : portfolioPresentation(view).columns}
       formatMoney={cents}
-      className={cn("shadow-raised", className)}
+      className={cn(className)}
     />
   );
 }

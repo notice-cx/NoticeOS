@@ -431,7 +431,7 @@ function seriesOption(option: WatchSeries) {
 function PlanFact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {label}
       </span>
       <span className="font-medium tabular-nums text-foreground">{children}</span>
