@@ -12,6 +12,8 @@ const themeCss = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.u
   .replace(/\/\*[\s\S]*?\*\//g, "");
 const brandCss = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/brand/notice.css"), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "");
+const preciseCss = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/brand/precise.css"), "utf8")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** Resolve the overlay's actual utility names through the project's theme,
  * not just their presence on an element: unknown Tailwind names generate no
@@ -30,15 +32,16 @@ function overlayColors(classes: string) {
       const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const block = themeCss.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`))?.[1] ?? "";
       let value = block.match(new RegExp(`${variable}:\\s*([^;]+);`))?.[1]?.trim();
-      const brandBlock = brandCss.match(selector === ".light"
+      const themeBlock = (css: string) => css.match(selector === ".light"
         ? /\.light,\s*:root\[data-theme="light"\]\s*\{([^}]+)\}/
         : /:root\s*\{([^}]+)\}/)?.[1] ?? "";
+      const brandBlocks = [themeBlock(brandCss), themeBlock(preciseCss)];
       const seen = new Set<string>();
       while (value?.startsWith("var(")) {
-        const reference = value.match(/^var\((--[a-z-]+)\)$/)?.[1];
+        const reference = value.match(/^var\((--[a-z0-9-]+)\)$/)?.[1];
         if (!reference || seen.has(reference)) throw new Error("Missing or cyclic brand color");
         seen.add(reference);
-        value = brandBlock.match(new RegExp(`${reference}:\\s*([^;]+);`))?.[1]?.trim();
+        value = brandBlocks.map((block) => block.match(new RegExp(`${reference}:\\s*([^;]+);`))?.[1]?.trim()).find(Boolean);
       }
       if (!value || !/^(?:#[\da-f]{6}|oklch\(\s*[\d.]+\s+[\d.]+\s+[\d.]+(?:\s*\/\s*(?:1|100%))?\s*\))$/i.test(value)) {
         throw new Error(`Overlay color ${variable} is not a defined opaque color in ${selector}`);
