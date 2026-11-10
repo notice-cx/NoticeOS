@@ -235,11 +235,36 @@ export function plannedWalks(ids, viewports, shard = null) {
 }
 
 /**
- * Make the `walks` across `lanes.length` fixture servers (each started once
- * and reset before every flow, so no two flows ever share a store); returns
- * the ux-walk/1 results object, flows in registry order.
+ * Make `jobs` across `lanes`, one walk at a time on each; settles once every
+ * lane has ended. A walk that throws (its lane's server stopped answering)
+ * ends its lane and no lane starts another, but the walks the other lanes are
+ * in run to their end before the first failure is thrown: the browser those
+ * walks use is closed only after this settles, so a broken server fails the
+ * run under its own name, not under the flows walked beside it.
  */
-async function walkFlows({ ids, viewports, walks, lanes, log }) {
+export async function walkLanes(lanes, jobs, walk) {
+  const queue = [...jobs];
+  let failure = null;
+  const next = () => (failure ? undefined : queue.shift());
+  await Promise.all(lanes.map(async (lane) => {
+    for (let job = next(); job; job = next()) {
+      try {
+        await walk(lane, job);
+      } catch (error) {
+        failure ??= { error };
+      }
+    }
+  }));
+  if (failure) throw failure.error;
+}
+
+/**
+ * Make the `walks` across the `fixtures`' servers (each started once and reset
+ * before every flow, so no two flows ever share a store); returns the
+ * ux-walk/1 results object, flows in registry order.
+ */
+async function walkFlows({ ids, viewports, walks, fixtures, log }) {
+  const lanes = fixtures.map((fixture) => fixture.origin);
   const { chromium } = await import("@playwright/test");
   for (const base of lanes) {
     const status = await (await fetch(`${base}/__journey/status`)).json();
@@ -250,20 +275,22 @@ async function walkFlows({ ids, viewports, walks, lanes, log }) {
   for (const id of ids.filter((id) => walks.some((walk) => walk.id === id))) {
     results.flows[id] = { title: FLOWS[id].title, kind: FLOWS[id].kind ?? "flow", runs: {} };
   }
-  const jobs = [...walks];
   const browser = await chromium.launch({ headless: true });
   try {
     results.probeProblems = await probeSelfTest(browser);
     if (results.probeProblems.length) return results;
-    await Promise.all(lanes.map(async (base) => {
-      for (let job = jobs.shift(); job; job = jobs.shift()) {
-        const run = await walkOne({ browser, base, ...job });
-        results.flows[job.id].runs[job.viewport] = run;
-        log(`  ${run.ok ? "✓" : "✗"} ${job.id.padEnd(20)} ${job.viewport.padEnd(7)} ${String(run.ms).padStart(6)}ms  ` + (run.ok
-          ? `actions ${run.actions} · screens ${run.screens} · pages ${run.hops} · words ${run.proseWords} · empty ${run.emptySteps} · checks ${run.duplicatedChecks} · statuses ${run.duplicateStatuses} · ungrouped ${run.ungroupedRepeats}`
-          : `could not finish: ${String(run.error).split("\n")[0]}`));
+    await walkLanes(fixtures, walks, async (fixture, job) => {
+      let run;
+      try {
+        run = await walkOne({ browser, base: fixture.origin, ...job });
+      } catch (error) {
+        throw Object.assign(new Error(`${job.id} (${job.viewport}) on ${fixture.origin}: ${error?.message ?? error}`, { cause: error }), { fixture });
       }
-    }));
+      results.flows[job.id].runs[job.viewport] = run;
+      log(`  ${run.ok ? "✓" : "✗"} ${job.id.padEnd(20)} ${job.viewport.padEnd(7)} ${String(run.ms).padStart(6)}ms  ` + (run.ok
+        ? `actions ${run.actions} · screens ${run.screens} · pages ${run.hops} · words ${run.proseWords} · empty ${run.emptySteps} · checks ${run.duplicatedChecks} · statuses ${run.duplicateStatuses} · ungrouped ${run.ungroupedRepeats}`
+        : `could not finish: ${String(run.error).split("\n")[0]}`));
+    });
   } finally {
     await browser.close();
   }
@@ -294,18 +321,24 @@ export async function main(argv = process.argv.slice(2)) {
   const laneCount = Math.max(1, Math.min(args.parallel, walks.length));
   const fixtures = [];
   let results;
-  let stopFailure;
+  let walkFailure;
   try {
     for (let lane = 0; lane < laneCount; lane += 1) fixtures.push(await startFixture(args.port === null ? null : args.port + lane));
-    const lanes = fixtures.map((fixture) => fixture.origin);
-    out(`UX flow walker: walking ${ids.length} flow(s) × ${args.viewports.join(", ")}${share} on ${lanes.length} isolated fixture(s) ${lanes.join(", ")}`);
-    results = await walkFlows({ ids, viewports: args.viewports, walks, lanes, log: out });
-  } finally {
-    // Every fixture is stopped; one that did not exit cleanly fails the run.
-    const stops = await Promise.allSettled(fixtures.map((fixture) => fixture.stop()));
-    stopFailure = stops.find((stop) => stop.status === "rejected")?.reason;
+    out(`UX flow walker: walking ${ids.length} flow(s) × ${args.viewports.join(", ")}${share} on ${fixtures.length} isolated fixture(s) ${fixtures.map((fixture) => fixture.origin).join(", ")}`);
+    results = await walkFlows({ ids, viewports: args.viewports, walks, fixtures, log: out });
+  } catch (error) {
+    walkFailure = error;
   }
-  if (stopFailure) throw stopFailure;
+  // Every fixture is stopped; one that did not exit cleanly fails the run. A
+  // server that stopped a walk is named with how it ended and what it printed.
+  const stops = await Promise.allSettled(fixtures.map((fixture) => fixture.stop()));
+  const stopFailures = stops.filter((stop) => stop.status === "rejected").map((stop) => stop.reason.message);
+  if (walkFailure) {
+    const lane = walkFailure.fixture;
+    if (lane?.child.exitCode === 0) stopFailures.push(`the fixture server on port ${lane.port} exited 0; it printed last:\n${lane.output().slice(-2000)}`);
+    throw stopFailures.length ? new Error([walkFailure.message, ...stopFailures].join("\n\n"), { cause: walkFailure }) : walkFailure;
+  }
+  if (stopFailures.length) throw new Error(stopFailures[0]);
   const isolation = fixtures.flatMap((fixture) => fixture.violations());
   await writeFile(path.join(RESULTS_DIR, "results.json"), `${JSON.stringify(results, null, 2)}\n`);
 
