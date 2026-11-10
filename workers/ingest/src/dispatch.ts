@@ -302,6 +302,8 @@ export async function runScheduledCron(cron: string, env: IngestEnv, trigger: 'e
   const trace = createWorkflowRecorder({ failed: log });
   try {
     const result = await runCron(cron, env, trace, trigger);
+    const archiveFailure = trace.steps.find(step => step.id === 'archives' && step.state === 'failed');
+    if (archiveFailure) return { outcome: 'failed', detail: archiveFailure.summary ?? 'Archive reports failed.', steps: trace.steps };
     return { ...(result ?? { outcome: 'ran' as const, detail: 'Execution completed' }), steps: trace.steps };
   } catch (error) {
     if (!logged.has(error)) log(null, error);

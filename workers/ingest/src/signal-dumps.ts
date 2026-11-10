@@ -62,6 +62,7 @@ import { assetJourneyDefinitions, GA4_JOURNEY_REQUEST_LIMIT, runGa4Journeys, typ
 const SCHEMA_VERSION = 1;
 const DEFAULT_REVISION_DAYS = 4;
 const REQUEST_TIMEOUT_MS = 30_000;
+const SEARCH_APPEARANCE_TIMEOUT_RETRIES = 4;
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
 const ARCHIVE_BYTE_LIMIT = 32 * 1024 * 1024;
 const GSC_PAGE_ROWS = 25_000;
@@ -630,6 +631,7 @@ export async function runSignalDumps(
   ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister));
   const outcomes: SignalDumpOutcome[] = [];
   const journeyBudget = { remaining: GA4_JOURNEY_REQUEST_LIMIT };
+  const timeoutRetries = { remaining: SEARCH_APPEARANCE_TIMEOUT_RETRIES };
   // Every (property, family) -> the dates this run asks for, resolved before
   // this run writes any manifests, so a probe day's zero-row result cannot
   // narrow the same run's window.
@@ -709,6 +711,7 @@ export async function runSignalDumps(
             requestedAt,
             accessToken,
             egress,
+            timeoutRetries,
             googleMonitoring,
           );
           outcomes.push(outcome);
@@ -730,6 +733,7 @@ export async function runSignalDumps(
               requestedAt,
               accessToken,
               egress,
+              timeoutRetries,
               googleMonitoring,
             );
             if (outcome.egressDown) retry.halt();
@@ -829,6 +833,7 @@ export async function runSignalDumps(
       // Earlier dates asked again, and how many owed ones were left.
       retried: result.retried,
       retryNotAsked: retry.owed - result.retried,
+      requestRetries: SEARCH_APPEARANCE_TIMEOUT_RETRIES - timeoutRetries.remaining,
       // Provider failures only: an unmeasured family is never listed as the
       // provider's error.
       errors: measured
@@ -1014,6 +1019,7 @@ async function collectAndArchive(
   requestedAt: string,
   accessToken: string,
   egress: EgressLane,
+  timeoutRetries: { remaining: number },
   monitoring?: CollectionMonitoring,
 ): Promise<SignalDumpOutcome> {
   const dataState = dataStateFor(target.integration);
@@ -1026,6 +1032,12 @@ async function collectAndArchive(
             reportDate,
             accessToken,
             egress.transport.fetch,
+            async error => {
+              if (timeoutRetries.remaining === 0 || normalizeSignalError(error, '').code !== 'request_timeout' ||
+                  await egressExplains(egress.gate, egress.transport, error)) return false;
+              timeoutRetries.remaining--;
+              return true;
+            },
           )
         : await collectGa4Dump(
             target.propertyRef,
@@ -1349,7 +1361,9 @@ async function collectGscDump(
   reportDate: string,
   accessToken: string,
   fetchImpl: typeof fetch,
+  retryTimeout: (error: unknown) => Promise<boolean>,
 ): Promise<CollectedDump> {
+  const retry = spec.expandSearchAppearanceByPage ? retryTimeout : undefined;
   const primary = await collectGscQuery(
     siteUrl,
     spec.dimensions,
@@ -1358,6 +1372,7 @@ async function collectGscDump(
     accessToken,
     fetchImpl,
     GSC_REPORT_ROWS,
+    retry,
   );
   if (!spec.expandSearchAppearanceByPage || primary.providerTruncated) return primary;
 
@@ -1378,6 +1393,7 @@ async function collectGscDump(
       accessToken,
       fetchImpl,
       remaining,
+      retry,
       {
         dimension: 'searchAppearance',
         expression: appearance,
@@ -1406,6 +1422,7 @@ async function collectGscQuery(
   accessToken: string,
   fetchImpl: typeof fetch,
   rowCap: number,
+  retryTimeout?: (error: unknown) => Promise<boolean>,
   filter?: { dimension: string; expression: string },
 ): Promise<CollectedDump> {
   const pages: DumpPage[] = [];
@@ -1437,12 +1454,20 @@ async function collectGscQuery(
         },
       ];
     }
-    const response = await fetchImpl(
-      `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-      googlePost(accessToken, request),
-    );
-    const body = await boundedResponseJson(response, 'Google', RESPONSE_BYTE_LIMIT);
-    if (!response.ok) throw googleProviderError('gsc_dump', response.status, body);
+    const readPage = async () => {
+      const response = await fetchImpl(
+        `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+        googlePost(accessToken, request),
+      );
+      const body = await boundedResponseJson(response, 'Google', RESPONSE_BYTE_LIMIT);
+      if (!response.ok) throw googleProviderError('gsc_dump', response.status, body);
+      return body;
+    };
+    // Retry only this page, including a timeout while reading its body.
+    const body = await readPage().catch(async (error: unknown) => {
+      if (!await retryTimeout?.(error)) throw error;
+      return readPage();
+    });
     const rows = arrayField(asRecord(body), 'rows');
     pages.push({ request, response: body });
     providerRows += rows.length;
