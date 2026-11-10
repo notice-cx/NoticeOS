@@ -19,7 +19,7 @@ export function TaskIdLink({ id, className }: TaskIdLinkProps) {
       to={taskPath(id)}
       data-task-id-link={id}
       className={cn(
-        "break-all rounded-sm font-mono text-foreground underline underline-offset-4 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring",
+        "break-all rounded-sm font-mono text-foreground underline underline-offset-4 outline-none hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring",
         className,
       )}
     >

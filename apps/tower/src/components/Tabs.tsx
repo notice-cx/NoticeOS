@@ -156,7 +156,7 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
                 "inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm",
                 pillControlClass,
                 selected
-                  ? "border-primary font-medium text-primary"
+                  ? "border-primary font-medium text-accent-text"
                   : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >

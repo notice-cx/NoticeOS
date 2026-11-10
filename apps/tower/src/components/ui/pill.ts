@@ -27,7 +27,7 @@ export const pillClass = "inline-flex items-center gap-1.5 rounded-md border px-
 /** A picker's pressed pair: picked takes the accent, unpicked has no edge and answers a hover. */
 export function pillPickerStateClass(picked: boolean): string {
   return picked
-    ? "border-primary/30 bg-accent-soft font-medium text-primary"
+    ? "border-primary/30 bg-accent-soft font-medium text-accent-text"
     : "border-transparent text-muted-foreground hover:bg-muted";
 }
 
@@ -41,6 +41,6 @@ export const pillChoiceClass = cn(
 /** A choice's selected pair: every option keeps a border; the selected one fills. */
 export function pillChoiceStateClass(selected: boolean): string {
   return selected
-    ? "border-primary/30 bg-accent-soft text-primary"
+    ? "border-primary/30 bg-accent-soft text-accent-text"
     : "border-border text-muted-foreground hover:bg-muted/60";
 }

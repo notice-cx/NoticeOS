@@ -7,7 +7,9 @@
 // In order, because each reads the one before: the `.mjs` + `.d.mts` pairs
 // (scripts/generate-config-contract.mjs), the "what the Tower may edit" blocks
 // they declare (scripts/config-docs.mjs), then the command index from
-// package.json and each script's header (scripts/scripts-index.mjs).
+// package.json and each script's header (scripts/scripts-index.mjs), then
+// the Tower's Precise tokens from the installed Ntasks UI package
+// (scripts/precise-tokens.mjs).
 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -22,6 +24,7 @@ export function generatorSteps(check) {
     ['generate-config-contract.mjs', check ? ['--check'] : []],
     ['config-docs.mjs', [check ? '--check' : '--write']],
     ['scripts-index.mjs', [check ? '--check' : '--write']],
+    ['precise-tokens.mjs', [check ? '--check' : '--write']],
   ];
 }
 

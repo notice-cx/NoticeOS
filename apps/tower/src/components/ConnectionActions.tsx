@@ -79,7 +79,7 @@ export function ConnectionActions({
             variant={failing && !replacing ? "default" : "outline"}
             aria-pressed={replacing}
             disabled={replaceDisabled}
-            className="aria-pressed:border-primary/40 aria-pressed:bg-accent-soft aria-pressed:text-primary"
+            className="aria-pressed:border-primary/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text"
             onClick={onReplace}
             data-connection-replace
           >

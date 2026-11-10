@@ -2991,7 +2991,7 @@ export function KitchenSinkRoute() {
               <span className="text-2xl">
                 <BrandLockup size="text" />
               </span>
-              <a href="/design-system.html" className="text-sm text-primary underline underline-offset-4">NoticeOS design system and assets</a>
+              <a href="/design-system.html" className="text-sm text-accent-text underline underline-offset-4">NoticeOS design system and assets</a>
             </div>
           </Section>
 
@@ -4909,13 +4909,13 @@ export function KitchenSinkRoute() {
           </Section>
 
           <Section title="GoogleStartPress — link or hosted start">
-            <GoogleStartPress href="/integrations" className="text-sm text-primary underline">
+            <GoogleStartPress href="/integrations" className="text-sm text-accent-text underline">
               Open integrations
             </GoogleStartPress>
             <GoogleStartPress
               href="/integrations"
               onStart={() => toast.success("Demo only — no sign-in started")}
-              className="text-sm text-primary underline"
+              className="text-sm text-accent-text underline"
             >
               Sign in to Google
             </GoogleStartPress>

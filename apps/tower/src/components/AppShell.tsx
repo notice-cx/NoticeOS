@@ -49,7 +49,7 @@ export { NAV_ITEMS, TV_ITEM, PAGE_ITEMS, type NavItem } from "@/components/nav-i
 // `max-md:min-h-11`: below `md` the only sidebar in the DOM is the drawer's,
 // whose rows must meet the thumb target.
 const ITEM_BASE = "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm outline-none max-md:min-h-11 focus-visible:ring-2 focus-visible:ring-ring";
-const ITEM_ACTIVE = "bg-accent-soft text-primary font-medium";
+const ITEM_ACTIVE = "bg-accent-soft text-accent-text font-medium";
 const ITEM_IDLE = "text-muted-foreground hover:bg-muted/60 hover:text-foreground";
 
 const ASSET_ROW_BASE = "flex w-full items-center gap-2 rounded-md py-1.5 pl-2 pr-2.5 text-xs outline-none max-md:min-h-11 focus-visible:ring-2 focus-visible:ring-ring";

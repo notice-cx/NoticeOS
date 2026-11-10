@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 const STATE = {
   succeeded: { icon: Check, ink: 'text-healthy', fill: 'bg-healthy', border: 'border-healthy/35' },
   failed: { icon: CircleX, ink: 'text-error', fill: 'bg-error', border: 'border-error/50' },
-  running: { icon: LoaderCircle, ink: 'text-primary', fill: 'bg-primary', border: 'border-primary/40' },
+  running: { icon: LoaderCircle, ink: 'text-accent-text', fill: 'bg-primary', border: 'border-primary/40' },
   skipped: { icon: Slash, ink: 'text-muted-foreground', fill: 'bg-muted-foreground/50', border: 'border-border' },
   paused: { icon: Pause, ink: 'text-muted-foreground', fill: 'bg-muted-foreground/40', border: 'border-border' },
   never: { icon: Circle, ink: 'text-muted-foreground', fill: 'bg-muted-foreground', border: 'border-border' },

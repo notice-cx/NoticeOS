@@ -12,10 +12,10 @@ const ran = (statuses = {}) => {
   return { calls, run };
 };
 
-test('generate runs the compiled pairs, then the config docs, then the command index', () => {
+test('generate runs the compiled pairs, then the config docs, then the command index, then the Precise tokens', () => {
   const write = ran();
   assert.equal(main([], { run: write.run }), 0);
-  assert.deepEqual(write.calls, [['generate-config-contract.mjs'], ['config-docs.mjs', '--write'], ['scripts-index.mjs', '--write']]);
+  assert.deepEqual(write.calls, [['generate-config-contract.mjs'], ['config-docs.mjs', '--write'], ['scripts-index.mjs', '--write'], ['precise-tokens.mjs', '--write']]);
   const check = ran();
   assert.equal(main(['--', '--check'], { run: check.run }), 0);
   assert.deepEqual(check.calls, generatorSteps(true).map(([script, flags]) => [script, ...flags]));
@@ -27,5 +27,5 @@ test('a failed rewrite stops before the steps that read it; a check reports ever
   assert.equal(write.calls.length, 1);
   const check = ran({ 'config-docs.mjs': 1 });
   assert.equal(main(['--check'], { run: check.run }), 1);
-  assert.equal(check.calls.length, 3);
+  assert.equal(check.calls.length, 4);
 });

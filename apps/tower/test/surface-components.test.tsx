@@ -643,7 +643,7 @@ describe("HeroChart", () => {
     const rawKey = key.querySelector('[data-hero-key-method="raw"] line')!;
     expect(rawKey.getAttribute("stroke-width")).toBe(raw.getAttribute("stroke-width"));
     expect(rawKey.getAttribute("stroke-opacity")).toBe(raw.getAttribute("stroke-opacity"));
-    expect(screen.getByRole("button", { name: "Google" }).className).not.toMatch(/text-primary|bg-accent-soft/);
+    expect(screen.getByRole("button", { name: "Google" }).className).not.toMatch(/text-accent-text|bg-accent-soft/);
     const provisional = within(key).getByRole("button", { name: "About this chart" });
     expect(provisional).toHaveTextContent("Still counting");
     expect(provisional.querySelector("circle")).not.toBeNull();
