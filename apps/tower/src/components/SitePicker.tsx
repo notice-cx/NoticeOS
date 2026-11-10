@@ -555,6 +555,11 @@ function StartedCaption({
   const failure = status?.kind === "failing" ? status.site?.failure ?? null : null;
   if (failure) return <span className="truncate text-xs text-error">{integrationFailureMessage(failure)}</span>;
   if (outcome?.outcome === "unmeasured") return <span className="truncate text-xs text-muted-foreground">Not reached</span>;
+  // The provider answered without yesterday's figure: nothing was stored, and
+  // the collector asks again.
+  if (outcome?.outcome === "skipped" && outcome.code === "unpublished") {
+    return <span className="truncate text-xs text-muted-foreground" data-site-caption="unpublished">Not published yet · checked hourly</span>;
+  }
   if (outcome?.reports !== undefined && outcome.outcome === "collected") {
     return (
       <span className="truncate text-xs text-muted-foreground tabular-nums">
