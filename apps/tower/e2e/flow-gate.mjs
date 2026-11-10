@@ -333,13 +333,14 @@ export async function main(argv = process.argv.slice(2)) {
   // Every fixture is stopped; one that did not exit cleanly fails the run. A
   // server that stopped a walk is named with how it ended and what it printed.
   const stops = await Promise.allSettled(fixtures.map((fixture) => fixture.stop()));
-  const stopFailures = stops.filter((stop) => stop.status === "rejected").map((stop) => stop.reason.message);
+  const stopFailures = stops.filter((stop) => stop.status === "rejected").map((stop) => stop.reason);
   if (walkFailure) {
+    const notes = stopFailures.map((failure) => failure.message);
     const lane = walkFailure.fixture;
-    if (lane?.child.exitCode === 0) stopFailures.push(`the fixture server on port ${lane.port} exited 0; it printed last:\n${lane.output().slice(-2000)}`);
-    throw stopFailures.length ? new Error([walkFailure.message, ...stopFailures].join("\n\n"), { cause: walkFailure }) : walkFailure;
+    if (lane?.child.exitCode === 0) notes.push(`the fixture server on port ${lane.port} exited 0; it printed last:\n${lane.output().slice(-2000)}`);
+    throw notes.length ? new Error([walkFailure.message, ...notes].join("\n\n"), { cause: walkFailure }) : walkFailure;
   }
-  if (stopFailures.length) throw new Error(stopFailures[0]);
+  if (stopFailures.length) throw stopFailures[0];
   const isolation = fixtures.flatMap((fixture) => fixture.violations());
   await writeFile(path.join(RESULTS_DIR, "results.json"), `${JSON.stringify(results, null, 2)}\n`);
 
