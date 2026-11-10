@@ -403,6 +403,17 @@ describe('a day Mediavine has not published yet', () => {
     expect(reports(fetchImpl)).toBe(3);
   });
 
+  it('reports a collect-now press that finds yesterday unpublished as skipped, not a provider failure', async () => {
+    await connect();
+    // 04:10 Pacific: the days before yesterday are stored first.
+    await syncMediavine(env, { asset: ASSET, start: '2026-09-01', end: '2026-09-07' }, { fetchImpl: transport(), nowMs: NOW - 2 * HOUR });
+    const fetchImpl = transport({ revenueOn: (date) => (date === YESTERDAY ? 0 : 1.25) });
+    expect(await runCollectNow(env, { provider: 'mediavine', assets: [ASSET] }, { fetchImpl, nowMs: NOW }))
+      .toMatchObject({ ok: true, sites: [{ asset: ASSET, outcome: 'skipped', code: 'unpublished' }] });
+    expect(reports(fetchImpl)).toBe(1);
+    expect((await storedDays()).map(([date]) => date)).not.toContain(YESTERDAY);
+  });
+
   it('stores a $0 on a day before yesterday as a reported zero', async () => {
     await connect();
     const result = await syncMediavine(env, { asset: ASSET, start: '2026-09-07', end: '2026-09-07' }, { fetchImpl: transport({ revenue: 0 }), nowMs: NOW });
