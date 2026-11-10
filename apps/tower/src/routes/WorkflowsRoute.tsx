@@ -22,6 +22,7 @@ import { useConfigWritable } from '@/hooks/useConfigWritable';
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import { useConnections } from '@/hooks/useConnections';
 import { connectionState } from '@shared/integrations-page';
+import { integrationLabel } from '@shared/integrations';
 import { useNow } from '@/hooks/useNow';
 import { cn } from '@/lib/utils';
 import { HealthNavigation } from './health/HealthNavigation';
@@ -223,10 +224,14 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     if (!runId && defaultRun) { const next = new URLSearchParams(search); next.set('run', defaultRun.id); setSearch(next, { replace: true }); }
   }, [runId, defaultRun?.id, search, setSearch]);
   const selected = runId ? data?.selectedRun?.workflowId === id && data.selectedRun.id === runId ? data.selectedRun : null : defaultRun ?? null;
+  const loadingArchiveRun = id === 'signal-dumps' && runId && query.isPlaceholderData;
   const runLabels = runOptionLabels([...(summary?.runs ?? []), ...(summary?.active ? [summary.active] : []), ...(selected ? [selected] : [])]);
   const failed = (selected ?? (runId === defaultRun?.id ? defaultRun : null))?.state === 'failed';
   const failedStep = failed ? selected?.steps?.findLast(step => step.state === 'failed') : undefined;
   const retainedFailure = failedStep ? undefined : selected?.failure;
+  const archiveOutput = id === 'signal-dumps' && failed ? selected?.steps?.findLast(step => step.id === 'archives' && step.state === 'failed')?.output : undefined;
+  const failedArchives = archiveOutput?.items.filter(item => item.state === 'failed') ?? [];
+  const failedArchiveCount = archiveOutput?.metrics.find(metric => metric.key === 'failed')?.value;
   const failureLabel = definition?.stages.find(stage => stage.id === failedStep?.id)?.label ?? (id === 'portfolio-brief' ? 'Briefing generation failed' : 'Execution failed');
   const ExecutionContainer = id === 'backup' || failed ? BackupExecutionDetails : Fragment;
   if (!definition) return <div className="p-6"><PageHeader title="Workflow not found" breadcrumb={breadcrumb} /></div>;
@@ -242,13 +247,18 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
   }) : null;
   const runAction = !demoReadonly && data && summary && <RunWorkflow key={id} id={id} label={definition.label}
           spendNotice={definition.manualNotice}
-          disabledReason={!data.runtime?.manualJobs?.includes(id) ? 'Run now is unavailable on this installation.' : !writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
-          onComplete={async () => {
+          disabledReason={!data.runtime?.manualJobs?.includes(id) ? 'Run now is unavailable on this installation.' : !writable.writable ? writable.reason ?? 'Changes are unavailable.' : !data.runtimeFresh || data.runtime?.error || query.isError ? 'Check system health before running.' : loadingArchiveRun ? 'Loading run status…' : summary.active ? 'This job is already running.' : !data.runtime.jobs.find((job) => job.id === id)?.enabled ? 'Resume the schedule to run now.' : null}
+          onComplete={async (startedId) => {
+            if (startedId) {
+              const next = new URLSearchParams(search); next.set('run', startedId); setSearch(next, { replace: true });
+              return;
+            }
             const [fresh] = await Promise.all([query.refetch(),
               ...(id === 'portfolio-brief' ? [queryClient.invalidateQueries({ queryKey: ['portfolio-brief'] })] : []),
             ]);
-            const latest = fresh.data?.workflows.find((workflow) => workflow.id === id)?.latest;
-            if (latest) { const next = new URLSearchParams(search); next.set('run', latest.id); setSearch(next, { replace: true }); }
+            const updated = fresh.data?.workflows.find((workflow) => workflow.id === id);
+            const run = (id === 'signal-dumps' ? updated?.active : null) ?? updated?.latest;
+            if (run) { const next = new URLSearchParams(search); next.set('run', run.id); setSearch(next, { replace: true }); }
           }} />;
   return <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 md:p-6">
     <PageHeader title={definition.label} description={definition.source} breadcrumb={breadcrumb}
@@ -263,6 +273,21 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         {failedStep?.output?.fields.filter(field => ['reason', 'nextAction'].includes(field.key) && field.value !== failedStep.summary).map(field => <div key={field.key} className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">{field.label}</p><p className="break-words text-sm">{String(field.value)}</p>
         </div>)}
+        {failedArchives.length > 0 && <ul className="space-y-1 text-sm" aria-label="Failed archive reports">
+          {failedArchives.map((item, index) => {
+            const field = (key: string) => item.fields.find(entry => entry.key === key)?.value;
+            const integration = field('integration');
+            const report = field('report');
+            return <li key={index}>{[
+              item.label,
+              typeof integration === 'string' ? integrationLabel(integration, integration) : null,
+              report === 'search-appearance-pages' ? 'Search appearance by page' : report,
+              field('reportDate'), field('reason'),
+            ].filter(Boolean).join(' · ')}</li>;
+          })}
+        </ul>}
+        {typeof failedArchiveCount === 'number' && failedArchiveCount > failedArchives.length &&
+          <p className="text-sm">Details available for {failedArchives.length} of {failedArchiveCount} failed reports.</p>}
       </section> : <WorkflowViewEvidence view={view.id} run={selected ?? null} />}
       {runAction}
       {id === 'backup' && <BackupRunDetails run={selected} captured={data.backup} pending={query.isPlaceholderData || Boolean(defaultRun && !runId)} />}

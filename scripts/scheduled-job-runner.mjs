@@ -32,7 +32,7 @@ export function createScheduledJobRunner({ jobs = SCHEDULED_JOBS, run, read = re
     let stopped = false;
     let error = null;
     let initialized = false;
-    async function runOnce(id, { manual = false, wait = false, execute } = {}) {
+    async function runOnce(id, { manual = false, wait = false, execute, onStart } = {}) {
         const job = jobs.find((candidate) => candidate.id === id);
         if (!job)
             return { status: 'unknown' };
@@ -48,12 +48,12 @@ export function createScheduledJobRunner({ jobs = SCHEDULED_JOBS, run, read = re
             // Recovery must outlast a regular tick's held-record bookkeeping.
             // Manual requests never wait for another invocation.
             await inFlight.get(id);
-            return runOnce(id, { manual, wait, execute });
+            return runOnce(id, { manual, wait, execute, onStart });
         }
         let release;
         inFlight.set(id, new Promise((resolve) => { release = resolve; }));
         try {
-            return { status: 'ran', result: await (execute ? execute() : run(job, manual)) };
+            return { status: 'ran', result: await (execute ? execute() : run(job, manual, onStart)) };
         }
         finally {
             inFlight.delete(id);

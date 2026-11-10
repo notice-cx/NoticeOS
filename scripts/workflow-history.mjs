@@ -47,8 +47,10 @@ export function createWorkflowHistory(root) {
             ...(trigger ? { trigger } : definition.triggerKind === 'event' ? { trigger: { kind: 'recovery' } } : {}) };
         const recorder = createWorkflowRecorder({ changed: (steps) => { run.steps = steps; void publishHeartbeat(); } });
         active.set(run.id, run);
-        void publishHeartbeat();
+        const observed = publishHeartbeat();
         return {
+            id: run.id,
+            observed,
             local: Boolean(definition.local),
             run: recorder.run,
             verdict: (outcome) => workflowResult(recorder.steps, outcome),

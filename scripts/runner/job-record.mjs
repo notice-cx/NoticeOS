@@ -130,7 +130,11 @@ export async function runJobLane(
       deps.onRecord?.(record);
       await ship(record);
     },
-    begin: begin ? (name, at) => begin(name, at, deps.trigger) : null,
+    begin: begin ? (name, at) => {
+      const trace = begin(name, at, deps.trigger);
+      if (trace && deps.onStart) void trace.observed.then(() => deps.onStart(trace.id));
+      return trace;
+    } : null,
     stepOf: (value) => (value === REGULAR_LANE_HELD ? stepResult(null) : stepResult(value)),
   });
   pendingRuns.add(pending);

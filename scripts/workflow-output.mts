@@ -28,6 +28,9 @@ const COUNTS: Readonly<Record<string, string>> = { open: 'Open tasks', ready: 'R
 const REASONS: Readonly<Record<string, string>> = {
   'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
 };
+const REQUEST_FAILURES: Readonly<Record<string, string>> = {
+  request_timeout: 'Request timed out', request_failed: 'Request failed', os_egress_down: 'NoticeOS could not reach the internet',
+};
 const DETAILS: readonly unknown[] = ['No Mediavine report is due.', 'Mediavine needs to be reconnected.'];
 const VERDICTS: readonly unknown[] = ['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'];
 const LABELS: Readonly<Record<string, string>> = { ...METRICS, ...COUNTS, projects: 'Projects', projectsRead: 'Projects read', projectsFailed: 'Projects unavailable', savedSettings: 'Saved settings', defaultSettings: 'Default settings', ok: 'Operation confirmed', providerTruncated: 'Provider limited the result', check: 'Check', finding: 'Finding', dataState: 'Data', status: 'HTTP status', reportDate: 'Reporting date', date: 'Reporting date', integration: 'Integration', report: 'Report', reason: 'Reason', outcome: 'Dispatch result', verdict: 'Outcome', id: 'Window' };
@@ -60,6 +63,9 @@ function fields(value: Probe): WorkflowOutputValue[] {
   for (const key of ['integration', 'report']) if (name(value?.[key])) result.push(entry(key, key === 'integration' ? 'Integration' : 'Report', value![key] as string));
   const reason = Object.hasOwn(REASONS, value?.skipped as PropertyKey) ? value!.skipped : value?.reason;
   if (Object.hasOwn(REASONS, reason as PropertyKey)) result.push(entry('reason', 'Reason', REASONS[reason as string] as string));
+  else if (value?.status === 'error' && Object.hasOwn(REQUEST_FAILURES, value.errorCode as PropertyKey)) {
+    result.push(entry('reason', 'Reason', REQUEST_FAILURES[value.errorCode as string]!));
+  }
   if (DETAILS.includes(value?.detail)) result.push(entry('reason', 'Reason', value!.detail as string));
   if (['ran', 'failed', 'skipped'].includes(value?.outcome as string)) result.push(entry('outcome', 'Dispatch result', value!.outcome as string));
   return result;
@@ -82,11 +88,14 @@ export function captureWorkflowOutput(value: unknown): WorkflowStepOutput | unde
   const primary: Probe[] = Array.isArray((value as Row).outcomes) ? (value as Row).outcomes as Probe[] : Array.isArray((value as Row).projects) ? (value as Row).projects as Probe[] : Array.isArray((value as Row).closed) ? (value as Row).closed as Probe[] : [];
   const failures: Probe[] = Array.isArray((value as Row).failed) ? (value as Row).failed as Probe[] : [];
   const collection = [...primary, ...failures.filter((item) => !primary.includes(item))];
-  const items = collection.slice(0, 50).map((item, index) => ({
+  const rows = collection.map((item, index) => ({
     label: name(item?.asset) ?? name(item?.id) ?? `Item ${index + 1}`,
     state: failures.includes(item) ? 'failed' as const : primary === (value as Row).closed ? 'succeeded' as const : itemState(item),
-    fields: [...fields(item), ...numbers(item, METRICS), ...numbers(item?.counts as Probe, COUNTS), ...numbers(item?.result as Probe, METRICS)].slice(0, 24),
+    item,
   }));
+  const kept = rows.length <= 50 ? rows : [...rows.filter(row => row.state === 'failed'), ...rows.filter(row => row.state !== 'failed')].slice(0, 50);
+  const items = kept
+    .map(({ item, ...row }) => ({ ...row, fields: [...fields(item), ...numbers(item, METRICS), ...numbers(item?.counts as Probe, COUNTS), ...numbers(item?.result as Probe, METRICS)].slice(0, 24) }));
   if (Array.isArray((value as Row).projects)) {
     metrics.unshift(entry('projects', 'Projects', ((value as Row).projects as Probe[]).length), entry('projectsRead', 'Projects read', ((value as Row).projects as Probe[]).filter((item) => item?.ok === true).length), entry('projectsFailed', 'Projects unavailable', ((value as Row).projects as Probe[]).filter((item) => item?.ok === false).length));
   }
@@ -108,7 +117,7 @@ export function isWorkflowStepOutput(value: unknown): value is WorkflowStepOutpu
     if (['ok', 'providerTruncated'].includes(item.key as string)) return typeof item.value === 'boolean';
     if (['integration', 'report', 'check', 'id'].includes(item.key as string)) return Boolean(name(item.value));
     if (['reportDate', 'date'].includes(item.key as string)) return typeof item.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.value);
-    if (item.key === 'reason') return [...Object.values(REASONS), ...DETAILS, ...Object.values(PORTFOLIO_BRIEF_FAILURES).map(failure => failure.summary)].includes(item.value);
+    if (item.key === 'reason') return [...Object.values(REASONS), ...Object.values(REQUEST_FAILURES), ...DETAILS, ...Object.values(PORTFOLIO_BRIEF_FAILURES).map(failure => failure.summary)].includes(item.value);
     if (item.key === 'finding') return ['ok', 'warn', 'error', 'unreachable'].includes(item.value as string);
     if (item.key === 'outcome') return ['ran', 'failed', 'skipped'].includes(item.value as string);
     if (item.key === 'verdict') return VERDICTS.includes(item.value);

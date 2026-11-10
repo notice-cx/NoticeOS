@@ -20,6 +20,7 @@ export const WORKFLOW_ACTIVE_FILE: string = '.local/workflow-active.json';
 export const WORKFLOW_SESSION_ID: string = randomUUID();
 
 export interface WorkflowRunTrace {
+  id: string; observed: Promise<void>;
   local: boolean; run: WorkflowRecorder['run']; verdict(outcome: string): 'failed' | 'skipped' | 'succeeded'; adopt(steps?: WorkflowStepRun[]): void; finish(outcome: string): Promise<void>;
 }
 export interface WorkflowHistory {
@@ -59,8 +60,10 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
       ...(trigger ? { trigger } : definition.triggerKind === 'event' ? { trigger: { kind: 'recovery' as const } } : {}) };
     const recorder = createWorkflowRecorder({ changed: (steps) => { run.steps = steps; void publishHeartbeat(); } });
     active.set(run.id, run);
-    void publishHeartbeat();
+    const observed = publishHeartbeat();
     return {
+      id: run.id,
+      observed,
       local: Boolean(definition.local),
       run: recorder.run,
       verdict: (outcome: string) => workflowResult(recorder.steps, outcome),

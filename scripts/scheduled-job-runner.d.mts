@@ -9,11 +9,7 @@ export interface ScheduledJobRunner {
     snapshot(): ScheduleStatus;
     apply(overrides: ScheduleOverrides | null): void;
     current(id: string): JobSchedule | null;
-    runOnce(id: string, options?: {
-        manual?: boolean;
-        wait?: boolean;
-        execute?: () => Promise<unknown>;
-    }): Promise<JobInvocation>;
+    runOnce(id: string, options?: JobRunOptions): Promise<JobInvocation>;
     refresh(): Promise<void>;
     stop(): void;
 }
@@ -23,16 +19,24 @@ export type JobInvocation = {
 } | {
     status: 'busy' | 'paused' | 'unavailable' | 'unknown';
 };
+type OnStart = (runId: string) => void;
+interface JobRunOptions {
+    manual?: boolean;
+    wait?: boolean;
+    execute?: () => Promise<unknown>;
+    onStart?: OnStart;
+}
 export declare function readStoredSchedules(request?: typeof configStoreRequest): Promise<ScheduleOverrides | null>;
 /** Replace only changed timers. Callbacks from stopped timers and overlapping
  * invocations cannot fire a job a second time. A read failure keeps the last
  * acknowledged schedule; a first read failure arms nothing. */
 export declare function createScheduledJobRunner({ jobs, run, read, publish, onReady, createTimer, now, }: {
     jobs?: ScheduledJob[];
-    run: (job: ScheduledJob, manual?: boolean) => Promise<unknown>;
+    run: (job: ScheduledJob, manual?: boolean, onStart?: OnStart) => Promise<unknown>;
     read?: () => Promise<ScheduleOverrides | null>;
     publish?: (status: ScheduleStatus) => Promise<void>;
     onReady?: () => void;
     createTimer?: (cron: string, callback: () => Promise<void>, timezone: string) => ScheduledTimer;
     now?: () => Date;
 }): ScheduledJobRunner;
+export {};

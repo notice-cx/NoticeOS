@@ -5,7 +5,7 @@ export declare function invokeLocalJob(id: unknown, { scheduler, ready, stopped,
     scheduler: ScheduledJobRunner;
     ready: () => boolean;
     stopped: () => boolean;
-}): Promise<LocalJobReply>;
+}, background?: boolean): Promise<LocalJobReply>;
 export declare function startLocalJobControl({ root, ...deps }: {
     root: string;
     scheduler: ScheduledJobRunner;
@@ -15,7 +15,8 @@ export declare function startLocalJobControl({ root, ...deps }: {
     close(): Promise<void>;
 }>;
 /** The socket path comes from the installation, never from a request body. */
-export declare function requestLocalJob(id: string, { root, timeoutMs }: {
+export declare function requestLocalJob(id: string, { root, background, timeoutMs }: {
     root: string;
     timeoutMs?: number;
+    background?: boolean;
 }): Promise<LocalJobReply>;

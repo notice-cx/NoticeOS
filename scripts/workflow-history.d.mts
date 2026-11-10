@@ -5,6 +5,8 @@ export declare const WORKFLOW_HISTORY_FILE: string;
 export declare const WORKFLOW_ACTIVE_FILE: string;
 export declare const WORKFLOW_SESSION_ID: string;
 export interface WorkflowRunTrace {
+    id: string;
+    observed: Promise<void>;
     local: boolean;
     run: WorkflowRecorder['run'];
     verdict(outcome: string): 'failed' | 'skipped' | 'succeeded';

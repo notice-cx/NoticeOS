@@ -4,7 +4,7 @@ import type { Plugin } from 'vite';
 import { readStoredSchedules } from '../../../scripts/scheduled-job-runner.mjs';
 import { configStoreRequest } from '../../../scripts/config-store-client.mjs';
 import { requestLocalJob } from '../../../scripts/local-job-control.mjs';
-import { SCHEDULE_STATUS_FILE, manualScheduledJob, type ScheduleStatus } from '../shared/scheduled-jobs';
+import { SCHEDULE_STATUS_FILE, parseLocalJobRequest, type ScheduleStatus } from '../shared/scheduled-jobs';
 import { demoViewerReply, type DemoViewerDescriptor } from '../shared/demo-viewer';
 import { DEFAULT_REPO_ROOT, crossOrigin, isJson, laneMiddleware, type LaneReply, type LaneRequest } from './lane';
 import { jobRunName } from '../shared/scheduled-jobs';
@@ -20,7 +20,7 @@ export async function handleScheduledJobsRequest(
       catch { return null; }
     },
     now = Date.now,
-    runJob = (id: string) => requestLocalJob(id, { root: DEFAULT_REPO_ROOT }),
+    runJob = (id: string, background?: boolean) => requestLocalJob(id, { root: DEFAULT_REPO_ROOT, background }),
     demoViewer = null as DemoViewerDescriptor | null,
   } = {},
 ): Promise<LaneReply> {
@@ -29,12 +29,9 @@ export async function handleScheduledJobsRequest(
     if (demo) return { status: demo.status, body: demo.body as Record<string, unknown> };
     if (crossOrigin(request.headers)) return { status: 403, body: { error: 'forbidden' } };
     if (!isJson(request.headers)) return { status: 415, body: { error: 'json_required' } };
-    let input: unknown;
-    try { input = JSON.parse(request.body); } catch { input = null; }
-    if (!input || typeof input !== 'object' || Object.keys(input).join(',') !== 'id' || !manualScheduledJob((input as { id?: unknown }).id)) {
-      return { status: 422, body: { error: 'local_job_not_allowed' } };
-    }
-    return runJob((input as { id: string }).id);
+    const input = parseLocalJobRequest(request.body);
+    if (!input) return { status: 422, body: { error: 'local_job_not_allowed' } };
+    return input.background ? runJob(input.id, true) : runJob(input.id);
   }
   if (request.method !== 'GET') return { status: 405, body: { error: 'method_not_allowed' } };
   try {

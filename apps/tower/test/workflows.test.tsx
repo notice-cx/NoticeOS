@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import WorkflowsRoute from '@/routes/WorkflowsRoute';
 import { WORKFLOW_DEFINITIONS, workflowState, type WorkflowsPayload, type WorkflowRun } from '@shared/workflows';
 import { buildWorkflowHistory, createWorkflowHistoryReader, manualRecords } from '../vite/workflow-history';
+import { captureWorkflowOutput } from '../../../scripts/workflow-output.mjs';
 import { readManualRuns } from '../vite/scheduled-jobs-lane';
 import { WorkflowStages } from '@/components/WorkflowVisuals';
 import { formatNextRun, utcRunReference } from '@shared/scheduled-jobs';
@@ -611,6 +612,40 @@ describe('run a scheduled job from its detail page', () => {
     expect(await screen.findByText('Run completed.')).toBeVisible();
     expect(run).toBeEnabled();
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method !== 'POST').length).toBeGreaterThan(1);
+  });
+  it('follows the accepted archive run and shows the failed report without opening a stage', async () => {
+    const id = 'signal-dumps';
+    const startedAt = '2026-09-09T16:24:00.000Z';
+    const running: WorkflowRun = { id: `${id}@manual/${startedAt}`, workflowId: id, definitionVersion: 1, startedAt,
+      state: 'running', trigger: { kind: 'manual' }, steps: [] };
+    let observed: WorkflowRun | null = null;
+    data.runtime!.manualJobs = [id];
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (init?.method === 'POST') {
+        expect(JSON.parse(String(init.body))).toEqual({ id, background: true });
+        observed = running;
+        return Response.json({ job: id, outcome: 'running', runId: running.id }, { status: 202 });
+      }
+      const selected = new URL(String(url), 'http://localhost').searchParams.get('run');
+      return Response.json({ ...data, ...buildWorkflowHistory(records, observed?.finishedAt ? [observed] : [],
+        observed?.state === 'running' ? [observed] : [], now, selected ?? undefined) });
+    });
+    mount('/health/operations/signal-dumps');
+    const button = await screen.findByRole('button', { name: 'Run Traffic and search archives now' });
+    fireEvent.click(button);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Run' })).toHaveValue(running.id));
+    expect(button).toBeDisabled();
+    const finishedAt = '2026-09-09T16:24:58.000Z';
+    observed = { ...running, finishedAt, state: 'failed', steps: [{
+      id: 'archives', attempt: 1, startedAt, finishedAt, state: 'failed', summary: '1 collection failed.',
+      output: captureWorkflowOutput({ failed: 1, outcomes: [{ asset: 'northwind.example', integration: 'gsc',
+        report: 'search-appearance-pages', reportDate: '2026-09-08', status: 'error', errorCode: 'request_timeout' }] }),
+    }] };
+    await client.invalidateQueries({ queryKey: ['workflows'] });
+    const failures = await screen.findByRole('list', { name: 'Failed archive reports' });
+    expect(within(failures).getByRole('listitem')).toHaveTextContent(/northwind\.example.*2026-09-08.*timed out/);
+    expect(screen.getByRole('combobox', { name: 'Run' })).toHaveValue(running.id);
+    expect(button).toBeEnabled();
   });
   it.each([
     ['job_busy', 409, 'This job is already running.'],
