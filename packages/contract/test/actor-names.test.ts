@@ -14,6 +14,10 @@ describe('actorIdentity', () => {
     expect(actorKey('person:Claude Code')).not.toBe(actorKey('agent:Claude Code'));
     expect(actorKey('agent:Claude')).not.toBe(actorKey('agent:Claude Code'));
   });
+
+  it.each(naming.actors)('keys $actor so that its key reads back as the same key', ({ actor }) => {
+    expect(actorKey(actorKey(actor))).toBe(actorKey(actor));
+  });
 });
 
 describe('modelIdentity', () => {

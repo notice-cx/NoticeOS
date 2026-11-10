@@ -13,6 +13,8 @@
     { "actor": "service:demo/claude", "kind": "agent", "name": "Claude Code" },
     { "actor": "service:demo/codex", "kind": "agent", "name": "Codex" },
     { "actor": "service:ci/nightly-triage", "kind": "agent", "name": "nightly-triage" },
+    { "actor": "service:demo/Release Helper (ntasks)", "kind": "agent", "name": "Release Helper" },
+    { "actor": "agent:Nightly Triage (example.com) (2)", "kind": "agent", "name": "Nightly Triage" },
     { "actor": "service:GitHub", "kind": "service", "name": "GitHub" },
     { "actor": "person:agent:Example Owner", "kind": "person", "name": "agent:Example Owner" },
     { "actor": "visitor:anyone", "kind": "visitor", "name": "anyone" },

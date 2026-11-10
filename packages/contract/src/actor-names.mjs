@@ -19,8 +19,17 @@ const IMPORTED_AGENTS = [
     [/^(?:codex(?:$|[/-])|\/root$)/iu, 'Codex'],
 ];
 const IMPORTED_SERVICES = [[/^beads$/iu, 'Old task hub']];
-/** The label a client adds to the name it registers, such as the ` (ntasks)` in `Claude Code (ntasks)`. */
-const CLIENT_SUFFIX = /\s+\([^()]*\)$/u;
+/** The labels a client adds to the name it registers, such as the ` (ntasks)` in `Claude Code (ntasks)`. */
+const CLIENT_SUFFIX = /(?:\s+\([^()]*\))+$/u;
+/**
+ * An agent's display name: the name without its client's labels, as the
+ * product it spells when it spells one. Every display name maps to itself,
+ * so an actor's key reads back as the same key.
+ */
+function agentName(name, ...tables) {
+    const bare = name.replace(CLIENT_SUFFIX, '') || name;
+    return lookUp(bare, ...tables) ?? bare;
+}
 function lookUp(name, ...tables) {
     for (const table of tables) {
         const found = table.find(([pattern]) => pattern.test(name));
@@ -41,15 +50,13 @@ export function actorIdentity(actor) {
     const prefix = prefixed?.[1];
     const rest = prefixed?.[2] ?? actor;
     if (prefix === 'agent') {
-        const registered = rest.replace(CLIENT_SUFFIX, '') || rest;
-        return { id: actor, kind: 'agent', name: lookUp(registered, PRODUCTS, IMPORTED_AGENTS) ?? registered };
+        return { id: actor, kind: 'agent', name: agentName(rest, PRODUCTS, IMPORTED_AGENTS) };
     }
     if (prefix === 'service') {
         const slash = rest.indexOf('/');
         if (slash <= 0 || slash === rest.length - 1)
             return { id: actor, kind: 'service', name: rest };
-        const agent = rest.slice(slash + 1);
-        return { id: actor, kind: 'agent', name: lookUp(agent, IMPORTED_AGENTS, PRODUCTS) ?? agent };
+        return { id: actor, kind: 'agent', name: agentName(rest.slice(slash + 1), IMPORTED_AGENTS, PRODUCTS) };
     }
     if (prefix === 'person' || prefix === 'visitor')
         return { id: actor, kind: prefix, name: rest };
