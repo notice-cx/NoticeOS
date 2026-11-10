@@ -23,7 +23,8 @@ export function useBeginNtasksSignIn(): () => Promise<boolean> {
   const returnTo = `${pathname}${search}${hash}`;
   return useCallback(async () => {
     async function appToSignIn(): Promise<NtasksApp> {
-      if (signIn.kind === "signed-out") return signIn.app;
+      // A browser still signed in whose token Ntasks refused signs in again.
+      if (signIn.kind === "signed-out" || signIn.kind === "signed-in") return signIn.app;
       if (signIn.kind !== "unconfigured") throw new Error("Tasks here do not live in Ntasks.");
       const { clientId } = await api.registerNtasksApp();
       // Saved with the connection now: every surface reads the new client id.
