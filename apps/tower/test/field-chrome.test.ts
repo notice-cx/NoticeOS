@@ -6,11 +6,11 @@ describe("shared field layout", () => {
   it("declares the box the phone floor and the disabled dim ride on", () => {
     // Not a snapshot of the whole string: the parts a copy must not drop.
     for (const utility of [
-      "border-input",
+      "ring-border",
       "bg-background",
       "max-sm:min-h-11",
-      "disabled:opacity-60",
-      "focus-visible:ring-ring",
+      "disabled:opacity-45",
+      "focus-visible:ring-primary",
     ]) {
       expect(fieldClass).toContain(utility);
     }

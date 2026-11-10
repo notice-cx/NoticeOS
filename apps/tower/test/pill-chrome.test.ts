@@ -16,14 +16,14 @@ describe("shared toggle-pill layout", () => {
     // fills the chosen one. Two dialects, told apart here.
     expect(pillPickerStateClass(true)).toContain("border-primary/30");
     expect(pillPickerStateClass(false)).toContain("border-transparent");
-    expect(pillChoiceStateClass(true)).toContain("bg-accent-soft");
-    expect(pillChoiceStateClass(false)).toContain("border-border");
+    expect(pillChoiceStateClass(true)).toContain("bg-panel");
+    expect(pillChoiceStateClass(false)).toContain("border-transparent");
     // The choice box is composed from the two above, so the shape it
     // overrides resolves rather than doubling: one radius, one horizontal padding.
     const choice = pillChoiceClass.split(/\s+/);
-    expect(choice).toContain("rounded-full");
-    expect(choice).not.toContain("rounded-md");
-    expect(choice).toContain("px-2.5");
+    expect(choice).toContain("rounded-md");
+    expect(choice).not.toContain("rounded-full");
+    expect(choice).toContain("px-2.25");
     expect(choice).not.toContain("px-2");
     expect(choice).toContain("max-sm:min-h-11");
   });

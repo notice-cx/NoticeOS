@@ -1,6 +1,6 @@
 import { useBrowserContext, useOwnerPreferences } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
-import { ChevronRight, Menu, Moon, Pencil, Plus, Search, Sun, X } from "lucide-react";
+import { ChevronRight, Moon, PanelLeft, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
@@ -48,11 +48,13 @@ export { NAV_ITEMS, TV_ITEM, PAGE_ITEMS, type NavItem } from "@/components/nav-i
 
 // `max-md:min-h-11`: below `md` the only sidebar in the DOM is the drawer's,
 // whose rows must meet the thumb target.
-const ITEM_BASE = "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm outline-none max-md:min-h-11 focus-visible:ring-2 focus-visible:ring-ring";
-const ITEM_ACTIVE = "bg-accent-soft text-accent-text font-medium";
-const ITEM_IDLE = "text-muted-foreground hover:bg-muted/60 hover:text-foreground";
+// Precise's sidebar items (Ntasks docs/design.md, The frame): 30px rows in
+// Text 2 with their icon in Text 3; the current one on Hover in Text.
+const ITEM_BASE = "flex h-7.5 items-center gap-2.25 rounded-md px-2 text-nav font-medium outline-none transition-colors duration-[var(--brand-fast)] max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-ring [&>svg]:text-muted-foreground";
+const ITEM_ACTIVE = "bg-muted text-foreground [&>svg]:text-secondary-foreground";
+const ITEM_IDLE = "text-secondary-foreground hover:bg-muted hover:text-foreground";
 
-const ASSET_ROW_BASE = "flex w-full items-center gap-2 rounded-md py-1.5 pl-2 pr-2.5 text-xs outline-none max-md:min-h-11 focus-visible:ring-2 focus-visible:ring-ring";
+const ASSET_ROW_BASE = "flex h-7 w-full items-center gap-2 rounded-md pl-2 pr-2.5 text-label outline-none transition-colors duration-[var(--brand-fast)] max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-ring";
 
 /** Above this many assets the nav shows the leading slice plus "All sites…". */
 const NAV_ASSET_LIMIT = 12;
@@ -159,7 +161,7 @@ export function Sidebar({
   const { view } = useView();
   return (
     <div
-      className={cn("flex w-60 shrink-0 flex-col border-r border-border bg-card", className)}
+      className={cn("flex w-sidebar shrink-0 flex-col border-r border-border bg-sidebar", className)}
       data-app-sidebar
     >
       <Link
@@ -557,7 +559,7 @@ export function AppShell({
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-card px-3 md:hidden">
+          <div className="sticky top-0 z-30 flex h-13 items-center gap-2 border-b border-border bg-background px-3 md:hidden">
             <span className="relative inline-flex">
               <Button
                 type="button"
@@ -566,7 +568,7 @@ export function AppShell({
                 aria-label="Open navigation"
                 onClick={() => setMenuOpen(true)}
               >
-                <Menu className="size-4" />
+                <PanelLeft className="size-4" />
               </Button>
               <NavAlarm />
             </span>

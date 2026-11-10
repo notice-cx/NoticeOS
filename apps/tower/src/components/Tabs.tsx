@@ -116,16 +116,15 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
   }
 
   return (
-    // The strip scrolls, the page does not. The divider is on the wrapper so
-    // the scroller cannot clip it, and the strip is pulled a pixel down over
-    // it so the selected tab's border lands on the line.
-    <div className={cn("-mx-1 border-b border-border px-1", className)} data-tab-strip>
+    // The strip scrolls, the page does not: Precise's tabs, the selected one
+    // ringed on Panel. The padding keeps the focus outline inside the scroller.
+    <div className={cn("-mx-1 px-1", className)} data-tab-strip>
       <div
         ref={list}
         role="tablist"
         aria-label={label}
         onKeyDown={move}
-        className="-mb-px flex items-center gap-1 overflow-x-auto overscroll-x-contain"
+        className="flex items-center gap-0.5 overflow-x-auto overscroll-x-contain py-1"
       >
         {tabs.map((tab) => {
           const selected = isTabActive(pathname, tab.to, tab.end);
@@ -150,14 +149,14 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
                   event.currentTarget.click();
                 }
               }}
-              // `ui/pill.ts`'s control contract (focus ring, thumb floor) but
-              // not its box: a tab is an underline on a divider, not a pill.
+              // `ui/pill.ts`'s control contract (focus ring, thumb floor) on
+              // Precise's tab box.
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm",
+                "inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-md px-2.25 text-label font-medium",
                 pillControlClass,
                 selected
-                  ? "border-primary font-medium text-accent-text"
-                  : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  ? "bg-panel text-foreground ring-1 ring-inset ring-border"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {tab.label}
@@ -167,7 +166,7 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
                   className={cn(
                     "rounded-full px-1.5 text-xs tabular-nums",
                     selected
-                      ? "bg-foreground/10 text-foreground"
+                      ? "bg-muted text-foreground"
                       : "bg-muted text-muted-foreground",
                   )}
                 >

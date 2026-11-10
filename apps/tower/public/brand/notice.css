@@ -58,13 +58,16 @@
   --brand-muted: var(--precise-ink-3);
   --brand-line: var(--precise-border);
   --brand-control-line: var(--precise-border-strong);
+  --brand-ink-2: var(--precise-ink-2);
+  --brand-sidebar: var(--precise-canvas);
+  --brand-panel: var(--precise-surface);
+  --brand-shadow-raise: var(--precise-shadow-raise);
   /* The Notice blue: the website's accent on its paper surfaces. Precise
      fills with a lighter step of it on dark, and sets words in its tint, the
      one the website draws on its dark surfaces. */
   --brand-blue: #2745d4;
   --brand-accent: var(--precise-accent);
   --brand-accent-text: var(--precise-accent-text);
-  --brand-accent-hover: color-mix(in oklab, var(--precise-accent) 88%, white);
   --brand-on-accent: var(--precise-on-accent);
   --brand-accent-soft: var(--precise-accent-soft);
   --brand-success: #69d99a;
@@ -91,10 +94,13 @@
   --brand-muted: var(--precise-ink-3);
   --brand-line: var(--precise-border);
   --brand-control-line: var(--precise-border-strong);
+  --brand-ink-2: var(--precise-ink-2);
+  --brand-sidebar: var(--precise-canvas);
+  --brand-panel: var(--precise-surface);
+  --brand-shadow-raise: var(--precise-shadow-raise);
   --brand-blue: #2745d4;
   --brand-accent: var(--precise-accent);
   --brand-accent-text: var(--precise-accent-text);
-  --brand-accent-hover: color-mix(in oklab, var(--precise-accent) 85%, black);
   --brand-on-accent: var(--precise-on-accent);
   --brand-accent-soft: var(--precise-accent-soft);
   --brand-success: #18794e;
