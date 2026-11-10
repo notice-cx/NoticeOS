@@ -8,9 +8,10 @@ import { useTaskService } from "@/hooks/useTaskService";
 /**
  * Who decides on the Tasks pages. `local`: tasks do not live in Ntasks (or
  * the status is unread), and the Tower's own routes take every decision.
- * `unconfigured`: they live in Ntasks, but no Tower client ID is saved, so
- * nobody can sign in yet. `signed-out` and `signed-in`: the person's sign-in
- * to Ntasks in this browser, with which their decisions are sent.
+ * `unconfigured`: they live in Ntasks, but no Tower client ID is saved yet;
+ * Sign in to Ntasks has the installation register the Tower there first.
+ * `signed-out` and `signed-in`: the person's sign-in to Ntasks in this
+ * browser, with which their decisions are sent.
  */
 export type NtasksSignIn =
   | { readonly kind: "local" }

@@ -1,5 +1,6 @@
 import type { TaskChoiceKey } from "@noticeos/contract/task-choices";
 import type { TaskResolution } from "@noticeos/contract/task-resolution";
+import { NTASKS_SIGNED_IN_PATH } from "@shared/tasks";
 import { ApiError } from "@/lib/api";
 
 // A person's own sign-in to the installation's Ntasks, held in their browser.
@@ -13,7 +14,7 @@ import { ApiError } from "@/lib/api";
 /** The first Ntasks HTTP API version whose connected-app tokens act as the person. */
 export const NTASKS_API_VERSION = 2;
 /** Where Ntasks sends the browser back after sign-in; registered in Ntasks as the app's redirect address. */
-export const SIGNED_IN_PATH = "/tasks/signed-in";
+export const SIGNED_IN_PATH = NTASKS_SIGNED_IN_PATH;
 const SCOPE = "tasks:read tasks:write tasks:decide offline_access";
 /** The sign-in in progress, in this tab only: its PKCE verifier never outlives the tab. */
 const PENDING_KEY = "noticeos:ntasks-sign-in";
