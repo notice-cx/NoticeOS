@@ -313,12 +313,11 @@ test('actual hosted Node/Vite Tasks binds browser project selection, payloads an
       // keepalive flush. Real pagehide instead retires unissued work by design.
       const observed=await page.evaluate(async facts=>{
         const {createBrowserRuntime}=await import('/src/lib/browser-runtime.ts');
-        const {sendInboxAnswer}=await import('/src/hooks/useTasks.ts');
         const calls=[];
         const runtime=createBrowserRuntime({mode:'hosted',principalId:facts.person,sessionId:facts.session,
           workspaceId:facts.workspace,clientGeneration:100},{origin:location.origin,
           fetch:(input,init)=>{calls.push({path:new URL(input).pathname,keepalive:init?.keepalive});return fetch(input,init)},
-          sendAnswer:(api,answer,keepalive)=>sendInboxAnswer(answer,keepalive,api)});
+          sendAnswer:(api,answer,keepalive)=>api.dismissTask(answer.id,undefined,{project:answer.project,keepalive})});
         try {
           await runtime.api.fetchTasks('example');
           const done=new Promise((resolve,reject)=>runtime.answers.schedule({id:facts.id,

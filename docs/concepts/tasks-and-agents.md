@@ -15,7 +15,7 @@ The **Tasks** page is the Ntasks web app inside the Tower: the board of every pr
 
 A task can carry a card that records what the work is worth: the predicted change in the asset's money a month, how likely it is to pay off, your minutes to review it, the days until the result shows, how the change is measured, and the state and date at which the work is given up. An agent writes the card through the task tools, and you write it in **New task** or on the task's page. When a task closes as done, its card is kept as it stood: the prediction the change's outcome is graded against ([doc 04, Decision policy](../04-decision-policy.md)). A task can also record the kind of change it makes: content data, copy, a template, a feature or infrastructure.
 
-An asset's own **Tasks** tab shows that asset's decisions, ranked the same way, over the board narrowed to that asset.
+An asset's own **Tasks** tab shows how many open tasks the asset's project has and how many wait on you, with **Decide** and **Open in Tasks**, which open the Tasks board on that project.
 
 On `example.com`, the project might hold "Rewrite recipe titles", "Fix broken ingredient links" and a review of last week's search rankings that NoticeOS filed automatically.
 
