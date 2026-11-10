@@ -40,24 +40,25 @@ export function journeyDefinitionsRefusal(value) {
             !['active', 'planned'].includes(String(definition.status)) ||
             !Number.isSafeInteger(definition.version) || Number(definition.version) < 1 ||
             (definition.source !== undefined && definition.source !== 'first-party') ||
-            (definition.source === 'first-party' && definition.kind !== 'exploration') ||
             (definition.reportingLagDays !== undefined && (definition.source !== 'first-party' ||
                 !Number.isSafeInteger(definition.reportingLagDays) || Number(definition.reportingLagDays) < 1 || Number(definition.reportingLagDays) > 14)) ||
             !Array.isArray(definition.steps) ||
-            (definition.source === 'first-party' ? definition.steps.length !== 0 :
+            (definition.source === 'first-party' && definition.kind === 'exploration' ? definition.steps.length !== 0 :
                 definition.steps.length < 2 || definition.steps.length > 10))
             return 'Invalid journey definition';
         if (seen.has(definition.id))
             return 'Journey IDs must be unique';
         seen.add(definition.id);
+        // The site counts a first-party funnel's steps, so they carry no GA4 conditions or time limits.
+        const siteCounted = definition.source === 'first-party';
         const stepIds = new Set();
         for (const [index, step] of definition.steps.entries()) {
             if (!record(step) || !keys(step, ['id', 'label', 'alternatives', 'withinSeconds']) ||
                 !id(step.id) || !text(step.label, 60) || !Array.isArray(step.alternatives) ||
-                step.alternatives.length < 1 || step.alternatives.length > 8) {
+                (siteCounted ? step.alternatives.length !== 0 : step.alternatives.length < 1 || step.alternatives.length > 8)) {
                 return 'Invalid journey step';
             }
-            if (step.withinSeconds !== undefined && (index === 0 ||
+            if (step.withinSeconds !== undefined && (siteCounted || index === 0 ||
                 typeof step.withinSeconds !== 'number' || !Number.isSafeInteger(step.withinSeconds) ||
                 step.withinSeconds < 1 || step.withinSeconds > 7776000)) {
                 return 'Invalid journey transition duration';
@@ -184,7 +185,7 @@ export function readJourneySnapshot(value) {
         seen.add(result.journeyId);
         const definition = definitions.find((definition) => definition.id === result.journeyId);
         if (!definition || definition.kind !== 'funnel' || definition.status !== 'active' ||
-            result.definitionId !== journeyDefinitionId(definition))
+            definition.source === 'first-party' || result.definitionId !== journeyDefinitionId(definition))
             return null;
         for (const kind of ['current7', 'prior7', 'current28', 'prior28']) {
             if (result[kind] !== null && (!readJourneyPeriod(result[kind]) || result[kind].kind !== kind))

@@ -377,3 +377,5 @@ found later by chance.
 ## Session exploration
 
 Assets can include daily session-path aggregates in their existing report envelope. The [session exploration contract](reference/session-exploration.md) defines the session denominator, category paths, limits, corrections and stored history. Ordered GA4 user funnels retain their separate counting unit.
+
+Assets can also report the daily step counts of their own ordered funnels, such as offer → checkout → payment, in `firstPartyFunnels`. The [first-party funnel contract](reference/first-party-funnels.md) defines the counting rules, corrections and periods.

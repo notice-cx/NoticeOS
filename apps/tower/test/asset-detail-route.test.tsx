@@ -209,6 +209,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
   return {
     journeys: null,
     sessionExploration: [],
+    firstPartyFunnels: [],
     generatedAt: "2026-07-05T12:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {

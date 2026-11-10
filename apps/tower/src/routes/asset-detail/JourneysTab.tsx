@@ -55,5 +55,5 @@ export function JourneysTab({ data }: { data: AssetDetailFor<"journeys"> }) {
     delivery: ["loss", "completion", "change", "visitors"],
     reliability: ["loss", "change", "visitors", "completion"],
   };
-  return <div id="journeys" className="scroll-mt-4"><JourneyMonitor summaryOrder={summaryOrder[view.id]} definitions={definitions} snapshot={data.journeys} sessionExploration={data.sessionExploration} onSave={writable ? write : undefined} readOnlyReason={reason} eventNames={events} /></div>;
+  return <div id="journeys" className="scroll-mt-4"><JourneyMonitor summaryOrder={summaryOrder[view.id]} definitions={definitions} snapshot={data.journeys} sessionExploration={data.sessionExploration} firstPartyFunnels={data.firstPartyFunnels} onSave={writable ? write : undefined} readOnlyReason={reason} eventNames={events} /></div>;
 }

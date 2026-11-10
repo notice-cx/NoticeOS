@@ -199,7 +199,7 @@ test('save schema and transport admit first-party exploration without GA4 event 
   const handle = endpoint(async request => { forwarded = await request.json(); return Response.json({ saved: true }); });
   const listed = (await rpc(handle, 'tools/list')).result.tools;
   const journeySchema = listed.find(tool => tool.name === 'save_journey').inputSchema.properties.journey;
-  assert.equal(journeySchema.anyOf.length, 2);
+  assert.equal(journeySchema.anyOf.length, 3);
   assert.deepEqual(journeySchema.anyOf[1].properties.source.enum, ['first-party']);
   assert.deepEqual(journeySchema.anyOf[1].properties.kind.enum, ['exploration']);
   assert.equal(journeySchema.anyOf[1].properties.steps.maxItems, 0);
@@ -210,6 +210,22 @@ test('save schema and transport admit first-party exploration without GA4 event 
   assert.equal(reply.result.structuredContent.saved, true);
   assert.deepEqual(forwarded, { journey, edit_token: null, dry_run: true });
   for (const invalid of [{ ...journey, reportingLagDays: 0 }, { ...journey, reportingLagDays: 15 }, { ...journey, source: 'ga4' }, { ...journey, kind: 'funnel' }, { ...journey, steps: definition().steps }]) {
+    forwarded = null;
+    assert.equal((await call(handle, 'save_journey', { workspace: WORKSPACE, asset: 'example.com', journey: invalid, edit_token: null })).result.isError, true);
+    assert.equal(forwarded, null);
+  }
+});
+
+test('save forwards a site-reported funnel and refuses GA4 conditions on its steps', async () => {
+  let forwarded;
+  const handle = endpoint(async request => { forwarded = await request.json(); return Response.json({ saved: true }); });
+  const journey = { id: 'contribution', label: 'Contribution offer to payment', goal: 'One-time contribution', kind: 'funnel', source: 'first-party', status: 'active',
+    steps: [{ id: 'offer', label: 'Offer seen', alternatives: [] }, { id: 'paid', label: 'Paid', alternatives: [] }] };
+  const reply = await call(handle, 'save_journey', { workspace: WORKSPACE, asset: 'example.com', journey, edit_token: null, dry_run: true });
+  assert.equal(reply.result.structuredContent.saved, true);
+  assert.deepEqual(forwarded, { journey, edit_token: null, dry_run: true });
+  const conditioned = { ...journey, steps: [{ ...journey.steps[0], alternatives: [{ eventName: 'contribution_view' }] }, journey.steps[1]] };
+  for (const invalid of [conditioned, { ...journey, steps: [journey.steps[0]] }]) {
     forwarded = null;
     assert.equal((await call(handle, 'save_journey', { workspace: WORKSPACE, asset: 'example.com', journey: invalid, edit_token: null })).result.isError, true);
     assert.equal(forwarded, null);

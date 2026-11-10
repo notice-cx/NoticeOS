@@ -8,6 +8,7 @@
 
 import { z } from 'zod';
 import { readSessionExplorationReports, type SessionExplorationReport } from './session-exploration.mjs';
+import { readFirstPartyFunnelReports, type FirstPartyFunnelReport } from './first-party-funnels.mjs';
 import { isSupportedCurrency, majorToMinorUnits } from './money.js';
 
 // ISO-8601 datetime, accepting a trailing Z or a numeric offset.
@@ -72,8 +73,11 @@ export const PulseEnvelope = z.object({
   negativeByPage: z.array(NegativeByPage).optional(),
   flags: z.array(InTransitFlag).optional(),
   sessionExploration: z.custom<SessionExplorationReport[]>((value) => readSessionExplorationReports(value) !== null, 'Invalid session exploration reports').optional(),
+  firstPartyFunnels: z.custom<FirstPartyFunnelReport[]>((value) => readFirstPartyFunnelReports(value) !== null, 'Invalid first-party funnel reports').optional(),
 }).refine((value) => value.sessionExploration === undefined || readSessionExplorationReports(value.sessionExploration, value.generatedAt) !== null, {
   path: ['sessionExploration'], message: 'Session exploration reports must cover closed local days, including the inactivity timeout',
+}).refine((value) => value.firstPartyFunnels === undefined || readFirstPartyFunnelReports(value.firstPartyFunnels, value.generatedAt) !== null, {
+  path: ['firstPartyFunnels'], message: 'First-party funnel reports must cover days that have ended in their time zone',
 });
 export type PulseEnvelope = z.infer<typeof PulseEnvelope>;
 

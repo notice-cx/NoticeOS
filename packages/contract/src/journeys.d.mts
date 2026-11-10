@@ -50,9 +50,12 @@ export interface JourneyPeriod {
 export interface JourneyFunnelResult {
     journeyId: string;
     definitionId: string;
-    propertyId: string;
+    /** The GA4 property; null for a funnel the site reports itself. */
+    propertyId: string | null;
     timeZone: string;
-    identity: 'ga4-active-users';
+    identity: 'ga4-active-users' | 'first-party';
+    /** What a first-party funnel counts, in the site's plural noun, such as "offers". */
+    unit?: string;
     collectedAt: string;
     current7: JourneyPeriod | null;
     prior7: JourneyPeriod | null;

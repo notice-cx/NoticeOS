@@ -192,6 +192,19 @@ test('store refusals pass through and transport uncertainty does not claim a rol
 });
 
 
+test('a site-reported funnel saves with empty step conditions and adds no GA4 event names', async () => {
+  const funnel = { id: 'contribution', label: 'Contribution offer to payment', goal: 'One-time contribution', kind: 'funnel', source: 'first-party', status: 'active',
+    steps: [{ id: 'offer', label: 'Offer seen', alternatives: [] }, { id: 'paid', label: 'Paid', alternatives: [] }] };
+  const { state, management } = fixture();
+  const created = await management.save(ASSET, input(funnel));
+  assert.equal(created.status, 200);
+  assert.deepEqual(state.body.assets[ASSET].journeys, [{ ...funnel, version: 1 }]);
+  assert.deepEqual(created.body.eventNames, []);
+  const conditioned = { ...funnel, steps: [{ ...funnel.steps[0], alternatives: [{ eventName: 'contribution_view' }] }, funnel.steps[1]] };
+  assert.equal((await management.save(ASSET, input(conditioned, created.body.edit_token))).status, 422);
+  assert.deepEqual(state.body.assets[ASSET].journeys, [{ ...funnel, version: 1 }]);
+});
+
 test('first-party exploration creates without GA4 conditions and source changes version', async () => {
   const exploration = { id: 'section-exploration', label: 'Section exploration', goal: 'First-party session paths between site sections', kind: 'exploration', source: 'first-party', reportingLagDays: 2, status: 'planned', steps: [] };
   const { state, management } = fixture();

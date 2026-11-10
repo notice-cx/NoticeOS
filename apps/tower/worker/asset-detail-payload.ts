@@ -118,6 +118,7 @@ import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
 import { emptySignalTrendSet, loadSignalTrends } from "./signal-trends";
 import { assetJourneys, readJourneyBinding } from './asset-journeys';
 import { readAssetSessionExploration } from './asset-session-exploration';
+import { readAssetFirstPartyFunnels } from './asset-first-party-funnels';
 import { readJourneyDefinitions } from '@noticeos/contract/journeys';
 
 const PROPERTY_SIGNAL_CHART_DAYS = 90;
@@ -1776,6 +1777,7 @@ async function assembleAssetDetail(
             } : {}),
             ...(wants("journeys") ? {
               sessionExploration: await readAssetSessionExploration(store, id, valueEvents.assets[id]?.journeys, now, osTimeZone),
+              firstPartyFunnels: await readAssetFirstPartyFunnels(store, id, valueEvents.assets[id]?.journeys, now),
               journeys: assetJourneys(row?.payload ?? null, valueEvents.assets[id]?.journeys,
                 await readJourneyBinding(store, id, integrations.assets[id]?.ga4)),
             } : {}),
