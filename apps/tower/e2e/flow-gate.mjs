@@ -172,14 +172,14 @@ async function walkOne({ browser, base, id, viewport }) {
   const dir = path.join(RESULTS_DIR, "shots", id, viewport);
   await mkdir(dir, { recursive: true });
   const transport = await startOfflineProxy(base);
-  let context, guard;
+  let context, guard, providers;
   try {
     context = await browser.newContext({ ...VIEWPORTS[viewport], baseURL: base, colorScheme: "dark", locale: "en-US",
       timezoneId: "UTC", reducedMotion: "reduce", serviceWorkers: "block", proxy: transport.proxy });
     context.setDefaultTimeout(15_000);
     // No page leaves the fixture, not even by a redirect.
     guard = await installOfflineGuard(context, base, { transport });
-    await installSyntheticProviders(context, base);
+    providers = await installSyntheticProviders(context, base);
     const page = await context.newPage();
     trackRequests(page, base);
     const errors = [];
@@ -212,6 +212,7 @@ async function walkOne({ browser, base, id, viewport }) {
         ...w.result(), pageErrors: errors, ms: Date.now() - started };
     }
   } finally {
+    providers?.stop();
     try {
       if (guard) {
         await guard.close();
