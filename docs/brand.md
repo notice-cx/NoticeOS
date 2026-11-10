@@ -67,8 +67,9 @@ Ntasks's design system, from `apps/tower/public/brand/precise.css`, which
 there; this page does not repeat them, so they cannot differ.
 
 The Notice blue is the website's accent and the action colour. The light
-theme fills with it; the dark theme fills with a lighter step of it, and sets
-words in the tint the website uses for its accent on dark surfaces. Blue marks interaction, selection and focus; it does not mean
+theme fills controls with it. The dark theme fills controls with a lighter
+step of it and colours accent text in the tint the website uses for its
+accent on dark surfaces. Blue marks interaction, selection and focus. It does not mean
 success, and no severity, status or series token may point at it
 ([brand-identity.test.ts](../apps/tower/test/brand-identity.test.ts)).
 Use green only for recorded evidence of success. Failure is red; paused,
