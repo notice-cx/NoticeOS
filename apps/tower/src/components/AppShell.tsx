@@ -54,7 +54,7 @@ const ITEM_BASE = "flex h-7.5 items-center gap-2.25 rounded-md px-2 text-nav fon
 const ITEM_ACTIVE = "bg-muted text-foreground [&>svg]:text-secondary-foreground";
 const ITEM_IDLE = "text-secondary-foreground hover:bg-muted hover:text-foreground";
 
-const ASSET_ROW_BASE = "flex h-7 w-full items-center gap-2 rounded-md pl-2 pr-2.5 text-label outline-none transition-colors duration-[var(--brand-fast)] max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-ring";
+const ASSET_ROW_BASE = "flex min-h-7 w-full items-center gap-2 rounded-md py-1 pl-2 pr-2.5 text-label outline-none transition-colors duration-[var(--brand-fast)] max-md:min-h-11 focus-visible:outline-2 focus-visible:outline-ring";
 
 /** Above this many assets the nav shows the leading slice plus "All sites…". */
 const NAV_ASSET_LIMIT = 12;

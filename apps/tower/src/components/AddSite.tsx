@@ -133,7 +133,7 @@ export function AddSitePanel({
           aria-invalid={issue ? true : undefined}
           aria-describedby={issue ? `${fieldId}-issue` : undefined}
           onChange={(event) => onDomainChange(event.target.value)}
-          className={cn(fieldClass, "h-10 w-full px-3 font-mono", issue ? "border-error" : null)}
+          className={cn(fieldClass, "h-10 w-full px-3 font-mono", issue ? "ring-error" : null)}
         />
         {issue ? (
           <p id={`${fieldId}-issue`} className="m-0 flex flex-wrap items-center gap-x-2 text-xs text-error" data-add-site-issue={issue.existing ? "exists" : "invalid"}>

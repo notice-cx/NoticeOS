@@ -139,7 +139,7 @@ export function SiteTokens({ provider, sites, statusOf, remaining, cap, onSave, 
                     if (event.key === "Enter") void save(site.id, event.currentTarget.value);
                   }}
                   onBlur={(event) => void save(site.id, event.currentTarget.value)}
-                  className={cn(fieldClass, "h-10 w-full px-3 font-mono", row.state === "refused" ? "border-error" : null)}
+                  className={cn(fieldClass, "h-10 w-full px-3 font-mono", row.state === "refused" ? "ring-error" : null)}
                 />
                 {row.state === "refused" ? (
                   <p className="flex items-center gap-1.5 text-xs text-error" data-site-token-refused={site.id}>
