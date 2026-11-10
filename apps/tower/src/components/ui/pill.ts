@@ -31,16 +31,18 @@ export function pillPickerStateClass(picked: boolean): string {
     : "border-transparent text-muted-foreground hover:bg-muted";
 }
 
-/** A choice's box: rounder, roomier, always bold. */
+/** A choice's box, as Precise draws a view's tabs: the label at 13px, always
+ * medium weight, so a click cannot reflow the row. */
 export const pillChoiceClass = cn(
   pillClass,
   pillControlClass,
-  "whitespace-nowrap rounded-full px-2.5 font-medium transition-colors",
+  "h-6.5 whitespace-nowrap px-2.25 text-label font-medium transition-colors",
 );
 
-/** A choice's selected pair: every option keeps a border; the selected one fills. */
+/** A choice's selected pair: the selected one ringed on Panel in Text, the
+ * others in Text 3 with no edge. */
 export function pillChoiceStateClass(selected: boolean): string {
   return selected
-    ? "border-primary/30 bg-accent-soft text-accent-text"
-    : "border-border text-muted-foreground hover:bg-muted/60";
+    ? "border-border bg-panel text-foreground"
+    : "border-transparent text-muted-foreground hover:text-foreground";
 }

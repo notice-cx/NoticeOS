@@ -193,8 +193,10 @@ that can be read quickly, and the kit has a component for it:
 | why a task ranks | its card's figures in one row, read left to right, each with its unit a step lighter: the money at stake, the likelihood as a percent and ten bars, the operator's minutes, the time to signal, the kill date, the rank with its policy version | `WhyItRanks` |
 
 **Tabs are the only way a page in the Tower is divided into sections.** When
-a page covers more than one subject, `Tabs` divides it: the same bar on a
-asset's page, Alerts, Tasks, System health, Workflows and Settings. Each tab has its
+a page covers more than one subject, `Tabs` divides it: the same bar on an
+asset's page, Alerts, System health, Workflows and Settings, drawn as
+Precise's tabs, the current one ringed on Panel in Text and the others in
+Text 3. Each tab has its
 own URL (the first tab the bare address, each other one a segment after it),
 the arrow keys and Home/End move between tabs, and on a phone the tab strip
 scrolls within its own row. A page never adds its own navigation beside the

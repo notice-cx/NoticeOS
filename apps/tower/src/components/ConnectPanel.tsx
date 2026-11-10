@@ -467,7 +467,7 @@ function KeyField({
         {...(autoFocus ? { "data-autofocus": "" } : {})}
         aria-invalid={error ? true : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={cn(fieldClass, "h-10 w-full px-3 font-mono", error ? "border-error" : null)}
+        className={cn(fieldClass, "h-10 w-full px-3 font-mono", error ? "ring-error" : null)}
       />
       {field.description ? <p id={`${id}-description`} className="text-xs text-muted-foreground">{field.description}</p> : null}
       {error ? <p className="text-xs text-error">{error}</p> : null}
@@ -546,7 +546,7 @@ function FeedListField({
             aria-invalid={error ? true : undefined}
             {...(autoFocus && index === 0 ? { "data-autofocus": "" } : {})}
             onChange={(event) => set(index, { url: event.target.value })}
-            className={cn(fieldClass, "h-10 min-w-0 flex-1 px-3 font-mono text-xs", error ? "border-error" : null)}
+            className={cn(fieldClass, "h-10 min-w-0 flex-1 px-3 font-mono text-xs", error ? "ring-error" : null)}
           />
         </div>
       ))}

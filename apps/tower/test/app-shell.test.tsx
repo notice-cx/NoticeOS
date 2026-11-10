@@ -681,7 +681,7 @@ describe("the small-screen bar carries the nav's own mark", () => {
       .filter((link) => !link.closest("[data-app-sidebar]"));
     expect(home).toHaveLength(1);
     expect(home[0]?.className).toContain("min-h-11");
-    expect(home[0]?.parentElement?.className).toContain("h-12");
+    expect(home[0]?.parentElement?.className).toContain("h-13");
   });
 });
 

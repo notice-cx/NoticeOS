@@ -233,13 +233,13 @@ describe("CollectionEditor", () => {
     expect(alert).toHaveTextContent("Paid (USD) must be at least 0");
     const paid = within(form).getByLabelText("Paid (USD)");
     expect([...form.querySelectorAll('[aria-invalid="true"]')]).toEqual([paid]);
-    expect([...form.querySelectorAll(".border-error")]).toEqual([paid]);
+    expect([...form.querySelectorAll(".ring-error")]).toEqual([paid]);
     expect(paid).toHaveAttribute("aria-describedby", alert.id);
     expect(calls).toHaveLength(0);
 
     fireEvent.change(paid, { target: { value: "6.69" } });
     expect(form.querySelector('[aria-invalid="true"]')).toBeNull();
-    expect(form.querySelector(".border-error")).toBeNull();
+    expect(form.querySelector(".ring-error")).toBeNull();
 
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "northwind.example" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
@@ -915,7 +915,7 @@ describe("CollectionEditor", () => {
     const form = fillPanelForm("magnet specs");
     expect(await within(form).findByRole("alert")).toHaveTextContent("this panel is full");
     expect(form.querySelector('[aria-invalid="true"]')).toBeNull();
-    expect(form.querySelector(".border-error")).toBeNull();
+    expect(form.querySelector(".ring-error")).toBeNull();
     expect(calls).toHaveLength(0);
   });
 

@@ -3,21 +3,25 @@ import { type VariantProps, cva } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Precise's button (Ntasks docs/design.md, Button): 30px, 26px small, 6px
+ * corners, the label at 13px. `default` is the view's one primary action in
+ * the accent, `outline` the raised secondary on Background, `ghost` a bare
+ * label in Text 2. Below `sm` every size grows to the 44px thumb target.
+ */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-[background-color,color,filter] duration-[var(--brand-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-45 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "border border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover",
-        outline: "border border-border bg-transparent hover:bg-muted",
-        ghost: "hover:bg-muted",
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover",
+        outline: "bg-background text-foreground shadow-raise ring-1 ring-inset ring-border hover:bg-muted [&_svg]:text-muted-foreground",
+        ghost: "text-secondary-foreground hover:bg-muted hover:text-foreground [&_svg]:text-muted-foreground",
       },
-      // Below `sm` every size grows to the 44px thumb target; desk density is
-      // untouched.
       size: {
-        default: "h-9 px-4 py-2 max-sm:min-h-11",
-        sm: "h-8 px-3 text-xs max-sm:min-h-11",
-        icon: "size-9 max-sm:size-11",
+        default: "h-7.5 gap-1.5 px-2.5 text-label max-sm:min-h-11 [&_svg]:size-3.75",
+        sm: "h-6.5 gap-1.25 px-2 text-meta max-sm:min-h-11 [&_svg]:size-3.5",
+        icon: "size-7.5 max-sm:size-11 [&_svg]:size-4",
       },
     },
     defaultVariants: {

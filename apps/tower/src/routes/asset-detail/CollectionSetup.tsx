@@ -94,7 +94,7 @@ export function FetchEndpointEditor({ asset }: { asset: string }) {
           placeholder="https://example.com/api/metrics"
           aria-invalid={bad ? true : undefined}
           onChange={(event) => setUrl(event.target.value)}
-          className={cn(fieldClass, "h-10 w-full px-3 font-mono", bad ? "border-error" : null)}
+          className={cn(fieldClass, "h-10 w-full px-3 font-mono", bad ? "ring-error" : null)}
         />
         {bad ? <p className="m-0 text-xs text-error">A full https:// URL</p> : null}
       </div>
@@ -277,7 +277,7 @@ function TotalField({
         spellCheck={false}
         aria-invalid={error ? true : undefined}
         onChange={(event) => onChange(event.target.value)}
-        className={cn(fieldClass, "h-10 w-full px-3", mono ? "font-mono" : null, error ? "border-error" : null)}
+        className={cn(fieldClass, "h-10 w-full px-3", mono ? "font-mono" : null, error ? "ring-error" : null)}
       />
       {error ? <p className="m-0 text-xs text-error">{error}</p> : null}
     </div>

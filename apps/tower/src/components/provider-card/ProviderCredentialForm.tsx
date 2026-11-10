@@ -185,7 +185,7 @@ function FieldInput({
           className={cn(
             fieldClass,
             "w-full font-mono text-xs",
-            error ? "border-error" : "border-border",
+            error ? "ring-error" : null,
           )}
           aria-describedby={field.description ? `${id}-description` : undefined}
           aria-invalid={error ? true : undefined}
@@ -208,7 +208,7 @@ function FieldInput({
             // value here an operator has to proof-read against another screen,
             // so it gets the full width rather than a box it scrolls inside.
             field.kind === "url" ? "w-full font-mono text-xs" : "w-72 max-w-full",
-            error ? "border-error" : "border-border",
+            error ? "ring-error" : null,
           )}
           aria-describedby={field.description ? `${id}-description` : undefined}
           aria-invalid={error ? true : undefined}
@@ -324,12 +324,13 @@ function AssetKeyFields({
                   autoComplete="off"
                   aria-label={`${field.label} — ${row.id}`}
                   aria-describedby={field.required ? requirementId : undefined}
+                  aria-invalid={error ? true : undefined}
                   data-asset-key-input={row.id}
                   onChange={(event) => update(row.id, event.target.value)}
                   className={cn(
                     fieldClass,
                     "w-64 max-w-full",
-                    error ? "border-error" : "border-border",
+                    error ? "ring-error" : null,
                   )}
                 />
                 {row.held ? (

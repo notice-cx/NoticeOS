@@ -3667,12 +3667,6 @@ describe("phone mode — the tab strip scrolls, the page does not", () => {
     expect(list.className).toContain("overscroll-x-contain");
   });
 
-  it("hangs the divider on the wrapper so the scroller cannot clip it", () => {
-    const wrapper = strip().querySelector("[data-tab-strip]")!;
-    expect(wrapper.className).toContain("border-b");
-    expect(wrapper.querySelector('[role="tablist"]')?.className).not.toContain("border-b");
-  });
-
   it("gives every tab the phone's touch floor and keeps it from shrinking", () => {
     const tabs = [...strip().querySelectorAll('[role="tab"]')];
     expect(tabs).toHaveLength(7);
@@ -3700,11 +3694,11 @@ describe("phone mode — the thumb floor the desk's densities are under", () => 
       </>,
     );
     const [small, icon, normal] = [...container.querySelectorAll("button")];
-    expect(small!.className).toContain("h-8");
+    expect(small!.className).toContain("h-6.5");
     expect(small!.className).toContain("max-sm:min-h-11");
-    expect(icon!.className).toContain("size-9");
+    expect(icon!.className).toContain("size-7.5");
     expect(icon!.className).toContain("max-sm:size-11");
-    expect(normal!.className).toContain("h-9");
+    expect(normal!.className).toContain("h-7.5");
     expect(normal!.className).toContain("max-sm:min-h-11");
   });
 

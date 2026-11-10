@@ -66,6 +66,10 @@
   --card-foreground: var(--brand-ink);
   --muted: var(--brand-raised);
   --muted-foreground: var(--brand-muted);
+  --secondary-foreground: var(--brand-ink-2);
+  --sidebar: var(--brand-sidebar);
+  --panel: var(--brand-panel);
+  --shadow-raise: var(--brand-shadow-raise);
   --border: var(--brand-line);
   --ring: var(--brand-accent);
 
@@ -463,6 +467,10 @@
   --card-foreground: var(--brand-ink);
   --muted: var(--brand-raised);
   --muted-foreground: var(--brand-muted);
+  --secondary-foreground: var(--brand-ink-2);
+  --sidebar: var(--brand-sidebar);
+  --panel: var(--brand-panel);
+  --shadow-raise: var(--brand-shadow-raise);
   --border: var(--brand-line);
   --ring: var(--brand-accent);
 
@@ -611,6 +619,12 @@
   --color-swatch-light: var(--swatch-light);
   --color-swatch-dark: var(--swatch-dark);
   --shadow-raised: var(--shadow-raised);
+  /* Precise's raised control (a secondary button) and the sidebar's width. */
+  --shadow-raise: var(--shadow-raise);
+  --color-sidebar: var(--sidebar);
+  --color-panel: var(--panel);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --spacing-sidebar: 236px;
 
   /* The desk's type scale above Tailwind's own steps. Numbers own the top of
      it: `display` is a screen's lead figure, `figure` a stat tile's, and
@@ -630,6 +644,14 @@
   --text-figure-sm--font-weight: 600;
   --text-micro: 0.6875rem;
   --text-micro--line-height: 1rem;
+  /* Precise's control steps: a label, button or field (13 / 20), a sidebar
+     item (13.5 / 20) and a small button, id or age (12.5 / 16). */
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.25rem;
+  --text-nav: 0.84375rem;
+  --text-nav--line-height: 1.25rem;
+  --text-meta: 0.78125rem;
+  --text-meta--line-height: 1rem;
 
   /* TV type scale: tokens, not per-component choices. The small steps carry
      their floor on a scaled Wall (§ The TV layout, scaled); the boost is 1

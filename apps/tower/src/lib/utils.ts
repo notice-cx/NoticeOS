@@ -34,6 +34,9 @@ export const THEME_TEXT_SIZES = [
   "figure",
   "figure-sm",
   "micro",
+  "label",
+  "nav",
+  "meta",
 ] as const;
 
 const twMerge = extendTailwindMerge({ extend: { theme: { text: [...THEME_TEXT_SIZES] } } });

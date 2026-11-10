@@ -60,7 +60,6 @@ describe("the Notice blue is a brand colour, never a state", () => {
   it("feeds actions, selection and focus only", () => {
     for (const t of themes) {
       expect(t.app.get("--primary"), t.name).toBe("var(--brand-accent)");
-      expect(t.app.get("--primary-hover"), t.name).toBe("var(--brand-accent-hover)");
       expect(t.app.get("--accent-soft"), t.name).toBe("var(--brand-accent-soft)");
       expect(t.app.get("--accent-text"), t.name).toBe("var(--brand-accent-text)");
       expect(t.app.get("--ring"), t.name).toBe("var(--brand-accent)");
