@@ -135,6 +135,11 @@ export interface TaskServiceStatus {
   app?: { clientId: string; workspaceId: string | null } | null;
 }
 export const TASK_SERVICE_STATUS_PATH = "/api/tasks/service";
+/** POST: the Tower's client id as a connected app of this installation's
+ * Ntasks, registering the Tower there first when none is saved. */
+export const TASK_SERVICE_APP_PATH = "/api/tasks/service/app";
+/** Where Ntasks returns a person's browser after sign-in: the address the Tower registers. */
+export const NTASKS_SIGNED_IN_PATH = "/tasks/signed-in";
 /** The error a task route answers while no task service is connected. */
 export const TASK_SERVICE_NOT_CONNECTED = "task_service_not_connected";
 

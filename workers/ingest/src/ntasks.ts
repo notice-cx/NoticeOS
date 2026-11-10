@@ -17,6 +17,42 @@ export function ntasksAppClientId(fields: Readonly<Record<string, string>>): str
   const value = fields[NTASKS_APP_CLIENT_ID]?.trim() ?? '';
   return CLIENT_ID.test(value) ? value : null;
 }
+/** The name the Tower registers under as a connected app; Ntasks shows it when a person allows it. */
+export const NTASKS_APP_NAME = 'NoticeOS Tower';
+/** What the Tower's page asks for when it signs a person in (apps/tower/src/lib/ntasks-sign-in.ts). */
+const NTASKS_APP_SCOPE = 'tasks:read tasks:write tasks:decide offline_access';
+/** Ntasks's own refusal codes, as RFC 7591 names them; nothing else of its answer is passed on. */
+const REFUSAL_CODE = /^[a-z_]{1,64}$/u;
+
+/** Ntasks's answer to registering the Tower: its client id, or the code and status it refused with. */
+export type NtasksAppRegistration =
+  | { readonly registered: true; readonly clientId: string }
+  | { readonly registered: false; readonly status: number; readonly error: string };
+
+/**
+ * Registers the Tower's page, returning to `redirectUri`, as a connected app
+ * of the credential's Ntasks workspace: RFC 7591 registration with the
+ * service credential as the initial access token (Ntasks docs/sign-in.md,
+ * "Registering an app from a service"). Ntasks answers the app it already has
+ * for the same name and address. Throws TaskServiceError when Ntasks gave no
+ * answer, or answered 429 or 5xx, which says nothing about the registration.
+ */
+export async function registerNtasksApp(fields: Record<string, string>, redirectUri: string,
+  fetchImpl: typeof fetch = fetch): Promise<NtasksAppRegistration> {
+  const { status, body } = await callNtasks(fields, { method: 'POST', path: '/api/auth/oauth2/register',
+    body: JSON.stringify({ client_name: NTASKS_APP_NAME, redirect_uris: [redirectUri], token_endpoint_auth_method: 'none',
+      grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], scope: NTASKS_APP_SCOPE }) }, fetchImpl);
+  if (status === 429 || status >= 500) throw new TaskServiceError({ kind: status === 429 ? 'rate-limited' : 'http', status });
+  const answer = body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+  const clientId = typeof answer.client_id === 'string' ? answer.client_id : '';
+  if (status === 200 || status === 201) {
+    if (!CLIENT_ID.test(clientId)) throw new TaskServiceError({ kind: 'invalid-response', status });
+    return { registered: true, clientId };
+  }
+  const error = typeof answer.error === 'string' && REFUSAL_CODE.test(answer.error) ? answer.error : 'refused';
+  return { registered: false, status, error };
+}
+
 /** One Ntasks answer, at most: a board of a large project fits well inside it. */
 const RESPONSE_BYTES = 16 * 1024 * 1024;
 const TIMEOUT_MS = 15_000;

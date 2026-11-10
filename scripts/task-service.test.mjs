@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTaskService, mapTaskProjects, TaskServiceToolRefused, TaskServiceUnavailable } from './task-service.mjs';
+import { createTaskService, mapTaskProjects, TaskServiceAppRefused, TaskServiceToolRefused, TaskServiceUnavailable } from './task-service.mjs';
 import { openStandaloneMcp } from './standalone-mcp.mjs';
 import { INSTALLATION_TASK_RULES, ntasksGuide, TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
@@ -43,6 +43,28 @@ function mcp(tools) {
   };
 }
 const service = (fetch, now = Date.now) => createTaskService({ door: DOOR, token: async () => 'operator-token', fetch, now });
+
+test('registering the Tower answers its client id, and the next status read names it', async () => {
+  let saved = null;
+  const asked = [];
+  const fetch = async (url, init) => {
+    if (url === `${DOOR}/api/task-service`) return Response.json({ connected: true, origin: 'https://ntasks.example.com', appClientId: saved });
+    assert.equal(url, `${DOOR}/api/task-service/app`);
+    asked.push(JSON.parse(init.body));
+    saved = 'tower-registered';
+    return Response.json({ clientId: saved, registered: true });
+  };
+  const tasks = service(fetch);
+  assert.equal(await tasks.appClientId(), null);
+  assert.equal(await tasks.registerApp('https://tower.example.com/tasks/signed-in'), 'tower-registered');
+  assert.deepEqual(asked, [{ redirectUri: 'https://tower.example.com/tasks/signed-in' }]);
+  assert.equal(await tasks.appClientId(), 'tower-registered');
+
+  await assert.rejects(service(async () => Response.json({ refused: { status: 401, error: 'invalid_token' } })).registerApp('https://tower.example.com/tasks/signed-in'),
+    error => error instanceof TaskServiceAppRefused && error.code === 'invalid_token' && error.status === 401);
+  await assert.rejects(service(async () => Response.json({ answered: false, reason: 'timeout' })).registerApp('https://tower.example.com/tasks/signed-in'),
+    error => error instanceof TaskServiceUnavailable && error.reason === 'timeout');
+});
 
 test('a call reaches Ntasks through the ingest door, and an unanswered one names why', async () => {
   const seen = [];

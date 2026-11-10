@@ -11,6 +11,8 @@
 import { configStoreRequest, DEFAULT_DOOR } from './config-store-client.mjs';
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 export const TASK_SERVICE_ROUTE = 'api/task-service';
+/** The ingest's route that registers the Tower in Ntasks, or answers the client id saved. */
+export const TASK_SERVICE_APP_ROUTE = 'api/task-service/app';
 /** How long one answer to "is a task service connected?" serves the calls after it. */
 const STATUS_TTL_MS = 5_000;
 /** How long Ntasks's project list and workspace id serve the calls after them. */
@@ -27,6 +29,17 @@ export class TaskServiceUnavailable extends Error {
     constructor(reason, status) {
         super(`The task service did not answer (${reason}).`);
         this.reason = reason;
+        this.status = status;
+    }
+}
+/** Ntasks refused to register the Tower as a connected app: its RFC 7591 code and HTTP status. */
+export class TaskServiceAppRefused extends Error {
+    code;
+    status;
+    name = 'TaskServiceAppRefused';
+    constructor(code, status) {
+        super(`Ntasks refused to register the Tower (${code}).`);
+        this.code = code;
         this.status = status;
     }
 }
@@ -52,10 +65,10 @@ export function createTaskService(options = {}) {
     let catalog = null;
     let workspace = null;
     /** One request to the ingest door, through the one door client that carries the operator bearer. */
-    async function door_(method, body) {
+    async function door_(method, body, route = TASK_SERVICE_ROUTE) {
         let reply;
         try {
-            reply = await configStoreRequest(TASK_SERVICE_ROUTE, { door, method, ...(body === undefined ? {} : { body }),
+            reply = await configStoreRequest(route, { door, method, ...(body === undefined ? {} : { body }),
                 ...(token ? { token: await token() } : {}),
                 fetchImpl: (input, init) => fetchImpl(input, { ...init, signal: AbortSignal.timeout(DOOR_TIMEOUT_MS) }) });
         }
@@ -150,6 +163,18 @@ export function createTaskService(options = {}) {
         },
         async origin() { return (await read()).origin; },
         async appClientId() { return (await read()).appClientId; },
+        async registerApp(redirectUri) {
+            const answer = await door_('POST', { redirectUri }, TASK_SERVICE_APP_ROUTE);
+            if (typeof answer.clientId === 'string') {
+                // The next status read asks the ingest again, so it names the client id just saved.
+                status = null;
+                return answer.clientId;
+            }
+            const refused = row(answer.refused);
+            if (refused)
+                throw new TaskServiceAppRefused(typeof refused.error === 'string' ? refused.error : 'refused', typeof refused.status === 'number' ? refused.status : 0);
+            throw new TaskServiceUnavailable(typeof answer.reason === 'string' ? answer.reason : 'invalid-response', typeof answer.status === 'number' ? answer.status : undefined);
+        },
         async home(within) {
             let timer;
             const late = within === undefined ? [] : [new Promise(resolve => { timer = setTimeout(resolve, within, null); })];

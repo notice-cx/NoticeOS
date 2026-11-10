@@ -1155,7 +1155,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       response = Response.json({ isolated: true, now: JOURNEY_NOW,
         connected: await connected("bing-webmaster"), tested: await tested("bing-webmaster"), collected,
         assets: await storedSites(),
-        documents, tasks, requests, taskCommands, ntasksDecisions: ntasks?.decisions() ?? [] });
+        documents, tasks, requests, taskCommands, ntasksDecisions: ntasks?.decisions() ?? [], ntasksRegistrations: ntasks?.registrations() ?? 0 });
     } else if (url.pathname === "/__journey/reset" && request.method === "POST") {
       await postgres.reset(); bucket = journeyBucket(); documents = structuredClone(INITIAL_DOCUMENTS);
       versions = new Map(Object.keys(documents).map((file) => [file, 1]));
@@ -1166,10 +1166,12 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // Tasks live in Ntasks from here, the Tower registered there as a
       // connected app: the Tower's server reaches it with the installation's
       // credential, and a browser through `ntasks-route.mjs`.
-      // `?apiVersion=` makes it an Ntasks that names an older API version.
+      // `?apiVersion=` makes it an Ntasks that names an older API version;
+      // `?app=unregistered` starts with no Tower client id saved; `?app=refused` with an Ntasks that will not register it.
       const apiVersion = url.searchParams.has("apiVersion") ? Number(url.searchParams.get("apiVersion")) : undefined;
+      const app = url.searchParams.get("app");
       ntasks = createFixtureNtasks({ rows: () => tasks, changed: publishTasks, project: () => taskProject, towerOrigin: url.origin, now: JOURNEY_NOW,
-        ...(apiVersion === undefined ? {} : { apiVersion }) });
+        app: app === "unregistered" || app === "refused" ? app : "registered", ...(apiVersion === undefined ? {} : { apiVersion }) });
       response = Response.json({ origin: JOURNEY_NTASKS_ORIGIN });
     } else if (url.pathname.startsWith(`${JOURNEY_NTASKS_PATH}/`)) {
       // What the browser sent to the fixture Ntasks's address, answered as it.

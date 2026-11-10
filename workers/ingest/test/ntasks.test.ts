@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { connectCredential } from '../src/credential-connect.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
 import { callNtasks, checkNtasks, ntasksOrigin } from '../src/ntasks.js';
-import { handleTaskService } from '../src/routes/task-service.js';
+import { handleTaskService, handleTaskServiceApp } from '../src/routes/task-service.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { forgetCredentials } from './helpers.js';
 
@@ -122,5 +122,49 @@ it('forwards one call for the operator, and says why when Ntasks gave no answer'
     { method: 'GET', path: '/api/tasks', body: '{}' }, { method: 'POST', path: '/api/tasks', idempotencyKey: 'short' }, { method: 'GET', path: '/api/tasks', extra: 1 },
     { method: 'POST', path: '/api/mcp', onBehalfOf: 'two words' }, { method: 'POST', path: '/api/mcp', onBehalfOf: '' }]) {
     expect((await handleTaskService(door(call), inProfile('standalone'), async () => { throw new Error('must not be called'); })).status, JSON.stringify(call)).toBe(400);
+  }
+});
+
+const SIGNED_IN = 'https://tower.example.com/tasks/signed-in';
+function appDoor(body: unknown) {
+  return new Request('http://ingest.local/api/task-service/app', { method: 'POST',
+    headers: { authorization: `Bearer ${OPERATOR_TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+}
+const savedClientId = async () => (await (await handleTaskService(door(null, { method: 'GET' }), inProfile('standalone'))).json() as { appClientId: string | null }).appClientId;
+
+it('registers the Tower in Ntasks once with the service credential, saves its client id, and answers the saved one after', async () => {
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'))).json())
+    .toEqual({ answered: false, reason: 'not-connected' });
+  expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields })).toMatchObject({ ok: true });
+  const registrations: unknown[] = [];
+  const ntasks = vi.fn<typeof fetch>(async (input, init) => {
+    expect(String(input)).toBe('https://ntasks.example.com/api/auth/oauth2/register');
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer synthetic-service-token');
+    registrations.push(JSON.parse(String(init?.body)));
+    return Response.json({ client_id: 'tower-registered', client_name: 'NoticeOS Tower', redirect_uris: [SIGNED_IN] }, { status: 201 });
+  });
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'), ntasks)).json())
+    .toEqual({ clientId: 'tower-registered', registered: true });
+  expect(registrations).toEqual([expect.objectContaining({ client_name: 'NoticeOS Tower', redirect_uris: [SIGNED_IN], token_endpoint_auth_method: 'none',
+    scope: 'tasks:read tasks:write tasks:decide offline_access' })]);
+  expect(await savedClientId()).toBe('tower-registered');
+  expect((await resolveCredential(inProfile('standalone'), 'ntasks', 'store-only')).fields).toEqual({ ...fields, NTASKS_APP_CLIENT_ID: 'tower-registered' });
+
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'), ntasks)).json())
+    .toEqual({ clientId: 'tower-registered', registered: false });
+  expect(ntasks).toHaveBeenCalledTimes(1);
+});
+
+it('answers only the code Ntasks refused a registration with, and saves nothing', async () => {
+  expect(await putCredential(inProfile('standalone'), { provider: 'ntasks', fields })).toMatchObject({ ok: true });
+  const refused = await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'),
+    async () => Response.json({ error: 'invalid_token', error_description: 'Invalid initial access token' }, { status: 401 }));
+  expect(await refused.json()).toEqual({ refused: { status: 401, error: 'invalid_token' } });
+  expect(await (await handleTaskServiceApp(appDoor({ redirectUri: SIGNED_IN }), inProfile('standalone'),
+    async () => Response.json({ error: 'temporarily_unavailable' }, { status: 503 }))).json()).toEqual({ answered: false, reason: 'http', status: 503 });
+  expect(await savedClientId()).toBeNull();
+  for (const body of [{ redirectUri: 'https://tower.example.com/elsewhere' }, { redirectUri: 'javascript:alert(1)' },
+    { redirectUri: `${SIGNED_IN}?next=/` }, { redirectUri: SIGNED_IN, extra: 1 }, {}]) {
+    expect((await handleTaskServiceApp(appDoor(body), inProfile('standalone'), async () => { throw new Error('must not be called'); })).status, JSON.stringify(body)).toBe(400);
   }
 });

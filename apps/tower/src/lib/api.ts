@@ -81,6 +81,7 @@ import type { WorkflowsPayload } from "@shared/workflows";
 import type { TaskSourcePayload } from "@shared/task-source";
 import {
   READ_ONLY_DEPLOYMENT,
+  TASK_SERVICE_APP_PATH,
   TASK_SERVICE_STATUS_PATH,
   type LiveTaskDetail,
   type LiveTasksPayload,
@@ -568,6 +569,17 @@ async function fetchTaskServiceRequest(fetch: ApiTransport, signal?: AbortSignal
   if (res.status === 404) { await res.body?.cancel(); return { connected: false, origin: null, projects: null }; }
   if (!res.ok) throw await refusal(res, `GET ${TASK_SERVICE_STATUS_PATH} failed: ${res.status}`);
   return (await res.json()) as TaskServiceStatus;
+}
+
+/** The client id Sign in to Ntasks signs in with: the one saved, or, when
+ * none is, the one Ntasks answers once the installation registered the Tower
+ * there for this page's origin. */
+async function registerNtasksAppRequest(fetch: ApiTransport): Promise<{ clientId: string }> {
+  const res = await fetch(TASK_SERVICE_APP_PATH, { method: "POST", headers: JSON_WRITE_HEADERS, body: "{}" });
+  if (!res.ok) throw await refusal(res, `POST ${TASK_SERVICE_APP_PATH} failed: ${res.status}`);
+  const body: unknown = await res.json();
+  if (!isRecord(body) || typeof body.clientId !== "string") throw new ApiError("The Tower answered no Ntasks client id.", res.status);
+  return { clientId: body.clientId };
 }
 
 /** The read-only work board (desk-only). Always a fully-formed payload with a
@@ -1789,6 +1801,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void | (() =>
     fetchSettingsPreferences: bind(fetchSettingsPreferencesRequest),
     fetchTaskSource: bind(fetchTaskSourceRequest),
     fetchTaskService: bind(fetchTaskServiceRequest),
+    registerNtasksApp: bind(registerNtasksAppRequest),
     fetchWork: bind(fetchWorkRequest),
     fetchAlertDaily: bind(fetchAlertDailyRequest),
     fetchAlertHistory: bind(fetchAlertHistoryRequest),
@@ -1872,6 +1885,7 @@ export const {
   fetchSettingsPreferences,
   fetchTaskSource,
   fetchTaskService,
+  registerNtasksApp,
   fetchWork,
   fetchAlertDaily,
   fetchAlertHistory,
