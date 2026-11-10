@@ -957,6 +957,17 @@ describe("the task page", () => {
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: "agent:Codex (ntasks)" }));
   });
 
+  it("tells apart the holder and a board holder of another kind shown by the same name", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: "service:ci/nightly-triage" }) }));
+    api.fetchTasks.mockResolvedValue({ ...board(), tasks: [task({ id: "ro-l1ed.6", assignee: "nightly-triage" })] });
+    renderTask();
+
+    const editor = await openFact("Assignee: nightly-triage");
+    await waitFor(() => expect(within(editor).getByRole("option", { name: "nightly-triage (person)" })).toBeInTheDocument());
+    expect(within(editor).getByRole("option", { name: "nightly-triage (person)" })).toHaveAttribute("data-value", "nightly-triage");
+    expect(within(editor).getByRole("option", { name: "nightly-triage (agent)" })).toHaveAttribute("data-value", "service:ci/nightly-triage");
+  });
+
   it("saves the priority as a number on choose and undoes it to the band it came from", async () => {
     renderTask();
 

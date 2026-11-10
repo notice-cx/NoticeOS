@@ -1732,15 +1732,16 @@ const KIND_CHOICES: FactChoice[] = [
 function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly Holder[]): FactChoice[] {
   // The current holder keeps its own spelling of a name it shares, so it stays the pick.
   const named = actors === undefined
-    ? people.map((holder) => ({
-      value: current !== null && actorKey(current) === actorKey(holder.actor) ? current : holder.actor,
-      label: holderLabel(holder.actor, holder.name, people.map((other) => [other.actor, other.name] as const)),
-    }))
+    ? people.map((holder) => ({ value: current !== null && actorKey(current) === actorKey(holder.actor) ? current : holder.actor, label: holder.name }))
     : actors.map((actor) => ({ value: actor.principalId, label: actor.displayName.trim() || "Unknown actor" }));
   const held = current && !named.some((choice) => choice.value === current)
     ? [{ value: current, label: taskActorLabel(current, actors) }] : [];
+  // Every choice, the held one included, is told apart from another of a different kind shown by the same name.
+  const all = [...named, ...held];
+  const shown = all.map((choice) => [choice.value, choice.label] as const);
+  const labelled = actors === undefined ? all.map((choice) => ({ ...choice, label: holderLabel(choice.value, choice.label, shown) })) : all;
   return [
-    ...[...named, ...held].map((choice) => ({ ...choice, mark: <AgentMark name={choice.label} size="small" /> })),
+    ...labelled.map((choice) => ({ ...choice, mark: <AgentMark name={choice.label} size="small" /> })),
     { value: "", label: "Nobody" },
   ];
 }
