@@ -83,6 +83,28 @@ test('a background request returns the observed run ID before a slow failure and
   assert.equal(run.id, runId);
   assert.equal(run.state, 'failed');
 });
+
+test('a failed active-history write withholds the start receipt but the job still records its result', { timeout: 5000 }, async (t) => {
+  const entered = barrier(), release = barrier();
+  const own = await fixture(t, async () => {
+    entered.resolve();
+    await release.promise;
+    return { failed: 1 };
+  });
+  await mkdir(path.join(own.root, WORKFLOW_ACTIVE_FILE));
+  const request = own.request('panel-refresh', { background: true, timeoutMs: 3000 });
+  try {
+    await entered.promise;
+    assert.equal((await own.request('panel-refresh', { background: true })).body.error, 'job_busy');
+  } finally {
+    release.resolve();
+    await own.finished();
+  }
+  assert.deepEqual(await request, { status: 500, body: { job: 'panel-refresh', outcome: 'failed' } });
+  assert.deepEqual(own.calls, ['panel-refresh']);
+  assert.equal(JSON.parse(await readFile(path.join(own.root, WORKFLOW_HISTORY_FILE), 'utf8')).state, 'failed');
+});
+
 test('the stack command reaches the live scheduler from a separate CLI process and runs exactly the selected job', async (t) => {
   const own = await fixture(t);
   const dockerCalls = [];

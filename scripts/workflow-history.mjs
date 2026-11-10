@@ -24,11 +24,14 @@ export const WORKFLOW_SESSION_ID = randomUUID();
  */
 export function createWorkflowHistory(root) {
     const active = new Map();
-    let writes = Promise.resolve();
+    let writes = Promise.resolve(true);
     let completed = 0;
     // Telemetry failure cannot change the operation's outcome. Writes are ordered
     // so concurrent workflows cannot overwrite each other's active observations.
-    function queueWrite(fn) { writes = writes.then(fn).catch(() => { }); return writes; }
+    function queueWrite(fn) {
+        writes = writes.then(fn).then(() => true, () => false);
+        return writes;
+    }
     function publishHeartbeat() {
         const body = JSON.stringify({ sessionId: WORKFLOW_SESSION_ID, updatedAt: new Date().toISOString(), runs: [...active.values()] });
         return queueWrite(async () => {

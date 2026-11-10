@@ -6,7 +6,7 @@ export declare const WORKFLOW_ACTIVE_FILE: string;
 export declare const WORKFLOW_SESSION_ID: string;
 export interface WorkflowRunTrace {
     id: string;
-    observed: Promise<void>;
+    observed: Promise<boolean>;
     local: boolean;
     run: WorkflowRecorder['run'];
     verdict(outcome: string): 'failed' | 'skipped' | 'succeeded';
@@ -14,7 +14,7 @@ export interface WorkflowRunTrace {
     finish(outcome: string): Promise<void>;
 }
 export interface WorkflowHistory {
-    publishHeartbeat(): Promise<void>;
+    publishHeartbeat(): Promise<boolean>;
     beginRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace;
 }
 /**
@@ -24,7 +24,7 @@ export interface WorkflowHistory {
  * reads the same two files under its home (apps/tower/vite/workflow-history.ts).
  */
 export declare function createWorkflowHistory(root: string): WorkflowHistory;
-export declare function publishWorkflowHeartbeat(): Promise<void>;
+export declare function publishWorkflowHeartbeat(): Promise<boolean>;
 export declare function beginWorkflowRun(job: string, startedAtMs: number, trigger?: WorkflowRun['trigger']): null | WorkflowRunTrace;
 /** Bounded tail read; a torn first/last JSONL line is never an invented run. */
 export declare function readJsonLines(file: string, maxBytes?: number): Promise<unknown[]>;
