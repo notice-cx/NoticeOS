@@ -941,13 +941,12 @@ describe("Asset Overview — the two lists", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    const marks = [...container.querySelectorAll('section[aria-label="Needs attention"] ul > li')].map(
-      (row) => row.querySelector("svg[data-task-status]")!,
-    );
+    const rows = [...container.querySelectorAll('section[aria-label="Needs attention"] ul > li')];
+    const marks = rows.map((row) => row.querySelector("svg[data-task-status]")!);
     // A task's priority is not a severity: every ask wears Precise's waiting
-    // mark, a top one too, and its name says whether it is an approval.
+    // mark, a top one too, and its caption says whether it is an approval.
     expect(marks.map((mark) => mark.getAttribute("data-task-status"))).toEqual(["waiting", "waiting", "waiting"]);
-    expect(marks.map((mark) => mark.getAttribute("aria-label"))).toEqual(["Question", "Approval", "Question"]);
+    expect(rows.map((row) => row.textContent?.match(/Approval|Question/)?.[0])).toEqual(["Question", "Approval", "Question"]);
   });
 
   it("keeps core task surfaces visible with an honestly unread inbox", async () => {

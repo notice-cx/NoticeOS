@@ -63,7 +63,7 @@ export function PopoverContent({
           trigger?.current?.focus();
         }}
         className={cn(
-          "z-50 max-h-(--radix-popover-content-available-height) w-72 overflow-auto rounded-xl border border-border bg-card p-3 text-card-foreground shadow-xl outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "z-50 max-h-(--radix-popover-content-available-height) w-72 overflow-auto rounded-xl border border-border bg-card p-3 text-card-foreground shadow-pop outline-none focus-visible:ring-2 focus-visible:ring-ring",
           className,
         )}
         {...props}

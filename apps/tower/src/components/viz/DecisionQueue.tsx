@@ -191,12 +191,13 @@ export function QueueRow({ item, index, compact = false }: { item: QueueItem; in
       className="viz-arrive group grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30 focus-within:bg-muted/30 @lg:grid-cols-[auto_minmax(0,1fr)_auto]"
       style={{ ["--viz-i" as string]: index }}
     >
-      {/* Precise's mark for a task waiting for you; its name says which kind. */}
-      <TaskStatusMark status="waiting" label={item.kind === "approval" ? "Approval" : "Question"} className="mt-0.5" />
+      {/* Precise's mark for a task waiting for you; the line under the title
+          names its kind, since every waiting task wears the same mark. */}
+      <TaskStatusMark status="waiting" label={null} className="mt-0.5" />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="flex min-w-0 text-sm">{title}</span>
         <span className="flex min-w-0 items-center gap-2 text-micro text-muted-foreground">
-          <span>{item.project}</span>
+          <span>{item.kind === "approval" ? "Approval" : "Question"} · {item.project}</span>
           {age !== null ? (
             <span className="ms-auto flex shrink-0 items-center gap-1.5 tabular-nums" aria-label={`waiting ${ageLabel(age)}`}>
               <span aria-hidden className={cn("h-1 w-16 overflow-hidden rounded-full bg-viz-track", compact && "hidden")}>

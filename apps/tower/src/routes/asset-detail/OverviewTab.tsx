@@ -650,14 +650,14 @@ export function NeedsYou({
           marks={{ "data-subject": `task:${item.id}` }}
           to={`/tasks/${encodeURIComponent(item.id)}`}
           returnTo={`${location.pathname}${location.search}`}
-          // Precise's mark for a task waiting for you; its name says which
+          // Precise's mark for a task waiting for you; the caption names its
           // kind. Priority is the order, never the colour.
           tone="warn"
-          glyph={<TaskStatusMark status="waiting" label={isGate(item) ? "Approval" : "Question"} />}
+          glyph={<TaskStatusMark status="waiting" label={null} />}
           title={item.title}
           caption={
             <>
-              <code className="font-mono text-[11px]">{item.id}</code>
+              {isGate(item) ? "Approval" : "Question"} · <code className="font-mono text-[11px]">{item.id}</code>
               {item.assignee ? ` · ${taskActorLabel(item.assignee)}` : ""}
             </>
           }

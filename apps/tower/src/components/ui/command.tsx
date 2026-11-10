@@ -99,7 +99,7 @@ export function CommandDialog({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+        className="relative w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-pop"
       >
         <Command label={label} className={className} {...props}>
           {children}
