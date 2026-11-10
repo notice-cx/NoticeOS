@@ -126,6 +126,7 @@ test("with no Tower client ID saved, one press of Sign in on /tasks registers th
   await page.locator("[data-ntasks-signed-in]").getByRole("button", { name: "Sign out of Ntasks" }).click();
   await page.goto("/tasks");
   await signIn(page);
+  await expect(page.locator("[data-ntasks]").getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
   expect((await status(page)).ntasksRegistrations).toBe(1);
 });
 
