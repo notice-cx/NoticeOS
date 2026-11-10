@@ -388,6 +388,15 @@ export function openStore(connectionString, options = {}) {
     // transaction opens a new one or fails on its own. Without a listener Node
     // would treat the pool's error event as a crash.
     pool.on('error', () => undefined);
+    // The pool hands a new connection over while it is still reading the packet
+    // that made it ready, and that packet can also carry the server ending the
+    // session (a restart, a failover, a test copy taken back). Neither the pool
+    // nor `withConnection` listens on it in that moment, so every connection
+    // listens from its first one; the work on it then fails through its first
+    // statement.
+    pool.on('connect', (client) => {
+        client.on('error', () => undefined);
+    });
     let closed = false;
     /** `use` on one pooled connection; one that saw a failure never goes back. */
     const withConnection = async (use) => {

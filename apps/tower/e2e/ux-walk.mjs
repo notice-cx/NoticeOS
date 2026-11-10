@@ -825,7 +825,19 @@ const REQUIRED = {
 };
 export async function installSyntheticProviders(context, base) {
   const held = new Map(); // provider -> { assets: string[], tested: boolean }
-  await context.route(`${base}/api/integrations/providers`, async (route) => {
+  // Closing a context first disposes the replies a handler may still be
+  // reading. The walk calls `stop()` before it closes its context, so a read
+  // still in flight then ends quietly instead of throwing into the walker
+  // after its page is gone.
+  let stopped = false;
+  const answer = (handler) => async (route) => {
+    try {
+      await handler(route);
+    } catch (error) {
+      if (!stopped) throw error;
+    }
+  };
+  await context.route(`${base}/api/integrations/providers`, answer(async (route) => {
     const { response, headers } = await fetchToRewrite(route);
     const body = await response.json();
     for (const status of body.providers) {
@@ -841,8 +853,8 @@ export async function installSyntheticProviders(context, base) {
       };
     }
     await route.fulfill({ response, headers, json: body });
-  });
-  await context.route(new RegExp(`^${base}/api/integrations/([a-z-]+)/(credential|test)$`), async (route) => {
+  }));
+  await context.route(new RegExp(`^${base}/api/integrations/([a-z-]+)/(credential|test)$`), answer(async (route) => {
     const [, id, what] = route.request().url().match(/integrations\/([a-z-]+)\/(credential|test)$/);
     if (!(id in REQUIRED)) return route.continue();
     const method = route.request().method();
@@ -861,9 +873,9 @@ export async function installSyntheticProviders(context, base) {
       return route.fulfill({ json: { ok: Boolean(entry), message: entry ? "Answered" : "Not connected", result, checkedAt: NOW } });
     }
     return route.continue();
-  });
+  }));
   await installGoogleConsent(context, base);
   // Task writes (answer, dismiss, approve, file) go through the real task
   // lane to the fixture's `bd`; nothing is answered here.
-  return held;
+  return { held, stop: () => { stopped = true; } };
 }

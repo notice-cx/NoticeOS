@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
@@ -610,6 +611,45 @@ test('a connection that breaks while its transaction runs fails that work alone:
     const [after] = await store.inWorkspace(A, (tx) => tx.query('SELECT pg_backend_pid() AS pid'), { readOnly: true });
     assert.notEqual(String(after.pid), pid, 'the next transaction runs on a new connection');
   });
+});
+
+/** One backend message: its type byte, its length, its body. */
+const backendMessage = (type, body) => {
+  const length = Buffer.alloc(4);
+  length.writeInt32BE(body.length + 4);
+  return Buffer.concat([Buffer.from(type), length, body]);
+};
+
+test('a connection the server ends in the packet that opens it fails its work alone: the process carries on', async (t) => {
+  // A server that answers every startup with "authenticated", "ready" and
+  // "terminating connection" in one packet, as a session ended the moment it
+  // opened arrives (a restart, a failover, a test copy taken back).
+  const ending = Buffer.concat([
+    backendMessage('R', Buffer.from([0, 0, 0, 0])),
+    backendMessage('Z', Buffer.from('I')),
+    backendMessage('E', Buffer.from('SFATAL\0VFATAL\0C57P01\0Mterminating connection due to administrator command\0\0')),
+  ]);
+  const sockets = new Set();
+  const server = net.createServer((socket) => {
+    sockets.add(socket);
+    socket.on('error', () => undefined);
+    socket.once('data', () => socket.write(ending));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => {
+    for (const socket of sockets) socket.destroy();
+    return new Promise((resolve) => server.close(resolve));
+  });
+  const store = openStore(`postgres://noticeos_app:fixture@127.0.0.1:${server.address().port}/noticeos`, { maxConnections: 1 });
+  t.after(() => store.close());
+  const uncaught = [];
+  const onUncaught = (error) => uncaught.push(error);
+  process.on('uncaughtException', onUncaught);
+  t.after(() => process.removeListener('uncaughtException', onUncaught));
+
+  await assert.rejects(store.onlyWorkspace());
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(uncaught.map((error) => error.message), [], 'nothing reached the process as a crash');
 });
 
 test("a call's store works in its one workspace: reads cannot write, a write commits whole, and another workspace sees none of it", async (t) => {
