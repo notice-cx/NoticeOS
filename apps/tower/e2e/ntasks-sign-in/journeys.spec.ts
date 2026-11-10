@@ -1,7 +1,7 @@
 import type { Page, Response } from "@playwright/test";
 import { test, expect } from "../journey-test";
 import { CHOICE_TASK, JOURNEY_CHOICES, PR_SMOKE } from "../fixtures";
-import { JOURNEY_NTASKS_CLIENT_ID, JOURNEY_NTASKS_PERSON, type NtasksDecision } from "../ntasks-fixture";
+import { JOURNEY_NTASKS_CLIENT_ID, JOURNEY_NTASKS_PERSON, type FixtureAppState, type NtasksDecision } from "../ntasks-fixture";
 import { installFixtureNtasks } from "../ntasks-route.mjs";
 
 // The Tower's /tasks is the Ntasks UI, from the published @notice-cx/ntasks-ui
@@ -10,12 +10,15 @@ import { installFixtureNtasks } from "../ntasks-route.mjs";
 // service credential, which Ntasks never lets decide. Ntasks here is the
 // fixture's (ntasks-fixture.ts).
 
-type Status = { tasks: { id: string; labels: string[]; metadata: Record<string, unknown> | null }[]; ntasksDecisions: NtasksDecision[] };
+type Status = { tasks: { id: string; labels: string[]; metadata: Record<string, unknown> | null }[]; ntasksDecisions: NtasksDecision[];
+  ntasksRegistrations: number };
 const status = async (page: Page) => (await (await page.request.get("/__journey/status")).json()) as Status;
 const CHOICE_TITLE = "Retire the synthetic recipe page";
+const SETTINGS = "/settings/task-projects";
 
-async function prepare(page: Page, baseURL: string | undefined, ntasks = "/__journey/ntasks") {
+async function prepare(page: Page, baseURL: string | undefined, { app = "registered", apiVersion }: { app?: FixtureAppState; apiVersion?: number } = {}) {
   expect((await page.request.post("/__journey/reset")).ok()).toBe(true);
+  const ntasks = `/__journey/ntasks?app=${app}${apiVersion === undefined ? "" : `&apiVersion=${apiVersion}`}`;
   for (const control of ["/__journey/task-source", "/__journey/choice-task", ntasks]) expect((await page.request.post(control)).ok()).toBe(true);
   await installFixtureNtasks(page.context(), baseURL!);
 }
@@ -89,7 +92,7 @@ test("a decision sent with the installation's service credential is still refuse
 });
 
 test("an Ntasks older than the Tower's task pages shows one sentence in place of them", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
-  await prepare(page, baseURL, "/__journey/ntasks?apiVersion=1");
+  await prepare(page, baseURL, { apiVersion: 1 });
   await page.goto("/tasks");
   await expect(page.getByRole("alert")).toHaveText("This Ntasks is older than the Tower's task pages need; update it.");
   await expect(page.locator("[data-ntasks]")).toHaveCount(0);
@@ -109,4 +112,37 @@ test("the Ntasks UI's code loads with /tasks and never with Home", { tag: PR_SMO
   await expect(page.locator("[data-ntasks]")).toBeVisible();
   const onTasks = await Promise.all(answers.map(carriesNtasksUi));
   expect(onTasks.some(Boolean)).toBe(true);
+});
+
+test("with no Tower client ID saved, one press of Sign in on /tasks registers the Tower in Ntasks, and a later sign-in reuses it", { tag: PR_SMOKE }, async ({ page, baseURL }) => {
+  await prepare(page, baseURL, { app: "unregistered" });
+  await page.goto("/tasks");
+  await signIn(page);
+  await expect(page.locator("[data-ntasks]").getByRole("link", { name: CHOICE_TITLE })).toBeVisible();
+  expect((await status(page)).ntasksRegistrations).toBe(1);
+
+  // Sign out of Ntasks is in Settings, beside who is signed in.
+  await page.goto(SETTINGS);
+  await page.locator("[data-ntasks-signed-in]").getByRole("button", { name: "Sign out of Ntasks" }).click();
+  await page.goto("/tasks");
+  await signIn(page);
+  expect((await status(page)).ntasksRegistrations).toBe(1);
+});
+
+test("Settings offers Sign in to Ntasks, never a link to the sign-in address, and a refused registration says why", async ({ page, baseURL }) => {
+  await prepare(page, baseURL, { app: "refused" });
+  await page.goto(SETTINGS);
+  const row = page.locator("[data-ntasks-sign-in-setup]");
+  await expect(row.getByRole("button", { name: "Sign in to Ntasks" })).toBeVisible();
+  await expect(page.locator('a[href*="/tasks/signed-in"]')).toHaveCount(0);
+  const address = row.locator("[data-ntasks-return-address]");
+  await expect(address).toBeHidden();
+  await row.getByText("Register the Tower by hand").click();
+  await expect(address).toHaveText(new URL("/tasks/signed-in", baseURL).toString());
+
+  await row.getByRole("button", { name: "Sign in to Ntasks" }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Not signed in to Ntasks" }).filter({ hasText: "invalid_client_metadata" })).toBeVisible();
+  await expect(page).toHaveURL((url) => url.pathname === SETTINGS);
+  expect((await status(page)).ntasksRegistrations).toBe(0);
+  await expect(row.getByRole("button", { name: "Sign in to Ntasks" })).toBeEnabled();
 });

@@ -16,15 +16,21 @@ const NOT_CONNECTED: TaskServiceStatus = { connected: false, origin: null, proje
 const CONNECTED: TaskServiceStatus = { connected: true, origin: ORIGIN, required: true, app: { clientId: CLIENT_ID, workspaceId: "w-1" },
   projects: [{ asset: "example.com", prefix: "md", project: { displayName: "Example", logicalKey: "example.com", projectId: "p-md" } }] };
 
+const UNREGISTERED: TaskServiceStatus = { ...CONNECTED, app: null };
+
 const state = vi.hoisted(() => ({ service: undefined as TaskServiceStatus | undefined }));
+const api = vi.hoisted(() => ({ registerNtasksApp: vi.fn(async (): Promise<{ clientId: string }> => ({ clientId: "tower-registered" })) }));
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn(), message: vi.fn() }), Toaster: () => null }));
+vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), ...api }));
 vi.mock("@/hooks/useTaskService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useTaskService")>();
   return { ...actual, useTaskService: () => ({ data: state.service, isPending: state.service === undefined }) };
 });
 
+import { toast } from "sonner";
 import { deskRoutes } from "@/App";
+import { ApiError } from "@/lib/api";
 import { resetPersonSessions } from "@/hooks/useNtasksSignIn";
 import { NEWER_NTASKS, OLDER_NTASKS, versionProblem } from "@/routes/TasksRoute";
 
@@ -126,5 +132,30 @@ describe("the Ntasks UI inside the Tower", () => {
     const reads = fetch.mock.calls.filter(([input]) => new URL(String(input)).pathname !== "/api/version");
     expect(reads.every(([input]) => String(input).startsWith(ORIGIN))).toBe(true);
     expect(reads.every(([, init]) => new Headers(init?.headers).get("authorization") === "Bearer person-token")).toBe(true);
+  });
+
+  it("with no Tower client ID saved, registers the Tower in Ntasks on the press, then signs in with the new one", async () => {
+    state.service = UNREGISTERED;
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+    expect(api.registerNtasksApp).toHaveBeenCalledOnce();
+    expect(new URL(String(assign.mock.calls[0]![0])).searchParams.get("client_id")).toBe("tower-registered");
+  });
+
+  it("says why when the Tower could not be registered, and starts no sign-in", async () => {
+    state.service = UNREGISTERED;
+    ntasks();
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, origin: window.location.origin });
+    const detail = "Ntasks refused to register the Tower (invalid_client_metadata). Nothing was saved.";
+    api.registerNtasksApp.mockRejectedValueOnce(new ApiError(detail, 502, "ntasks_registration_refused"));
+    renderAt("/tasks");
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith("Not signed in to Ntasks", expect.objectContaining({ description: detail })));
+    expect(assign).not.toHaveBeenCalled();
   });
 });

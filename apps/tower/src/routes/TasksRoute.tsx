@@ -2,16 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { API_VERSION, NtasksApp, type TokenSource } from "@notice-cx/ntasks-ui";
 import "@notice-cx/ntasks-ui/styles.css";
 import { useCallback, useMemo, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { TASK_SOURCES_PATH } from "@shared/task-source";
 import { PageHeader } from "@/components/PageHeader";
 import { ConnectNtasks, TaskHubUnavailable } from "@/components/TaskSourceSection";
 import { useNtasksSignIn, type NtasksSignIn } from "@/hooks/useNtasksSignIn";
 import { needsNtasks, useTaskService } from "@/hooks/useTaskService";
 import { useAppliedTheme } from "@/hooks/useTheme";
-import { useDemoReadonly, useOwnerToast } from "@/lib/browser-context";
+import { useDemoReadonly } from "@/lib/browser-context";
 import { documentTitle } from "@/lib/document-title";
-import { startSignIn } from "@/lib/ntasks-sign-in";
+import { useBeginNtasksSignIn } from "@/routes/tasks/ntasks-sign-in";
 
 /** Where the Tower mounts the Ntasks UI; every task address is under it. */
 const BASE_PATH = "/tasks";
@@ -44,26 +42,12 @@ async function readVersion(origin: string, signal: AbortSignal): Promise<NtasksV
 
 /**
  * The person's side of every request the Ntasks UI sends: their access token
- * once they signed in to Ntasks in this browser, and what its Sign in does.
- * The installation's service credential never reaches the browser.
+ * once they signed in to Ntasks in this browser, and what its Sign in does,
+ * the same one press as Settings' Sign in to Ntasks. The installation's
+ * service credential never reaches the browser.
  */
 function useTokenSource(signIn: NtasksSignIn): TokenSource {
-  const { pathname, search, hash } = useLocation();
-  const navigate = useNavigate();
-  const toast = useOwnerToast();
-  const returnTo = `${pathname}${search}${hash}`;
-  const begin = useCallback(async () => {
-    if (signIn.kind === "unconfigured") {
-      navigate(`${TASK_SOURCES_PATH}#ntasks`);
-      return;
-    }
-    if (signIn.kind !== "signed-out") return;
-    try {
-      window.location.assign(await startSignIn(signIn.app, { towerOrigin: window.location.origin, returnTo }));
-    } catch (error) {
-      toast.error("Not signed in to Ntasks", { description: error instanceof Error ? error.message : String(error) });
-    }
-  }, [signIn, navigate, returnTo, toast]);
+  const begin = useBeginNtasksSignIn();
   return useMemo(() => ({
     token: () => (signIn.kind === "signed-in" ? signIn.session.token() : null),
     signIn: () => void begin(),
