@@ -73,8 +73,8 @@ export interface AgentStatsPayload {
     broken: string[];
     stats: AgentStats;
 }
-/** Normalize transport prefixes, aliases and runtime suffixes without merging
- * different versions or variants (for example, Codex and GPT, or Pro and Flash). */
+/** A model's display name, grouped by its id (actor-names.mts); a model no
+ * rule knows is Other. */
 export declare function canonicalAgentModel(value: string | null): string;
 export declare function medianOf(values: readonly number[]): number | null;
 export declare function taskPoints(priority: number): number;
