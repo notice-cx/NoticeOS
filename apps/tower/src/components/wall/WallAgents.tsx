@@ -37,7 +37,7 @@ export function WallAgents({ agents }: { agents: WallAgentsData | null | undefin
                 index === 0 ? "bg-milestone text-milestone-foreground" : "bg-background/60 text-foreground")}>{index + 1}</span>
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="text-wall-list-line font-semibold [overflow-wrap:anywhere]">
-                  {entry.id}{entry.model ? <span className="font-normal text-muted-foreground"> · {entry.model}</span> : null}
+                  {entry.name}{entry.model ? <span className="font-normal text-muted-foreground"> · {entry.model}</span> : null}
                 </span>
                 <span aria-hidden className="h-1.5 w-full overflow-hidden rounded-full bg-viz-track">
                   <span className={cn("block h-full rounded-full viz-grow-x", index === 0 ? "bg-milestone" : "bg-spark")}

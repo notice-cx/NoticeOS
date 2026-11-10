@@ -182,24 +182,25 @@ describe("a task line", () => {
     ])} nowMs={NOW} />, { wrapper: MemoryRouter });
     const [task, other] = screen.getAllByRole("listitem");
     expect(within(task!).getByRole("link")).toHaveAttribute("href", "/tasks/mn-7");
-    expect(within(task!).getByRole("link")).toHaveTextContent("codex claimed Line a");
+    expect(within(task!).getByRole("link")).toHaveTextContent("Codex claimed Line a");
     expect(within(other!).queryByRole("link")).toBeNull();
   });
 });
 
 describe("an agent's line", () => {
-  it("names who closed it, the model, and the commit and link as chips", () => {
+  it("names who closed it and the model by their display names, and the commit and link as chips", () => {
     render(<WallFeed feed={payload([
-      item("a", 5, { text: "Fix the export button", who: "claude", model: "Opus 5.5", evidence: "Exports pass · 3f2a91c · lightbrief.example/briefs" }),
+      item("a", 5, { text: "Fix the export button", who: "agent:Claude Code (ntasks)", model: "claude-opus-5.5", evidence: "Exports pass · 3f2a91c · lightbrief.example/briefs" }),
       // A service acting for an agent goes by the agent's name.
       item("b", 9, { kind: "task-claimed", label: "Claimed", tone: "neutral", text: "Restore the nightly report", who: "service:demo/codex", model: null }),
     ])} nowMs={NOW} />);
     const [closed, claimed] = screen.getAllByRole("listitem");
-    expect(within(closed!).getByText("claude")).toBeInTheDocument();
-    expect(closed).toHaveTextContent("claude closed Fix the export button");
+    expect(closed!.querySelector("[data-feed-who]")).toHaveTextContent(/^Claude Code$/);
+    expect(closed!.querySelector("[data-feed-label] [data-feed-model]")).toHaveTextContent(/^· Claude Opus 5\.5$/);
+    expect(closed).toHaveTextContent("Claude Code closed Fix the export button");
     const evidence = closed!.querySelector("[data-feed-evidence]") as HTMLElement;
     expect([...evidence.children].map((chip) => chip.textContent)).toEqual(["3f2a91c", "lightbrief.example/briefs"]);
-    expect(claimed).toHaveTextContent("codex claimed Restore the nightly report");
+    expect(claimed).toHaveTextContent("Codex claimed Restore the nightly report");
     expect(claimed!.querySelector("[data-feed-evidence]")).toBeNull();
   });
 
@@ -211,7 +212,7 @@ describe("an agent's line", () => {
     ])} nowMs={NOW} />);
     const [named, unnamed] = screen.getAllByRole("listitem");
     expect(named).toHaveTextContent("New task");
-    expect(named).toHaveTextContent("claude filed Listings show opening hours");
+    expect(named).toHaveTextContent("Claude Code filed Listings show opening hours");
     expect(named!.querySelector("[data-feed-verb]")).toHaveTextContent("filed");
     expect(named!.querySelector("[data-feed-agent]")).toHaveAttribute("data-feed-agent", "anthropic");
     expect(named!.querySelector("[data-feed-badge]")).toHaveClass("bg-muted-foreground");

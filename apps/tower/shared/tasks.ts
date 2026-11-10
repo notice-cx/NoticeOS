@@ -6,6 +6,7 @@
 // board. `LiveTask` extends `WorkItem` rather than restating it. Tasks are
 // coordination state, not signals.
 
+import { actorIdentity, actorKey, modelIdentity } from "@noticeos/contract/actor-names";
 import { recordsClose, TASK_METADATA } from "@noticeos/contract/task-metadata";
 import type { TaskCardShipped } from "@noticeos/contract/task-card";
 import type { WorkItem } from "./work";
@@ -153,13 +154,37 @@ export interface TaskActor {
   readonly principalId: string;
   readonly displayName: string;
 }
-/** The name an actor is shown and counted under. Ntasks records a service
- * acting for an agent as `service:<credential>/<agent>`; the agent did the
- * work, so it goes by the agent's name and the full actor stays in the
- * task's history. A credential name holds no `/`, an agent's may. Every other
- * actor is returned as recorded. */
+/** The name an actor is shown under: an agent by its product, a service
+ * acting for an agent as that agent (`@noticeos/contract/actor-names`). The
+ * recorded actor stays in the task's history and is what a write sends.
+ * Counting and filtering go by `actorKey`, which keeps a person and an agent
+ * of the same name apart. */
 export function actorName(actor: string): string {
-  return /^service:[^/]+\/(.+)$/su.exec(actor)?.[1] ?? actor;
+  return actorIdentity(actor).name;
+}
+export { actorKey };
+
+/** A holder's label among others: its name, with its kind beside it when a
+ * holder of another kind is shown by the same name, so a person and an agent
+ * both called `nightly-triage` read apart. */
+export function holderLabel(actor: string, name: string, others: readonly (readonly [actor: string, name: string])[]): string {
+  const { kind } = actorIdentity(actor);
+  return others.some(([other, otherName]) => otherName === name && actorIdentity(other).kind !== kind) ? `${name} (${kind})` : name;
+}
+
+/** The sender a filter's assignee names among the recorded holders: its own
+ * key, or, for a bare name no holder is recorded under, the holder shown by
+ * that name, as a link from before `actorKey` wrote an agent's name alone. */
+export function assigneeFilterKey(assignee: string, recorded: readonly string[]): string {
+  const own = actorKey(assignee);
+  if (recorded.some(actor => actorKey(actor) === own)) return own;
+  const shown = recorded.find(actor => actorName(actor) === assignee);
+  return shown === undefined ? own : actorKey(shown);
+}
+
+/** The name a model is shown under, or null when none was named. */
+export function modelName(model: string | null | undefined): string | null {
+  return modelIdentity(model)?.name ?? null;
 }
 
 /** A name never changes authority. Unavailable hosted UUIDs have no guessed
@@ -171,18 +196,19 @@ export function taskActorLabel(actor: string, actors?: readonly TaskActor[]): st
   return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(actor) ? 'Unknown actor' : actorName(actor);
 }
 
-/** Who closed a task and the model they named, when the server recorded it
- * for this close. A task closed again since, without a record, shows its
- * close and no closer rather than an earlier one's. */
+/** Who closed a task as recorded, and the model they named by its display
+ * name, when the server recorded it for this close. A task closed again
+ * since, without a record, shows its close and no closer rather than an
+ * earlier one's. */
 export function closeAttribution(task: Pick<LiveTask, "status" | "closedAt" | "metadata">): { by: string; model: string | null } | null {
   if (task.status !== "closed" || !recordsClose(task.metadata, task.closedAt)) return null;
   const by = metadataText(task.metadata, TASK_METADATA.closedBy.name);
-  return by === null ? null : { by, model: metadataText(task.metadata, TASK_METADATA.closedModel.name) };
+  return by === null ? null : { by, model: modelName(metadataText(task.metadata, TASK_METADATA.closedModel.name)) };
 }
 
-/** The model a task's claimer named when it claimed the task, or null. */
+/** The model a task's claimer named when it claimed the task, by its display name, or null. */
 export function claimedModel(task: Pick<LiveTask, "metadata">): string | null {
-  return metadataText(task.metadata, TASK_METADATA.claimedModel.name);
+  return modelName(metadataText(task.metadata, TASK_METADATA.claimedModel.name));
 }
 
 function metadataText(metadata: Record<string, unknown> | null, name: string): string | null {

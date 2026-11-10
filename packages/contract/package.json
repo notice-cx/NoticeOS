@@ -14,6 +14,10 @@
       "types": "./src/portfolio-brief.ts",
       "default": "./src/portfolio-brief.ts"
     },
+    "./actor-names": {
+      "types": "./src/actor-names.d.mts",
+      "default": "./src/actor-names.mjs"
+    },
     "./agent-stats": {
       "types": "./src/agent-stats.d.mts",
       "default": "./src/agent-stats.mjs"

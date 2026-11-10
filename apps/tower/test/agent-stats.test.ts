@@ -16,7 +16,7 @@ describe('canonical model identities', () => {
     ['anthropic/claude-opus-5.5-thinking', 'Claude Opus 5.5'], ['Claude 3.5 Sonnet', 'Claude Sonnet 3.5'],
     ['GPT-6.1-Sol-xhigh', 'GPT-6.1 Sol'], ['openai/gpt-6.1-sol', 'GPT-6.1 Sol'],
     ['GPT-5.3-Codex', 'GPT-5.3 Codex'], ['gpt-5-3-codex-high', 'GPT-5.3 Codex'],
-    ['models/gemini-2.5-flash-preview', 'Gemini 2.5 Flash'], ['o3-mini', 'o3 mini'],
+    ['models/gemini-2.5-flash-preview', 'Gemini 2.5 Flash'], ['o3-mini', 'o3 mini'], ['claude-fable-5-1', 'Claude Fable 5.1'],
     ['build-verifier', 'Other'], ['claude-session', 'Other'], [null, 'Other'],
   ])('groups %s as %s', (input, expected) => expect(canonicalAgentModel(input)).toBe(expected));
 

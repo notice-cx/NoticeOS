@@ -157,7 +157,7 @@ describe("the Projects tab", () => {
     const work = container.querySelector<HTMLElement>("[data-projects-open-work]")!;
     expect(within(work).getByRole("img")).toHaveAccessibleName(/1 in progress/);
     expect(work.querySelector('[data-open-work="in-progress"]')).toHaveTextContent("1 in progress");
-    expect(work.querySelector("[data-tasks-working]")).toHaveTextContent(/Working now\s*claude-code 1/);
+    expect(work.querySelector("[data-tasks-working]")).toHaveTextContent(/Working now\s*Claude Code 1/);
   });
 
   it("draws an asset's cards with their state, progress and the question waiting on you", () => {

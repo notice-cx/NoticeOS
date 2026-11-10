@@ -21,8 +21,22 @@ describe("wallAgentsOf", () => {
       project({ asset: "c.example.com", ok: false, workers: [{ id: "claude", model: "Opus 5.5", closedRecent: 99, inProgress: 0 }] }),
     ] };
     expect(wallAgentsOf(snapshot)).toEqual({ closed: 13, inProgress: 2, capturedAt: "2026-10-16T12:00:00.000Z", standings: [
-      { id: "claude", model: "Opus 5.5", closed: 10, inProgress: 1 }, { id: "codex", model: "GPT-5-Codex", closed: 3, inProgress: 1 },
+      { id: "agent:Claude Code", name: "Claude Code", model: "Claude Opus 5.5", closed: 10, inProgress: 1 },
+      { id: "agent:Codex", name: "Codex", model: "GPT-5 Codex", closed: 3, inProgress: 1 },
     ] });
+  });
+
+  it("counts every spelling of one agent and of one model as one standing", () => {
+    const snapshot: BeadsSnapshot = { capturedAt: "2026-10-16T12:00:00.000Z", projects: [
+      project({ workers: [
+        { id: "claude", model: "claude-opus-5-5", closedRecent: 4, inProgress: 1 },
+        { id: "claude/fable-lead", model: "Claude Opus 5.5", closedRecent: 2, inProgress: 0 },
+      ] }),
+      project({ asset: "b.example.com", workers: [{ id: "agent:Claude Code (ntasks)", model: "claude-opus-5-5", closedRecent: 3, inProgress: 2 }] }),
+    ] };
+    expect(wallAgentsOf(snapshot)?.standings).toEqual([
+      { id: "agent:Claude Code", name: "Claude Code", model: "Claude Opus 5.5", closed: 9, inProgress: 3 },
+    ]);
   });
 
   it("is null without a snapshot or an agent", () => {
@@ -34,11 +48,12 @@ describe("wallAgentsOf", () => {
 describe("WallAgents", () => {
   it("ranks each agent and model with its place and count", () => {
     render(<WallAgents agents={{ closed: 13, inProgress: 2, capturedAt: null, standings: [
-      { id: "claude", model: "Opus 5.5", closed: 10, inProgress: 1 }, { id: "codex", model: "GPT-5-Codex", closed: 3, inProgress: 1 }] }} />);
+      { id: "agent:Claude Code", name: "Claude Code", model: "Claude Opus 5.5", closed: 10, inProgress: 1 },
+      { id: "agent:Codex", name: "Codex", model: "GPT-5 Codex", closed: 3, inProgress: 1 }] }} />);
     const rows = screen.getAllByRole("listitem");
     expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
-    expect(rows[0]).toHaveTextContent("claude · Opus 5.5");
-    expect(rows[1]).toHaveTextContent("codex · GPT-5-Codex3");
+    expect(rows[0]).toHaveTextContent("Claude Code · Claude Opus 5.5");
+    expect(rows[1]).toHaveTextContent("Codex · GPT-5 Codex3");
     expect(screen.getByText("13 closed · 2 in progress")).toBeInTheDocument();
   });
 

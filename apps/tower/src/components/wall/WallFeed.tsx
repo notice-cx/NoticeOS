@@ -22,7 +22,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { SiteIcons } from "@noticeos/contract/site-icons";
-import { taskActorLabel } from "@shared/tasks";
+import { modelName, taskActorLabel } from "@shared/tasks";
 import type { AssetCard } from "@shared/wall";
 import {
   ArrowUp,
@@ -231,7 +231,8 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
             const tone = TONE[item.tone];
             const Glyph = GLYPH[item.kind];
             const who = item.who ? taskActorLabel(item.who) : null;
-            const maker = who ? agentMaker(who, [item.model ?? null]) : null;
+            const model = modelName(item.model);
+            const maker = who ? agentMaker(who, [model]) : null;
             const atMs = Date.parse(item.at);
             const aged = nowMs - atMs > WALL_FEED_AGED_MS;
             const tinted = arrived.has(item.id);
@@ -265,7 +266,7 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                     </span>
                   ) : maker && who ? (
                     <span className="wall-feed-glyph relative" data-feed-agent={maker}>
-                      <AgentMark name={who} models={[item.model ?? null]} size="feed" className="wall-feed-agent-mark" />
+                      <AgentMark name={who} models={[model]} size="feed" className="wall-feed-agent-mark" />
                       <span
                         data-feed-badge
                         className={cn("wall-feed-agent-badge absolute -bottom-1 -right-1 grid place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}
@@ -283,10 +284,10 @@ export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) 
                       <span className={cn("uppercase tracking-[0.05em]", tone.ink)}>{item.label}</span>
                       {maker && who ? (
                         <span className="text-muted-foreground" data-feed-model>
-                          {" · "}<span data-feed-agent={maker}><AgentMark name={who} models={[item.model ?? null]} size="small" className="wall-feed-header-agent" /></span>{" "}{item.model ?? who}
+                          {" · "}<span data-feed-agent={maker}><AgentMark name={who} models={[model]} size="small" className="wall-feed-header-agent" /></span>{" "}{model ?? who}
                         </span>
-                      ) : item.model ? (
-                        <span className="text-muted-foreground" data-feed-model>{" · "}{item.model}</span>
+                      ) : model ? (
+                        <span className="text-muted-foreground" data-feed-model>{" · "}{model}</span>
                       ) : !item.asset && item.site ? (
                         <span className="text-muted-foreground">{" · "}{item.site}</span>
                       ) : null}

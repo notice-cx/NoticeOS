@@ -1,3 +1,4 @@
+import { modelIdentity } from './actor-names.mjs';
 import { recordsClose, TASK_METADATA } from './task-metadata.mjs';
 
 const DAY = 86_400_000;
@@ -71,27 +72,11 @@ export interface AgentStatsPayload {
   stats: AgentStats;
 }
 
-/** Normalize transport prefixes, aliases and runtime suffixes without merging
- * different versions or variants (for example, Codex and GPT, or Pro and Flash). */
+/** A model's display name, grouped by its id (actor-names.mts); a model no
+ * rule knows is Other. */
 export function canonicalAgentModel(value: string | null): string {
-  if (!value) return OTHER_MODEL;
-  const name = value.trim().toLowerCase()
-    .replace(/^(?:anthropic|openai|google|models)[/:]/u, '')
-    .replace(/(?:[-_ ](?:20\d{6}|20\d{2}-\d{2}-\d{2}|latest|preview|thinking|low|medium|high|xhigh|ultra))+$/u, '')
-    .replace(/[_ ]+/gu, '-');
-  const claude = /^(?:claude-)?(opus|sonnet|haiku)-(\d+(?:[.-]\d+)?)$/u.exec(name);
-  const reverseClaude = /^claude-(\d+(?:[.-]\d+)?)-(opus|sonnet|haiku)$/u.exec(name);
-  if (claude || reverseClaude) {
-    const family = claude?.[1] ?? reverseClaude![2]!, version = claude?.[2] ?? reverseClaude![1]!;
-    return `Claude ${family[0]!.toUpperCase()}${family.slice(1)} ${version.replace('-', '.')}`;
-  }
-  const gpt = /^(gpt-\d+(?:[.-]\d+)?)(?:-(codex|sol|astra|luna|mini|nano|pro))?(?:-(mini|max))?$/u.exec(name);
-  if (gpt) return `${gpt[1]!.replace(/^gpt-/u, 'GPT-').replace(/(\d)-(\d)/u, '$1.$2')}${gpt[2] ? ` ${gpt[2] === 'codex' ? 'Codex' : gpt[2][0]!.toUpperCase() + gpt[2].slice(1)}` : ''}${gpt[3] ? ` ${gpt[3]}` : ''}`;
-  const reasoning = /^(o[1-9])(?:-(mini|pro))?$/u.exec(name);
-  if (reasoning) return `${reasoning[1]}${reasoning[2] ? ` ${reasoning[2]}` : ''}`;
-  const gemini = /^gemini-(\d+(?:[.-]\d+)?)-(pro|flash|flash-lite)$/u.exec(name);
-  if (gemini) return `Gemini ${gemini[1]!.replace('-', '.')} ${gemini[2]!.split('-').map(part => part[0]!.toUpperCase() + part.slice(1)).join(' ')}`;
-  return OTHER_MODEL;
+  const model = modelIdentity(value);
+  return model?.id ? model.name : OTHER_MODEL;
 }
 
 export function medianOf(values: readonly number[]): number | null {

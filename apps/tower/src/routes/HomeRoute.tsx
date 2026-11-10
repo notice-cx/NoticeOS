@@ -6,7 +6,7 @@ import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRun
 import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
-import { actorName } from "@shared/tasks";
+import { actorKey, actorName } from "@shared/tasks";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
 import type { HomeModuleId } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
@@ -351,14 +351,14 @@ function LiveAgentsLine({ nowMs }: { nowMs: number }) {
 
 /** The agents' completed and active work, from the same snapshot as Decisions. */
 export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work: WorkPayload | undefined; failed?: boolean; nowMs?: number }) {
-  const totals = new Map<string, { name: string; closed: number; active: number; models: Set<string> }>();
+  const totals = new Map<string, { key: string; name: string; closed: number; active: number; models: Set<string> }>();
   const projects = work?.projects ?? [];
   for (const project of projects) {
     for (const worker of project.ok ? project.workers ?? [] : []) {
-      const name = actorName(worker.id);
-      const entry = totals.get(name) ?? { name, closed: 0, active: 0, models: new Set<string>() };
+      const key = actorKey(worker.id);
+      const entry = totals.get(key) ?? { key, name: actorName(worker.id), closed: 0, active: 0, models: new Set<string>() };
       if (worker.model !== null) entry.models.add(worker.model);
-      totals.set(name, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress });
+      totals.set(key, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress });
     }
   }
   const agents = [...totals.values()].filter((entry) => entry.models.size > 0).sort((a, b) => b.closed - a.closed || a.name.localeCompare(b.name));
@@ -380,7 +380,7 @@ export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work:
           {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {agents.slice(0, 3).map((entry) => (
-              <li key={entry.name} className="flex min-w-0 items-center gap-2 text-xs" aria-label={`${entry.name}: ${formatInt(entry.closed)} closed, ${formatInt(entry.active)} in progress`}>
+              <li key={entry.key} className="flex min-w-0 items-center gap-2 text-xs" aria-label={`${entry.name}: ${formatInt(entry.closed)} closed, ${formatInt(entry.active)} in progress`}>
                 <AgentMark name={entry.name} models={[...entry.models]} size="small" />
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">{entry.name}</span>
                 <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-viz-track"><span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${closed > 0 ? entry.closed / closed * 100 : 0}%` }} /></span>

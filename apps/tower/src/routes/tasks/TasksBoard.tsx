@@ -7,7 +7,7 @@ import { LoaderCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorName } from "@shared/tasks";
+import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, TASKS_CLOSED_WINDOW_DAYS, taskWritesAvailable, taskActorLabel, actorKey, assigneeFilterKey, holderLabel } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import {
   PRIORITY_BANDS,
@@ -478,11 +478,11 @@ function errorText(err: unknown, fallback: string): string {
 
 /** Who holds work right now, busiest first, and the way to the Agents page. */
 export function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
-  const counts = new Map<string, { name: string; n: number }>();
+  const counts = new Map<string, { key: string; name: string; n: number }>();
   for (const task of tasks) {
     if (task.status !== "in_progress" || !task.assignee) continue;
-    const key = actorName(task.assignee);
-    const entry = counts.get(key) ?? { name: taskActorLabel(task.assignee, task.actors), n: 0 };
+    const key = actorKey(task.assignee);
+    const entry = counts.get(key) ?? { key, name: taskActorLabel(task.assignee, task.actors), n: 0 };
     counts.set(key, { ...entry, n: entry.n + 1 });
   }
   const working = [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
@@ -491,7 +491,7 @@ export function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
     <p className="m-0 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" data-tasks-working="">
       <span className="text-muted-foreground">Working now</span>
       {working.map((entry) => (
-        <span key={entry.name}><span className="font-medium text-foreground">{entry.name}</span> <span className="tabular-nums text-muted-foreground">{formatInt(entry.n)}</span></span>
+        <span key={entry.key}><span className="font-medium text-foreground">{entry.name}</span> <span className="tabular-nums text-muted-foreground">{formatInt(entry.n)}</span></span>
       ))}
       <Link to={AGENTS_ROUTE} className={cn("font-medium text-foreground underline-offset-4 hover:underline", pillControlClass)}>Agents →</Link>
     </p>
@@ -543,14 +543,19 @@ function Filters({
   age: ReactNode;
   onPick: (name: string, value: string) => void;
 }) {
-  const assignees = [...assigneeCounts.keys()].sort();
   // A retired site's project stays on the board and says so; the sites read
   // is the sidebar's, already in hand.
   const retired = new Set((useWall().data?.assets ?? []).filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
   const assigneeNames = new Map<string, string>();
   for (const project of projects) for (const task of project.tasks) {
-    if (task.assignee) assigneeNames.set(actorName(task.assignee), taskActorLabel(task.assignee, task.actors));
+    if (task.assignee) assigneeNames.set(actorKey(task.assignee), taskActorLabel(task.assignee, task.actors));
   }
+  const nameOf = (actor: string) => assigneeNames.get(actorKey(actor)) ?? actor;
+  const assignees = [...assigneeCounts.keys()].sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  // An old link may name another spelling of a sender the board offers.
+  const labelled = assignees.map((actor) => [actor, nameOf(actor)] as const);
+  const picked = value.assignee === "all" ? "all"
+    : assignees.find((actor) => actorKey(actor) === assigneeFilterKey(value.assignee, assignees)) ?? value.assignee;
   // What the fold's one press carries on a phone: how many of these are
   // narrowing the board now.
   const active = [scoped ? "all" : value.project, value.status, value.priority, value.assignee].filter((pick) => pick !== "all").length
@@ -645,13 +650,13 @@ function Filters({
       <select
         id="tasks-assignee"
         className={fieldClass}
-        value={actorName(value.assignee)}
+        value={picked}
         onChange={(event) => onPick("assignee", event.target.value)}
       >
         <option value="all">Anyone</option>
-        {assignees.map((name) => (
-          <option key={name} value={name}>
-            {assigneeNames.get(name) ?? name} · {assigneeCounts.get(name) ?? 0}
+        {assignees.map((actor) => (
+          <option key={actor} value={actor}>
+            {holderLabel(actor, nameOf(actor), labelled)} · {assigneeCounts.get(actor) ?? 0}
           </option>
         ))}
       </select>

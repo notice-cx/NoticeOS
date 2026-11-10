@@ -715,10 +715,24 @@ describe("/tasks — the filters are the URL", () => {
       entry: "/tasks?assignee=service%3Ademo%2Fclaude",
     });
     const assignee = container.querySelector<HTMLSelectElement>("#tasks-assignee")!;
-    expect([...assignee.options].map((option) => option.textContent)).toEqual(["Anyone", "claude · 2"]);
+    expect([...assignee.options].map((option) => option.textContent)).toEqual(["Anyone", "Claude Code · 2"]);
     expect(assignee.value).toBe("claude");
     expect(row(container, "md-1w2")).toBeInTheDocument();
     expect(row(container, "md-88x")).toBeInTheDocument();
+  });
+
+  it("tells apart a person and an agent shown by the same name in the assignee filter", () => {
+    const { container } = renderBoard({
+      live: true,
+      boards: {
+        "meadow.example": board([
+          liveTask({ id: "md-1w2", assignee: "service:ci/nightly-triage" }),
+          liveTask({ id: "md-88x", title: "Rewrite the FAQ", assignee: "nightly-triage" }),
+        ]),
+      },
+    });
+    const assignee = container.querySelector<HTMLSelectElement>("#tasks-assignee")!;
+    expect([...assignee.options].map((option) => option.textContent).sort()).toEqual(["Anyone", "nightly-triage (agent) · 1", "nightly-triage (person) · 1"]);
   });
 
   it("filters by label on the live read", () => {
