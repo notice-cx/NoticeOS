@@ -18,10 +18,15 @@ import { runCommand } from '../run-command.mjs';
 export const TASK_PORT_BLOCK = Object.freeze({ low: 20000, size: 4000 });
 
 /** The [first, last] ports a Linux kernel picks from; null elsewhere (macOS's
- * default range starts at 49152). */
+ * default range starts at 49152) or where the kernel's file cannot be read. */
 export function kernelPortRange() {
   if (process.platform !== 'linux') return null;
-  return fs.readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/u).map(Number);
+  try {
+    const range = fs.readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/u).map(Number);
+    return range.length === 2 && range.every(Number.isFinite) ? range : null;
+  } catch {
+    return null;
+  }
 }
 
 const listening = port => new Promise(resolve => {
