@@ -497,6 +497,12 @@ export async function runCollectNow(
         sites.push({ asset, outcome: 'skipped', code: 'in-flight' });
         continue;
       }
+      // Mediavine answering without yesterday's figure is no provider failure:
+      // nothing is due to store yet, and the hourly retry asks again.
+      if (!run.ok && run.unfinished) {
+        sites.push({ asset, outcome: 'skipped', code: 'unpublished' });
+        continue;
+      }
       sites.push({
         asset,
         outcome: run.ok ? (run.outcome === 'ran' ? 'collected' : 'skipped') : 'failed',

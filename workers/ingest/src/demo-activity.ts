@@ -163,7 +163,7 @@ export async function writeDemoAdRevenue(store: WorkspaceStore, input: {
     const total = daily.reduce((sum, day) => sum + day.revenueMinor, 0);
     await persistReport(env, site.asset, { site: { id: site.siteId, title: site.asset, domain: site.asset },
       period: { start, end: clock.yesterday }, daily, summaryMinor: total, dailyMinor: total, differenceMinor: 0,
-      complete: true, missingDates: [], fetchedAt: input.at });
+      complete: true, missingDates: [], unpublishedDates: [], fetchedAt: input.at });
     outcomes.push({ asset: site.asset, status: 'success', observationCount: daily.length });
   }
   if (outcomes.length === 0) return skipped;

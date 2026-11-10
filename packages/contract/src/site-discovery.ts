@@ -113,7 +113,8 @@ export interface CollectNowInput {
  * `collected` — the lane stored a result; `failed` — the provider refused or
  * failed it (`code` is the lane's own error code); `unmeasured` — the OS could
  * not reach the provider (the egress gate's verdict); `skipped` — nothing was
- * due, or the lane's own rules (cap, lease) held it back.
+ * due, the provider has not published the day yet (`unpublished`), or the
+ * lane's own rules (cap, lease) held it back.
  */
 export interface CollectNowSite {
   asset: string;

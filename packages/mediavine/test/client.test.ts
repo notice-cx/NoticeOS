@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MediavineClient, normalizeReport, pacificDay, dates, type Session } from '../src/index.js';
+import { MediavineClient, normalizeReport, pacificDay, publishedPart, dates, type Session } from '../src/index.js';
 const NOW = Date.parse('2026-09-09T13:10:00Z');
 const SITE = { id: 'site-one', domain: 'example.test', title: 'Example' };
 const period = { start: '2026-09-08', end: '2026-09-08' };
@@ -88,6 +88,22 @@ describe('report truth', () => {
     expect(normalizeReport(report(null), period, NOW).complete).toBe(false);
     expect(normalizeReport(report(0), period, NOW).dailyMinor).toBe(0);
     expect(normalizeReport({ ...report(), earningsReport: { earnings: [] } }, period, NOW)).toMatchObject({ complete: false, missingDates: ['2026-09-08'] });
+  });
+  it('holds a $0 on Mediavine’s newest reporting day as unpublished, and stores a $0 on an earlier day', () => {
+    // NOW is 06:10 Pacific on 09-09: 09-08 is the newest day Mediavine reports.
+    const twoDays = { start: '2026-09-07', end: '2026-09-08' };
+    const answer = (revenues: [number, number]) => ({ ...report(), earningsReport: { earnings: [
+      { date: '2026/09/07', revenue: revenues[0] }, { date: '2026/09/08', revenue: revenues[1] }] } });
+    const pending = normalizeReport(answer([0, 0]), twoDays, NOW);
+    expect(pending).toMatchObject({ complete: true, unpublishedDates: ['2026-09-08'] });
+    expect(publishedPart(pending)).toMatchObject({ period: { start: '2026-09-07', end: '2026-09-07' },
+      daily: [{ date: '2026-09-07', revenueMinor: 0 }], dailyMinor: 0, summaryMinor: null, differenceMinor: null, unpublishedDates: [] });
+    expect(publishedPart(normalizeReport(report(0), period, NOW))).toBeNull();
+    const published = normalizeReport(answer([0, 3]), twoDays, NOW);
+    expect(published.unpublishedDates).toEqual([]);
+    expect(publishedPart(published)).toBe(published);
+    // A day later 09-08 is no longer the newest day: its $0 is a reported zero.
+    expect(normalizeReport(report(0), period, NOW + 86_400_000).unpublishedDates).toEqual([]);
   });
   it('rejects duplicates, unexpected dates and fractional cents', () => {
     for (const earnings of [[{ date: '2026/09/08', revenue: 1 }, { date: '2026/09/08', revenue: 1 }], [{ date: '2026/09/09', revenue: 1 }], [{ date: '2026/09/08', revenue: 0.001 }]]) {

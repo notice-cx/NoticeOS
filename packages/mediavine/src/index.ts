@@ -12,7 +12,10 @@ export interface RevenueDay { date: string; revenueMinor: number | null }
 export interface Report {
   site: Site; period: Period; daily: RevenueDay[]; summaryMinor: number | null;
   dailyMinor: number | null; differenceMinor: number | null; complete: boolean;
-  missingDates: string[]; fetchedAt: string;
+  missingDates: string[];
+  /** Days whose $0 stands for a day Mediavine has not published yet. */
+  unpublishedDates: string[];
+  fetchedAt: string;
 }
 export interface ClientOptions {
   credentials: { email: string; password: string };
@@ -92,9 +95,30 @@ export function normalizeReport(value: unknown, period: Period, now: number): Re
   const complete = summaryMinor !== null && missingDates.length === 0 && daily.every(day => day.revenueMinor !== null);
   const dailyMinor = complete ? daily.reduce((total, day) => total + day.revenueMinor!, 0) : null;
   if (dailyMinor !== null && !Number.isSafeInteger(dailyMinor)) throw invalid();
+  // Mediavine answers $0, not null, for a day it has not published yet. Its
+  // newest reporting day (yesterday on its clock) can still be that, until the
+  // day ends; a $0 on any earlier day is a reported zero.
+  const { yesterday } = pacificDay(now);
+  const unpublishedDates = daily.filter(day => day.date >= yesterday && day.revenueMinor === 0).map(day => day.date);
   return { site: site(data.internalSite), period, daily, summaryMinor, dailyMinor,
     differenceMinor: summaryMinor !== null && dailyMinor !== null ? summaryMinor - dailyMinor : null,
-    missingDates, complete, fetchedAt: new Date(now).toISOString() };
+    missingDates, unpublishedDates, complete, fetchedAt: new Date(now).toISOString() };
+}
+
+/**
+ * The days of a complete report before its first unpublished day, or null when
+ * none comes before it. Mediavine's summary total also covers the days left
+ * out, so the part carries no summary to compare against.
+ */
+export function publishedPart(report: Report): Report | null {
+  const first = report.unpublishedDates[0];
+  if (first === undefined) return report;
+  const daily = report.daily.filter(day => day.date < first);
+  const last = daily.at(-1);
+  if (last === undefined) return null;
+  return { ...report, period: { start: report.period.start, end: last.date }, daily, unpublishedDates: [],
+    summaryMinor: null, differenceMinor: null,
+    dailyMinor: report.complete ? daily.reduce((total, day) => total + day.revenueMinor!, 0) : null };
 }
 
 /** Provider operations are serialized by the host. This client has no background jobs or hidden retries. */

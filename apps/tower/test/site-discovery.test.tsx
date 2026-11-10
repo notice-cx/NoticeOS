@@ -635,6 +635,17 @@ describe("the picker", () => {
     expect(document.activeElement).toBe(replace);
   });
 
+  it("says under a row when the provider has not published the day it was asked for", async () => {
+    renderPicker({ onStart: async () => ({
+      ok: true, provider: "bing-webmaster", job: "pull", startedAt: AT, finishedAt: AT,
+      sites: [{ asset: "journey.example", outcome: "skipped", code: "unpublished" }, { asset: "mapped.example", outcome: "collected", code: null }],
+    }) });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Mapped/ }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });
+    expect(document.querySelector('[data-site-row="journey.example"] [data-site-caption="unpublished"]')).not.toBeNull();
+    expect(document.querySelector('[data-site-row="mapped.example"] [data-site-caption]')).toBeNull();
+  });
+
   it("says why nothing ran, and shows no status it cannot prove", async () => {
     renderPicker({ onStart: async () => ({ ok: false, provider: "bing-webmaster", error: "paused", job: "pull" }) });
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Start collecting/ })); });

@@ -50,7 +50,7 @@ beforeEach(async () => {
   const yesterday = new Date(NOW - 86_400_000).toISOString().slice(0, 10);
   await persistReport(env, ASSET, { site: { id: AD_SITE, title: ASSET, domain: ASSET }, period: { start: yesterday, end: yesterday },
     daily: [{ date: yesterday, revenueMinor: 1234 }], summaryMinor: 1234, dailyMinor: 1234, differenceMinor: 0,
-    complete: true, missingDates: [], fetchedAt: minutesAgo(30) });
+    complete: true, missingDates: [], unpublishedDates: [], fetchedAt: minutesAgo(30) });
 });
 afterEach(() => { vi.restoreAllMocks(); forgetConfigCache(); });
 
