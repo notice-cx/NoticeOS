@@ -310,7 +310,7 @@ function PaletteBody({
             <CommandItem
               forceMount
               value="task-search"
-              onSelect={() => go("task-search", `/tasks/all?${new URLSearchParams({ q: trimmed })}`, false)}
+              onSelect={() => go("task-search", `/tasks?${new URLSearchParams({ q: trimmed })}`, false)}
             >
               <ListTodo className="size-4" />
               <span className="text-foreground">Search tasks for “{trimmed}”</span>

@@ -5782,42 +5782,19 @@ function workPayload(projects: unknown[]) {
 }
 
 describe("AssetDetailRoute — Tasks tab", () => {
-  it("renders this asset's board with the project pinned and its control gone", async () => {
+  it("counts this asset's open work and opens its project on the Tasks board", async () => {
     stubFetchWithWork(
       payload(),
       workPayload([
         workProject(),
-        workProject({
-          asset: "northwind.example",
-          prefix: "nw",
-          name: "Northwind",
-          ready: [workItem({ id: "nw-77a", title: "Somebody else's queue" })],
-        }),
+        workProject({ asset: "northwind.example", prefix: "nw", name: "Northwind", counts: { ...workProject().counts, open: 9, waiting: 0 } }),
       ]),
     );
     const { container, findByText } = renderRoute("meadow.example", "", "tasks");
 
-    await findByText("Fix the recipe schema");
-    expect(container.textContent).not.toContain("Somebody else's queue");
-    expect(container.querySelector("#tasks-project")).toBeNull();
-    expect(
-      container.querySelector('[data-tasks-board="meadow.example"]'),
-    ).not.toBeNull();
-    expect(
-      [...container.querySelectorAll("th")].map((node) => node.textContent),
-    ).not.toContain("Project");
-    expect(container.querySelector('tr[data-task-row="md-1w2"]')!.textContent).toContain(
-      "md-1w2",
-    );
-  });
-
-  it("files a new task into this project, with the index's own ?new=1", async () => {
-    stubFetchWithWork(payload(), workPayload([workProject()]));
-    const { container, findByText } = renderRoute("meadow.example", "", "tasks");
-
-    await findByText("Fix the recipe schema");
-    const button = container.querySelector("[data-new-task]")!;
-    expect(button.getAttribute("data-new-task-project")).toBe("meadow.example");
+    await findByText("3 open tasks, 2 for you to decide.");
+    const links = [...container.querySelectorAll("[data-asset-tasks] a")].map((a) => [a.textContent, a.getAttribute("href")]);
+    expect(links).toEqual([["Decide", "/tasks?view=waiting"], ["Open in Tasks", "/tasks"]]);
   });
 
   it("carries the open count and the inbox glyph on the tab itself", async () => {

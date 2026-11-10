@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "./render";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { MarkdownText, TaskTextRefsProvider, taskListItems, toggleTaskListLine } from "@/routes/tasks/task-markdown";
+import { MarkdownText, TaskTextRefsProvider, taskListItems, toggleTaskListLine } from "@/components/MarkdownText";
 
 // The task renderer on its own: Markdown in, React elements out, every shape
 // allowlisted. Invented text throughout.

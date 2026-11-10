@@ -1,6 +1,5 @@
 import { demoVisitBase } from "@/lib/demo-visit";
-import { Navigate, type RouteObject, createBrowserRouter, redirect } from "react-router-dom";
-import { isTaskId } from "@shared/tasks";
+import { Navigate, type RouteObject, createBrowserRouter } from "react-router-dom";
 import { lazyPage, prefetchRoute } from "@/lib/lazy-route";
 import { AliasRedirect } from "@/routes/AliasRedirect";
 import { PropertyRedirect } from "@/routes/PropertyRedirect";
@@ -35,26 +34,14 @@ export const deskRoutes: RouteObject[] = [
   // `/alerts/history` is the settled archive. An unrecognized tab falls back
   // to Open.
   { path: "/alerts/:tab?", ...lazyPage(() => import("@/routes/AlertsRoute")) },
-  // `/tasks` is canonical and tabbed: `/tasks` is Next, `/tasks/projects` and
-  // `/tasks/all` the others, one screen whose tab is the path. `/work` is an
-  // older address kept as an alias that keeps the query and the hash, so
-  // `/work?status=blocked` is still that view (on All tasks).
-  { path: "/tasks", ...lazyPage(() => import("@/routes/TasksRoute")) },
-  { path: "/tasks/projects", ...lazyPage(() => import("@/routes/TasksRoute")) },
-  { path: "/tasks/all", ...lazyPage(() => import("@/routes/TasksRoute")) },
-  // One decision at a time, full width.
-  { path: "/tasks/focus", ...lazyPage(() => import("@/routes/tasks/FocusRoute")) },
-  // Where Ntasks returns a person's browser after they sign in to it.
+  // Where Ntasks returns a person's browser after they sign in to it; a static
+  // segment, so it outranks the Ntasks UI's own addresses below.
   { path: "/tasks/signed-in", ...lazyPage(() => import("@/routes/tasks/NtasksSignedInRoute")) },
-  // One task, whole: the page every task id in the Tower points at. Registered
-  // independently of the index so a deep link to a task never depends on the
-  // board. The static segments above outrank it; any other word after
-  // `/tasks/` that is not a task id opens the index.
-  {
-    path: "/tasks/:id",
-    loader: ({ params }) => (isTaskId(params.id) ? null : redirect("/tasks")),
-    ...lazyPage(() => import("@/routes/TaskRoute")),
-  },
+  // Older addresses of the Tower's own task pages: All tasks is the board.
+  { path: "/tasks/all", element: <AliasRedirect to="/tasks" /> },
+  // The Ntasks UI: the board at `/tasks`, a task at `/tasks/<id>`, and its
+  // Focus, Live, Projects, Members and Settings pages under `/tasks`.
+  { path: "/tasks/*", ...lazyPage(() => import("@/routes/TasksRoute")) },
   { path: "/work", element: <AliasRedirect to="/tasks" /> },
   // Who did the work: each agent's claims, closes and their evidence.
   { path: "/agents", ...lazyPage(() => import("@/routes/AgentsRoute")) },

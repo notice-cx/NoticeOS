@@ -35,9 +35,8 @@ function SetupChecklistRow({ item }: { item: SetupChecklistItem }) {
   const done = item.state === "done";
   return (
     <li className="m-0 flex gap-2.5" data-setup-item={item.id} data-setup-state={item.state}>
-      {/* The two shapes a task's status already uses for the same pair
-          (`routes/tasks/task-face.tsx`): a tick for finished, an open circle
-          for something nobody has taken yet. Neither is severity-colored. An
+      {/* A tick for finished, an open circle for something nobody has taken
+          yet. Neither is severity-colored. An
           optional step is the dashed circle: offered, owed by nobody. An
           unavailable capability is a neutral dash, never a pending task or a
           successful check. */}

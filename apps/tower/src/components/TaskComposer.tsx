@@ -53,7 +53,7 @@ import { taskProjectsWithoutArchives } from "@/lib/task-board-read";
 import { ApiError, type NewTask } from "@/lib/api";
 import type { TaskHandoffKind } from "@/lib/task-handoff";
 import { cn } from "@/lib/utils";
-import { MarkdownText } from "@/routes/tasks/task-markdown";
+import { MarkdownText } from "@/components/MarkdownText";
 import { taskMetadataValue } from "@noticeos/contract/task-metadata";
 
 /** Where the toast's Open link points after a task is filed: the task's own

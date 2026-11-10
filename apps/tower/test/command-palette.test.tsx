@@ -367,7 +367,7 @@ it("opens an encoded searched board for ordinary words without remembering the l
   fireEvent.change(paletteInput(), { target: { value: query } });
   expect(screen.queryByText(/Open task/)).toBeNull();
   fireEvent.keyDown(paletteInput(), { key: "Enter" });
-  expect(screen.getByTestId("path")).toHaveTextContent("/tasks/all");
+  expect(screen.getByTestId("path")).toHaveTextContent(/^\/tasks$/);
   expect(new URLSearchParams(screen.getByTestId("search").textContent ?? '').get('q')).toBe(query.trim());
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(window.localStorage.getItem(PALETTE_RECENT_KEY)).toBeNull();

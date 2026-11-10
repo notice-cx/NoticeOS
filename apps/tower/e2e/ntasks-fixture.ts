@@ -20,7 +20,12 @@ export const JOURNEY_NTASKS_PERSON = "journey-owner";
 const SERVICE_CREDENTIAL = "journey-service-credential";
 const PROJECT_ID = "journey-ntasks-project";
 const WORKSPACE_ID = "journey-workspace";
-const API_VERSION = 2;
+/** The API version this fixture answers the routes of, by default: the one
+ * the Tower's pinned @notice-cx/ntasks-ui reads (its `API_VERSION`). A
+ * package that reads a newer one shows the older-Ntasks sentence here until
+ * the fixture answers what that version adds. */
+export const JOURNEY_NTASKS_API_VERSION = 15;
+const WORKSPACE_NAME = "Journey Example";
 const SCOPES = ["tasks:read", "tasks:write", "tasks:decide"];
 const SERVICE_REFUSAL = "Only a person signed in to Ntasks decides; a service credential never does.";
 
@@ -74,7 +79,10 @@ export function createFixtureNtasks(options: {
   /** The Tower's origin: the one redirect origin of the app it is registered as. */
   towerOrigin: string;
   now: string;
+  /** The API version it names, for a journey of an older Ntasks. */
+  apiVersion?: number;
 }): FixtureNtasks {
+  const apiVersion = options.apiVersion ?? JOURNEY_NTASKS_API_VERSION;
   const redirectUri = `${options.towerOrigin}/tasks/signed-in`;
   const codes = new Map<string, { challenge: string; redirectUri: string }>();
   const access = new Map<string, Principal>();
@@ -86,7 +94,7 @@ export function createFixtureNtasks(options: {
 
   function answer(request: Request, body: unknown, init: ResponseInit = {}): Response {
     const headers = new Headers(init.headers);
-    headers.set("x-ntasks-api-version", String(API_VERSION));
+    headers.set("x-ntasks-api-version", String(apiVersion));
     const origin = request.headers.get("origin");
     if (origin === options.towerOrigin) {
       headers.set("access-control-allow-origin", origin);
@@ -109,12 +117,17 @@ export function createFixtureNtasks(options: {
     return { access_token: token, token_type: "Bearer", expires_in: 3600, refresh_token: renewal, scope: [...SCOPES, "offline_access"].join(" ") };
   }
 
+  /** The open tasks nothing blocks, which a person's decision is taken on. */
+  const readyIds = (rows: FixtureRow[]) => new Set(rows.filter((row) => row.status === "open" && row.issue_type === "task").map((row) => row.id));
+
   function board(url: URL) {
+    // No task here has shipped a change, so the delivery list is empty.
+    const shipped = url.searchParams.has("stage");
     const statuses = (url.searchParams.get("status") ?? "open,in_progress,blocked,deferred,closed").split(",");
     const rows = options.rows();
-    const ready = new Set(rows.filter((row) => row.status === "open" && row.issue_type === "task").map((row) => row.id));
+    const ready = readyIds(rows);
     return { project: options.project().asset, prefix: options.project().prefix, repo: "", readAt: options.now, closedSince: options.now.slice(0, 10),
-      tasks: rows.filter((row) => statuses.includes(row.status)).map((row) => toLiveTask(row, ready)), epics: [], actors: [] };
+      tasks: shipped ? [] : rows.filter((row) => statuses.includes(row.status)).map((row) => toLiveTask(row, ready)), epics: [], actors: [] };
   }
 
   function decide(row: FixtureRow, action: string, body: Record<string, unknown>, person: Extract<Principal, { kind: "person" }>): void {
@@ -150,7 +163,7 @@ export function createFixtureNtasks(options: {
     }
     if (origin !== null && origin !== options.towerOrigin && request.method !== "GET") return Response.json({ error: "origin_not_allowed" }, { status: 403 });
 
-    if (path === "/api/version") return answer(request, { version: API_VERSION, oldest: 1 });
+    if (path === "/api/version") return answer(request, { version: apiVersion, oldest: 1 });
     if (path === "/api/auth/oauth2/authorize" || path === "/api/auth/oauth2/allow") {
       const asked = url.searchParams;
       if (asked.get("client_id") !== JOURNEY_NTASKS_CLIENT_ID || asked.get("redirect_uri") !== redirectUri || asked.get("response_type") !== "code"
@@ -194,6 +207,17 @@ export function createFixtureNtasks(options: {
         : answer(request, { kind: "service", name: "service:noticeos", projects: [PROJECT_ID] });
     }
     if (path === "/api/tasks/projects") return answer(request, { projects: [project()] });
+    // The reads the Ntasks UI makes besides the board and a task.
+    if (path === "/api/workspaces" && request.method === "GET") {
+      return answer(request, { workspaces: [{ workspaceId: WORKSPACE_ID, name: WORKSPACE_NAME, role: "owner" }] });
+    }
+    if (path === "/api/tasks/capabilities") {
+      const decides = principal.kind === "person";
+      return answer(request, { live: true, writable: true, projectSelection: true,
+        operations: ["create", "update", "comment", "close", ...(decides ? ["respond", "dismiss", "resolve", "choose", "dispute"] : [])], editableFields: [] });
+    }
+    if (path === "/api/changes") return answer(request, { events: [], lastSeq: 0 });
+    if (path === "/api/fields") return answer(request, { fields: [] });
     if (path === "/api/tasks" && request.method === "GET") {
       if (url.searchParams.get("project") !== PROJECT_ID) return answer(request, { error: "not_found" }, { status: 404 });
       return answer(request, board(url));
@@ -206,7 +230,7 @@ export function createFixtureNtasks(options: {
     if (one && request.method === "GET") {
       if (!row) return answer(request, { error: "not_found" }, { status: 404 });
       return answer(request, { project: options.project().asset, prefix: options.project().prefix, repo: "", readAt: options.now,
-        task: toLiveTask(row, new Set()), comments: [], actors: [] });
+        task: toLiveTask(row, readyIds(options.rows())), comments: [], actors: [] });
     }
     if ((gate || action) && request.method === "POST") {
       const verb = gate ? "resolve" : action![2]!;

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useOwnerToast } from '@/lib/browser-context';
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { BrandLockup } from "@/components/BrandLockup";
+import { MarkdownText } from "@/components/MarkdownText";
 import { AgentMark } from "@/components/AgentMark";
 import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
@@ -23,7 +24,7 @@ import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { connectionCollections } from "@shared/scheduled-jobs";
 import { DeclineReasons } from "@/components/DeclineReasons";
 import type { SitesPayload } from "@shared/site-discovery";
-import { ChevronRight, CircleCheck, ListTodo, Users, ChartNoAxesCombined } from "lucide-react";
+import { Check, ChevronRight, Circle, CircleCheck, ListTodo, Users, ChartNoAxesCombined } from "lucide-react";
 import { type ReactNode, useEffect, useReducer, useState } from "react";
 
 import { GOOGLE_TESTING_GRANT_DAYS } from "@noticeos/contract/integrations";
@@ -136,9 +137,6 @@ import { CopyCommand } from "@/components/CopyCommand";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { A_WEEK_AGO, LAST_WEEK_BY_TODAY, WorkWeekChip } from "@/components/viz/WorkFlow";
-import { TaskProgressBar } from "@/components/viz/TaskProgressBar";
-import { ProjectJourneys } from "@/components/viz/ProjectJourneys";
-import { PROJECT_JOURNEYS_NOW_MS, PROJECT_JOURNEYS_WEEK_START, projectJourneyRows } from "@/components/viz/ProjectJourneys.fixtures";
 import { FinishLine } from "@/components/surface/FinishLine";
 import {
   ProviderCard,
@@ -172,14 +170,7 @@ import { SegmentBar } from "@/components/SegmentBar";
 import { TuneRate } from "@/components/TuneRate";
 import { StateChip } from "@/components/StateChip";
 import { UnknownPriceCount } from "@/components/UnknownPriceCount";
-import { TaskStatusChip } from "@/routes/tasks/task-face";
-import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
-import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
-import { ChoiceButtonsDemo } from "@/routes/kitchen-sink/choice-buttons-demo";
-import { CloseResolutionDemo } from "@/routes/kitchen-sink/close-resolution-demo";
-import { SelectionBarDemo } from "@/routes/kitchen-sink/selection-bar-demo";
 import { SiteArrangeDemo } from "@/routes/kitchen-sink/site-arrange-demo";
-import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/task-pieces-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
 import { Tabs } from "@/components/Tabs";
@@ -2974,17 +2965,6 @@ export function KitchenSinkRoute() {
           <Section title="JourneyMonitor, JourneyDefinitionEditor and SessionExploration · conversion, session paths and weekly history">
             <div className="w-full min-w-0" id="journey-monitor-demo"><JourneyMonitorDemo /></div>
           </Section>
-          <Section title="Visual kit for Tasks: TaskProgressBar, ProjectJourneys">
-            <div className="flex w-full flex-col gap-5">
-              <div className="flex w-full max-w-sm flex-col gap-3">
-                <TaskProgressBar segments={[...Array.from({ length: 6 }, () => ({ state: "done" as const })), { state: "needs-you" }, { state: "blocked" }, { state: "blocked" }]} />
-                <TaskProgressBar segments={[{ state: "done" }, { state: "done" }, { state: "in-progress" }, { state: "ready" }, { state: "waiting" }, { state: "parked" }, { state: "unknown" }]} />
-                <TaskProgressBar size="sm" segments={Array.from({ length: 5 }, () => ({ state: "done" as const }))} />
-              </div>
-              <ProjectJourneys rows={projectJourneyRows} nowMs={PROJECT_JOURNEYS_NOW_MS} weekStart={PROJECT_JOURNEYS_WEEK_START} />
-            </div>
-          </Section>
-
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">
               <PageAnswer answer="1 of 7 assets at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
@@ -4498,41 +4478,11 @@ export function KitchenSinkRoute() {
             <span className="tabular-nums">$4.49<UnknownPriceCount count={0} subject="spend:demo-priced" /></span>
           </Section>
 
-          {/* The `glyph` face: the task lifecycle already owns five shapes on
-              the cards, the Wall and the board, so on a chip it keeps them. */}
-          <Section title="StateChip glyph face (the task lifecycle, on /tasks/:id and the board)">
-            <TaskStatusChip subject="demo:task-open" status="open" />
-            <TaskStatusChip subject="demo:task-in-progress" status="in_progress" />
-            <TaskStatusChip subject="demo:task-blocked" status="blocked" />
-            <TaskStatusChip subject="demo:task-deferred" status="deferred" />
-            <TaskStatusChip subject="demo:task-closed" status="closed" />
-            <TaskStatusChip subject="demo:task-marinating" status="marinating" />
-          </Section>
-
-          {/* A record's fact drawn as its value and edited in place: each
-              editor kind, a link, a split chip and the read-only face. */}
-          <Section title="FactChip (a fact that edits where it is read: choice, typed value, date, link, read-only)">
-            <FactChipDemo />
-          </Section>
-
-          {/* A person's pick between an agent's options: the question, one
-              button per option with the recommended one first, the Note, and
-              the record a pick leaves. */}
-          <Section title="ChoiceButtons (two, three and six options, a recorded pick, and a workspace that cannot pick)">
-            <ChoiceButtonsDemo />
-          </Section>
-
-          {/* How a close ends: the task page's five chips over its line, a
-              row's Close as menu and its note, and the read-only face. */}
-          <Section title="ResolutionChips / CloseAsMenu / CloseNoteForm (Done first, the four closes where nothing shipped, a duplicate's line, read-only)">
-            <CloseResolutionDemo />
-          </Section>
-
-          {/* A list's Select, as Your decisions and All tasks draw it: the
-              toggle, a box per row, the bar's count and Select all, and
-              Close N as with the one line it opens. */}
-          <Section title="SelectionBar / SelectToggle / SelectBox (nothing picked, some picked, all picked, Close N as and a duplicate's line)">
-            <SelectionBarDemo />
+          {/* The `glyph` face: a state whose vocabulary already owns a shape
+              keeps it in place of the dot. */}
+          <Section title="StateChip glyph face (a state with its own shape)">
+            <StateChip subject="demo:glyph-open" label="Open" tone="neutral" glyph={<Circle aria-hidden className="size-3.5" />} />
+            <StateChip subject="demo:glyph-done" label="Done" tone="na" glyph={<Check aria-hidden className="size-3.5" />} />
           </Section>
 
           {/* The sites in their order with each site's switches, as Arrange,
@@ -4542,28 +4492,15 @@ export function KitchenSinkRoute() {
             <SiteArrangeDemo />
           </Section>
 
-          {/* Who blocks whom on a task's page: blockers left, blocked right,
-              each edge drawn as the board's Epic graph draws it. */}
-          <Section title="DependencyGraph (a task between what it waits on and what waits on it)">
-            <DependencyGraphDemo />
-          </Section>
-
-          {/* What happened to a task: the strip on a time axis to now, the
-              moments in order with who did each, the next comment last. */}
-          <Section title="TaskTimeline (filed, claimed, comments and the close on one time axis)">
-            <TaskTimelineDemo />
-          </Section>
-
-          {/* The task page's header: type word and id over the title, the
-              state, priority, holder, progress and ask beside it, the primary
-              action first; an epic's tasks by state under it. */}
-          <Section title="TaskHead / EpicTaskList (/tasks/:id: one header per type, an epic with its tasks, a held task, two decisions, a closed task)">
-            <TaskHeadDemo />
-          </Section>
-
           {/* The pair, side by side: booked and forecast money are told apart
               by fill and tone, so the split survives a glance across a room
               and a grayscale screen. */}
+          <Section title="MarkdownText (a task's description as the composer previews it)">
+            <div className="w-full max-w-xl">
+              <MarkdownText source={"## Steps\n\n- [x] Rebuild the sitemap\n- [ ] Check ex-a1 in `app/sitemap.ts`\n\n| Page | Visits |\n|---|---:|\n| /recipes | 120 |\n\n> [!NOTE]\n> The fixture's numbers are invented."} />
+            </div>
+          </Section>
+
           <Section title="BookingChip (reconciled / forecast — the ledger's honesty split)">
             <BookingChip subject="demo:booking-booked" state="booked" />
             <BookingChip subject="demo:booking-forecast" state="forecast" />

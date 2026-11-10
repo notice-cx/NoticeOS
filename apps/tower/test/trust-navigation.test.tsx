@@ -6,7 +6,6 @@ import { integrationLabel } from "@shared/integrations";
 import type { CardDataSource } from "@shared/wall";
 import { ListRow } from "@/components/surface/ListPanel";
 import { tabPath } from "@/routes/asset-detail/AssetTabs";
-import { taskReturnPath } from "@/routes/TaskRoute";
 
 describe("truthful connection state", () => {
   const nowMs = Date.parse("2026-09-05T12:05:00.000Z");
@@ -43,13 +42,6 @@ describe("navigation context", () => {
   it("normalizes default and invalid ranges", () => {
     expect(tabPath("meadow.example", "overview", "?range=28")).toBe("/assets/meadow.example");
     expect(tabPath("meadow.example", "overview", "?range=999")).toBe("/assets/meadow.example");
-  });
-  it("accepts internal return destinations and rejects external or malformed ones", () => {
-    expect(taskReturnPath({ returnTo: "/assets/meadow.example?range=90" })).toBe("/assets/meadow.example?range=90");
-    expect(taskReturnPath({ returnTo: "/?range=7" })).toBe("/?range=7");
-    for (const returnTo of ["https://example.com", "//example.com", "javascript:alert(1)", "/unrelated", null]) {
-      expect(taskReturnPath({ returnTo })).toBe("/tasks");
-    }
   });
   it("opens the exact task with return context instead of expanding", () => {
     function LocationProbe() {

@@ -14,7 +14,6 @@ import { AssetsRoute } from "@/routes/AssetsRoute";
 import { HomeRoute } from "@/routes/HomeRoute";
 import { IntegrationsRoute } from "@/routes/IntegrationsRoute";
 import { SettingsRoute } from "@/routes/SettingsRoute";
-import { TasksRoute } from "@/routes/TasksRoute";
 import { WallEditRoute } from "@/routes/WallEditRoute";
 import { WallRoute } from "@/routes/WallRoute";
 import WorkflowsRoute from "@/routes/WorkflowsRoute";
@@ -70,7 +69,6 @@ describe("a page whose first read failed draws the shared failure", () => {
     ["Alerts", "/alerts", <AlertsRoute />, "Couldn't load alerts", "/api/wall"],
     ["the Wall", "/wall", <WallRoute />, "Couldn't load the Wall", "/api/wall"],
     ["Integrations", "/integrations", <IntegrationsRoute />, "Couldn't load integrations", "/api/integrations/providers"],
-    ["Tasks", "/tasks", <TasksRoute />, "Couldn't load tasks", "/api/work"],
   ])("%s", async (_page, path, element, _title, read) => {
     const fetchMock = storeDown();
     const { container } = renderAt(path, element);
