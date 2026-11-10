@@ -21,6 +21,7 @@
         --blue: var(--brand-blue);
         --accent: var(--brand-accent);
         --accent-text: var(--brand-accent-text);
+        --accent-hover: var(--brand-accent-hover);
         --on-accent: var(--brand-on-accent);
         --accent-soft: var(--brand-accent-soft);
         --success: var(--brand-success);
@@ -258,8 +259,8 @@
         border-color: var(--accent);
       }
       .btn.primary:hover:not(:disabled) {
-        background: var(--accent);
-        filter: brightness(1.08);
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
       }
       .btn.ghost {
         border-color: transparent;
@@ -2419,6 +2420,7 @@
         "blue",
         "accent",
         "accent-text",
+        "accent-hover",
         "on-accent",
         "accent-soft",
         "success",

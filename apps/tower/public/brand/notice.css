@@ -77,6 +77,9 @@
   --brand-accent: var(--precise-accent);
   --brand-accent-text: var(--precise-accent-text);
   --brand-on-accent: var(--precise-on-accent);
+  /* A step darker on hover: a filter would brighten the white label with the
+     fill, and on dark that drops it under 4.5:1. */
+  --brand-accent-hover: color-mix(in oklab, var(--precise-accent) 88%, black);
   --brand-accent-soft: var(--precise-accent-soft);
   --brand-success: #69d99a;
   --brand-success-soft: #172f25;
@@ -118,6 +121,7 @@
   --brand-accent: var(--precise-accent);
   --brand-accent-text: var(--precise-accent-text);
   --brand-on-accent: var(--precise-on-accent);
+  --brand-accent-hover: color-mix(in oklab, var(--precise-accent) 88%, black);
   --brand-accent-soft: var(--precise-accent-soft);
   --brand-success: #18794e;
   --brand-success-soft: #e9f6ee;
