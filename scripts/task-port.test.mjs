@@ -22,6 +22,7 @@ async function otherTestProcess() {
 test('two test processes never get one task server port, and the kernel never hands one out', async () => {
   const other = await otherTestProcess();
   try {
+    assert.ok(Number.isInteger(other.port), 'the other process reserved a port');
     const mine = await reserveTaskPort({ start: other.port });
     try {
       assert.notEqual(mine.port, other.port);
@@ -34,8 +35,10 @@ test('two test processes never get one task server port, and the kernel never ha
     const again = await reserveTaskPort({ start: mine.port });
     try { assert.equal(again.port, mine.port, 'A released port is free again'); } finally { await again.release(); }
   } finally {
-    other.child.kill();
-    await once(other.child, 'exit');
+    if (other.child.exitCode === null && other.child.signalCode === null) {
+      other.child.kill();
+      await once(other.child, 'exit');
+    }
   }
   const after = await reserveTaskPort({ start: other.port });
   try { assert.equal(after.port, other.port, 'A port is free again once the process holding it ends'); } finally { await after.release(); }
